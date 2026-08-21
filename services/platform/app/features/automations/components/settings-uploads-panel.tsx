@@ -14,7 +14,14 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   iconForPath,
@@ -66,6 +73,7 @@ export function SettingsUploadsPanel({
   folder,
   form,
   disabled,
+  onBusyChange,
 }: {
   organizationId: string;
   projectId: Id<'projects'>;
@@ -73,11 +81,19 @@ export function SettingsUploadsPanel({
   folder: string;
   form: SettingsUploadsForm;
   disabled?: boolean;
+  /** Mirrors the panel's upload-in-flight state to the mounting form, which
+   * must not save (and unmount this panel) under a running upload. */
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const { t } = useT('automations');
   const { t: tDocuments } = useT('documents');
-  const { documents } = useProjectDocuments(projectId);
-  const { folders } = useProjectFolders(projectId);
+  const { documents, isLoading: documentsLoading } =
+    useProjectDocuments(projectId);
+  const { folders, isLoading: foldersLoading } = useProjectFolders(projectId);
+  // While either query is loading, "no rows" means NOTHING: painting the
+  // empty state would misreport, and creating folders against an unloaded
+  // list would duplicate a chain that already exists server-side.
+  const loading = documentsLoading || foldersLoading;
   const { mutateAsync: createFolder } = useCreateFolder();
   const { mutateAsync: deleteDocument } = useDeleteDocument();
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
@@ -99,6 +115,20 @@ export function SettingsUploadsPanel({
   const [createOpen, setCreateOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const fileInputId = useId();
+  // Folders THIS panel just created: the one legitimate window where the
+  // selection may point at an id the reactive listing hasn't caught up with.
+  const justCreatedRef = useRef<ReadonlySet<string>>(new Set());
+  // Latest folder list for the duplicate-adoption path below — an async
+  // recovery must not read a stale render's closure.
+  const foldersRef = useRef(folders);
+  useEffect(() => {
+    foldersRef.current = folders;
+  }, [folders]);
+
+  useEffect(() => {
+    onBusyChange?.(uploading);
+  }, [uploading, onBusyChange]);
 
   const toggleDir = useCallback((id: string) => {
     setExpanded((prev) => {
@@ -235,27 +265,90 @@ export function SettingsUploadsPanel({
 
   const selectedDir = dirs.find((dir) => dir.id === selectedDirId) ?? null;
 
+  // Reconcile the pick against the live subtree: a folder deleted (or moved
+  // out) elsewhere must not stay the invisible upload target behind a
+  // "no pick" UI. A folder this panel just created is the one legitimate
+  // not-listed-yet pick — it keeps the selection through the refresh window.
+  const dirIds = useMemo(() => new Set(dirs.map((dir) => dir.id)), [dirs]);
+  useEffect(() => {
+    if (loading || selectedDirId === null) return;
+    if (dirIds.has(selectedDirId)) {
+      if (justCreatedRef.current.has(selectedDirId)) {
+        const next = new Set(justCreatedRef.current);
+        next.delete(selectedDirId);
+        justCreatedRef.current = next;
+      }
+      return;
+    }
+    if (justCreatedRef.current.has(selectedDirId)) return;
+    setSelectedDirId(null);
+  }, [dirIds, selectedDirId, loading]);
+
   const acceptSet = new Set(form.accept.map((ext) => ext.toLowerCase()));
 
+  /** Create one folder, or adopt it when it already exists: the reactive
+   * folder list lags the server, and the settings SAVE path creates the same
+   * settings folder through its own get-or-create — racing it must not fail
+   * the upload with a duplicate-name error. */
+  const createOrAdopt = async (
+    name: string,
+    parentId?: string,
+  ): Promise<string> => {
+    try {
+      return String(
+        await createFolder({
+          organizationId,
+          name,
+          ...(parentId !== undefined && {
+            parentId: toId<'folders'>(parentId),
+          }),
+          projectId,
+        }),
+      );
+    } catch (error) {
+      if (extractErrorCode(error) === 'FOLDER_DUPLICATE_NAME') {
+        const existing = foldersRef.current.find(
+          (entry) =>
+            entry.name === name &&
+            String(entry.parentId ?? '') === (parentId ?? ''),
+        );
+        if (existing !== undefined) return String(existing._id);
+      }
+      throw error;
+    }
+  };
+
+  // Single-flight + created-id memory: `createFolder` is not idempotent, and
+  // ensureRoot has two callers (drop, New folder) that can both run before
+  // the reactive list shows the chain they created.
+  const ensureRootRef = useRef<Promise<string> | null>(null);
+  const createdRootRef = useRef<string | null>(null);
+
   /** The settings folder + declared subdir, created on first need. */
-  const ensureRoot = async (): Promise<string> => {
-    if (panelRoot !== undefined) return String(panelRoot._id);
-    const settingsFolderId = settingsFolder
-      ? String(settingsFolder._id)
-      : String(await createFolder({ organizationId, name: folder, projectId }));
-    if (!form.subdir) return settingsFolderId;
-    return String(
-      await createFolder({
-        organizationId,
-        name: form.subdir,
-        parentId: toId<'folders'>(settingsFolderId),
-        projectId,
-      }),
-    );
+  const ensureRoot = (): Promise<string> => {
+    if (panelRoot !== undefined) return Promise.resolve(String(panelRoot._id));
+    if (createdRootRef.current !== null)
+      return Promise.resolve(createdRootRef.current);
+    ensureRootRef.current ??= (async () => {
+      const settingsFolderId = settingsFolder
+        ? String(settingsFolder._id)
+        : await createOrAdopt(folder);
+      const rootId = form.subdir
+        ? await createOrAdopt(form.subdir, settingsFolderId)
+        : settingsFolderId;
+      createdRootRef.current = rootId;
+      return rootId;
+    })().catch((error: unknown) => {
+      // A failed attempt must not poison later ones.
+      ensureRootRef.current = null;
+      throw error;
+    });
+    return ensureRootRef.current;
   };
 
   const handleFiles = async (files_: File[]) => {
-    if (files_.length === 0 || uploading || disabled === true) return;
+    if (files_.length === 0 || uploading || disabled === true || loading)
+      return;
     setUploading(true);
     let okCount = 0;
     // Prefer the raw selection id over the dirs-derived row: right after
@@ -368,7 +461,7 @@ export function SettingsUploadsPanel({
 
   const handleCreateFolder = async () => {
     const name = newFolderName.trim();
-    if (folderNameInvalid(name) || creatingFolder) return;
+    if (folderNameInvalid(name) || creatingFolder || loading) return;
     setCreatingFolder(true);
     try {
       // New folders nest under the picked folder, so the operator can grow
@@ -384,6 +477,9 @@ export function SettingsUploadsPanel({
           projectId,
         }),
       );
+      // Provisional until the reactive listing shows it — keeps the pick
+      // (and the reconciliation effect) honest through the refresh window.
+      justCreatedRef.current = new Set([...justCreatedRef.current, created]);
       setSelectedDirId(created);
       // The new folder must be visible (and stay visible once files land in
       // it): expand it and its parent — the panel-root id is not a tree row,
@@ -427,22 +523,41 @@ export function SettingsUploadsPanel({
     }
   };
 
+  // Roving tabindex: exactly one row carries the tab stop. The picked folder
+  // when there is one; otherwise the FIRST rendered row — without a fallback
+  // Tab skips the tree entirely, and with `requireFolder` a keyboard user
+  // could never pick the folder the form demands.
+  const rootDirRows = childDirs.get('') ?? [];
+  const rootFileRows = filesIn.get('') ?? [];
+  const hasValidPick = selectedDirId !== null && dirIds.has(selectedDirId);
+  const firstRowKey =
+    rootDirRows[0]?.id ??
+    (rootFileRows[0] !== undefined ? String(rootFileRows[0].doc._id) : null);
+  const treeBusy = uploading || disabled === true;
+
   const renderFile = (
     file: { doc: (typeof documents)[number]; displayPath: string },
     depth: number,
+    parentKey: string,
   ) => {
     const { doc, displayPath } = file;
     const baseName = displayPath.split('/').pop() ?? displayPath;
     const FileIcon = iconForPath(baseName);
+    const rowKey = String(doc._id);
     return (
-      <li key={String(doc._id)} role="none">
+      <li key={rowKey} role="none">
         <HStack gap={1} align="center">
           <div className="min-w-0 flex-1">
-            {/* Not a treeitem: nothing opens on click (the Files tab's
-                non-openable rows read the same way); the delete affordance
-                sits beside the row. */}
+            {/* A treeitem with no action of its own (this panel opens
+                nothing): focusable so arrow navigation walks files too, but
+                not a button — the delete affordance sits beside the row. */}
             <div
-              className="text-muted-foreground flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs"
+              role="treeitem"
+              aria-level={depth + 1}
+              aria-selected={false}
+              tabIndex={!hasValidPick && rowKey === firstRowKey ? 0 : -1}
+              data-parent-path={parentKey === '' ? undefined : parentKey}
+              className="text-muted-foreground focus-visible:ring-ring flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs focus-visible:ring-1 focus-visible:outline-none"
               style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
             >
               <FileIcon className="size-3.5 shrink-0" aria-hidden="true" />
@@ -461,7 +576,7 @@ export function SettingsUploadsPanel({
             aria-label={t('settings.uploads.remove', {
               name: displayPath,
             })}
-            disabled={uploading || disabled === true}
+            disabled={treeBusy}
             onClick={() =>
               setConfirmDelete({ id: doc._id, title: displayPath })
             }
@@ -488,8 +603,9 @@ export function SettingsUploadsPanel({
         <TreeRowButton
           isActive={isSelected}
           depth={depth}
+          disabled={treeBusy}
+          tabbable={hasValidPick ? isSelected : dir.id === firstRowKey}
           onClick={() => {
-            if (uploading || disabled === true) return;
             setSelectedDirId(isSelected ? null : dir.id);
             if (!isExpanded) toggleDir(dir.id);
             else if (isSelected) toggleDir(dir.id);
@@ -514,7 +630,7 @@ export function SettingsUploadsPanel({
         {isExpanded && (subDirs.length > 0 || dirFiles.length > 0) ? (
           <ul role="group">
             {subDirs.map((sub) => renderDir(sub, depth + 1))}
-            {dirFiles.map((file) => renderFile(file, depth + 1))}
+            {dirFiles.map((file) => renderFile(file, depth + 1, dir.id))}
           </ul>
         ) : null}
       </li>
@@ -523,18 +639,25 @@ export function SettingsUploadsPanel({
 
   return (
     <Stack gap={3}>
-      {dirs.length > 0 || fileCount > 0 ? (
+      {loading ? (
+        <Text as="p" variant="muted" className="text-sm">
+          {t('settings.uploads.loading')}
+        </Text>
+      ) : dirs.length > 0 || fileCount > 0 ? (
         <ul
           ref={treeRef}
           role="tree"
           aria-label={t('settings.uploads.treeLabel')}
           className="flex flex-col gap-0.5"
-          onKeyDown={(event) =>
-            treeNavigationKeyDown(event, treeRef.current, expanded, toggleDir)
-          }
+          onKeyDown={(event) => {
+            // Frozen tree freezes for the keyboard too — arrows must not
+            // expand rows whose clicks are disabled.
+            if (treeBusy) return;
+            treeNavigationKeyDown(event, treeRef.current, expanded, toggleDir);
+          }}
         >
-          {(childDirs.get('') ?? []).map((dir) => renderDir(dir, 0))}
-          {(filesIn.get('') ?? []).map((file) => renderFile(file, 0))}
+          {rootDirRows.map((dir) => renderDir(dir, 0))}
+          {rootFileRows.map((file) => renderFile(file, 0, ''))}
         </ul>
       ) : (
         <Text as="p" variant="muted" className="text-sm">
@@ -554,7 +677,10 @@ export function SettingsUploadsPanel({
             onFilesSelected={(picked) => void handleFiles(picked)}
             accept={form.accept.join(',')}
             multiple
-            disabled={uploading || disabled === true}
+            disabled={uploading || disabled === true || loading}
+            // A per-instance input id: the shared default collides when a
+            // declaration carries several uploads forms on one setup page.
+            inputId={fileInputId}
             aria-label={t('settings.uploads.addButton')}
             className="hover:border-primary/50 relative flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border-2 border-dashed p-4 transition-colors"
           >
@@ -579,7 +705,7 @@ export function SettingsUploadsPanel({
             type="button"
             variant="secondary"
             size="sm"
-            disabled={uploading || disabled === true}
+            disabled={uploading || disabled === true || loading}
             onClick={() => setCreateOpen(true)}
           >
             <FolderPlus className="size-4" aria-hidden="true" />

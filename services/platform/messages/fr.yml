@@ -845,6 +845,7 @@ automations:
       pattern: Ne correspond pas au format attendu.
     uploads:
       empty: Aucun fichier pour l'instant.
+      loading: Chargement des fichiers…
       treeLabel: Fichiers téléversés
       addButton: Dépose des fichiers ici ou clique pour téléverser
       addToFolder: 'Dépose des fichiers ici — ils iront dans « {folder} »'

@@ -3,7 +3,7 @@
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -63,10 +63,17 @@ export function AutomationSettingsForm({
     folder,
   });
 
+  // Uploads panels report their in-flight uploads (by declaration index):
+  // saving mid-upload would unmount the panel under a running `handleFiles`.
+  const [busyUploads, setBusyUploads] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+  const uploadsBusy = busyUploads.size > 0;
+
   const { saving } = editor;
   useEffect(() => {
-    onSavingChange?.(saving);
-  }, [saving, onSavingChange]);
+    onSavingChange?.(saving || uploadsBusy);
+  }, [saving, uploadsBusy, onSavingChange]);
 
   const saveAll = async () => {
     try {
@@ -74,7 +81,22 @@ export function AutomationSettingsForm({
         write: editor.fieldsForms,
         validate: editor.fieldsForms,
       });
-      if (result.ok) onSaved?.();
+      if (result.ok) {
+        onSaved?.();
+        return;
+      }
+      // Reveal the refusal: with every form stacked in one scroll column the
+      // offending control may sit off-screen, and a silent no-op reads as a
+      // dead Save button (the tabbed dialog's analog is switching tabs).
+      if (result.firstInvalid !== undefined) {
+        const control = document.getElementById(
+          `automation-settings-${result.firstInvalid.file}-${result.firstInvalid.key}`,
+        );
+        // Optional call: jsdom has no scrollIntoView, and the focus below
+        // must still land there.
+        control?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+        control?.focus({ preventScroll: true });
+      }
     } catch (error) {
       console.error('[automations] settings save failed', error);
       toast({ title: t('settings.saveFailed'), variant: 'destructive' });
@@ -84,12 +106,20 @@ export function AutomationSettingsForm({
   return (
     // The form element renders in the pending/failed states too, so the
     // footer's `form`-targeted submit button never points at nothing; the
-    // handler just refuses until the values have loaded.
+    // handler just refuses until the values have loaded. `noValidate` keeps
+    // the browser's constraint validation out of the way (fields carry native
+    // `required`): the editor's localized validation is the one source of
+    // error display, same as `FormDialog`.
     <form
       id={formId}
+      noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        if (editor.pending || editor.failed || editor.saving) return;
+        // Only THIS form's submit counts: a nested dialog's submit bubbling
+        // up the React tree must not save the whole gate underneath it.
+        if (event.target !== event.currentTarget) return;
+        if (editor.pending || editor.failed || editor.saving || uploadsBusy)
+          return;
         void saveAll();
       }}
     >
@@ -125,6 +155,19 @@ export function AutomationSettingsForm({
                     folder={folder}
                     form={form}
                     disabled={editor.saving}
+                    onBusyChange={(busy) =>
+                      setBusyUploads((prev) => {
+                        // Identity-stable when nothing changes: the panel's
+                        // mirror effect re-runs on every parent render (the
+                        // callback is inline), and a fresh Set each time
+                        // would re-render forever.
+                        if (busy === prev.has(index)) return prev;
+                        const next = new Set(prev);
+                        if (busy) next.add(index);
+                        else next.delete(index);
+                        return next;
+                      })
+                    }
                   />
                 </BorderedSection>
               );

@@ -51,6 +51,7 @@ export function SettingsFormDescription({ text }: { text: string }) {
           type="button"
           size="sm"
           variant="ghost"
+          aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
           className="text-muted-foreground -ml-2 h-6 px-2 text-xs"
         >

@@ -83,7 +83,7 @@ const SETTINGS = fixture({
     },
   ],
 });
-function mount(onSaved = vi.fn()) {
+function mount(onSaved = vi.fn(), onSavingChange = vi.fn()) {
   // A real QueryClient: a save invalidates the values query, and that
   // invalidation is part of the contract (the form settles back to clean).
   const client = new QueryClient({
@@ -98,6 +98,7 @@ function mount(onSaved = vi.fn()) {
         folder="Setup"
         formId="setup-form"
         onSaved={onSaved}
+        onSavingChange={onSavingChange}
       />
       {/* The component renders NO button of its own: the mounting dialog's
           footer submits it via the `form` attribute — mirrored here. */}
@@ -106,7 +107,7 @@ function mount(onSaved = vi.fn()) {
       </button>
     </QueryClientProvider>,
   );
-  return { ...utils, onSaved };
+  return { ...utils, onSaved, onSavingChange };
 }
 
 describe('AutomationSettingsForm — setup mode', () => {
@@ -120,7 +121,7 @@ describe('AutomationSettingsForm — setup mode', () => {
       isError: false,
     });
 
-    const { user, onSaved } = mount();
+    const { user, onSaved, onSavingChange } = mount();
 
     expect(screen.getByText('Client identity')).toBeInTheDocument();
 
@@ -131,12 +132,22 @@ describe('AutomationSettingsForm — setup mode', () => {
     expect(save).toHaveAttribute('form', 'setup-form');
     const form = document.querySelector('form#setup-form');
     if (!(form instanceof HTMLFormElement)) throw new Error('form missing');
+    // Without noValidate the browser's constraint validation (fields carry
+    // native `required`) would swallow the submit before the app-level
+    // localized errors ever run — jsdom can't exercise that, so lock the
+    // attribute itself.
+    expect(form).toHaveAttribute('novalidate');
     const submit = () => fireEvent.submit(form);
 
     // Empty required fields refuse the save.
     submit();
     expect(convexMocks.write).not.toHaveBeenCalled();
     expect(screen.getAllByText('This field is required.')).not.toHaveLength(0);
+    // The refusal is REVEALED, not silent: focus lands on the first
+    // offending control (the stacked column may have scrolled it away).
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText(/Legal name/)),
+    );
 
     await user.type(screen.getByLabelText(/Legal name/), 'Acme Corp');
     await user.type(screen.getByLabelText(/Case ID/), 'CASE-999');
@@ -151,6 +162,9 @@ describe('AutomationSettingsForm — setup mode', () => {
     submit();
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    // The saving state was mirrored out (footer disable) and settled back.
+    expect(onSavingChange).toHaveBeenCalledWith(true);
+    expect(onSavingChange).toHaveBeenLastCalledWith(false);
     expect(convexMocks.write).toHaveBeenCalledTimes(2);
     expect(convexMocks.write).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -169,5 +183,23 @@ describe('AutomationSettingsForm — setup mode', () => {
         yaml: { method: 'strict_rules', allow_fixture_rules: 'false' },
       }),
     );
+  });
+
+  it('renders the <form id> while values are still loading — the footer button never dangles', () => {
+    convexMocks.read.mockReset().mockReturnValue({
+      data: undefined,
+      isPending: true,
+      isError: false,
+    });
+    convexMocks.write.mockReset();
+
+    mount();
+
+    const form = document.querySelector('form#setup-form');
+    expect(form).toBeInTheDocument();
+    // Loading state inside the form, and a submit is refused, not exploded.
+    expect(screen.getByText('Loading settings…')).toBeInTheDocument();
+    if (form instanceof HTMLFormElement) fireEvent.submit(form);
+    expect(convexMocks.write).not.toHaveBeenCalled();
   });
 });

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '@/convex/_generated/dataModel';
 import type { SettingsUploadsForm } from '@/lib/shared/schemas/automation_settings';
-import { render, screen } from '@/tests/utils/render';
+import { fireEvent, render, screen } from '@/tests/utils/render';
 
 const toastMock = vi.hoisted(() => vi.fn());
 vi.mock('@/app/hooks/use-toast', () => ({ toast: toastMock }));
@@ -30,16 +30,17 @@ vi.mock('@/app/features/documents/hooks/mutations', () => ({
 const projectData = vi.hoisted(() => ({
   documents: [] as Array<{ _id: string; title: string; folderId: string }>,
   folders: [] as Array<{ _id: string; name: string; parentId?: string }>,
+  loading: false,
 }));
 
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectDocuments: () => ({
     documents: projectData.documents,
-    isLoading: false,
+    isLoading: projectData.loading,
   }),
   useProjectFolders: () => ({
     folders: projectData.folders,
-    isLoading: false,
+    isLoading: projectData.loading,
   }),
 }));
 
@@ -77,6 +78,7 @@ describe('SettingsUploadsPanel', () => {
     projectData.folders = [
       { _id: 'folder_setup', name: 'Setup', parentId: undefined },
     ];
+    projectData.loading = false;
   });
 
   it('refuses an upload whose name never matches — before any byte moves', async () => {
@@ -123,7 +125,7 @@ describe('SettingsUploadsPanel', () => {
     expect(remove).toHaveAttribute('type', 'button');
   });
 
-  it('with a declared subdir, lists ONLY that subtree — settings-folder files stay out', () => {
+  it('with a declared subdir, lists ONLY that subtree — settings-folder files stay out', async () => {
     projectData.folders = [
       { _id: 'folder_setup', name: 'Setup', parentId: undefined },
       { _id: 'folder_fr', name: 'filed-returns', parentId: 'folder_setup' },
@@ -140,16 +142,22 @@ describe('SettingsUploadsPanel', () => {
       },
       { _id: 'doc_pdf', title: 'return-q1.pdf', folderId: 'folder_q1' },
     ];
-    mount({ ...FORM, subdir: 'filed-returns', requireFolder: true });
+    const { user } = mount({
+      ...FORM,
+      subdir: 'filed-returns',
+      requireFolder: true,
+    });
 
     expect(
       screen.queryByText('history-2025-Q1-filed.json'),
     ).not.toBeInTheDocument();
     // The declared subtree itself is there: the quarter folder, collapsed.
-    expect(screen.getByRole('treeitem', { name: '2025Q1' })).toHaveAttribute(
-      'aria-expanded',
-      'false',
-    );
+    const quarter = screen.getByRole('treeitem', { name: '2025Q1' });
+    expect(quarter).toHaveAttribute('aria-expanded', 'false');
+    // …and it really LISTS the subtree: expanding shows the quarter's file
+    // (an empty-but-green listing must not pass).
+    await user.click(quarter);
+    expect(screen.getByText('return-q1.pdf')).toBeInTheDocument();
   });
 
   it('collapses folders by default; a click reveals the files and picks the target', async () => {
@@ -170,17 +178,70 @@ describe('SettingsUploadsPanel', () => {
     const folderRow = screen.getByRole('treeitem', { name: '2025Q1' });
     expect(folderRow).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText('history-b-filed.json')).not.toBeInTheDocument();
+    // Roving tabindex fallback: with nothing picked, the FIRST row carries
+    // the tab stop so keyboard users can enter the tree at all.
+    expect(folderRow).toHaveAttribute('tabindex', '0');
 
     // Click = expand AND pick as upload target (project Files tab semantics).
     await user.click(folderRow);
     expect(folderRow).toHaveAttribute('aria-expanded', 'true');
     expect(folderRow).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('history-b-filed.json')).toBeInTheDocument();
+    // The pick is wired through: the drop zone now names the folder…
+    expect(
+      screen.getByText('Drop files here — they go to "2025Q1"'),
+    ).toBeInTheDocument();
+    // …and the revealed file row is a NAVIGABLE treeitem, not a dead div.
+    const fileRow = screen
+      .getAllByRole('treeitem')
+      .find((row) => row.textContent?.includes('history-b-filed.json'));
+    expect(fileRow).toBeDefined();
 
     // Clicking the picked folder again collapses it and clears the target.
     await user.click(folderRow);
     expect(folderRow).toHaveAttribute('aria-expanded', 'false');
     expect(folderRow).toHaveAttribute('aria-selected', 'false');
     expect(screen.queryByText('history-b-filed.json')).not.toBeInTheDocument();
+  });
+
+  it('shows a loading state instead of the empty text while the queries load', () => {
+    projectData.loading = true;
+    mount();
+
+    expect(screen.getByText('Loading files…')).toBeInTheDocument();
+    expect(screen.queryByText('No files yet.')).not.toBeInTheDocument();
+    // No upload while "empty" might just mean "not loaded yet" — creating
+    // the folder chain against an unloaded list would duplicate it.
+    expect(document.querySelector('input[type="file"]')).toBeDisabled();
+  });
+
+  it("keeps a nested create-folder submit out of the ancestor form's onSubmit", async () => {
+    const outerSubmit = vi.fn((event: { preventDefault: () => void }) => {
+      event.preventDefault();
+    });
+    const { user } = render(
+      // The setup gate wraps the panel in a real <form>; the create-folder
+      // FormDialog mounts in a portal but React still bubbles submit along
+      // the component tree — FormDialog must stop it (a folder create once
+      // saved the whole gate underneath).
+      <form onSubmit={outerSubmit}>
+        <SettingsUploadsPanel
+          organizationId="org_1"
+          projectId={'project_1' as Id<'projects'>}
+          folder="Setup"
+          form={FORM}
+        />
+      </form>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'New folder' }));
+    const nameInput = await screen.findByPlaceholderText('e.g. Invoices');
+    await user.type(nameInput, '2026Q1');
+    const dialogForm = nameInput.closest('form');
+    if (!(dialogForm instanceof HTMLFormElement))
+      throw new Error('dialog form missing');
+    fireEvent.submit(dialogForm);
+
+    expect(outerSubmit).not.toHaveBeenCalled();
   });
 });

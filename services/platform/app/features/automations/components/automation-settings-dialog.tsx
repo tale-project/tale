@@ -168,6 +168,10 @@ export function AutomationSettingsDialog({
           listAriaLabel={t('settings.tabsLabel')}
           overflowMenu
           overflowMenuLabel={t('settings.moreTabs')}
+          // The panels are stateful editors: an uploads panel's expansion and
+          // picked upload target (and any half-typed field) must survive a
+          // look at another tab.
+          keepMounted
           items={editor.forms.map((form, index) => ({
             value: keyOf(form, index),
             label: (

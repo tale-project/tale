@@ -546,7 +546,13 @@ function TemplateCreateBody({
     </Stack>
   );
   const cancelButton = (
-    <Button variant="secondary" onClick={onClose} disabled={submitting}>
+    // Also locked while the setup gate is saving: dismissing mid-save would
+    // race the files being written (`setupSaving` is false in other phases).
+    <Button
+      variant="secondary"
+      onClick={onClose}
+      disabled={submitting || setupSaving}
+    >
       {tCommon('actions.cancel')}
     </Button>
   );
@@ -608,8 +614,10 @@ function TemplateCreateBody({
         footer={
           <Row gap={2} justify="end">
             {cancelButton}
-            {/* Targets the settings <form> in the scroll body via the `form`
-                attribute — one action row, pinned with Cancel. */}
+            {/* Targets the settings <form> in the body via the `form`
+                attribute — one action row beside Cancel. (In the auto-height
+                create dialog this row scrolls with the page; only the
+                fixed-height edit dialog truly pins its footer.) */}
             <Button type="submit" form={SETUP_FORM_ID} disabled={setupSaving}>
               {tAutomations('settings.saveAndContinue')}
             </Button>

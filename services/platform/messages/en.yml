@@ -804,6 +804,7 @@ automations:
       pattern: This doesn't match the expected format.
     uploads:
       empty: No files yet.
+      loading: Loading files…
       treeLabel: Uploaded files
       addButton: Drop files here or click to upload
       addToFolder: 'Drop files here — they go to "{folder}"'

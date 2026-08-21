@@ -838,6 +838,7 @@ automations:
       pattern: Das entspricht nicht dem erwarteten Format.
     uploads:
       empty: Noch keine Dateien.
+      loading: Dateien werden geladen…
       treeLabel: Hochgeladene Dateien
       addButton: Dateien hier ablegen oder klicken zum Hochladen
       addToFolder: 'Dateien hier ablegen — sie landen in "{folder}"'
