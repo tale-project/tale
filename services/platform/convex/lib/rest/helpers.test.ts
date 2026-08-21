@@ -101,6 +101,8 @@ describe('httpStatusForConvexCode', () => {
     ['AUTOMATION_SAVE_REJECTED', 400],
     ['AUTOMATION_TRIGGER_REJECTED', 400],
     ['AUTOMATION_RUN_NOT_FOUND', 404],
+    // A project binding must point at a real automation.
+    ['AUTOMATION_NOT_FOUND', 404],
     // A create against a name that already has versions.
     ['AUTOMATION_NAME_TAKEN', 409],
     // A run named a real project the automation is not bound to (bad argument,

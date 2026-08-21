@@ -853,6 +853,59 @@ function buildSpec(): Json {
     },
   };
 
+  paths['/api/v1/automations/{name}/projects'] = {
+    post: {
+      tags: ['Automations'],
+      summary: 'Bind the automation to a project',
+      description:
+        'Idempotently adds ONE project to the automation’s binding set — ' +
+        'the machine door’s install step, so a worker that just created a ' +
+        'client project can put the automation on it without a human. The ' +
+        'binding SET is the scope: an automation with no bindings is ' +
+        'org-level (every project sees it); one with bindings runs only in ' +
+        'those projects. Requires the developer capability (the same gate ' +
+        'as the session binding panel), and a key whose user belongs to ' +
+        'several organizations must send `X-Organization-Slug`. The target ' +
+        'project must be visible to the key’s minting user — an invisible ' +
+        'or foreign project answers the same 404 as an absent one. Answers ' +
+        '201 when the binding was added, 200 when it already existed. ' +
+        'Unbinding stays a dashboard operation.',
+      operationId: 'bindAutomationProject',
+      security: sec,
+      parameters: [automationNameParam, orgSlugHeaderParam],
+      requestBody: jsonBody({
+        type: 'object',
+        required: ['projectId'],
+        properties: {
+          projectId: { type: 'string', description: 'The project to bind' },
+        },
+      }),
+      responses: {
+        '201': jsonResponse('Binding added', {
+          type: 'object',
+          required: ['name', 'added'],
+          properties: {
+            name: { type: 'string' },
+            added: { type: 'boolean', enum: [true] },
+          },
+        }),
+        '200': jsonResponse('Binding already existed', {
+          type: 'object',
+          required: ['name', 'added'],
+          properties: {
+            name: { type: 'string' },
+            added: { type: 'boolean', enum: [false] },
+          },
+        }),
+        '403': errorResponse('The key holder lacks the developer capability'),
+        '404': errorResponse(
+          'Automation or project not found (or not visible to the key)',
+        ),
+        ...standardErrors,
+      },
+    },
+  };
+
   paths['/api/v1/automations/{name}/triggers'] = {
     get: {
       tags: ['Automations'],

@@ -248,6 +248,62 @@ describe('GET /api/v1/automations/:name/...', () => {
   });
 });
 
+describe('POST /api/v1/automations/:name/projects (bind)', () => {
+  const post = automationPostActions as unknown as Handler;
+  const BIND = 'automations/rest_api:restBindAutomationProject';
+  const request = (json: Record<string, unknown> = { projectId: 'proj_1' }) =>
+    restRequest('/api/v1/automations/ops__x/projects', {
+      method: 'POST',
+      json,
+    });
+
+  it('binds for a developer — 201 on a new binding, delegated with the key user', async () => {
+    const { ctx, calls } = restCtx(
+      { [BIND]: () => ({ added: true }) },
+      { role: 'developer' },
+    );
+    const response = await post(ctx, request());
+    expect(response.status).toBe(201);
+    expect(await jsonBody(response)).toEqual({ name: 'ops/x', added: true });
+    expect(argsOf(calls, BIND)).toEqual({
+      organizationId: TEST_ORG_ID,
+      userId: TEST_USER_ID,
+      name: 'ops/x',
+      projectId: 'proj_1',
+    });
+  });
+
+  it('answers 200 when the binding already existed (idempotent)', async () => {
+    const { ctx } = restCtx(
+      { [BIND]: () => ({ added: false }) },
+      { role: 'developer' },
+    );
+    const response = await post(ctx, request());
+    expect(response.status).toBe(200);
+    expect(await jsonBody(response)).toEqual({ name: 'ops/x', added: false });
+  });
+
+  it('refuses without the developer capability (403), before any write', async () => {
+    const { ctx, calls } = restCtx(
+      { [BIND]: () => ({ added: true }) },
+      { role: 'member' },
+    );
+    const response = await post(ctx, request());
+    expect(response.status).toBe(403);
+    expect(called(calls, BIND)).toBe(false);
+  });
+
+  it('requires projectId (400)', async () => {
+    const { ctx, calls } = restCtx(
+      { [BIND]: () => ({ added: true }) },
+      { role: 'developer' },
+    );
+    const response = await post(ctx, request({}));
+    expect(response.status).toBe(400);
+    expect(called(calls, BIND)).toBe(false);
+  });
+});
+
 describe('POST /api/v1/automations/:name/runs', () => {
   const post = automationPostActions as unknown as Handler;
   const started: StubRoutes = {

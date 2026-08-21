@@ -7,6 +7,7 @@
  *   GET    /api/v1/automations/:name/versions         — Version history
  *   GET    /api/v1/automations/:name/runs             — Run log (paginated)
  *   POST   /api/v1/automations/:name/runs             — Start a run (202); body {input?, mode?, version?, projectId?}
+ *   POST   /api/v1/automations/:name/projects         — Bind to a project (idempotent add); body {projectId}
  *   GET    /api/v1/automations/:name/triggers         — The automation's trigger
  *   PUT    /api/v1/automations/:name/triggers         — Bind the trigger
  *   DELETE /api/v1/automations/:name/triggers         — Unbind the trigger
@@ -39,13 +40,16 @@
 import { ConvexError, v } from 'convex/values';
 
 import { paramToAutomationSlug } from '../../lib/automations/slug';
+import { defineAbilityFor } from '../../lib/permissions/ability';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, internalQuery } from '../_generated/server';
 import {
+  applyRateLimit,
   BadRequestError,
   extractPathParts,
   jsonAccepted,
+  jsonCreated,
   jsonError,
   jsonNoContent,
   jsonOk,
@@ -55,13 +59,19 @@ import {
   parsePageLimit,
   readJsonObject,
   readJsonObjectOrEmpty,
+  requiredString,
   requireRestDeveloper,
+  resolveOrganization,
   withRestAuth,
 } from '../lib/rest/helpers';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { beginRun } from './mutations';
 import {
+  assertAutomationName,
   assertRunProjectAllowed,
   automationStore,
+  bindAutomationToProject,
   deploymentRow,
   listAutomationsFor,
   triggerRow,
@@ -192,6 +202,39 @@ export const automationPostActions = withRestAuth(
     const parsed = nameFromPath(url);
     if (parsed instanceof Response) return parsed;
     const { name, subPath } = parsed;
+
+    if (subPath === 'projects') {
+      // Bind the automation to a project — the machine door's install step,
+      // so a worker that just created a client project can put the desk on it
+      // without a human. A CRUD write, not work-starting: top up the plain
+      // lane so its effective budget is the tighter of the two buckets.
+      const limited = await applyRateLimit(rc.ctx, 'rest:api', request);
+      if (limited) return limited;
+      // Write-capable machine op on this pre-existing route: never follow the
+      // last-active pointer. When no explicit slug was sent, re-resolve with
+      // the strict flag — a multi-org key gets the coded 400, a single-org
+      // key resolves to its one org (which rc.org already is).
+      if (!request.headers.get('x-organization-slug')?.trim()) {
+        await resolveOrganization(rc.ctx, rc.user.userId, {
+          requireExplicitOrgSlug: true,
+        });
+      }
+      // The same capability the session binding panel requires.
+      await requireRestDeveloper(rc);
+      const body = await readJsonObject(request);
+      const projectId = requiredString(body, 'projectId', 64);
+      const result = await rc.ctx.runMutation(
+        internal.automations.rest_api.restBindAutomationProject,
+        {
+          organizationId: rc.org.organizationId,
+          userId: rc.user.userId,
+          name,
+          projectId,
+        },
+      );
+      const payload = { name, added: result.added };
+      return result.added ? jsonCreated(payload) : jsonOk(payload);
+    }
 
     if (subPath !== 'runs') {
       return jsonError(`Unknown action: ${subPath ?? ''}`, 404);
@@ -698,6 +741,91 @@ export const restStartRun = internalMutation({
       });
     }
     return started;
+  },
+});
+
+/**
+ * Idempotently add ONE project to the automation's binding set on behalf of
+ * an explicit user — the backing mutation of
+ * `POST /api/v1/automations/{name}/projects`. Single-row add through the
+ * store's `bindAutomationToProject` (unique-index probe), never a whole-set
+ * reconcile, so two workers binding two projects concurrently cannot clobber
+ * each other's rows. Re-runs the developer gate with the explicit user
+ * (defense in depth behind the handler's `requireRestDeveloper`), and the
+ * target project must exist in-org AND be visible to the minting user — an
+ * invisible project answers the same PROJECT_NOT_FOUND as an absent one.
+ */
+export const restBindAutomationProject = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    name: v.string(),
+    projectId: v.string(),
+  },
+  returns: v.object({ added: v.boolean() }),
+  handler: async (ctx, args): Promise<{ added: boolean }> => {
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: args.userId,
+      email: undefined,
+      name: undefined,
+    });
+    if (defineAbilityFor(member.role).cannot('read', 'developerSettings')) {
+      throw new ConvexError({
+        code: 'FORBIDDEN_DEVELOPER_SETTINGS',
+        message: `Role "${member.role}" lacks the developer-settings capability required to bind automations.`,
+      });
+    }
+
+    let name: string;
+    try {
+      name = assertAutomationName(args.name);
+    } catch {
+      throw new ConvexError({
+        code: 'INVALID_ARGUMENTS',
+        message: 'Invalid automation name',
+      });
+    }
+    // A binding must always point at a real automation (the store's own rule).
+    const versions = await versionsOf(ctx, args.organizationId, name);
+    if (versions.length === 0) {
+      throw new ConvexError({
+        code: 'AUTOMATION_NOT_FOUND',
+        message: 'Automation not found',
+      });
+    }
+
+    const projectId = ctx.db.normalizeId('projects', args.projectId);
+    if (projectId === null) {
+      throw new ConvexError({
+        code: 'PROJECT_NOT_FOUND',
+        message: 'Project not found',
+      });
+    }
+    const project = await ctx.db.get(projectId);
+    if (!project || project.organizationId !== args.organizationId) {
+      throw new ConvexError({
+        code: 'PROJECT_NOT_FOUND',
+        message: 'Project not found',
+      });
+    }
+    const access = await resolveProjectAccessForUser(ctx, projectId, {
+      userId: args.userId,
+      organizationId: args.organizationId,
+    });
+    if (!access.canRead) {
+      throw new ConvexError({
+        code: 'PROJECT_NOT_FOUND',
+        message: 'Project not found',
+      });
+    }
+
+    const { bound } = await bindAutomationToProject(ctx, {
+      organizationId: args.organizationId,
+      automationName: name,
+      projectId,
+      actor: args.userId,
+    });
+    return { added: bound };
   },
 });
 

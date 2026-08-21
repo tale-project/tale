@@ -780,6 +780,8 @@ export function httpStatusForConvexCode(code: string | undefined): number {
     case 'CONTACT_NOT_FOUND':
     case 'AUTOMATION_RUN_NOT_FOUND':
     case 'KNOWLEDGE_ENTRY_NOT_FOUND':
+    // A project binding must point at a real automation.
+    case 'AUTOMATION_NOT_FOUND':
     case 'TASK_NOT_FOUND':
     case 'TASK_COMMENT_NOT_FOUND':
     case 'TASK_ATTACHMENT_NOT_FOUND':

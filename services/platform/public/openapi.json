@@ -3388,6 +3388,148 @@
         }
       }
     },
+    "/api/v1/automations/{name}/projects": {
+      "post": {
+        "tags": ["Automations"],
+        "summary": "Bind the automation to a project",
+        "description": "Idempotently adds ONE project to the automation’s binding set — the machine door’s install step, so a worker that just created a client project can put the automation on it without a human. The binding SET is the scope: an automation with no bindings is org-level (every project sees it); one with bindings runs only in those projects. Requires the developer capability (the same gate as the session binding panel), and a key whose user belongs to several organizations must send `X-Organization-Slug`. The target project must be visible to the key’s minting user — an invisible or foreign project answers the same 404 as an absent one. Answers 201 when the binding was added, 200 when it already existed. Unbinding stays a dashboard operation.",
+        "operationId": "bindAutomationProject",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["projectId"],
+                "properties": {
+                  "projectId": {
+                    "type": "string",
+                    "description": "The project to bind"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Binding already existed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["name", "added"],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "added": {
+                      "type": "boolean",
+                      "enum": [false]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Binding added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["name", "added"],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "added": {
+                      "type": "boolean",
+                      "enum": [true]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key holder lacks the developer capability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Automation or project not found (or not visible to the key)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/automations/{name}/triggers": {
       "get": {
         "tags": ["Automations"],
