@@ -16,9 +16,13 @@
  *     resolves directly; a multi-org user falls back to the dashboard's
  *     `lastActiveOrganizationId` when it maps to one of their current
  *     memberships, and otherwise must supply the header explicitly.
+ *     With `requireExplicitOrgSlug` that fallback is skipped entirely: a
+ *     multi-org user MUST send the header, because the last-active pointer
+ *     moves with unrelated dashboard clicks — following it would silently
+ *     redirect a write-capable machine key to another tenant.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
@@ -28,6 +32,7 @@ export const resolveUserOrganization = internalQuery({
   args: {
     userId: v.string(),
     orgSlug: v.optional(v.string()),
+    requireExplicitOrgSlug: v.optional(v.boolean()),
   },
   returns: v.object({
     organizationId: v.string(),
@@ -46,7 +51,10 @@ export const resolveUserOrganization = internalQuery({
         ? getString(orgRecord, 'slug')
         : undefined;
       if (!orgId || !canonicalSlug) {
-        throw new Error(`Organization not found: ${args.orgSlug}`);
+        throw new ConvexError({
+          code: 'ORG_SLUG_INVALID',
+          message: `Organization not found: ${args.orgSlug}`,
+        });
       }
 
       // Membership check — see the header note on slug probing.
@@ -63,8 +71,11 @@ export const resolveUserOrganization = internalQuery({
       );
       const member = memberRes?.page?.[0];
       if (!member || getString(member, 'role') === 'disabled') {
-        // Phrase aligns with the HTTP error mapping → 403 ('Not a member ...').
-        throw new Error(`Not a member of organization ${canonicalSlug}`);
+        // Same code resolveRestOrgRole answers with → 403 at the REST boundary.
+        throw new ConvexError({
+          code: 'ORG_FORBIDDEN',
+          message: `Not a member of organization ${canonicalSlug}`,
+        });
       }
 
       return { organizationId: orgId, orgSlug: canonicalSlug };
@@ -85,40 +96,49 @@ export const resolveUserOrganization = internalQuery({
     );
 
     if (members.length === 0) {
-      throw new Error('User has no organization memberships');
+      throw new ConvexError({
+        code: 'ORG_FORBIDDEN',
+        message: 'User has no organization memberships',
+      });
     }
 
     let pickedOrgId: string | undefined;
     if (members.length === 1) {
       pickedOrgId = getString(members[0], 'organizationId');
     } else {
-      // Multi-org user: honour the dashboard's lastActiveOrganizationId
-      // before forcing the caller to set X-Organization-Slug, so dev tools
-      // and scripts follow the org the user already picked in the UI.
-      const userRow = await ctx.runQuery(
-        components.betterAuth.adapter.findOne,
-        {
-          model: 'user',
-          where: [{ field: '_id', value: args.userId, operator: 'eq' }],
-        },
-      );
-      const lastActive =
-        userRow && isRecord(userRow)
-          ? getString(userRow, 'lastActiveOrganizationId')
-          : undefined;
-      if (lastActive) {
-        const memberOfLastActive = members.find(
-          (m: Record<string, unknown>) =>
-            getString(m, 'organizationId') === lastActive,
+      // Multi-org user. Strict callers never consult the last-active pointer
+      // — see the header note on cross-tenant write redirects.
+      if (!args.requireExplicitOrgSlug) {
+        // Honour the dashboard's lastActiveOrganizationId before forcing the
+        // caller to set X-Organization-Slug, so dev tools and scripts follow
+        // the org the user already picked in the UI.
+        const userRow = await ctx.runQuery(
+          components.betterAuth.adapter.findOne,
+          {
+            model: 'user',
+            where: [{ field: '_id', value: args.userId, operator: 'eq' }],
+          },
         );
-        if (memberOfLastActive) {
-          pickedOrgId = lastActive;
+        const lastActive =
+          userRow && isRecord(userRow)
+            ? getString(userRow, 'lastActiveOrganizationId')
+            : undefined;
+        if (lastActive) {
+          const memberOfLastActive = members.find(
+            (m: Record<string, unknown>) =>
+              getString(m, 'organizationId') === lastActive,
+          );
+          if (memberOfLastActive) {
+            pickedOrgId = lastActive;
+          }
         }
       }
       if (!pickedOrgId) {
-        throw new Error(
-          'User belongs to multiple organizations. Provide X-Organization-Slug header.',
-        );
+        throw new ConvexError({
+          code: 'ORG_SLUG_REQUIRED',
+          message:
+            'User belongs to multiple organizations. Provide X-Organization-Slug header.',
+        });
       }
     }
 

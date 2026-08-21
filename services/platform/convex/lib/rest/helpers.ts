@@ -55,7 +55,8 @@ export class AuthError extends Error {
 export const REST_CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers':
+    'Content-Type, Authorization, X-Organization-Slug',
   'Access-Control-Max-Age': '86400',
 };
 
@@ -96,11 +97,37 @@ export function jsonNoContent(): Response {
   return new Response(null, { status: 204, headers: REST_CORS_HEADERS });
 }
 
-export function jsonError(message: string, status: number): Response {
+export function jsonError(
+  message: string,
+  status: number,
+  headers?: Record<string, string>,
+): Response {
   return new Response(JSON.stringify({ error: message }), {
     status,
-    headers: { 'Content-Type': 'application/json', ...REST_CORS_HEADERS },
+    headers: {
+      'Content-Type': 'application/json',
+      ...REST_CORS_HEADERS,
+      ...headers,
+    },
   });
+}
+
+/**
+ * A `Retry-After` header (RFC 9110: whole seconds, rounded up) from the rate
+ * limiter's retry-after milliseconds — empty when no usable value came along,
+ * so a 429 without one still ships clean.
+ */
+function retryAfterHeader(
+  retryAfterMs: number | undefined,
+): Record<string, string> {
+  if (
+    retryAfterMs === undefined ||
+    !Number.isFinite(retryAfterMs) ||
+    retryAfterMs <= 0
+  ) {
+    return {};
+  }
+  return { 'Retry-After': String(Math.ceil(retryAfterMs / 1000)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -195,17 +222,34 @@ export async function authenticateRequest(
   }
 }
 
+export interface ResolveOrgOptions {
+  /** Explicit org slug (the `X-Organization-Slug` request header). */
+  orgSlug?: string;
+  /** Refuse the last-active-org fallback for multi-org users — see
+   * {@link RestAuthOptions.requireExplicitOrgSlug}. */
+  requireExplicitOrgSlug?: boolean;
+}
+
 /**
- * Resolve the user's organization automatically.
- * For single-org deployments, this finds the user's sole membership.
+ * Resolve the organization an API key operates on.
+ *
+ * An explicit `orgSlug` wins and is membership-checked (a wrong or non-member
+ * slug is refused). Without one, a single-org user resolves to their sole
+ * membership; a multi-org user follows the dashboard's last-active org unless
+ * `requireExplicitOrgSlug` forbids that guess.
  */
 export async function resolveOrganization(
   ctx: HttpCtx,
   userId: string,
+  options: ResolveOrgOptions = {},
 ): Promise<OrgInfo> {
   return await ctx.runQuery(
     internal.organizations.resolve_user_organization.resolveUserOrganization,
-    { userId },
+    {
+      userId,
+      orgSlug: options.orgSlug,
+      requireExplicitOrgSlug: options.requireExplicitOrgSlug,
+    },
   );
 }
 
@@ -285,7 +329,11 @@ export async function applyRateLimit(
     return null;
   } catch (error) {
     if (error instanceof RateLimitExceededError) {
-      return jsonError('Rate limit exceeded', 429);
+      return jsonError(
+        'Rate limit exceeded',
+        429,
+        retryAfterHeader(error.retryAfter),
+      );
     }
     throw error;
   }
@@ -552,9 +600,42 @@ export function optionalEnum<T extends string>(
 // High-level handler wrapper
 // ---------------------------------------------------------------------------
 
+export interface RestAuthOptions {
+  /**
+   * Refuse to guess the organization: when the caller sends no
+   * `X-Organization-Slug` header and the key's user holds more than one
+   * active membership, answer 400 telling them to send the header instead of
+   * following the dashboard's last-active org. Set this on write-capable
+   * machine endpoints — the last-active pointer moves with unrelated UI
+   * clicks, which would silently redirect the write to another tenant.
+   * Single-membership users resolve normally without the header.
+   */
+  requireExplicitOrgSlug?: boolean;
+}
+
+/**
+ * The retry-after milliseconds a `RATE_LIMITED` ConvexError carries. Both
+ * producer shapes appear in the codebase: flat `retryAfterMs`
+ * (documents/validate_upload.ts) and nested `data.retryAfterMs`
+ * (projects/tasks mutations' mapRateLimitError).
+ */
+function retryAfterMsFromErrorData(data: unknown): number | undefined {
+  if (!isPlainObject(data)) return undefined;
+  if (typeof data.retryAfterMs === 'number') return data.retryAfterMs;
+  const nested = data.data;
+  if (isPlainObject(nested) && typeof nested.retryAfterMs === 'number') {
+    return nested.retryAfterMs;
+  }
+  return undefined;
+}
+
 /**
  * Wrap an httpAction handler with authentication, org resolution,
  * rate limiting, and error handling.
+ *
+ * Org resolution honours the `X-Organization-Slug` request header on every
+ * route (membership-checked); `options.requireExplicitOrgSlug` makes the
+ * header mandatory for multi-org keys.
  *
  * Usage:
  * ```ts
@@ -569,6 +650,7 @@ export function optionalEnum<T extends string>(
 export function withRestAuth(
   rateLimitKey: string,
   handler: (rc: RestContext, request: Request) => Promise<Response>,
+  options: RestAuthOptions = {},
 ) {
   return httpAction(async (ctx, request) => {
     // Rate limit
@@ -586,16 +668,32 @@ export function withRestAuth(
       throw error;
     }
 
-    // Org resolution
+    // Org resolution — an explicit X-Organization-Slug header always wins.
+    const orgSlugHeader = request.headers.get('x-organization-slug')?.trim();
     let org: OrgInfo;
     try {
-      org = await resolveOrganization(ctx, user.userId);
+      org = await resolveOrganization(ctx, user.userId, {
+        orgSlug: orgSlugHeader || undefined,
+        requireExplicitOrgSlug: options.requireExplicitOrgSlug,
+      });
     } catch (error) {
-      const msg =
-        error instanceof Error
-          ? error.message
-          : 'Failed to resolve organization';
-      return jsonError(msg, 400);
+      // The resolver refuses with coded ConvexErrors (ORG_SLUG_REQUIRED,
+      // ORG_SLUG_INVALID, ORG_FORBIDDEN) whose data survives runQuery — map
+      // them like handler errors. Every client-fixable refusal is coded, so
+      // anything UNCODED is a server fault: answer 500 with a fixed message
+      // rather than leaking the Convex error prelude (function path, request
+      // id, stack line) into the body — the details are in the server log.
+      if (error instanceof ConvexError && isPlainObject(error.data)) {
+        const code =
+          typeof error.data.code === 'string' ? error.data.code : undefined;
+        const message =
+          typeof error.data.message === 'string'
+            ? error.data.message
+            : 'Failed to resolve organization';
+        return jsonError(message, code ? httpStatusForConvexCode(code) : 400);
+      }
+      console.error('[rest-auth] organization resolution failed', error);
+      return jsonError('Failed to resolve organization', 500);
     }
 
     // Delegate to handler
@@ -629,7 +727,11 @@ export function withRestAuth(
         const message = dataMessage ?? error.message;
         const status = httpStatusForConvexCode(code);
         if (status >= 400 && status < 500) {
-          return jsonError(message, status);
+          const headers =
+            code === 'RATE_LIMITED'
+              ? retryAfterHeader(retryAfterMsFromErrorData(data))
+              : undefined;
+          return jsonError(message, status, headers);
         }
       }
       console.error(`[REST ${rateLimitKey}]`, error);
@@ -657,6 +759,12 @@ export function httpStatusForConvexCode(code: string | undefined): number {
     // owner and is not an org admin, so they may not change it.
     case 'AGENT_FORBIDDEN':
     case 'SKILL_FORBIDDEN':
+    // The caller's role fails a tasks/documents/folders RBAC gate.
+    case 'RBAC_FORBIDDEN':
+    // An active legal hold blocks the mutation; only an operator releasing
+    // the hold clears it, so this is a refusal, not a client-fixable
+    // conflict — the WebDAV surface answers the same code with 403.
+    case 'LEGAL_HOLD_ACTIVE':
       return 403;
     // A run targeted a real project the automation is not bound to — a bad
     // argument (400), distinct from PROJECT_NOT_FOUND's "no such project" (404).
@@ -672,6 +780,9 @@ export function httpStatusForConvexCode(code: string | undefined): number {
     case 'CONTACT_NOT_FOUND':
     case 'AUTOMATION_RUN_NOT_FOUND':
     case 'KNOWLEDGE_ENTRY_NOT_FOUND':
+    case 'TASK_NOT_FOUND':
+    case 'TASK_COMMENT_NOT_FOUND':
+    case 'TASK_ATTACHMENT_NOT_FOUND':
       return 404;
     case 'validation':
     case 'MISSING_FILTER':
@@ -693,6 +804,31 @@ export function httpStatusForConvexCode(code: string | undefined): number {
     case 'KNOWLEDGE_ENTRY_TOPIC_TOO_LONG':
     case 'KNOWLEDGE_ENTRY_CONTENT_REQUIRED':
     case 'KNOWLEDGE_ENTRY_CONTENT_TOO_LONG':
+    // Projects/tasks writes: a project name or title that fails validation.
+    case 'PROJECT_NAME_INVALID':
+    // An explicit project key that fails the 2-6 char shape.
+    case 'PROJECT_KEY_INVALID':
+    // A blank or over-length externalItemId on a project create.
+    case 'PROJECT_EXTERNAL_ITEM_ID_INVALID':
+    // Mutually inconsistent arguments — a folder naming both a project and a
+    // team, a parent folder from another scope. Fixable by changing the
+    // request, unlike DOCUMENT_SCOPE_CONFLICT's detach-first state below.
+    case 'FOLDER_SCOPE_CONFLICT':
+    // The desk-task entry point got an argument combination it refuses.
+    case 'INVALID_ARGUMENTS':
+    // A blank or over-length task comment body (transport pre-guards with
+    // the same cap; this row keeps a future cap divergence a 400, not a 500).
+    case 'TASK_COMMENT_INVALID':
+    // Task label validation (`normalizeLabelNames`): too many labels, or a
+    // blank/over-long name — thrown by the upsert behind POST /api/v1/tasks.
+    case 'TASK_LABELS_INVALID':
+    // Upload validation refused the request itself (policy or blob mismatch).
+    case 'UPLOAD_POLICY_REJECTED':
+    case 'UPLOAD_BLOB_INVALID':
+    // Org resolution refused the request: a multi-org key must send
+    // X-Organization-Slug, and a sent slug must name a real organization.
+    case 'ORG_SLUG_REQUIRED':
+    case 'ORG_SLUG_INVALID':
       return 400;
     // Duplicate-add rejections: a conflicting row already exists. Map to 409
     // so REST clients get an actionable conflict instead of an opaque 500.
@@ -706,6 +842,12 @@ export function httpStatusForConvexCode(code: string | undefined): number {
     case 'KNOWLEDGE_ENTRY_DUPLICATE':
     // A create against a name that already has versions.
     case 'AUTOMATION_NAME_TAKEN':
+    // A project create/patch against a key another project already holds.
+    case 'PROJECT_KEY_TAKEN':
+    // Declared ahead of its producer: the machine-facing project create
+    // throws this when the requested externalId is already taken.
+    case 'PROJECT_DUPLICATE_EXTERNAL_ID':
+    case 'FOLDER_DUPLICATE_NAME':
     // State conflicts: the resource exists but is not in a state that can
     // serve the request. Nothing the caller can fix by changing the body.
     case 'AUTOMATION_NOT_DEPLOYED':
@@ -718,7 +860,23 @@ export function httpStatusForConvexCode(code: string | undefined): number {
     case 'DOCUMENT_RECORD_FROZEN':
     case 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED':
     case 'DOCUMENT_RECORD_PROTECTED':
+    // The document is already attached to another scope (a team library, a
+    // hub folder) — detaching is a dedicated operation, not a body change.
+    case 'DOCUMENT_SCOPE_CONFLICT':
+    // Desk-task creation requires the project's setup folder to exist first.
+    case 'SETUP_FOLDER_MISSING':
       return 409;
+    // A per-user/org limiter inside the handler's backing function refused
+    // the call. The wrapper attaches Retry-After when the error carries a
+    // retryAfterMs (see retryAfterMsFromErrorData).
+    case 'RATE_LIMITED':
+      return 429;
+    // Upload validation: the declared or actual blob size exceeds the cap.
+    case 'FILE_TOO_LARGE':
+      return 413;
+    // Upload validation: the MIME type is outside the accepted set.
+    case 'UNSUPPORTED_FILE_TYPE':
+      return 415;
     default:
       // Codes we don't recognize fall through to the 500 path so the
       // outer console.error still logs them; no silent swallow.
