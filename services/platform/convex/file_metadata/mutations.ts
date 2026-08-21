@@ -46,7 +46,12 @@ export const saveFileMetadata = mutation({
      * not via the knowledge base, so indexing them is wasted work that only
      * produces a spurious "Index failed" badge. Worst case a client lies and
      * skips indexing its own file — the file stays usable inline; nothing
-     * cross-tenant is exposed, so this stays a client-supplied hint.
+     * cross-tenant is exposed.
+     *
+     * PERSISTED and sticky (see fileMetadata schema): the row stores the
+     * opt-out, a later save WITHOUT the flag neither clears it nor re-queues
+     * indexing, and the hub enqueue chokepoints refuse a flagged row. Only an
+     * explicit index request (`requeueFileForRagIndexing`) clears it.
      */
     skipRagIndexing: v.optional(v.boolean()),
   },
@@ -115,22 +120,28 @@ export const saveFileMetadata = mutation({
       args.contentType.startsWith('audio/') ||
       args.contentType.startsWith('video/');
 
-    // Only queue formats the RAG service can actually index. Force-queueing
-    // anything else (legacy Office .doc/.xls/.ppt, misc text extensions)
-    // earns a deterministic HTTP 400 from RAG and a permanent "Index
-    // failed" badge. Non-indexable files keep ragStatus undefined — the
-    // audio pattern — and stay usable inline in chat.
-    const shouldIndex =
-      !args.skipRagIndexing &&
-      !isAudio &&
-      isRagIndexableFile(args.fileName, args.contentType);
-
     const now = Date.now();
 
     const existing = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
+
+    // Sticky opt-out: the flag persisted on the row counts as much as the
+    // per-call arg, so a later re-save without it cannot re-enable indexing
+    // (creation-time intent, see the fileMetadata schema).
+    const skipIndexing =
+      args.skipRagIndexing === true || existing?.skipRagIndexing === true;
+
+    // Only queue formats the RAG service can actually index. Force-queueing
+    // anything else (legacy Office .doc/.xls/.ppt, misc text extensions)
+    // earns a deterministic HTTP 400 from RAG and a permanent "Index
+    // failed" badge. Non-indexable files keep ragStatus undefined — the
+    // audio pattern — and stay usable inline in chat.
+    const shouldIndex =
+      !skipIndexing &&
+      !isAudio &&
+      isRagIndexableFile(args.fileName, args.contentType);
 
     if (existing) {
       const patchData: Record<string, unknown> = {
@@ -144,6 +155,11 @@ export const saveFileMetadata = mutation({
       }
       if (args.source !== undefined) {
         patchData.source = args.source;
+      }
+      // Persist the opt-out; never clear it here (a save without the flag
+      // keeps the stored intent — only an explicit retry clears it).
+      if (args.skipRagIndexing === true && existing.skipRagIndexing !== true) {
+        patchData.skipRagIndexing = true;
       }
 
       // If the prior pipeline didn't reach a terminal state (failed /
@@ -222,6 +238,7 @@ export const saveFileMetadata = mutation({
       ragQueuedAt: shouldIndex ? now : undefined,
       transcriptionStatus: isAudio ? 'queued' : undefined,
       uploadedBy: userId,
+      ...(args.skipRagIndexing === true && { skipRagIndexing: true }),
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
       ...(args.threadId !== undefined && { threadId: args.threadId }),

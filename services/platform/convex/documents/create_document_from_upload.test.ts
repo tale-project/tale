@@ -221,6 +221,54 @@ describe('createDocumentFromUpload', () => {
     );
   });
 
+  it('threads skipRagIndexing through to saveFileMetadata', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    await handler(ctx, { ...baseArgs, skipRagIndexing: true });
+
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      'saveFileMetadata',
+      expect.objectContaining({ skipRagIndexing: true }),
+    );
+  });
+
+  it('does not send skipRagIndexing to saveFileMetadata when the caller omits it', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    await handler(ctx, baseArgs);
+
+    const saveArgs = ctx.runMutation.mock.calls.find(
+      ([name]) => name === 'saveFileMetadata',
+    )?.[1] as Record<string, unknown>;
+    expect(saveArgs).toBeDefined();
+    expect('skipRagIndexing' in saveArgs).toBe(false);
+  });
+
+  it('persists the metadata row for a skip-flagged upload even without fileSize (intent must not be lost)', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+    const { fileSize: _, ...argsWithoutSize } = baseArgs;
+
+    await handler(ctx, { ...argsWithoutSize, skipRagIndexing: true });
+
+    // Size comes from the authoritative `_storage` system read that
+    // validateDocumentUpload already performed (mocked at 2048 bytes), and
+    // the link still happens so the flagged row rides the normal pipeline.
+    expect(ctx.runMutation).toHaveBeenCalledWith(
+      'saveFileMetadata',
+      expect.objectContaining({ skipRagIndexing: true, size: 2048 }),
+    );
+    expect(ctx.runMutation).toHaveBeenCalledWith('linkDocumentToFile', {
+      storageId: 'storage_1',
+      documentId: 'doc_created',
+    });
+  });
+
   it('creates document and returns documentId', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const ctx = createMockCtx();

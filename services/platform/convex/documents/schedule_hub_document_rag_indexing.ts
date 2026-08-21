@@ -32,6 +32,13 @@ export async function scheduleHubDocumentRagIndexing(
   // Chat-bound attachments index via saveFileMetadata → uploadFileToRag.
   if (fm?.threadId) return false;
 
+  // Persisted opt-out (see fileMetadata schema): the file was stored with
+  // "never index this" intent, so no hub scheduling path — link second
+  // chance, connector import/update, workflow re-index — may enqueue it.
+  // An explicit user retry clears the flag first (requeueFileForRagIndexing)
+  // and then passes through here unimpeded.
+  if (fm?.skipRagIndexing === true) return false;
+
   const fileName = document.title ?? fm?.fileName ?? 'document';
   const contentType = resolveFileType(
     fileName,
