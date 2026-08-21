@@ -45,6 +45,7 @@ const LISTING_LABEL_KEYS: Record<string, string> = {
   website: 'thinking.listing.websites',
   'knowledge-entry': 'thinking.listing.knowledgeEntries',
   conversation: 'thinking.listing.conversations',
+  'mail-attachment': 'thinking.listing.mailAttachments',
 };
 
 /**

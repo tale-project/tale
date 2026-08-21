@@ -1420,6 +1420,7 @@ chat:
       websites: Liste des sites web
       knowledgeEntries: Liste des entrées de connaissances
       conversations: Liste des conversations
+      mailAttachments: Liste des pièces jointes
     seconds: '{seconds}s'
     summaryReasoningOnly: A montré son raisonnement
   sources:

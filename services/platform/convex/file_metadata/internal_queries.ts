@@ -4,6 +4,7 @@ import { components } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
 import { blobRefValidator } from '../lib/storage/blob_ref';
+import { listMailAttachments } from './list_mail_attachments';
 
 export const getById = internalQuery({
   args: { fileMetadataId: v.id('fileMetadata') },
@@ -32,6 +33,38 @@ export const getByStorageId = internalQuery({
  * from parked, a later slice of a large file) picks up whatever the binding is
  * now. Org-scoped, because a blob ref is caller-supplied on some paths.
  */
+/**
+ * The emailed attachments a caller may read. See `list_mail_attachments.ts` for
+ * why scope is the conversation's live assignment and why both bounds are
+ * reported.
+ */
+export const listMailAttachmentsForChat = internalQuery({
+  args: {
+    organizationId: v.string(),
+    /** The turn user. Absent denies everything — an inbox attachment is never
+     *  listed for an unidentified caller. */
+    userId: v.optional(v.string()),
+    limit: v.number(),
+  },
+  returns: v.object({
+    attachments: v.array(
+      v.object({
+        ref: v.string(),
+        fileName: v.string(),
+        contentType: v.string(),
+        size: v.number(),
+        conversationId: v.string(),
+        receivedAt: v.number(),
+        indexed: v.boolean(),
+      }),
+    ),
+    truncated: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    return await listMailAttachments(ctx, args);
+  },
+});
+
 export const getConversationBindingForBlob = internalQuery({
   args: {
     organizationId: v.string(),

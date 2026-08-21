@@ -365,6 +365,7 @@ const LISTABLE_KINDS = RAG_SEARCH_KINDS.filter((kind) => kind !== 'web-page');
  * search legs use, so a list result reads like a one-leg search result. */
 const LIST_SOURCE_KEYS: Record<RagSearchKind, string> = {
   document: 'documents',
+  'mail-attachment': 'mailAttachments',
   'web-page': 'webPages',
   'knowledge-entry': 'knowledgeEntries',
   contact: 'contacts',
@@ -379,6 +380,9 @@ const LIST_SOURCE_KEYS: Record<RagSearchKind, string> = {
  * subject its search leg checks, because a list is not an ACL widening. */
 const LIST_READ_SUBJECTS: Record<RagSearchKind, AgentReadSubject> = {
   document: 'documents',
+  // Conversations, not documents: an emailed attachment is visible exactly when
+  // its conversation is, so the role that gates the inbox gates its files.
+  'mail-attachment': 'conversations',
   'web-page': 'websites',
   'knowledge-entry': 'documents',
   contact: 'contacts',
@@ -1450,6 +1454,63 @@ export function createChatToolExecutor(
               note:
                 'Recent conversations only — this list does not page. ' +
                 'Narrow by asking about a person, a topic, or a timeframe.',
+            }
+          : {}),
+      });
+    }
+
+    if (kind === 'mail-attachment') {
+      // Emailed attachments have no other listing surface: they are not
+      // Document Hub rows, so they are absent from the Documents page and from
+      // `kind="document"`. Scope is each attachment's conversation as it stands
+      // now, decided by the same predicate and the same resolver the retrieval
+      // gate uses.
+      //
+      // Overfetch by one so a full page never claims completeness — the
+      // reader's own `truncated` only reports a scan-budget stop.
+      const found = await ctx.runQuery(
+        internal.file_metadata.internal_queries.listMailAttachmentsForChat,
+        {
+          organizationId: who.organizationId,
+          userId: who.userId,
+          limit: limit + 1,
+        },
+      );
+      const overfetched = found.attachments.length > limit;
+      const rows = overfetched
+        ? found.attachments.slice(0, limit)
+        : found.attachments;
+      const hasMore = overfetched || found.truncated;
+      const results = rows.map(
+        (attachment): SearchResultEntry => ({
+          kind: 'mail-attachment',
+          title: attachment.fileName,
+          // The corpus ref, so a listed attachment can be read with rag_fetch
+          // instead of searched for by name.
+          ref: attachment.ref,
+          data: {
+            conversationId: attachment.conversationId,
+            contentType: attachment.contentType,
+            sizeBytes: attachment.size,
+            receivedAt: attachment.receivedAt,
+            // A received-but-unindexed attachment cannot be fetched for its
+            // text. Saying so beats implying it is readable.
+            indexed: attachment.indexed,
+          },
+        }),
+      );
+      return envelope({
+        results,
+        hasMore,
+        source: hasMore
+          ? 'listed (most recent only — narrowing, not paging)'
+          : 'listed',
+        ...(hasMore
+          ? {
+              note:
+                'Most recent email attachments only, and this list does not ' +
+                'page. Narrow by asking about a conversation, a correspondent, ' +
+                'or a filename.',
             }
           : {}),
       });

@@ -1412,6 +1412,7 @@ chat:
       websites: Listet Websites auf
       knowledgeEntries: Listet Wissenseinträge auf
       conversations: Listet Konversationen auf
+      mailAttachments: Listet E-Mail-Anhänge auf
     seconds: '{seconds}s'
     summaryReasoningOnly: Hat den Gedankengang gezeigt
   sources:
