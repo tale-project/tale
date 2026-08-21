@@ -3,11 +3,24 @@
 import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { Input } from '@tale/ui/input';
-import { Stack } from '@tale/ui/layout';
+import { HStack, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { FileText, Folder, FolderPlus, Trash2, Upload } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  Trash2,
+  Upload,
+} from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
+import {
+  iconForPath,
+  TreeRowButton,
+  treeNavigationKeyDown,
+} from '@/app/components/ui/data-display/file-tree-primitives';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -36,13 +49,16 @@ import type { SettingsUploadsForm } from '@/lib/shared/schemas/automation_settin
  * The uploads variant of a declared settings form: the operator manages the
  * automation's operator-provided documents without ever learning which
  * project folder backs them. The panel is a small folder-scoped manager —
- * it lists the panel root's whole subtree (files matching the declaration's
- * `match` pattern, plus its folders), lets the operator create subfolders
- * and pick one as the upload target, and uploads straight into the picked
- * folder (the whole chain is created on first use). Uploads apply
- * immediately — no Save, no dirty state — so the panel manages its own
- * toasts. Everything here is driven by the declaration (folder, subdir,
- * accept, match); nothing is specific to any one automation.
+ * a collapsible tree of the panel root's subtree (folders, plus files
+ * matching the declaration's `match` pattern) on the shared file-tree
+ * primitives, with the project Files tab's semantics: folders are collapsed
+ * by default, and clicking one expands it AND picks it as the upload target
+ * (clicking the picked folder again collapses and clears it). The operator
+ * can create subfolders, and uploads go straight into the picked folder
+ * (the whole chain is created on first use). Uploads apply immediately — no
+ * Save, no dirty state — so the panel manages its own toasts. Everything
+ * here is driven by the declaration (folder, subdir, accept, match);
+ * nothing is specific to any one automation.
  */
 export function SettingsUploadsPanel({
   organizationId,
@@ -77,9 +93,24 @@ export function SettingsUploadsPanel({
   } | null>(null);
   /** Upload target: a subtree folder id, or null = the panel root. */
   const [selectedDirId, setSelectedDirId] = useState<string | null>(null);
+  // Expanded folder ids — collapsed by default, like the project Files tab.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const treeRef = useRef<HTMLUListElement | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);
+
+  const toggleDir = useCallback((id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
   const settingsFolder = folders.find(
     (entry) => entry.parentId === undefined && entry.name === folder,
@@ -112,19 +143,30 @@ export function SettingsUploadsPanel({
     }
   }, [form.match]);
 
-  // The panel root's whole SUBTREE: its folders (pickable upload targets)
-  // and its matching files, both with paths relative to the root. With a
-  // declared subdir the settings folder's own top-level matches stay listed
-  // too — files uploaded before the subdir existed must not vanish.
-  const { dirs, files } = useMemo(() => {
-    const root = panelRoot ?? settingsFolder;
+  // The panel root's whole SUBTREE, shaped for a collapsible tree: folder
+  // rows grouped by their display parent ('' = the panel root's own level)
+  // and matching files grouped by their folder. With a declared subdir the
+  // panel is STRICTLY that subtree — files sitting directly in the settings
+  // folder (the desk's own history seeds, roll-ups, policy files) are the
+  // automation's records, not operator uploads: listing them here read as
+  // misfiled files and offered a delete on records the runs depend on. They
+  // stay visible and manageable in Knowledge.
+  const { dirs, childDirs, filesIn, fileCount } = useMemo(() => {
+    type DirRow = { id: string; path: string; name: string; parentKey: string };
+    type FileRow = { doc: (typeof documents)[number]; displayPath: string };
+    const dirRows: DirRow[] = [];
+    const childDirRows = new Map<string, DirRow[]>();
+    const fileRows = new Map<string, FileRow[]>();
+    // Subdir declared but not created yet → an empty listing (the first
+    // upload's `ensureRoot` creates the chain), never a fallback to the
+    // whole settings folder.
+    const root = form.subdir ? panelRoot : settingsFolder;
     if (root === undefined || matcher === null)
-      return { dirs: [], files: [] } as {
-        dirs: Array<{ id: string; path: string }>;
-        files: Array<{
-          doc: (typeof documents)[number];
-          displayPath: string;
-        }>;
+      return {
+        dirs: dirRows,
+        childDirs: childDirRows,
+        filesIn: fileRows,
+        fileCount: 0,
       };
     const childrenOf = new Map<string, typeof folders>();
     for (const entry of folders) {
@@ -134,45 +176,62 @@ export function SettingsUploadsPanel({
       childrenOf.set(key, list);
     }
     const prefixOf = new Map<string, string>([[String(root._id), '']]);
-    const dirRows: Array<{ id: string; path: string }> = [];
-    const queue = [root];
+    const queue: Array<{ folder: typeof root; key: string }> = [
+      { folder: root, key: '' },
+    ];
     while (queue.length > 0) {
       const current = queue.shift();
       if (current === undefined) break;
-      const prefix = prefixOf.get(String(current._id)) ?? '';
-      for (const child of childrenOf.get(String(current._id)) ?? []) {
+      const prefix = prefixOf.get(String(current.folder._id)) ?? '';
+      for (const child of childrenOf.get(String(current.folder._id)) ?? []) {
         // Visited guard (`prefixOf` doubles as the set): corrupt parentId
         // data must terminate, mirroring folderSubtreeIds' cycle posture.
         if (prefixOf.has(String(child._id))) continue;
         const childPath = `${prefix}${child.name}`;
         prefixOf.set(String(child._id), `${childPath}/`);
-        dirRows.push({ id: String(child._id), path: childPath });
-        queue.push(child);
+        const row: DirRow = {
+          id: String(child._id),
+          path: childPath,
+          name: child.name,
+          parentKey: current.key,
+        };
+        dirRows.push(row);
+        const siblings = childDirRows.get(current.key) ?? [];
+        siblings.push(row);
+        childDirRows.set(current.key, siblings);
+        queue.push({ folder: child, key: row.id });
       }
     }
-    if (
-      panelRoot !== undefined &&
-      settingsFolder !== undefined &&
-      String(panelRoot._id) !== String(settingsFolder._id) &&
-      !prefixOf.has(String(settingsFolder._id))
-    ) {
-      prefixOf.set(String(settingsFolder._id), '');
-    }
-    const fileRows = documents
-      .filter(
-        (doc) =>
-          doc.folderId !== undefined &&
-          prefixOf.has(String(doc.folderId)) &&
-          matcher.test(doc.title ?? ''),
-      )
-      .map((doc) => ({
+    let count = 0;
+    for (const doc of documents) {
+      if (doc.folderId === undefined) continue;
+      const folderId = String(doc.folderId);
+      if (!prefixOf.has(folderId) || !matcher.test(doc.title ?? '')) continue;
+      // Files directly in the panel root render at its top level; everything
+      // else nests under its folder row.
+      const key = folderId === String(root._id) ? '' : folderId;
+      const list = fileRows.get(key) ?? [];
+      list.push({
         doc,
-        displayPath: `${prefixOf.get(String(doc.folderId)) ?? ''}${doc.title ?? ''}`,
-      }))
-      .sort((a, b) => a.displayPath.localeCompare(b.displayPath));
+        displayPath: `${prefixOf.get(folderId) ?? ''}${doc.title ?? ''}`,
+      });
+      fileRows.set(key, list);
+      count++;
+    }
+    for (const list of fileRows.values()) {
+      list.sort((a, b) => a.displayPath.localeCompare(b.displayPath));
+    }
+    for (const list of childDirRows.values()) {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    }
     dirRows.sort((a, b) => a.path.localeCompare(b.path));
-    return { dirs: dirRows, files: fileRows };
-  }, [documents, folders, matcher, panelRoot, settingsFolder]);
+    return {
+      dirs: dirRows,
+      childDirs: childDirRows,
+      filesIn: fileRows,
+      fileCount: count,
+    };
+  }, [documents, folders, matcher, panelRoot, settingsFolder, form.subdir]);
 
   const selectedDir = dirs.find((dir) => dir.id === selectedDirId) ?? null;
 
@@ -326,6 +385,15 @@ export function SettingsUploadsPanel({
         }),
       );
       setSelectedDirId(created);
+      // The new folder must be visible (and stay visible once files land in
+      // it): expand it and its parent — the panel-root id is not a tree row,
+      // so adding it is inert.
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        next.add(created);
+        next.add(parentId);
+        return next;
+      });
       setCreateOpen(false);
       setNewFolderName('');
     } catch (error) {
@@ -359,99 +427,114 @@ export function SettingsUploadsPanel({
     }
   };
 
+  const renderFile = (
+    file: { doc: (typeof documents)[number]; displayPath: string },
+    depth: number,
+  ) => {
+    const { doc, displayPath } = file;
+    const baseName = displayPath.split('/').pop() ?? displayPath;
+    const FileIcon = iconForPath(baseName);
+    return (
+      <li key={String(doc._id)} role="none">
+        <HStack gap={1} align="center">
+          <div className="min-w-0 flex-1">
+            {/* Not a treeitem: nothing opens on click (the Files tab's
+                non-openable rows read the same way); the delete affordance
+                sits beside the row. */}
+            <div
+              className="text-muted-foreground flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs"
+              style={{ paddingLeft: `${0.5 + depth * 0.75}rem` }}
+            >
+              <FileIcon className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate" title={baseName}>
+                {baseName}
+              </span>
+            </div>
+          </div>
+          <IconButton
+            icon={Trash2}
+            variant="ghost"
+            size="sm"
+            // Inside the settings <form>: without an explicit type this
+            // submits it (Save fires) on top of the confirm.
+            type="button"
+            aria-label={t('settings.uploads.remove', {
+              name: displayPath,
+            })}
+            disabled={uploading || disabled === true}
+            onClick={() =>
+              setConfirmDelete({ id: doc._id, title: displayPath })
+            }
+          />
+        </HStack>
+      </li>
+    );
+  };
+
+  const renderDir = (
+    dir: { id: string; path: string; name: string; parentKey: string },
+    depth: number,
+  ) => {
+    const isExpanded = expanded.has(dir.id);
+    const isSelected = dir.id === selectedDirId;
+    const FolderIcon = isExpanded ? FolderOpen : Folder;
+    const subDirs = childDirs.get(dir.id) ?? [];
+    const dirFiles = filesIn.get(dir.id) ?? [];
+    return (
+      <li key={dir.id} role="none">
+        {/* Click = pick as upload target AND expand, so the target is always
+            visible; clicking the picked folder again collapses and clears it —
+            the same semantics as the project Files tab. */}
+        <TreeRowButton
+          isActive={isSelected}
+          depth={depth}
+          onClick={() => {
+            if (uploading || disabled === true) return;
+            setSelectedDirId(isSelected ? null : dir.id);
+            if (!isExpanded) toggleDir(dir.id);
+            else if (isSelected) toggleDir(dir.id);
+          }}
+          title={dir.name}
+          ariaLabel={dir.path}
+          ariaExpanded={isExpanded}
+          dataDirPath={dir.id}
+          dataParentPath={dir.parentKey === '' ? null : dir.parentKey}
+        >
+          {isExpanded ? (
+            <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />
+          ) : (
+            <ChevronRight className="size-3.5 shrink-0" aria-hidden="true" />
+          )}
+          <FolderIcon
+            className="text-muted-foreground size-3.5 shrink-0"
+            aria-hidden="true"
+          />
+          <span className="min-w-0 flex-1 truncate">{dir.name}</span>
+        </TreeRowButton>
+        {isExpanded && (subDirs.length > 0 || dirFiles.length > 0) ? (
+          <ul role="group">
+            {subDirs.map((sub) => renderDir(sub, depth + 1))}
+            {dirFiles.map((file) => renderFile(file, depth + 1))}
+          </ul>
+        ) : null}
+      </li>
+    );
+  };
+
   return (
     <Stack gap={3}>
-      {dirs.length > 0 || files.length > 0 ? (
-        <ul className="flex flex-col gap-1">
-          {/* One tree, not two lists: each folder row is followed by its own
-              contents, indented by depth, so a file's location reads off the
-              layout instead of a path prefix. */}
-          {[
-            ...dirs.map((dir) => ({
-              kind: 'dir' as const,
-              sortKey: `${dir.path}/`,
-              dir,
-            })),
-            ...files.map((file) => ({
-              kind: 'file' as const,
-              sortKey: file.displayPath,
-              file,
-            })),
-          ]
-            .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
-            .map((row) => {
-              const depth = row.sortKey.split('/').length - 1;
-              if (row.kind === 'dir') {
-                const selected = row.dir.id === selectedDirId;
-                return (
-                  <li
-                    key={row.dir.id}
-                    style={{ paddingLeft: `${(depth - 1) * 16}px` }}
-                  >
-                    {/* Picking a folder points the upload zone at it; picking
-                        it again returns to the panel root. */}
-                    <button
-                      type="button"
-                      aria-pressed={selected}
-                      disabled={uploading || disabled === true}
-                      onClick={() =>
-                        setSelectedDirId((prev) =>
-                          prev === row.dir.id ? null : row.dir.id,
-                        )
-                      }
-                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
-                        selected
-                          ? 'bg-primary/10 ring-primary/40 ring-1'
-                          : 'bg-muted/40 hover:bg-muted'
-                      }`}
-                    >
-                      <Folder
-                        className="text-muted-foreground size-4 shrink-0"
-                        aria-hidden="true"
-                      />
-                      <Text
-                        as="span"
-                        className="min-w-0 flex-1 truncate text-sm"
-                      >
-                        {row.dir.path.split('/').pop()}
-                      </Text>
-                    </button>
-                  </li>
-                );
-              }
-              const { doc, displayPath } = row.file;
-              const baseName = displayPath.split('/').pop() ?? displayPath;
-              return (
-                <li
-                  key={String(doc._id)}
-                  style={{ paddingLeft: `${depth * 16}px` }}
-                  className="bg-muted/40 flex items-center gap-2 rounded-md px-2 py-1.5"
-                >
-                  <FileText
-                    className="text-muted-foreground size-4 shrink-0"
-                    aria-hidden="true"
-                  />
-                  <Text as="span" className="min-w-0 flex-1 truncate text-sm">
-                    {baseName}
-                  </Text>
-                  <IconButton
-                    icon={Trash2}
-                    variant="ghost"
-                    size="sm"
-                    // Inside the settings <form>: without an explicit type
-                    // this submits it (Save fires) on top of the confirm.
-                    type="button"
-                    aria-label={t('settings.uploads.remove', {
-                      name: displayPath,
-                    })}
-                    disabled={uploading || disabled === true}
-                    onClick={() =>
-                      setConfirmDelete({ id: doc._id, title: displayPath })
-                    }
-                  />
-                </li>
-              );
-            })}
+      {dirs.length > 0 || fileCount > 0 ? (
+        <ul
+          ref={treeRef}
+          role="tree"
+          aria-label={t('settings.uploads.treeLabel')}
+          className="flex flex-col gap-0.5"
+          onKeyDown={(event) =>
+            treeNavigationKeyDown(event, treeRef.current, expanded, toggleDir)
+          }
+        >
+          {(childDirs.get('') ?? []).map((dir) => renderDir(dir, 0))}
+          {(filesIn.get('') ?? []).map((file) => renderFile(file, 0))}
         </ul>
       ) : (
         <Text as="p" variant="muted" className="text-sm">

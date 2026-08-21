@@ -25,19 +25,20 @@ vi.mock('@/app/features/documents/hooks/mutations', () => ({
   useDeleteDocument: () => ({ mutateAsync: vi.fn() }),
 }));
 
+// Per-test project contents: defaults set in beforeEach; tree tests replace
+// them with a nested layout.
+const projectData = vi.hoisted(() => ({
+  documents: [] as Array<{ _id: string; title: string; folderId: string }>,
+  folders: [] as Array<{ _id: string; name: string; parentId?: string }>,
+}));
+
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectDocuments: () => ({
-    documents: [
-      {
-        _id: 'doc_seed',
-        title: 'history-a-filed.json',
-        folderId: 'folder_setup',
-      },
-    ],
+    documents: projectData.documents,
     isLoading: false,
   }),
   useProjectFolders: () => ({
-    folders: [{ _id: 'folder_setup', name: 'Setup', parentId: undefined }],
+    folders: projectData.folders,
     isLoading: false,
   }),
 }));
@@ -66,6 +67,16 @@ describe('SettingsUploadsPanel', () => {
   beforeEach(() => {
     toastMock.mockReset();
     convexMutation.mockReset();
+    projectData.documents = [
+      {
+        _id: 'doc_seed',
+        title: 'history-a-filed.json',
+        folderId: 'folder_setup',
+      },
+    ];
+    projectData.folders = [
+      { _id: 'folder_setup', name: 'Setup', parentId: undefined },
+    ];
   });
 
   it('refuses an upload whose name never matches — before any byte moves', async () => {
@@ -110,5 +121,66 @@ describe('SettingsUploadsPanel', () => {
       name: 'Delete history-a-filed.json',
     });
     expect(remove).toHaveAttribute('type', 'button');
+  });
+
+  it('with a declared subdir, lists ONLY that subtree — settings-folder files stay out', () => {
+    projectData.folders = [
+      { _id: 'folder_setup', name: 'Setup', parentId: undefined },
+      { _id: 'folder_fr', name: 'filed-returns', parentId: 'folder_setup' },
+      { _id: 'folder_q1', name: '2025Q1', parentId: 'folder_fr' },
+    ];
+    projectData.documents = [
+      // The desk's own seed at the settings-folder ROOT — the automation's
+      // record, not an operator upload: it must neither read as a misfiled
+      // file nor offer a delete here (Knowledge is its surface).
+      {
+        _id: 'doc_seed_root',
+        title: 'history-2025-Q1-filed.json',
+        folderId: 'folder_setup',
+      },
+      { _id: 'doc_pdf', title: 'return-q1.pdf', folderId: 'folder_q1' },
+    ];
+    mount({ ...FORM, subdir: 'filed-returns', requireFolder: true });
+
+    expect(
+      screen.queryByText('history-2025-Q1-filed.json'),
+    ).not.toBeInTheDocument();
+    // The declared subtree itself is there: the quarter folder, collapsed.
+    expect(screen.getByRole('treeitem', { name: '2025Q1' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+  });
+
+  it('collapses folders by default; a click reveals the files and picks the target', async () => {
+    projectData.folders = [
+      { _id: 'folder_setup', name: 'Setup', parentId: undefined },
+      { _id: 'folder_q1', name: '2025Q1', parentId: 'folder_setup' },
+    ];
+    projectData.documents = [
+      {
+        _id: 'doc_nested',
+        title: 'history-b-filed.json',
+        folderId: 'folder_q1',
+      },
+    ];
+    const { user } = mount();
+
+    // Collapsed by default: the folder row renders, its contents do not.
+    const folderRow = screen.getByRole('treeitem', { name: '2025Q1' });
+    expect(folderRow).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('history-b-filed.json')).not.toBeInTheDocument();
+
+    // Click = expand AND pick as upload target (project Files tab semantics).
+    await user.click(folderRow);
+    expect(folderRow).toHaveAttribute('aria-expanded', 'true');
+    expect(folderRow).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('history-b-filed.json')).toBeInTheDocument();
+
+    // Clicking the picked folder again collapses it and clears the target.
+    await user.click(folderRow);
+    expect(folderRow).toHaveAttribute('aria-expanded', 'false');
+    expect(folderRow).toHaveAttribute('aria-selected', 'false');
+    expect(screen.queryByText('history-b-filed.json')).not.toBeInTheDocument();
   });
 });

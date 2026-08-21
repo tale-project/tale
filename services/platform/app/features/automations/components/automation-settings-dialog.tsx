@@ -17,6 +17,7 @@ import {
 
 import { useSettingsEditor } from '../hooks/use-settings-editor';
 import { SettingsFieldControl, useLocalized } from './settings-field-control';
+import { SettingsFormDescription } from './settings-form-description';
 import { SettingsUploadsPanel } from './settings-uploads-panel';
 
 /**
@@ -75,9 +76,7 @@ export function AutomationSettingsDialog({
       return (
         <Stack gap={3} className="pt-2">
           {text.description !== undefined && (
-            <Text as="p" variant="muted">
-              {text.description}
-            </Text>
+            <SettingsFormDescription text={text.description} />
           )}
           <SettingsUploadsPanel
             organizationId={organizationId}
@@ -93,9 +92,7 @@ export function AutomationSettingsDialog({
     return (
       <Stack gap={3} className="pt-2">
         {text.description !== undefined && (
-          <Text as="p" variant="muted">
-            {text.description}
-          </Text>
+          <SettingsFormDescription text={text.description} />
         )}
         {form.fields.map((field) => (
           <SettingsFieldControl

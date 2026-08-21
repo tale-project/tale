@@ -790,6 +790,8 @@ automations:
     loadFailed: Couldn't load settings — close the dialog and try again.
     save: Save
     saveAndContinue: Save and continue
+    showMore: Show more
+    showLess: Show less
     dialogTitle: '{name} — settings'
     tabsLabel: Settings sections
     moreTabs: More settings sections
@@ -802,6 +804,7 @@ automations:
       pattern: This doesn't match the expected format.
     uploads:
       empty: No files yet.
+      treeLabel: Uploaded files
       addButton: Drop files here or click to upload
       addToFolder: 'Drop files here — they go to "{folder}"'
       pickFolderHint: Create or pick a folder above — uploads go into the selected folder.

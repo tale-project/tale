@@ -824,6 +824,8 @@ automations:
     loadFailed: Einstellungen konnten nicht geladen werden — schließe den Dialog und versuch es nochmal.
     save: Speichern
     saveAndContinue: Speichern und weiter
+    showMore: Mehr anzeigen
+    showLess: Weniger anzeigen
     dialogTitle: '{name} — Einstellungen'
     tabsLabel: Einstellungsbereiche
     moreTabs: Weitere Einstellungsbereiche
@@ -836,6 +838,7 @@ automations:
       pattern: Das entspricht nicht dem erwarteten Format.
     uploads:
       empty: Noch keine Dateien.
+      treeLabel: Hochgeladene Dateien
       addButton: Dateien hier ablegen oder klicken zum Hochladen
       addToFolder: 'Dateien hier ablegen — sie landen in "{folder}"'
       pickFolderHint: Erstelle oder wähle oben einen Ordner — Uploads landen im ausgewählten Ordner.

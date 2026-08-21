@@ -6,7 +6,7 @@ import {
   type AutomationSettings,
   parseAutomationSettings,
 } from '@/lib/shared/schemas/automation_settings';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 // Two seams, because reads and writes go different ways: the files are READ by
 // a cached query (mocked at the hook, whose contract is the values-by-file
@@ -96,8 +96,14 @@ function mount(onSaved = vi.fn()) {
         projectId={'project_1' as Id<'projects'>}
         settings={SETTINGS}
         folder="Setup"
+        formId="setup-form"
         onSaved={onSaved}
       />
+      {/* The component renders NO button of its own: the mounting dialog's
+          footer submits it via the `form` attribute — mirrored here. */}
+      <button type="submit" form="setup-form">
+        Save and continue
+      </button>
     </QueryClientProvider>,
   );
   return { ...utils, onSaved };
@@ -118,16 +124,23 @@ describe('AutomationSettingsForm — setup mode', () => {
 
     expect(screen.getByText('Client identity')).toBeInTheDocument();
 
+    // The footer button targets the form via the `form` attribute. jsdom does
+    // not run an external submit button's activation behavior, so assert the
+    // wiring and dispatch the submit directly (a real browser click does both).
     const save = screen.getByRole('button', { name: 'Save and continue' });
+    expect(save).toHaveAttribute('form', 'setup-form');
+    const form = document.querySelector('form#setup-form');
+    if (!(form instanceof HTMLFormElement)) throw new Error('form missing');
+    const submit = () => fireEvent.submit(form);
 
     // Empty required fields refuse the save.
-    await user.click(save);
+    submit();
     expect(convexMocks.write).not.toHaveBeenCalled();
     expect(screen.getAllByText('This field is required.')).not.toHaveLength(0);
 
     await user.type(screen.getByLabelText(/Legal name/), 'Acme Corp');
     await user.type(screen.getByLabelText(/Case ID/), 'CASE-999');
-    await user.click(save);
+    submit();
     expect(convexMocks.write).not.toHaveBeenCalled();
     expect(
       screen.getByText("This doesn't match the expected format."),
@@ -135,7 +148,7 @@ describe('AutomationSettingsForm — setup mode', () => {
 
     await user.clear(screen.getByLabelText(/Case ID/));
     await user.type(screen.getByLabelText(/Case ID/), 'CASE-123456');
-    await user.click(save);
+    submit();
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(convexMocks.write).toHaveBeenCalledTimes(2);
