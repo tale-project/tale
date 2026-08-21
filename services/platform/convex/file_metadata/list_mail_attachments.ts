@@ -20,16 +20,27 @@
  * Because assignment is read live, reassigning a conversation moves its
  * attachments in this listing too, with nothing rewritten.
  *
- * ## Two bounds, both reported
+ * ## Only bound rows are walked
  *
- * `limit` bounds what is KEPT. `SCAN_CAP` bounds what is EXAMINED, which is the
- * one that matters: the walk filters as it goes, so a caller who can read few
- * conversations rejects most of what it touches. Without the second bound one
- * question would read the organization's whole `fileMetadata` table.
+ * The range starts ABOVE `undefined` on `by_organizationId_and_conversationId`.
+ * Convex orders `undefined` below every real value, so that bound selects
+ * exactly the rows that carry a conversation, and
+ * the walk touches only rows that have a conversation. That is not an
+ * optimization, it is the correctness fix: an earlier version scanned all of
+ * `fileMetadata` newest-first under a scan cap, and on a deployment whose table
+ * is mostly unbound rows the cap was exhausted before the walk reached a single
+ * bound attachment. It returned nothing while three readable attachments
+ * existed. A cap on rows EXAMINED empties the result set when the filter
+ * rejects most of what it touches, so the filter has to be the index instead.
  *
- * The walk is newest-first. The bound decides the answer, so which end it keeps
- * is the feature: oldest-first would answer "what has come in?" with the
- * stalest mail on the box.
+ * `SCAN_CAP` survives as a ceiling on an organization with a very large number
+ * of mail attachments, where it now bounds a walk over bound rows only.
+ *
+ * ## Recency is applied after the walk
+ *
+ * The index orders by conversation, not by time, so the page is sorted by
+ * arrival before the limit is taken. The bound decides the answer, and
+ * oldest-first would report "what has come in?" as the stalest mail on the box.
  */
 
 import type { Doc } from '../_generated/dataModel';
@@ -111,19 +122,21 @@ export async function listMailAttachments(
   let truncated = false;
   for await (const row of ctx.db
     .query('fileMetadata')
-    .withIndex('by_organizationId', (q) =>
-      q.eq('organizationId', args.organizationId),
-    )
-    .order('desc')) {
+    .withIndex('by_organizationId_and_conversationId', (q) =>
+      // Above `null` selects the rows that HAVE a conversation. Unbound rows —
+      // Document Hub uploads, chat uploads, the unreferenced residue of a
+      // re-ingest bug — are never touched, so they cannot exhaust the budget
+      // ahead of a readable attachment.
+      q
+        .eq('organizationId', args.organizationId)
+        .gt('conversationId', undefined),
+    )) {
     scanned += 1;
     if (scanned > (args.scanCap ?? SCAN_CAP)) {
       truncated = true;
       break;
     }
     if (row.lifecycleStatus === 'trashed') continue;
-    // `mayRead` rejects an unbound row itself, so there is no separate guard
-    // here: a second one read as belt-and-braces but no test could tell it from
-    // dead code.
     if (!(await mayRead(row.conversationId))) continue;
     attachments.push({
       ref: String(row.storageId),
@@ -134,8 +147,14 @@ export async function listMailAttachments(
       receivedAt: row._creationTime,
       indexed: row.ragStatus === 'completed',
     });
-    if (attachments.length >= args.limit) break;
   }
 
-  return { attachments, truncated };
+  // Newest first, then the limit — the index orders by conversation, so recency
+  // cannot come from the walk.
+  attachments.sort((a, b) => b.receivedAt - a.receivedAt);
+  const page = attachments.slice(0, args.limit);
+  return {
+    attachments: page,
+    truncated: truncated || page.length < attachments.length,
+  };
 }

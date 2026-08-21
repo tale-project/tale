@@ -176,6 +176,53 @@ describe('listMailAttachments — who may see what', () => {
   });
 });
 
+describe('a table dominated by unbound rows', () => {
+  // The shape measured on a live deployment: 3,671 `fileMetadata` rows of which
+  // 3 are bound. Walking every row under a scan budget meant the budget was
+  // spent on rows that can never qualify, and which bound rows were reachable
+  // depended on where they sat in creation order — so the listing silently
+  // emptied as the table grew.
+  //
+  // 700 unbound rows is above the 600 budget, so this fails against a walk over
+  // all rows and passes against a walk over bound rows only.
+  it('finds every bound row regardless of how many unbound rows precede it', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'owner_1', 'owner');
+    const conv = await seedConversation(t, { assigneeUserId: 'owner_1' });
+    // Bound rows FIRST, so they are the oldest and sit behind every unbound row
+    // in creation order — the position that used to make them unreachable.
+    for (let index = 0; index < 3; index += 1) {
+      await seedAttachment(t, {
+        storageId: `bound_${index}`,
+        conversationId: conv,
+        ragStatus: 'completed',
+      });
+    }
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 700; index += 1) {
+        await ctx.db.insert('fileMetadata', {
+          organizationId: ORG,
+          storageId: `unbound_${index}`,
+          fileName: `f${index}.pdf`,
+          contentType: 'application/pdf',
+          size: 100,
+          source: 'imap-smtp',
+        });
+      }
+    });
+
+    const result = await list(t, 'owner_1');
+    expect(result.attachments.map((a) => a.ref).sort()).toEqual([
+      'bound_0',
+      'bound_1',
+      'bound_2',
+    ]);
+    // And the walk is not reporting a partial answer, because it never touched
+    // the unbound rows at all.
+    expect(result.truncated).toBe(false);
+  });
+});
+
 describe('listMailAttachments — what is listed', () => {
   it('lists only attachments bound to a conversation', async () => {
     const t = convexTest(schema, modules);
