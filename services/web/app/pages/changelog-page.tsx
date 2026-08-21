@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef } from 'react';
 
 import { ReleaseBody } from '@/app/components/blocks/changelog/release-body';
 import { useActiveRelease } from '@/app/components/blocks/changelog/use-active-release';
+import { useLiveReleases } from '@/app/components/blocks/changelog/use-live-releases';
 import { FeatureCta } from '@/app/components/blocks/feature';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import {
@@ -52,8 +53,9 @@ function distinctiveReleaseName(release: Release): string | null {
 
 /**
  * Public changelog — Multica-style sticky month timeline + release stream.
- * Data is a build-time snapshot of GitHub Releases (same source as the
- * platform `/dashboard/changelog` viewer).
+ * Renders the build-time snapshot of GitHub Releases (same source as the
+ * platform `/dashboard/changelog` viewer), then swaps in the server's live
+ * feed once it arrives — see `use-live-releases`.
  */
 export function ChangelogPage() {
   const { t } = useT('changelogPage');
@@ -62,9 +64,13 @@ export function ChangelogPage() {
   const desktopNavRef = useRef<HTMLElement>(null);
   const mobileNavRef = useRef<HTMLElement>(null);
 
+  const feed = useLiveReleases({
+    releases: RELEASES,
+    fetchedAt: RELEASES_FETCHED_AT,
+  });
   const releases = useMemo(
-    () => RELEASES.slice(0, DISPLAY_LIMIT) as Release[],
-    [],
+    () => feed.releases.slice(0, DISPLAY_LIMIT) as Release[],
+    [feed.releases],
   );
 
   const tags = useMemo(() => releases.map((r) => r.tag), [releases]);
@@ -186,7 +192,7 @@ export function ChangelogPage() {
 
       <p className="text-fg-subtle pt-6 text-xs">
         {t('fetchedAt', {
-          date: formatReleaseDate(RELEASES_FETCHED_AT, locale),
+          date: formatReleaseDate(feed.fetchedAt, locale),
         })}
       </p>
     </div>

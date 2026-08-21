@@ -47,6 +47,13 @@ ENV NODE_ENV=production \
     WEB_DOCS_URL=${WEB_DOCS_URL} \
     VITE_DOCS_URL=${WEB_DOCS_URL}
 WORKDIR /app/services/web
+# Refresh the GitHub Releases snapshot the prerendered HTML and the SEO/LLM
+# artifacts embed. Best-effort on purpose: the committed manifest is a valid
+# fallback, and `/api/releases` refreshes the list at runtime anyway (the
+# release for this tag is only published after these images are built), so a
+# GitHub hiccup must never fail an image build.
+RUN bun --bun scripts/fetch-releases.ts --no-format \
+    || echo '[build] release snapshot refresh failed — using the committed manifest'
 # Build the SPA + SSR bundle, prerender every marketing/legal route (× locale)
 # to static `dist/<route>/index.html` with the route's real `<head>` + body,
 # then precompile the SEO + LLM artifact set into `dist-seo/`. The prerender

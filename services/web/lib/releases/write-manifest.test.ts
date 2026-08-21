@@ -60,6 +60,22 @@ describe('writeReleasesManifest', () => {
     expect(source).not.toContain('"tag":');
   });
 
+  it('format: false writes valid content without invoking oxfmt', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'web-releases-'));
+    dirs.push(dir);
+    const path = join(dir, 'releases-manifest.ts');
+
+    await writeReleasesManifest(path, SAMPLE, '2026-01-01T00:00:00Z', {
+      format: false,
+    });
+
+    // Unformatted (JSON-quoted keys) but valid TypeScript — what the Docker
+    // builder needs, where oxfmt is not part of the contract.
+    const source = readFileSync(path, 'utf8');
+    expect(source).toContain('"tag": "v1.0.0"');
+    expect(await isOxfmtClean(path)).toBe(false);
+  });
+
   it('formatGeneratedFile rejects a missing path', async () => {
     await expect(
       formatGeneratedFile(join(tmpdir(), 'no-such-releases-manifest.ts')),

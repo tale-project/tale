@@ -61,3 +61,55 @@ test.describe('changelog timeline', () => {
     await expect(first).not.toHaveAttribute('aria-current', 'true');
   });
 });
+
+test.describe('changelog release feed', () => {
+  // The build-time snapshot cannot carry the newest release (release images are
+  // built before the GitHub release is published), so the page refreshes from
+  // `/api/releases` after hydration. Both paths are pinned here.
+  const liveRelease = {
+    tag: 'v9.9.9',
+    version: '9.9.9',
+    name: null,
+    body: '## Highlights\n\nRuntime feed reached the page.',
+    htmlUrl: 'https://github.com/tale-project/tale/releases/tag/v9.9.9',
+    publishedAt: '2026-08-20T10:00:00Z',
+  };
+
+  test('renders releases the build-time snapshot never saw', async ({
+    page,
+  }) => {
+    await page.route('**/api/releases', (route) =>
+      route.fulfill({
+        json: {
+          releases: [liveRelease],
+          fetchedAt: '2026-08-21T10:00:00.000Z',
+          source: 'live',
+        },
+      }),
+    );
+
+    await page.goto('/changelog');
+
+    await expect(page.locator('article#v9\\.9\\.9')).toBeVisible();
+    await expect(
+      page.getByText('Runtime feed reached the page.'),
+    ).toBeVisible();
+  });
+
+  test('falls back to the snapshot when the feed fails', async ({ page }) => {
+    await page.route('**/api/releases', (route) =>
+      route.fulfill({ status: 503, json: { error: 'upstream' } }),
+    );
+
+    await page.goto('/changelog');
+
+    const nav = page.getByRole('navigation', {
+      name: t('changelogPage.allReleases'),
+    });
+    await expect(nav.getByRole('link').first()).toHaveAttribute(
+      'href',
+      /^#v\d+\.\d+\.\d+$/,
+    );
+    await expect(page.locator('article').first()).toBeVisible();
+  });
+});
