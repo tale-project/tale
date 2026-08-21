@@ -57,6 +57,13 @@ interface TabsProps {
   overflowMenu?: boolean;
   /** Accessible label for the overflow-menu trigger. @default 'More' */
   overflowMenuLabel?: string;
+  /**
+   * Keep every panel MOUNTED and merely hidden while inactive. Radix unmounts
+   * inactive tab content by default, which resets any local state a panel
+   * holds (an expanded tree, a picked upload target); opt in when the panels
+   * are stateful editors rather than cheap read views.
+   */
+  keepMounted?: boolean;
 }
 
 // `min-w-0` lets the flex child shrink past its content width so the
@@ -117,6 +124,7 @@ export function Tabs({
   listAriaLabel,
   overflowMenu = false,
   overflowMenuLabel = 'More',
+  keepMounted = false,
 }: TabsProps) {
   const hasContent = items.some((item) => item.content !== undefined);
 
@@ -252,7 +260,13 @@ export function Tabs({
               <TabsPrimitive.Content
                 key={item.value}
                 value={item.value}
-                className="focus-visible:ring-ring mt-5 flex min-h-0 flex-1 flex-col focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+                // `forceMount` keeps inactive panels alive; Radix still
+                // stamps data-state, so hiding is pure CSS.
+                {...(keepMounted && { forceMount: true as const })}
+                className={cn(
+                  'focus-visible:ring-ring mt-5 flex min-h-0 flex-1 flex-col focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+                  keepMounted && 'data-[state=inactive]:hidden',
+                )}
               >
                 {item.content}
               </TabsPrimitive.Content>

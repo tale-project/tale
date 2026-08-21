@@ -97,7 +97,7 @@ settings:
 
 Ein Formular besitzt seine Datei: Speichern schreibt `Setup/validation-policy.yaml` komplett aus den Formularwerten neu, und das Formular füllt sich aus dem, was die Datei enthält — egal ob das Formular sie geschrieben hat oder jemand sie von Hand hochgeladen hat. Felder sind `text`, `number`, `boolean` oder `select`; jeder Wert landet als String, ein `text`-Feld kann ein `pattern` festlegen, und Titel, Beschriftungen, Hilfetexte und Optionsnamen lokalisieren über `i18n`-Blöcke am jeweiligen Eintrag. Alles, was reicher ist als eine flache Schlüssel-Wert-Datei — verschachtelte Blöcke, Listen —, gehört in eine separate, von Hand gepflegte Datei, die der Workflow daneben liest.
 
-Markierst du ein Formular mit `required: true`, erzwingt der Erstellen-Dialog es pro Projekt: Wählt jemand die Aufgabenvorlage der Automatisierung zum ersten Mal in einem Projekt, das noch nicht eingerichtet ist, erscheinen die Formulare vor dem eigentlichen Aufgabenfeld, und das Erstellen geht erst weiter, wenn sie gespeichert sind. Von da an öffnet der Button **Einstellungen** im selben Dialog die Formulare zum Bearbeiten — jedes mit eigenem **Speichern**, aktiv nur, wenn sich etwas geändert hat.
+Markierst du ein Formular mit `required: true`, erzwingt der Erstellen-Dialog es pro Projekt: Wählt jemand die Aufgabenvorlage der Automatisierung zum ersten Mal in einem Projekt, das noch nicht eingerichtet ist, erscheinen die Formulare vor dem eigentlichen Aufgabenfeld, und das Erstellen geht erst weiter, wenn sie gespeichert sind — ein einziges **Speichern und weiter** schreibt sie alle. Von da an öffnet der Button **Einstellungen** im selben Dialog die Formulare zum Bearbeiten — als Tabs hinter einem einzigen **Speichern**: Es schreibt jedes geänderte Formular, ein Punkt markiert Tabs mit ungespeicherten Änderungen, und schließt du mit offenen Änderungen, fragt der Dialog erst nach.
 
 Manche Einstellungen sind Dateien statt Werte — Referenzdokumente, die die Läufe unverändert lesen. Deklariere sie als **Upload-Formular** (`kind: uploads`): Statt eine YAML-Datei zu schreiben, verwaltet das Formular einen Projektordner — mit Drop-Zone, Ordnerauswahl und einer Liste dessen, was schon da ist.
 
@@ -140,7 +140,11 @@ die Plattform nichts: Ein Name, den noch kein Lauf abgelegt hat, erscheint
 trotzdem als zugesagte Zeile mit dem Hinweis _Noch nicht bereit_ — die Aufgabe
 benennt also, was sie produzieren wird, bevor sie es produziert. `*` und `?` sind
 als Platzhalter erlaubt (`return-*.xml`), für einen Namen, den ein Lauf erst
-bildet. Deklarierst du nichts, zeigt der Ergebnis-Bereich jede Datei, die die
+bildet. Ein Ergebnis, das nur manche Läufe erzeugen — etwa eine Audit-Übersicht,
+die es nur für bestimmte Projekte gibt —, deklarierst du als
+`{ name: audit-summary.md, optional: true }`: Es erscheint, sobald ein Lauf es
+ablegt, und wird nie als Zusage angekündigt, die vielleicht nie eintrifft.
+Deklarierst du nichts, zeigt der Ergebnis-Bereich jede Datei, die die
 Läufe abgelegt haben, die neueste zuerst.
 
 ## Wo das hingehört

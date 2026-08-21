@@ -373,6 +373,10 @@ function matchesNaming(naming: string, value: string): boolean {
   }
 }
 
+/** DOM id linking the setup gate's `<form>` (in the scroll body) to its
+ * submit button (in the modal footer) via the `form` attribute. */
+const SETUP_FORM_ID = 'automation-settings-setup';
+
 /**
  * The one-field template create: the subject's natural key (e.g. a period
  * folder name) is the only input — the contract derives the title, provisions
@@ -405,6 +409,9 @@ function TemplateCreateBody({
   );
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Mirror of the setup form's save-in-flight state — the submit button lives
+  // in the modal footer, outside the <form> it targets.
+  const [setupSaving, setSetupSaving] = useState(false);
 
   const { automationSlug, displayName, contract, settings } = template;
   const settingsFolder =
@@ -539,7 +546,13 @@ function TemplateCreateBody({
     </Stack>
   );
   const cancelButton = (
-    <Button variant="secondary" onClick={onClose} disabled={submitting}>
+    // Also locked while the setup gate is saving: dismissing mid-save would
+    // race the files being written (`setupSaving` is false in other phases).
+    <Button
+      variant="secondary"
+      onClick={onClose}
+      disabled={submitting || setupSaving}
+    >
       {tCommon('actions.cancel')}
     </Button>
   );
@@ -585,6 +598,8 @@ function TemplateCreateBody({
               projectId={projectId}
               settings={settings}
               folder={settingsFolder}
+              formId={SETUP_FORM_ID}
+              onSavingChange={setSetupSaving}
               onSaved={() => {
                 toast({
                   title: tAutomations('settings.saved'),
@@ -599,6 +614,13 @@ function TemplateCreateBody({
         footer={
           <Row gap={2} justify="end">
             {cancelButton}
+            {/* Targets the settings <form> in the body via the `form`
+                attribute — one action row beside Cancel. (In the auto-height
+                create dialog this row scrolls with the page; only the
+                fixed-height edit dialog truly pins its footer.) */}
+            <Button type="submit" form={SETUP_FORM_ID} disabled={setupSaving}>
+              {tAutomations('settings.saveAndContinue')}
+            </Button>
           </Row>
         }
       />

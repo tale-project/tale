@@ -85,6 +85,41 @@ describe('splitFolderFiles — declared deliverables', () => {
     ]);
   });
 
+  it('shows an OPTIONAL deliverable once filed, never as a promise', () => {
+    const withOptional = {
+      outcome: {
+        files: ['return.xml', { name: 'audit-summary.md', optional: true }],
+      },
+    };
+    // Not filed: only some runs ever produce it — no promised row.
+    const absent = splitFolderFiles([file('return.xml')], 'q1', withOptional);
+    expect(absent.outcome.map((slot) => slot.label)).toEqual(['return.xml']);
+    // Filed: it takes its declared place like any other deliverable.
+    const present = splitFolderFiles(
+      [file('return.xml'), file('audit-summary.md')],
+      'q1',
+      withOptional,
+    );
+    expect(
+      present.outcome.map((slot) => [slot.label, slot.file !== null]),
+    ).toEqual([
+      ['return.xml', true],
+      ['audit-summary.md', true],
+    ]);
+    // `optional: false` (and the bare-string form) still promises up front.
+    const explicit = splitFolderFiles([], 'q1', {
+      outcome: {
+        files: [{ name: 'report.md', optional: false }, 'journal.csv'],
+      },
+    });
+    expect(
+      explicit.outcome.map((slot) => [slot.label, slot.file !== null]),
+    ).toEqual([
+      ['report.md', false],
+      ['journal.csv', false],
+    ]);
+  });
+
   it('leaves the rest under Files — working material is never hidden', () => {
     const { rest } = splitFolderFiles(
       [file('a.ocr.json'), file('b.ocr.json'), file('return.xml')],

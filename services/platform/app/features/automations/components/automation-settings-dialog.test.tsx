@@ -160,13 +160,22 @@ describe('AutomationSettingsDialog', () => {
     const save = screen.getByRole('button', { name: 'Save' });
     expect(save).toBeDisabled();
 
-    // The first tab's fields are the ones on screen; the other tab's are not.
+    // Every panel stays MOUNTED (`keepMounted`: the stateful editors — an
+    // uploads tree's pick, a half-typed field — must survive a tab switch);
+    // the inactive one hides on its panel's data-state. jsdom loads no
+    // stylesheet, so the state attribute is the assertable truth here.
+    const panelState = (control: HTMLElement) =>
+      control.closest('[role="tabpanel"]')?.getAttribute('data-state');
     expect(screen.getByLabelText(/Legal name/)).toHaveValue('Acme Corp');
-    expect(screen.queryByLabelText(/Validation profile/)).toBeNull();
+    expect(panelState(screen.getByLabelText(/Validation profile/))).toBe(
+      'inactive',
+    );
 
     await user.click(screen.getByRole('tab', { name: /Validation policy/ }));
-    expect(screen.getByLabelText(/Validation profile/)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Legal name/)).toBeNull();
+    expect(panelState(screen.getByLabelText(/Validation profile/))).toBe(
+      'active',
+    );
+    expect(panelState(screen.getByLabelText(/Legal name/))).toBe('inactive');
   });
 
   it('writes only the files the operator changed, and keeps edits across tabs', async () => {

@@ -91,10 +91,17 @@ export function fieldIssue(
   return null;
 }
 
-/** What a save did: the files written, or which forms refused validation. */
+/** What a save did: the files written, or which forms refused validation.
+ * `firstInvalid` names the first offending field in declaration order, so a
+ * caller can reveal it (scroll/focus, or switch to its tab) — the refusal
+ * itself is otherwise invisible when the control sits off-screen. */
 export type SettingsSaveResult =
   | { ok: true; written: string[] }
-  | { ok: false; invalidFiles: string[] };
+  | {
+      ok: false;
+      invalidFiles: string[];
+      firstInvalid?: { file: string; key: string };
+    };
 
 export interface SettingsEditor {
   /** The declared forms, in declaration order — uploads panels included. */
@@ -230,18 +237,22 @@ export function useSettingsEditor({
   }): Promise<SettingsSaveResult> => {
     if (saving) return { ok: false, invalidFiles: [] };
     const found: Record<string, Record<string, SettingsFieldIssue>> = {};
+    let firstInvalid: { file: string; key: string } | undefined;
     for (const form of validate) {
       const values = valuesOf(form.file);
       for (const field of form.fields) {
         const issue = fieldIssue(field, values[field.key] ?? '');
         if (issue !== null) {
+          firstInvalid ??= { file: form.file, key: field.key };
           found[form.file] = { ...found[form.file], [field.key]: issue };
         }
       }
     }
     setIssues(found);
     const invalidFiles = Object.keys(found);
-    if (invalidFiles.length > 0) return { ok: false, invalidFiles };
+    if (invalidFiles.length > 0) {
+      return { ok: false, invalidFiles, ...(firstInvalid && { firstInvalid }) };
+    }
 
     setSaving(true);
     try {
