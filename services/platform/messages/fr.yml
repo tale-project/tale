@@ -7372,6 +7372,8 @@ projects:
       Utilise 2 à 6 lettres ou chiffres, en commençant par une
       lettre (par ex. TAL).
     PROJECT_KEY_TAKEN: Cette clé est déjà utilisée par un autre projet. Choisis-en une autre.
+    PROJECT_EXTERNAL_ITEM_ID_INVALID: L'identifiant externe doit faire entre 1 et 256 caractères.
+    PROJECT_DUPLICATE_EXTERNAL_ID: Un autre projet utilise déjà cet identifiant externe.
     PROJECT_DESCRIPTION_INVALID: La description est trop longue.
     PROJECT_INSTRUCTIONS_TOO_LONG: Les instructions dépassent la limite de {cap}
       caractères. Raccourcis-les avant d'enregistrer.

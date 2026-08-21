@@ -7262,6 +7262,8 @@ projects:
     PROJECT_KEY_INVALID: 2–6 Buchstaben oder Ziffern, beginnend mit einem Buchstaben (z. B. TAL).
     PROJECT_KEY_TAKEN: Dieses Kürzel wird bereits von einem anderen Projekt
       verwendet. Bitte ein anderes wählen.
+    PROJECT_EXTERNAL_ITEM_ID_INVALID: Externe ID muss 1–256 Zeichen lang sein.
+    PROJECT_DUPLICATE_EXTERNAL_ID: Ein anderes Projekt verwendet diese externe ID bereits.
     PROJECT_DESCRIPTION_INVALID: Beschreibung ist zu lang.
     PROJECT_INSTRUCTIONS_TOO_LONG: Anweisungen überschreiten das Limit von {cap}
       Zeichen. Kürze sie vor dem Speichern.

@@ -8,13 +8,14 @@
  * org + project access) pass the validated projectId.
  */
 
-import { v } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 
-import type { Id } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import { internalQuery, type QueryCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
 import { getProjectTeamIds, hasProjectAccess } from './access';
+import { resolveProjectAccessForUser } from './resolve_project_access';
 
 /**
  * Load a project record for chat-time injection. Returns the minimal
@@ -207,5 +208,104 @@ export const orgHasAnyProject = internalQuery({
       )
       .first();
     return first !== null;
+  },
+});
+
+/**
+ * The projection REST lookups return for a project matched by id or by its
+ * caller-owned external key — enough to identify the row and to see whether
+ * the match is archived (`archivedAt` set), nothing more.
+ */
+const projectLookupValidator = v.object({
+  _id: v.id('projects'),
+  name: v.string(),
+  key: v.optional(v.string()),
+  description: v.optional(v.string()),
+  externalItemId: v.optional(v.string()),
+  archivedAt: v.optional(v.number()),
+});
+
+function toProjectLookup(
+  project: Doc<'projects'>,
+): Infer<typeof projectLookupValidator> {
+  return {
+    _id: project._id,
+    name: project.name,
+    key: project.key,
+    description: project.description,
+    externalItemId: project.externalItemId,
+    archivedAt: project.archivedAt,
+  };
+}
+
+/**
+ * Look up a project by its caller-owned external key through
+ * `by_organization_externalItemId`. The key is opaque and matched exactly as
+ * stored (`createProject` stores it trimmed); archived projects match too —
+ * per-org uniqueness ignores lifecycle, and the projection's `archivedAt`
+ * tells the caller which case they hit.
+ */
+export const getProjectByExternalItemId = internalQuery({
+  args: { organizationId: v.string(), externalItemId: v.string() },
+  returns: v.union(projectLookupValidator, v.null()),
+  handler: async (ctx, args) => {
+    const project = await ctx.db
+      .query('projects')
+      .withIndex('by_organization_externalItemId', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('externalItemId', args.externalItemId),
+      )
+      .first();
+    return project ? toProjectLookup(project) : null;
+  },
+});
+
+/**
+ * The minting user's access matrix on a project, for REST surfaces that must
+ * re-run per-user visibility with an explicit userId. Takes the id as a wire
+ * string: garbage, cross-org, and deleted ids all collapse into
+ * `{canRead: false}` — exactly the shape an absent project answers, so the
+ * caller's opaque-404 posture costs nothing extra. `canEdit` is the same
+ * project-edit standard the session mutations apply (`checkProjectAccess`
+ * via `resolveProjectAccessForUser`, failing closed on resolution errors).
+ */
+export const getProjectAccessForUser = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    projectId: v.string(),
+  },
+  returns: v.object({ canRead: v.boolean(), canEdit: v.boolean() }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ canRead: boolean; canEdit: boolean }> => {
+    const projectId = ctx.db.normalizeId('projects', args.projectId);
+    if (projectId === null) return { canRead: false, canEdit: false };
+    const access = await resolveProjectAccessForUser(ctx, projectId, {
+      userId: args.userId,
+      organizationId: args.organizationId,
+    });
+    return { canRead: access.canRead, canEdit: access.canEdit };
+  },
+});
+
+/**
+ * The same lookup projection, fetched by document id. Org-scoped: an id from
+ * another organization — or a string that is not a project id at all —
+ * resolves to null, so a REST caller cannot confirm that foreign ids exist.
+ */
+export const getProjectByIdForOrg = internalQuery({
+  args: { organizationId: v.string(), projectId: v.string() },
+  returns: v.union(projectLookupValidator, v.null()),
+  handler: async (ctx, args) => {
+    const projectId = ctx.db.normalizeId('projects', args.projectId);
+    if (projectId === null) return null;
+    const project = await ctx.db.get(projectId);
+    if (!project || project.organizationId !== args.organizationId) {
+      return null;
+    }
+    return toProjectLookup(project);
   },
 });

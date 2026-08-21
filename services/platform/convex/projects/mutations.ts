@@ -53,11 +53,14 @@ import {
 
 const PROJECT_NAME_MAX = 80;
 const PROJECT_DESCRIPTION_MAX = 500;
+const PROJECT_EXTERNAL_ITEM_ID_MAX = 256;
 const PROJECT_INSTRUCTIONS_MAX_CHARS = 6000;
 const PROJECT_SHARED_TEAMS_MAX = 20;
 
-/** Map rate-limiter exceptions to a structured ConvexError the UI handles. */
-function mapRateLimitError(error: unknown): never {
+/** Map rate-limiter exceptions to a structured ConvexError the UI handles.
+ * Exported for the machine-door twin (`internal_mutations.createProjectForUser`),
+ * whose REST wrapper turns the code into a 429 + Retry-After. */
+export function mapRateLimitError(error: unknown): never {
   if (error instanceof RateLimitExceededError) {
     throw new ConvexError({
       code: 'RATE_LIMITED',
@@ -128,10 +131,16 @@ function assertAdmin(auth: AuthContext): void {
 function validateName(name: string): string {
   const trimmed = name.trim();
   if (trimmed.length === 0) {
-    throw new ConvexError({ code: 'PROJECT_NAME_INVALID' });
+    throw new ConvexError({
+      code: 'PROJECT_NAME_INVALID',
+      message: 'Project name cannot be empty',
+    });
   }
   if (trimmed.length > PROJECT_NAME_MAX) {
-    throw new ConvexError({ code: 'PROJECT_NAME_INVALID' });
+    throw new ConvexError({
+      code: 'PROJECT_NAME_INVALID',
+      message: `Project name must be at most ${PROJECT_NAME_MAX} characters`,
+    });
   }
   return trimmed;
 }
@@ -161,7 +170,10 @@ async function resolveProjectKey(
 ): Promise<string> {
   const key = normalizeProjectKey(rawKey?.trim() || deriveProjectKey(name));
   if (!isValidProjectKey(key)) {
-    throw new ConvexError({ code: 'PROJECT_KEY_INVALID' });
+    throw new ConvexError({
+      code: 'PROJECT_KEY_INVALID',
+      message: 'Project key must be 2-6 characters, letters and digits only',
+    });
   }
   const clash = await ctx.db
     .query('projects')
@@ -170,18 +182,22 @@ async function resolveProjectKey(
     )
     .first();
   if (clash) {
-    throw new ConvexError({ code: 'PROJECT_KEY_TAKEN' });
+    throw new ConvexError({
+      code: 'PROJECT_KEY_TAKEN',
+      message: `Project key "${key}" is already taken in this organization`,
+    });
   }
   return key;
 }
 
 /**
- * Pick a unique, valid key for a *duplicated* project. Derives from the new
- * name like {@link resolveProjectKey}, but appends a numeric suffix until the
- * per-org uniqueness index clears instead of throwing — duplication has no key
- * input, so the user can't resolve a collision themselves. Returns `undefined`
- * when no valid key can be derived (e.g. a name with no letters); the copy is
- * then keyless, matching pre-key-migration projects.
+ * Pick a unique, valid key with no key input: derives from the name like
+ * {@link resolveProjectKey}, but appends a numeric suffix until the per-org
+ * uniqueness index clears instead of throwing, and returns `undefined` when no
+ * valid key can be derived (e.g. a name with no letters) — the project is then
+ * keyless, matching pre-key-migration projects. Used where nobody can resolve
+ * a collision interactively: project duplication, and the machine door's
+ * derived-key lane (`createProjectCore` with `deriveKeyOnCollision`).
  */
 async function resolveDuplicateProjectKey(
   ctx: MutationCtx,
@@ -205,6 +221,48 @@ async function resolveDuplicateProjectKey(
     if (!clash) return candidate;
   }
   return undefined;
+}
+
+/**
+ * Validate and reserve the caller-owned external item id: an opaque key an
+ * external system attaches at creation, stored trimmed and never interpreted
+ * by the platform. Enforces per-org uniqueness via
+ * `by_organization_externalItemId` regardless of lifecycle — a conflict
+ * against an archived project is still a conflict. Throws
+ * `PROJECT_EXTERNAL_ITEM_ID_INVALID` / `PROJECT_DUPLICATE_EXTERNAL_ID`.
+ */
+async function resolveExternalItemId(
+  ctx: MutationCtx,
+  organizationId: string,
+  raw: string | undefined,
+): Promise<string | undefined> {
+  if (raw == null) return undefined;
+  const externalItemId = raw.trim();
+  if (
+    externalItemId.length === 0 ||
+    externalItemId.length > PROJECT_EXTERNAL_ITEM_ID_MAX
+  ) {
+    throw new ConvexError({
+      code: 'PROJECT_EXTERNAL_ITEM_ID_INVALID',
+      message: `externalItemId must be 1-${PROJECT_EXTERNAL_ITEM_ID_MAX} characters after trimming`,
+    });
+  }
+  const clash = await ctx.db
+    .query('projects')
+    .withIndex('by_organization_externalItemId', (q) =>
+      q
+        .eq('organizationId', organizationId)
+        .eq('externalItemId', externalItemId),
+    )
+    .first();
+  if (clash) {
+    throw new ConvexError({
+      code: 'PROJECT_DUPLICATE_EXTERNAL_ID',
+      message: `A project with externalItemId "${externalItemId}" already exists in this organization`,
+      externalItemId,
+    });
+  }
+  return externalItemId;
 }
 
 function validateInstructions(instructions: string): string {
@@ -295,6 +353,122 @@ function validateRecommendedSubsetOfAllowed(
 // Create
 // ---------------------------------------------------------------------------
 
+export interface CreateProjectCoreArgs {
+  organizationId: string;
+  /** The acting user — the session identity, or the REST key holder. */
+  userId: string;
+  /** Actor email for the audit trail; absent for keys with no email. */
+  userEmail?: string;
+  name: string;
+  key?: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  externalItemId?: string;
+  teamId?: string;
+  sharedWithTeamIds?: string[];
+  /**
+   * When no explicit `key` is supplied, resolve a derived-key collision by
+   * numeric suffix (and an underivable name to a keyless project) instead of
+   * throwing `PROJECT_KEY_TAKEN`/`PROJECT_KEY_INVALID`. The machine door sets
+   * this — a REST caller creating projects in bulk has no interactive way to
+   * pick another key, and two client names can share initials. An explicit
+   * `key` still conflicts loudly.
+   */
+  deriveKeyOnCollision?: boolean;
+}
+
+/**
+ * The one create-project core: field validation, key + externalItemId
+ * uniqueness, the insert, the audit row, default labels, and the
+ * `project.created` event. Shared by the session `createProject` and the
+ * machine door (`internal_mutations.createProjectForUser`) so the two can
+ * never drift. Callers own authentication, the editor-role gate, and the
+ * `project:create` rate charge.
+ */
+export async function createProjectCore(
+  ctx: MutationCtx,
+  args: CreateProjectCoreArgs,
+): Promise<Id<'projects'>> {
+  const name = validateName(args.name);
+  const description = validateDescription(args.description);
+  // The caller-owned external key is checked BEFORE the project key so a
+  // duplicate externalItemId reports as its own conflict — a machine caller
+  // must never mistake "this client already has a project" for a key clash.
+  const externalItemId = await resolveExternalItemId(
+    ctx,
+    args.organizationId,
+    args.externalItemId,
+  );
+  const key =
+    args.deriveKeyOnCollision && !args.key?.trim()
+      ? await resolveDuplicateProjectKey(ctx, args.organizationId, name)
+      : await resolveProjectKey(ctx, args.organizationId, args.key, name);
+  const sharedWithTeamIds = args.sharedWithTeamIds ?? [];
+  validateSharing(args.teamId, args.sharedWithTeamIds);
+
+  const now = Date.now();
+  const projectId = await ctx.db.insert('projects', {
+    organizationId: args.organizationId,
+    name,
+    key,
+    externalItemId,
+    taskCounter: 0,
+    // Explicit zeros rather than undefined so a fresh project reads the same
+    // as one the backfill migration has touched.
+    openTaskCount: 0,
+    doneTaskCount: 0,
+    projectAgentCount: 0,
+    description,
+    icon: args.icon,
+    color: args.color,
+    teamId: args.teamId || undefined,
+    sharedWithTeamIds:
+      sharedWithTeamIds.length > 0 ? sharedWithTeamIds : undefined,
+    createdBy: args.userId,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await createAuditLog(ctx, {
+    organizationId: args.organizationId,
+    actorId: args.userId,
+    actorEmail: args.userEmail,
+    actorType: 'user',
+    action: PROJECT_AUDIT_ACTIONS.created,
+    category: 'data',
+    resourceType: PROJECT_RESOURCE_TYPE,
+    resourceId: String(projectId),
+    resourceName: name,
+    newState: {
+      name,
+      teamId: args.teamId ?? null,
+      sharedWithTeamIds,
+    },
+    metadata: {
+      isOrgWide: !args.teamId && sharedWithTeamIds.length === 0,
+    },
+    status: 'success',
+  });
+
+  await ensureDefaultProjectLabels(ctx, {
+    organizationId: args.organizationId,
+    projectId,
+    createdBy: args.userId,
+  });
+
+  const project = await ctx.db.get(projectId);
+  if (project) {
+    await emitEvent(ctx, {
+      organizationId: args.organizationId,
+      eventType: 'project.created',
+      eventData: { project },
+    });
+  }
+
+  return projectId;
+}
+
 export const createProject = mutation({
   args: {
     organizationId: v.string(),
@@ -303,6 +477,7 @@ export const createProject = mutation({
     description: v.optional(v.string()),
     icon: v.optional(v.string()),
     color: v.optional(v.string()),
+    externalItemId: v.optional(v.string()),
     teamId: v.optional(v.string()),
     sharedWithTeamIds: v.optional(v.array(v.string())),
   },
@@ -321,76 +496,11 @@ export const createProject = mutation({
       mapRateLimitError(error);
     }
 
-    const name = validateName(args.name);
-    const key = await resolveProjectKey(
-      ctx,
-      args.organizationId,
-      args.key,
-      name,
-    );
-    const description = validateDescription(args.description);
-    const sharedWithTeamIds = args.sharedWithTeamIds ?? [];
-    validateSharing(args.teamId, args.sharedWithTeamIds);
-
-    const now = Date.now();
-    const projectId = await ctx.db.insert('projects', {
-      organizationId: args.organizationId,
-      name,
-      key,
-      taskCounter: 0,
-      // Explicit zeros rather than undefined so a fresh project reads the same
-      // as one the backfill migration has touched.
-      openTaskCount: 0,
-      doneTaskCount: 0,
-      projectAgentCount: 0,
-      description,
-      icon: args.icon,
-      color: args.color,
-      teamId: args.teamId || undefined,
-      sharedWithTeamIds:
-        sharedWithTeamIds.length > 0 ? sharedWithTeamIds : undefined,
-      createdBy: auth.userId,
-      createdAt: now,
-      updatedAt: now,
+    return await createProjectCore(ctx, {
+      ...args,
+      userId: auth.userId,
+      userEmail: auth.email,
     });
-
-    await createAuditLog(ctx, {
-      organizationId: args.organizationId,
-      actorId: auth.userId,
-      actorEmail: auth.email,
-      actorType: 'user',
-      action: PROJECT_AUDIT_ACTIONS.created,
-      category: 'data',
-      resourceType: PROJECT_RESOURCE_TYPE,
-      resourceId: String(projectId),
-      resourceName: name,
-      newState: {
-        name,
-        teamId: args.teamId ?? null,
-        sharedWithTeamIds,
-      },
-      metadata: {
-        isOrgWide: !args.teamId && sharedWithTeamIds.length === 0,
-      },
-      status: 'success',
-    });
-
-    await ensureDefaultProjectLabels(ctx, {
-      organizationId: args.organizationId,
-      projectId,
-      createdBy: auth.userId,
-    });
-
-    const project = await ctx.db.get(projectId);
-    if (project) {
-      await emitEvent(ctx, {
-        organizationId: args.organizationId,
-        eventType: 'project.created',
-        eventData: { project },
-      });
-    }
-
-    return projectId;
   },
 });
 
@@ -1896,6 +2006,7 @@ export const deleteProject = mutation({
  *   - files (separate sharing semantics; user must explicitly attach)
  *   - threads (per-user; chats are owner-bound)
  *   - archivedAt (always lands as a fresh project)
+ *   - externalItemId (org-unique caller-owned key; a copy must not claim it)
  *
  * Audit log emits `project.created` with `metadata.duplicatedFrom` so the
  * provenance chain stays queryable.
@@ -1944,6 +2055,7 @@ export const duplicateProject = mutation({
     );
 
     const now = Date.now();
+    // Deliberately no externalItemId: the org-unique external key must not be cloned.
     const newProjectId = await ctx.db.insert('projects', {
       organizationId: source.organizationId,
       name: nextName,
