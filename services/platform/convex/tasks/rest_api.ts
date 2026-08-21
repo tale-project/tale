@@ -285,14 +285,19 @@ async function listTaskCommentsAction(
     },
   );
   return jsonOk({
-    comments: messages.map((message) => ({
-      id: String(message.messageId),
-      authorType: message.authorType,
-      authorId: message.authorId,
-      body: message.body,
-      createdAt: message.createdAt,
-      ...(message.editedAt !== undefined ? { editedAt: message.editedAt } : {}),
-    })),
+    comments: messages.map((message) => {
+      const comment: Record<string, unknown> = {
+        id: message.messageId,
+        authorType: message.authorType,
+        authorId: message.authorId,
+        body: message.body,
+        createdAt: message.createdAt,
+      };
+      if (message.editedAt !== undefined) {
+        comment.editedAt = message.editedAt;
+      }
+      return comment;
+    }),
   });
 }
 
