@@ -393,6 +393,11 @@ const LIST_READ_SUBJECTS: Record<RagSearchKind, AgentReadSubject> = {
   conversation: 'conversations',
 };
 
+/** How many conversations a mail-attachment listing reaches over. Bounds the
+ *  reads: one row read and one exact index lookup per conversation, regardless
+ *  of how many attachments the organization holds. */
+const MAIL_ATTACHMENT_CONVERSATION_REACH = 50;
+
 const LIST_PAGE_MESSAGE =
   'This is one page, not the whole set. Pass "continueCursor" back as ' +
   '"cursor" for the next page, or say you only saw this page.';
@@ -1468,19 +1473,32 @@ export function createChatToolExecutor(
       //
       // Overfetch by one so a full page never claims completeness — the
       // reader's own `truncated` only reports a scan-budget stop.
+      // Conversations lead, so the reads scale with the inbox reached rather
+      // than with every attachment the organization has ever received. The
+      // reader re-checks each conversation, so this list is a starting point
+      // and not an authorization.
+      const inbox = await ctx.runQuery(
+        internal.conversations.search_for_chat.searchConversationsForChat,
+        {
+          organizationId: who.organizationId,
+          userId: who.userId,
+          term: '',
+          list: true,
+          limit: MAIL_ATTACHMENT_CONVERSATION_REACH,
+        },
+      );
       const found = await ctx.runQuery(
         internal.file_metadata.internal_queries.listMailAttachmentsForChat,
         {
           organizationId: who.organizationId,
           userId: who.userId,
-          limit: limit + 1,
+          conversationIds: inbox.conversations.map((c) => String(c._id)),
+          limit,
         },
       );
-      const overfetched = found.attachments.length > limit;
-      const rows = overfetched
-        ? found.attachments.slice(0, limit)
-        : found.attachments;
-      const hasMore = overfetched || found.truncated;
+      const rows = found.attachments;
+      // Either the attachments were cut, or the inbox reach was.
+      const hasMore = found.truncated || inbox.truncated;
       const results = rows.map(
         (attachment): SearchResultEntry => ({
           kind: 'mail-attachment',
@@ -1508,9 +1526,10 @@ export function createChatToolExecutor(
         ...(hasMore
           ? {
               note:
-                'Most recent email attachments only, and this list does not ' +
-                'page. Narrow by asking about a conversation, a correspondent, ' +
-                'or a filename.',
+                `Attachments from the ${MAIL_ATTACHMENT_CONVERSATION_REACH} ` +
+                'most recently active conversations you can read, and this ' +
+                'list does not page. Ask about a conversation, a ' +
+                'correspondent, or a filename to reach older mail.',
             }
           : {}),
       });

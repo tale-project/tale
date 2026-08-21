@@ -45,6 +45,9 @@ export const listMailAttachmentsForChat = internalQuery({
     /** The turn user. Absent denies everything — an inbox attachment is never
      *  listed for an unidentified caller. */
     userId: v.optional(v.string()),
+    /** The conversations to look in, in report order. Each is re-checked here:
+     *  an id that arrived from a privacy-applied reader is still only an id. */
+    conversationIds: v.array(v.string()),
     limit: v.number(),
   },
   returns: v.object({

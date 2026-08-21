@@ -1,55 +1,48 @@
 /**
- * The emailed attachments a caller may read — a catalogue, with the words off.
+ * The emailed attachments a caller may read — driven from conversations.
  *
- * An emailed attachment has no listing surface anywhere in the product. It is
- * not a Document Hub row, so it is absent from the Documents page and from
+ * An emailed attachment has no listing surface anywhere else in the product. It
+ * is not a Document Hub row, so it is absent from the Documents page and from
  * `list kind="document"`, and its only appearance is on its own conversation in
- * the Inbox. Retrieval was therefore the sole way to discover one, which means
- * guessing words that appear inside it — and a CV named for its author contains
- * none of the words describing the role it was sent for.
+ * the Inbox. Retrieval was the sole way to discover one, which means guessing
+ * words inside a file whose name says nothing about why it was sent.
  *
- * ## Scope is the conversation's LIVE assignment
+ * ## Why the conversations lead
  *
- * Decided per row by `conversationAssignmentAllows` against the conversation as
- * it stands now, using the caller resolved by `conversationCallerResolver` —
- * the same predicate and the same resolver the retrieval gate uses. That is
- * deliberate: a listing that derived its own notion of visibility would be one
- * refactor away from being wider than the search beside it, and the failure
- * mode is publishing an inbox.
+ * The reads scale with the conversations shown, not with how many attachments
+ * the organization has ever received. Two earlier shapes both failed on that:
  *
- * Because assignment is read live, reassigning a conversation moves its
- * attachments in this listing too, with nothing rewritten.
+ *  - walking every `fileMetadata` row under a budget spent the budget on rows
+ *    that can never qualify — on one deployment, 3,671 rows of which 3 carried
+ *    a conversation — so which attachments were reachable depended on where
+ *    they sat in creation order;
+ *  - walking only the bound rows fixed reachability but still read up to the
+ *    whole budget to return one page, and above that budget it was silently
+ *    wrong about "most recent", because that index orders by conversation
+ *    rather than by time.
  *
- * ## Only bound rows are walked
+ * Leading with conversations removes both. Each conversation is one exact index
+ * lookup, and the caller decides how many conversations to reach over.
  *
- * The range starts ABOVE `undefined` on `by_organizationId_and_conversationId`.
- * Convex orders `undefined` below every real value, so that bound selects
- * exactly the rows that carry a conversation, and
- * the walk touches only rows that have a conversation. That is not an
- * optimization, it is the correctness fix: an earlier version scanned all of
- * `fileMetadata` newest-first under a scan cap, and on a deployment whose table
- * is mostly unbound rows the cap was exhausted before the walk reached a single
- * bound attachment. It returned nothing while three readable attachments
- * existed. A cap on rows EXAMINED empties the result set when the filter
- * rejects most of what it touches, so the filter has to be the index instead.
+ * ## Ordering
  *
- * `SCAN_CAP` survives as a ceiling on an organization with a very large number
- * of mail attachments, where it now bounds a walk over bound rows only.
+ * Conversation order is the caller's, and attachments follow it — most recently
+ * active mail first, newest attachment first within a conversation. Not
+ * global arrival order: that would need an index over bound rows keyed by time,
+ * which does not exist and would cost a stored field plus a backfill.
  *
- * ## Recency is applied after the walk
+ * ## An id is not a capability
  *
- * The index orders by conversation, not by time, so the page is sorted by
- * arrival before the limit is taken. The bound decides the answer, and
- * oldest-first would report "what has come in?" as the stalest mail on the box.
+ * Every conversation is re-checked here even though the caller resolved them
+ * through a privacy-applied reader. The check is cheap — one row read per
+ * conversation — and it keeps this query fail-closed on its own terms rather
+ * than trusting whatever ids arrived.
  */
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { conversationAssignmentAllows } from '../lib/rls/helpers/conversation_assignment';
 import { conversationCallerResolver } from '../lib/rls/helpers/conversation_caller';
-
-/** Rows examined before the walk stops, regardless of how many were kept. */
-const SCAN_CAP = 600;
 
 /** One attachment, as a catalogue row rather than a retrieval hit. */
 export interface MailAttachmentListing {
@@ -67,8 +60,9 @@ export interface MailAttachmentListing {
 
 export interface MailAttachmentListingResult {
   readonly attachments: MailAttachmentListing[];
-  /** The scan budget stopped the walk, so the listing is a page and not the
-   *  whole set. Distinct from a full page, which the caller detects itself. */
+  /** More attachments exist on the conversations reached than fit the limit.
+   *  Says nothing about conversations NOT reached — that bound belongs to
+   *  whoever chose the conversation list. */
   readonly truncated: boolean;
 }
 
@@ -77,11 +71,9 @@ export async function listMailAttachments(
   args: {
     organizationId: string;
     userId?: string | undefined;
+    /** The conversations to look in, in the order they should be reported. */
+    conversationIds: readonly string[];
     limit: number;
-    /** Rows examined before the walk stops. Defaults to {@link SCAN_CAP}; the
-     *  internal query never overrides it. Present so a test can prove the bound
-     *  exists without seeding six hundred rows. */
-    scanCap?: number;
   },
 ): Promise<MailAttachmentListingResult> {
   const caller = conversationCallerResolver(ctx, {
@@ -89,72 +81,67 @@ export async function listMailAttachments(
     ...(args.userId !== undefined ? { userId: args.userId } : {}),
   });
 
-  // Many attachments share one conversation, so the assignment decision is
-  // cached per conversation rather than per row.
-  const decided = new Map<string, boolean>();
-  const mayRead = async (
-    conversationId: Doc<'fileMetadata'>['conversationId'],
-  ): Promise<boolean> => {
-    if (conversationId === undefined) return false;
-    const key = String(conversationId);
-    const cached = decided.get(key);
-    if (cached !== undefined) return cached;
-    const identity = await caller();
-    if (identity === null) {
-      decided.set(key, false);
-      return false;
-    }
-    const conversation = await ctx.db.get(conversationId);
-    const allowed =
-      conversation !== null &&
-      conversation.organizationId === args.organizationId &&
-      (await conversationAssignmentAllows(conversation, {
-        isAdmin: identity.isAdmin,
-        userId: identity.userId,
-        hasTeam: (teamId) => identity.teamIds.has(teamId),
-      }));
-    decided.set(key, allowed);
-    return allowed;
-  };
-
   const attachments: MailAttachmentListing[] = [];
-  let scanned = 0;
-  let truncated = false;
-  for await (const row of ctx.db
-    .query('fileMetadata')
-    .withIndex('by_organizationId_and_conversationId', (q) =>
-      // Above `null` selects the rows that HAVE a conversation. Unbound rows —
-      // Document Hub uploads, chat uploads, the unreferenced residue of a
-      // re-ingest bug — are never touched, so they cannot exhaust the budget
-      // ahead of a readable attachment.
-      q
-        .eq('organizationId', args.organizationId)
-        .gt('conversationId', undefined),
-    )) {
-    scanned += 1;
-    if (scanned > (args.scanCap ?? SCAN_CAP)) {
-      truncated = true;
+  let more = false;
+
+  for (const rawId of args.conversationIds) {
+    if (attachments.length >= args.limit) {
+      more = true;
       break;
     }
-    if (row.lifecycleStatus === 'trashed') continue;
-    if (!(await mayRead(row.conversationId))) continue;
-    attachments.push({
-      ref: String(row.storageId),
-      fileName: row.fileName,
-      contentType: row.contentType,
-      size: row.size,
-      conversationId: String(row.conversationId),
-      receivedAt: row._creationTime,
-      indexed: row.ragStatus === 'completed',
+    const conversationId = ctx.db.normalizeId('conversations', rawId);
+    if (conversationId === null) continue;
+
+    const identity = await caller();
+    if (identity === null) return { attachments: [], truncated: false };
+
+    const conversation = await ctx.db.get(conversationId);
+    if (
+      conversation === null ||
+      conversation.organizationId !== args.organizationId
+    ) {
+      continue;
+    }
+    const allowed = await conversationAssignmentAllows(conversation, {
+      isAdmin: identity.isAdmin,
+      userId: identity.userId,
+      hasTeam: (teamId) => identity.teamIds.has(teamId),
     });
+    if (!allowed) continue;
+
+    // One exact index lookup per conversation, newest attachment first.
+    const rows: Doc<'fileMetadata'>[] = [];
+    for await (const row of ctx.db
+      .query('fileMetadata')
+      .withIndex('by_organizationId_and_conversationId', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('conversationId', conversationId),
+      )
+      .order('desc')) {
+      if (row.lifecycleStatus === 'trashed') continue;
+      rows.push(row);
+      // One past the limit is enough to know more exist without reading a
+      // conversation's whole attachment history.
+      if (attachments.length + rows.length > args.limit) break;
+    }
+
+    for (const row of rows) {
+      if (attachments.length >= args.limit) {
+        more = true;
+        break;
+      }
+      attachments.push({
+        ref: String(row.storageId),
+        fileName: row.fileName,
+        contentType: row.contentType,
+        size: row.size,
+        conversationId: String(conversationId),
+        receivedAt: row._creationTime,
+        indexed: row.ragStatus === 'completed',
+      });
+    }
   }
 
-  // Newest first, then the limit — the index orders by conversation, so recency
-  // cannot come from the walk.
-  attachments.sort((a, b) => b.receivedAt - a.receivedAt);
-  const page = attachments.slice(0, args.limit);
-  return {
-    attachments: page,
-    truncated: truncated || page.length < attachments.length,
-  };
+  return { attachments, truncated: more };
 }
