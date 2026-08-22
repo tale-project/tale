@@ -111,6 +111,7 @@ trivy-reports/
 !.claude/skills/
 
 .agents/*
+!.agents/repo.md
 !.agents/skills/
 
 # Agent scratch notes belong in the global notes directory (see the
