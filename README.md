@@ -11,7 +11,7 @@ Connect **OpenClaw**, **Hermes Agent**, **Claude Code**, **Codex**, **Cursor**, 
 Pool their knowledge, delegate real work — on infrastructure you run.
 
 [![Build](https://github.com/tale-project/tale/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/tale-project/tale/actions/workflows/build.yml)
-[![Test](https://github.com/tale-project/tale/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/tale-project/tale/actions/workflows/test.yml)
+[![Test](https://github.com/tale-project/tale/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/tale-project/tale/actions/workflows/checks.yml)
 [![Release](https://img.shields.io/github/v/release/tale-project/tale)](https://github.com/tale-project/tale/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-tale.dev-0a0a0a.svg)](https://tale.dev/docs)

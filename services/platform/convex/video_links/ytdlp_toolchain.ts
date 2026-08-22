@@ -48,7 +48,7 @@ const PINNED_SYSTEM_BIN_DIRS = ['/usr/local/bin', '/usr/bin'] as const;
 
 /**
  * bgutil PO-token provider plugin version. Pinned to match the `bgutil` service
- * container in `.github/workflows/test.yml` and the Dockerfile's baked copy —
+ * container in `.github/workflows/checks.yml` and the Dockerfile's baked copy —
  * plugin and provider must agree on the protocol version.
  */
 const BGUTIL_POT_VERSION = '1.3.1';
