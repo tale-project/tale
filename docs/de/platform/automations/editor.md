@@ -88,6 +88,12 @@ Zurückrollen heißt, eine ältere Version live zu schalten. Such die Version in
 
 Deshalb zählen Versionsnotizen mehr, als sie aussehen. Sechs Versionen später sagt dir die Notiz, welche der letzte gute Stand war — schreib sie also für die Person, die sie während einer Störung lesen wird.
 
+## Eine Automatisierung löschen
+
+Löschen betrifft die Automatisierung als Ganzes: alle Versionen, das Deployment, der Trigger und die Projekt-Bindungen gehen zusammen — ein Zeitplan löst danach nicht mehr aus, eine Webhook-URL funktioniert sofort nicht mehr. Der Papierkorb-Button neben den Seitenaktionen (**Automatisierung löschen**) fragt zuerst nach. Die bisherigen Läufe bleiben lesbar, bis die Aufbewahrungsfrist sie entfernt — was die Automatisierung getan hat, bleibt also nachvollziehbar.
+
+Zwei Leitplanken. Ein Lauf, der noch aussteht, läuft oder wartet, blockiert das Löschen — brich ihn ab oder lass ihn zu Ende laufen. Und ein gelöschtes mitgeliefertes Pack bleibt über Plattform-Upgrades hinweg gelöscht; legst du unter demselben Namen neu an, lebt der Name wieder.
+
 ## Den letzten Lauf auf dem Canvas lesen
 
 Sobald eine Automatisierung gelaufen ist, legt **Letzten Lauf einblenden** diesen Lauf über den Canvas. Jede Box übernimmt den Status, den der Lauf ihr gegeben hat — sie ist **Gelaufen**, wurde **Übersprungen**, ist **Fehlgeschlagen**, wurde **Nie erreicht** oder ist **Noch nicht erreicht**, solange der Lauf weitergeht. Ein Fehler wird so als Stelle im Graphen sichtbar statt als Zeile in einem Log.

@@ -14,30 +14,46 @@ import { render, screen, waitFor, within } from '@/tests/utils/render';
  * would teach authors to distrust the cluster.
  */
 
-const { state, projectsData, saveMutation, startRun, deploy, toastSpy } =
-  vi.hoisted(() => ({
-    state: {
-      document: {
-        name: 'billing/dunning',
-        description: 'Chases unpaid invoices.',
-        nodes: [
-          { id: 'summary', type: 'llm', prompt: 'One sentence, please.' },
-        ],
-      } as unknown,
-      /** The pack manifest's display half, when the test wants one. */
-      presentation: undefined as unknown,
-    },
-    /** The org's projects and the automation's bindings — the run-scope picker
-     * appears only when two or more projects are bound. */
-    projectsData: {
-      list: [] as Array<{ _id: string; name: string }>,
-      bound: [] as string[],
-    },
-    saveMutation: { mutateAsync: vi.fn(), isPending: false },
-    startRun: { mutate: vi.fn(), isPending: false },
-    deploy: { mutate: vi.fn(), isPending: false, variables: undefined },
-    toastSpy: vi.fn(),
-  }));
+const {
+  state,
+  projectsData,
+  saveMutation,
+  startRun,
+  deploy,
+  toastSpy,
+  deleteMutation,
+  mockNavigate,
+} = vi.hoisted(() => ({
+  state: {
+    document: {
+      name: 'billing/dunning',
+      description: 'Chases unpaid invoices.',
+      nodes: [{ id: 'summary', type: 'llm', prompt: 'One sentence, please.' }],
+    } as unknown,
+    /** The pack manifest's display half, when the test wants one. */
+    presentation: undefined as unknown,
+  },
+  /** The org's projects and the automation's bindings — the run-scope picker
+   * appears only when two or more projects are bound. */
+  projectsData: {
+    list: [] as Array<{ _id: string; name: string }>,
+    bound: [] as string[],
+  },
+  saveMutation: { mutateAsync: vi.fn(), isPending: false },
+  startRun: { mutate: vi.fn(), isPending: false },
+  deploy: { mutate: vi.fn(), isPending: false, variables: undefined },
+  toastSpy: vi.fn(),
+  deleteMutation: { mutateAsync: vi.fn(), isPending: false },
+  mockNavigate: vi.fn(),
+}));
+
+// Deleting navigates back to the listing; the page itself renders no route,
+// so only the hook is substituted — `Link` stays real (never reached with an
+// empty run list).
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  useNavigate: () => mockNavigate,
+}));
 
 // `EditorActions` owns every piece of save feedback and reaches for the
 // module-level toast to do it.
@@ -101,6 +117,7 @@ vi.mock('../hooks/mutations', () => ({
   useSetAutomationTrigger: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteAutomationTrigger: () => ({ mutate: vi.fn(), isPending: false }),
   useSetAutomationProjects: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteAutomation: () => deleteMutation,
 }));
 
 // The canvas is a React Flow viewport and jsdom performs no layout; the page
@@ -164,6 +181,11 @@ beforeEach(() => {
   saveMutation.isPending = false;
   toastSpy.mockClear();
   startRun.mutate.mockClear();
+  deleteMutation.mutateAsync = vi
+    .fn()
+    .mockResolvedValue({ name: 'billing/dunning', versions: 3 });
+  deleteMutation.isPending = false;
+  mockNavigate.mockClear();
   projectsData.list = [];
   projectsData.bound = [];
 });
@@ -412,6 +434,64 @@ describe('AutomationDetail', () => {
       expect(whenField()).toHaveValue('');
     });
     expect(saveButton()).toBeDisabled();
+  });
+
+  it('deletes the automation after the confirm, then navigates to the listing', async () => {
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Delete automation' }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Delete this automation?',
+    });
+    // The dialog names exactly what is being deleted — display name and slug.
+    expect(
+      within(dialog).getAllByText('billing/dunning').length,
+    ).toBeGreaterThan(0);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => {
+      expect(deleteMutation.mutateAsync).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        name: 'billing/dunning',
+      });
+    });
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: '/dashboard/$id/automations',
+        params: { id: 'org-1' },
+      });
+    });
+    expect(toastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'success' }),
+    );
+  });
+
+  it("surfaces the server's refusal when the delete is blocked, and stays put", async () => {
+    // The one refusal that matters: a run still queued/running/waiting.
+    deleteMutation.mutateAsync = vi
+      .fn()
+      .mockRejectedValue(
+        new Error(
+          'A run of "billing/dunning" is still running — cancel it (or let it finish) before deleting the automation.',
+        ),
+      );
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Delete automation' }));
+    await user.click(
+      within(
+        screen.getByRole('dialog', { name: 'Delete this automation?' }),
+      ).getByRole('button', { name: 'Delete' }),
+    );
+
+    await waitFor(() => {
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: expect.stringContaining('still running'),
+        }),
+      );
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('passes an axe audit', async () => {

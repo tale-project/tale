@@ -27,19 +27,12 @@ import type {
   BuilderMessage,
   BuilderModel,
 } from '../../lib/automations_builder/session';
-import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
-import {
-  modelAllowlistPermits,
-  modelIdsEquivalent,
-} from '../../lib/shared/utils/model-ref';
-import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import {
   createBuilderModel,
   type BuilderModelTarget,
 } from '../automations_builder/model_call';
-import { getProviderCatalog } from '../lib/providers/catalog_fetch';
-import { directActiveCredential } from '../lib/providers/direct_credential';
+import { walkDirectServing } from '../lib/providers/agent_serving';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 
 /** What one llm node asks for — the engine seam's shape, minus nothing. */
@@ -72,27 +65,22 @@ function describe(error: unknown): string {
 }
 
 /**
- * Which org connector serves this model. The scan mirrors the title
- * generator's: only connectors whose default credential is active and
- * direct-capable count, the credential's allowlist is honored, and an
- * unreachable catalog skips the connector rather than failing the node —
- * unless nothing else serves the model, in which case the failure names it.
- *
- * Catalog match is by {@link modelIdsEquivalent}: packs name Tale's static
- * form (`anthropic/claude-haiku-4-5`) while OpenRouter lists
- * `anthropic/claude-haiku-4.5` and Anthropic's static catalog lists the bare
- * `claude-haiku-4-5`. The returned `modelId` is the catalog entry's id — the
+ * Which org connector serves this model DIRECTLY. The scan is
+ * {@link walkDirectServing} (one implementation shared with the agent-turn
+ * resolvers, so the walks can never drift): only connectors whose default
+ * credential is active and direct-capable count, the credential's allowlist
+ * is honored, and an unreachable catalog skips the connector rather than
+ * failing the node — unless nothing else serves the model, in which case the
+ * failure names it. The returned `modelId` is the catalog entry's id — the
  * spelling the serving connector accepts on the wire — not the pack's.
  *
  * `pinnedProvider` (a project agent's saved pick) narrows the scan to that
  * one connector, FAIL-CLOSED: when the pinned provider cannot serve the
  * model, the resolution throws rather than silently routing — and billing —
  * another provider. Unpinned callers (llm nodes, legacy agent rows) keep the
- * full first-match walk.
- *
- * Exported for the agent host: an `agent` node names its model with the same
- * explicitness as an `llm` node, and its gateway key must be scoped to the
- * same serving connector this scan finds.
+ * full first-match walk. Automation `agent` nodes resolve through
+ * `resolveWorkflowAgentServing` instead, which adds the subscription pass
+ * this direct-only door deliberately refuses.
  */
 export async function resolveServingTarget(
   ctx: ActionCtx,
@@ -111,38 +99,16 @@ export async function resolveServingTarget(
       `the agent pins provider "${pinned}", which is not configured for this organization — edit the agent's model or reconnect the provider`,
     );
   }
-  const unreachable: string[] = [];
-  for (const connector of connectors) {
-    const row: unknown = await ctx.runQuery(
-      internal.provider_credentials.queries.getDefaultCredentialInternal,
-      { organizationId, providerSlug: connector.name },
-    );
-    const credential = directActiveCredential(row);
-    if (credential === null) continue;
-    if (!modelAllowlistPermits(credential.modelAllowlist, modelId)) {
-      continue;
-    }
-    let catalog: readonly ModelCatalogEntry[];
-    try {
-      catalog = await getProviderCatalog(connector);
-    } catch (error) {
-      console.warn(
-        `[automations] could not resolve catalog for "${connector.name}"`,
-        describe(error),
-      );
-      unreachable.push(connector.name);
-      continue;
-    }
-    const entry =
-      catalog.find((candidate) => candidate.id === modelId) ??
-      catalog.find((candidate) => modelIdsEquivalent(candidate.id, modelId));
-    if (entry !== undefined) {
-      return { providerSlug: connector.name, modelId: entry.id };
-    }
-  }
+  const walk = await walkDirectServing(
+    ctx,
+    organizationId,
+    modelId,
+    connectors,
+  );
+  if (walk.target !== null) return walk.target;
   const detail =
-    unreachable.length > 0
-      ? ` (the catalog for ${unreachable.map((name) => `"${name}"`).join(', ')} was unreachable)`
+    walk.unreachable.length > 0
+      ? ` (the catalog for ${walk.unreachable.map((name) => `"${name}"`).join(', ')} was unreachable)`
       : '';
   if (pinned !== undefined) {
     throw new Error(

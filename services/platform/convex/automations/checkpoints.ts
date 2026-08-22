@@ -80,6 +80,8 @@ export interface AgentCursor {
   sessionId: string;
   deadlineAt: number;
   providerSlug: string;
+  /** The exec's model string: the gateway ref on the gateway lane, the
+   * vendor-native catalog id on the subscription lane. */
   gatewayModel: string;
   harness: string;
   input: Record<string, unknown>;

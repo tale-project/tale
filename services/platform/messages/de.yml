@@ -603,6 +603,13 @@ automations:
       orgWide: Organisationsweit
       confirmOrgWide: Dieser Lauf arbeitet organisationsweit, über alle Projekte hinweg.
       confirmProject: Dieser Lauf arbeitet im Projekt {project} — seine Aufgaben- und Dokument-Tools wirken dort.
+    delete:
+      action: Automatisierung löschen
+      title: Diese Automatisierung löschen?
+      description: Löscht alle Versionen, das Deployment, den Trigger und die Projekt-Bindungen. Die bisherigen Läufe bleiben sichtbar, bis die Aufbewahrungsfrist sie entfernt.
+      warning: Ein Zeitplan löst danach nicht mehr aus und eine Webhook-URL funktioniert sofort nicht mehr. Das lässt sich nicht rückgängig machen.
+      done: Automatisierung gelöscht
+      failed: Automatisierung konnte nicht gelöscht werden
   trigger:
     title: Trigger
     none: Noch nichts startet diese Automatisierung.

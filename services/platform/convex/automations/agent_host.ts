@@ -9,15 +9,21 @@
  * self-chaining drive action re-attaches in short windows (the same
  * ring-buffer protocol the chat lane uses, through the shared
  * `drainHarnessWindow` core); when the harness ends, the settle harvests
- * `/agent/output`, revokes the turn's gateway key, writes the result into the
- * run's cursor, and pokes the stepper — which consumes it on its next entry.
+ * `/agent/output`, revokes the turn's gateway key (when the lane minted
+ * one), writes the result into the run's cursor, and pokes the stepper —
+ * which consumes it on its next entry.
+ *
+ * Serving is two-lane (`resolveWorkflowAgentServing`): a direct api-key/env
+ * credential behind a session gateway key — the default — or a vendor
+ * subscription credential (e.g. a brokered Claude OAuth pool) redeemed per
+ * turn and handed to the harness's own CLI, exactly the task lane's split.
  *
  * Everything org-scoped is bound here at construction (the run decides whose
  * session, whose skills, whose credentials — never the document), mirroring
  * `automationLlmCall`.
  */
 
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { v } from 'convex/values';
 
@@ -30,12 +36,14 @@ import {
   buildExternalTurnExec,
   classifyHarnessEnd,
   drainHarnessWindow,
+  type ExternalTurnServing,
   type HarnessTimelinePart,
   connectorsBridgeUrlForSessions,
   isManagedHarness,
   SKILLS_DIR,
 } from '../chat/external_turn_shared';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { resolveWorkflowAgentServing } from '../lib/providers/agent_serving';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
@@ -50,11 +58,13 @@ import {
 import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
 import {
   getVirtualKeySpendCents,
+  hashVirtualKey,
   resolveGatewayRouting,
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
+import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import {
   sessionIdForWorkflowExecution,
@@ -69,7 +79,6 @@ import {
   secretsGuidance,
 } from '../sandbox/tool_names';
 import type { AgentTurnFile, AgentTurnResult } from './checkpoints';
-import { resolveServingTarget } from './llm_call';
 
 // The turn's wall-clock deadline is the shared work-turn knob
 // (`agentWorkTurnDeadlineMs`) — the exec's own `timeoutMs` is only a sliding
@@ -109,6 +118,8 @@ export interface WorkflowAgentKick {
   sessionId: string;
   deadlineAt: number;
   providerSlug: string;
+  /** The exec's model string: the gateway ref on the gateway lane, the
+   * vendor-native catalog id on the subscription lane. */
   gatewayModel: string;
   harness: string;
 }
@@ -291,19 +302,31 @@ export function automationAgentHost(
           `the harness "${harness}" cannot run a managed automation turn — pick a managed-capable harness (e.g. "claude-code" or "codex")`,
         );
       }
-      const target = await resolveServingTarget(
-        ctx,
+      const serving = await resolveWorkflowAgentServing(ctx, {
         organizationId,
-        request.model,
-      );
-      const routing = resolveGatewayRouting(
-        target.providerSlug,
-        target.modelId,
-      );
+        model: request.model,
+        harness,
+      });
+      // The exec's model string: the gateway ref on the gateway lane, the
+      // vendor-native catalog id on the subscription lane (the vendor CLI
+      // authenticates directly and knows nothing of gateway refs).
+      const execModel =
+        serving.lane === 'gateway'
+          ? resolveGatewayRouting(serving.providerSlug, serving.modelId)
+              .gatewayModel
+          : serving.modelId;
       // A text-only serving model still meets image inputs (scanned PDFs,
       // screenshots) — arm the harness vision polyfill with the org's vision
       // model so those route through the gateway instead of 404ing the turn.
-      const vision = await resolveTurnVisionModel(ctx, organizationId, target);
+      // Gateway lane only: the subscription lane mints no gateway key for a
+      // polyfill call to ride on.
+      const vision =
+        serving.lane === 'gateway'
+          ? await resolveTurnVisionModel(ctx, organizationId, {
+              providerSlug: serving.providerSlug,
+              modelId: serving.modelId,
+            })
+          : null;
       const execId = randomUUID();
       const sessionId = sessionIdForWorkflowExecution(runId);
       const deadlineAt = Date.now() + agentWorkTurnDeadlineMs();
@@ -320,7 +343,7 @@ export function automationAgentHost(
           execId,
           kind: 'workflow-agent',
           status: 'running',
-          modelRef: `${target.providerSlug}/${routing.gatewayModel}`,
+          modelRef: `${serving.providerSlug}/${execModel}`,
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
         },
@@ -336,9 +359,13 @@ export function automationAgentHost(
           execId,
           sessionId,
           harness,
-          providerSlug: target.providerSlug,
-          modelId: target.modelId,
-          gatewayModel: routing.gatewayModel,
+          lane: serving.lane,
+          providerSlug: serving.providerSlug,
+          modelId: serving.modelId,
+          gatewayModel: execModel,
+          ...(serving.lane === 'subscription'
+            ? { apiBaseUrl: serving.apiBaseUrl }
+            : {}),
           ...(vision !== null
             ? {
                 visionProviderSlug: vision.providerSlug,
@@ -366,8 +393,8 @@ export function automationAgentHost(
         execId,
         sessionId,
         deadlineAt,
-        providerSlug: target.providerSlug,
-        gatewayModel: routing.gatewayModel,
+        providerSlug: serving.providerSlug,
+        gatewayModel: execModel,
         harness,
       };
     },
@@ -824,6 +851,104 @@ const requestValidator = v.object({
   files: v.optional(v.any()),
 });
 
+/** What one workflow agent turn's exec authenticates with, minted per lane
+ * (the task lane's `mintTurnServing` shape, automation-scoped). */
+interface WorkflowTurnAuth {
+  serving: ExternalTurnServing;
+  /** VK id for the op row + settle spend/revoke; absent on subscription. */
+  mintedKeyId?: string;
+  /** sha256 of the exec's bearer, for the session-token row. */
+  tokenHash: string;
+  /** The session-token scope's model allowlist (gateway refs). */
+  allowedModels: string[];
+  /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
+  budgetCents: number;
+}
+
+/**
+ * Mint what the resolved lane authenticates with — called late (after the
+ * session ensure and staging) so a parked or failed start never leaks a
+ * minted key. GATEWAY: the session virtual key over serving + vision models,
+ * exactly the pre-subscription flow. SUBSCRIPTION: redeem the serving
+ * provider's default subscription credential (broker failures carry their
+ * typed, actionable messages into the node error) and mint NO virtual key —
+ * the vendor token serves inference, while a random session token keeps the
+ * capability bridge reachable; there is no gateway spend to meter, and
+ * nothing to revoke at settle. Shared by the fresh start and the answered-ask
+ * resume so the two paths can never drift.
+ */
+async function mintWorkflowTurnAuth(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    lane: 'gateway' | 'subscription';
+    providerSlug: string;
+    modelId: string;
+    /** The exec's model string: gateway ref, or vendor-native catalog id. */
+    gatewayModel: string;
+    /** Subscription lane only — the vendor API base the CLI calls. */
+    apiBaseUrl?: string;
+    vision: { providerSlug: string; modelId: string } | null;
+  },
+): Promise<WorkflowTurnAuth> {
+  if (args.lane === 'gateway') {
+    const budgetCents = workflowAgentBudgetCents();
+    const key = await provisionSessionGatewayKey(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      allowedModels: [
+        { providerSlug: args.providerSlug, modelId: args.modelId },
+        ...(args.vision !== null ? [args.vision] : []),
+      ],
+      budgetCents,
+    });
+    return {
+      serving: { kind: 'gateway', token: key.token },
+      mintedKeyId: key.keyId,
+      tokenHash: key.keyHash,
+      allowedModels: [args.gatewayModel],
+      budgetCents,
+    };
+  }
+  if (args.apiBaseUrl === undefined) {
+    // The kick always resolves one before picking this lane; a missing value
+    // here is a legacy in-flight call and must not launch an unpointed CLI.
+    throw new Error(
+      `provider "${args.providerSlug}" resolved to the subscription lane without an API base URL — rerun the automation`,
+    );
+  }
+  const credential = await resolveProviderCredential(ctx, {
+    organizationId: args.organizationId,
+    providerSlug: args.providerSlug,
+  });
+  if (
+    credential.authMethod !== 'subscription-key' &&
+    credential.authMethod !== 'subscription-broker'
+  ) {
+    // The default credential changed shape between resolution and redeem.
+    throw new Error(
+      `provider "${args.providerSlug}"'s default credential is no longer a subscription — rerun the automation`,
+    );
+  }
+  const secret =
+    credential.authMethod === 'subscription-broker'
+      ? credential.token
+      : credential.secret;
+  const bridgeToken = `tale-sub-${randomBytes(24).toString('base64url')}`;
+  return {
+    serving: {
+      kind: 'subscription',
+      secret,
+      baseUrl: args.apiBaseUrl,
+      bridgeToken,
+    },
+    tokenHash: hashVirtualKey(bridgeToken),
+    allowedModels: [],
+    budgetCents: 0,
+  };
+}
+
 /**
  * The scheduled turn start — everything slow: session ensure, staging, key
  * mint, exec build, first window. Any throw settles the node with the error
@@ -837,11 +962,19 @@ export const startWorkflowAgentTurn = internalAction({
     execId: v.string(),
     sessionId: v.string(),
     harness: v.string(),
+    /** The serving lane the kick resolved; absent on in-flight calls from
+     * before the subscription lane existed — those are gateway turns. */
+    lane: v.optional(v.union(v.literal('gateway'), v.literal('subscription'))),
     providerSlug: v.string(),
     modelId: v.string(),
+    /** The exec's model string: the gateway ref on the gateway lane, the
+     * vendor-native catalog id on the subscription lane. */
     gatewayModel: v.string(),
+    /** Subscription lane only — the vendor API base the CLI calls. */
+    apiBaseUrl: v.optional(v.string()),
     /** Vision-polyfill model (absent when the serving model reads images
-     * itself) — provisioned onto the turn key and armed on the exec. */
+     * itself, and always on the subscription lane) — provisioned onto the
+     * turn key and armed on the exec. */
     visionProviderSlug: v.optional(v.string()),
     visionModelId: v.optional(v.string()),
     deadlineAt: v.number(),
@@ -873,7 +1006,6 @@ export const startWorkflowAgentTurn = internalAction({
         'workspace/',
       );
 
-      const budgetCents = workflowAgentBudgetCents();
       const visionRef =
         args.visionProviderSlug !== undefined &&
         args.visionModelId !== undefined
@@ -890,27 +1022,32 @@ export const startWorkflowAgentTurn = internalAction({
           ? resolveGatewayRouting(visionRef.providerSlug, visionRef.modelId)
               .gatewayModel
           : undefined;
-      const key = await provisionSessionGatewayKey(ctx, {
+      const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
-        allowedModels: [
-          { providerSlug: args.providerSlug, modelId: args.modelId },
-          ...(visionRef !== null ? [visionRef] : []),
-        ],
-        budgetCents,
+        lane: args.lane ?? 'gateway',
+        providerSlug: args.providerSlug,
+        modelId: args.modelId,
+        gatewayModel: args.gatewayModel,
+        ...(args.apiBaseUrl !== undefined
+          ? { apiBaseUrl: args.apiBaseUrl }
+          : {}),
+        vision: visionRef,
       });
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
           organizationId: args.organizationId,
           sessionId: args.sessionId,
-          tokenHash: key.keyHash,
-          llmGatewayKeyId: key.keyId,
+          tokenHash: auth.tokenHash,
+          ...(auth.mintedKeyId !== undefined
+            ? { llmGatewayKeyId: auth.mintedKeyId }
+            : {}),
           scope: {
             agentKind: args.harness,
-            allowedModels: [args.gatewayModel],
+            allowedModels: auth.allowedModels,
             connectorGrants: [...(args.request.connectors ?? [])],
-            budgetCents,
+            budgetCents: auth.budgetCents,
             // The automation baseline — ask_human + the knowledge pair
             // (visibility derives from THIS run's project binding at dispatch,
             // so the grant alone never widens what the run can read) — PLUS
@@ -936,7 +1073,9 @@ export const startWorkflowAgentTurn = internalAction({
           modelRef: `${args.providerSlug}/${args.gatewayModel}`,
           deadlineMs: args.deadlineAt,
           heartbeatAt: Date.now(),
-          mintedKeyId: key.keyId,
+          ...(auth.mintedKeyId !== undefined
+            ? { mintedKeyId: auth.mintedKeyId }
+            : {}),
         },
       );
 
@@ -987,7 +1126,7 @@ export const startWorkflowAgentTurn = internalAction({
       const exec = buildExternalTurnExec({
         harness: args.harness,
         gatewayModel: args.gatewayModel,
-        serving: { kind: 'gateway', token: key.token },
+        serving: auth.serving,
         instructions,
         prompt: args.request.prompt,
         execId: args.execId,
@@ -1195,22 +1334,27 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       // own conversation state, so an adopt-or-recreate brings both back.
       await ensureWorkflowSession(ctx, args.organizationId, askRunId);
 
-      const target = await resolveServingTarget(
-        ctx,
-        args.organizationId,
-        request.model,
-      );
-      const routing = resolveGatewayRouting(
-        target.providerSlug,
-        target.modelId,
-      );
-      keys.providerSlug = target.providerSlug;
-      keys.gatewayModel = routing.gatewayModel;
-      const vision = await resolveTurnVisionModel(
-        ctx,
-        args.organizationId,
-        target,
-      );
+      const serving = await resolveWorkflowAgentServing(ctx, {
+        organizationId: args.organizationId,
+        model: request.model,
+        harness: agent.harness,
+      });
+      const execModel =
+        serving.lane === 'gateway'
+          ? resolveGatewayRouting(serving.providerSlug, serving.modelId)
+              .gatewayModel
+          : serving.modelId;
+      keys.providerSlug = serving.providerSlug;
+      keys.gatewayModel = execModel;
+      // Gateway lane only — the subscription lane mints no gateway key for a
+      // vision-polyfill call to ride on.
+      const vision =
+        serving.lane === 'gateway'
+          ? await resolveTurnVisionModel(ctx, args.organizationId, {
+              providerSlug: serving.providerSlug,
+              modelId: serving.modelId,
+            })
+          : null;
       // Resolved once, for the harness and for the op row's record of which
       // model read this turn's images.
       const visionModelRef =
@@ -1218,30 +1362,32 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
           ? resolveGatewayRouting(vision.providerSlug, vision.modelId)
               .gatewayModel
           : undefined;
-      const budgetCents = workflowAgentBudgetCents();
-      const key = await provisionSessionGatewayKey(ctx, {
+      const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,
         sessionId,
-        allowedModels: [
-          { providerSlug: target.providerSlug, modelId: target.modelId },
-          ...(vision !== null
-            ? [{ providerSlug: vision.providerSlug, modelId: vision.modelId }]
-            : []),
-        ],
-        budgetCents,
+        lane: serving.lane,
+        providerSlug: serving.providerSlug,
+        modelId: serving.modelId,
+        gatewayModel: execModel,
+        ...(serving.lane === 'subscription'
+          ? { apiBaseUrl: serving.apiBaseUrl }
+          : {}),
+        vision,
       });
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
           organizationId: args.organizationId,
           sessionId,
-          tokenHash: key.keyHash,
-          llmGatewayKeyId: key.keyId,
+          tokenHash: auth.tokenHash,
+          ...(auth.mintedKeyId !== undefined
+            ? { llmGatewayKeyId: auth.mintedKeyId }
+            : {}),
           scope: {
             agentKind: agent.harness,
-            allowedModels: [routing.gatewayModel],
+            allowedModels: auth.allowedModels,
             connectorGrants: [...(request.connectors ?? [])],
-            budgetCents,
+            budgetCents: auth.budgetCents,
             // Same grant set as the node's first start: baseline + configured
             // tool grants, so the resumed turn keeps the equipment it had.
             toolGrants: [
@@ -1285,7 +1431,9 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
           modelRef: `${keys.providerSlug}/${keys.gatewayModel}`,
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
-          mintedKeyId: key.keyId,
+          ...(auth.mintedKeyId !== undefined
+            ? { mintedKeyId: auth.mintedKeyId }
+            : {}),
         },
       );
 
@@ -1331,7 +1479,7 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       const exec = buildExternalTurnExec({
         harness: agent.harness,
         gatewayModel: keys.gatewayModel,
-        serving: { kind: 'gateway', token: key.token },
+        serving: auth.serving,
         instructions,
         prompt,
         execId,

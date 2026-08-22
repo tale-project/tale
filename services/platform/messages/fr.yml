@@ -609,6 +609,13 @@ automations:
       orgWide: Toute l’organisation
       confirmOrgWide: Cette exécution opère sur toute l’organisation, dans tous les projets.
       confirmProject: Cette exécution opère dans le projet {project} — ses outils de tâches et de documents agissent là.
+    delete:
+      action: Supprimer l’automatisation
+      title: Supprimer cette automatisation ?
+      description: Supprime toutes les versions, le déploiement, le déclencheur et les liens avec les projets. Les exécutions passées restent visibles jusqu’à ce que la rétention les supprime.
+      warning: Une planification ne se déclenche plus et une URL de webhook cesse de fonctionner immédiatement. Cette action est irréversible.
+      done: Automatisation supprimée
+      failed: Impossible de supprimer l’automatisation
   trigger:
     title: Déclencheur
     none: Rien ne démarre encore cette automatisation.

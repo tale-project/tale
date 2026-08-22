@@ -85,6 +85,14 @@ export function useSetAutomationProjects() {
   });
 }
 
+/** Delete the automation — versions, deployment, triggers and bindings.
+ * Refused while a run is still live; run history is kept. */
+export function useDeleteAutomation() {
+  return useConvexMutation(api.automations.mutations.deleteAutomation, {
+    errorToast: false,
+  });
+}
+
 /**
  * Run one authoring session from a goal. An ACTION, not a mutation — a
  * session spans minutes of model turns. TanStack's mutation state carries the

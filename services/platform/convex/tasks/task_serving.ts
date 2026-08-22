@@ -10,12 +10,13 @@
  * The subscription lane exists only behind an explicit provider pin
  * (`projectAgents.modelProvider`): a pinned provider whose DEFAULT credential
  * is subscription-flavored serves the turn on the redeemed subscription
- * token, provided `resolveExecution` sanctions the pair — the credential's
- * forced harness must be exactly the agent's harness, and that harness must
- * both accept bring-your-own credentials and declare a `subscription`
- * delivery in its yml. Every refusal throws with the actionable reason; a
- * pin NEVER falls back to another provider (the silent-swap billing surprise
- * is the defect this module exists to close).
+ * token, provided the shared sanction (`sanctionSubscriptionHarnessTurn`)
+ * approves the pair — the credential's forced harness must be exactly the
+ * agent's harness, and that harness must both accept bring-your-own
+ * credentials and declare a `subscription` delivery in its yml. Every refusal
+ * throws with the actionable reason; a pin NEVER falls back to another
+ * provider (the silent-swap billing surprise is the defect this module exists
+ * to close).
  *
  * Unpinned agents (rows saved before the picker carried providers) keep the
  * legacy direct-only connector walk byte-for-byte via
@@ -23,91 +24,22 @@
  */
 
 import {
-  buildHarnessTable,
-  resolveExecution,
-} from '../../lib/shared/providers/resolve_execution';
-import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
-import {
   modelAllowlistPermits,
   modelIdsEquivalent,
 } from '../../lib/shared/utils/model-ref';
-import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { resolveServingTarget } from '../automations/llm_call';
+import {
+  readAgentDefaultCredentialRow,
+  sanctionSubscriptionHarnessTurn,
+  subscriptionApiBaseUrl,
+  type AgentTurnServing,
+} from '../lib/providers/agent_serving';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
-import { credentialAuthFor } from '../lib/providers/credential_auth';
-import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 
-export type TaskServing =
-  | { lane: 'gateway'; providerSlug: string; modelId: string }
-  | {
-      lane: 'subscription';
-      providerSlug: string;
-      modelId: string;
-      /** The vendor API base the CLI authenticates against — the auth
-       * entry's own coding endpoint when declared, else the provider's
-       * `baseUrl`. Never the broker's token endpoint. */
-      apiBaseUrl: string;
-    };
-
-const CREDENTIAL_AUTH_METHODS = [
-  'api-key',
-  'env',
-  'subscription-key',
-  'subscription-broker',
-] as const;
-type CredentialAuthMethodName = (typeof CREDENTIAL_AUTH_METHODS)[number];
-
-/** The default-credential row fields this module reads, resolver-shaped. */
-interface DefaultCredentialRow {
-  status: string;
-  authMethod: CredentialAuthMethodName;
-  modelAllowlist?: string[];
-}
-
-function isAuthMethodName(value: unknown): value is CredentialAuthMethodName {
-  return (
-    typeof value === 'string' &&
-    (CREDENTIAL_AUTH_METHODS as readonly string[]).includes(value)
-  );
-}
-
-/** Narrow the internal query's row to the fields read here — constructed
- * field by field, never asserted, so a shape drift surfaces as `null`
- * (→ "no active default credential") instead of an unsound read. */
-function asCredentialRow(row: unknown): DefaultCredentialRow | null {
-  if (!isRecord(row)) return null;
-  if (typeof row.status !== 'string' || !isAuthMethodName(row.authMethod)) {
-    return null;
-  }
-  const shaped: DefaultCredentialRow = {
-    status: row.status,
-    authMethod: row.authMethod,
-  };
-  if (
-    Array.isArray(row.modelAllowlist) &&
-    row.modelAllowlist.every((entry) => typeof entry === 'string')
-  ) {
-    shaped.modelAllowlist = row.modelAllowlist;
-  }
-  return shaped;
-}
-
-/** The resolver only reads a model's identity; neutral values fill the
- * catalog fields it ignores (same convention as the composer's affordance
- * probe and the harness status derivation). */
-function neutralModelEntry(id: string, provider: string): ModelCatalogEntry {
-  return {
-    id,
-    provider,
-    tags: ['chat'],
-    supportsTools: true,
-    supportsVision: false,
-    contextWindow: 1,
-  };
-}
+export type TaskServing = AgentTurnServing;
 
 /**
  * Resolve one task-agent turn's serving lane. Throws — failing the run with
@@ -144,7 +76,7 @@ export async function resolveTaskServing(
   // The lane split reads the pinned provider's DEFAULT credential shape —
   // picking a non-default credential is a user act the agent dialog does not
   // offer yet, so resolution deliberately never reaches past the default.
-  const row = asCredentialRow(
+  const row = readAgentDefaultCredentialRow(
     await ctx.runQuery(
       internal.provider_credentials.queries.getDefaultCredentialInternal,
       { organizationId: args.organizationId, providerSlug: pinned },
@@ -167,36 +99,15 @@ export async function resolveTaskServing(
   }
 
   // Subscription lane. The provider's own auth declaration carries the
-  // forced-harness constraints; `resolveExecution` owns the case split.
-  const credentialAuth = credentialAuthFor(connector, row.authMethod);
-  if (credentialAuth === null) {
-    throw new Error(
-      `provider "${pinned}" no longer declares the "${row.authMethod}" auth method its default credential uses — recreate the credential in Settings → AI providers`,
-    );
-  }
-  const harnesses = loadHarnesses();
-  const resolution = resolveExecution(
-    {
-      model: neutralModelEntry(args.model, pinned),
-      credential: credentialAuth,
-      mode: 'sandbox',
-      harness: args.harness,
-    },
-    buildHarnessTable(harnesses),
-  );
-  if (resolution.mode !== 'sandbox') {
-    throw new Error(
-      resolution.mode === 'refused'
-        ? resolution.reason
-        : `provider "${pinned}"'s subscription credential cannot serve a sandbox turn`,
-    );
-  }
-  // The delivery channel is harness yml, not the resolver's case split: a
-  // harness with no `subscription` section has no way to receive the token.
-  if (resolution.harness.subscription === undefined) {
-    throw new Error(
-      `harness "${args.harness}" has no subscription delivery — the "${pinned}" subscription credential cannot drive it; pick a directly-served model for this agent`,
-    );
+  // forced-harness constraints; the shared sanction owns the case split.
+  const sanction = sanctionSubscriptionHarnessTurn({
+    provider: connector,
+    authMethod: row.authMethod,
+    model: args.model,
+    harness: args.harness,
+  });
+  if (!sanction.ok) {
+    throw new Error(sanction.reason);
   }
 
   if (!modelAllowlistPermits(row.modelAllowlist, args.model)) {
@@ -222,18 +133,7 @@ export async function resolveTaskServing(
     );
   }
 
-  // The auth entry may declare a dedicated coding endpoint (subscription-key
-  // providers often do); the provider's API base is the fallback. A broker's
-  // `endpointUrl` is its TOKEN endpoint and never the API base.
-  const authEntry = connector.auth.find(
-    (candidate) => candidate.method === row.authMethod,
-  );
-  const apiBaseUrl =
-    (authEntry !== undefined &&
-    authEntry.method === 'subscription-key' &&
-    authEntry.baseUrl !== undefined
-      ? authEntry.baseUrl
-      : undefined) ?? connector.baseUrl;
+  const apiBaseUrl = subscriptionApiBaseUrl(connector, row.authMethod);
   if (apiBaseUrl === undefined) {
     throw new Error(
       `provider "${pinned}" declares no API base URL — a subscription turn cannot point the vendor CLI anywhere; declare "baseUrl" in the provider config`,
