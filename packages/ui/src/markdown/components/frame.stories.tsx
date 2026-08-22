@@ -80,7 +80,7 @@ export const WithZoomableImage: Story = {
 // collapse away.
 export const MarkdownAuthored: Story = {
   render: () => (
-    <Markdown components={markdownComponents as never}>
+    <Markdown components={markdownComponents}>
       {
         '<Frame caption="Authored in markdown">\n\n![Placeholder landscape](https://placehold.co/800x300/png)\n\n</Frame>'
       }

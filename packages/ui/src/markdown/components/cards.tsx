@@ -88,11 +88,7 @@ export function Card({ title, icon, href, children, className }: CardProps) {
     );
   }
   return (
-    <Link
-      // oxlint-disable-next-line typescript/no-explicit-any -- runtime-typed router target
-      to={href as any}
-      className={baseCls}
-    >
+    <Link to={href} className={baseCls}>
       {inner}
     </Link>
   );

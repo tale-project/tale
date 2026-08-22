@@ -178,6 +178,7 @@ async function executeRun(
         .heartbeat()
         .then(({ cancel }) => {
           if (cancel.includes(work.externalRunId)) stopRequested?.();
+          return null;
         })
         .catch((error) => {
           console.warn('[tale-daemon] heartbeat during run failed', error);

@@ -649,7 +649,7 @@ export function DataTable<TData, TValue = unknown>({
   const visibleLeafColumns = table.getVisibleLeafColumns();
   const explicitFlexColumnId = visibleLeafColumns.find(
     (column) =>
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
       (column.columnDef.meta as ColumnMeta | undefined)?.flex,
   )?.id;
   const flexColumnId =
@@ -658,7 +658,7 @@ export function DataTable<TData, TValue = unknown>({
       (column) =>
         !isUtilityCol(
           column.id,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
           (column.columnDef.meta as ColumnMeta | undefined)?.isAction,
         ),
     )?.id;
@@ -678,7 +678,7 @@ export function DataTable<TData, TValue = unknown>({
   let pinnedPx = enableExpanding ? 48 : 0;
   let contentSizeTotal = 0;
   for (const column of visibleLeafColumns) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
     const meta = column.columnDef.meta as ColumnMeta | undefined;
     if (isUtilityCol(column.id, meta?.isAction)) {
       pinnedPx += utilityPx(column.id, column.columnDef.size);
@@ -783,7 +783,7 @@ export function DataTable<TData, TValue = unknown>({
               <TableRow key={headerGroup.id}>
                 {enableExpanding && <TableHead className="w-[3rem]" />}
                 {headerGroup.headers.map((headerCell) => {
-                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
                   const meta = headerCell.column.columnDef.meta as
                     | ColumnMeta
                     | undefined;
@@ -846,7 +846,7 @@ export function DataTable<TData, TValue = unknown>({
                 {columns.map((col, colIndex) => {
                   const textWidth = (salt: number, min: number, span: number) =>
                     `${min + ((rowIndex * 17 + colIndex * 29 + salt * 13) % span)}%`;
-                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
                   const meta = col.meta as ColumnMeta | undefined;
                   const isActionCol = meta?.isAction === true;
                   const skeletonType = meta?.skeleton?.type;
@@ -1112,7 +1112,7 @@ export function DataTable<TData, TValue = unknown>({
                         >
                           <ChevronRight
                             className={cn(
-                              'size-4 text-muted-foreground transition-transform duration-200',
+                              'text-muted-foreground size-4 transition-transform duration-200',
                               isExpanded && 'rotate-90',
                             )}
                             aria-hidden
@@ -1121,7 +1121,7 @@ export function DataTable<TData, TValue = unknown>({
                       </TableCell>
                     )}
                     {row.getVisibleCells().map((cell) => {
-                      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ColumnDef.meta is typed as unknown by TanStack Table
+                      // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- ColumnDef.meta is unknown to TanStack; our column builders always attach a ColumnMeta, and the type-aware engine misjudges the unaugmented generic
                       const meta = cell.column.columnDef.meta as
                         | ColumnMeta
                         | undefined;
@@ -1324,7 +1324,7 @@ export function DataTable<TData, TValue = unknown>({
         />
       )}
     >
-      <div className={cn('flex flex-col flex-1 min-h-0 min-w-0', className)}>
+      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}>
         {headerContent && <div className="shrink-0 pb-4">{headerContent}</div>}
         {/* The bordered frame stays at the container's width — its rounded
             border is always fully visible — while both axes scroll inside
