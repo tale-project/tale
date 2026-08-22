@@ -138,15 +138,6 @@ export function useTaskOpsIndicators(projectId: Id<'projects'> | undefined) {
   };
 }
 
-export function usePendingTaskReview(taskId: Id<'tasks'> | undefined) {
-  const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.getPendingTaskReview,
-    taskId && organizationId ? { taskId, organizationId } : 'skip',
-  );
-  return { review: data ?? null, isLoading };
-}
-
 export function useTaskAgentRuns(taskId: Id<'tasks'> | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(

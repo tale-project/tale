@@ -97,7 +97,11 @@ import {
   type ResolvedMention,
 } from './mentions';
 import { rankBetween } from './rank';
-import { requestTaskReview } from './review_shared';
+import {
+  closePendingTaskReviewOnStatusLeave,
+  isReviewPolicyRefusal,
+  requestTaskReview,
+} from './review_shared';
 import {
   boardViewFiltersValidator,
   boardViewTypeValidator,
@@ -706,6 +710,15 @@ export const updateTaskStatus = mutation({
     ) {
       throw new ConvexError({ code: 'TASK_HAS_OPEN_SUBTASKS' });
     }
+
+    // Leaving `in_review` closes the review gate: Done records the approve
+    // (the org's `review_policy` still applies, so the picker cannot decide
+    // what the respond door would refuse); any other leave withdraws it.
+    await closePendingTaskReviewOnStatusLeave(ctx, {
+      task,
+      toStatus: args.status,
+      actor: { kind: 'user', userId: auth.userId, email: auth.email },
+    });
 
     const now = Date.now();
     // Moving columns: append to the end of the destination column.
@@ -1868,6 +1881,17 @@ export const moveTask = mutation({
       throw new ConvexError({ code: 'TASK_HAS_OPEN_SUBTASKS' });
     }
 
+    // Dragging out of `in_review` closes the review gate: dropping on Done IS
+    // the approve (the org's `review_policy` still applies — a refused drag
+    // throws and the card snaps back); any other lane withdraws the request.
+    if (statusChanged) {
+      await closePendingTaskReviewOnStatusLeave(ctx, {
+        task,
+        toStatus: args.status,
+        actor: { kind: 'user', userId: auth.userId, email: auth.email },
+      });
+    }
+
     const beforeRank = args.beforeTaskId
       ? (await ctx.db.get(args.beforeTaskId))?.rank
       : undefined;
@@ -1950,6 +1974,15 @@ export const moveTask = mutation({
             actorId: auth.userId,
           },
         });
+        // Dropping INTO In review opens the gate, exactly like the picker and
+        // the bulk path — the gate belongs to the STATE, whichever gesture
+        // brought the card there.
+        if (args.status === 'in_review') {
+          await requestTaskReview(ctx, {
+            task: updated,
+            trigger: { kind: 'human', actorId: auth.userId },
+          });
+        }
       }
     }
 
@@ -2057,6 +2090,23 @@ export const bulkUpdateTasks = mutation({
         ) {
           skipped += 1;
           continue;
+        }
+        if (statusChanged) {
+          // A bulk leave from `in_review` closes the gate like the single-card
+          // paths. `review_policy` refusals skip the task instead of aborting
+          // the batch (the close validates before writing, so nothing is
+          // half-recorded on a skip) — same shape as the subtask guard above.
+          try {
+            await closePendingTaskReviewOnStatusLeave(ctx, {
+              task,
+              toStatus: args.status,
+              actor: { kind: 'user', userId: auth.userId, email: auth.email },
+            });
+          } catch (error) {
+            if (!isReviewPolicyRefusal(error)) throw error;
+            skipped += 1;
+            continue;
+          }
         }
         patch.status = args.status;
         patch.rank = await computeEndRank(ctx, task.projectId, args.status);
@@ -2744,6 +2794,15 @@ async function kickTaskAgentRun(
   // status write is the CALLER's act (they dragged / clicked / commented),
   // so it lands as a user activity, not an agent one.
   if (task.status !== 'in_progress') {
+    // Kicking out of `in_review` hands the work back to the driver — the
+    // pending review is withdrawn (a leave to in_progress, never an approve),
+    // so the reviewer's bells and the Needs-my-review facet let go. Runs only
+    // on a real kick: every refusal above returned before this point.
+    await closePendingTaskReviewOnStatusLeave(ctx, {
+      task,
+      toStatus: 'in_progress',
+      actor: { kind: 'user', userId: auth.userId },
+    });
     const rank = await computeEndRank(ctx, task.projectId, 'in_progress');
     await ctx.db.patch(task._id, {
       status: 'in_progress',

@@ -6349,10 +6349,10 @@ inbox:
   taskCommentedByBody: '{actor} commented on "{title}".'
   mentionByBody: '{actor} mentioned you on "{title}".'
   taskReviewRequested: Review requested
-  taskReviewRequestedBody: '{agentSlug} finished "{taskTitle}" — approve or request changes.'
-  taskReviewRequestedBodyNoAgent: Agent work on "{taskTitle}" is ready for review — approve or request changes.
-  taskReviewRequestedByBody: '{actor} asked you to review "{taskTitle}" — approve or request changes.'
-  taskReviewRequestedBodyHuman: '"{taskTitle}" is ready for your review — approve or request changes.'
+  taskReviewRequestedBody: '{agentSlug} finished "{taskTitle}" — set it to Done to approve, or comment to send it back.'
+  taskReviewRequestedBodyNoAgent: Agent work on "{taskTitle}" is ready for review — set the task to Done to approve, or comment to send it back.
+  taskReviewRequestedByBody: '{actor} asked you to review "{taskTitle}" — set it to Done to approve, or comment to send it back.'
+  taskReviewRequestedBodyHuman: '"{taskTitle}" is ready for your review — set it to Done to approve, or comment to send it back.'
   taskReviewApproved: Review approved
   taskReviewApprovedBody: '"{taskTitle}" was approved and completed.'
   taskReviewChangesRequested: Changes requested
@@ -6660,22 +6660,14 @@ tasks:
     agentRunRefused: Run refused
   review:
     needsReview: Needs review
-    defaultQuestion: '{agent} finished its work on this task — review the result.'
-    submittedQuestion: This task was submitted for review — approve it or send it back.
     waitingOn: 'Waiting on {name}'
     waitingOnYou: Waiting on you
     filterTitle: Review
     needsMyReview: Needs my review
-    approve: Approve
-    requestChanges: Request changes
-    sendFeedback: Send feedback
-    feedbackPlaceholder: What should change? Posted as a comment — an agent
-      assignee receives it verbatim.
-    approvedToast: Task approved and completed
-    approvedRecordedToast: Approved — decision recorded
-    changesRequestedToast: Changes requested — the agent is on it
-    sentBackToast: Changes requested — back to In progress
-    changesRecordedToast: Changes requested — feedback saved as a comment
+    independentReviewerRequired: Your organization requires an independent
+      reviewer — someone else must approve this work.
+    competenceRequired: Approving this review requires a competence you don't
+      hold. Ask an org admin to grant it.
   reviewer:
     none: No reviewer
     assignToMe: Review it myself

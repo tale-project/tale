@@ -1096,8 +1096,11 @@ export const getTaskOpsIndicators = query({
 });
 
 /**
- * The pending review-gate approval for one task (detail-sheet review card).
- * Returns null when there is nothing to review.
+ * The pending review-gate approval for one task. No UI reads this since the
+ * sheet's review card was retired (status IS the review); it stays as the
+ * public pair of `respondToTaskReview` — a programmatic caller resolves the
+ * pending `approvalId` here before deciding. Returns null when there is
+ * nothing to review.
  */
 export const getPendingTaskReview = query({
   args: { taskId: v.id('tasks'), organizationId: v.string() },

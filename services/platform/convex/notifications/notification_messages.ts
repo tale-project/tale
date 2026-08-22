@@ -313,13 +313,13 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     mentionByBody: '{actor} mentioned you on "{title}".',
     taskReviewRequested: 'Review requested',
     taskReviewRequestedBody:
-      '{agentSlug} finished "{taskTitle}" — approve or request changes.',
+      '{agentSlug} finished "{taskTitle}" — set it to Done to approve, or comment to send it back.',
     taskReviewRequestedBodyNoAgent:
-      'Agent work on "{taskTitle}" is ready for review — approve or request changes.',
+      'Agent work on "{taskTitle}" is ready for review — set the task to Done to approve, or comment to send it back.',
     taskReviewRequestedByBody:
-      '{actor} asked you to review "{taskTitle}" — approve or request changes.',
+      '{actor} asked you to review "{taskTitle}" — set it to Done to approve, or comment to send it back.',
     taskReviewRequestedBodyHuman:
-      '"{taskTitle}" is ready for your review — approve or request changes.',
+      '"{taskTitle}" is ready for your review — set it to Done to approve, or comment to send it back.',
     documentReviewRequested: 'Document review requested',
     documentReviewRequestedBody:
       '{requestedByName} sent "{documentTitle}" (v{version}) for your review.',
@@ -369,13 +369,13 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     mentionByBody: '{actor} hat dich in "{title}" erwähnt.',
     taskReviewRequested: 'Review angefragt',
     taskReviewRequestedBody:
-      '{agentSlug} hat "{taskTitle}" abgeschlossen — freigeben oder Änderungen anfordern.',
+      '{agentSlug} hat "{taskTitle}" abgeschlossen — stelle die Aufgabe zum Freigeben auf "Erledigt" oder schicke sie mit einem Kommentar zurück.',
     taskReviewRequestedBodyNoAgent:
-      'Agenten-Arbeit an "{taskTitle}" ist bereit zur Prüfung — freigeben oder Änderungen anfordern.',
+      'Agenten-Arbeit an "{taskTitle}" ist bereit zur Prüfung — stelle die Aufgabe zum Freigeben auf "Erledigt" oder schicke sie mit einem Kommentar zurück.',
     taskReviewRequestedByBody:
-      '{actor} bittet dich um ein Review von "{taskTitle}" — freigeben oder Änderungen anfordern.',
+      '{actor} bittet dich um ein Review von "{taskTitle}" — stelle die Aufgabe zum Freigeben auf "Erledigt" oder schicke sie mit einem Kommentar zurück.',
     taskReviewRequestedBodyHuman:
-      '"{taskTitle}" wartet auf dein Review — freigeben oder Änderungen anfordern.',
+      '"{taskTitle}" wartet auf dein Review — stelle die Aufgabe zum Freigeben auf "Erledigt" oder schicke sie mit einem Kommentar zurück.',
     documentReviewRequested: 'Dokument-Review angefragt',
     documentReviewRequestedBody:
       '{requestedByName} hat dir "{documentTitle}" (v{version}) zum Review geschickt.',
@@ -425,13 +425,13 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     mentionByBody: "{actor} t'a mentionné dans «\u00a0{title}\u00a0».",
     taskReviewRequested: 'Revue demandée',
     taskReviewRequestedBody:
-      '{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.',
+      '{agentSlug} a terminé « {taskTitle} » — passe la tâche en « Terminé » pour approuver, ou renvoie-la avec un commentaire.',
     taskReviewRequestedBodyNoAgent:
-      "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
+      "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — passe la tâche en « Terminé » pour approuver, ou renvoie-la avec un commentaire.",
     taskReviewRequestedByBody:
-      '{actor} te demande une revue de « {taskTitle} » — approuve ou demande des modifications.',
+      '{actor} te demande une revue de « {taskTitle} » — passe la tâche en « Terminé » pour approuver, ou renvoie-la avec un commentaire.',
     taskReviewRequestedBodyHuman:
-      '« {taskTitle} » attend ta revue — approuve ou demande des modifications.',
+      '« {taskTitle} » attend ta revue — passe la tâche en « Terminé » pour approuver, ou renvoie-la avec un commentaire.',
     documentReviewRequested: 'Revue de document demandée',
     documentReviewRequestedBody:
       '{requestedByName} t’a envoyé « {documentTitle} » (v{version}) en revue.',

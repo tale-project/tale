@@ -82,6 +82,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from '../lib/display';
+import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneeAvatar } from './assignee-avatar';
 import { AssigneePicker } from './assignee-picker';
@@ -105,7 +106,6 @@ import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
 import { TaskInputFilesCard } from './task-input-files';
 import { TaskOutcomeFilesCard } from './task-outcome-files';
-import { TaskReviewCard } from './task-review-card';
 import { TaskRunFailureBanner } from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskSubjectPanel } from './task-subject-panel';
@@ -1035,6 +1035,13 @@ function EditTaskBody({
       toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });
       return;
     }
+    // Setting In review → Done IS the review approve, so the org's
+    // review_policy can refuse the picker — surface WHY, not a generic error.
+    const reviewRefusal = reviewPolicyErrorMessage(error, t);
+    if (reviewRefusal !== undefined) {
+      toast({ title: reviewRefusal, variant: 'destructive' });
+      return;
+    }
     if (
       error instanceof ConvexError &&
       error.data?.code === 'TASK_SCHEDULE_INVALID'
@@ -1282,11 +1289,6 @@ function EditTaskBody({
                 taskId={task._id}
                 organizationId={task.organizationId}
                 projectId={task.projectId}
-              />
-              <TaskReviewCard
-                taskId={task._id}
-                organizationId={task.organizationId}
-                canEdit={canMutate}
               />
 
               {/* A plain task's description IS its body, so it stays first. An
