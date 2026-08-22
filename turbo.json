@@ -112,5 +112,10 @@
       "cache": false,
       "outputs": []
     }
-  }
+  },
+  "globalDependencies": [
+    ".oxlintrc.json",
+    ".oxfmtrc.json",
+    "tsconfig.base.json"
+  ]
 }

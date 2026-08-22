@@ -166,6 +166,7 @@ services/web/public/de/
 services/web/public/fr/
 
 # build artifacts under services/* (each service has its own dist/dist-ssr)
+services/sandbox-runtime/daemon/dist/
 services/*/dist
 services/*/dist-ssr
 # precompiled SEO + LLM artifact set (built in the Docker builder stage)
