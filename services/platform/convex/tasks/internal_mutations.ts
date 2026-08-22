@@ -57,7 +57,10 @@ import {
   parseMentionTokens,
   type ResolvedMention,
 } from './mentions';
-import { requestTaskReview } from './review_shared';
+import {
+  closePendingTaskReviewOnStatusLeave,
+  requestTaskReview,
+} from './review_shared';
 import {
   type CommentEventComment,
   taskActivityAttributionValidator,
@@ -530,6 +533,17 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       if (statusFrom) {
         patch.statusChangedAt = now;
       }
+      // An external close that pulls the task out of `in_review` (the
+      // completing 'workflow' actor → done) moots any pending review: the
+      // external lifecycle owns the completion, no human decided a review, so
+      // the request is withdrawn and its bells dismissed.
+      if (patch.status !== undefined && patch.status !== existing.status) {
+        await closePendingTaskReviewOnStatusLeave(ctx, {
+          task: existing,
+          toStatus: patch.status,
+          actor: { kind: 'system', actorId: args.actorId },
+        });
+      }
       await ctx.db.patch(existing._id, patch);
       // Unconditional — a label-only reconcile leaves `patch.status` unset and
       // the transition no-ops.
@@ -719,6 +733,17 @@ export const agentUpdateTaskStatus = internalMutation({
     ) {
       return { ok: false, reason: 'TASK_HAS_OPEN_SUBTASKS' };
     }
+
+    // A non-human transition out of `in_review` (an agent's
+    // `task_update_status`, an automation's own completion) WITHDRAWS any
+    // pending review — no human decided, so nothing is recorded as approved,
+    // but the bells and the Needs-my-review facet must not keep ringing for a
+    // state the board has left.
+    await closePendingTaskReviewOnStatusLeave(ctx, {
+      task,
+      toStatus: args.status,
+      actor: { kind: 'system', actorId: args.actorId },
+    });
 
     const now = Date.now();
     const rank = await computeEndRank(ctx, task.projectId, args.status);

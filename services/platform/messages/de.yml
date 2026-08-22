@@ -6262,15 +6262,18 @@ inbox:
   mentionByBody: '{actor} hat dich in "{title}" erwähnt.'
   taskReviewRequested: Review angefragt
   taskReviewRequestedBody: '{agentSlug} hat "{taskTitle}" abgeschlossen —
-    freigeben oder Änderungen anfordern.'
+    stelle die Aufgabe zum Freigeben auf "Erledigt" oder schicke sie mit einem
+    Kommentar zurück.'
   taskReviewRequestedBodyNoAgent: Agenten-Arbeit an "{taskTitle}" ist bereit zur
-    Prüfung — freigeben oder Änderungen anfordern.
+    Prüfung — stelle die Aufgabe zum Freigeben auf "Erledigt" oder schicke sie
+    mit einem Kommentar zurück.
   taskReviewRequestedByBody:
     '{actor} bittet dich um ein Review von "{taskTitle}"
-    — freigeben oder Änderungen anfordern.'
+    — stelle die Aufgabe zum Freigeben auf "Erledigt" oder schicke sie mit
+    einem Kommentar zurück.'
   taskReviewRequestedBodyHuman:
-    '"{taskTitle}" wartet auf dein Review — freigeben
-    oder Änderungen anfordern.'
+    '"{taskTitle}" wartet auf dein Review — stelle die Aufgabe zum Freigeben
+    auf "Erledigt" oder schicke sie mit einem Kommentar zurück.'
   taskReviewApproved: Review freigegeben
   taskReviewApprovedBody: '"{taskTitle}" wurde freigegeben und abgeschlossen.'
   taskReviewChangesRequested: Änderungen angefordert
@@ -6586,25 +6589,14 @@ tasks:
     agentRunRefused: Ausführung abgelehnt
   review:
     needsReview: Review ausstehend
-    defaultQuestion:
-      '{agent} hat die Arbeit an dieser Aufgabe abgeschlossen — prüfe
-      das Ergebnis.'
-    submittedQuestion: Diese Aufgabe wurde zum Review eingereicht — freigeben
-      oder zurückschicken.
     waitingOn: 'Wartet auf {name}'
     waitingOnYou: Wartet auf dein Review
     filterTitle: Review
     needsMyReview: Wartet auf mein Review
-    approve: Freigeben
-    requestChanges: Änderungen anfordern
-    sendFeedback: Feedback senden
-    feedbackPlaceholder: Was soll sich ändern? Wird als Kommentar gespeichert —
-      ein Agent als Zuständiger erhält es wortwörtlich.
-    approvedToast: Aufgabe freigegeben und abgeschlossen
-    approvedRecordedToast: Freigegeben — Entscheidung gespeichert
-    changesRequestedToast: Änderungen angefordert — der Agent arbeitet daran
-    sentBackToast: Änderungen angefordert — zurück in "In Bearbeitung"
-    changesRecordedToast: Änderungen angefordert — dein Feedback steht als Kommentar an der Aufgabe
+    independentReviewerRequired: Deine Organisation verlangt ein unabhängiges
+      Review — die Arbeit muss jemand anderes freigeben.
+    competenceRequired: Für diese Freigabe fehlt dir eine erforderliche
+      Kompetenz. Bitte einen Admin deiner Organisation, sie dir zuzuweisen.
   reviewer:
     none: Kein Reviewer
     assignToMe: Selbst prüfen

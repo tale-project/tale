@@ -51,6 +51,7 @@ import { cn } from '@/lib/utils/cn';
 import { useAddTaskComment, useUpdateTaskStatus } from '../hooks/mutations';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import type { ResolvedTaskSubjectContract } from '../hooks/use-task-subject-contract';
+import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 import { deriveSubjectState } from '../lib/subject-state';
 
 /**
@@ -295,12 +296,17 @@ export function TaskSubjectPanel({
       toast({ title: t('subject.approved'), variant: 'success' });
     } catch (error) {
       // Same guard surface as the status picker: a parent with open subtasks
-      // cannot close, and the user should hear that, not a generic error.
+      // cannot close — and Approve writes Done, which decides any pending
+      // review, so the org's review_policy can refuse it too. The user should
+      // hear the reason, not a generic error.
+      const reviewRefusal = reviewPolicyErrorMessage(error, t);
       if (
         error instanceof ConvexError &&
         error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
       ) {
         toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });
+      } else if (reviewRefusal !== undefined) {
+        toast({ title: reviewRefusal, variant: 'destructive' });
       } else {
         console.error('[tasks] subject-panel approve failed', error);
         toast({ title: tCommon('errors.generic'), variant: 'destructive' });

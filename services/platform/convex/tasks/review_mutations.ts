@@ -6,12 +6,15 @@
  * `setTaskReviewer` (public) designates the named human the work waits on
  * (soft designation: notify + queue, not an exclusive ACL).
  *
- * `respondToTaskReview` (public) is the decision — Approve / Request changes
- * from the task sheet or the inbox. For workflow-free reviews (the mint in
- * `review_shared.requestTaskReview`) it closes the loop right here: approve
- * completes the task as the responding user; request-changes posts the feedback
- * as a task comment, re-kicks an agent driver with it, and returns the card to
- * `in_progress` so the work is the assignee's again.
+ * `respondToTaskReview` (public) is the PROGRAMMATIC decision door — no UI
+ * mounts it since the sheet's review card was retired (status IS the review:
+ * a human leave to `done` approves via
+ * `review_shared.closePendingTaskReviewOnStatusLeave`). For workflow-free
+ * reviews (the mint in `review_shared.requestTaskReview`) it closes the loop
+ * right here: approve completes the task as the responding user;
+ * request-changes posts the feedback as a task comment, re-kicks an agent
+ * driver with it, and returns the card to `in_progress` so the work is the
+ * assignee's again.
  *
  * `createTaskReviewRequest` (internal) is the WORKFLOW-era mint — idempotent
  * by (wfExecutionId, stepSlug, round) because the engine re-executed a paused
@@ -39,8 +42,6 @@ import {
   notifyTaskReviewResolved,
 } from '../collab/notify_task_reviews';
 import { emitEvent } from '../events/emit';
-import { holdsAllCompetences } from '../governance/competence';
-import { readReviewPolicy } from '../governance/review_policy';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -63,27 +64,15 @@ import { postTaskDiscussionMessage } from './internal_mutations';
 import {
   approvalRound,
   approvalRunId,
+  checkReviewPolicyForResponder,
+  collectTaskWatcherIds,
   requestTaskReview,
   resolveReviewer,
+  type TaskReviewResponse,
 } from './review_shared';
 
 export const TASK_REVIEW_DECISIONS = ['approve', 'request_changes'] as const;
 export type TaskReviewDecision = (typeof TASK_REVIEW_DECISIONS)[number];
-
-interface TaskReviewResponse {
-  decision: TaskReviewDecision;
-  feedback?: string;
-  respondedBy: string;
-  timestamp: number;
-  /** Check outcomes of the org's `review_policy`, recorded only when the
-   * policy demanded them (absent policy ⇒ absent fields — today's shape). */
-  independentReviewer?: boolean;
-  competences?: {
-    required: string[];
-    heldRecordIds: string[];
-    checkedAt: number;
-  };
-}
 
 function readResponse(
   approval: Doc<'approvals'>,
@@ -103,7 +92,8 @@ function readResponse(
  * Soft designation, NOT an ownership transfer — so unlike an assignee change
  * it is ALLOWED while a run is live (contrast `applyAssigneeChange`'s
  * TASK_HAS_LIVE_RUN gate). The designee must be a human org member holding
- * project `canEdit` (Members can see review cards but cannot respond).
+ * project `canEdit` (view-only Members see the waiting chips but cannot
+ * decide).
  *
  * The designee owns the GATE, so designation does three things: subscribes them
  * to the task (they follow its progress and their own review's outcome),
@@ -436,70 +426,16 @@ export const respondToTaskReview = mutation({
 
     const now = Date.now();
 
-    // The org's `review_policy` governance file tightens WHO may respond.
-    // Absent (or malformed — logged and treated as absent) means exactly
-    // today's behaviour: any project editor. Refusals follow this mutation's
-    // existing convention — a coded ConvexError the card surfaces as an
-    // error toast.
-    const reviewPolicy = await readReviewPolicy(
-      ctx.db,
-      approval.organizationId,
-    );
-    let independentReviewer: boolean | undefined;
-    let competences: TaskReviewResponse['competences'];
-    if (reviewPolicy?.requireIndependentReviewer === true) {
-      const settledRunKey = approvalRunId(approval);
-      const runId =
-        settledRunKey === undefined
-          ? null
-          : ctx.db.normalizeId('projectAgentRuns', settledRunKey);
-      const run = runId === null ? null : await ctx.db.get(runId);
-      if (run !== null && run.taskId === taskId) {
-        // The reviewed run's driver is the human who kicked it
-        // (`projectAgentRuns.startedBy` — every task-lane trigger is a
-        // person's act). Independence = the responder is someone else.
-        if (run.startedBy === member.userId) {
-          throw new ConvexError({
-            code: 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
-            message:
-              'This organization requires an independent reviewer: the person who started the run cannot approve its work.',
-          });
-        }
-      } else if (task.createdBy === member.userId) {
-        // Workflow-era review rows carry no run linkage (no `metadata.runId`,
-        // or a key that no longer resolves to a projectAgentRuns row), so the
-        // driver cannot be recovered. Conservatively require the responder to
-        // differ from the task's creator — the closest proxy for the person
-        // whose work is under review.
-        throw new ConvexError({
-          code: 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
-          message:
-            "This organization requires an independent reviewer: the reviewed run's driver could not be resolved, so the task creator cannot respond.",
-        });
-      }
-      independentReviewer = true;
-    }
-    const requiredCompetences = reviewPolicy?.requiredCompetences ?? [];
-    if (requiredCompetences.length > 0) {
-      const held = await holdsAllCompetences(
-        ctx,
-        approval.organizationId,
-        member.userId,
-        requiredCompetences,
-      );
-      if (!held.holdsAll) {
-        throw new ConvexError({
-          code: 'REVIEW_COMPETENCE_REQUIRED',
-          message: `Responding to this review requires the competence(s): ${held.missing.join(', ')}. Ask an org admin to grant them.`,
-          missing: held.missing,
-        });
-      }
-      competences = {
-        required: [...requiredCompetences],
-        heldRecordIds: held.heldRecordIds,
-        checkedAt: now,
-      };
-    }
+    // The org's `review_policy` governance file tightens WHO may respond
+    // (shared with the status-leave close, so no door bypasses it). Refusals
+    // follow this mutation's existing convention — a coded ConvexError the
+    // caller surfaces as an error toast.
+    const policyOutcome = await checkReviewPolicyForResponder(ctx, {
+      approval,
+      task,
+      responderUserId: member.userId,
+      now,
+    });
 
     // Nested undefined is not a valid Convex value — only include feedback
     // when present.
@@ -508,8 +444,7 @@ export const respondToTaskReview = mutation({
       respondedBy: member.userId,
       timestamp: now,
       ...(feedback ? { feedback } : {}),
-      ...(independentReviewer !== undefined ? { independentReviewer } : {}),
-      ...(competences !== undefined ? { competences } : {}),
+      ...policyOutcome,
     };
     const existingMetadata: unknown = approval.metadata;
     const metadata = isRecord(existingMetadata) ? existingMetadata : {};
@@ -544,8 +479,7 @@ export const respondToTaskReview = mutation({
     // `review_policy` check outcomes, when the policy demanded them.
     const auditMetadata: Record<string, unknown> = {
       ...(settledRunId !== undefined ? { runId: settledRunId } : {}),
-      ...(independentReviewer !== undefined ? { independentReviewer } : {}),
-      ...(competences !== undefined ? { competences } : {}),
+      ...policyOutcome,
     };
     await createAuditLog(ctx, {
       organizationId: approval.organizationId,
@@ -565,19 +499,11 @@ export const respondToTaskReview = mutation({
     });
 
     // Watchers learn the outcome (reviewer pref-gated, actor excluded).
-    const watcherIds: string[] = [];
-    for await (const sub of ctx.db
-      .query('taskSubscriptions')
-      .withIndex('by_task', (q) => q.eq('taskId', taskId))) {
-      if (sub.subscriberType === 'user' && !sub.muted) {
-        watcherIds.push(sub.subscriberId);
-      }
-    }
     await notifyTaskReviewResolved(ctx, {
       task,
       decision: args.decision,
       decidedByUserId: member.userId,
-      recipientUserIds: [...new Set(watcherIds)],
+      recipientUserIds: await collectTaskWatcherIds(ctx, taskId),
     });
 
     let taskCompleted = false;

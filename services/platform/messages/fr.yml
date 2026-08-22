@@ -6380,14 +6380,16 @@ inbox:
   taskCommentedByBody: '{actor} a commenté « {title} ».'
   mentionByBody: "{actor} t'a mentionné dans « {title} »."
   taskReviewRequested: Revue demandée
-  taskReviewRequestedBody: '{agentSlug} a terminé « {taskTitle} » — approuvez ou
-    demandez des modifications.'
+  taskReviewRequestedBody: '{agentSlug} a terminé « {taskTitle} » — passe la
+    tâche en « Terminé » pour approuver, ou renvoie-la avec un commentaire.'
   taskReviewRequestedBodyNoAgent: Le travail de l'agent sur « {taskTitle} » est
-    prêt pour la revue — approuvez ou demandez des modifications.
+    prêt pour la revue — passe la tâche en « Terminé » pour approuver, ou
+    renvoie-la avec un commentaire.
   taskReviewRequestedByBody: '{actor} te demande une revue de « {taskTitle} » —
-    approuve ou demande des modifications.'
-  taskReviewRequestedBodyHuman: « {taskTitle} » attend ta revue — approuve ou
-    demande des modifications.
+    passe la tâche en « Terminé » pour approuver, ou renvoie-la avec un
+    commentaire.'
+  taskReviewRequestedBodyHuman: « {taskTitle} » attend ta revue — passe la
+    tâche en « Terminé » pour approuver, ou renvoie-la avec un commentaire.
   taskReviewApproved: Revue approuvée
   taskReviewApprovedBody: « {taskTitle} » a été approuvée et terminée.
   taskReviewChangesRequested: Modifications demandées
@@ -6702,23 +6704,14 @@ tasks:
     agentRunRefused: Exécution refusée
   review:
     needsReview: Revue requise
-    defaultQuestion: '{agent} a terminé son travail sur cette tâche — examinez le résultat.'
-    submittedQuestion: Cette tâche a été soumise en revue — approuve-la ou
-      renvoie-la.
     waitingOn: 'En attente de {name}'
     waitingOnYou: En attente de ta relecture
     filterTitle: Relecture
     needsMyReview: En attente de ma relecture
-    approve: Approuver
-    requestChanges: Demander des modifications
-    sendFeedback: Envoyer le feedback
-    feedbackPlaceholder: Que faut-il changer ? Ajouté en commentaire — un agent
-      responsable le reçoit tel quel.
-    approvedToast: Tâche approuvée et terminée
-    approvedRecordedToast: Approuvé — décision enregistrée
-    changesRequestedToast: Modifications demandées — l'agent s'en occupe
-    sentBackToast: Modifications demandées — retour en « En cours »
-    changesRecordedToast: Modifications demandées — ton feedback est ajouté en commentaire
+    independentReviewerRequired: Ton organisation exige une relecture
+      indépendante — quelqu'un d'autre doit approuver ce travail.
+    competenceRequired: Approuver cette relecture demande une compétence que tu
+      n'as pas. Demande à un admin de ton organisation de te l'accorder.
   reviewer:
     none: Aucun relecteur
     assignToMe: Relire moi-même

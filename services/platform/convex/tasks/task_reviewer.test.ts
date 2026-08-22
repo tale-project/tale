@@ -2,10 +2,12 @@
 // (`setTaskReviewer` permission matrix + pending-review re-target), the
 // canEdit-gated default chain (`resolveReviewer`), the settle-time
 // workflow-free mint (park-and-mint transaction: idempotency per runId,
-// supersede of older pending reviews, reviewer notification), and the
+// supersede of older pending reviews, reviewer notification), the
 // workflow-free respond semantics (approve completes the task as the
 // responding user; request-changes posts the feedback comment and re-kicks
-// the agent driver).
+// the agent driver), and the status-leave close (a human leave to `done`
+// records the approve — review_policy still applies — while every other
+// leave from `in_review` withdraws the pending request).
 
 import agentComponent from '@convex-dev/agent/test';
 import { convexTest, type TestConvex } from 'convex-test';
@@ -414,17 +416,29 @@ describe('human park opens the review gate', () => {
     expect(bells[0]?.actorId).toBe(EDITOR);
   });
 
-  it('does not open a second gate while one is still pending', async () => {
+  it('a bounce out of In review withdraws the request; re-entry asks afresh', async () => {
     const t = convexTest(schema, modules);
     const { taskId } = await humanOwnedWorld(t);
 
     await humanSetStatus(t, taskId, 'in_review');
-    // Bounced out and back in before the reviewer answered.
+    // Bounced out before the reviewer answered — the leave closes the gate
+    // (withdrawn, bells let go), so nothing lingers on an in-progress card.
     await humanSetStatus(t, taskId, 'in_progress');
-    await humanSetStatus(t, taskId, 'in_review');
+    const [withdrawn] = await taskReviews(t, taskId);
+    expect(withdrawn?.status).toBe('rejected');
+    expect(withdrawn?.metadata).toMatchObject({
+      withdrawn: { toStatus: 'in_progress', by: EDITOR },
+    });
+    expect((await bellsFor(t, REVIEWER)).every((bell) => bell.read)).toBe(true);
 
-    expect(await taskReviews(t, taskId)).toHaveLength(1);
-    expect(await bellsFor(t, REVIEWER)).toHaveLength(1);
+    // Back in: a fresh gate, a fresh (single unread) ask.
+    await humanSetStatus(t, taskId, 'in_review');
+    const reviews = await taskReviews(t, taskId);
+    expect(reviews).toHaveLength(2);
+    expect(reviews.filter((row) => row.status === 'pending')).toHaveLength(1);
+    const bells = await bellsFor(t, REVIEWER);
+    expect(bells).toHaveLength(2);
+    expect(bells.filter((bell) => !bell.read)).toHaveLength(1);
   });
 
   it('opens a fresh round after the previous one was answered', async () => {
@@ -1218,5 +1232,287 @@ describe('respondToTaskReview — review_policy enforcement', () => {
     )?.response;
     expect(response).not.toHaveProperty('independentReviewer');
     expect(response).not.toHaveProperty('competences');
+  });
+});
+
+describe('status leave closes the review gate', () => {
+  /** Agent-parked review: settled run, pending gate, REVIEWER designated. */
+  async function parkedWorld(t: T) {
+    const world = await seedWorld(t);
+    await t.run((ctx) =>
+      ctx.db.patch(world.taskId, { reviewerUserId: REVIEWER }),
+    );
+    const runId = await seedSettledRun(
+      t,
+      world.projectId,
+      world.taskId,
+      world.agentId,
+    );
+    await parkForReview(t, world.taskId, world.agentId, runId);
+    const [review] = await taskReviews(t, world.taskId);
+    if (!review) throw new Error('mint failed');
+    return { ...world, runId, approvalId: review._id };
+  }
+
+  async function seedPolicy(t: T, config: unknown): Promise<void> {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('configCache', {
+        organizationId: ORG,
+        domain: 'governance',
+        key: 'review_policy',
+        config,
+        syncedAt: 0,
+      });
+    });
+  }
+
+  it('the status picker In review → Done records the approve as the mover', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, runId } = await parkedWorld(t);
+
+    await humanSetStatus(t, taskId, 'done', REVIEWER);
+
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task?.status).toBe('done');
+    const [review] = await taskReviews(t, taskId);
+    expect(review?.status).toBe('completed');
+    expect(review?.approvedBy).toBe(REVIEWER);
+    expect(
+      (review?.metadata as { response?: Record<string, unknown> })?.response,
+    ).toMatchObject({ decision: 'approve', respondedBy: REVIEWER });
+    // The reviewer's bell let go with the decision.
+    expect((await bellsFor(t, REVIEWER)).every((bell) => bell.read)).toBe(true);
+    // Same records as respondToTaskReview: the metric and the audit row.
+    const activity = await t.run((ctx) =>
+      ctx.db.query('taskActivity').collect(),
+    );
+    expect(activity).toContainEqual(
+      expect.objectContaining({ action: 'review.passed', actorId: REVIEWER }),
+    );
+    const audit = await t.run(async (ctx) =>
+      (await ctx.db.query('auditLogs').collect()).find(
+        (row) => row.action === 'task.review_responded',
+      ),
+    );
+    expect(audit?.metadata).toMatchObject({ runId: String(runId) });
+  });
+
+  it('the board drag In review → Done approves too (moveTask)', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId } = await parkedWorld(t);
+
+    await t
+      .withIdentity({ subject: REVIEWER })
+      .mutation(api.tasks.mutations.moveTask, { taskId, status: 'done' });
+
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task?.status).toBe('done');
+    const [review] = await taskReviews(t, taskId);
+    expect(review?.status).toBe('completed');
+    expect(review?.approvedBy).toBe(REVIEWER);
+  });
+
+  it('a drag INTO In review opens the gate, like the picker', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId } = await seedWorld(t);
+    await t.run((ctx) =>
+      ctx.db.patch(taskId, {
+        assigneeType: 'user',
+        assigneeId: EDITOR,
+        reviewerUserId: REVIEWER,
+      }),
+    );
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.moveTask, { taskId, status: 'in_review' });
+
+    const reviews = await taskReviews(t, taskId);
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]?.status).toBe('pending');
+    expect(await bellsFor(t, REVIEWER)).toHaveLength(1);
+  });
+
+  it('a leave to In progress withdraws the pending review and its bells', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId } = await parkedWorld(t);
+
+    await humanSetStatus(t, taskId, 'in_progress');
+
+    const [review] = await taskReviews(t, taskId);
+    expect(review?.status).toBe('rejected');
+    expect(review?.metadata).toMatchObject({
+      withdrawn: { toStatus: 'in_progress', by: EDITOR },
+    });
+    expect((await bellsFor(t, REVIEWER)).every((bell) => bell.read)).toBe(true);
+  });
+
+  it('kicking a run from In review withdraws (Start / mention hand the work back)', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId } = await parkedWorld(t);
+
+    const kicked = await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+    expect(kicked.started).toBe(true);
+
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task?.status).toBe('in_progress');
+    const [review] = await taskReviews(t, taskId);
+    expect(review?.status).toBe('rejected');
+    expect(review?.metadata).toMatchObject({
+      withdrawn: { toStatus: 'in_progress', by: EDITOR },
+    });
+    expect((await bellsFor(t, REVIEWER)).every((bell) => bell.read)).toBe(true);
+  });
+
+  it('review_policy still refuses Done via the picker — no bypass', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId } = await parkedWorld(t);
+    await seedPolicy(t, { requireIndependentReviewer: true });
+
+    // EDITOR started the settled run — the picker refuses like respond would.
+    await expect(humanSetStatus(t, taskId, 'done', EDITOR)).rejects.toThrow(
+      /REVIEW_INDEPENDENT_REVIEWER_REQUIRED/,
+    );
+    // The refusal rolled the whole move back: still in review, still pending.
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task?.status).toBe('in_review');
+    const [review] = await taskReviews(t, taskId);
+    expect(review?.status).toBe('pending');
+
+    // An independent reviewer's Done passes and records the outcome.
+    await humanSetStatus(t, taskId, 'done', REVIEWER);
+    const [decided] = await taskReviews(t, taskId);
+    expect(decided?.status).toBe('completed');
+    expect(
+      (decided?.metadata as { response?: Record<string, unknown> })?.response,
+    ).toMatchObject({ independentReviewer: true });
+  });
+
+  it('bulk Done skips a policy-refused task and decides the rest', async () => {
+    const t = convexTest(schema, modules);
+    const world = await parkedWorld(t);
+    await seedPolicy(t, { requireIndependentReviewer: true });
+    // A second reviewable task whose run REVIEWER did not start.
+    const otherTaskId = await t.run((ctx) =>
+      ctx.db.insert('tasks', {
+        organizationId: ORG,
+        projectId: world.projectId,
+        title: 'Other numbers',
+        status: 'in_progress',
+        rank: 'a2',
+        assigneeType: 'agent',
+        assigneeId: String(world.agentId),
+        createdBy: CREATOR,
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+    const otherRunId = await seedSettledRun(
+      t,
+      world.projectId,
+      otherTaskId,
+      world.agentId,
+      'exec-2',
+    );
+    await parkForReview(t, otherTaskId, world.agentId, otherRunId);
+
+    // EDITOR started both runs: both refused for EDITOR, both fine for REVIEWER
+    // — but make one refusable for REVIEWER by re-pointing its run starter.
+    await t.run((ctx) => ctx.db.patch(world.runId, { startedBy: REVIEWER }));
+
+    const result = await t
+      .withIdentity({ subject: REVIEWER })
+      .mutation(api.tasks.mutations.bulkUpdateTasks, {
+        taskIds: [world.taskId, otherTaskId],
+        status: 'done',
+      });
+    expect(result).toEqual({ updated: 1, skipped: 1 });
+
+    // The refused task kept its state; the other completed its review.
+    const refused = await t.run((ctx) => ctx.db.get(world.taskId));
+    expect(refused?.status).toBe('in_review');
+    const [refusedReview] = await taskReviews(t, world.taskId);
+    expect(refusedReview?.status).toBe('pending');
+    const done = await t.run((ctx) => ctx.db.get(otherTaskId));
+    expect(done?.status).toBe('done');
+    const [decided] = await taskReviews(t, otherTaskId);
+    expect(decided?.status).toBe('completed');
+  });
+
+  it('an agent leave (task_update_status lane) withdraws, never approves', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId } = await parkedWorld(t);
+
+    const result = await t.mutation(
+      internal.tasks.internal_mutations.agentUpdateTaskStatus,
+      {
+        organizationId: ORG,
+        actorId: String(agentId),
+        taskId,
+        status: 'in_progress',
+      },
+    );
+    expect(result.ok).toBe(true);
+
+    const [review] = await taskReviews(t, taskId);
+    expect(review?.status).toBe('rejected');
+    expect(review?.metadata).toMatchObject({
+      withdrawn: { toStatus: 'in_progress', by: String(agentId) },
+    });
+  });
+
+  it('an external-sync close (workflow actor → done) withdraws the review', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, projectId } = await parkedWorld(t);
+    await t.run((ctx) =>
+      ctx.db.patch(taskId, { externalSystem: 'github', externalId: '42' }),
+    );
+
+    await t.mutation(
+      internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
+      {
+        organizationId: ORG,
+        actorId: 'workflow',
+        projectId,
+        externalSystem: 'github',
+        externalId: '42',
+        title: 'Quarterly numbers',
+        externalState: 'closed',
+      },
+    );
+
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task?.status).toBe('done');
+    const [review] = await taskReviews(t, taskId);
+    expect(review?.status).toBe('rejected');
+    expect(review?.metadata).toMatchObject({
+      withdrawn: { toStatus: 'done', by: 'workflow' },
+    });
+    expect((await bellsFor(t, REVIEWER)).every((bell) => bell.read)).toBe(true);
+  });
+
+  it('a workflow-era pending row (wfExecutionId) is left to its own protocol', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, approvalId } = await parkedWorld(t);
+    // Turn the row into a workflow-era one: the paused execution owns it.
+    const wfExecutionId = await t.run((ctx) =>
+      ctx.db.insert('wfExecutions', {
+        organizationId: ORG,
+        wfDefinitionId: null,
+        status: 'running',
+        currentStepSlug: 'review',
+        startedAt: 0,
+        updatedAt: 0,
+      }),
+    );
+    await t.run((ctx) => ctx.db.patch(approvalId, { wfExecutionId }));
+
+    await humanSetStatus(t, taskId, 'done', REVIEWER);
+
+    const [review] = await taskReviews(t, taskId);
+    expect(review?.status).toBe('pending');
   });
 });
