@@ -1,3 +1,5 @@
+'use node';
+
 /**
  * Which lane serves one agent HARNESS turn, and on which provider — the
  * shared core under the task lane's pinned split (`tasks/task_serving.ts`)
