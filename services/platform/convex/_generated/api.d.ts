@@ -558,6 +558,7 @@ import type * as lib_moderation_semaphore from "../lib/moderation/semaphore.js";
 import type * as lib_pagination_helpers from "../lib/pagination/helpers.js";
 import type * as lib_pagination_index from "../lib/pagination/index.js";
 import type * as lib_pagination_types from "../lib/pagination/types.js";
+import type * as lib_providers_agent_serving from "../lib/providers/agent_serving.js";
 import type * as lib_providers_catalog_actions from "../lib/providers/catalog_actions.js";
 import type * as lib_providers_catalog_fetch from "../lib/providers/catalog_fetch.js";
 import type * as lib_providers_catalog_validators from "../lib/providers/catalog_validators.js";
@@ -1529,6 +1530,7 @@ declare const fullApi: ApiFromModules<{
   "lib/pagination/helpers": typeof lib_pagination_helpers;
   "lib/pagination/index": typeof lib_pagination_index;
   "lib/pagination/types": typeof lib_pagination_types;
+  "lib/providers/agent_serving": typeof lib_providers_agent_serving;
   "lib/providers/catalog_actions": typeof lib_providers_catalog_actions;
   "lib/providers/catalog_fetch": typeof lib_providers_catalog_fetch;
   "lib/providers/catalog_validators": typeof lib_providers_catalog_validators;

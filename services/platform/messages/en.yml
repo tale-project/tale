@@ -578,6 +578,13 @@ automations:
       orgWide: Organization-wide
       confirmOrgWide: This run operates organization-wide, across every project.
       confirmProject: This run operates in the {project} project — its task and document tools act there.
+    delete:
+      action: Delete automation
+      title: Delete this automation?
+      description: Deletes every version, the deployment, the trigger and the project bindings. The run history stays until retention removes it.
+      warning: A schedule stops firing and any webhook URL stops working immediately. This cannot be undone.
+      done: Automation deleted
+      failed: Could not delete the automation
   trigger:
     title: Trigger
     none: Nothing starts this automation yet.

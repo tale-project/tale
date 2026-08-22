@@ -88,6 +88,12 @@ Revenir en arrière, c’est mettre en service une version plus ancienne. Trouve
 
 C’est pour cela que les notes de version comptent plus qu’il n’y paraît. Six versions plus tard, c’est la note qui te dit laquelle était le dernier bon état : écris-la donc pour la personne qui la lira pendant un incident.
 
+## Supprimer une automatisation
+
+La suppression porte sur l’automatisation entière : toutes les versions, le déploiement, le déclencheur et les liens avec les projets partent ensemble — une planification ne se déclenche plus, une URL de webhook cesse de fonctionner immédiatement. Le bouton corbeille à côté des actions de la page (**Supprimer l’automatisation**) demande d’abord confirmation. Les exécutions passées restent lisibles jusqu’à ce que la rétention les supprime : ce que l’automatisation a fait reste vérifiable après coup.
+
+Deux garde-fous. Une exécution encore en file, en cours ou en attente bloque la suppression — annule-la ou laisse-la se terminer. Et un pack intégré supprimé reste supprimé au fil des mises à jour de la plateforme ; recrée une automatisation sous le même nom et le nom revit.
+
 ## Lire la dernière exécution sur le canvas
 
 Dès qu’une automatisation s’est exécutée, **Afficher la dernière exécution** superpose cette exécution au canvas. Chaque boîte reprend le statut que l’exécution lui a donné — **Exécuté**, **Ignoré**, **En échec**, **Jamais atteint**, ou **Pas encore atteint** tant que l’exécution continue. Un échec devient ainsi une position dans le graphe plutôt qu’une ligne à chercher dans un log.

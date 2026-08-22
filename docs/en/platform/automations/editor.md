@@ -88,6 +88,12 @@ Rolling back is deploying an earlier version. Find the version in the list, read
 
 This is why version messages matter more than they look. Six versions in, the message is what tells you which one was the last good state, so write it for the person who will be reading it during an incident.
 
+## Delete an automation
+
+Deleting removes the automation as a whole: every version, the deployment, the trigger and the project bindings go together — a schedule stops firing and a webhook URL stops working immediately. The trash button beside the page actions (**Delete automation**) asks for confirmation first. Past runs stay readable until retention removes them, so what the automation did remains auditable after it is gone.
+
+Two guardrails apply. A run that is still queued, running or waiting blocks the deletion — cancel it or let it finish first. And a deleted built-in pack stays deleted across platform upgrades; re-creating an automation under the same name brings the name back to life.
+
 ## Read the last run on the canvas
 
 Once an automation has run, **Show last run** overlays that run onto the canvas. Every box picks up the status the run gave it — it **Ran**, was **Skipped**, **Failed**, was **Never reached**, or has **Not reached yet** while the run is still going — so a failure is visible as a position in the graph rather than as a line in a log.

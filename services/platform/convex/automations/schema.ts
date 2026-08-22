@@ -312,3 +312,20 @@ export const automationHumanAsksTable = defineTable({
   .index('by_org', ['organizationId'])
   .index('by_run_status', ['runId', 'status'])
   .index('by_session_exec', ['sessionId', 'execId']);
+
+/**
+ * One deliberate deletion, remembered by name. Deleting an automation removes
+ * its versions, deployment, triggers and bindings — but the shipped default
+ * packs are re-provisioned to every organization on every deploy, so without
+ * a marker a deleted builtin would quietly come back on the next upgrade.
+ * The seeder skips a tombstoned name; saving a version under the name again
+ * (re-create, pack upload) clears the tombstone — the name is alive again.
+ * Doubles as the deletion audit record (who, when).
+ */
+export const automationTombstonesTable = defineTable({
+  organizationId: v.string(),
+  /** The deleted automation's store name. */
+  name: v.string(),
+  deletedBy: v.string(),
+  deletedAt: v.number(),
+}).index('by_org_name', ['organizationId', 'name']);
