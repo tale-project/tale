@@ -247,7 +247,7 @@ function Connector({ filled, pill }: { filled: boolean; pill?: string }) {
       <div className="bg-border-base relative h-4 w-px overflow-hidden md:h-px md:w-5">
         <div
           className={cn(
-            'bg-brand-base absolute inset-0 origin-top scale-y-0 transition-transform duration-500 md:origin-left md:scale-y-100 md:scale-x-0',
+            'bg-brand-base absolute inset-0 origin-top scale-y-0 transition-transform duration-500 md:origin-left md:scale-x-0 md:scale-y-100',
             filled && 'scale-y-100 md:scale-x-100',
           )}
         />

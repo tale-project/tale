@@ -14,25 +14,25 @@ export const textVariants = cva('', {
   variants: {
     variant: {
       /** Standard body text — text-sm text-foreground */
-      body: 'text-sm text-foreground',
+      body: 'text-foreground text-sm',
       /** Small body text — text-xs text-foreground */
-      'body-sm': 'text-xs text-foreground',
+      'body-sm': 'text-foreground text-xs',
       /** Muted description — text-sm text-muted-foreground */
-      muted: 'text-sm text-muted-foreground',
+      muted: 'text-muted-foreground text-sm',
       /** Small caption/metadata — text-xs text-muted-foreground */
-      caption: 'text-xs text-muted-foreground',
+      caption: 'text-muted-foreground text-xs',
       /** Form/field label — text-sm font-medium text-foreground */
-      label: 'text-sm font-medium text-foreground',
+      label: 'text-foreground text-sm font-medium',
       /** Small label — text-xs font-medium text-foreground */
-      'label-sm': 'text-xs font-medium text-foreground',
+      'label-sm': 'text-foreground text-xs font-medium',
       /** Monospace/code — text-xs font-mono */
-      code: 'text-xs font-mono',
+      code: 'font-mono text-xs',
       /** Error text — text-sm text-destructive */
-      error: 'text-sm text-destructive',
+      error: 'text-destructive text-sm',
       /** Small error text — text-xs text-destructive font-medium */
-      'error-sm': 'text-xs text-destructive font-medium',
+      'error-sm': 'text-destructive text-xs font-medium',
       /** Success text — text-sm font-medium text-success */
-      success: 'text-sm font-medium text-success',
+      success: 'text-success text-sm font-medium',
     },
   },
   defaultVariants: {

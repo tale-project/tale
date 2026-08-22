@@ -35,7 +35,7 @@ function attachment(overrides: Partial<FileAttachment>): FileAttachment {
     fileType: 'audio/m4a',
     fileSize: 1024,
     ...overrides,
-  } as FileAttachment;
+  };
 }
 
 const AUDIO = attachment({});

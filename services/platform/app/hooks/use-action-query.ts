@@ -18,7 +18,7 @@ interface ActionQueryOptions {
 export function isStructuredConvexError(err: unknown): boolean {
   if (err == null || typeof err !== 'object') return false;
   if (!('data' in err)) return false;
-  const data = (err as { data: unknown }).data;
+  const data = err.data;
   return data != null && typeof data === 'object';
 }
 

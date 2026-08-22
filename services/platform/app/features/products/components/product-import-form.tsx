@@ -66,9 +66,9 @@ export function ProductImportForm({
             accept={SPREADSHEET_IMPORT_ACCEPT}
             inputId="product-file-upload"
             className={cn(
-              'relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
+              'relative cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors',
               'hover:border-primary hover:bg-accent/50',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'focus-visible:ring-ring focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
             )}
           >
             <FileUpload.Overlay className="rounded-lg" />

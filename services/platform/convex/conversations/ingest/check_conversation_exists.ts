@@ -18,15 +18,11 @@ export async function checkConversationExists(
   const normalized = normalizeExternalMessageId(externalMessageId);
   if (!normalized) return null;
 
-  return (await ctx.runQuery(
+  return await ctx.runQuery(
     internal.conversations.internal_queries.getConversationByExternalMessageId,
     {
       organizationId,
       externalMessageId: normalized,
     },
-  )) as {
-    _id: Id<'conversations'>;
-    metadata?: unknown;
-    direction?: 'inbound' | 'outbound';
-  } | null;
+  );
 }

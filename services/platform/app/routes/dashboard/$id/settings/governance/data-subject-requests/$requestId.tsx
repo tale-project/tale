@@ -1,6 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 const RequestDetailDrawer = lazyComponent(() =>
@@ -39,7 +38,7 @@ function RequestDetailRoute() {
     <RequestDetailDrawer
       organizationId={organizationId}
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- TanStack file-route params are always strings; the runtime validates via the Convex query that the row exists in this org.
-      requestId={requestId as Id<'gdprErasureRequests'>}
+      requestId={requestId}
       open
       onClose={handleClose}
     />

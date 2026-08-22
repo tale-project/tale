@@ -250,7 +250,7 @@ export function ImageUploadField({
           onDrop={handleDrop}
           disabled={isUploading}
           className={cn(
-            'group border-border ring-offset-background relative flex cursor-pointer items-center justify-center overflow-clip rounded-lg border bg-background shadow-xs transition-all duration-150',
+            'group border-border ring-offset-background bg-background relative flex cursor-pointer items-center justify-center overflow-clip rounded-lg border shadow-xs transition-all duration-150',
             'hover:border-border-strong hover:bg-bg-elevated',
             'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
             'active:scale-[0.97] active:duration-75 motion-reduce:transition-none motion-reduce:active:scale-100',

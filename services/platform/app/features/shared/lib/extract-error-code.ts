@@ -17,15 +17,15 @@ export function extractErrorCode(err: unknown): string | null {
   // over the wire as "[Request ID: xxx] Server Error\nUncaught Error: Rate
   // limit exceeded for ...", so substring match (not startsWith) is required.
   if ('message' in err) {
-    const message = (err as { message: unknown }).message;
+    const message = err.message;
     if (typeof message === 'string' && /Rate limit exceeded/.test(message)) {
       return 'rate_limited';
     }
   }
 
   if (!('data' in err)) return null;
-  const data = (err as { data: unknown }).data;
+  const data = err.data;
   if (!data || typeof data !== 'object' || !('code' in data)) return null;
-  const code = (data as { code: unknown }).code;
+  const code = data.code;
   return typeof code === 'string' ? code : null;
 }

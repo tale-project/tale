@@ -29,7 +29,7 @@ export const MobileAppHeader = forwardRef<HTMLElement, MobileAppHeaderProps>(
       aria-label={ariaLabel}
       className={cn(
         'bg-background/95 border-border sticky top-0 z-40 flex items-center border-b backdrop-blur-md md:hidden',
-        'pt-(--safe-top) pl-(--safe-left) pr-(--safe-right)',
+        'pt-(--safe-top) pr-(--safe-right) pl-(--safe-left)',
         className,
       )}
       {...props}

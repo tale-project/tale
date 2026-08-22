@@ -26,7 +26,7 @@ function createFakeStore(): OptimisticLocalStore {
   const argKey = (args: unknown) => JSON.stringify(args ?? {});
   return {
     getQuery(query, ...args) {
-      return data.get(query)?.get(argKey(args[0])) as never;
+      return data.get(query)?.get(argKey(args[0]));
     },
     setQuery(query, args, value) {
       const byArgs = data.get(query) ?? new Map<string, unknown>();
@@ -39,7 +39,7 @@ function createFakeStore(): OptimisticLocalStore {
       return [...byArgs.entries()].map(([key, value]) => ({
         args: JSON.parse(key),
         value,
-      })) as never;
+      }));
     },
   };
 }

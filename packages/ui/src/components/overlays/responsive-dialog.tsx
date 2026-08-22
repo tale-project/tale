@@ -109,7 +109,7 @@ export const ResponsiveDialogContent = forwardRef<
             onOpenAutoFocus={onOpenAutoFocus}
             className={cn(
               'bg-background fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[92dvh] flex-col rounded-t-2xl',
-              'pb-(--safe-bottom) pl-(--safe-left) pr-(--safe-right)',
+              'pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)',
               'data-[state=open]:animate-in data-[state=closed]:animate-out',
               'motion-reduce:animate-none',
               className,

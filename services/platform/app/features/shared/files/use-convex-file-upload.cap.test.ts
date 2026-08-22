@@ -92,7 +92,7 @@ beforeEach(() => {
     vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ storageId: 'storage-1' }),
-    } as Response),
+    }),
   );
   vi.stubGlobal('URL', {
     ...URL,
@@ -337,11 +337,11 @@ describe('useConvexFileUpload — in-flight slot cap (#2026)', () => {
       'fetch',
       vi
         .fn()
-        .mockResolvedValueOnce({ ok: false } as Response)
+        .mockResolvedValueOnce({ ok: false })
         .mockResolvedValue({
           ok: true,
           json: async () => ({ storageId: 'storage-1' }),
-        } as Response),
+        }),
     );
 
     const { result } = renderHook(() => useConvexFileUpload(config));

@@ -438,7 +438,7 @@ export async function harvestSessionOutput(
       } else {
         storageId = await ctx.storage.store(
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
-          new Blob([harvestBytes as BlobPart], { type: contentType }),
+          new Blob([harvestBytes], { type: contentType }),
         );
       }
       // The thread-file mirror row is chat-thread bookkeeping; its module

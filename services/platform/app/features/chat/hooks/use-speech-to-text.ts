@@ -108,7 +108,7 @@ export function useSpeechToText({
       setIsListening(true);
     });
 
-    recognition.addEventListener('result', ((event: Event) => {
+    recognition.addEventListener('result', (event: Event) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SpeechRecognition 'result' event is typed as SpeechRecognitionEvent
       const e = event as unknown as SpeechRecognitionEvent;
       let finalTranscript = '';
@@ -123,9 +123,9 @@ export function useSpeechToText({
       if (finalTranscript) {
         onTranscriptRef.current(finalTranscript);
       }
-    }) as EventListener);
+    });
 
-    recognition.addEventListener('error', ((event: Event) => {
+    recognition.addEventListener('error', (event: Event) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SpeechRecognition 'error' event is typed as SpeechRecognitionErrorEvent
       const e = event as unknown as SpeechRecognitionErrorEvent;
       // "aborted" is expected when we call stop/abort. "no-speech" is the
@@ -138,7 +138,7 @@ export function useSpeechToText({
         setError(e.error);
       }
       setIsListening(false);
-    }) as EventListener);
+    });
 
     recognition.addEventListener('end', () => {
       setIsListening(false);

@@ -28,7 +28,7 @@ export function AccessDenied({ title, message, className }: AccessDeniedProps) {
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center min-h-[50vh] text-center',
+        'flex min-h-[50vh] flex-col items-center justify-center text-center',
         className,
       )}
     >

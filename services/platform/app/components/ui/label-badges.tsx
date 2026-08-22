@@ -35,7 +35,7 @@ export function LabelBadges({
 
   if (rest.length === 0) {
     return (
-      <span className={cn('inline-flex min-w-0 max-w-full', className)}>
+      <span className={cn('inline-flex max-w-full min-w-0', className)}>
         {badge}
       </span>
     );
@@ -45,7 +45,7 @@ export function LabelBadges({
     <Tooltip content={rest.join(', ')}>
       <span
         className={cn(
-          'inline-flex min-w-0 max-w-full cursor-default',
+          'inline-flex max-w-full min-w-0 cursor-default',
           className,
         )}
       >

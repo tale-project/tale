@@ -181,12 +181,12 @@ export function CatalogCard({
           // already strengthens the border; add the semantic card-hover shadow
           // (the base Card transitions box-shadow) so a clickable card reads as
           // raisable. Rest stays flat, matching the app's other surfaces.
-          'h-full hover:shadow-card-hover',
+          'hover:shadow-card-hover h-full',
           catalogCardSurfaceClass,
           // Reserve the top-right for the overlaid ⋯ so title/badge never sit
           // under it.
           menu && 'pr-10',
-          active && 'ring-2 ring-primary',
+          active && 'ring-primary ring-2',
           className,
         )}
       >
@@ -224,7 +224,7 @@ export function CatalogCard({
         'flex h-full flex-col',
         link && 'relative',
         catalogCardSurfaceClass,
-        active && 'ring-2 ring-primary',
+        active && 'ring-primary ring-2',
         className,
       )}
     >

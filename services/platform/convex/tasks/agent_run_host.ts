@@ -877,7 +877,7 @@ export const startTaskAgentTurn = internalAction({
           internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
           {
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-            runId: args.runId as never,
+            runId: args.runId,
             execId: args.execId,
             brokerTokenHash: prepared.brokerTokenHash,
           },
@@ -928,7 +928,7 @@ export const startTaskAgentTurn = internalAction({
       );
       await ctx.runMutation(internal.tasks.agent_runs.setTaskAgentRunRunning, {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-        runId: args.runId as never,
+        runId: args.runId,
       });
 
       const toolsGuidance = grantedToolsGuidance(
@@ -1110,7 +1110,7 @@ export const driveTaskAgentTurn = internalAction({
       internal.tasks.agent_runs.getTaskAgentRunForDrive,
       {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-        runId: args.runId as never,
+        runId: args.runId,
       },
     );
     const live =
@@ -1717,7 +1717,7 @@ export const steerTaskAgentTurn = internalAction({
         internal.tasks.mutations.kickMentionRunAfterSteerMiss,
         {
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-          taskId: args.taskId as never,
+          taskId: args.taskId,
           authorId: args.authorId,
           feedback: args.feedback,
         },
@@ -1734,7 +1734,7 @@ export const steerTaskAgentTurn = internalAction({
       internal.tasks.agent_runs.getTaskAgentRunForDrive,
       {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-        runId: args.runId as never,
+        runId: args.runId,
       },
     );
     if (run === null) return null;
@@ -1804,7 +1804,7 @@ export const steerTaskAgentTurn = internalAction({
       internal.tasks.agent_runs.rotateTaskAgentRunExec,
       {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-        runId: args.runId as never,
+        runId: args.runId,
         fromExecId: args.execId,
       },
     );
@@ -1829,7 +1829,7 @@ export const steerTaskAgentTurn = internalAction({
         internal.projects.internal_queries.getProjectAgentSkillScope,
         {
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-          agentId: args.agentId as never,
+          agentId: args.agentId,
         },
       );
       const skillsAddendum = await stageWorkflowSkills(
@@ -1850,7 +1850,7 @@ export const steerTaskAgentTurn = internalAction({
           internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
           {
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-            runId: args.runId as never,
+            runId: args.runId,
             execId,
             brokerTokenHash: prepared.brokerTokenHash,
           },
@@ -1901,7 +1901,7 @@ export const steerTaskAgentTurn = internalAction({
           internal.tasks.agent_runs.getTaskBriefForAgentRun,
           {
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-            taskId: args.taskId as never,
+            taskId: args.taskId,
           },
         );
         if (brief === null) throw new Error('the task no longer exists');

@@ -3,8 +3,6 @@ import { useReactQuery } from '@/app/hooks/use-react-query';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { authClient } from '@/lib/auth-client';
 
-import type { ApiKey } from '../types';
-
 interface CreateApiKeyParams {
   name: string;
   expiresIn?: number;
@@ -24,7 +22,7 @@ export function useApiKeys(organizationId: string) {
         throw new Error(result.error.message);
       }
       // authClient.apiKey.list() now returns { apiKeys, total, limit, offset }
-      return (result.data?.apiKeys ?? []) as ApiKey[];
+      return result.data?.apiKeys ?? [];
     },
   });
 }

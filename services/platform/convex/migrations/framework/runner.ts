@@ -280,7 +280,7 @@ export const restoreSnapshotBatch = internalMutation({
       const payload = snap.payload as Record<string, unknown> | undefined;
       if (payload) {
         // oxlint-disable-next-line typescript/no-explicit-any -- restoring into a possibly-legacy table
-        await ctx.db.insert(migration.table as any, payload as any);
+        await ctx.db.insert(migration.table as any, payload);
       }
       await ctx.db.delete(snap._id);
     }

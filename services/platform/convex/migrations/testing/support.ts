@@ -147,7 +147,7 @@ export const seedWorldRows = internalMutation({
 
     const queue = [...args.storageIds];
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the seeder's structural ctx inserts into legacy tables the generated MutationCtx types can't name
-    await seedWorldDb(ctx as never, orgs, {
+    await seedWorldDb(ctx, orgs, {
       storeBlob: (content: string) => {
         const id = queue.shift();
         if (!id) {

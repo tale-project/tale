@@ -73,7 +73,7 @@ export function MetricsScopeSelect({
             // `w-auto` undoes the field-width default: a toolbar control is
             // sized by its content, capped so a long project name truncates
             // instead of pushing the filter button off the header.
-            'w-auto min-w-40 max-w-64 gap-2',
+            'w-auto max-w-64 min-w-40 gap-2',
           )}
         >
           {selected ? (

@@ -66,10 +66,10 @@ export const Checkbox = forwardRef<HTMLButtonElement, CheckboxProps>(
             onKeyDown={softDisabled ? blockActivation : onKeyDown}
             className={cn(
               'peer h-4 w-4 shrink-0 rounded border border-[color:var(--color-border-strong)] bg-[color:var(--color-bg-base)] shadow-sm transition-colors',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent-base)]/30 focus-visible:ring-offset-2',
+              'focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent-base)]/30 focus-visible:ring-offset-2 focus-visible:outline-none',
               'disabled:cursor-not-allowed disabled:opacity-50',
               'aria-disabled:cursor-not-allowed aria-disabled:opacity-50',
-              'data-[state=checked]:bg-[color:var(--color-accent-base)] data-[state=checked]:text-[color:var(--color-accent-fg)] data-[state=checked]:border-[color:var(--color-accent-base)]',
+              'data-[state=checked]:border-[color:var(--color-accent-base)] data-[state=checked]:bg-[color:var(--color-accent-base)] data-[state=checked]:text-[color:var(--color-accent-fg)]',
               'data-[state=indeterminate]:bg-[color:var(--color-accent-base)] data-[state=indeterminate]:text-[color:var(--color-accent-fg)]',
               className,
             )}

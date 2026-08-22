@@ -8,7 +8,7 @@ import { type ComponentType, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 
 const alertVariants = cva(
-  'relative w-full min-w-0 rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground',
+  '[&>svg]:text-foreground relative w-full min-w-0 rounded-lg border p-4 [&>svg]:absolute [&>svg]:top-4 [&>svg]:left-4 [&>svg+div]:translate-y-[-3px] [&>svg~*]:pl-7',
   {
     variants: {
       // A real banner = a soft tinted fill + a colored icon, with neutral
@@ -19,10 +19,10 @@ const alertVariants = cva(
         destructive:
           'border-destructive/25 bg-destructive/10 text-foreground [&>svg]:text-destructive',
         warning:
-          'border-amber-500/30 bg-amber-50 text-foreground dark:bg-amber-950/30 [&>svg]:text-amber-600 dark:[&>svg]:text-amber-500',
-        info: 'border-blue-500/30 bg-blue-50 text-foreground dark:bg-blue-950/30 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400',
+          'text-foreground border-amber-500/30 bg-amber-50 dark:bg-amber-950/30 [&>svg]:text-amber-600 dark:[&>svg]:text-amber-500',
+        info: 'text-foreground border-blue-500/30 bg-blue-50 dark:bg-blue-950/30 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400',
         success:
-          'border-green-500/30 bg-green-50 text-foreground dark:bg-green-950/30 [&>svg]:text-green-600 dark:[&>svg]:text-green-500',
+          'text-foreground border-green-500/30 bg-green-50 dark:bg-green-950/30 [&>svg]:text-green-600 dark:[&>svg]:text-green-500',
       },
     },
     defaultVariants: {

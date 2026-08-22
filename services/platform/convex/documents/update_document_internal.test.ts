@@ -78,7 +78,7 @@ describe('updateDocumentInternal reindex gate', () => {
     await updateDocumentInternal(ctx, {
       documentId: 'd1' as never,
       contentHash: 'newhash',
-      fileId: 's2' as never,
+      fileId: 's2',
     });
 
     expect(scheduled).toHaveLength(1);
@@ -116,7 +116,7 @@ describe('updateDocumentInternal reindex gate', () => {
     await updateDocumentInternal(ctx, {
       documentId: 'd1' as never,
       contentHash: 'newhash',
-      fileId: 's2' as never,
+      fileId: 's2',
     });
 
     expect(scheduled).toHaveLength(1);
@@ -136,7 +136,7 @@ describe('updateDocumentInternal reindex gate', () => {
     await updateDocumentInternal(ctx, {
       documentId: 'd1' as never,
       contentHash: 'newhash',
-      fileId: 's2' as never,
+      fileId: 's2',
     });
 
     expect(scheduled).toHaveLength(0);
@@ -151,7 +151,7 @@ describe('updateDocumentInternal reindex gate', () => {
     await updateDocumentInternal(ctx, {
       documentId: 'd1' as never,
       contentHash: 'newhash',
-      fileId: 's2' as never,
+      fileId: 's2',
       deferContentReindex: true,
     });
 
@@ -164,7 +164,7 @@ describe('updateDocumentInternal reindex gate', () => {
     await updateDocumentInternal(ctx, {
       documentId: 'd1' as never,
       contentHash: 'newhash',
-      fileId: 's2' as never,
+      fileId: 's2',
     });
 
     expect(scheduled).toHaveLength(1);
@@ -264,7 +264,7 @@ describe('updateDocumentInternal folder-move RAG sync', () => {
     await updateDocumentInternal(ctx, {
       documentId: 'd1' as never,
       contentHash: 'newhash',
-      fileId: 's2' as never,
+      fileId: 's2',
       folderId: 'f1' as never,
     });
 
@@ -317,7 +317,7 @@ describe('updateDocumentInternal controlled-content gate', () => {
       updateDocumentInternal(ctx, {
         documentId: 'd1' as never,
         contentHash: 'newhash',
-        fileId: 's2' as never,
+        fileId: 's2',
       }),
     ).rejects.toMatchObject({
       data: { code: 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED' },
@@ -335,7 +335,7 @@ describe('updateDocumentInternal controlled-content gate', () => {
     await expect(
       updateDocumentInternal(ctx, {
         documentId: 'd1' as never,
-        fileId: 's2' as never,
+        fileId: 's2',
       }),
     ).rejects.toMatchObject({ data: { code: 'DOCUMENT_RECORD_FROZEN' } });
     expect(patches).toHaveLength(0);
@@ -350,7 +350,7 @@ describe('updateDocumentInternal controlled-content gate', () => {
     await replaceControlledDocumentContentInternal(ctx, {
       documentId: 'd1' as never,
       contentHash: 'newhash',
-      fileId: 's2' as never,
+      fileId: 's2',
       deferContentReindex: true,
     });
 

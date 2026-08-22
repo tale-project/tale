@@ -15,7 +15,6 @@ import {
   TASK_ACTIVITY_LABEL_KEY,
   TASK_RUN_REFUSAL_LABEL_KEY,
   isTaskStatus,
-  type TaskCreatorType,
 } from '../lib/display';
 import {
   isPreviewableTaskActor,
@@ -151,10 +150,7 @@ export function TaskTimeline({
             const { entry } = item;
             const labelKey = TASK_ACTIVITY_LABEL_KEY[entry.action];
             const label = labelKey ? t(labelKey) : entry.action;
-            const actor = resolveActor(
-              entry.actorType as TaskCreatorType,
-              entry.actorId,
-            );
+            const actor = resolveActor(entry.actorType, entry.actorId);
             const workflowContext =
               entry.context ??
               (isWorkflowSentinel(entry.actorType, entry.actorId)

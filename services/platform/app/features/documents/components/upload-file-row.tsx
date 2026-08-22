@@ -126,7 +126,7 @@ export const UploadFileRow = memo(function UploadFileRow({
         {/* Type badge */}
         <span
           className={cn(
-            'inline-flex shrink-0 items-center justify-center rounded px-1 py-0.5 text-[9px] font-bold tracking-wide text-white leading-none',
+            'inline-flex shrink-0 items-center justify-center rounded px-1 py-0.5 text-[9px] leading-none font-bold tracking-wide text-white',
             isFailed
               ? 'bg-red-600'
               : isPending

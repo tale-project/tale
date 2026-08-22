@@ -73,7 +73,7 @@ describe('HMAC key derivation parity across launch scenarios', () => {
       // (2) The platform verify-side derivation.
       const ensured = ensureWebdavHmacKey({
         INSTANCE_SECRET: secret,
-      } as unknown as NodeJS.ProcessEnv);
+      });
 
       // (3) The scripts/dev.ts orchestrator derivation, inlined verbatim.
       const devTs = createHash('sha256').update(message).digest('hex');

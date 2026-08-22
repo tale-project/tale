@@ -215,7 +215,7 @@ describe('upsertDocumentByExternalId', () => {
         externalItemId: 'gd-1',
         title: 'file.txt',
         contentHash: 'h2',
-        fileId: 'storage_new' as unknown as never,
+        fileId: 'storage_new',
         folderPathPrefix: 'Sync',
       },
     );
@@ -255,7 +255,7 @@ describe('upsertDocumentByExternalId', () => {
           organizationId: ORG,
           externalItemId: 'desk-e2e:task1:artifact.xml',
           title: 'artifact.xml',
-          fileId: 'storage_1' as unknown as never,
+          fileId: 'storage_1',
           folderId: 'folder_q4' as unknown as never,
         },
       );
@@ -285,7 +285,7 @@ describe('upsertDocumentByExternalId', () => {
           organizationId: ORG,
           externalItemId: 'desk-e2e:task1:artifact.xml',
           title: 'artifact.xml',
-          fileId: 'storage_same' as unknown as never,
+          fileId: 'storage_same',
           folderId: 'folder_q4' as unknown as never,
         },
       );
@@ -354,7 +354,7 @@ describe('upsertDocumentByExternalId', () => {
           organizationId: ORG,
           externalItemId: 'desk-e2e:proj1:transform.py',
           title: 'transform.py',
-          fileId: 'storage_new' as unknown as never,
+          fileId: 'storage_new',
         },
       );
       expect(result.action).toBe('updated');
@@ -384,7 +384,7 @@ describe('upsertDocumentByExternalId', () => {
           organizationId: ORG,
           externalItemId: 'desk-e2e:proj1:transform.py',
           title: 'transform.py',
-          fileId: 'storage_new' as unknown as never,
+          fileId: 'storage_new',
         },
       );
       expect(result.action).toBe('skipped');
@@ -411,7 +411,7 @@ describe('upsertDocumentByExternalId', () => {
           organizationId: ORG,
           externalItemId: 'desk-e2e:proj1:transform.py',
           title: 'transform.py',
-          fileId: 'storage_new' as unknown as never,
+          fileId: 'storage_new',
         },
       );
       expect(result.action).toBe('updated');
@@ -439,7 +439,7 @@ describe('upsertDocumentByExternalId', () => {
           organizationId: ORG,
           externalItemId: 'desk-e2e:proj1:transform.py',
           title: 'transform.py',
-          fileId: 'storage_same' as unknown as never,
+          fileId: 'storage_same',
         },
       );
       expect(result.action).toBe('skipped');
@@ -486,7 +486,7 @@ describe('upsertDocumentByExternalId', () => {
         externalItemId: 'gd-1',
         title: 'file.txt',
         contentHash: 'h1',
-        fileId: 'storage_new' as unknown as never,
+        fileId: 'storage_new',
         folderId: 'folder_b' as unknown as never,
         folderPathPrefix: 'Sync',
       },
@@ -670,7 +670,7 @@ describe('upsertDocumentByExternalId', () => {
           externalItemId: 'workflow:fld_1:return.xml',
           title: 'return.xml',
           contentHash: 'h2',
-          fileId: 'new-blob' as never,
+          fileId: 'new-blob',
           sourceProvider: 'agent',
         }),
       ).rejects.toMatchObject({
@@ -741,7 +741,7 @@ describe('upsertDocumentByExternalId', () => {
           externalItemId: 'gd-1',
           title: 'file.txt',
           contentHash: 'h2',
-          fileId: 'new-blob' as never,
+          fileId: 'new-blob',
         },
       );
 
@@ -768,7 +768,7 @@ describe('upsertDocumentByExternalId', () => {
         externalItemId: 'gd-1',
         title: 'file.txt',
         contentHash: 'h2',
-        fileId: 'new-blob' as never,
+        fileId: 'new-blob',
       });
 
       expect(scheduled).toHaveLength(0);
@@ -782,7 +782,7 @@ describe('upsertDocumentByExternalId', () => {
         externalItemId: 'gd-1',
         title: 'file.txt',
         contentHash: 'h2',
-        fileId: 'new-blob' as never,
+        fileId: 'new-blob',
       });
 
       expect(scheduled).toHaveLength(0);

@@ -454,15 +454,13 @@ export function userTurnParts(
 ): MessagePart[] {
   return [
     { type: 'text', text: filteredUserText },
-    ...(attachments ?? []).map(
-      (attachment): MessagePart => ({
-        type: 'attachment',
-        name: attachment.fileName,
-        mediaType: attachment.fileType,
-        fileId: attachment.fileId,
-        sizeBytes: attachment.fileSize,
-      }),
-    ),
+    ...(attachments ?? []).map((attachment): MessagePart => ({
+      type: 'attachment',
+      name: attachment.fileName,
+      mediaType: attachment.fileType,
+      fileId: attachment.fileId,
+      sizeBytes: attachment.fileSize,
+    })),
   ];
 }
 

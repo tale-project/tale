@@ -79,12 +79,12 @@ interface TabsProps {
 //   - underline: `flex flex-1` — the bottom border spans the full row
 //     width so the underline reads as the page's section divider.
 const listVariants = cva(
-  'scrollbar-hide min-w-0 max-w-full items-center overflow-x-auto text-muted-foreground',
+  'scrollbar-hide text-muted-foreground max-w-full min-w-0 items-center overflow-x-auto',
   {
     variants: {
       variant: {
-        pill: 'inline-flex w-fit bg-muted rounded-lg p-1',
-        underline: 'flex flex-1 border-b border-border gap-4',
+        pill: 'bg-muted inline-flex w-fit rounded-lg p-1',
+        underline: 'border-border flex flex-1 gap-4 border-b',
       },
       equalWidth: {
         true: 'justify-around',
@@ -96,13 +96,13 @@ const listVariants = cva(
 );
 
 const triggerVariants = cva(
-  'focus-visible:ring-ring inline-flex items-center justify-center text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+  'focus-visible:ring-ring inline-flex items-center justify-center text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       variant: {
-        pill: 'rounded-md px-3 py-1 transition-all data-[state=active]:bg-tab data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+        pill: 'data-[state=active]:bg-tab data-[state=active]:text-foreground rounded-md px-3 py-1 transition-all data-[state=active]:shadow-sm',
         underline:
-          'relative border-b-2 border-transparent px-1 pb-2 transition-colors data-[state=active]:border-primary data-[state=active]:text-foreground',
+          'data-[state=active]:border-primary data-[state=active]:text-foreground relative border-b-2 border-transparent px-1 pb-2 transition-colors',
       },
     },
     defaultVariants: { variant: 'pill' },

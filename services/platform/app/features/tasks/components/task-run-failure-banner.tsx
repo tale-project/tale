@@ -8,10 +8,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
-import {
-  TASK_RUN_REFUSAL_LABEL_KEY,
-  type TaskCreatorType,
-} from '../lib/display';
+import { TASK_RUN_REFUSAL_LABEL_KEY } from '../lib/display';
 import { mergeTaskTimeline } from '../utils/task-timeline';
 
 /**
@@ -49,7 +46,7 @@ export function TaskRunFailureBanner({
   }
 
   const { entry } = latest;
-  const actor = resolveActor(entry.actorType as TaskCreatorType, entry.actorId);
+  const actor = resolveActor(entry.actorType, entry.actorId);
   const reasonKey = entry.toValue
     ? TASK_RUN_REFUSAL_LABEL_KEY[entry.toValue]
     : undefined;

@@ -54,7 +54,7 @@ export async function upsertProductTranslation(
   }
 
   await ctx.db.patch(args.productId, {
-    translations: translations as typeof product.translations,
+    translations: translations,
     lastUpdated: now,
   });
 

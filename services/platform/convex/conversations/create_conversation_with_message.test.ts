@@ -32,7 +32,7 @@ function makeArgs(): CreateConversationWithMessageArgs {
       content: 'hello',
       isCustomer: true,
     },
-  } as CreateConversationWithMessageArgs;
+  };
 }
 
 describe('createConversationWithMessage — client-facing failures use ConvexError (#2049)', () => {
@@ -42,9 +42,7 @@ describe('createConversationWithMessage — client-facing failures use ConvexErr
     const ctx = {
       db: {
         get: vi.fn().mockResolvedValue(null),
-        insert: vi
-          .fn()
-          .mockResolvedValue('message_id' as Id<'conversationMessages'>),
+        insert: vi.fn().mockResolvedValue('message_id'),
         patch: vi.fn().mockResolvedValue(undefined),
       },
     } as unknown as MutationCtx;
@@ -77,9 +75,7 @@ describe('createConversationWithMessage — client-facing failures use ConvexErr
     const ctx = {
       db: {
         get,
-        insert: vi
-          .fn()
-          .mockResolvedValue('message_id' as Id<'conversationMessages'>),
+        insert: vi.fn().mockResolvedValue('message_id'),
         patch: vi.fn().mockResolvedValue(undefined),
       },
     } as unknown as MutationCtx;

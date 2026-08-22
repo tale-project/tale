@@ -12,7 +12,7 @@ class MockResizeObserver {
   unobserve = vi.fn();
   disconnect = vi.fn();
 }
-global.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+global.ResizeObserver = MockResizeObserver;
 
 // Mock matchMedia (for reduced motion, dark mode)
 Object.defineProperty(window, 'matchMedia', {
@@ -46,8 +46,7 @@ global.IntersectionObserver =
 Element.prototype.scrollIntoView = vi.fn();
 
 // Mock element scrolling (jsdom has no layout, so scrollTo is absent)
-Element.prototype.scrollTo =
-  vi.fn() as unknown as typeof Element.prototype.scrollTo;
+Element.prototype.scrollTo = vi.fn();
 
 // Mock pointer capture APIs for Radix UI components (e.g., Select)
 Element.prototype.hasPointerCapture = vi.fn(() => false);

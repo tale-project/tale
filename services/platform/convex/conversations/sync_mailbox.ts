@@ -481,13 +481,13 @@ async function listActiveMailCredentials(
   ctx: ActionCtx,
   args: { organizationId: string; connectorSlug: string },
 ): Promise<ActiveMailCredential[]> {
-  return (await ctx.runQuery(
+  return await ctx.runQuery(
     internal.connector_credentials.queries.listActiveCredentialsInternal,
     {
       organizationId: args.organizationId,
       connectorSlug: args.connectorSlug,
     },
-  )) as ActiveMailCredential[];
+  );
 }
 
 /**

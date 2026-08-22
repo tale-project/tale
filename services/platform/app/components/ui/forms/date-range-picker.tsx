@@ -223,14 +223,14 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
         disabled={isLoading || disabled}
         onClick={onClick}
         className={cn(
-          'w-auto justify-start text-sm text-left font-normal space-x-2 px-2.5 rounded-r-none border-r-0 ring-0',
+          'w-auto justify-start space-x-2 rounded-r-none border-r-0 px-2.5 text-left text-sm font-normal ring-0',
           !value && 'text-muted-foreground',
-          isLoading && 'opacity-50 cursor-not-allowed',
+          isLoading && 'cursor-not-allowed opacity-50',
         )}
       >
         <CalendarIcon
           className={cn(
-            'size-4 text-muted-foreground shrink-0',
+            'text-muted-foreground size-4 shrink-0',
             isLoading && 'hidden',
           )}
         />

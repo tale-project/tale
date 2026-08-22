@@ -32,7 +32,7 @@ let capturedBlockerOpts:
 vi.mock('@tanstack/react-router', () => ({
   useBlocker: (opts: never) => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-    capturedBlockerOpts = opts as typeof capturedBlockerOpts;
+    capturedBlockerOpts = opts;
     return blockerState;
   },
 }));

@@ -306,7 +306,7 @@ describe('deleted-cursor resume (#1846 item 3 / PR #2218 BLOCKING 1)', () => {
     const before = await rowsAsc(t, ORG);
     await t.run(async (ctx) => {
       for (const r of before.slice(0, 4)) {
-        await ctx.db.delete(r._id as Id<'auditLogs'>);
+        await ctx.db.delete(r._id);
       }
     });
     const remaining = await rowsAsc(t, ORG);
@@ -341,7 +341,7 @@ describe('deleted-cursor resume (#1846 item 3 / PR #2218 BLOCKING 1)', () => {
     const before = await rowsAsc(t, ORG);
     await t.run(async (ctx) => {
       for (const r of before.slice(0, 2)) {
-        await ctx.db.delete(r._id as Id<'auditLogs'>);
+        await ctx.db.delete(r._id);
       }
     });
 

@@ -9,10 +9,7 @@
  */
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
-import {
-  EnvVarListEditor,
-  type LoadedEnvVar,
-} from '@/app/components/env/env-var-list-editor';
+import { EnvVarListEditor } from '@/app/components/env/env-var-list-editor';
 import { useEnvEditorController } from '@/app/components/env/use-env-editor-controller';
 import { useRegisterActiveEditor } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
@@ -50,7 +47,7 @@ function UserEnvSettingsInner({ organizationId }: { organizationId: string }) {
           }
         >
           <EnvVarListEditor
-            rows={vars as LoadedEnvVar[] | undefined}
+            rows={vars}
             isLoading={vars === undefined}
             externalSave
             onEditorState={onEditorState}

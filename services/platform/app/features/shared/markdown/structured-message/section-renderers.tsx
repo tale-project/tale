@@ -48,7 +48,7 @@ export const NextStepsSection = memo(
               key={item}
               variant="secondary"
               className={cn(
-                'h-auto whitespace-normal py-1.5 text-left text-xs',
+                'h-auto py-1.5 text-left text-xs whitespace-normal',
                 'hover:bg-muted/50',
               )}
               onClick={() => onSendFollowUp?.(item)}

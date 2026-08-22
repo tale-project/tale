@@ -195,7 +195,7 @@ export function ReleaseHistorySection({
       </Row>
       <DataTable<HistoryRow>
         columns={columns}
-        data={result.results as HistoryRow[]}
+        data={result.results}
         isLoading={isInitialLoading}
         approxRowCount={result.results.length}
         getRowId={(row) => row._id}

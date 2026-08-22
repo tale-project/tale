@@ -81,7 +81,7 @@ function setCaller(role: string, canWrite: boolean): void {
     email: 'a@acme.example',
     name: 'A',
     member: { _id: 'm1', role },
-  } as unknown as Awaited<ReturnType<typeof requireOrgMembershipById>>);
+  });
   vi.mocked(defineAbilityFor).mockReturnValue({
     cannot: () => !canWrite,
   } as unknown as ReturnType<typeof defineAbilityFor>);

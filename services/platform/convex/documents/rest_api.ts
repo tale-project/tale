@@ -35,12 +35,7 @@ export const listDocuments = withRestAuth('rest:api', async (rc, request) => {
     {
       organizationId: rc.org.organizationId,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- user input validated at runtime
-      sourceProvider: sourceProvider as
-        | 'upload'
-        | 'onedrive'
-        | 'sharepoint'
-        | 'agent'
-        | undefined,
+      sourceProvider: sourceProvider,
       paginationOpts: { numItems: limit, cursor },
     },
   );

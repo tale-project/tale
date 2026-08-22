@@ -228,7 +228,7 @@ function DependencyGroup({
                   // sit on top of the title glyphs (see browser-tab chips).
                   <div
                     className={cn(
-                      'absolute inset-y-0 right-0 z-10 flex items-center rounded-r-md bg-gradient-to-l from-muted from-45% to-transparent pr-0.5 pl-7 opacity-0 transition-opacity',
+                      'from-muted absolute inset-y-0 right-0 z-10 flex items-center rounded-r-md bg-gradient-to-l from-45% to-transparent pr-0.5 pl-7 opacity-0 transition-opacity',
                       'group-focus-within/dep:opacity-100 group-hover/dep:opacity-100',
                       'pointer-coarse:opacity-100',
                     )}

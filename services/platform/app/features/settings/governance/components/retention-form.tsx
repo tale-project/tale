@@ -148,7 +148,7 @@ function CategoryRow({
               onChange({
                 ...value,
                 [enabledKey]: checked,
-              } as RetentionPolicyConfig)
+              })
             }
             disabled={inputDisabled}
           />
@@ -166,7 +166,7 @@ function CategoryRow({
               onChange({
                 ...value,
                 [configKey]: e.target.value ? Number(e.target.value) : 0,
-              } as RetentionPolicyConfig)
+              })
             }
             disabled={inputDisabled}
             errorMessage={error}

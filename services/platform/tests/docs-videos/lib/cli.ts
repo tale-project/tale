@@ -61,9 +61,7 @@ function parseList(flag: string, raw: string | undefined): string[] {
 }
 
 export function parseCliArgs(argv: readonly string[]): CliOptions {
-  const options = { ...DEFAULTS } as {
-    -readonly [K in keyof CliOptions]: CliOptions[K];
-  };
+  const options = { ...DEFAULTS };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     switch (arg) {

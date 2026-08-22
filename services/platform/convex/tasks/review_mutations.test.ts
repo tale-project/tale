@@ -4,7 +4,7 @@ import type { Doc } from '../_generated/dataModel';
 import { approvalRound } from './review_shared';
 
 function approval(metadata: unknown): Pick<Doc<'approvals'>, 'metadata'> {
-  return { metadata } as Pick<Doc<'approvals'>, 'metadata'>;
+  return { metadata };
 }
 
 // The round is part of the request's idempotency key: a workflow loop that

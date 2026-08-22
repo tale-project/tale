@@ -52,8 +52,8 @@ export function OrganizationButton({
       type="button"
       aria-label={label ? undefined : accessibleLabel}
       className={cn(
-        'relative flex items-center rounded-lg transition-colors hover:bg-muted cursor-pointer',
-        label ? 'gap-3 px-3 py-2 w-full' : 'justify-center p-2',
+        'hover:bg-muted relative flex cursor-pointer items-center rounded-lg transition-colors',
+        label ? 'w-full gap-3 px-3 py-2' : 'justify-center p-2',
       )}
     >
       <Building2 className="text-muted-foreground size-5 shrink-0" />

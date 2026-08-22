@@ -84,10 +84,7 @@ describe('listDocumentVersionsForDoc', () => {
       _creationTime: 50,
       organizationId: 'org1',
       fileId: 'storage_current' as Id<'_storage'>,
-      historyFiles: [
-        'storage_old' as Id<'_storage'>,
-        'storage_mid' as Id<'_storage'>,
-      ],
+      historyFiles: ['storage_old', 'storage_mid'],
       title: 'transform.py',
     } as Doc<'documents'>;
 
@@ -140,7 +137,7 @@ describe('listDocumentVersionsForDoc', () => {
       _creationTime: 1,
       organizationId: 'org1',
       fileId: 'storage_a' as Id<'_storage'>,
-      historyFiles: ['storage_a' as Id<'_storage'>],
+      historyFiles: ['storage_a'],
     } as Doc<'documents'>;
 
     const versions = await listDocumentVersionsForDoc(ctx, doc);

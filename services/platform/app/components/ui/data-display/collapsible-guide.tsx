@@ -34,7 +34,7 @@ export function CollapsibleGuide({
       <div
         className={cn(
           markdownWrapperStyles,
-          'border-border min-w-0 max-w-none border-t px-3 py-2 text-xs leading-relaxed',
+          'border-border max-w-none min-w-0 border-t px-3 py-2 text-xs leading-relaxed',
           // Never let content force a horizontal scrollbar on the panel: wrap
           // normal prose, and break long inline-code tokens (URLs, callback
           // paths, BASE_PATH) at any point rather than overflowing.
@@ -61,7 +61,7 @@ export function CollapsibleGuide({
                   'bg-muted/60 border-border my-2 overflow-x-auto rounded-md border p-3 font-mono text-[11px] leading-relaxed',
                   // Wrap long lines instead of overflowing the panel; whitespace
                   // is still preserved (pre-wrap), unbreakable tokens break.
-                  'break-words whitespace-pre-wrap [overflow-wrap:anywhere]',
+                  '[overflow-wrap:anywhere] break-words whitespace-pre-wrap',
                   className,
                 )}
               >

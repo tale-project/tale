@@ -172,9 +172,7 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
   let value = data;
   if (value === undefined && cacheable) {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only this hook writes the cache, under the same (function, args) key it reads, so the entry is this query's own return type
-    value = liveResultCache.get(cacheKey) as
-      | FunctionReturnType<Ref>
-      | undefined;
+    value = liveResultCache.get(cacheKey);
   }
 
   // One stable object per answer: while a remount serves the cached value its
@@ -316,7 +314,7 @@ function normalizeMessageUsage(raw: unknown): ChatMessageUsage | undefined {
       ? { ...raw, costEstimateCents: Math.round(usd * 1_000_000) / 10_000 }
       : raw;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the blob is `v.any()` server-side; every ChatMessageUsage field is optional and the dialog re-checks each one before rendering it
-  return normalized as ChatMessageUsage;
+  return normalized;
 }
 
 /** One thread's messages, in `sequence` order, with the usage blob

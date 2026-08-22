@@ -40,7 +40,7 @@ export function Highlight({ text, terms, className }: HighlightProps) {
             // oxlint-disable-next-line react/no-array-index-key
             key={i}
             className={cn(
-              'rounded-[3px] bg-amber-400/25 px-0.5 text-fg-base dark:bg-amber-300/20',
+              'text-fg-base rounded-[3px] bg-amber-400/25 px-0.5 dark:bg-amber-300/20',
               className,
             )}
           >

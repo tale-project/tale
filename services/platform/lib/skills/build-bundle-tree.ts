@@ -29,8 +29,8 @@ interface MutableDirNode {
   childIndex: Map<string, MutableDirNode>;
 }
 
-export function buildBundleTree<T extends { path: string; size: number }>(
-  assets: ReadonlyArray<T>,
+export function buildBundleTree(
+  assets: ReadonlyArray<{ path: string; size: number }>,
 ): BundleTreeNode[] {
   const root: MutableDirNode = {
     name: '',

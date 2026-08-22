@@ -10,7 +10,7 @@ export const PanelFooter = forwardRef<HTMLDivElement, PanelFooterProps>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('sticky bottom-0 z-50 bg-background', className)}
+      className={cn('bg-background sticky bottom-0 z-50', className)}
       {...props}
     />
   ),

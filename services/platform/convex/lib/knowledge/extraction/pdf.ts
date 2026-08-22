@@ -122,7 +122,7 @@ async function imageBytesFromPage(
       page.objs.get(name, resolve);
     });
     if (obj && typeof obj === 'object' && 'data' in obj) {
-      const data = (obj as { data: unknown }).data;
+      const data = obj.data;
       if (data instanceof Uint8Array) {
         return data;
       }
