@@ -1056,6 +1056,41 @@ describe('dispatchWorkspaceTool — write tools (task family + document_create)'
     expect(qArgs.projectIds).toEqual(['proj_1', 'proj_2']);
   });
 
+  it('task_find hands the agent ISO dates, not epoch milliseconds', async () => {
+    // The same rendering the chat tools use. An agent asked to reason about
+    // "which of these is stale" cannot do epoch arithmetic reliably, so the
+    // date arrives already in the format its `Current time:` directive uses.
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({
+      readQuery: vi.fn((ref: unknown) =>
+        fnName(ref).includes('listTasksForAgent')
+          ? Promise.resolve([
+              {
+                _id: 'task_1',
+                number: 7,
+                title: 'Chase the invoice',
+                status: 'todo',
+                projectId: 'proj_1',
+                commentCount: 0,
+                createdAt: 1_787_124_301_288,
+                updatedAt: 1_787_210_701_288,
+              },
+            ])
+          : Promise.resolve(null),
+      ),
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_find',
+      callArgs: {},
+    });
+    expect(result.status).toBe('ok');
+    const [task] = (result.output as { tasks: Record<string, unknown>[] })
+      .tasks;
+    expect(task?.createdAt).toBe('2026-08-19T07:25:01.288Z');
+    expect(task?.updatedAt).toBe('2026-08-20T07:25:01.288Z');
+  });
+
   it('task_get on a multi-bound org run refuses a task outside the bound set', async () => {
     const contextRead = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
       Promise.resolve({ task: {}, project: {}, comments: [] }),
