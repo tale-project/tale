@@ -61,6 +61,21 @@ function makeT(): T {
   return t;
 }
 
+/**
+ * Settle whatever a helper's mutation scheduled BEFORE the test issues its
+ * next transaction. convex-test runs scheduled work concurrently with later
+ * transactions, and under CI load that interleaving corrupts a transaction
+ * mid-flight (observed as `db.get` returning null for a row the same handler
+ * just inserted). Scheduler ROWS persist after execution, so the suite's
+ * drain-proof `_scheduled_functions` assertions still read everything that
+ * was ever scheduled. Same posture as the afterEach drain, applied at the
+ * point where the race actually opens.
+ */
+async function settleScheduled(t: T): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await t.finishInProgressScheduledFunctions();
+}
+
 async function seedMember(
   t: T,
   userId: string,
@@ -87,13 +102,18 @@ async function createProject(
   t: T,
   extra: Record<string, unknown> = {},
 ): Promise<{ id: Id<'projects'>; name: string; key?: string }> {
-  return t.mutation(internal.projects.internal_mutations.createProjectForUser, {
-    organizationId: ORG,
-    userId: EDITOR,
-    userEmail: 'editor@door.test',
-    name: 'Acme Books',
-    ...extra,
-  });
+  const created = await t.mutation(
+    internal.projects.internal_mutations.createProjectForUser,
+    {
+      organizationId: ORG,
+      userId: EDITOR,
+      userEmail: 'editor@door.test',
+      name: 'Acme Books',
+      ...extra,
+    },
+  );
+  await settleScheduled(t);
+  return created;
 }
 
 async function createFolder(
@@ -143,6 +163,11 @@ async function bindFile(
       uploadId,
     },
   );
+  // The opt-IN path asserts the transient post-bind state (`ragStatus:
+  // 'queued'`) — settling would execute the indexing action (which fails in
+  // this harness) and overwrite the very status under test; its test issues
+  // no later mutation, so the race this settle closes never opens there.
+  if (args.skipRagIndexing !== false) await settleScheduled(t);
   return created.documentId;
 }
 
