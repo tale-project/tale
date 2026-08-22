@@ -6,7 +6,7 @@
  *
  * Gated behind `YOUTUBE_LIVE_TEST=1` so it is SKIPPED in the ordinary unit
  * suite and RUN only where the toolchain + a suitable egress exist: the `Unit`
- * job in `.github/workflows/test.yml` (which sets the flag + a bgutil PO-token
+ * job in `.github/workflows/checks.yml` (which sets the flag + a bgutil PO-token
  * provider) and any developer who opts in locally. GitHub runners are DATACENTER
  * IPs — the exact environment where YouTube's "confirm you're not a bot" wall
  * appears — so a green CI run is the real proof that ingestion works from a

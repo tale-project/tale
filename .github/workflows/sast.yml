@@ -7,27 +7,9 @@ name: SAST
 
 on:
   pull_request:
-    paths:
-      - 'services/**'
-      - 'packages/**'
-      - 'tools/**'
-      - 'scripts/**'
-      - 'builtin-configs/skills/**'
-      - 'compose*.yml'
-      - '.github/workflows/**'
-      - '.opengrepignore'
   push:
     branches:
       - main
-    paths:
-      - 'services/**'
-      - 'packages/**'
-      - 'tools/**'
-      - 'scripts/**'
-      - 'builtin-configs/skills/**'
-      - 'compose*.yml'
-      - '.github/workflows/**'
-      - '.opengrepignore'
   schedule:
     - cron: '0 3 * * 2' # Tuesday 03:00 UTC (offset from the Monday dep scan)
   workflow_dispatch:
@@ -40,7 +22,7 @@ permissions:
   contents: read
 
 jobs:
-  opengrep:
+  sast:
     name: Opengrep
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
@@ -65,10 +47,16 @@ jobs:
 
       # The blocking gate: downloads the pinned engine (cached above), runs the
       # vendored ruleset, writes SARIF, and exits non-zero on any finding.
+      # Repos without the opengrep port keep this identical file and self-skip.
       - name: Run Opengrep
         env:
           OPENGREP_SARIF_OUTPUT: opengrep.sarif
-        run: bash tools/opengrep/run.sh
+        run: |
+          if [ ! -f tools/opengrep/run.sh ]; then
+            echo "No tools/opengrep/run.sh in this repository — skipping the SAST gate."
+            exit 0
+          fi
+          bash tools/opengrep/run.sh
 
       - name: Upload SARIF
         if: always() && hashFiles('opengrep.sarif') != ''
