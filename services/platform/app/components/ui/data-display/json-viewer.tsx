@@ -82,7 +82,7 @@ export function JsonViewer({
   return (
     <div
       className={cn(
-        'relative text-xs bg-background p-3 overflow-auto max-h-[24rem]',
+        'bg-background relative max-h-[24rem] overflow-auto p-3 text-xs',
         className,
       )}
     >

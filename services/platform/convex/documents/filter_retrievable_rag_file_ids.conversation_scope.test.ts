@@ -92,8 +92,8 @@ async function retrievableFor(
 ): Promise<string[]> {
   return filterRetrievableRagFileIds(ctx as never, {
     organizationId: ORG,
-    fileIds: [ATTACHMENT as never],
-    access: ACCESS as never,
+    fileIds: [ATTACHMENT],
+    access: ACCESS,
     userId: USER,
     ...args,
   });

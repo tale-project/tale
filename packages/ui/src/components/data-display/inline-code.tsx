@@ -12,7 +12,7 @@ export const InlineCode = forwardRef<HTMLElement, InlineCodeProps>(
     <code
       ref={ref}
       className={cn(
-        'bg-muted rounded px-1 py-0.5 text-xs font-mono',
+        'bg-muted rounded px-1 py-0.5 font-mono text-xs',
         className,
       )}
       {...props}

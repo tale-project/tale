@@ -86,7 +86,7 @@ export async function buildSeededWorld(
     empty: need(WORLD_ORGS.empty.slug),
   };
   await t.run(async (ctx) => {
-    await seedWorldDb(ctx as never, orgs, {
+    await seedWorldDb(ctx, orgs, {
       storeBlob: (content) => ctx.storage.store(new Blob([content])),
     });
   });

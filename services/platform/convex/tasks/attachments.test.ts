@@ -1,7 +1,6 @@
 import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import {
   cleanupRemovedAttachments,
@@ -13,7 +12,7 @@ const ORG = 'org_1';
 
 function img(fileId: string): TaskAttachmentInput {
   return {
-    fileId: fileId as Id<'_storage'>,
+    fileId: fileId,
     fileName: 'shot.png',
     fileType: 'image/png',
     fileSize: 1024,

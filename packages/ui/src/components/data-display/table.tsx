@@ -46,8 +46,8 @@ const TableHeader = forwardRef<HTMLTableSectionElement, TableHeaderProps>(
       // box that bleeds over the bordered wrapper's rounded corners in the
       // sticky layout (which can't use `overflow-hidden`), squaring them off.
       className={cn(
-        '[&_th]:bg-muted [&_tr]:border-0 border-b',
-        sticky && 'sticky top-0 z-10 [&_th]:bg-muted',
+        '[&_th]:bg-muted border-b [&_tr]:border-0',
+        sticky && '[&_th]:bg-muted sticky top-0 z-10',
         className,
       )}
       {...props}
@@ -84,7 +84,7 @@ const TableRow = forwardRef<
   <tr
     ref={ref}
     className={cn(
-      'border-b last:border-b-0 transition-colors data-[state=selected]:bg-muted',
+      'data-[state=selected]:bg-muted border-b transition-colors last:border-b-0',
       className,
     )}
     {...props}
@@ -100,7 +100,7 @@ const TableHead = forwardRef<
     ref={ref}
     scope={scope}
     className={cn(
-      'h-10 px-3 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 last:rounded-tr-lg first:rounded-tl-lg text-nowrap',
+      'text-muted-foreground h-10 px-3 text-left align-middle font-medium text-nowrap first:rounded-tl-lg last:rounded-tr-lg [&:has([role=checkbox])]:pr-0',
       className,
     )}
     {...props}
@@ -130,7 +130,7 @@ const TableFooter = forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      'border-t bg-muted/50 font-medium [&>tr]:last:border-b-0',
+      'bg-muted/50 border-t font-medium [&>tr]:last:border-b-0',
       className,
     )}
     {...props}
@@ -144,7 +144,7 @@ const TableCaption = forwardRef<
 >(({ className, ...props }, ref) => (
   <caption
     ref={ref}
-    className={cn('mt-4 text-sm text-muted-foreground', className)}
+    className={cn('text-muted-foreground mt-4 text-sm', className)}
     {...props}
   />
 ));

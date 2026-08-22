@@ -42,7 +42,7 @@ export interface UseUrlStateReturn<T extends UrlStateDefinitions> {
   /** Current state values from URL */
   state: ParsedUrlState<T>;
   /** Set a single state value */
-  setState: <K extends keyof T>(key: K, value: UrlStateValue) => void;
+  setState: (key: keyof T, value: UrlStateValue) => void;
   /** Set multiple state values at once */
   setStates: (values: Partial<ParsedUrlState<T>>) => void;
   /** Clear specific keys (set to null/remove from URL) */
@@ -175,7 +175,7 @@ export function useUrlState<T extends UrlStateDefinitions>(
 
   // Set a single state value
   const setState = useCallback(
-    <K extends keyof T>(key: K, value: UrlStateValue) => {
+    (key: keyof T, value: UrlStateValue) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- computed property [key] loses K type; cast to Partial<ParsedUrlState<T>> is safe
       const newSearch = buildSearch({ [key]: value } as Partial<
         ParsedUrlState<T>

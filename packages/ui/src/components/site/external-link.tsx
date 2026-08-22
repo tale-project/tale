@@ -20,7 +20,7 @@ export function ExternalLink({
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        'group rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fg-base/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base',
+        'group focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-base rounded-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
         className,
         // After `className` so caller `inline-block` / `block` cannot drop the
         // icon onto its own line (tailwind-merge keeps the last display utility).

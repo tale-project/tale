@@ -58,7 +58,7 @@ export function PasskeySection() {
       if (res.error) {
         throw new Error(res.error.message ?? 'Failed to list passkeys');
       }
-      return (res.data ?? []) as PasskeyRow[];
+      return res.data ?? [];
     },
     enabled: Boolean(status?.authenticated && status.hasCredential),
   });

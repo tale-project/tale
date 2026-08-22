@@ -205,7 +205,7 @@ function JsonTextEditor({
       className={cn(
         // text-base (≥16px) on mobile prevents iOS focus-zoom; md:text-xs keeps
         // the dense monospace editor on desktop.
-        'w-full resize-none border-0 bg-transparent p-3 text-base focus:outline-none focus:ring-0 min-h-[12.5rem] overflow-y-auto md:text-xs',
+        'min-h-[12.5rem] w-full resize-none overflow-y-auto border-0 bg-transparent p-3 text-base focus:ring-0 focus:outline-none md:text-xs',
         'font-mono leading-relaxed',
         'placeholder:text-muted-foreground',
         theme === 'dark'
@@ -525,9 +525,9 @@ function JsonInputBase({
       <div
         ref={containerRef}
         className={cn(
-          'border rounded-md overflow-hidden bg-card',
+          'bg-card overflow-hidden rounded-md border',
           hasAnyError && 'border-destructive',
-          disabled && 'opacity-50 cursor-not-allowed',
+          disabled && 'cursor-not-allowed opacity-50',
         )}
         role="group"
         aria-describedby={describedBy}

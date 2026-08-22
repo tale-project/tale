@@ -8,22 +8,19 @@ const r0: Rect = { top: 0, right: 10, bottom: 10, left: 0 };
 function report(defects: Defect[], elements = 2): Report {
   return {
     session: { segments: [], pixelThreshold: 1, frameBudgetMs: 16 },
-    elements: Array.from(
-      { length: elements },
-      (_, i): ReportElement => ({
-        testid: `va-${i}`,
-        selector: `#e${i}`,
-        label: `#e${i}`,
-        source: i === 0 ? 'matched' : 'affected',
-        impactMode: ['paints'],
-        anchoredTo: 'page',
-        anchoredEdges: ['top'],
-        bounds: {
-          screen: { start: r0, end: r0 },
-          page: { start: r0, end: r0 },
-        },
-      }),
-    ),
+    elements: Array.from({ length: elements }, (_, i): ReportElement => ({
+      testid: `va-${i}`,
+      selector: `#e${i}`,
+      label: `#e${i}`,
+      source: i === 0 ? 'matched' : 'affected',
+      impactMode: ['paints'],
+      anchoredTo: 'page',
+      anchoredEdges: ['top'],
+      bounds: {
+        screen: { start: r0, end: r0 },
+        page: { start: r0, end: r0 },
+      },
+    })),
     transitions: [],
     defects,
   };

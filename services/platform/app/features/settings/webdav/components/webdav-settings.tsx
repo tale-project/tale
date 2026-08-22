@@ -28,7 +28,6 @@ import {
   useCreateWebdavAppPassword,
   useRevokeWebdavAppPassword,
   useWebdavAppPasswords,
-  type WebdavAppPasswordId,
   type WebdavAppPasswordRow,
 } from '../hooks/use-webdav-app-passwords';
 
@@ -219,7 +218,7 @@ function WebdavRowActions({ row }: { row: WebdavAppPasswordRow }) {
     if (isRevoking) return;
     setIsRevoking(true);
     try {
-      await revoke({ id: row._id as WebdavAppPasswordId });
+      await revoke({ id: row._id });
       toast({ title: t('list.revokedToast') });
       setOpen(false);
     } catch (err) {

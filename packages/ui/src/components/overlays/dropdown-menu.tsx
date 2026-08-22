@@ -164,7 +164,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
           // for grouped settings dropdowns.
           onSelect={(e) => e.preventDefault()}
           className={cn(
-            'relative flex min-h-11 cursor-default select-none items-center gap-2 rounded-md px-2 py-2 text-base outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+            'focus:bg-accent focus:text-accent-foreground relative flex min-h-11 cursor-default items-center gap-2 rounded-md px-2 py-2 text-base transition-colors outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
             item.className,
           )}
         >
@@ -206,7 +206,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
         <DropdownMenuPrimitive.Sub key={key}>
           <DropdownMenuPrimitive.SubTrigger
             className={cn(
-              'flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none focus:bg-accent data-[state=open]:bg-accent [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+              'focus:bg-accent data-[state=open]:bg-accent flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none select-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
               item.className,
             )}
           >
@@ -245,7 +245,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
               sideOffset={13}
               collisionPadding={16}
               className={cn(
-                'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg',
+                'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg motion-reduce:animate-none',
                 item.contentClassName,
               )}
             >
@@ -282,7 +282,7 @@ function renderItem(item: DropdownMenuItem, key: number) {
       const menuItem = (
         <DropdownMenuPrimitive.Item
           className={cn(
-            'relative flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+            'focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
             item.destructive && 'text-destructive focus:text-destructive',
             item.className,
           )}
@@ -418,7 +418,7 @@ export function DropdownMenu({
           collisionPadding={collisionPadding ?? 16}
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            'z-50 max-h-(--radix-dropdown-menu-content-available-height) max-w-(--radix-dropdown-menu-content-available-width) min-w-[max(10rem,var(--radix-dropdown-menu-trigger-width))] overflow-y-auto overflow-x-hidden rounded-lg border bg-card p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none',
+            'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--radix-dropdown-menu-content-available-height) max-w-(--radix-dropdown-menu-content-available-width) min-w-[max(10rem,var(--radix-dropdown-menu-trigger-width))] overflow-x-hidden overflow-y-auto rounded-lg border p-1 shadow-md motion-reduce:animate-none',
             contentClassName,
           )}
         >

@@ -33,9 +33,10 @@ vi.mock('../lib/storage/blob_access', () => ({
   readBlobBytes: (...args: unknown[]) => readBlobBytesMock(...(args as [])),
 }));
 
-const extractTextMock = vi.fn(
-  async (): Promise<[string, boolean]> => ['hello corpus world', false],
-);
+const extractTextMock = vi.fn(async (): Promise<[string, boolean]> => [
+  'hello corpus world',
+  false,
+]);
 vi.mock('../lib/knowledge/extraction/router', async (importOriginal) => {
   const mod =
     await importOriginal<typeof import('../lib/knowledge/extraction/router')>();
@@ -410,7 +411,7 @@ describe('indexFileBlob — conversation scope', () => {
     });
     indexDocumentMock.mockResolvedValue(completedResult());
 
-    await indexFileBlob(ctx, { ...ARGS, projectId: 'proj_1' } as never);
+    await indexFileBlob(ctx, { ...ARGS, projectId: 'proj_1' });
 
     expect(spies.runQuery).toHaveBeenCalledWith(
       'getConversationBindingForBlob',

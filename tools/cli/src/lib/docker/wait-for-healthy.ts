@@ -40,7 +40,7 @@ function startLogTail(containerName: string): {
   const done = Promise.all([
     pipeLines(proc.stdout, onLine).catch(() => {}),
     pipeLines(proc.stderr, onLine).catch(() => {}),
-  ]).then(() => {});
+  ]).then(() => undefined);
 
   // Use 'exit' event for cleanup — it's sync-only but proc.kill() is sync.
   // Unlike SIGINT/SIGTERM handlers, this does NOT override default exit behavior.

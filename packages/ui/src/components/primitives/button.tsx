@@ -11,36 +11,36 @@ import { hasDisabledReason } from '../overlays/disabled-reason';
 import { TooltipContent } from '../overlays/tooltip';
 
 export const buttonVariants = cva(
-  'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 active:scale-[0.97] active:duration-75 motion-reduce:active:scale-100 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 disabled:hover:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:active:scale-100 aria-disabled:hover:opacity-50 leading-none ring-offset-background cursor-pointer',
+  'focus-visible:ring-ring ring-offset-background inline-flex cursor-pointer items-center justify-center rounded-lg text-sm leading-none font-medium whitespace-nowrap transition-all duration-150 focus-visible:ring-1 focus-visible:outline-none active:scale-[0.97] active:duration-75 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:opacity-50 disabled:active:scale-100 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:opacity-50 aria-disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100',
   {
     variants: {
       // One height fits all (`h-9`), with a single smaller variant (`h-8`) for
       // dense bars/toolbars. Icon-only buttons are the same two heights, square.
       // There is deliberately no `lg` — page CTAs use the default height too.
       size: {
-        default: 'h-9 px-4 grow-0',
-        sm: 'h-8 rounded-md px-3 text-xs grow-0',
+        default: 'h-9 grow-0 px-4',
+        sm: 'h-8 grow-0 rounded-md px-3 text-xs',
         icon: 'size-9',
         'icon-sm': 'size-8 rounded-md',
       },
       variant: {
         primary:
-          'bg-accent-base text-accent-fg shadow-[0_1px_1.75px_rgba(3,7,18,0.4),0_0_0_1px_rgba(3,7,18,1)] hover:opacity-95 ring-1 ring-inset ring-white/20 [background-image:linear-gradient(to_bottom,rgba(255,255,255,0.16),rgba(255,255,255,0))]',
+          'bg-accent-base text-accent-fg [background-image:linear-gradient(to_bottom,rgba(255,255,255,0.16),rgba(255,255,255,0))] shadow-[0_1px_1.75px_rgba(3,7,18,0.4),0_0_0_1px_rgba(3,7,18,1)] ring-1 ring-white/20 ring-inset hover:opacity-95',
         destructive:
-          'bg-red-600 text-destructive-foreground -outline-offset-1 outline-red-600 shadow-sm hover:bg-red-700',
+          'text-destructive-foreground bg-red-600 shadow-sm -outline-offset-1 outline-red-600 hover:bg-red-700',
         // Solid amber "caution" fill — the yellow counterpart to `destructive`'s
         // red. Dark text (amber-950) keeps AA contrast on the light-yellow fill
         // at rest AND on the darker hover, where white would fail.
         warning:
-          'bg-amber-400 text-amber-950 -outline-offset-1 outline-amber-500 shadow-sm hover:bg-amber-500',
+          'bg-amber-400 text-amber-950 shadow-sm -outline-offset-1 outline-amber-500 hover:bg-amber-500',
         success:
-          'bg-success text-success-foreground -outline-offset-1 outline-success shadow-sm hover:bg-success/90',
+          'bg-success text-success-foreground outline-success hover:bg-success/90 shadow-sm -outline-offset-1',
         secondary:
-          'bg-bg-base text-fg-base ring-1 ring-border-strong ring-inset shadow-sm hover:bg-bg-elevated',
+          'bg-bg-base text-fg-base ring-border-strong hover:bg-bg-elevated shadow-sm ring-1 ring-inset',
         ghost: 'text-fg-base hover:bg-bg-elevated',
         // `h-auto` resets the size axis's fixed height so a link button stays
         // inline-sized (it's text, not a control box).
-        link: 'text-fg-base h-auto px-0 py-1 relative after:content-[""] after:block after:w-full after:h-[1px] after:transition-all after:duration-300 after:ease-in-out after:absolute after:bottom-0 after:left-0 hover:after:bg-fg-base',
+        link: 'text-fg-base hover:after:bg-fg-base relative h-auto px-0 py-1 after:absolute after:bottom-0 after:left-0 after:block after:h-[1px] after:w-full after:transition-all after:duration-300 after:ease-in-out after:content-[""]',
       },
     },
     defaultVariants: {

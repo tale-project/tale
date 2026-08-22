@@ -29,11 +29,11 @@ export async function checkMessageExists(
   const normalized = normalizeExternalMessageId(externalMessageId);
   if (!normalized) return null;
 
-  return (await ctx.runQuery(
+  return await ctx.runQuery(
     internal.conversations.internal_queries.getMessageByExternalId,
     {
       organizationId,
       externalMessageId: normalized,
     },
-  )) as ExistingMessage | null;
+  );
 }

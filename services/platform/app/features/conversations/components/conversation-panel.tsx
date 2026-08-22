@@ -653,7 +653,7 @@ export function ConversationPanel({
         ) : (
           <PanelFooter
             className={cn(
-              'py-3 px-4',
+              'px-4 py-3',
               conversation.status !== 'open' && 'px-0 pb-0',
             )}
           >

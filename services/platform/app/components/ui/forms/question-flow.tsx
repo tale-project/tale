@@ -234,7 +234,7 @@ export function QuestionFlow({
       // the input area into a full-height form; this keeps the whole set in
       // roughly the footprint the composer occupied. Still well past the 24px
       // minimum target size.
-      'flex w-full min-h-9 cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors',
+      'flex min-h-9 w-full cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors',
       'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
       // The multi-select row is a <label> around a visually hidden input, so
       // the ring has to come from the input's focus, not the row's.

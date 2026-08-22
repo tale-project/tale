@@ -1104,7 +1104,7 @@ describe('ChatSurface when a question is pending', () => {
       generation: null,
       streamingMessageId: undefined,
       pendingConsumed: false,
-    } as unknown as ReturnType<typeof useThreadView>);
+    });
     vi.mocked(usePendingQuestion).mockReturnValue({
       status: 'ready' as const,
       data: QUESTION,
@@ -1112,7 +1112,7 @@ describe('ChatSurface when a question is pending', () => {
     vi.mocked(useResolveQuestion).mockReturnValue({
       available: true,
       resolve,
-    } as unknown as ReturnType<typeof useResolveQuestion>);
+    });
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
       start: () =>
@@ -1135,7 +1135,7 @@ describe('ChatSurface when a question is pending', () => {
     vi.mocked(useResolveQuestion).mockReturnValue({
       available: true,
       resolve,
-    } as unknown as ReturnType<typeof useResolveQuestion>);
+    });
     const sent: string[] = [];
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
@@ -1174,7 +1174,7 @@ describe('ChatSurface when a question is pending', () => {
     vi.mocked(useResolveQuestion).mockReturnValue({
       available: true,
       resolve,
-    } as unknown as ReturnType<typeof useResolveQuestion>);
+    });
 
     const { user } = render(
       <ChatSurface organizationId="org-1" threadId="thread-1" />,

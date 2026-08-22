@@ -41,7 +41,7 @@ function dataOf(err: unknown): Record<string, unknown> | undefined {
   if (err === null || typeof err !== 'object' || !('data' in err)) {
     return undefined;
   }
-  let data: unknown = (err as { data: unknown }).data;
+  let data: unknown = err.data;
   for (let i = 0; i < 3 && typeof data === 'string'; i++) {
     try {
       data = JSON.parse(data);

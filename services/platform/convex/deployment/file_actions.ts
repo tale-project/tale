@@ -338,7 +338,7 @@ export const saveDeploymentSecret = action({
       try {
         prepared = await prepareMergedDeploymentSecrets(
           secretsPath,
-          args.secrets as Partial<Record<DeploymentSecretKey, string>>,
+          args.secrets,
           { force: args.force },
         );
       } catch (err) {
@@ -483,9 +483,7 @@ export const testDeploymentConnection = action({
 
     const password =
       args.password ||
-      (await readStoredSecret(
-        `dataStores.${args.target}.password` as DeploymentSecretKey,
-      ));
+      (await readStoredSecret(`dataStores.${args.target}.password`));
 
     let data: DatastoreTestResult;
     try {

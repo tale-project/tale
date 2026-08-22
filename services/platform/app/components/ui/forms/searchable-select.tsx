@@ -512,7 +512,7 @@ function SearchableSelectBase({
                 className={cn(
                   'flex items-center gap-2',
                   isSwitcher
-                    ? 'border-border bg-[color:var(--color-bg-base)] focus-within:border-[color:var(--color-accent-base)] focus-within:ring-[color:var(--color-accent-base)]/30 rounded-md border px-2.5 py-1.5 focus-within:ring-2'
+                    ? 'border-border rounded-md border bg-[color:var(--color-bg-base)] px-2.5 py-1.5 focus-within:border-[color:var(--color-accent-base)] focus-within:ring-2 focus-within:ring-[color:var(--color-accent-base)]/30'
                     : undefined,
                 )}
               >

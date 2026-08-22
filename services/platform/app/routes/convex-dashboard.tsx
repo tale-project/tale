@@ -17,6 +17,9 @@ function ConvexDashboardPage() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0 }}>
+      {/* oxlint-disable-next-line react/iframe-missing-sandbox -- the embedded
+          first-party dashboard needs full script and storage access through
+          the proxy; a sandbox attribute blanks it. */}
       <iframe
         src={`${siteUrl}/api/convex-dashboard-proxy`}
         style={{ width: '100%', height: '100%', border: 'none' }}

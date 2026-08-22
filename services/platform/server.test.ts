@@ -482,7 +482,7 @@ describe('canvas-preview storage shim', () => {
     }).toThrow(
       expect.objectContaining({
         name: 'QuotaExceededError',
-      }) as unknown as Error,
+      }) as unknown,
     );
   });
 

@@ -47,8 +47,8 @@ beforeEach(() => {
 describe('isProjectScopedDocument', () => {
   it('is true only when projectId is set', () => {
     expect(isProjectScopedDocument({ projectId: 'p1' } as AnyDoc)).toBe(true);
-    expect(isProjectScopedDocument({} as AnyDoc)).toBe(false);
-    expect(isProjectScopedDocument({ teamId: 't1' } as AnyDoc)).toBe(false);
+    expect(isProjectScopedDocument({})).toBe(false);
+    expect(isProjectScopedDocument({ teamId: 't1' })).toBe(false);
   });
 });
 
@@ -61,7 +61,7 @@ describe('hasKnowledgeHubDocumentAccess', () => {
   });
 
   it('treats team-less hub docs as org-wide', () => {
-    expect(hasKnowledgeHubDocumentAccess({} as AnyDoc, [])).toBe(true);
+    expect(hasKnowledgeHubDocumentAccess({}, [])).toBe(true);
   });
 
   it('applies team rules to team-scoped hub docs', () => {

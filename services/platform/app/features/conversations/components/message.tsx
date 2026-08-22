@@ -358,7 +358,7 @@ export function Message({
         <div className="relative">
           <div
             className={cn(
-              'max-w-[40rem] relative overflow-x-auto rounded-2xl shadow-sm mb-2',
+              'relative mb-2 max-w-[40rem] overflow-x-auto rounded-2xl shadow-sm',
               message.isCustomer
                 ? 'bg-card text-foreground'
                 : 'bg-muted text-foreground',
@@ -428,7 +428,7 @@ export function Message({
             as="div"
             variant="caption"
             className={cn(
-              'flex items-center gap-1.5 justify-end text-nowrap',
+              'flex items-center justify-end gap-1.5 text-nowrap',
               message.isCustomer
                 ? 'text-left'
                 : cn(

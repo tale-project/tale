@@ -17,7 +17,7 @@ export function ConversationListPanel({
   return (
     <div
       className={cn(
-        'relative flex w-full flex-col border-r border-border md:max-w-[24.75rem] md:flex-[0_0_24.75rem]',
+        'border-border relative flex w-full flex-col border-r md:max-w-[24.75rem] md:flex-[0_0_24.75rem]',
         hidden ? 'hidden md:flex' : 'flex',
       )}
     >

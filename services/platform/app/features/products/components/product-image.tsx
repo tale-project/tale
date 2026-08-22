@@ -22,7 +22,7 @@ export function ProductImage({
   return (
     <div
       className={cn(
-        'relative w-20 h-20 bg-muted rounded-md overflow-hidden',
+        'bg-muted relative h-20 w-20 overflow-hidden rounded-md',
         hasImages && 'group cursor-pointer',
         className,
       )}

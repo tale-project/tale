@@ -10,7 +10,7 @@ import { render, screen, waitFor, within } from '@/tests/utils/render';
 // so the disable call itself must keep working.
 
 const { mockStatus } = vi.hoisted(() => ({
-  mockStatus: { value: {} as Record<string, unknown> },
+  mockStatus: { value: {} },
 }));
 
 vi.mock('@/app/hooks/use-convex-query', () => ({

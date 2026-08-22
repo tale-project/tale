@@ -173,7 +173,7 @@ describe('shouldReapSecret', () => {
           }),
         },
       },
-    } as V1Secret;
+    };
   }
 
   test('live executions keep their Secret', () => {

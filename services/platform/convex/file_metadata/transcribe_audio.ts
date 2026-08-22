@@ -68,10 +68,10 @@ function whisperSegmentsToParagraphSegments(
  */
 function readableMessage(err: unknown): string {
   if (err !== null && typeof err === 'object' && 'data' in err) {
-    const data = (err as { data: unknown }).data;
+    const data = err.data;
     if (typeof data === 'string' && data.length > 0) return data;
     if (data !== null && typeof data === 'object' && 'message' in data) {
-      const message = (data as { message: unknown }).message;
+      const message = data.message;
       if (typeof message === 'string' && message.length > 0) return message;
     }
   }
@@ -141,7 +141,7 @@ async function patchProgress(
   await ctx.runMutation(
     internal.file_metadata.internal_mutations.updateFileTranscription,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storageId is branded Id<'_storage'> from args
-    { storageId: storageId as never, transcriptionProgress: progress },
+    { storageId: storageId, transcriptionProgress: progress },
   );
 }
 

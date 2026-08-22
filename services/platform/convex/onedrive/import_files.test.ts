@@ -8,7 +8,7 @@ import {
 } from './import_files';
 
 function makeDeps(overrides: Partial<ImportFilesDependencies> = {}) {
-  const createDocument = vi.fn().mockResolvedValue('doc-1' as Id<'documents'>);
+  const createDocument = vi.fn().mockResolvedValue('doc-1');
   const deps = {
     getFileMetadata: vi
       .fn()
@@ -22,9 +22,7 @@ function makeDeps(overrides: Partial<ImportFilesDependencies> = {}) {
     findDocumentByExternalId: vi.fn().mockResolvedValue(null),
     createDocument,
     updateDocument: vi.fn().mockResolvedValue(undefined),
-    getOrCreateFolderPath: vi
-      .fn()
-      .mockResolvedValue('folder-row-1' as Id<'folders'>),
+    getOrCreateFolderPath: vi.fn().mockResolvedValue('folder-row-1'),
     saveFileMetadata: vi.fn().mockResolvedValue(undefined),
     linkDocumentToFile: vi.fn().mockResolvedValue(undefined),
     scheduleHubDocumentRagIndexing: vi.fn().mockResolvedValue(undefined),

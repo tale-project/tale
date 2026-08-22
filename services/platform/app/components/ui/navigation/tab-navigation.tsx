@@ -477,7 +477,7 @@ export function TabNavigation({
           // scrollable overflow; without this, PageLayout (`overflow-auto`)
           // gains a phantom horizontal scrollbar and a trackpad swipe shifts
           // the whole project shell sideways even though page content fits.
-          'relative overflow-x-hidden border-b border-border min-h-13 flex items-stretch shrink-0',
+          'border-border relative flex min-h-13 shrink-0 items-stretch overflow-x-hidden border-b',
           standalone && 'bg-background z-10',
           className,
         )}
@@ -510,7 +510,7 @@ export function TabNavigation({
                 preload={prefetch ? 'render' : false}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'relative flex h-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm py-1 text-sm font-medium transition-colors outline-none focus-visible:outline-none',
+                  'relative flex h-full shrink-0 items-center justify-center gap-1.5 rounded-sm py-1 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:outline-none',
                   isActive
                     ? 'text-foreground'
                     : 'text-muted-foreground hover:text-foreground',
@@ -547,7 +547,7 @@ export function TabNavigation({
                   type="button"
                   aria-label={tCommon('aria.moreTabs')}
                   className={cn(
-                    'relative flex h-full shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-sm py-1 text-sm font-medium transition-colors outline-none focus-visible:outline-none',
+                    'relative flex h-full shrink-0 items-center justify-center gap-1 rounded-sm py-1 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:outline-none',
                     activeInOverflow
                       ? 'text-foreground'
                       : 'text-muted-foreground hover:text-foreground',

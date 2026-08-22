@@ -51,8 +51,8 @@ export const TableDateCell = React.memo(function TableDateCell({
     return (
       <span
         className={cn(
-          'text-sm text-muted-foreground whitespace-nowrap',
-          alignRight && 'text-right block',
+          'text-muted-foreground text-sm whitespace-nowrap',
+          alignRight && 'block text-right',
           className,
         )}
       >
@@ -75,8 +75,8 @@ export const TableDateCell = React.memo(function TableDateCell({
   return (
     <span
       className={cn(
-        'text-sm text-muted-foreground whitespace-nowrap',
-        alignRight && 'text-right block',
+        'text-muted-foreground text-sm whitespace-nowrap',
+        alignRight && 'block text-right',
         className,
       )}
       title={titleText}

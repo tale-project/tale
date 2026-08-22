@@ -173,10 +173,9 @@ export function createScreencastWebSocketHandler(
     // Raw RFB is already binary; never compress (compression would also break
     // the byte-identical forwarding contract).
     perMessageDeflate: false,
-    // ws.data type carrier (TS #26242 workaround) — never read at runtime; the
-    // real data is supplied per-connection by server.upgrade(req, { data }).
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    data: undefined as unknown as ScreencastWsData,
+    // Never read at runtime; the real data is supplied per-connection by
+    // server.upgrade(req, { data }).
+    data: undefined,
 
     open(ws): void {
       const { sessionId, control } = ws.data;

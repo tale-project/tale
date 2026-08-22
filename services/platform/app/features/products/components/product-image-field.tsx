@@ -95,8 +95,8 @@ export function ProductImageField({
             className={cn(
               'relative h-40 w-full overflow-hidden rounded-lg transition-colors',
               value
-                ? 'border border-border cursor-pointer'
-                : 'border-2 border-dashed border-border cursor-pointer hover:border-primary hover:bg-accent/30',
+                ? 'border-border cursor-pointer border'
+                : 'border-border hover:border-primary hover:bg-accent/30 cursor-pointer border-2 border-dashed',
             )}
           >
             <FileUpload.Overlay className="rounded-lg" />

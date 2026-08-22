@@ -48,8 +48,8 @@ export const CopyableTimestamp = React.memo(function CopyableTimestamp({
     return (
       <span
         className={cn(
-          'text-sm text-muted-foreground whitespace-nowrap',
-          alignRight && 'text-right block',
+          'text-muted-foreground text-sm whitespace-nowrap',
+          alignRight && 'block text-right',
           className,
         )}
       >
@@ -104,7 +104,7 @@ function CopyableTimestampInner({
     <span
       className={cn(
         'inline-flex items-center gap-1',
-        alignRight && 'justify-end w-full',
+        alignRight && 'w-full justify-end',
         className,
       )}
     >

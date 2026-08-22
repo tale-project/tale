@@ -31,9 +31,9 @@ const statusDotVariants = cva('rounded-full', {
       neutral: 'bg-muted-foreground',
     },
     size: {
-      sm: 'w-1.5 h-1.5',
-      md: 'w-2 h-2',
-      lg: 'w-2.5 h-2.5',
+      sm: 'h-1.5 w-1.5',
+      md: 'h-2 w-2',
+      lg: 'h-2.5 w-2.5',
     },
   },
   defaultVariants: {

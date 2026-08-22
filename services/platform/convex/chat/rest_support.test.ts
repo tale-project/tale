@@ -112,7 +112,7 @@ function codeOf(error: unknown): string | undefined {
     }
   }
   return typeof data === 'object' && data !== null && 'code' in data
-    ? String((data as { code: unknown }).code)
+    ? String(data.code)
     : undefined;
 }
 

@@ -70,7 +70,7 @@ export function SegmentedControl({
         disabled={disabled}
         aria-labelledby={label ? `${id}-label` : undefined}
         className={cn(
-          'inline-flex rounded-md border border-border bg-muted p-0.5 gap-0.5',
+          'border-border bg-muted inline-flex gap-0.5 rounded-md border p-0.5',
           className,
         )}
       >
@@ -79,10 +79,10 @@ export function SegmentedControl({
             key={option.value}
             value={option.value}
             className={cn(
-              'flex-1 rounded-sm px-3 py-1.5 text-xs font-medium transition-all duration-150 cursor-pointer',
+              'flex-1 cursor-pointer rounded-sm px-3 py-1.5 text-xs font-medium transition-all duration-150',
               'text-muted-foreground',
-              'data-[state=on]:bg-white dark:data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+              'dark:data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:bg-white data-[state=on]:shadow-xs',
+              'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
               'disabled:pointer-events-none disabled:opacity-50',
             )}
           >

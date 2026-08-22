@@ -176,8 +176,8 @@ const SliderBase = forwardRef<HTMLInputElement, SliderProps>(
           <div
             aria-hidden
             className={cn(
-              'pointer-events-none absolute -top-9 z-20 -translate-x-1/2 whitespace-nowrap rounded-md bg-[color:var(--color-accent-base)] px-2 py-1 text-xs font-medium text-[color:var(--color-accent-fg)] shadow-md transition-[opacity,transform] duration-150',
-              'after:absolute after:left-1/2 after:top-full after:h-0 after:w-0 after:-translate-x-1/2 after:border-x-4 after:border-t-4 after:border-x-transparent after:border-t-[color:var(--color-accent-base)] after:content-[""]',
+              'pointer-events-none absolute -top-9 z-20 -translate-x-1/2 rounded-md bg-[color:var(--color-accent-base)] px-2 py-1 text-xs font-medium whitespace-nowrap text-[color:var(--color-accent-fg)] shadow-md transition-[opacity,transform] duration-150',
+              'after:absolute after:top-full after:left-1/2 after:h-0 after:w-0 after:-translate-x-1/2 after:border-x-4 after:border-t-4 after:border-x-transparent after:border-t-[color:var(--color-accent-base)] after:content-[""]',
               showLabel
                 ? 'translate-y-0 opacity-100'
                 : 'translate-y-1 opacity-0',

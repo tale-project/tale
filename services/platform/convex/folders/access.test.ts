@@ -37,8 +37,8 @@ beforeEach(() => {
 describe('isProjectScopedFolder', () => {
   it('is true only when projectId is set', () => {
     expect(isProjectScopedFolder({ projectId: 'p1' } as AnyFolder)).toBe(true);
-    expect(isProjectScopedFolder({} as AnyFolder)).toBe(false);
-    expect(isProjectScopedFolder({ teamId: 't1' } as AnyFolder)).toBe(false);
+    expect(isProjectScopedFolder({})).toBe(false);
+    expect(isProjectScopedFolder({ teamId: 't1' })).toBe(false);
   });
 });
 
@@ -51,7 +51,7 @@ describe('hasKnowledgeHubFolderAccess', () => {
   });
 
   it('treats team-less hub folders as org-wide', () => {
-    expect(hasKnowledgeHubFolderAccess({} as AnyFolder, [])).toBe(true);
+    expect(hasKnowledgeHubFolderAccess({}, [])).toBe(true);
   });
 
   it('applies team rules to team-scoped hub folders', () => {

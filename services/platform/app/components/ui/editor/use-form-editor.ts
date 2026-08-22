@@ -6,7 +6,6 @@ import {
   type DefaultValues,
   type FieldValues,
   type Path,
-  type Resolver,
   type UseFormReturn,
 } from 'react-hook-form';
 
@@ -88,7 +87,7 @@ export function useFormEditor<T extends FieldValues>({
     defaultValues: (data ?? defaultValues) as DefaultValues<T> | undefined,
     resolver: schema
       ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- zodResolver returns Resolver<unknown,…>; widen
-        (zodResolver(schema) as unknown as Resolver<T>)
+        zodResolver(schema)
       : undefined,
     // `mode` defaults to `'onTouched'` via the shared `useForm` wrapper (#1943).
   });
@@ -141,7 +140,7 @@ export function useFormEditor<T extends FieldValues>({
       setHasRemoteUpdate(true);
     } else {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- DefaultValues<T> ⊂ T
-      form.reset(data as DefaultValues<T>);
+      form.reset(data);
       hasInitializedRef.current = true;
       lastDataRef.current = data;
       setHasRemoteUpdate(false);
@@ -175,13 +174,13 @@ export function useFormEditor<T extends FieldValues>({
           async (values) => {
             try {
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RHF widens generic
-              await saveRef.current(values as unknown as T);
+              await saveRef.current(values);
               // Adopt the just-saved values as the new baseline so
               // `isDirty` flips false immediately. `keepValues: true`
               // preserves any subsequent typing after Convex emits the
               // reactive refetch.
               // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- DefaultValues<T> ⊂ T
-              form.reset(values as DefaultValues<T>, {
+              form.reset(values, {
                 keepValues: true,
                 keepDirty: false,
               });
@@ -241,7 +240,7 @@ export function useFormEditor<T extends FieldValues>({
   const reset = useCallback(() => {
     if (isSavingRef.current) return;
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- DefaultValues<T> ⊂ T
-    form.reset(dataRef.current as DefaultValues<T>);
+    form.reset(dataRef.current);
     setHasRemoteUpdate(false);
   }, [form]);
 
@@ -257,7 +256,7 @@ export function useFormEditor<T extends FieldValues>({
 
   return {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- RHF widens generic
-    form: form as unknown as UseFormReturn<T>,
+    form: form,
     hasRemoteUpdate,
     dismissRemoteUpdate,
     isDirty,

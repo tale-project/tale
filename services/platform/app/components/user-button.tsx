@@ -610,13 +610,13 @@ export function UserButton({
       type="button"
       aria-label={t('userButton.manageAccount')}
       className={cn(
-        'relative flex items-center transition-colors hover:bg-muted cursor-pointer',
+        'hover:bg-muted relative flex cursor-pointer items-center transition-colors',
         isSidebarVariant
           ? cn(
-              'h-9 gap-2.5 overflow-hidden rounded-md pl-2 pr-2',
+              'h-9 gap-2.5 overflow-hidden rounded-md pr-2 pl-2',
               ROW_TRANSITION_CLASS,
             )
-          : 'justify-center p-2 rounded-md',
+          : 'justify-center rounded-md p-2',
       )}
       style={isSidebarVariant ? rowWidthStyle(sidebarExpanded) : undefined}
     >

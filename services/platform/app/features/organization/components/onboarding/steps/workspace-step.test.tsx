@@ -72,7 +72,7 @@ async function fillNameAndSubmit(user: {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  setActive.mockResolvedValue({} as never);
+  setActive.mockResolvedValue({});
 });
 
 describe('WorkspaceStep failure surfacing (#2635)', () => {
@@ -103,8 +103,8 @@ describe('WorkspaceStep failure surfacing (#2635)', () => {
     create.mockResolvedValue({
       data: null,
       error: { code: 'INTERNAL_ERROR', message: 'boom' },
-    } as never);
-    list.mockResolvedValue({ data: [] } as never);
+    });
+    list.mockResolvedValue({ data: [] });
     const consoleError = vi
       .spyOn(console, 'error')
       .mockImplementation(() => {});
@@ -128,9 +128,9 @@ describe('WorkspaceStep failure surfacing (#2635)', () => {
         code: 'ORGANIZATION_SLUG_ALREADY_TAKEN',
         message: 'Organization slug "acme" is already taken.',
       },
-    } as never);
+    });
     // Membership list has no org under this slug — nothing to resume into.
-    list.mockResolvedValue({ data: [{ id: 'other', slug: 'other' }] } as never);
+    list.mockResolvedValue({ data: [{ id: 'other', slug: 'other' }] });
     const consoleError = vi
       .spyOn(console, 'error')
       .mockImplementation(() => {});
@@ -179,10 +179,10 @@ describe('WorkspaceStep idempotent resume (#2635)', () => {
         code: 'ORGANIZATION_SLUG_ALREADY_TAKEN',
         message: 'Organization slug "acme" is already taken.',
       },
-    } as never);
+    });
     list.mockResolvedValue({
       data: [{ id: 'org-acme', slug: 'acme' }],
-    } as never);
+    });
 
     const { user, onCreated } = renderStep();
     await fillNameAndSubmit(user);

@@ -202,6 +202,9 @@ export function compactReport(report: Report): CompactReport {
   // with no detectable curve stays a bare count — nothing actionable to show.
   const detailed = report.transitions
     .filter((t) => t.smoothness !== 'smooth' || t.easing !== null)
+    // A report holds a handful of transitions and the spread conditionally
+    // omits `easing`, so the copy cost is irrelevant here.
+    // oxlint-disable-next-line oxc/no-map-spread
     .map((t) => ({
       selector: t.selector,
       label: labelFor(t.selector),

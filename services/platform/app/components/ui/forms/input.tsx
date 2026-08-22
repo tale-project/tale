@@ -17,13 +17,13 @@ import { Label } from './label';
 
 const inputVariants = cva(
   // One height fits all controls (`h-9`) — no size axis.
-  'flex h-9 w-full text-base file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-[border-color,box-shadow] duration-150',
+  'placeholder:text-muted-foreground flex h-9 w-full text-base transition-[border-color,box-shadow] duration-150 file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       variant: {
         default:
-          'rounded-lg border border-transparent bg-input px-3 py-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-1 ring-[color:var(--color-border-input)] focus-visible:ring-primary',
-        unstyled: 'bg-transparent border-0 ring-0 ring-offset-0',
+          'bg-input ring-offset-background focus-visible:ring-ring focus-visible:ring-primary rounded-lg border border-transparent px-3 py-2 ring-1 ring-[color:var(--color-border-input)] focus-visible:ring-2 focus-visible:ring-offset-2',
+        unstyled: 'border-0 bg-transparent ring-0 ring-offset-0',
         // Borderless, text-like display for values the user cannot edit in
         // context. Keeps the field's footprint (`h-9` from the base + the same
         // `border`/`px`/`py` box as `default`) so toggling editable ↔ read-only
@@ -357,7 +357,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
           {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- focus-forwarding wrapper; the child input is the interactive control */}
           <div
             className={cn(
-              'flex h-9 w-full items-center rounded-lg border border-transparent bg-input px-3 py-2 text-base ring-1 ring-[color:var(--color-border-input)] ring-offset-background transition-[border-color,box-shadow] duration-150 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2',
+              'bg-input ring-offset-background focus-within:ring-primary flex h-9 w-full items-center rounded-lg border border-transparent px-3 py-2 text-base ring-1 ring-[color:var(--color-border-input)] transition-[border-color,box-shadow] duration-150 focus-within:ring-2 focus-within:ring-offset-2',
               showInvalid && 'border-destructive focus-within:ring-destructive',
               showShake && 'animate-shake',
               className,

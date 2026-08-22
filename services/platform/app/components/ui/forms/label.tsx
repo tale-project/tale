@@ -40,7 +40,7 @@ export const Label = forwardRef<
     <LabelPrimitive.Root
       ref={ref}
       className={cn(
-        'leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-xs md:text-sm font-medium text-foreground',
+        'text-foreground text-xs leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70 md:text-sm',
         error && 'text-destructive',
         className,
       )}

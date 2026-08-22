@@ -23,7 +23,7 @@ const selectContentVariants = cva(
   // could extend past the edge and clip its first option (e.g. "End workflow")
   // behind the scroll buttons. The `,24rem` fallback keeps the cap for the
   // `item-aligned` position, where Radix does not expose the available-height var.
-  'relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height,24rem))] min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground dark:bg-muted shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+  'bg-popover text-popover-foreground dark:bg-muted data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height,24rem))] min-w-[8rem] overflow-hidden rounded-md border shadow-md',
   {
     variants: {
       position: {
@@ -58,7 +58,7 @@ export function selectTriggerClasses({
 } = {}) {
   return cn(
     // One height fits all controls (`h-9`) — no size axis.
-    'flex h-9 w-full items-center justify-between whitespace-nowrap rounded-lg border border-transparent bg-input px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 ring-1 ring-border focus-visible:ring-primary transition-[border-color,box-shadow] duration-150',
+    'bg-input ring-offset-background placeholder:text-muted-foreground ring-border focus-visible:ring-primary flex h-9 w-full items-center justify-between rounded-lg border border-transparent px-3 py-2 text-base whitespace-nowrap ring-1 transition-[border-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm [&>span]:line-clamp-1',
     error && 'border-destructive focus-visible:ring-destructive',
   );
 }

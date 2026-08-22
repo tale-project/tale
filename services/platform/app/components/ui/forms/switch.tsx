@@ -71,7 +71,7 @@ const SwitchBase = forwardRef<
           // `border-border-strong` outline so the control's shape always reads,
           // even when disabled. Dark mode already has enough edge contrast (see
           // globals.css), so it keeps the transparent border there.
-          'peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-border data-[state=unchecked]:border-border-strong data-[state=checked]:border-transparent dark:border-transparent focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-border/80 inline-flex shrink-0 items-center rounded-full border shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-60',
+          'peer data-[state=checked]:bg-primary data-[state=unchecked]:bg-border data-[state=unchecked]:border-border-strong focus-visible:border-ring focus-visible:ring-ring/50 dark:data-[state=unchecked]:bg-border/80 inline-flex shrink-0 items-center rounded-full border shadow-xs transition-all outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-60 data-[state=checked]:border-transparent dark:border-transparent',
           SWITCH_TRACK_DIMENSIONS,
           className,
         )}

@@ -5,17 +5,17 @@ import { cn } from '../../lib/cn';
 import { SkeletonBox } from './skeleton';
 
 export const badgeVariants = cva(
-  'inline-flex items-center rounded-md text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 whitespace-nowrap overflow-hidden border-transparent text-primary-muted hover:bg-primary-foreground/10 px-2.5 py-1 text-secondary',
+  'focus:ring-ring text-primary-muted hover:bg-primary-foreground/10 text-secondary inline-flex items-center overflow-hidden rounded-md border-transparent px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none',
   {
     variants: {
       variant: {
-        outline: 'border border-border bg-background text-foreground',
-        destructive: 'bg-red-100 hover:bg-red-100/80 text-red-800',
-        orange: 'bg-orange-100 hover:bg-orange-100/80 text-orange-800',
-        yellow: 'bg-yellow-100 hover:bg-yellow-100/80 text-yellow-800',
-        blue: 'bg-blue-100 hover:bg-blue-100/80 text-blue-800',
-        green: 'bg-green-100 hover:bg-green-100/80 text-green-800',
-        slate: 'bg-slate-100 hover:bg-slate-100/80 text-slate-700',
+        outline: 'border-border bg-background text-foreground border',
+        destructive: 'bg-red-100 text-red-800 hover:bg-red-100/80',
+        orange: 'bg-orange-100 text-orange-800 hover:bg-orange-100/80',
+        yellow: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100/80',
+        blue: 'bg-blue-100 text-blue-800 hover:bg-blue-100/80',
+        green: 'bg-green-100 text-green-800 hover:bg-green-100/80',
+        slate: 'bg-slate-100 text-slate-700 hover:bg-slate-100/80',
       },
     },
     defaultVariants: {
@@ -24,7 +24,7 @@ export const badgeVariants = cva(
   },
 );
 
-const dotVariants = cva('size-1.5 m-1 rounded-full', {
+const dotVariants = cva('m-1 size-1.5 rounded-full', {
   variants: {
     variant: {
       outline: 'bg-gray-600',

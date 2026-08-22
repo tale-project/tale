@@ -177,14 +177,15 @@ export function AutomationSettingsDialog({
             label: (
               <Row gap={1}>
                 {localized(form).title}
-                {!isUploadsForm(form) && editor.isDirty(form.file) && (
-                  // The single Save covers every tab, so an unsaved edit
-                  // elsewhere has to be visible from here.
-                  <span
-                    aria-label={t('settings.unsavedTab')}
-                    className="bg-primary size-1.5 shrink-0 rounded-full"
-                  />
-                )}
+                {!isUploadsForm(form) &&
+                  editor.isDirty(form.file) && (
+                    // The single Save covers every tab, so an unsaved edit
+                    // elsewhere has to be visible from here.
+                    <span
+                      aria-label={t('settings.unsavedTab')}
+                      className="bg-primary size-1.5 shrink-0 rounded-full"
+                    />
+                  )}
               </Row>
             ),
             content: body(form),

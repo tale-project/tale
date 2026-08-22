@@ -76,7 +76,7 @@ beforeEach(() => {
     vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ storageId: 'storage-1' }),
-    } as Response),
+    }),
   );
   vi.stubGlobal('URL', {
     ...URL,

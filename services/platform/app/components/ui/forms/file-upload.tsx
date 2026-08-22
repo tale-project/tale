@@ -330,7 +330,7 @@ function Overlay({ className, label }: OverlayProps) {
   return (
     <div
       className={cn(
-        'absolute -inset-px flex flex-col items-center justify-center z-50 gap-2 bg-info border-2 border-dashed border-info-foreground',
+        'bg-info border-info-foreground absolute -inset-px z-50 flex flex-col items-center justify-center gap-2 border-2 border-dashed',
         className,
       )}
     >

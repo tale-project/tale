@@ -273,7 +273,7 @@ function MilkdownEditorInner({
       <div className="bg-background relative rounded-xl border border-gray-300 px-3.5 pt-2.5 pb-1 shadow-sm">
         <div
           className={cn(
-            'transition-all duration-300 ease-in-out overflow-y-auto',
+            'overflow-y-auto transition-all duration-300 ease-in-out',
             getHeightClass(),
           )}
         >
@@ -290,7 +290,7 @@ function MilkdownEditorInner({
           <div
             className={cn(
               'h-full transition-opacity duration-300',
-              isSending && 'opacity-50 pointer-events-none',
+              isSending && 'pointer-events-none opacity-50',
               (isImproveMode || isImproving) && 'hidden',
             )}
           >

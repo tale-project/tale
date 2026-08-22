@@ -1478,24 +1478,22 @@ export function createChatToolExecutor(
       );
       const rows = found.attachments;
       const hasMore = found.truncated;
-      const results = rows.map(
-        (attachment): SearchResultEntry => ({
-          kind: 'mail-attachment',
-          title: attachment.fileName,
-          // The corpus ref, so a listed attachment can be read with rag_fetch
-          // instead of searched for by name.
-          ref: attachment.ref,
-          data: {
-            conversationId: attachment.conversationId,
-            contentType: attachment.contentType,
-            sizeBytes: attachment.size,
-            receivedAt: attachment.receivedAt,
-            // A received-but-unindexed attachment cannot be fetched for its
-            // text. Saying so beats implying it is readable.
-            indexed: attachment.indexed,
-          },
-        }),
-      );
+      const results = rows.map((attachment): SearchResultEntry => ({
+        kind: 'mail-attachment',
+        title: attachment.fileName,
+        // The corpus ref, so a listed attachment can be read with rag_fetch
+        // instead of searched for by name.
+        ref: attachment.ref,
+        data: {
+          conversationId: attachment.conversationId,
+          contentType: attachment.contentType,
+          sizeBytes: attachment.size,
+          receivedAt: attachment.receivedAt,
+          // A received-but-unindexed attachment cannot be fetched for its
+          // text. Saying so beats implying it is readable.
+          indexed: attachment.indexed,
+        },
+      }));
       return envelope({
         results,
         hasMore,
@@ -1547,18 +1545,16 @@ export function createChatToolExecutor(
       },
     );
     const hasMore = found.hasMore;
-    const results = found.documents.map(
-      (doc): SearchResultEntry => ({
-        kind: 'document',
-        title: doc.title,
-        ref: doc.fileId,
-        data: {
-          ...(doc.extension !== null ? { extension: doc.extension } : {}),
-          ...(doc.folderPath !== null ? { folderPath: doc.folderPath } : {}),
-          createdAt: doc.createdAt,
-        },
-      }),
-    );
+    const results = found.documents.map((doc): SearchResultEntry => ({
+      kind: 'document',
+      title: doc.title,
+      ref: doc.fileId,
+      data: {
+        ...(doc.extension !== null ? { extension: doc.extension } : {}),
+        ...(doc.folderPath !== null ? { folderPath: doc.folderPath } : {}),
+        createdAt: doc.createdAt,
+      },
+    }));
     // Hub and team files are the whole catalog only for project-less asks —
     // project files stay behind their "projectId", and the source line says
     // so rather than presenting the hub as everything.

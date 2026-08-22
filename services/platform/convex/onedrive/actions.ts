@@ -4,10 +4,7 @@ import { v } from 'convex/values';
 
 import { action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
-import {
-  importFiles as importFilesImpl,
-  type ImportItem,
-} from './import_files';
+import { importFiles as importFilesImpl } from './import_files';
 import { createImportFilesDeps } from './import_files_deps';
 import { listFiles as listFilesImpl } from './list_files';
 import { listSharePointDrives as listSharePointDrivesImpl } from './list_sharepoint_drives';
@@ -81,7 +78,7 @@ export const importFiles = action({
 
     return await importFilesImpl(
       {
-        items: args.items as ImportItem[],
+        items: args.items,
         organizationId: args.organizationId,
         importType: args.importType,
         teamId: args.teamId,

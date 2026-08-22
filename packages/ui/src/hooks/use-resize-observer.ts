@@ -19,8 +19,8 @@ type ResizeCallback = (entry: ResizeObserverEntry, target: Element) => void;
  * });
  * ```
  */
-export function useResizeObserver<T extends Element>(
-  target: T | null | undefined,
+export function useResizeObserver(
+  target: Element | null | undefined,
   callback: ResizeCallback,
 ): void {
   const callbackRef = useRef(callback);

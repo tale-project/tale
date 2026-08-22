@@ -163,7 +163,7 @@ describe('getOrCreateFolderPath', () => {
       _id: 'existing_1',
       name: 'docs',
       organizationId: 'org_1',
-      parentId: undefined as unknown as string,
+      parentId: undefined,
     });
 
     const result = await getOrCreateFolderPath(

@@ -145,7 +145,7 @@ async function seedFileRow(
     const bytes = new TextEncoder().encode(content);
     const storageId = await ctx.storage.store(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime
-      new Blob([bytes as BlobPart], { type: contentType }),
+      new Blob([bytes], { type: contentType }),
     );
     const rowId = await ctx.db.insert('fileMetadata', {
       organizationId,
@@ -167,7 +167,7 @@ async function seedStorageBlob(
     const bytes = new TextEncoder().encode(content);
     return await ctx.storage.store(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime
-      new Blob([bytes as BlobPart], { type: contentType }),
+      new Blob([bytes], { type: contentType }),
     );
   });
 }

@@ -92,5 +92,5 @@ for (const [key, value] of Object.entries(process.env)) {
 const environment = entries.length > 0 ? entries.join('\n') : '      {}';
 
 process.stdout.write(
-  `services:\n` + `  platform:\n` + `    environment:\n` + `${environment}\n`,
+  `services:\n  platform:\n    environment:\n${environment}\n`,
 );

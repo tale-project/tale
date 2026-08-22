@@ -6,6 +6,6 @@ import type { TFunction } from 'i18next';
 import type { Namespace } from './types';
 
 /** Typed wrapper that constrains the namespace to the platform message tree. */
-export function useT<N extends Namespace>(namespace: N): { t: TFunction } {
+export function useT(namespace: Namespace): { t: TFunction } {
   return useTBase(namespace);
 }

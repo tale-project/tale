@@ -11,7 +11,7 @@ export const BorderedSection = forwardRef<
   <div
     ref={ref}
     className={cn(
-      'flex flex-col gap-3 rounded-lg border border-border p-4',
+      'border-border flex flex-col gap-3 rounded-lg border p-4',
       className,
     )}
     {...props}

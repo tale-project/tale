@@ -107,7 +107,7 @@ function row(id: string, over: Partial<Row> = {}): Row {
 describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
   it('dispatches when the org is under the cap', async () => {
     const { ctx, scheduled, store } = makeCtx([row('a')]);
-    await maybeDispatchRagIndexing(ctx, 'a' as never);
+    await maybeDispatchRagIndexing(ctx, 'a');
     expect(scheduled).toHaveLength(1);
     expect(scheduled[0].args.storageId).toBe('a');
     expect(scheduled[0].ref).toBe('uploadFileToRag');
@@ -118,7 +118,7 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
     // documentId set + no threadId → uploadDocumentToRag with the exact blob
     // admitted by this row, NOT whatever file the document points at later.
     const { ctx, scheduled } = makeCtx([row('a', { documentId: 'doc1' })]);
-    await maybeDispatchRagIndexing(ctx, 'a' as never);
+    await maybeDispatchRagIndexing(ctx, 'a');
     expect(scheduled).toHaveLength(1);
     expect(scheduled[0].ref).toBe('uploadDocumentToRag');
     expect(scheduled[0].args).toEqual({
@@ -131,7 +131,7 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
     const { ctx, scheduled } = makeCtx([
       row('a', { documentId: 'doc1', threadId: 'thread1' }),
     ]);
-    await maybeDispatchRagIndexing(ctx, 'a' as never);
+    await maybeDispatchRagIndexing(ctx, 'a');
     expect(scheduled[0].ref).toBe('uploadFileToRag');
   });
 
@@ -143,7 +143,7 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
       row('c'),
     ];
     const { ctx, scheduled } = makeCtx(rows);
-    await maybeDispatchRagIndexing(ctx, 'c' as never);
+    await maybeDispatchRagIndexing(ctx, 'c');
     expect(scheduled).toHaveLength(1);
   });
 
@@ -155,7 +155,7 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
       row('d'),
     ];
     const { ctx, scheduled, store } = makeCtx(rows);
-    await maybeDispatchRagIndexing(ctx, 'd' as never);
+    await maybeDispatchRagIndexing(ctx, 'd');
     expect(scheduled).toHaveLength(0);
     expect(store.find((r) => r._id === 'd')?.ragParked).toBe(true);
   });
@@ -170,14 +170,14 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
       row('c'),
     ];
     const { ctx, scheduled } = makeCtx(rows);
-    await maybeDispatchRagIndexing(ctx, 'c' as never);
+    await maybeDispatchRagIndexing(ctx, 'c');
     expect(scheduled).toHaveLength(1);
   });
 
   it('no-ops for a non-queued or missing row', async () => {
     const { ctx, scheduled } = makeCtx([row('a', { ragStatus: 'completed' })]);
-    await maybeDispatchRagIndexing(ctx, 'a' as never);
-    await maybeDispatchRagIndexing(ctx, 'missing' as never);
+    await maybeDispatchRagIndexing(ctx, 'a');
+    await maybeDispatchRagIndexing(ctx, 'missing');
     expect(scheduled).toHaveLength(0);
   });
 
@@ -192,7 +192,7 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
     }
     rows.push(row('c', { organizationId: 'fresh' }));
     const { ctx, scheduled, store } = makeCtx(rows);
-    await maybeDispatchRagIndexing(ctx, 'c' as never);
+    await maybeDispatchRagIndexing(ctx, 'c');
     expect(scheduled).toHaveLength(0);
     expect(store.find((r) => r._id === 'c')?.ragParked).toBe(true);
   });
@@ -207,7 +207,7 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
     // is therefore not merely untidy; it is indistinguishable from live work.
     const rows = [row('e1'), row('e2'), row('e3'), row('upload')];
     const { ctx, scheduled, store } = makeCtx(rows);
-    await maybeDispatchRagIndexing(ctx, 'upload' as never);
+    await maybeDispatchRagIndexing(ctx, 'upload');
     expect(scheduled).toHaveLength(0);
     expect(store.find((r) => r._id === 'upload')?.ragParked).toBe(true);
   });
@@ -223,7 +223,7 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
       row('upload'),
     ];
     const { ctx, scheduled, store } = makeCtx(rows);
-    await maybeDispatchRagIndexing(ctx, 'upload' as never);
+    await maybeDispatchRagIndexing(ctx, 'upload');
     expect(scheduled).toHaveLength(1);
     expect(store.find((r) => r._id === 'upload')?.ragParked).toBeUndefined();
   });

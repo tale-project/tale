@@ -135,7 +135,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             // display state — pin the bordered variant so Input's native
             // readOnly → borderless auto-selection doesn't strip the chrome.
             className={cn(
-              'pl-10 max-w-70 h-9',
+              'h-9 max-w-70 pl-10',
               hasError && 'border-destructive focus-visible:ring-destructive',
               showShake && 'animate-shake',
               className,

@@ -9,7 +9,7 @@
 function readConvexErrorCode(err: unknown): string | undefined {
   if (err == null || typeof err !== 'object') return undefined;
   if (!('data' in err)) return undefined;
-  const data = (err as { data: unknown }).data;
+  const data = err.data;
   if (data == null || typeof data !== 'object') return undefined;
   const code = (data as { code?: unknown }).code;
   return typeof code === 'string' ? code : undefined;

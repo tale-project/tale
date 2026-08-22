@@ -550,7 +550,7 @@ export function Conversations({
 
       <div
         className={cn(
-          'flex-1 min-w-0',
+          'min-w-0 flex-1',
           // Show the reading pane on mobile when composing, when there's a
           // selection, OR when it's hosting the activate CTA (the empty list is
           // hidden there).
