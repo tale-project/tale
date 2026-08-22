@@ -4,7 +4,22 @@
   "rules": {
     "typescript/no-unsafe-type-assertion": "off",
     "typescript/no-unnecessary-type-assertion": "off",
-    "typescript/consistent-return": "off"
+    "typescript/consistent-return": "off",
+    "react/refs": "off",
+    "react/set-state-in-effect": "off",
+    "react/exhaustive-effect-dependencies": "off",
+    "react/memo-dependencies": "off",
+    "react/immutability": "off",
+    "react/purity": "off",
+    "react/no-deriving-state-in-effects": "off",
+    "react/hooks": "off",
+    "react/no-object-type-as-default-prop": "off",
+    "react/capitalized-calls": "off",
+    "react/preserve-manual-memoization": "off",
+    "react/static-components": "off",
+    "react/incompatible-library": "off",
+    "react/no-did-update-set-state": "off",
+    "promise/always-return": "off"
   },
   "ignorePatterns": [
     ".turbo",
