@@ -24,10 +24,22 @@ vi.mock('convex/react', () => ({
   useQuery: () => undefined,
 }));
 
+// The real preview dialog subscribes to Convex (document metadata, file URL).
+// These are composition tests of the chips' wiring — which chip opens the
+// dialog and with what identity — so stub it down to a queryable marker.
+const previewDialogProps: Array<{ fileId?: string; fileName?: string }> = [];
+vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({
+  DocumentPreviewDialog: (props: { fileId?: string; fileName?: string }) => {
+    previewDialogProps.push(props);
+    return <div role="dialog">{props.fileName}</div>;
+  },
+}));
+
 import { FileAttachmentDisplay, FilePartDisplay } from './file-displays';
 
 beforeEach(() => {
   useFileUrlCalls.length = 0;
+  previewDialogProps.length = 0;
 });
 
 const STORAGE_URL =
@@ -133,26 +145,32 @@ function attachment(
   };
 }
 
-// REGRESSION: task Output / attachment chips resolved a bare
-// `/api/storage/<uuid>` URL, so the browser saved downloads under the storage
-// uuid instead of the real file name. Non-image chips must request a NAMED
-// URL (served with Content-Disposition); images and audio/video must not —
-// their URLs render inline (thumbnail, lightbox, native player).
-describe('FileAttachmentDisplay — download naming', () => {
-  const NAMED_URL =
-    'http://localhost:3000/http_api/storage?id=storage-1&filename=spec.pdf';
-
-  it('resolves a document chip with its file name and links the named URL', () => {
-    fileUrlData = NAMED_URL;
-    render(
+// Document chips open the same preview dialog the documents surfaces use
+// (render in place; the dialog's header owns the named Download for the
+// rest). Images keep the inline thumbnail + lightbox and audio/video the
+// browser's inline player, so only THOSE still resolve a URL — unnamed,
+// because an attachment disposition would break inline rendering.
+describe('FileAttachmentDisplay — preview + inline behavior', () => {
+  it('opens the document preview dialog when a document chip is clicked', async () => {
+    fileUrlData = undefined;
+    const { user } = render(
       <FileAttachmentDisplay
         attachment={attachment()}
         organizationId="org_1"
       />,
     );
 
-    expect(useFileUrlCalls).toEqual([['storage-1', false, 'spec.pdf']]);
-    expect(screen.getByRole('link')).toHaveAttribute('href', NAMED_URL);
+    // No URL fetch for document chips — the dialog resolves its own.
+    expect(useFileUrlCalls).toEqual([['storage-1', true]]);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /spec\.pdf/ }));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(previewDialogProps).toEqual([
+      expect.objectContaining({ fileId: 'storage-1', fileName: 'spec.pdf' }),
+    ]);
   });
 
   it('resolves an image without a file name so it keeps rendering inline', () => {
@@ -169,12 +187,13 @@ describe('FileAttachmentDisplay — download naming', () => {
       />,
     );
 
-    expect(useFileUrlCalls).toEqual([['storage-1', true, undefined]]);
+    expect(useFileUrlCalls).toEqual([['storage-1', true]]);
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('resolves audio without a file name so the chip keeps opening the player', () => {
-    fileUrlData = 'http://localhost:3000/api/storage/storage-1';
+  it('keeps audio chips opening the inline player, not the preview dialog', () => {
+    const PLAYER_URL = 'http://localhost:3000/api/storage/storage-1';
+    fileUrlData = PLAYER_URL;
     render(
       <FileAttachmentDisplay
         attachment={attachment({
@@ -185,6 +204,7 @@ describe('FileAttachmentDisplay — download naming', () => {
       />,
     );
 
-    expect(useFileUrlCalls).toEqual([['storage-1', false, undefined]]);
+    expect(useFileUrlCalls).toEqual([['storage-1', false]]);
+    expect(screen.getByRole('link')).toHaveAttribute('href', PLAYER_URL);
   });
 });

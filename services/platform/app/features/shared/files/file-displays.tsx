@@ -184,15 +184,15 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   const { t } = useT('chat');
   const isImage = attachment.fileType.startsWith('image/');
   const isMedia = isAudioOrVideo(attachment.fileType);
-  // Document chips are download targets: resolve their URL with the real file
-  // name so it serves as `Content-Disposition: attachment` and the browser
-  // saves e.g. `slides.pptx` instead of the bare storage uuid. Images stay
-  // unnamed (they render inline in the thumbnail + lightbox); audio/video too,
-  // so their chip keeps opening the browser's inline player.
+  const isDocument = !isImage && !isMedia;
+  // Document chips open the in-app preview dialog (whose header owns the
+  // named Download), so no URL is resolved for them here. Only images
+  // (thumbnail + lightbox) and audio/video (the browser's inline player)
+  // still need one — unnamed, because an attachment disposition would break
+  // inline rendering.
   const { data: serverFileUrl } = useFileUrl(
     attachment.fileId,
-    !!attachment.previewUrl,
-    isImage || isMedia ? undefined : attachment.fileName,
+    !!attachment.previewUrl || isDocument,
   );
   const displayUrl = attachment.previewUrl || serverFileUrl || undefined;
 
@@ -210,6 +210,7 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
     audioMetadata?.transcriptionStatus === 'completed' &&
     !!audioMetadata.transcript;
   const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   if (isImage && !displayUrl) {
     return (
@@ -240,6 +241,55 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
 
   const displayName = middleEllipsis(attachment.fileName, 28);
   const sizeLabel = formatFileSize(attachment.fileSize);
+
+  const chipBody = (
+    <>
+      <FileTypeIcon
+        fileType={attachment.fileType}
+        fileName={attachment.fileName}
+      />
+      <VStack className="min-w-0 flex-1">
+        <Text as="div" variant="label" title={attachment.fileName}>
+          {displayName}
+        </Text>
+        <Text as="div" variant="caption">
+          {sizeLabel}
+        </Text>
+      </VStack>
+    </>
+  );
+
+  // Documents open the same preview dialog the documents surfaces use —
+  // rendered in place when a renderer exists; everything else lands on the
+  // dialog's "not available" state with its header Download button.
+  if (isDocument) {
+    return (
+      <>
+        <Row
+          gap={3}
+          className="bg-muted hover:bg-muted/80 max-w-[280px] rounded-lg px-3 py-2 transition-colors"
+        >
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="focus-visible:ring-ring flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-md border-none bg-transparent p-0 text-left focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {chipBody}
+          </button>
+        </Row>
+        {previewOpen && (
+          <DocumentPreviewDialog
+            open
+            onOpenChange={(open) => {
+              if (!open) setPreviewOpen(false);
+            }}
+            fileId={attachment.fileId}
+            fileName={attachment.fileName}
+          />
+        )}
+      </>
+    );
+  }
 
   const viewTranscriptButton = canPreviewTranscript ? (
     <button
@@ -286,18 +336,7 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
     return (
       <>
         <Row gap={3} className="bg-muted max-w-[280px] rounded-lg px-3 py-2">
-          <FileTypeIcon
-            fileType={attachment.fileType}
-            fileName={attachment.fileName}
-          />
-          <VStack className="min-w-0 flex-1">
-            <Text as="div" variant="label" title={attachment.fileName}>
-              {displayName}
-            </Text>
-            <Text as="div" variant="caption">
-              {sizeLabel}
-            </Text>
-          </VStack>
+          {chipBody}
           {viewTranscriptButton}
         </Row>
         {transcriptDialog}
@@ -317,18 +356,7 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
           rel="noopener noreferrer"
           className="flex min-w-0 flex-1 items-center gap-3"
         >
-          <FileTypeIcon
-            fileType={attachment.fileType}
-            fileName={attachment.fileName}
-          />
-          <VStack className="min-w-0 flex-1">
-            <Text as="div" variant="label" title={attachment.fileName}>
-              {displayName}
-            </Text>
-            <Text as="div" variant="caption">
-              {sizeLabel}
-            </Text>
-          </VStack>
+          {chipBody}
         </a>
         {viewTranscriptButton}
       </Row>

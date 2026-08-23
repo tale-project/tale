@@ -56,8 +56,8 @@ export function TaskAttachments({
   // attachment (client-side `previewUrl` first, else a batched server
   // lookup), then let a click open the same `ImagePreviewDialog` chat uses.
   // Before this, images had no `onImageClick` at all — the thumbnail button
-  // rendered but its click was a no-op (#2664). Non-image attachments
-  // already get an open-in-new-tab link from `FileAttachmentDisplay` itself.
+  // rendered but its click was a no-op (#2664). Non-image attachments open
+  // the document preview dialog from `FileAttachmentDisplay` itself.
   const imageAttachments = useMemo(
     () => attachments.filter((a) => isImage(a.fileType)),
     [attachments],
