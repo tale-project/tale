@@ -31,7 +31,7 @@ Open **Settings > Enterprise SSO**, pick a **Protocol**, and fill in only that p
 5. Open **Certificates & secrets > New client secret** and copy the secret **Value** (not the Secret ID).
 6. In Tale, choose **Microsoft Entra ID**, and enter the client ID, client secret, and issuer URL.
 7. For group-to-team sync, add the Microsoft Graph **GroupMember.Read.All** permission under **API permissions** and grant admin consent.
-8. For OneDrive and SharePoint document sync, add the Microsoft Graph **Files.Read** and **Sites.Read.All** permissions under **API permissions** and grant admin consent. A new connection requests both by default — the SSO token doubles as the Graph token, so members can import files right after signing in. If the organisation should only sign in, remove the two scopes from the **Scopes** field; the Microsoft 365 entry then stays hidden on the documents page.
+8. OneDrive and SharePoint file import is **not** part of SSO. Members authorize it from **Knowledge → Documents → From Microsoft 365 → Connect Microsoft 365**, which requests Graph **Files.Read** and **Sites.Read.All** on that consent screen alone. Do not add those scopes to the SSO **Scopes** field.
 
 ## Google
 

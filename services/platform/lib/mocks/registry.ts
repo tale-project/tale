@@ -110,8 +110,8 @@ const CONNECTOR_SPECS: readonly MockSpec[] = [
     category: 'connector',
   },
   {
-    // Teams and Outlook both call the Microsoft Graph API on the same host, so
-    // one spec serves both connectors.
+    // Teams, Outlook, and OneDrive all call the Microsoft Graph API on the same
+    // host, so one spec serves all three connectors.
     name: 'microsoft-graph',
     label: 'Microsoft Graph API (Teams + Outlook)',
     specPath: spec('connectors/microsoft-graph.openapi.yaml'),

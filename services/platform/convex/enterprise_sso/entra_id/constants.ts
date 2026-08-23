@@ -1,13 +1,23 @@
 export const MICROSOFT_LOGIN_BASE = 'https://login.microsoftonline.com';
 export const MICROSOFT_GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 
-export const ONEDRIVE_SCOPES = [
-  'https://graph.microsoft.com/Files.Read',
-  'https://graph.microsoft.com/Sites.Read.All',
-  'offline_access',
-];
-
 export const DEFAULT_SCOPES = ['openid', 'profile', 'email', 'offline_access'];
+
+/**
+ * Graph file scopes belong on Knowledge cloud-import OAuth, never on SSO
+ * authorize. Strip both short and fully-qualified forms so a legacy Scopes
+ * field or enableOneDriveAccess config cannot reattach them to sign-in.
+ */
+const SSO_EXCLUDED_FILE_SCOPES = new Set([
+  'Files.Read',
+  'https://graph.microsoft.com/Files.Read',
+  'Sites.Read.All',
+  'https://graph.microsoft.com/Sites.Read.All',
+]);
+
+export function withoutGraphFileScopes(scopes: readonly string[]): string[] {
+  return scopes.filter((scope) => !SSO_EXCLUDED_FILE_SCOPES.has(scope));
+}
 
 /**
  * The canonical, actionable message every "bad Entra issuer" failure funnels

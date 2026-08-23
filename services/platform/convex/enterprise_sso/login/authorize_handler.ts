@@ -1,7 +1,7 @@
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
 import { encryptString } from '../../lib/crypto/encrypt_string';
-import { ONEDRIVE_SCOPES } from '../entra_id/adapter';
+import { withoutGraphFileScopes } from '../entra_id/constants';
 import { generatePkcePair } from '../pkce';
 import { getAdapter } from '../registry';
 import { signValue } from '../sign_cookie_value';
@@ -123,13 +123,8 @@ export async function ssoAuthorizeHandler(
       .replace(/=+$/, '');
     const state = await signValue(base64Payload, secret);
 
-    const scopes = [...config.scopes];
-    const additionalScopes: string[] = [];
-    if (config.enableOneDriveAccess) {
-      for (const scope of ONEDRIVE_SCOPES) {
-        if (!scopes.includes(scope)) additionalScopes.push(scope);
-      }
-    }
+    // Identity scopes only — never Graph file scopes (Knowledge cloud-import).
+    const scopes = withoutGraphFileScopes(config.scopes);
 
     const authUrl = await adapter.buildAuthorizeUrl(
       {
@@ -147,7 +142,7 @@ export async function ssoAuthorizeHandler(
         redirectUri,
         state,
         loginHint,
-        additionalScopes,
+        additionalScopes: [],
         prompt,
         domainHint: config.domainHint,
         claims: claimsParam || undefined,

@@ -48,6 +48,7 @@ import {
   removeFileSafe,
 } from '../../lib/file_io';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
+import { withoutGraphFileScopes } from '../entra_id/constants';
 import {
   MAX_FILE_SIZE_BYTES,
   parseSsoSecretsJson,
@@ -259,11 +260,12 @@ export const writeOidcConnection = internalAction({
         authorizationEndpoint: args.authorizationEndpoint,
         tokenEndpoint: args.tokenEndpoint,
         userinfoEndpoint: args.userinfoEndpoint,
-        scopes: args.scopes,
+        scopes: withoutGraphFileScopes(args.scopes),
         pkce: args.pkce,
         domainHint: args.domainHint,
         claimMappings: args.claimMappings,
-        enableOneDriveAccess: args.enableOneDriveAccess,
+        // Deprecated SSO flag — never request Graph file scopes on sign-in.
+        enableOneDriveAccess: false,
       },
       provisioning: provisioningFrom(args),
     };

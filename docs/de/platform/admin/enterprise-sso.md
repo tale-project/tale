@@ -31,7 +31,7 @@ Tale spricht vier Protokolle: **OIDC**, einfaches **OAuth2**, **SAML 2.0** für 
 5. Öffne **Zertifikate & Geheimnisse > Neues Clientgeheimnis** und kopiere den **Wert** des Geheimnisses (nicht die Geheimnis-ID).
 6. Wähle in Tale **Microsoft Entra ID** und gib Client-ID, Clientgeheimnis und Issuer-URL ein.
 7. Für die Gruppe-zu-Team-Synchronisierung füge unter **API-Berechtigungen** die Microsoft-Graph-Berechtigung **GroupMember.Read.All** hinzu und erteile die Administratorzustimmung.
-8. Für die OneDrive- und SharePoint-Dokumentensynchronisation füge unter **API-Berechtigungen** die Microsoft-Graph-Berechtigungen **Files.Read** und **Sites.Read.All** hinzu und erteile die Administratorzustimmung. Eine neue Verbindung fordert beide standardmäßig an — das SSO-Token dient zugleich als Graph-Token, Mitglieder können also direkt nach der Anmeldung Dateien importieren. Soll die Organisation nur die Anmeldung nutzen, entferne die beiden Scopes aus dem Feld **Scopes**; der Microsoft-365-Eintrag bleibt dann auf der Dokumentenseite verborgen.
+8. OneDrive- und SharePoint-Dateiimport gehört **nicht** zum SSO. Mitglieder autorisieren ihn unter **Wissen → Dokumente → Von Microsoft 365 → Microsoft 365 verbinden** — dort fragt Tale Graph **Files.Read** und **Sites.Read.All** an. Trage diese Scopes nicht in das SSO-Feld **Scopes** ein.
 
 ## Google
 

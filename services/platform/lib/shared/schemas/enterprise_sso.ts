@@ -87,9 +87,8 @@ export const ssoTokensSchema = z.object({
   expiresAt: z.number().optional(),
   idToken: z.string().optional(),
   /** Space-separated scopes actually granted by the IdP (`scope` in the token
-   *  response). Persisted on the account row so features that need a specific
-   *  grant (OneDrive's `Files.Read`) can tell a capable token from a bare
-   *  sign-in token. */
+   *  response). Persisted on the account row for diagnostics. File import does
+   *  not use the SSO token — Knowledge cloud-import OAuth owns that grant. */
   scope: z.string().optional(),
 });
 export type SsoTokens = z.infer<typeof ssoTokensSchema>;
@@ -139,7 +138,7 @@ const oidcConfigViewSchema = z.object({
   pkce: z.boolean().optional(),
   domainHint: z.string().optional(),
   claimMappings: attributeMappingSchema.optional(),
-  /** Entra/Graph extras (OneDrive scope, etc.). */
+  /** @deprecated Ignored. File import uses Knowledge cloud-import OAuth, not SSO. */
   enableOneDriveAccess: z.boolean().optional(),
 });
 type OidcConfigView = z.infer<typeof oidcConfigViewSchema>;
@@ -230,6 +229,7 @@ const oidcFileConfigSchema = z.object({
   pkce: z.boolean().optional(),
   domainHint: z.string().optional(),
   claimMappings: attributeMappingSchema.optional(),
+  /** @deprecated Ignored. File import uses Knowledge cloud-import OAuth, not SSO. */
   enableOneDriveAccess: z.boolean().optional(),
 });
 type OidcFileConfig = z.infer<typeof oidcFileConfigSchema>;
