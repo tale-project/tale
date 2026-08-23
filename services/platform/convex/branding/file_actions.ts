@@ -132,16 +132,24 @@ export const readBranding = action({
     // called". The pre-auth `default` bucket has no org, so no app name.
     let identity: OrgIdentity | null = null;
     if (args.organizationId) {
+      const organizationId = args.organizationId;
       try {
-        identity = await orgIdentityFromId(ctx, args.organizationId);
+        identity = await orgIdentityFromId(ctx, organizationId);
       } catch (err) {
         // A stale tab/bookmark keeps requesting a deleted org's branding until
         // the dashboard bounces it away — a terminal miss here is routine, not
         // a server fault, so serve the platform `default` bucket instead of an
         // uncaught throw. Transient transport errors still propagate.
         if (!isOrgSlugUnresolvable(err)) throw err;
+        // Echo at most 64 chars of the id: this action is unauthenticated and
+        // the arg is an unbounded string, so a verbatim echo would let junk-id
+        // probes pump arbitrary bytes into the log on every request.
+        const shownId =
+          organizationId.length > 64
+            ? `${organizationId.slice(0, 64)}… (${organizationId.length} chars)`
+            : organizationId;
         console.warn(
-          `[Branding] readBranding: unresolvable organization ${JSON.stringify(args.organizationId)}; serving default branding`,
+          `[Branding] readBranding: unresolvable organization (${err.reason}) ${JSON.stringify(shownId)}; serving default branding`,
         );
       }
     }
