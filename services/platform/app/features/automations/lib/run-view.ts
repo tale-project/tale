@@ -150,6 +150,28 @@ export function readRunCursorNode(
     : null;
 }
 
+/**
+ * The auto-retry attempt a LIVE run's parked agent turn is on (1-based), or
+ * null when the run is finished, not parked on an agent turn, or still on
+ * its original attempt. The counter lives only in the stepper's cursor, so
+ * a terminal run always reads null — its attempt count survives in the
+ * failure detail instead.
+ */
+export function readRunAgentRetry(
+  run: RunLike | null | undefined,
+): number | null {
+  if (!run || isRunFinished(readRunStatus(run.status))) return null;
+  const checkpoints = run.checkpoints;
+  if (!isRecord(checkpoints)) return null;
+  const cursor = checkpoints.cursor;
+  if (!isRecord(cursor)) return null;
+  const agent = cursor.agent;
+  if (!isRecord(agent)) return null;
+  return typeof agent.attempt === 'number' && agent.attempt >= 1
+    ? agent.attempt
+    : null;
+}
+
 /** One run as the canvas and the run detail read it. */
 export interface RunProjection {
   /** Per-node view, keyed by node id. */

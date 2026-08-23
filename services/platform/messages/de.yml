@@ -784,6 +784,9 @@ automations:
     heading: 'Lauf von {automation}'
     empty: Diese Automatisierung ist noch nicht gelaufen.
     loading: Lauf wird geladen …
+    # Während die Plattform den fehlgeschlagenen Agent-Schritt von selbst
+    # wiederholt — damit klar ist, dass nicht du es warst.
+    autoRetrying: 'Automatischer Versuch {n} von {max}'
     cancel: Lauf stoppen
     startedBy: 'Gestartet von {actor}'
     startedAt: 'Gestartet {date}'

@@ -821,19 +821,33 @@ const readInvoices: Automation = {
 };
 
 /** Every kick/cancel the stepper asked the agent door for. */
-const agentKicks: Array<{ runId: string; nodeId: string; request: unknown }> =
-  [];
+const agentKicks: Array<{
+  runId: string;
+  nodeId: string;
+  request: unknown;
+  excludeBrokerTokenHashes?: string[];
+}> = [];
 const agentCancels: Array<{ sessionId: string; execId: string }> = [];
 
-/** A recording agent host: kicks park, polls see nothing (the settle writes
- * straight into the cursor, which the next turn reads), cancels record. */
+/** A recording agent host: kicks park under sequential exec ids (`exec-1`,
+ * `exec-2`, … — a retry's re-kick is a fresh exec), polls see nothing (the
+ * settle writes straight into the cursor, which the next turn reads),
+ * cancels record. */
 function recordingAgentFactory(kick?: () => never): void {
   setAutomationAgentHostFactory((_ctx, _organizationId) => ({
-    kick: async ({ runId, nodeId, request }) => {
+    kick: async ({ runId, nodeId, request, excludeBrokerTokenHashes }) => {
       if (kick !== undefined) kick();
-      agentKicks.push({ runId, nodeId, request });
+      const execId = `exec-${agentKicks.length + 1}`;
+      agentKicks.push({
+        runId,
+        nodeId,
+        request,
+        ...(excludeBrokerTokenHashes !== undefined
+          ? { excludeBrokerTokenHashes }
+          : {}),
+      });
       return {
-        execId: 'exec-1',
+        execId,
         sessionId: 'wf-session-1',
         deadlineAt: Date.now() + 60_000,
         providerSlug: 'vendor',
@@ -998,7 +1012,7 @@ describe('durable stepper — agent nodes', () => {
     ]);
   });
 
-  it('an errored settle fails the node with its reason', async () => {
+  it('a denylisted errored settle fails the node with its reason, no retry', async () => {
     recordingAgentFactory();
     const t = convexTest(schema, modules);
     await publish(t, readInvoices);
@@ -1015,7 +1029,8 @@ describe('durable stepper — agent nodes', () => {
       execId: 'exec-1',
       result: {
         errored: true,
-        reason: 'the agent turn could not start: staging skills failed',
+        reason: 'the agent turn ran past its time limit and was stopped',
+        failureCode: 'deadline',
         text: '',
         files: [],
       },
@@ -1023,7 +1038,9 @@ describe('durable stepper — agent nodes', () => {
 
     expect(await drive(t, runId)).toBe('failed');
     const row = await runRow(t, runId);
-    expect(row.detail).toContain('staging skills failed');
+    expect(row.detail).toContain('ran past its time limit');
+    expect(row.detail).not.toContain('attempts');
+    expect(agentKicks).toHaveLength(1);
   });
 
   it('a stale settle records nothing and resurrects nothing', async () => {
@@ -1048,6 +1065,267 @@ describe('durable stepper — agent nodes', () => {
     );
     expect(recorded).toEqual({ recorded: false });
     expect((await runRow(t, runId)).status).toBe('waiting');
+  });
+});
+
+describe('durable stepper — agent auto-retry', () => {
+  /** Settle the given exec as a retryable failure (no code = default-retry). */
+  async function settleErrored(
+    t: T,
+    runId: Id<'automationRuns'>,
+    execId: string,
+    result: Record<string, unknown> = {},
+  ) {
+    return await t.mutation(
+      internal.automations.mutations.recordAgentTurnSettled,
+      {
+        organizationId: ORG,
+        runId,
+        nodeId: 'extract',
+        execId,
+        result: {
+          errored: true,
+          reason: 'the agent turn could not start: fetch failed',
+          failureCode: 'start_failed',
+          text: '',
+          files: [],
+          ...result,
+        },
+      },
+    );
+  }
+
+  async function agentCursor(t: T, runId: Id<'automationRuns'>) {
+    const cursor = readCheckpoints((await runRow(t, runId)).checkpoints).cursor;
+    if (cursor?.agent === undefined) throw new Error('no parked agent cursor');
+    return cursor.agent;
+  }
+
+  it('re-kicks a retryable failure in place and consumes the retry settle', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+
+    await turn(t, runId);
+    await settleErrored(t, runId, 'exec-1');
+    await turn(t, runId);
+
+    // Parked again on a fresh exec, run alive, attempt counted.
+    const parked = await runRow(t, runId);
+    expect(parked.status).toBe('waiting');
+    expect(parked.detail).toBe('agent:extract');
+    expect(await agentCursor(t, runId)).toMatchObject({
+      execId: 'exec-2',
+      attempt: 1,
+    });
+    expect(agentKicks).toHaveLength(2);
+    // The retry re-kicks the SAME resolved request — no template re-eval.
+    expect(agentKicks[1]?.request).toEqual(agentKicks[0]?.request);
+
+    await t.mutation(internal.automations.mutations.recordAgentTurnSettled, {
+      organizationId: ORG,
+      runId,
+      nodeId: 'extract',
+      execId: 'exec-2',
+      result: { errored: false, text: 'extracted', files: [], status: 'ok' },
+    });
+    expect(await drive(t, runId)).toBe('success');
+    const row = await runRow(t, runId);
+    expect(row.output).toMatchObject({ text: 'extracted' });
+    // Exactly one agent effect lands — the consuming turn's.
+    expect(
+      (row.effects as Array<{ connector: string }>).filter(
+        (effect) => effect.connector === 'agent',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('exhausts the budget after three retries and records the attempt count', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+
+    await turn(t, runId);
+    for (const execId of ['exec-1', 'exec-2', 'exec-3']) {
+      await settleErrored(t, runId, execId);
+      await turn(t, runId);
+      expect((await runRow(t, runId)).status).toBe('waiting');
+    }
+    expect(await agentCursor(t, runId)).toMatchObject({
+      execId: 'exec-4',
+      attempt: 3,
+    });
+    await settleErrored(t, runId, 'exec-4');
+
+    expect(await drive(t, runId)).toBe('failed');
+    const row = await runRow(t, runId);
+    expect(row.detail).toContain('fetch failed');
+    expect(row.detail).toContain('(after 4 attempts)');
+    // The budget is spent — no fifth kick.
+    expect(agentKicks).toHaveLength(4);
+  });
+
+  it('a settle without a failure code retries by default', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+
+    await turn(t, runId);
+    // No reason, no code — the pre-classification settle shape.
+    await t.mutation(internal.automations.mutations.recordAgentTurnSettled, {
+      organizationId: ORG,
+      runId,
+      nodeId: 'extract',
+      execId: 'exec-1',
+      result: {
+        errored: true,
+        text: 'API Error: Request rejected (429)',
+        files: [],
+      },
+    });
+    await turn(t, runId);
+
+    expect((await runRow(t, runId)).status).toBe('waiting');
+    expect(agentKicks).toHaveLength(2);
+  });
+
+  it('an expired ask never retries — a fresh turn would only re-ask', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+
+    await turn(t, runId);
+    await settleErrored(t, runId, 'exec-1', {
+      reason:
+        'the agent asked the operator a question and nobody answered within 7 days',
+      failureCode: 'ask_expired',
+    });
+
+    expect(await drive(t, runId)).toBe('failed');
+    expect((await runRow(t, runId)).detail).toContain('nobody answered');
+    expect(agentKicks).toHaveLength(1);
+  });
+
+  it('an attempt that executed past the progress threshold refreshes the budget and keeps burned hashes', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+
+    await turn(t, runId);
+    await settleErrored(t, runId, 'exec-1');
+    await turn(t, runId);
+    await settleErrored(t, runId, 'exec-2');
+    await turn(t, runId);
+    expect(await agentCursor(t, runId)).toMatchObject({
+      execId: 'exec-3',
+      attempt: 2,
+    });
+
+    // Attempt 2 launches, runs past the progress threshold on a broker
+    // account, then fails: the counter resets, the burned account does not.
+    const stamped = await t.mutation(
+      internal.automations.mutations.stampAgentTurnLaunch,
+      {
+        organizationId: ORG,
+        runId,
+        nodeId: 'extract',
+        execId: 'exec-3',
+        launchedAt: Date.now() - 16 * 60_000,
+        brokerTokenHash: 'hash-b',
+      },
+    );
+    expect(stamped).toEqual({ stamped: true });
+    await settleErrored(t, runId, 'exec-3');
+    await turn(t, runId);
+
+    expect(await agentCursor(t, runId)).toMatchObject({
+      execId: 'exec-4',
+      attempt: 1,
+      burnedBrokerTokenHashes: ['hash-b'],
+    });
+    expect(agentKicks[3]?.excludeBrokerTokenHashes).toEqual(['hash-b']);
+  });
+
+  it("rotation: the re-kick excludes the settled attempt's broker account", async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+
+    await turn(t, runId);
+    await t.mutation(internal.automations.mutations.stampAgentTurnLaunch, {
+      organizationId: ORG,
+      runId,
+      nodeId: 'extract',
+      execId: 'exec-1',
+      launchedAt: Date.now(),
+      brokerTokenHash: 'hash-a',
+    });
+    await settleErrored(t, runId, 'exec-1');
+    await turn(t, runId);
+
+    expect(agentKicks[1]?.excludeBrokerTokenHashes).toEqual(['hash-a']);
+    expect(await agentCursor(t, runId)).toMatchObject({
+      execId: 'exec-2',
+      burnedBrokerTokenHashes: ['hash-a'],
+    });
+    // The first kick carried no exclusions.
+    expect(agentKicks[0]?.excludeBrokerTokenHashes).toBeUndefined();
+  });
+
+  it('a stale settle from the replaced exec records nothing after the re-kick', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+
+    await turn(t, runId);
+    await settleErrored(t, runId, 'exec-1');
+    await turn(t, runId);
+
+    // The dead attempt's chain settles late — refused, the retry unharmed.
+    const stale = await settleErrored(t, runId, 'exec-1');
+    expect(stale).toEqual({ recorded: false });
+    const launch = await t.mutation(
+      internal.automations.mutations.stampAgentTurnLaunch,
+      {
+        organizationId: ORG,
+        runId,
+        nodeId: 'extract',
+        execId: 'exec-1',
+        launchedAt: Date.now(),
+      },
+    );
+    expect(launch).toEqual({ stamped: false });
+    const cursor = await agentCursor(t, runId);
+    expect(cursor.execId).toBe('exec-2');
+    expect(cursor.launchedAt).toBeUndefined();
   });
 });
 

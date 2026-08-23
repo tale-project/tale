@@ -54,6 +54,12 @@ Ein Live-Lauf läuft nicht in einem Zug durch. Er geht Node für Node vor, und j
 
 Dieselben Checkpoints decken einen Lauf ab, dessen Fortsetzung verloren ging. Ein Lauf, der über eine Schonfrist hinaus in einem nicht abgeschlossenen Zustand liegt, wird von selbst wieder aufgenommen und setzt dort fort, wo seine Checkpoints ihn verorten — statt neu zu starten oder für immer unfertig liegen zu bleiben.
 
+## Wenn ein Agent-Schritt fehlschlägt
+
+Schlägt ein Agent-Schritt aus einem Grund fehl, an dem ein neuer Anlauf etwas ändern kann — der Anbieter hat den Aufruf abgewiesen, die Sandbox ist unter ihm gestorben, der Harness ist abgestürzt —, wiederholt der Lauf ihn von selbst: bis zu drei automatische Versuche, sofort, zusätzlich zum ursprünglichen. Alles oberhalb behält seine Checkpoints, der Lauf bleibt durchgehend live, und sein Kopf zählt die Versuche der Plattform als **Automatischer Versuch 1 von 3** — so unterscheidest du die Wiederholung der Engine von einem Neustart, den du selbst angestoßen hast. Ein Versuch, der echten Fortschritt gemacht hat — fünfzehn Minuten tatsächlicher Ausführung —, frischt das Budget auf, statt es zu verbrauchen; und bei Anbietern, die aus einem Pool von Abo-Konten bedient werden, meidet jeder neue Versuch die Konten, die gerade gescheitert sind.
+
+Zwei Fehlschläge werden nie wiederholt, weil ein frischer Versuch nicht anders enden könnte: ein Schritt, der sein ganzes Zeitfenster aufgebraucht hat, und eine Frage, die bis zu ihrem Ablauf unbeantwortet blieb. Ist das Budget verbraucht, schlägt der Lauf mit dem letzten Fehler fehl und nennt, wie viele Versuche er verbrannt hat; jeder Versuch wird einzeln abgerechnet — ein Lauf mit drei Wiederholungen hat also vier bezahlt. Ein wiederholender Lauf bleibt ein einziger Live-Lauf — **Lauf stoppen** ist der Ausweg, wenn du siehst, dass weitere Versuche nichts mehr ändern.
+
 ## Eine durchgespielte Fehlersuche
 
 Die tägliche Erinnerung ging nicht raus. Öffne die Automatisierung und sieh in die Liste **Läufe**: Der Lauf von heute Morgen steht da und ist **Fehlgeschlagen**, mit dem Grund in der Zeile.

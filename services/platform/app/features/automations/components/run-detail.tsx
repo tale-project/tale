@@ -30,6 +30,8 @@ import {
   isRunFinished,
   nodeStatusMap,
   projectRun,
+  readRunAgentRetry,
+  readRunCursorNode,
   readRunStatus,
 } from '../lib/run-view';
 import { AgentExecutionLog } from './agent-execution-log';
@@ -89,8 +91,9 @@ export function RunDetail({
       nodeStatusMap(
         projection,
         graph.nodes.map((node) => node.id),
+        readRunCursorNode(run),
       ),
-    [graph.nodes, projection],
+    [graph.nodes, projection, run],
   );
   const nodeTypes = useMemo(
     () => mergeNodeTypes(catalogQuery.data),
@@ -136,6 +139,18 @@ export function RunDetail({
           title={t('runs.heading', { automation: run.name })}
         />
         <RunBadge status={status} />
+        {(() => {
+          const retryAttempt = readRunAgentRetry(run);
+          if (retryAttempt === null) return null;
+          return (
+            <Text as="span" variant="muted" className="text-xs">
+              {t('runs.autoRetrying', {
+                n: retryAttempt,
+                max: run.agentAutoRetryMax,
+              })}
+            </Text>
+          );
+        })()}
         <Badge variant={run.mode === 'live' ? 'orange' : 'slate'}>
           {t(`runs.mode.${run.mode === 'live' ? 'live' : 'mock'}`)}
         </Badge>

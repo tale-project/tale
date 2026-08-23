@@ -790,6 +790,9 @@ automations:
     heading: 'Exécution de {automation}'
     empty: Cette automatisation ne s’est encore jamais exécutée.
     loading: Chargement de l’exécution…
+    # Pendant que la plateforme retente d’elle-même l’étape agent échouée —
+    # pour distinguer sa relance de la tienne.
+    autoRetrying: 'Tentative automatique {n} sur {max}'
     cancel: Arrêter l’exécution
     startedBy: 'Lancée par {actor}'
     startedAt: 'Lancée {date}'

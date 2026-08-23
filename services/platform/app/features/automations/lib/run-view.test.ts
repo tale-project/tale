@@ -5,6 +5,7 @@ import {
   nodeStatusMap,
   projectRun,
   readEffects,
+  readRunAgentRetry,
   readRunStatus,
 } from './run-view';
 
@@ -85,6 +86,44 @@ describe('nodeStatusMap', () => {
     ]);
     expect(statuses.get('fetch')).toBe('ok');
     expect(statuses.get('later')).toBe('pending');
+  });
+});
+
+describe('readRunAgentRetry', () => {
+  const retrying = {
+    status: 'waiting',
+    checkpoints: {
+      nodes: {},
+      cursor: { node: 'extract', agent: { execId: 'e2', attempt: 2 } },
+      executions: 3,
+    },
+  };
+
+  it('reads the attempt off a live run parked on a retried agent turn', () => {
+    expect(readRunAgentRetry(retrying)).toBe(2);
+  });
+
+  it('reads null on the original attempt and off the agent park', () => {
+    expect(
+      readRunAgentRetry({
+        ...retrying,
+        checkpoints: {
+          ...retrying.checkpoints,
+          cursor: { node: 'extract', agent: { execId: 'e1' } },
+        },
+      }),
+    ).toBeNull();
+    expect(
+      readRunAgentRetry({
+        ...retrying,
+        checkpoints: { nodes: {}, cursor: { node: 'wait' }, executions: 1 },
+      }),
+    ).toBeNull();
+    expect(readRunAgentRetry(null)).toBeNull();
+  });
+
+  it('reads null on a finished run — the cursor is history there', () => {
+    expect(readRunAgentRetry({ ...retrying, status: 'failed' })).toBeNull();
   });
 });
 

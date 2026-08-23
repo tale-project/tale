@@ -65,6 +65,7 @@ import {
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import { hashBrokerToken } from '../provider_credentials/token_hash';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import {
   sessionIdForWorkflowExecution,
@@ -135,6 +136,9 @@ export interface AutomationAgentHost {
     runId: string;
     nodeId: string;
     request: WorkflowAgentRequest;
+    /** Broker-token hashes burned by prior failed attempts of this node
+     * execution — the mint rotates away from them (softly). */
+    excludeBrokerTokenHashes?: string[];
   }): Promise<WorkflowAgentKick>;
   /** The settled result, or `null` while the turn still runs. Reads fresh —
    * the settle may land after the stepper's turn loaded its checkpoints. */
@@ -295,7 +299,7 @@ export function automationAgentHost(
   organizationId: string,
 ): AutomationAgentHost {
   return {
-    kick: async ({ runId, nodeId, request }) => {
+    kick: async ({ runId, nodeId, request, excludeBrokerTokenHashes }) => {
       const harness = request.harness ?? DEFAULT_HARNESS;
       if (!isManagedHarness(harness)) {
         throw new Error(
@@ -372,6 +376,10 @@ export function automationAgentHost(
                 visionModelId: vision.modelId,
               }
             : {}),
+          ...(excludeBrokerTokenHashes !== undefined &&
+          excludeBrokerTokenHashes.length > 0
+            ? { excludeBrokerTokenHashes }
+            : {}),
           deadlineAt,
           request: {
             model: request.model,
@@ -433,6 +441,7 @@ export function automationAgentHost(
               errored: true,
               reason:
                 'the agent asked the operator a question and nobody answered within 7 days',
+              failureCode: 'ask_expired',
               text: '',
               files: [],
             },
@@ -863,6 +872,9 @@ interface WorkflowTurnAuth {
   allowedModels: string[];
   /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
   budgetCents: number;
+  /** sha256 of the broker token this turn was minted on — only the
+   * subscription-broker branch, where a retry can rotate accounts. */
+  brokerTokenHash?: string;
 }
 
 /**
@@ -890,6 +902,9 @@ async function mintWorkflowTurnAuth(
     /** Subscription lane only — the vendor API base the CLI calls. */
     apiBaseUrl?: string;
     vision: { providerSlug: string; modelId: string } | null;
+    /** Broker accounts burned by prior failed attempts — excluded softly
+     * (an emptied pool falls back to every account). */
+    excludeBrokerTokenHashes?: readonly string[];
   },
 ): Promise<WorkflowTurnAuth> {
   if (args.lane === 'gateway') {
@@ -921,6 +936,10 @@ async function mintWorkflowTurnAuth(
   const credential = await resolveProviderCredential(ctx, {
     organizationId: args.organizationId,
     providerSlug: args.providerSlug,
+    ...(args.excludeBrokerTokenHashes !== undefined &&
+    args.excludeBrokerTokenHashes.length > 0
+      ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
+      : {}),
   });
   if (
     credential.authMethod !== 'subscription-key' &&
@@ -946,6 +965,9 @@ async function mintWorkflowTurnAuth(
     tokenHash: hashVirtualKey(bridgeToken),
     allowedModels: [],
     budgetCents: 0,
+    ...(credential.authMethod === 'subscription-broker'
+      ? { brokerTokenHash: hashBrokerToken(credential.token) }
+      : {}),
   };
 }
 
@@ -977,6 +999,10 @@ export const startWorkflowAgentTurn = internalAction({
      * turn key and armed on the exec. */
     visionProviderSlug: v.optional(v.string()),
     visionModelId: v.optional(v.string()),
+    /** Broker accounts burned by prior failed attempts of this node
+     * execution — absent on first kicks and on in-flight calls from before
+     * auto-retry existed. */
+    excludeBrokerTokenHashes: v.optional(v.array(v.string())),
     deadlineAt: v.number(),
     request: requestValidator,
   },
@@ -1033,7 +1059,26 @@ export const startWorkflowAgentTurn = internalAction({
           ? { apiBaseUrl: args.apiBaseUrl }
           : {}),
         vision: visionRef,
+        ...(args.excludeBrokerTokenHashes !== undefined
+          ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
+          : {}),
       });
+      // Launch facts for the retry gate: the attempt is executing from here
+      // on, and (broker lane) on which account. Best-effort — a refused
+      // stamp only undercounts progress, never blocks the turn.
+      await ctx.runMutation(
+        internal.automations.mutations.stampAgentTurnLaunch,
+        {
+          organizationId: args.organizationId,
+          runId: args.runId,
+          nodeId: args.nodeId,
+          execId: args.execId,
+          launchedAt: Date.now(),
+          ...(auth.brokerTokenHash !== undefined
+            ? { brokerTokenHash: auth.brokerTokenHash }
+            : {}),
+        },
+      );
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
@@ -1160,6 +1205,7 @@ export const startWorkflowAgentTurn = internalAction({
       await settleWorkflowAgentTurn(ctx, args, {
         errored: true,
         reason: `the agent turn could not start: ${err instanceof Error ? err.message : String(err)}`,
+        failureCode: 'start_failed',
         text: '',
         files: [],
       });
@@ -1231,6 +1277,7 @@ export const driveWorkflowAgentTurn = internalAction({
       await settleWorkflowAgentTurn(ctx, args, {
         errored: true,
         reason: 'the agent turn ran past its time limit and was stopped',
+        failureCode: 'deadline',
         text: '',
         files: [],
       });
@@ -1250,9 +1297,13 @@ export const driveWorkflowAgentTurn = internalAction({
     } catch (err) {
       console.error('[agent-host] drive window threw:', err);
       await progress.flush();
+      // A drain that died at the deadline is the deadline, not a crash — a
+      // retry of a burned 12h window would be pure waste.
+      const pastDeadline = Date.now() > args.deadlineAt;
       await settleWorkflowAgentTurn(ctx, args, {
         errored: true,
-        reason: 'the agent turn stopped unexpectedly',
+        reason: `the agent turn stopped unexpectedly: ${err instanceof Error ? err.message : String(err)}`,
+        failureCode: pastDeadline ? 'deadline' : 'turn_crashed',
         text: '',
         files: [],
       });
@@ -1373,6 +1424,12 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
           ? { apiBaseUrl: serving.apiBaseUrl }
           : {}),
         vision,
+        // The resumed turn rotates like a re-kick would — re-minting on an
+        // account prior attempts already burned wastes the answer.
+        ...(agent.burnedBrokerTokenHashes !== undefined &&
+        agent.burnedBrokerTokenHashes.length > 0
+          ? { excludeBrokerTokenHashes: agent.burnedBrokerTokenHashes }
+          : {}),
       });
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
@@ -1420,6 +1477,23 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         );
         return null;
       }
+      // Launch facts under the resume's exec (the retarget just installed
+      // it): executed time measures the post-answer slice, matching the
+      // task lane's per-launch semantics.
+      await ctx.runMutation(
+        internal.automations.mutations.stampAgentTurnLaunch,
+        {
+          organizationId: args.organizationId,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the ask row carries the durable run id
+          runId: askRunId as never,
+          nodeId: ask.nodeId,
+          execId,
+          launchedAt: Date.now(),
+          ...(auth.brokerTokenHash !== undefined
+            ? { brokerTokenHash: auth.brokerTokenHash }
+            : {}),
+        },
+      );
       await ctx.runMutation(
         internal.sandbox.session_mutations.upsertSessionOp,
         {
@@ -1522,6 +1596,7 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       await settleWorkflowAgentTurn(ctx, keys, {
         errored: true,
         reason: `the agent turn could not resume after the answer: ${err instanceof Error ? err.message : String(err)}`,
+        failureCode: 'resume_failed',
         text: '',
         files: [],
       });
@@ -1667,6 +1742,7 @@ async function continueOrSettle(
     await settleWorkflowAgentTurn(ctx, args, {
       errored: true,
       reason: 'the sandbox session ended before the agent turn finished',
+      failureCode: 'session_gone',
       text: '',
       files: [],
     });
@@ -1753,6 +1829,19 @@ async function continueOrSettle(
     {
       errored,
       ...(crashReason !== undefined ? { reason: crashReason } : {}),
+      // Classification for the retry gate: a harness-reported error and a
+      // crashed-no-result window both read `harness_error` (mirroring the
+      // task lane), except a death at the deadline — retrying a burned 12h
+      // window is waste. The API status rides along for display only.
+      ...(errored
+        ? {
+            failureCode:
+              Date.now() > args.deadlineAt ? 'deadline' : 'harness_error',
+          }
+        : {}),
+      ...(errored && ended?.apiErrorStatus !== undefined
+        ? { apiErrorStatus: ended.apiErrorStatus }
+        : {}),
       text,
       files: [],
       ...(ended?.status !== undefined ? { status: ended.status } : {}),
@@ -1862,8 +1951,9 @@ async function settleWorkflowAgentTurn(
       ...result,
       files,
       ...(harvestSkipped !== undefined ? { harvestSkipped } : {}),
-      // An already-errored turn keeps its primary reason; the harvest fault
-      // rides along instead of replacing it.
+      // An already-errored turn keeps its primary reason AND its primary
+      // failure code (a denylisted code must not be laundered into a
+      // retryable harvest_failed); the harvest fault rides along.
       ...(harvestError !== undefined
         ? {
             errored: true,
@@ -1871,6 +1961,7 @@ async function settleWorkflowAgentTurn(
               result.errored && result.reason !== undefined
                 ? `${result.reason}; output harvest failed: ${harvestError}`
                 : `output harvest failed: ${harvestError}`,
+            failureCode: result.failureCode ?? 'harvest_failed',
           }
         : {}),
     },
