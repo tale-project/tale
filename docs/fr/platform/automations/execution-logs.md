@@ -54,6 +54,12 @@ Une exécution réelle ne se déroule pas d’un seul tenant. Elle avance nœud 
 
 Ces mêmes points de reprise couvrent une exécution dont la continuation a été perdue. Une exécution restée dans un état non terminal au-delà d’un délai de grâce est reprise automatiquement et continue là où ses points de reprise la situent, plutôt que de redémarrer ou de rester inachevée pour toujours.
 
+## Quand une étape agent échoue
+
+Quand une étape agent échoue pour une raison qu’une nouvelle tentative peut changer — le fournisseur a refusé l’appel, la sandbox est morte sous elle, le harness s’est écrasé — l’exécution la retente d’elle-même : jusqu’à trois tentatives automatiques, immédiates, en plus de la tentative d’origine. Tout ce qui est en amont garde ses points de reprise, l’exécution reste vivante tout du long, et son en-tête compte les tentatives de la plateforme — **Tentative automatique 1 sur 3** — pour distinguer la relance du moteur d’une relance que tu aurais lancée toi-même. Une tentative qui a réellement progressé — quinze minutes d’exécution effective — recharge le budget au lieu de le dépenser ; et chez les fournisseurs servis par un pool de comptes d’abonnement, chaque nouvelle tentative évite les comptes qui viennent d’échouer.
+
+Deux échecs ne sont jamais retentés, parce qu’une tentative fraîche ne pourrait pas finir autrement : une étape qui a épuisé toute sa fenêtre de temps, et une question restée sans réponse jusqu’à son expiration. Une fois le budget épuisé, l’exécution échoue avec la dernière erreur et dit combien de tentatives elle a brûlées ; chaque tentative est facturée séparément — une exécution qui a retenté trois fois en a payé quatre. Une exécution qui retente reste une seule exécution réelle — **Arrêter l’exécution** est la porte de sortie quand tu vois que les tentatives ne changeront plus rien.
+
 ## Une séance de débogage jouée de bout en bout
 
 La relance quotidienne n’est pas partie. Ouvre l’automatisation et regarde la liste **Exécutions** : celle de ce matin est là et elle est **En échec**, avec sa raison sur la ligne.

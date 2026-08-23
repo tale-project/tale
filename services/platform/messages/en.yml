@@ -750,6 +750,9 @@ automations:
     heading: 'Run of {automation}'
     empty: This automation has not run yet.
     loading: Loading the run…
+    # The engine's own retry of a failed agent turn — the user must be able
+    # to tell the platform's retry from their own rerun.
+    autoRetrying: 'Auto-retry {n} of {max}'
     cancel: Stop the run
     startedBy: 'Started by {actor}'
     startedAt: 'Started {date}'

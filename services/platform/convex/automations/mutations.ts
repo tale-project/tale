@@ -1466,6 +1466,69 @@ export const recordAgentTurnSettled = internalMutation({
 });
 
 /**
+ * Stamp launch facts onto the parked agent cursor once the start action's
+ * mint succeeds: when the attempt actually began executing, and (on the
+ * subscription lane) which broker account served it. Best-effort by design —
+ * the stamp races the kick-side cursor commit, and losing that race leaves
+ * `launchedAt` absent, which the retry gate reads as ZERO executed time
+ * (undercounting progress is safe; overcounting would re-arm the budget).
+ * The gates mirror `recordAgentTurnSettled`: a stamp arriving after the turn
+ * settled or after a re-kick moved the cursor to a new exec is refused.
+ */
+export const stampAgentTurnLaunch = internalMutation({
+  args: {
+    organizationId: v.string(),
+    runId: v.id('automationRuns'),
+    nodeId: v.string(),
+    execId: v.string(),
+    launchedAt: v.number(),
+    brokerTokenHash: v.optional(v.string()),
+  },
+  returns: v.object({ stamped: v.boolean() }),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.runId);
+    if (!row || row.organizationId !== args.organizationId) {
+      return { stamped: false };
+    }
+    if (
+      row.status !== 'waiting' &&
+      row.status !== 'running' &&
+      row.status !== 'queued'
+    ) {
+      return { stamped: false };
+    }
+    const checkpoints = readCheckpoints(row.checkpoints);
+    const cursor = checkpoints.cursor;
+    if (
+      cursor === undefined ||
+      cursor.node !== args.nodeId ||
+      cursor.agent === undefined ||
+      cursor.agent.execId !== args.execId ||
+      cursor.agent.result !== undefined
+    ) {
+      return { stamped: false };
+    }
+    await ctx.db.patch(args.runId, {
+      checkpoints: {
+        nodes: checkpoints.nodes,
+        cursor: {
+          ...cursor,
+          agent: {
+            ...cursor.agent,
+            launchedAt: args.launchedAt,
+            ...(args.brokerTokenHash !== undefined && {
+              brokerTokenHash: args.brokerTokenHash,
+            }),
+          },
+        },
+        executions: checkpoints.executions,
+      },
+    });
+    return { stamped: true };
+  },
+});
+
+/**
  * Start the deployed automation a task's Start action names, as a live run
  * carrying the task as its input — the task-surface entry the retired engine
  * used to serve. Authorization is the CALLER's: the public task action has
