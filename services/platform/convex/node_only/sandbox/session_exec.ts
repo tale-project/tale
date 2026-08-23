@@ -85,6 +85,8 @@ function inferContentType(path: string): string {
     case 'css':
     case 'txt':
     case 'log':
+    case 'patch':
+    case 'diff':
       return 'text/plain; charset=utf-8';
     case 'png':
       return 'image/png';
