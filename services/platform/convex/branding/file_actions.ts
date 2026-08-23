@@ -11,7 +11,8 @@
  * branding settings page's route gate — so one org's admin can't restyle
  * another. Reads are display-only (logo/colors/app name) and resolve the slug
  * without a membership gate to stay off the auth-latency path; omitting
- * `organizationId` reads the platform `default` bucket, which backs the
+ * `organizationId` — or passing one that no longer resolves (deleted org,
+ * stale bookmark) — reads the platform `default` bucket, which backs the
  * pre-auth shell (login page) where no org is in scope yet.
  *
  * Uses atomic writes (temp → fsync → rename) for data safety.
@@ -112,8 +113,9 @@ interface BrandingResult {
 export const readBranding = action({
   // `organizationId` optional: omitted reads the platform `default` bucket
   // (pre-auth shell); provided reads that org's branding. Display-only data,
-  // so no membership gate — only the slug resolution, which already validates
-  // the org exists.
+  // so no membership gate — slug resolution is best-effort: an org that no
+  // longer resolves falls back to the `default` bucket (#3019) instead of
+  // failing the read.
   args: { organizationId: v.optional(v.string()) },
   returns: v.object({
     appName: v.optional(v.string()),
