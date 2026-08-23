@@ -68,7 +68,7 @@ function readPath(): string {
 describe('readBranding on a deleted organization (#3019)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.TALE_CONFIG_DIR = '/tmp/tale-branding-read-test';
+    vi.stubEnv('TALE_CONFIG_DIR', '/tmp/tale-branding-read-test');
   });
 
   it('serves the default bucket when the org id no longer resolves', async () => {
@@ -89,6 +89,53 @@ describe('readBranding on a deleted organization (#3019)', () => {
       hash: '',
     });
     expect(readPath()).toContain('/default/');
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it('serves the default bucket when the org row has no slug', async () => {
+    mockOrgIdentityFromId.mockRejectedValue(
+      new OrgSlugUnresolvableError('org_legacy', 'no_slug'),
+    );
+    mockBrandingFileMissing();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const { handler } = await loadReadBranding();
+    const result = await handler(ctx, { organizationId: 'org_legacy' });
+
+    // The org exists but has no bucket path — folded into `default`, and the
+    // warn carries the reason so a slugless live org is distinguishable from
+    // a deleted one at triage time.
+    expect(result.appName).toBeUndefined();
+    expect(readPath()).toContain('/default/');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('no_slug'));
+    warn.mockRestore();
+  });
+
+  it('serves the default-bucket file when the fallback finds one', async () => {
+    mockOrgIdentityFromId.mockRejectedValue(
+      new OrgSlugUnresolvableError(DELETED_ORG_ID, 'no_row'),
+    );
+    mockReadJsonFile.mockResolvedValue({
+      ok: true,
+      data: {
+        accentColor: '',
+        brandColor: '#123456',
+        logoFilename: 'logo.png',
+      },
+      hash: 'default-hash',
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const { handler } = await loadReadBranding();
+    const result = await handler(ctx, { organizationId: DELETED_ORG_ID });
+
+    // The platform bucket's own file is served — with no org name, and with
+    // the legacy `brandColor` still coalescing into `accentColor`.
+    expect(result.appName).toBeUndefined();
+    expect(result.accentColor).toBe('#123456');
+    expect(result.hash).toBe('default-hash');
+    expect(result.logoUrl).toContain('/branding/images/default/logo.png');
     expect(warn).toHaveBeenCalledOnce();
     warn.mockRestore();
   });
