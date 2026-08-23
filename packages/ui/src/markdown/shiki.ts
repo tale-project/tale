@@ -7,17 +7,69 @@
  * the bundle off the WASM oniguruma path.
  */
 
-import { createHighlighterCore, type HighlighterCore } from 'shiki/core';
+import {
+  createHighlighterCore,
+  type HighlighterCore,
+  type ThemeRegistration,
+} from 'shiki/core';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 
 let highlighterPromise: Promise<HighlighterCore> | null = null;
+
+/**
+ * The min-* themes define no colors for the diff grammar's scopes, so a
+ * rendered `.patch`/`.diff` file (and every ```diff fence) came out
+ * monochrome. Extend a theme with the standard add/del/hunk palette; the
+ * theme keeps its name, so `codeToHtml` resolves it unchanged.
+ */
+function withDiffColors(
+  theme: ThemeRegistration,
+  palette: { inserted: string; deleted: string; range: string; header: string },
+): ThemeRegistration {
+  return {
+    ...theme,
+    tokenColors: [
+      ...(theme.tokenColors ?? []),
+      {
+        scope: ['markup.inserted'],
+        settings: { foreground: palette.inserted },
+      },
+      {
+        scope: ['markup.deleted'],
+        settings: { foreground: palette.deleted },
+      },
+      {
+        scope: ['meta.diff.range', 'punctuation.definition.range.diff'],
+        settings: { foreground: palette.range },
+      },
+      {
+        scope: ['meta.diff.header', 'meta.diff.index'],
+        settings: { foreground: palette.header },
+      },
+    ],
+  };
+}
 
 function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighterCore({
       themes: [
-        import('shiki/themes/min-dark.mjs'),
-        import('shiki/themes/min-light.mjs'),
+        import('shiki/themes/min-dark.mjs').then((m) =>
+          withDiffColors(m.default, {
+            inserted: '#85e89d',
+            deleted: '#f97583',
+            range: '#b392f0',
+            header: '#79b8ff',
+          }),
+        ),
+        import('shiki/themes/min-light.mjs').then((m) =>
+          withDiffColors(m.default, {
+            inserted: '#22863a',
+            deleted: '#b31d28',
+            range: '#6f42c1',
+            header: '#005cc5',
+          }),
+        ),
       ],
       langs: [
         import('shiki/langs/bash.mjs'),
@@ -126,6 +178,8 @@ const LANG_ALIASES: Record<string, string> = {
   gql: 'graphql',
   terraform: 'hcl',
   tf: 'hcl',
+  // Unified diffs: `.patch`/`.diff` files share the one `diff` grammar.
+  patch: 'diff',
 };
 
 export function resolveLanguage(input: string | undefined): string {

@@ -50,6 +50,8 @@ const CODE_EXTENSIONS = new Set([
   'sql',
   'graphql',
   'gql',
+  'patch',
+  'diff',
 ]);
 
 const CONFIG_EXTENSIONS = new Set([
