@@ -3,7 +3,7 @@ import { yamlImports } from '@tale/ui/vite/yaml';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import type { Connect } from 'vite';
-import { defineConfig } from 'vite';
+import { defineConfig, type PreviewServer, type ViteDevServer } from 'vite';
 
 import {
   RELEASES,
@@ -12,6 +12,23 @@ import {
 import { createReleaseFeed } from './lib/releases/feed';
 import { handleReleasesRequest, RELEASES_ROUTE } from './lib/releases/route';
 import { createMarketingArtifactsServer } from './lib/seo/artifacts-server';
+
+/**
+ * In production the web droplet's Caddy answers `/_a/*` — the first-party
+ * analytics proxy the tag in index.html loads from. Vite's dev and preview
+ * servers have no such upstream, so the script request would 404 into the
+ * browser console and fail the smoke suite's no-console-errors guard. Serve
+ * a no-op stub on exactly that path instead. The BUILT artifact carries no
+ * stub, so a misconfigured droplet proxy still fails loudly in production.
+ */
+function stubAnalyticsScript(server: ViteDevServer | PreviewServer): void {
+  server.middlewares.use('/_a/script.js', (_req, res) => {
+    res.setHeader('content-type', 'text/javascript');
+    res.end(
+      '/* analytics stub — production serves this via the Caddy proxy */',
+    );
+  });
+}
 
 // In dev the SSR loader is bound at the first artifact request via the
 // inline plugin below. Cache is disabled so source edits show up
@@ -124,6 +141,11 @@ export default defineConfig({
       configureServer: (server) => mountReleaseFeedRoute(server.middlewares),
       configurePreviewServer: (server) =>
         mountReleaseFeedRoute(server.middlewares),
+    },
+    {
+      name: 'tale-web:analytics-stub',
+      configureServer: stubAnalyticsScript,
+      configurePreviewServer: stubAnalyticsScript,
     },
     artifactsPlugin({ server: devArtifactsServer }),
   ],
