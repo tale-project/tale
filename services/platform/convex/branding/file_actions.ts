@@ -11,7 +11,8 @@
  * branding settings page's route gate — so one org's admin can't restyle
  * another. Reads are display-only (logo/colors/app name) and resolve the slug
  * without a membership gate to stay off the auth-latency path; omitting
- * `organizationId` reads the platform `default` bucket, which backs the
+ * `organizationId` — or passing one that no longer resolves (deleted org,
+ * stale bookmark) — reads the platform `default` bucket, which backs the
  * pre-auth shell (login page) where no org is in scope yet.
  *
  * Uses atomic writes (temp → fsync → rename) for data safety.
@@ -38,7 +39,11 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
-import { orgIdentityFromId } from '../lib/helpers/org_slug';
+import {
+  isOrgSlugUnresolvable,
+  orgIdentityFromId,
+  type OrgIdentity,
+} from '../lib/helpers/org_slug';
 import type { BrandingJsonConfig, BrandingReadResult } from './file_utils';
 import {
   buildBrandingImageUrl,
@@ -108,8 +113,9 @@ interface BrandingResult {
 export const readBranding = action({
   // `organizationId` optional: omitted reads the platform `default` bucket
   // (pre-auth shell); provided reads that org's branding. Display-only data,
-  // so no membership gate — only the slug resolution, which already validates
-  // the org exists.
+  // so no membership gate — slug resolution is best-effort: an org that no
+  // longer resolves falls back to the `default` bucket (#3019) instead of
+  // failing the read.
   args: { organizationId: v.optional(v.string()) },
   returns: v.object({
     appName: v.optional(v.string()),
@@ -126,9 +132,29 @@ export const readBranding = action({
     // The app name is the organization's own name (resolved here), not a
     // stored branding field — one source of truth for "what the org is
     // called". The pre-auth `default` bucket has no org, so no app name.
-    const identity = args.organizationId
-      ? await orgIdentityFromId(ctx, args.organizationId)
-      : null;
+    let identity: OrgIdentity | null = null;
+    if (args.organizationId) {
+      const organizationId = args.organizationId;
+      try {
+        identity = await orgIdentityFromId(ctx, organizationId);
+      } catch (err) {
+        // A stale tab/bookmark keeps requesting a deleted org's branding until
+        // the dashboard bounces it away — a terminal miss here is routine, not
+        // a server fault, so serve the platform `default` bucket instead of an
+        // uncaught throw. Transient transport errors still propagate.
+        if (!isOrgSlugUnresolvable(err)) throw err;
+        // Echo at most 64 chars of the id: this action is unauthenticated and
+        // the arg is an unbounded string, so a verbatim echo would let junk-id
+        // probes pump arbitrary bytes into the log on every request.
+        const shownId =
+          organizationId.length > 64
+            ? `${organizationId.slice(0, 64)}… (${organizationId.length} chars)`
+            : organizationId;
+        console.warn(
+          `[Branding] readBranding: unresolvable organization (${err.reason}) ${JSON.stringify(shownId)}; serving default branding`,
+        );
+      }
+    }
     const orgSlug = identity?.slug ?? DEFAULT_ORG_SLUG;
     const fileResult = await readBrandingFile(orgSlug);
 
