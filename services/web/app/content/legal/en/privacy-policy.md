@@ -40,9 +40,11 @@ When you submit our contact form or request a demo, we collect the following per
 
 ### 3.2 Automatically Collected Data
 
-Our website does not use any analytics system, tracking pixels, advertising scripts, or third-party cookies, and we do not build visitor profiles.
+Our website measures aggregate traffic with Umami, an open-source analytics tool we host ourselves on our own server in Frankfurt, Germany. It is served from our own domain, sets no cookies, stores no identifier in your browser, and sends nothing to any third party — no analytics data ever leaves our infrastructure, and we do not track you across other websites.
 
-To deliver the website we temporarily process minimal technical data (see Server Logs below), and the site stores one functional language cookie plus a theme preference in your browser (see Cookies below).
+For each page view we record the page address, the referring page, your approximate location (country, region, city), your screen size, and your browser, operating system and device type. Your IP address is used only to derive that approximate location and — combined with a secret that rotates regularly — a one-way hash that groups the requests belonging to a single visit; the IP address itself is never stored. We build no visitor profiles and cannot identify you from this data.
+
+To deliver the website we also temporarily process minimal technical data (see Server Logs below), and the site stores one functional language cookie plus a theme preference in your browser (see Cookies below).
 
 ### 3.3 Server Logs
 
@@ -52,12 +54,13 @@ When you visit our website, our self-operated web server and hosting infrastruct
 
 We process your personal data for the following purposes:
 
-| Purpose                                        | Data involved                                 | Legal basis (FADP)  | Legal basis (GDPR)                           |
-| ---------------------------------------------- | --------------------------------------------- | ------------------- | -------------------------------------------- |
-| Responding to your inquiry                     | Name, email, company, message                 | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest      |
-| Scheduling and conducting a product demo       | Name, email, phone, company, area of interest | Legitimate interest | Art. 6(1)(b) GDPR — Pre-contractual measures |
-| Maintaining and securing our website           | Technical data (IP address, browser)          | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest      |
-| Establishing a potential business relationship | Contact form data                             | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest      |
+| Purpose                                        | Data involved                                                         | Legal basis (FADP)  | Legal basis (GDPR)                           |
+| ---------------------------------------------- | --------------------------------------------------------------------- | ------------------- | -------------------------------------------- |
+| Responding to your inquiry                     | Name, email, company, message                                         | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest      |
+| Scheduling and conducting a product demo       | Name, email, phone, company, area of interest                         | Legitimate interest | Art. 6(1)(b) GDPR — Pre-contractual measures |
+| Maintaining and securing our website           | Technical data (IP address, browser)                                  | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest      |
+| Measuring website usage                        | Page address, referrer, approximate location, device and browser data | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest      |
+| Establishing a potential business relationship | Contact form data                                                     | Legitimate interest | Art. 6(1)(f) GDPR — Legitimate interest      |
 
 Under the Swiss FADP, processing of personal data is generally permitted unless it violates the personality rights of the data subject. We process your data in good faith, proportionally, and only for the purposes stated above.
 
@@ -106,7 +109,7 @@ If you believe that your data protection rights have been violated, you have the
 
 ## 9. Cookies
 
-Our website does not use cookies for analytics or tracking purposes. It stores exactly one functional cookie: `tale_locale`, which remembers your language choice for one year so pages load in your language on your next visit. It contains no personal data and no identifier. Your light/dark theme preference is kept in your browser's local storage and never leaves your device.
+Our website does not use cookies for analytics or tracking purposes — the self-hosted analytics described above sets no cookie and stores no identifier in your browser. The site stores exactly one functional cookie: `tale_locale`, which remembers your language choice for one year so pages load in your language on your next visit. It contains no personal data and no identifier. Your light/dark theme preference is kept in your browser's local storage and never leaves your device.
 
 If we introduce any cookies or third-party services in the future that require consent, we will update this Privacy Policy and implement an appropriate consent mechanism.
 

@@ -40,9 +40,11 @@ Quand tu soumets notre formulaire de contact ou demandes une démo, nous collect
 
 ### 3.2 Données collectées automatiquement
 
-Notre site n’utilise aucun système d’analytics, pixel de tracking, script publicitaire ou cookie tiers — et nous ne constituons aucun profil de visiteur.
+Notre site mesure une fréquentation agrégée avec Umami, un outil d’analytics open source que nous hébergeons nous-mêmes sur notre propre serveur à Francfort (Allemagne). Il est servi depuis notre propre domaine, ne dépose aucun cookie, ne stocke aucun identifiant dans ton navigateur et n’envoie rien à des tiers — aucune donnée d’analyse ne quitte jamais notre infrastructure et nous ne te suivons pas sur d’autres sites.
 
-Pour livrer le site, nous traitons temporairement des données techniques minimales (voir Journaux serveur ci-dessous) ; le site stocke par ailleurs un cookie fonctionnel de langue et une préférence de thème dans ton navigateur (voir Cookies ci-dessous).
+Pour chaque page vue, nous enregistrons l’adresse consultée, la page référente, ta localisation approximative (pays, région, ville), la taille de ton écran ainsi que ton navigateur, ton système d’exploitation et ton type d’appareil. Ton adresse IP sert uniquement à déduire cette localisation approximative et, combinée à un secret renouvelé régulièrement, à produire un hachage à sens unique qui regroupe les requêtes d’une même visite ; l’adresse IP elle-même n’est jamais stockée. Nous ne constituons aucun profil de visiteur et ne pouvons pas t’identifier à partir de ces données.
+
+Pour livrer le site, nous traitons par ailleurs temporairement des données techniques minimales (voir Journaux serveur ci-dessous) ; le site stocke également un cookie fonctionnel de langue et une préférence de thème dans ton navigateur (voir Cookies ci-dessous).
 
 ### 3.3 Journaux serveur
 
@@ -52,12 +54,13 @@ Quand tu visites notre site, notre serveur web auto-opéré et notre infrastruct
 
 Nous traitons tes données personnelles pour les finalités suivantes :
 
-| Finalité                                    | Données concernées                         | Base légale (LPD) | Base légale (RGPD)                            |
-| ------------------------------------------- | ------------------------------------------ | ----------------- | --------------------------------------------- |
-| Répondre à ta demande                       | nom, email, entreprise, message            | intérêt légitime  | Art. 6(1)(f) RGPD — intérêt légitime          |
-| Organiser et conduire une démo produit      | nom, email, téléphone, entreprise, domaine | intérêt légitime  | Art. 6(1)(b) RGPD — mesures précontractuelles |
-| Maintenir et sécuriser le site              | données techniques (IP, navigateur)        | intérêt légitime  | Art. 6(1)(f) RGPD — intérêt légitime          |
-| Établir une relation d’affaires potentielle | données du formulaire de contact           | intérêt légitime  | Art. 6(1)(f) RGPD — intérêt légitime          |
+| Finalité                                    | Données concernées                                                                                 | Base légale (LPD) | Base légale (RGPD)                            |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------- |
+| Répondre à ta demande                       | nom, email, entreprise, message                                                                    | intérêt légitime  | Art. 6(1)(f) RGPD — intérêt légitime          |
+| Organiser et conduire une démo produit      | nom, email, téléphone, entreprise, domaine                                                         | intérêt légitime  | Art. 6(1)(b) RGPD — mesures précontractuelles |
+| Maintenir et sécuriser le site              | données techniques (IP, navigateur)                                                                | intérêt légitime  | Art. 6(1)(f) RGPD — intérêt légitime          |
+| Mesurer la fréquentation du site            | adresse consultée, page référente, localisation approximative, données d’appareil et de navigateur | intérêt légitime  | Art. 6(1)(f) RGPD — intérêt légitime          |
+| Établir une relation d’affaires potentielle | données du formulaire de contact                                                                   | intérêt légitime  | Art. 6(1)(f) RGPD — intérêt légitime          |
 
 Sous la LPD suisse, le traitement de données personnelles est généralement permis tant qu’il ne viole pas les droits de la personnalité de la personne concernée. Nous traitons tes données de bonne foi, de manière proportionnée et uniquement aux fins indiquées.
 
@@ -106,7 +109,7 @@ Si tu estimes que tes droits sont violés, tu peux déposer une plainte auprès 
 
 ## 9. Cookies
 
-Notre site n’utilise pas de cookies à des fins d’analytics ou de tracking. Il stocke exactement un cookie fonctionnel : `tale_locale`, qui retient ton choix de langue pendant un an pour que les pages se chargent dans ta langue à ta prochaine visite. Il ne contient ni donnée personnelle ni identifiant. Ta préférence de thème clair/sombre reste dans le stockage local de ton navigateur et ne quitte jamais ton appareil.
+Notre site n’utilise pas de cookies à des fins d’analytics ou de tracking — l’analyse auto-hébergée décrite ci-dessus ne dépose aucun cookie et ne stocke aucun identifiant dans ton navigateur. Il stocke exactement un cookie fonctionnel : `tale_locale`, qui retient ton choix de langue pendant un an pour que les pages se chargent dans ta langue à ta prochaine visite. Il ne contient ni donnée personnelle ni identifiant. Ta préférence de thème clair/sombre reste dans le stockage local de ton navigateur et ne quitte jamais ton appareil.
 
 Si nous introduisons à l’avenir des cookies ou services tiers nécessitant un consentement, nous mettrons à jour cette politique et implémenterons un mécanisme de consentement approprié.
 
