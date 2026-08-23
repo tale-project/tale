@@ -80,6 +80,44 @@ When both age vars are unset, Tale stores `providers/*.secrets.json` as plaintex
 
 The env-var key source needs no environment-level switch: a provider credential can hold the _name_ of an environment variable instead of a stored key, as long as that name carries the reserved `TALE_PROVIDER_KEY_` prefix. The gate is fail-closed — any other name is rejected, so the field can never point at an unrelated deployment secret — and names are capped at 40 characters. Define the variable here or in your secret manager so both the platform and the Convex backend can read it; the full mechanism is documented in [Providers](/self-hosted/configuration/providers). A subscription-broker credential has a second, separate namespace for the secret Tale presents **to the broker**: that field takes an environment-variable name under the reserved `TALE_TOKEN_SOURCE_` prefix, capped at 60 characters. The two prefixes stay distinct on purpose — a broker secret is not a provider API key, and neither field can name a variable outside its own namespace.
 
+## Connector OAuth apps
+
+OAuth connectors (Gmail, Google Drive, Outlook, Teams, Slack, …) read their vendor app credentials only from the environment. For each connector slug:
+
+| Name                                   | Default | Description                                                                                             |
+| -------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID`     | unset   | OAuth client ID for that connector. Slug is upper-cased with dashes as underscores (`gmail` → `GMAIL`). |
+| `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` | unset   | Matching client secret.                                                                                 |
+
+Register `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` on the vendor app. Details: [Connectors (develop)](/develop/connectors).
+
+## Knowledge cloud import (Documents)
+
+Per-user OneDrive / Google Drive authorizations for **Knowledge → Documents** are separate from org connectors and from login. Register this redirect URI on the Microsoft (or Google) app:
+
+`${SITE_URL}${BASE_PATH}/api/cloud-import/oauth2/callback`
+
+Credential resolution for OneDrive (first match wins):
+
+| Name                                           | Description                                 |
+| ---------------------------------------------- | ------------------------------------------- |
+| `CLOUD_IMPORT_MICROSOFT_CLIENT_ID` / `_SECRET` | Dedicated Knowledge import app (preferred). |
+| `CLOUD_IMPORT_MICROSOFT_TENANT_ID`             | Directory (tenant) ID for that app.         |
+| `AUTH_MICROSOFT_ENTRA_ID_ID` / `_SECRET`       | Login Microsoft app.                        |
+| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID`            | Directory (tenant) ID for the login app.    |
+
+Single-tenant Entra app registrations must use a tenant-specific authorize URL — `/common` fails with AADSTS50194. Set the tenant ID (or `organizations` / `common` for a multi-tenant app). When unset, Tale falls back to the org's Entra SSO issuer tenant if configured.
+
+The Microsoft consent screen requests Graph **Files.Read** and **Sites.Read.All** (list/download OneDrive and SharePoint), **User.Read** (account label), and **offline_access** (refresh token for sync). That grant is intentional and per user — it is not attached by signing in to Tale.
+
+Google Drive uses a dedicated app only (no login-app fallback):
+
+| Name                                              | Description                        |
+| ------------------------------------------------- | ---------------------------------- |
+| `CLOUD_IMPORT_GOOGLE_DRIVE_CLIENT_ID` / `_SECRET` | Knowledge Google Drive import app. |
+
+Register the same cloud-import callback URI on the Google OAuth client. Consent requests **drive.readonly** and **userinfo.email**.
+
 ## Feature flags
 
 Optional toggles for features not enabled by default. Each flag turns one feature on or off at boot; toggling requires a restart of the platform container.

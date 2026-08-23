@@ -3779,6 +3779,7 @@ governance:
       twoFactorAttempts: 2FA-Versuche
       policyAcknowledgements: Richtlinien-Bestätigungen
       onedrive: OneDrive-Sync-Konfigurationen
+      userCloudAuthorizations: Cloud-Import-Autorisierungen
       loginAttempts: Login-Versuche und Sperren
       notifications: Sicherheitsbenachrichtigungen
       wfExecutions: Automatisierungsläufe

@@ -43,6 +43,10 @@ import {
 } from './chat/schema';
 import { chatFilterEventsTable } from './chat_filter_events/schema';
 import {
+  cloudImportOauthStatesTable,
+  userCloudAuthorizationsTable,
+} from './cloud_import/schema';
+import {
   notificationPreferencesTable,
   taskSubscriptionsTable,
   userNotificationsTable,
@@ -257,6 +261,12 @@ export default defineSchema({
   // construction; expired rows are swept when the next one is minted. See
   // `http_connectors/schema.ts`.
   connectorOauthStates: connectorOauthStatesTable,
+  // Per-user Knowledge cloud-import grants (OneDrive / Google Drive). Not org
+  // connectors and not login identity — intentional consent to import into
+  // Documents. Tenant isolation: `by_org_user_provider`. See cloud_import/.
+  userCloudAuthorizations: userCloudAuthorizationsTable,
+  // Pending cloud-import OAuth states (hashed state + PKCE). See cloud_import/.
+  cloudImportOauthStates: cloudImportOauthStatesTable,
   // Inbound Slack routing: `team_id` → the organization that installed the app.
   // Tenant isolation: a workspace maps to exactly one organization, an unmapped
   // workspace is refused, and resolution reads only the `by_team` index — no

@@ -26,6 +26,10 @@ import {
   threadPostActions,
   threadReads,
 } from './chat/rest_api';
+import {
+  cloudImportOauth2CallbackHandlerHttp,
+  cloudImportOauth2StartHandlerHttp,
+} from './cloud_import/http_actions';
 import { connectorsHostcallHandler } from './connectors/hostcall_http';
 import {
   listContacts,
@@ -906,6 +910,19 @@ http.route({
   path: '/api/connectors/slack/events',
   method: 'POST',
   handler: connectorsSlackEventsHandler,
+});
+
+// Knowledge cloud-import OAuth: per-user grants for Documents (OneDrive /
+// Google Drive). Separate from org connectors and from login SSO.
+http.route({
+  path: '/api/cloud-import/oauth2/start',
+  method: 'GET',
+  handler: cloudImportOauth2StartHandlerHttp,
+});
+http.route({
+  path: '/api/cloud-import/oauth2/callback',
+  method: 'GET',
+  handler: cloudImportOauth2CallbackHandlerHttp,
 });
 
 // Automation webhook triggers. The token in the path IS the credential: it is
