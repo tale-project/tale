@@ -1379,6 +1379,11 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       gatewayModel: agent.gatewayModel,
       deadlineAt,
     };
+    // Which exec the cursor names decides where a failure settle can land:
+    // before the retarget it still names the ASKING exec, so a settle under
+    // the fresh id would be refused by the record's execId fence and the run
+    // would sit parked until its ask-extended deadline.
+    let retargeted = false;
     try {
       // The wait may have outlived the container (idle reaper stops and
       // preserves) — the session volume holds the workspace AND the harness's
@@ -1477,6 +1482,7 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         );
         return null;
       }
+      retargeted = true;
       // Launch facts under the resume's exec (the retarget just installed
       // it): executed time measures the post-answer slice, matching the
       // task lane's per-launch semantics.
@@ -1593,13 +1599,23 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       await continueOrSettle(ctx, keys, window);
     } catch (err) {
       console.error('[agent-host] answered-ask resume failed:', err);
-      await settleWorkflowAgentTurn(ctx, keys, {
-        errored: true,
-        reason: `the agent turn could not resume after the answer: ${err instanceof Error ? err.message : String(err)}`,
-        failureCode: 'resume_failed',
-        text: '',
-        files: [],
-      });
+      // A death BEFORE the retarget settles under the asking exec the cursor
+      // still names: its finalize claim was burned at the ask park, but the
+      // dead-winner branch completes the record (cursor matches, no result),
+      // so the run wakes into the retry gate instead of burning silently to
+      // the ask-extended deadline. After the retarget the fresh exec is the
+      // cursor's, and the settle targets it as before.
+      await settleWorkflowAgentTurn(
+        ctx,
+        retargeted ? keys : { ...keys, execId: ask.execId },
+        {
+          errored: true,
+          reason: `the agent turn could not resume after the answer: ${err instanceof Error ? err.message : String(err)}`,
+          failureCode: 'resume_failed',
+          text: '',
+          files: [],
+        },
+      );
     }
     return null;
   },

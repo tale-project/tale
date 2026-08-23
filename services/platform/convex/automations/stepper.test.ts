@@ -1296,6 +1296,117 @@ describe('durable stepper — agent auto-retry', () => {
     expect(agentKicks[0]?.excludeBrokerTokenHashes).toBeUndefined();
   });
 
+  it('a resume that dies before the retarget settles under the asking exec and the retry rescues the run', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const input = {
+      model: 'vendor/coder-1',
+      prompt: 'Read invoices for 2026Q1',
+    };
+    // A run parked on an answered ask: the cursor still names the asking
+    // exec, whose op was finalized (claim burned) when the ask parked.
+    const runId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert('automationRuns', {
+          organizationId: ORG,
+          name: 'ops/read-invoices',
+          version: 1,
+          status: 'waiting',
+          mode: 'live',
+          startedBy: `user:${ACTOR}`,
+          input: { quarter: '2026Q1', folderId: 'fld_1' },
+          checkpoints: {
+            nodes: {},
+            cursor: {
+              node: 'extract',
+              index: 0,
+              passes: 0,
+              outs: [],
+              agent: {
+                execId: 'ask-exec-1',
+                sessionId: 'wf-test-session',
+                deadlineAt: Date.now() + 7 * 24 * 3_600_000,
+                providerSlug: 'vendor',
+                gatewayModel: 'vendor/coder-1',
+                harness: 'claude-code',
+                input,
+              },
+            },
+            executions: 1,
+          },
+          startedAt: Date.now(),
+        }),
+    );
+    const askId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert('automationHumanAsks', {
+          organizationId: ORG,
+          runId,
+          nodeId: 'extract',
+          sessionId: 'wf-test-session',
+          execId: 'ask-exec-1',
+          question: 'Which quarter?',
+          status: 'answered',
+          answer: '2026Q1',
+          expiresAt: Date.now() + 7 * 24 * 3_600_000,
+          createdAt: Date.now(),
+        }),
+    );
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      organizationId: ORG,
+      sessionId: 'wf-test-session',
+      execId: 'ask-exec-1',
+      kind: 'workflow-agent',
+      status: 'completed',
+      agentResultStatus: 'awaiting_human',
+    });
+    await t.mutation(
+      internal.sandbox.session_mutations.claimSessionOpFinalize,
+      {
+        sessionId: 'wf-test-session',
+        execId: 'ask-exec-1',
+      },
+    );
+
+    // The REAL resume action: the suite's fetch stub kills it long before the
+    // retarget (session ensure / serving / mint all reach the network), so
+    // the catch must settle under the ASKING exec the cursor still names.
+    await t.action(
+      internal.automations.agent_host.resumeWorkflowAgentTurnWithAnswer,
+      { organizationId: ORG, askId },
+    );
+
+    const settled = await agentCursor(t, runId);
+    expect(settled.execId).toBe('ask-exec-1');
+    expect(settled.result).toMatchObject({
+      errored: true,
+      failureCode: 'resume_failed',
+    });
+    expect(settled.result?.reason).toContain(
+      'could not resume after the answer',
+    );
+
+    // The settle wakes the run into the retry gate: a fresh attempt kicks,
+    // and its success finishes the run — the answered ask no longer strands
+    // it until the ask-extended deadline.
+    await turn(t, runId);
+    expect(agentKicks).toHaveLength(1);
+    expect(agentKicks[0]?.request).toEqual(input);
+    expect(await agentCursor(t, runId)).toMatchObject({
+      execId: 'exec-1',
+      attempt: 1,
+    });
+    await t.mutation(internal.automations.mutations.recordAgentTurnSettled, {
+      organizationId: ORG,
+      runId,
+      nodeId: 'extract',
+      execId: 'exec-1',
+      result: { errored: false, text: 'extracted', files: [], status: 'ok' },
+    });
+    expect(await drive(t, runId)).toBe('success');
+  });
+
   it('a stale settle from the replaced exec records nothing after the re-kick', async () => {
     recordingAgentFactory();
     const t = convexTest(schema, modules);
