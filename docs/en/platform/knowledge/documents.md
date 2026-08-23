@@ -13,9 +13,9 @@ The Documents tab is the knowledge base's file surface. Editors upload files, Ta
 
 ## Uploading
 
-Open **Knowledge > Documents** and click **Upload documents** — the menu offers **From your device** and **From Microsoft 365**. The upload gate accepts the formats that cover the bulk of org knowledge: PDF, Word (`.doc`, `.docx`), OpenDocument text (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, plain text and text-based working files (Markdown, JSON, YAML, `.py`), bookkeeping ledgers (`.ac2`), and images (JPG, PNG, GIF, WEBP). Anything else is refused at upload, and an organization's upload policy can narrow the set further.
+Open **Knowledge > Documents** and click **Upload documents** — the menu offers **From your device**, **From Microsoft 365**, and **From Google Drive**. The upload gate accepts the formats that cover the bulk of org knowledge: PDF, Word (`.doc`, `.docx`), OpenDocument text (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, plain text, and images (JPG, PNG, GIF, WEBP). Anything else is refused at upload.
 
-Uploading and indexing are separate facts, and the **RAG status** column tracks the second one: **Indexing** while the pipeline runs, **Indexed** when agents can retrieve the content, **Failed** when the pipeline errored, and **Needs reindex** when the stored chunks are stale. Modern formats index; the legacy Office trio (`.doc`, `.xls`, `.ppt`) uploads and stays downloadable but shows **Not indexed** — agents cannot retrieve its content until you re-save it in the modern format. A ledger container (`.ac2`) is stored as an opaque file: downloadable, never previewed or indexed.
+Uploading and indexing are separate facts, and the **RAG status** column tracks the second one: **Indexing** while the pipeline runs, **Indexed** when agents can retrieve the content, **Failed** when the pipeline errored, and **Needs reindex** when the stored chunks are stale. Modern formats index; the legacy Office trio (`.doc`, `.xls`, `.ppt`) uploads and stays downloadable but shows **Not indexed** — agents cannot retrieve its content until you re-save it in the modern format.
 
 ## Revising a controlled document
 
@@ -55,15 +55,23 @@ Open the document preview and confirm that it shows the replacement. Then open t
 
 To stop syncing — a whole synced folder or a single synced file — open the row's menu and click **Stop syncing**; the imported documents stay in the workspace and stop updating. Deleting a synced folder or file also stops its sync. In every case the originals in OneDrive are untouched.
 
+## Importing from Google Drive
+
+**From Google Drive** is always on the upload menu. The first time you use it, Tale asks you to authorize Google Drive for importing into Documents. After you connect, pick files or folders from My Drive, then choose the import mode. **One-time import** brings the files in once — they behave like uploads from disk. **Sync import** keeps the selection synchronized: new files in the Drive folder appear on a later sync pass, changed files re-index, and files deleted at the source leave the workspace. Both modes preserve the folder structure of your selection. Native Google Docs, Sheets, and Slides are skipped — export them to PDF or Office formats first if you need them in Documents.
+
+To stop syncing — a whole synced folder or a single synced file — open the row's menu and click **Stop syncing**; the imported documents stay in the workspace and stop updating. Deleting a synced folder or file also stops its sync. In every case the originals in Google Drive are untouched.
+
+Use **Disconnect Google Drive** in the import dialog header to revoke the grant; connect again when you want to import more.
+
 ## Scoping, folders, sources
 
 Each row carries a **Teams** cell — **Organization-wide** by default, or the teams you pick via **Assign team** in the row menu. A team-scoped document is invisible to members and agents outside the team; this is the knowledge base's access lever. Project files are outside this model entirely: a project's **Knowledge** tab holds files scoped to that one project, and they never appear in this library or in its team scoping — see [Manage files](/platform/projects/manage-files).
 
-**New folder** keeps large libraries navigable, and connectors bring their own structure: documents synced from OneDrive or SharePoint land under sync folders and show their origin in the **Source** column, which keeps citations traceable to the upstream system.
+**New folder** keeps large libraries navigable, and connectors bring their own structure: documents synced from OneDrive, SharePoint, or Google Drive land under sync folders and show their origin in the **Source** column, which keeps citations traceable to the upstream system.
 
 <Warning>
 
-Deleting a folder permanently deletes every file and subfolder inside it. Deleting a OneDrive sync folder also removes its auto-sync configuration and history — though never the files in OneDrive itself.
+Deleting a folder permanently deletes every file and subfolder inside it. Deleting a OneDrive or Google Drive sync folder also removes its auto-sync configuration and history — though never the files in OneDrive or Google Drive itself.
 
 </Warning>
 

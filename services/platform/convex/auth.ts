@@ -64,6 +64,7 @@ const platformResourceStatements = {
   contacts: ['read', 'write'],
   connectors: ['read', 'write'],
   onedriveSyncConfigs: ['read', 'write'],
+  googleDriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
   wfDefinitions: ['read', 'write'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
@@ -92,6 +93,7 @@ const admin = ac.newRole({
   contacts: ['read', 'write'],
   connectors: ['read', 'write'],
   onedriveSyncConfigs: ['read', 'write'],
+  googleDriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
   wfDefinitions: ['read', 'write'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
@@ -111,6 +113,7 @@ const developer = ac.newRole({
   contacts: ['read', 'write'],
   connectors: ['read', 'write'],
   onedriveSyncConfigs: ['read', 'write'],
+  googleDriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
   wfDefinitions: ['read', 'write'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
@@ -131,6 +134,7 @@ const editor = ac.newRole({
   // connectors/providers/onedrive/workflow: read only
   connectors: ['read'],
   onedriveSyncConfigs: ['read'],
+  googleDriveSyncConfigs: ['read'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
   wfDefinitions: ['read'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
@@ -151,6 +155,7 @@ const member = ac.newRole({
   contacts: ['read'],
   connectors: ['read'],
   onedriveSyncConfigs: ['read'],
+  googleDriveSyncConfigs: ['read'],
   conversations: ['read'],
   conversationMessages: ['read'],
   wfDefinitions: ['read'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
@@ -171,6 +176,7 @@ const disabled = ac.newRole({
   contacts: [],
   connectors: [],
   onedriveSyncConfigs: [],
+  googleDriveSyncConfigs: [],
   conversations: [],
   conversationMessages: [],
   wfDefinitions: [], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
@@ -192,6 +198,7 @@ const owner = ac.newRole({
   contacts: ['read', 'write'],
   connectors: ['read', 'write'],
   onedriveSyncConfigs: ['read', 'write'],
+  googleDriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
   wfDefinitions: ['read', 'write'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
@@ -237,7 +244,7 @@ export function authorizeRls(
     normalized === 'developer' ||
     normalized === 'editor' ||
     normalized === 'disabled'
-      ? normalized
+      ? (normalized as PlatformRoleName)
       : 'member';
   const r = platformRoles[key];
   const req = { [table]: [action] } as Record<string, string[]>;

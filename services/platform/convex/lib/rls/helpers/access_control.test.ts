@@ -13,6 +13,7 @@ const ALL_TABLES = [
   'contacts',
   'connectors',
   'onedriveSyncConfigs',
+  'googleDriveSyncConfigs',
   'conversations',
   'conversationMessages',
   'wfDefinitions',
@@ -66,6 +67,7 @@ describe('authorizeRls', () => {
     const readOnly: Table[] = [
       'connectors',
       'onedriveSyncConfigs',
+      'googleDriveSyncConfigs',
       'wfDefinitions',
       'wfExecutions',
     ];

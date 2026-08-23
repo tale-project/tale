@@ -960,6 +960,10 @@ export function useCancelOneDriveSync() {
   return useConvexMutation(api.onedrive.mutations.cancelSyncConfig);
 }
 
+export function useCancelGoogleDriveSync() {
+  return useConvexMutation(api.google_drive.mutations.cancelSyncConfig);
+}
+
 export function useDeleteDocument() {
   return useConvexMutation(api.documents.mutations.deleteDocument, {
     // EntityDeleteDialog shows its own specific error toast.

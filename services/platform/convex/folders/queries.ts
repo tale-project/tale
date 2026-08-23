@@ -45,12 +45,19 @@ export const listFolders = query({
       folders.push(folder);
     }
 
-    // A folder backed by an active OneDrive sync config carries the config
-    // id so the UI can offer "stop syncing" and warn on delete. Configs
-    // store the hub path (itemPath), so map path → config once per page.
+    // A folder backed by an active cloud sync config carries the config id
+    // so the UI can offer "stop syncing" and warn on delete. Configs store
+    // the hub path (itemPath), so map path → config once per page.
     const configIdByPath = new Map<string, string>();
     for await (const config of ctx.db
       .query('onedriveSyncConfigs')
+      .withIndex('by_organizationId_and_status', (qb) =>
+        qb.eq('organizationId', args.organizationId).eq('status', 'active'),
+      )) {
+      if (config.itemPath) configIdByPath.set(config.itemPath, config._id);
+    }
+    for await (const config of ctx.db
+      .query('googleDriveSyncConfigs')
       .withIndex('by_organizationId_and_status', (qb) =>
         qb.eq('organizationId', args.organizationId).eq('status', 'active'),
       )) {

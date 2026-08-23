@@ -142,6 +142,33 @@ export function useOneDriveFiles(
   });
 }
 
+export function useGoogleDriveFiles(
+  organizationId: string,
+  folderId: string | undefined,
+  enabled: boolean,
+) {
+  const listGoogleDriveFiles = useConvexAction(
+    api.google_drive.actions.listFiles,
+  );
+
+  return useReactQuery({
+    queryKey: ['google-drive-items', organizationId, folderId],
+    queryFn: async () => {
+      const result = await listGoogleDriveFiles.mutateAsync({
+        organizationId,
+        folderId,
+      });
+      if (!result.success || !result.items) {
+        throw new Error(result.error || 'Failed to load Google Drive files');
+      }
+      return result.items;
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+}
+
 export function useSharePointSites(organizationId: string, enabled: boolean) {
   const listSharePointSites = useConvexAction(
     api.onedrive.actions.listSharePointSites,

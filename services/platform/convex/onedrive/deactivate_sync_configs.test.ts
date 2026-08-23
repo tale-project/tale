@@ -89,6 +89,44 @@ describe('deactivateSyncConfigsForPath', () => {
       expect((await ctx.db.get(otherOrgId))?.status).toBe('active');
     });
   });
+
+  it('deactivates Google Drive configs at and below the deleted folder path', async () => {
+    const t = convexTest(schema, modules);
+    const exactId = await t.run((ctx) =>
+      ctx.db.insert('googleDriveSyncConfigs', {
+        organizationId: ORG,
+        userId: 'user-1',
+        itemType: 'folder',
+        itemId: 'gd-Meetings',
+        itemName: 'Meetings',
+        itemPath: 'Meetings',
+        targetBucket: 'documents',
+        status: 'active',
+      }),
+    );
+    const siblingId = await t.run((ctx) =>
+      ctx.db.insert('googleDriveSyncConfigs', {
+        organizationId: ORG,
+        userId: 'user-1',
+        itemType: 'folder',
+        itemId: 'gd-Archive',
+        itemName: 'MeetingsArchive',
+        itemPath: 'MeetingsArchive',
+        targetBucket: 'documents',
+        status: 'active',
+      }),
+    );
+
+    const deactivated = await t.run((ctx) =>
+      deactivateSyncConfigsForPath(ctx, ORG, 'Meetings'),
+    );
+
+    expect(deactivated).toBe(1);
+    await t.run(async (ctx) => {
+      expect((await ctx.db.get(exactId))?.status).toBe('inactive');
+      expect((await ctx.db.get(siblingId))?.status).toBe('active');
+    });
+  });
 });
 
 describe('deactivateSyncConfigById', () => {

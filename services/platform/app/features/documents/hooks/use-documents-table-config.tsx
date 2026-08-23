@@ -5,14 +5,16 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
+import type { ComponentType } from 'react';
 import { useMemo } from 'react';
 
+import { GoogleDriveIcon } from '@/app/components/icons/google-drive-icon';
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
-import { documentScopeKind, scopeTeamIds } from '@/lib/knowledge/types';
 import { formatBytes } from '@/lib/utils/format/number';
 import type { DocumentItem } from '@/types/documents';
 
@@ -20,10 +22,11 @@ import { DocumentRecordBadge } from '../components/document-record-badge';
 import { DocumentRowActions } from '../components/document-row-actions';
 import { RagStatusBadge } from '../components/rag-status-badge';
 
-type DocumentsT = ReturnType<typeof useT>['t'];
+type DocumentsT = ReturnType<typeof useT<'documents'>>['t'];
 
 interface SourceInfo {
   title: string;
+  Icon?: ComponentType<{ className?: string }>;
 }
 
 function getSourceInfo(
@@ -60,6 +63,7 @@ function getSourceInfo(
   if (sourceProvider === 'google_drive') {
     return {
       title: t('sourceType.googleDrive'),
+      Icon: GoogleDriveIcon,
     };
   }
   if (sourceProvider === 'webdav') {
@@ -180,6 +184,21 @@ export function useDocumentsTableConfig({
             tDocuments,
           );
           if (!source) return null;
+          if (source.Icon) {
+            const Icon = source.Icon;
+            return (
+              <div className="flex justify-center">
+                <Tooltip content={source.title}>
+                  <span
+                    className="inline-flex size-5 items-center justify-center"
+                    aria-label={source.title}
+                  >
+                    <Icon className="size-5" />
+                  </span>
+                </Tooltip>
+              </div>
+            );
+          }
           return (
             <Text as="span" variant="muted" className="block text-center">
               {source.title}
@@ -225,27 +244,14 @@ export function useDocumentsTableConfig({
         size: 160,
         meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => {
-          // Classified by the same predicate the access rules use, never by
-          // testing the stamps here: empty teams is ALSO true of a
-          // project-scoped row and of one carrying only the legacy `teamId`,
-          // and calling either "Organization-wide" states the opposite of the
-          // truth on the screen built to audit document access.
-          const scope = documentScopeKind(row.original);
-          if (scope === 'hub') {
+          const teamIds = row.original.teamIds ?? [];
+          if (teamIds.length === 0) {
             return (
               <Text as="span" variant="muted" className="text-sm">
                 {tDocuments('teamTags.orgWide')}
               </Text>
             );
           }
-          if (scope === 'project') {
-            return (
-              <Text as="span" className="text-sm">
-                {tDocuments('teamTags.projectScoped')}
-              </Text>
-            );
-          }
-          const teamIds = scopeTeamIds(row.original);
           if (isLoadingTeams) {
             return (
               <Skeletonize loading className="contents">
@@ -358,13 +364,7 @@ export function useDocumentsTableConfig({
               isDirectlySelected={row.original.isDirectlySelected}
               sourceMode={row.original.sourceMode}
               sourceProvider={row.original.sourceProvider}
-              // Resolved, not raw: this seeds the team-tags dialog's selection,
-              // and an empty selection reads there as "Organization-wide". A
-              // row carrying only the legacy single stamp would open claiming
-              // to be unrestricted — the label defect again, on a control that
-              // writes. `documents-table.tsx` already resolves it this way for
-              // folders.
-              teamIds={[...scopeTeamIds(row.original)]}
+              teamIds={row.original.teamIds ?? []}
               onFolderDeleted={onFolderDeleted}
               parentFolderTeamId={parentFolderTeamId}
               ragStatus={row.original.ragStatus}

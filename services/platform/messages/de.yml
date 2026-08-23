@@ -2135,6 +2135,7 @@ documents:
     navigation: Brotkrumennavigation
     documents: Dokumente
     oneDrive: OneDrive
+    googleDrive: Google Drive
   aria:
     openFolder: Ordner {name} öffnen
     openDocument: Dokument {name} öffnen
@@ -2190,6 +2191,7 @@ documents:
     importDocuments: Dokumente hochladen
     fromYourDevice: Von deinem Gerät
     fromMicrosoft365: Von Microsoft 365
+    fromGoogleDrive: Von Google Drive
     uploadInProgress: Upload läuft
     uploadingFileNamed: '{fileName} wird hochgeladen'
     confirming: Schließt Upload ab…
@@ -2283,6 +2285,43 @@ documents:
     syncStarted: Synchronisierung gestartet
     importingItems: '{count} Elemente werden in den Speicher importiert...'
     syncingItems: '{count} Elemente werden in den Speicher synchronisiert...'
+    importCompleted: Import abgeschlossen
+    syncCompleted: Synchronisierung abgeschlossen
+    filesImportedCount: '{count} von {total} Dateien importiert'
+    filesSyncedCount: '{count} von {total} Dateien synchronisiert'
+    importFailed: Import fehlgeschlagen
+    syncFailed: Synchronisierung fehlgeschlagen
+    importItems: '{count} {count, plural, one {Element} other {Elemente}} importieren'
+    syncItems: '{count} {count, plural, one {Element} other {Elemente}} synchronisieren'
+  googledrive:
+    title: Von Google Drive importieren
+    selectDescription: Wähle Dateien oder Ordner zum Importieren
+    notConnected: Google Drive verbinden
+    notConnectedDescription: Autorisiere Google Drive, damit du Dateien für Dokumente auswählen kannst.
+    connect: Google Drive verbinden
+    reconnect: Google Drive erneut verbinden
+    disconnect: Google Drive trennen
+    disconnecting: Trenne Google Drive…
+    disconnectFailed: Google Drive konnte nicht getrennt werden
+    grantPermissions: Google Drive-Berechtigungen erteilen
+    redirecting: Weiterleitung…
+    loadFailed: Elemente konnten nicht geladen werden
+    noFilesSelected: Keine importierbaren Dateien in der Auswahl
+    oneTimeImport: Einmaliger Import
+    oneTimeDescription: Dateien einmal importieren und in deinem Workspace speichern
+    syncImport: Synchronisierungsimport
+    syncDescription: Dateien automatisch synchronisiert halten
+    importSettings: Importeinstellungen
+    settingsDescription:
+      Wähle, wie deine {count} ausgewählten {count, plural, one
+      {Element} other {Elemente}} importiert werden sollen.
+    importCount: Importieren ({count})
+    importing: Importiert…
+    syncing: Synchronisiert…
+    importStarted: Import gestartet
+    syncStarted: Synchronisierung gestartet
+    importingItems: '{count} Elemente werden in den Speicher importiert…'
+    syncingItems: '{count} Elemente werden in den Speicher synchronisiert…'
     importCompleted: Import abgeschlossen
     syncCompleted: Synchronisierung abgeschlossen
     filesImportedCount: '{count} von {total} Dateien importiert'
@@ -3787,6 +3826,7 @@ governance:
       twoFactorAttempts: 2FA-Versuche
       policyAcknowledgements: Richtlinien-Bestätigungen
       onedrive: OneDrive-Sync-Konfigurationen
+      googleDriveSync: Google-Drive-Sync-Konfigurationen
       userCloudAuthorizations: Cloud-Import-Autorisierungen
       loginAttempts: Login-Versuche und Sperren
       notifications: Sicherheitsbenachrichtigungen

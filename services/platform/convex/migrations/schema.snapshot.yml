@@ -2777,6 +2777,75 @@ tables:
       ft:
         type: string
       optional: true
+  googleDriveSyncConfigs:
+    errorMessage:
+      ft:
+        type: string
+      optional: true
+    itemId:
+      ft:
+        type: string
+      optional: false
+    itemName:
+      ft:
+        type: string
+      optional: false
+    itemPath:
+      ft:
+        type: string
+      optional: true
+    itemType:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: file
+          - type: literal
+            value: folder
+      optional: false
+    lastSyncAt:
+      ft:
+        type: number
+      optional: true
+    lastSyncStatus:
+      ft:
+        type: string
+      optional: true
+    metadata:
+      ft:
+        type: any
+      optional: true
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    status:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: active
+          - type: literal
+            value: inactive
+          - type: literal
+            value: error
+      optional: false
+    storagePrefix:
+      ft:
+        type: string
+      optional: true
+    targetBucket:
+      ft:
+        type: string
+      optional: false
+    teamId:
+      ft:
+        type: string
+      optional: true
+    userId:
+      ft:
+        type: string
+      optional: false
   governanceSecrets:
     authTag:
       ft:

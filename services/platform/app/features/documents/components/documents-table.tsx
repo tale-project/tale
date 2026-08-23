@@ -39,6 +39,9 @@ interface DocumentsTableProps {
   /** Controlled Microsoft 365 picker (set after cloud-import OAuth return). */
   oneDriveOpen?: boolean;
   onOneDriveOpenChange?: (open: boolean) => void;
+  /** Controlled Google Drive picker (set after cloud-import OAuth return). */
+  googleDriveOpen?: boolean;
+  onGoogleDriveOpenChange?: (open: boolean) => void;
 }
 
 export function DocumentsTable({
@@ -48,6 +51,8 @@ export function DocumentsTable({
   docId,
   oneDriveOpen,
   onOneDriveOpenChange,
+  googleDriveOpen,
+  onGoogleDriveOpenChange,
 }: DocumentsTableProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -409,6 +414,8 @@ export function DocumentsTable({
             parentFolderTeamId={parentFolderTeamId}
             oneDriveOpen={oneDriveOpen}
             onOneDriveOpenChange={onOneDriveOpenChange}
+            googleDriveOpen={googleDriveOpen}
+            onGoogleDriveOpenChange={onGoogleDriveOpenChange}
           />
         }
         emptyState={{

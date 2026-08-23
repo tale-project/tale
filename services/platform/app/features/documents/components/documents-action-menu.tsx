@@ -3,6 +3,7 @@
 import { FolderPlus, HardDrive, Upload } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 
+import { GoogleIcon } from '@/app/components/icons/google-icon';
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import {
   DataTableActionMenu,
@@ -20,6 +21,12 @@ const OneDriveImportDialog = lazyComponent(() =>
   })),
 );
 
+const GoogleDriveImportDialog = lazyComponent(() =>
+  import('./google-drive-import-dialog').then((mod) => ({
+    default: mod.GoogleDriveImportDialog,
+  })),
+);
+
 const DocumentUploadDialog = lazyComponent(() =>
   import('./document-upload-dialog').then((mod) => ({
     default: mod.DocumentUploadDialog,
@@ -33,6 +40,9 @@ export interface DocumentsActionMenuProps {
   /** Controlled open state for the Microsoft 365 picker (OAuth return). */
   oneDriveOpen?: boolean;
   onOneDriveOpenChange?: (open: boolean) => void;
+  /** Controlled open state for the Google Drive picker (OAuth return). */
+  googleDriveOpen?: boolean;
+  onGoogleDriveOpenChange?: (open: boolean) => void;
 }
 
 export function DocumentsActionMenu({
@@ -41,6 +51,8 @@ export function DocumentsActionMenu({
   parentFolderTeamId,
   oneDriveOpen,
   onOneDriveOpenChange,
+  googleDriveOpen,
+  onGoogleDriveOpenChange,
 }: DocumentsActionMenuProps) {
   const { t: tDocuments } = useT('documents');
   const ability = useAbility();
@@ -50,6 +62,13 @@ export function DocumentsActionMenu({
   const isOneDriveDialogOpen = oneDriveOpen ?? uncontrolledOneDriveOpen;
   const setIsOneDriveDialogOpen =
     onOneDriveOpenChange ?? setUncontrolledOneDriveOpen;
+
+  const [uncontrolledGoogleDriveOpen, setUncontrolledGoogleDriveOpen] =
+    useState(false);
+  const isGoogleDriveDialogOpen =
+    googleDriveOpen ?? uncontrolledGoogleDriveOpen;
+  const setIsGoogleDriveDialogOpen =
+    onGoogleDriveOpenChange ?? setUncontrolledGoogleDriveOpen;
 
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
@@ -61,6 +80,10 @@ export function DocumentsActionMenu({
   const handleOneDriveClick = useCallback(() => {
     setIsOneDriveDialogOpen(true);
   }, [setIsOneDriveDialogOpen]);
+
+  const handleGoogleDriveClick = useCallback(() => {
+    setIsGoogleDriveDialogOpen(true);
+  }, [setIsGoogleDriveDialogOpen]);
 
   const handleCreateFolder = useCallback(() => {
     setIsCreateFolderOpen(true);
@@ -79,12 +102,23 @@ export function DocumentsActionMenu({
         onClick: handleOneDriveClick,
       },
       {
+        label: tDocuments('upload.fromGoogleDrive'),
+        icon: GoogleIcon,
+        onClick: handleGoogleDriveClick,
+      },
+      {
         label: tDocuments('folder.newFolder'),
         icon: FolderPlus,
         onClick: handleCreateFolder,
       },
     ];
-  }, [tDocuments, handleDeviceUpload, handleOneDriveClick, handleCreateFolder]);
+  }, [
+    tDocuments,
+    handleDeviceUpload,
+    handleOneDriveClick,
+    handleGoogleDriveClick,
+    handleCreateFolder,
+  ]);
 
   if (ability.cannot('write', 'knowledgeWrite')) {
     return null;
@@ -113,6 +147,15 @@ export function DocumentsActionMenu({
           onOpenChange={setIsOneDriveDialogOpen}
           organizationId={organizationId}
           onSuccess={() => setIsOneDriveDialogOpen(false)}
+        />
+      )}
+
+      {isGoogleDriveDialogOpen && (
+        <GoogleDriveImportDialog
+          open={isGoogleDriveDialogOpen}
+          onOpenChange={setIsGoogleDriveDialogOpen}
+          organizationId={organizationId}
+          onSuccess={() => setIsGoogleDriveDialogOpen(false)}
         />
       )}
 

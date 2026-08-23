@@ -2062,6 +2062,7 @@ documents:
     navigation: Breadcrumb
     documents: Documents
     oneDrive: OneDrive
+    googleDrive: Google Drive
   aria:
     openFolder: Open folder {name}
     openDocument: Open document {name}
@@ -2117,6 +2118,7 @@ documents:
     importDocuments: Upload documents
     fromYourDevice: From your device
     fromMicrosoft365: From Microsoft 365
+    fromGoogleDrive: From Google Drive
     uploadInProgress: Upload in progress
     uploadingFileNamed: Uploading {fileName}
     confirming: Confirming upload…
@@ -2197,6 +2199,43 @@ documents:
     oneTimeDescription: Import files once and store them in your workspace
     syncImport: Sync import
     syncDescription: Keep files automatically synchronized
+    importCount: Import ({count})
+    importing: Importing...
+    syncing: Syncing...
+    importStarted: Import started
+    syncStarted: Sync started
+    importingItems: Importing {count} items to storage...
+    syncingItems: Syncing {count} items to storage...
+    importCompleted: Import completed
+    syncCompleted: Sync completed
+    filesImportedCount: '{count} of {total} files imported'
+    filesSyncedCount: '{count} of {total} files synced'
+    importFailed: Import failed
+    syncFailed: Sync failed
+    importItems: Import {count} {count, plural, one {item} other {items}}
+    syncItems: Sync {count} {count, plural, one {item} other {items}}
+  googledrive:
+    title: Import from Google Drive
+    selectDescription: Choose files or folders to import
+    notConnected: Connect Google Drive
+    notConnectedDescription: Authorize Google Drive so you can pick files for Documents.
+    connect: Connect Google Drive
+    reconnect: Reconnect Google Drive
+    disconnect: Disconnect Google Drive
+    disconnecting: Disconnecting Google Drive…
+    disconnectFailed: Could not disconnect Google Drive
+    grantPermissions: Grant Google Drive permissions
+    redirecting: Redirecting...
+    loadFailed: Failed to load items
+    noFilesSelected: No importable files in the selection
+    oneTimeImport: One-time import
+    oneTimeDescription: Import files once and store them in your workspace
+    syncImport: Sync import
+    syncDescription: Keep files automatically synchronized
+    importSettings: Import settings
+    settingsDescription:
+      Choose how to import your {count} selected {count, plural, one {item} other
+      {items}}.
     importCount: Import ({count})
     importing: Importing...
     syncing: Syncing...
@@ -3655,6 +3694,7 @@ governance:
       twoFactorAttempts: Two-factor attempts
       policyAcknowledgements: Policy acknowledgements
       onedrive: OneDrive sync configs
+      googleDriveSync: Google Drive sync configs
       userCloudAuthorizations: Cloud import authorizations
       loginAttempts: Login attempts and lockouts
       notifications: Security notifications

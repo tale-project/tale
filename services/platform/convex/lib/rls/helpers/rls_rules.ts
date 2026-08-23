@@ -17,7 +17,6 @@ import type {
   RLSRuleContext,
 } from '../types';
 import { authorizeRls } from './access_control';
-import { conversationAssignmentAllows } from './conversation_assignment';
 import { isAdmin } from './role_helpers';
 
 /**
@@ -61,26 +60,24 @@ export async function rlsRules(
       : Promise.resolve(new Set<string>()));
   };
 
-  // Built-in assignment privacy for conversations. The RULE itself lives in
-  // `conversation_assignment.ts` so the chat assistant's conversations leg —
-  // which reads through an RLS-BYPASSING internal query — evaluates the same
-  // predicate instead of a second copy of it; a copy that drifts wider here
-  // publishes an entire inbox. The legacy `conversation_access` governance row
-  // is still ignored: privacy is platform behaviour, not a toggle.
-  //
-  // `hasTeam` keeps the Better Auth round-trip lazy exactly as before — the
-  // predicate calls it only for a conversation whose decision needs it, so the
-  // admin and individual-assignee branches still resolve no teams
-  // (`rls_rules.lazy_teams.test.ts`).
+  // Built-in assignment privacy for conversations: admins/owners see everything;
+  // a conversation with neither person nor team assignee is admin triage only;
+  // otherwise the caller must be the individual owner or a member of the queued
+  // team (the union when both are set). The legacy `conversation_access`
+  // governance row is ignored — privacy is platform behaviour, not a toggle.
   const passesAssignmentScope = async (
     conversation: Doc<'conversations'>,
     role: MemberRole | undefined,
-  ): Promise<boolean> =>
-    conversationAssignmentAllows(conversation, {
-      isAdmin: isAdmin(role),
-      userId: user?.userId,
-      hasTeam: async (teamId) => (await resolveTeamIds()).has(teamId),
-    });
+  ): Promise<boolean> => {
+    if (isAdmin(role)) return true;
+    const { assigneeUserId, assigneeTeamId } = conversation;
+    if (!assigneeUserId && !assigneeTeamId) return false;
+    if (assigneeUserId && assigneeUserId === user?.userId) return true;
+    if (assigneeTeamId && (await resolveTeamIds()).has(assigneeTeamId)) {
+      return true;
+    }
+    return false;
+  };
 
   // Parent-conversation cache for conversationMessages scoping — one get per
   // conversation per request instead of one per message when a thread loads.
@@ -284,6 +281,42 @@ export async function rlsRules(
           (m) => m.organizationId === config.organizationId,
         );
         return authorizeRls(membership?.role, 'onedriveSyncConfigs', 'write');
+      },
+    },
+
+    // Google Drive Sync Configs - organization-scoped (mirrors OneDrive)
+    googleDriveSyncConfigs: {
+      read: async (_, config) => {
+        if (!user) return false;
+        if (!userOrgIds.has(config.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === config.organizationId,
+        );
+        return authorizeRls(membership?.role, 'googleDriveSyncConfigs', 'read');
+      },
+      modify: async (_, config) => {
+        if (!user) return false;
+        if (!userOrgIds.has(config.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === config.organizationId,
+        );
+        return authorizeRls(
+          membership?.role,
+          'googleDriveSyncConfigs',
+          'write',
+        );
+      },
+      insert: async ({ user: ruleUser }, config) => {
+        if (!ruleUser) return false;
+        if (!userOrgIds.has(config.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === config.organizationId,
+        );
+        return authorizeRls(
+          membership?.role,
+          'googleDriveSyncConfigs',
+          'write',
+        );
       },
     },
 

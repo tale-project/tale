@@ -62,11 +62,19 @@ function DocumentsPage() {
   const [oneDriveOpen, setOneDriveOpen] = useState(
     () => cloudImport === 'onedrive' && cloudImportStatus === 'connected',
   );
+  const [googleDriveOpen, setGoogleDriveOpen] = useState(
+    () => cloudImport === 'google-drive' && cloudImportStatus === 'connected',
+  );
 
   useEffect(() => {
     if (cloudImportStatus !== 'connected') return;
-    if (cloudImport !== 'onedrive') return;
-    setOneDriveOpen(true);
+    if (cloudImport === 'onedrive') {
+      setOneDriveOpen(true);
+    } else if (cloudImport === 'google-drive') {
+      setGoogleDriveOpen(true);
+    } else {
+      return;
+    }
     void navigate({
       search: (prev) => {
         const { cloudImport: _p, cloudImportStatus: _s, ...rest } = prev;
@@ -84,6 +92,8 @@ function DocumentsPage() {
       docId={doc}
       oneDriveOpen={oneDriveOpen}
       onOneDriveOpenChange={setOneDriveOpen}
+      googleDriveOpen={googleDriveOpen}
+      onGoogleDriveOpenChange={setGoogleDriveOpen}
     />
   );
 }

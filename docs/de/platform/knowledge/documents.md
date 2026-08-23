@@ -13,9 +13,9 @@ Der Dokumente-Tab ist die Dateifläche der Wissensdatenbank. Redakteure laden Da
 
 ## Hochladen
 
-Öffne **Wissen > Dokumente** und klicke auf **Dokumente hochladen** — das Menü bietet **Von deinem Gerät** und **Von Microsoft 365**. Das Upload-Tor akzeptiert die Formate, die den Großteil des Org-Wissens abdecken: PDF, Word (`.doc`, `.docx`), OpenDocument-Text (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, reinen Text und textbasierte Arbeitsdateien (Markdown, JSON, YAML, `.py`), Buchhaltungs-Container (`.ac2`) sowie Bilder (JPG, PNG, GIF, WEBP). Alles andere wird beim Upload abgewiesen, und die Upload-Richtlinie einer Organisation kann die Menge weiter einschränken.
+Öffne **Wissen > Dokumente** und klicke auf **Dokumente hochladen** — das Menü bietet **Von deinem Gerät**, **Von Microsoft 365** und **Von Google Drive**. Das Upload-Tor akzeptiert die Formate, die den Großteil des Org-Wissens abdecken: PDF, Word (`.doc`, `.docx`), OpenDocument-Text (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, reinen Text und Bilder (JPG, PNG, GIF, WEBP). Alles andere wird beim Upload abgewiesen.
 
-Hochladen und Indexieren sind zwei getrennte Tatsachen, und die Spalte **RAG-Status** verfolgt die zweite: **Wird indexiert**, während die Pipeline läuft, **Indexiert**, wenn Agenten den Inhalt abrufen können, **Fehlgeschlagen**, wenn die Pipeline auf einen Fehler lief, und **Neuindexierung nötig**, wenn die gespeicherten Chunks veraltet sind. Moderne Formate indexieren; das alte Office-Trio (`.doc`, `.xls`, `.ppt`) lädt hoch und bleibt herunterladbar, zeigt aber **Nicht indexiert** — Agenten kommen an den Inhalt erst heran, wenn du die Datei im modernen Format neu speicherst. Ein Buchhaltungs-Container (`.ac2`) liegt als opake Datei: herunterladbar, nie mit Vorschau, nie indexiert.
+Hochladen und Indexieren sind zwei getrennte Tatsachen, und die Spalte **RAG-Status** verfolgt die zweite: **Wird indexiert**, während die Pipeline läuft, **Indexiert**, wenn Agenten den Inhalt abrufen können, **Fehlgeschlagen**, wenn die Pipeline auf einen Fehler lief, und **Neuindexierung nötig**, wenn die gespeicherten Chunks veraltet sind. Moderne Formate indexieren; das alte Office-Trio (`.doc`, `.xls`, `.ppt`) lädt hoch und bleibt herunterladbar, zeigt aber **Nicht indexiert** — Agenten kommen an den Inhalt erst heran, wenn du die Datei im modernen Format neu speicherst.
 
 ## Gelenktes Dokument überarbeiten
 
@@ -55,15 +55,23 @@ Nutze ein gelenktes Dokument, wenn die Freigabe mit genau der Datei verknüpft b
 
 Um die Synchronisierung zu beenden — bei einem ganzen synchronisierten Ordner oder einer einzelnen synchronisierten Datei — öffne das Menü der Zeile und klicke auf **Synchronisierung beenden**; die importierten Dokumente bleiben im Workspace und werden nicht mehr aktualisiert. Auch das Löschen eines synchronisierten Ordners oder einer einzelnen Datei beendet die Synchronisierung. In allen Fällen bleiben die Dateien in OneDrive unberührt.
 
+## Import aus Google Drive
+
+**Von Google Drive** steht immer im Upload-Menü. Beim ersten Mal bittet Tale dich, Google Drive für den Import in Dokumente zu autorisieren. Danach wählst du Dateien oder Ordner in Mein Drive und den Importmodus. **Einmaliger Import** bringt die Dateien einmal hinein — sie verhalten sich wie Uploads vom Gerät. **Synchronisierungsimport** hält die Auswahl aktuell: neue Dateien im Drive-Ordner erscheinen beim nächsten Sync-Lauf, geänderte Dateien werden neu indexiert, und am Quellort gelöschte Dateien verlassen den Workspace. Beide Modi bewahren die Ordnerstruktur deiner Auswahl. Native Google Docs, Tabellen und Präsentationen werden übersprungen — exportiere sie zuerst als PDF oder Office-Format, wenn du sie in Dokumente brauchst.
+
+Um die Synchronisierung zu beenden — bei einem ganzen synchronisierten Ordner oder einer einzelnen synchronisierten Datei — öffne das Menü der Zeile und klicke auf **Synchronisierung beenden**; die importierten Dokumente bleiben im Workspace und werden nicht mehr aktualisiert. Auch das Löschen eines synchronisierten Ordners oder einer einzelnen Datei beendet die Synchronisierung. In allen Fällen bleiben die Dateien in Google Drive unberührt.
+
+Über **Google Drive trennen** im Kopf des Import-Dialogs widerrufst du die Freigabe; verbinde erneut, wenn du weitere Dateien importieren willst.
+
 ## Team-Bindung, Ordner, Quellen
 
 Jede Zeile trägt eine Zelle **Teams** — standardmäßig **Organisationsweit**, oder die Teams, die du über **Team zuweisen** im Zeilenmenü wählst. Ein team-gebundenes Dokument ist für Mitglieder und Agenten außerhalb des Teams unsichtbar; das ist der Zugriffshebel der Wissensdatenbank. Projekt-Dateien liegen ganz außerhalb dieses Modells: Der **Wissen**-Tab eines Projekts hält Dateien, die auf dieses eine Projekt begrenzt sind, und sie tauchen weder in dieser Bibliothek noch in ihrer Team-Bindung auf — siehe [Dateien verwalten](/de/platform/projects/manage-files).
 
-**Neuer Ordner** hält große Bibliotheken navigierbar, und Connectors bringen ihre eigene Struktur mit: Dokumente aus einem OneDrive- oder SharePoint-Sync landen unter Sync-Ordnern und zeigen ihre Herkunft in der Spalte **Quelle**, was Zitate bis ins Quellsystem nachvollziehbar hält.
+**Neuer Ordner** hält große Bibliotheken navigierbar, und Connectors bringen ihre eigene Struktur mit: Dokumente aus einem OneDrive-, SharePoint- oder Google-Drive-Sync landen unter Sync-Ordnern und zeigen ihre Herkunft in der Spalte **Quelle**, was Zitate bis ins Quellsystem nachvollziehbar hält.
 
 <Warning>
 
-Das Löschen eines Ordners löscht jede Datei und jeden Unterordner darin endgültig. Das Löschen eines OneDrive-Sync-Ordners entfernt auch dessen Auto-Sync-Konfiguration und -Historie — nie aber die Dateien in OneDrive selbst.
+Das Löschen eines Ordners löscht jede Datei und jeden Unterordner darin endgültig. Das Löschen eines OneDrive- oder Google-Drive-Sync-Ordners entfernt auch dessen Auto-Sync-Konfiguration und -Historie — nie aber die Dateien in OneDrive oder Google Drive selbst.
 
 </Warning>
 
