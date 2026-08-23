@@ -36,8 +36,13 @@ vi.mock('../lib/rls/errors', () => {
       }
     },
     UnauthorizedError: class extends RLSError {
-      constructor() {
-        super('Not authorized to access this resource', 'UNAUTHORIZED');
+      // Mirrors the real signature: org-membership gates pass ORG_NOT_FOUND /
+      // ORG_FORBIDDEN so getCurrentMemberContext can map code → status.
+      constructor(
+        message = 'Not authorized to access this resource',
+        code = 'UNAUTHORIZED',
+      ) {
+        super(message, code);
       }
     },
   };
@@ -115,7 +120,37 @@ describe('getCurrentMemberContext handler', () => {
     expect(result).toBeNull();
   });
 
-  it('returns not_found when unauthorized and org lookup fails', async () => {
+  it('returns not_found when the organization no longer exists', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1', name: 'Alice' });
+    // getOrganizationMember classifies a dead/malformed org id as ORG_NOT_FOUND.
+    mockedGetOrgMember.mockRejectedValue(
+      new UnauthorizedError('Organization "org_1" not found.', 'ORG_NOT_FOUND'),
+    );
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    const result = await handler(ctx, { organizationId: 'org_1' });
+
+    expect(result).toEqual({ status: 'not_found' });
+  });
+
+  it('returns not_member when the org exists but the user is not in it', async () => {
+    mockedGetAuthUser.mockResolvedValue({ userId: 'user_1', name: 'Alice' });
+    mockedGetOrgMember.mockRejectedValue(
+      new UnauthorizedError(
+        'Not a member of organization org_1',
+        'ORG_FORBIDDEN',
+      ),
+    );
+    const ctx = createMockCtx();
+    const handler = await getHandler();
+
+    const result = await handler(ctx, { organizationId: 'org_1' });
+
+    expect(result).toEqual({ status: 'not_member' });
+  });
+
+  it('returns not_member for a generic UnauthorizedError without a code', async () => {
     mockedGetAuthUser.mockResolvedValue({ userId: 'user_1', name: 'Alice' });
     mockedGetOrgMember.mockRejectedValue(new UnauthorizedError());
     const ctx = createMockCtx();
@@ -123,7 +158,7 @@ describe('getCurrentMemberContext handler', () => {
 
     const result = await handler(ctx, { organizationId: 'org_1' });
 
-    expect(result).toEqual({ status: 'not_found' });
+    expect(result).toEqual({ status: 'not_member' });
   });
 
   it('re-throws non-authorization errors from getOrganizationMember', async () => {

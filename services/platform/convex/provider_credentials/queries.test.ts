@@ -10,7 +10,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import { api, internal } from '../_generated/api';
+import { api, components, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import betterAuthSchema from '../betterAuth/schema';
 import schema from '../schema';
@@ -98,6 +98,29 @@ async function seedMember(
       role: 'member',
       createdAt: 0,
     });
+  });
+}
+
+/**
+ * Create a betterAuth organization; returns its component `_id`. The
+ * non-member refusal reads the organization row to classify the miss
+ * (`ORG_FORBIDDEN` for a live org vs `ORG_NOT_FOUND` for a dead one), so
+ * that test must query an org that actually exists — same helper as
+ * mutations.test.ts.
+ */
+async function seedAuthOrg(t: T, slug: string): Promise<string> {
+  return await t.run(async (ctx) => {
+    const created = await ctx.runMutation(
+      components.betterAuth.adapter.create,
+      {
+        input: {
+          model: 'organization',
+          data: { name: slug, slug, createdAt: 0 },
+        },
+      },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- adapter returns the created record as unknown
+    return (created as { _id: string })._id;
   });
 }
 
@@ -231,11 +254,14 @@ describe('listCredentials', () => {
   it('refuses a caller who is not a member of the organization', async () => {
     const t = newWorld();
     await seedMember(t, MEMBER, OTHER_ORG);
+    // A real organization row: the refusal must be the live-org kind
+    // (ORG_FORBIDDEN "Not a member"), not the dead-org ORG_NOT_FOUND.
+    const liveOrgId = await seedAuthOrg(t, 'pc-queries-live');
     await expect(
       t
         .withIdentity({ subject: MEMBER })
         .query(api.provider_credentials.queries.listCredentials, {
-          organizationId: ORG,
+          organizationId: liveOrgId,
         }),
     ).rejects.toThrowError(/Not a member/);
   });

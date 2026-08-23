@@ -5,6 +5,7 @@
 import { components } from '../../../_generated/api';
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
 import { normalizeAuthEmail } from '../../auth/normalize_auth_email';
+import { looksLikeConvexDocumentId } from '../../helpers/id_shape';
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
 import { UnauthorizedError } from '../errors';
 import type { AuthenticatedUser, OrganizationMember } from '../types';
@@ -56,11 +57,54 @@ async function findMemberInMirror(
   }
 }
 
+/**
+ * Classify a membership miss before throwing: an org that no longer exists
+ * (deleted, or the id is not even id-shaped — a stale client polling a dead
+ * persisted active org) is `ORG_NOT_FOUND`, a live org the user simply isn't
+ * in is `ORG_FORBIDDEN`. Clients dispatch recovery on `ORG_NOT_FOUND` (clear
+ * the stale active org, return to the picker), so the two must not be
+ * conflated. One extra adapter read, only on the (terminal) failure path.
+ * The `looksLikeConvexDocumentId` pre-check keeps a non-id string out of the
+ * adapter's `db.get`, which would throw an opaque decode error (see
+ * `lib/helpers/id_shape.ts`).
+ */
+async function organizationExists(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: string,
+): Promise<boolean> {
+  if (!looksLikeConvexDocumentId(organizationId)) return false;
+  try {
+    const org = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: 'organization',
+      where: [{ field: '_id', value: organizationId, operator: 'eq' }],
+    });
+    return org != null;
+  } catch (err) {
+    console.warn(
+      '[getOrganizationMember] organization existence check failed; treating as missing',
+      err instanceof Error ? err.message : err,
+    );
+    return false;
+  }
+}
+
 export async function getOrganizationMember(
   ctx: QueryCtx | MutationCtx,
   organizationId: string,
   user?: AuthenticatedUser,
 ): Promise<OrganizationMember> {
+  // Reject an empty id at the boundary: callers validate `organizationId` as
+  // `v.string()`, so a client with an empty persisted org context reaches
+  // this gate with `""` — which can never match a membership and used to
+  // surface as the unactionable "Not a member of organization " (sic). Fail
+  // it as the structured, terminal miss it is, before any lookup.
+  if (!organizationId) {
+    throw new UnauthorizedError(
+      'Organization id is required.',
+      'ORG_NOT_FOUND',
+    );
+  }
+
   const authUser = user || (await requireAuthenticatedUser(ctx));
 
   // Hot path: read the membership from the local mirror (synced inline on every
@@ -138,14 +182,22 @@ export async function getOrganizationMember(
   }
 
   if (!member) {
+    if (!(await organizationExists(ctx, organizationId))) {
+      throw new UnauthorizedError(
+        `Organization "${organizationId}" not found.`,
+        'ORG_NOT_FOUND',
+      );
+    }
     throw new UnauthorizedError(
       `Not a member of organization ${organizationId}`,
+      'ORG_FORBIDDEN',
     );
   }
 
   if (member.role === 'disabled') {
     throw new UnauthorizedError(
       `Member account is disabled in organization ${organizationId}`,
+      'ORG_FORBIDDEN',
     );
   }
 
