@@ -9,7 +9,7 @@ The organisation-facing side — adding credentials, defaults, reconnecting a la
 
 ## How a connector is declared
 
-Every connector is one directory under `configs/platform/system/connectors/`, named for its slug, holding a `connector.yml` and the icon the settings page renders. The slug is the directory name, the connector's declared `name`, and the first half of the node type an automation uses to place one of its actions — `<connector>.<action>`. Thirteen of these directories ship today.
+Every connector is one directory under `configs/platform/system/connectors/`, named for its slug, holding a `connector.yml` and the icon the settings page renders. The slug is the directory name, the connector's declared `name`, and the first half of the node type an automation uses to place one of its actions — `<connector>.<action>`. Fourteen vendor connectors appear in Settings today (plus a handful of platform-auth connectors that stay out of the picker).
 
 The file opens with the connector's identity and its authentication contract, then lists the actions:
 

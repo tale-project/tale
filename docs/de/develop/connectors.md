@@ -9,7 +9,7 @@ Die Seite für Organisationen — Zugangsdaten anlegen, Standard setzen, eine ab
 
 ## Wie ein Connector deklariert wird
 
-Jeder Connector ist ein Verzeichnis unter `configs/platform/system/connectors/`, benannt nach seinem Slug, mit einer `connector.yml` und dem Icon, das die Einstellungsseite rendert. Der Slug ist der Verzeichnisname, der deklarierte `name` des Connectors und die erste Hälfte des Node-Typs, mit dem eine Automation eine seiner Aktionen setzt — `<connector>.<action>`. Dreizehn dieser Verzeichnisse werden heute ausgeliefert.
+Jeder Connector ist ein Verzeichnis unter `configs/platform/system/connectors/`, benannt nach seinem Slug, mit einer `connector.yml` und dem Icon, das die Einstellungsseite rendert. Der Slug ist der Verzeichnisname, der deklarierte `name` des Connectors und die erste Hälfte des Node-Typs, mit dem eine Automation eine seiner Aktionen setzt — `<connector>.<action>`. Vierzehn Vendor-Connectoren erscheinen heute in den Einstellungen (plus einige Platform-Auth-Connectoren, die der Picker ausblendet).
 
 Die Datei beginnt mit der Identität des Connectors und seinem Authentifizierungs-Vertrag, danach folgen die Aktionen:
 

@@ -12,6 +12,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useImportOneDriveFiles } from '../hooks/actions';
 import {
+  useCloudImportAuthorizationStatus,
   useOneDriveFiles,
   useSharePointDrives,
   useSharePointFiles,
@@ -30,6 +31,15 @@ import type {
   SourceTab,
 } from './onedrive-import/types';
 import { isFolder, isFile } from './onedrive-import/types';
+
+function isCloudImportAuthError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return (
+    error.message.includes('Microsoft account not connected') ||
+    error.message.includes('OneDrive is not authorized') ||
+    error.message.includes('Cloud import is not authorized')
+  );
+}
 
 interface OneDriveImportDialogProps {
   open?: boolean;
@@ -89,44 +99,77 @@ export function OneDriveImportDialog({
 
   const { teams, isLoading: isLoadingTeams } = useTeams();
 
+  const { data: cloudImportAuth, isLoading: cloudImportAuthLoading } =
+    useCloudImportAuthorizationStatus(organizationId, props.open === true);
+
+  const handleDisconnected = useCallback(() => {
+    setSelectedItems(new Map());
+    setSearchQuery('');
+    setCurrentFolderId(undefined);
+    setFolderPath([{ id: undefined, name: t('breadcrumb.oneDrive') }]);
+    setSelectedSite(null);
+    setSelectedDrive(null);
+    setSpFolderId(undefined);
+    setSpFolderPath([]);
+    setSourceTab('onedrive');
+  }, [t]);
+
   const handleSelectTeam = useCallback((teamId: string | undefined) => {
     setSelectedTeamId_local(teamId);
   }, []);
+
+  const isMicrosoftConnected =
+    !cloudImportAuthLoading && cloudImportAuth?.status === 'active';
 
   const {
     data: itemsData,
     isLoading: loading,
     error: loadError,
   } = useOneDriveFiles(
+    organizationId,
     currentFolderId,
-    stage === 'picker' && sourceTab === 'onedrive',
+    stage === 'picker' && sourceTab === 'onedrive' && isMicrosoftConnected,
   );
 
-  const { data: sitesData, isLoading: loadingSites } = useSharePointSites(
-    stage === 'picker' && sourceTab === 'sharepoint' && !selectedSite,
+  const {
+    data: sitesData,
+    isLoading: loadingSites,
+    error: sitesError,
+  } = useSharePointSites(
+    organizationId,
+    stage === 'picker' &&
+      sourceTab === 'sharepoint' &&
+      !selectedSite &&
+      isMicrosoftConnected,
   );
 
   const { data: drivesData, isLoading: loadingDrives } = useSharePointDrives(
+    organizationId,
     selectedSite?.id,
     stage === 'picker' &&
       sourceTab === 'sharepoint' &&
       !!selectedSite &&
-      !selectedDrive,
+      !selectedDrive &&
+      isMicrosoftConnected,
   );
 
   const { data: spFilesData, isLoading: loadingSpFiles } = useSharePointFiles(
+    organizationId,
     selectedSite?.id,
     selectedDrive?.id,
     spFolderId,
     stage === 'picker' &&
       sourceTab === 'sharepoint' &&
       !!selectedSite &&
-      !!selectedDrive,
+      !!selectedDrive &&
+      isMicrosoftConnected,
   );
 
   const isMicrosoftAccountError =
-    loadError instanceof Error &&
-    loadError.message.includes('Microsoft account not connected');
+    (!cloudImportAuthLoading &&
+      (cloudImportAuth === null || cloudImportAuth.status !== 'active')) ||
+    isCloudImportAuthError(loadError) ||
+    isCloudImportAuthError(sitesError);
 
   const collectAllFiles = async (
     items: OneDriveApiItem[],
@@ -161,12 +204,14 @@ export function OneDriveImportDialog({
           let folderResult;
           if (sourceTab === 'sharepoint' && selectedSite && selectedDrive) {
             folderResult = await listSharePointFiles({
+              organizationId,
               siteId: selectedSite.id,
               driveId: selectedDrive.id,
               folderId: item.id,
             });
           } else {
             folderResult = await listOneDriveFiles({
+              organizationId,
               folderId: item.id,
             });
           }
@@ -506,6 +551,7 @@ export function OneDriveImportDialog({
         setSelectedItems(new Map());
       },
       onProceedToSettings: proceedToSettings,
+      onDisconnected: handleDisconnected,
       t,
     });
 
@@ -516,7 +562,8 @@ export function OneDriveImportDialog({
         title={t('microsoft365.title')}
         hideClose
         size="wide"
-        className="p-0 sm:p-0"
+        className="gap-0 p-0 sm:p-0 md:p-0 md:pt-0 md:pb-0"
+        bodyClassName="mx-0 my-0 px-0 py-0"
         customHeader={picker.customHeader}
       >
         {picker.content}
@@ -548,7 +595,8 @@ export function OneDriveImportDialog({
         description={settings.description}
         size="md"
         hideClose
-        className="p-0 sm:p-0"
+        className="gap-0 p-0 sm:p-0 md:p-0 md:pt-0 md:pb-0"
+        bodyClassName="mx-0 my-0 px-0 py-0"
         customHeader={settings.customHeader}
         footer={settings.footer}
         footerClassName={settings.footerClassName}

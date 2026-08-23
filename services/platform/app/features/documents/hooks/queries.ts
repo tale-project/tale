@@ -26,6 +26,18 @@ export function useUploadUsage(organizationId: string) {
   });
 }
 
+/** Cloud-import grant for the signed-in member (Microsoft or Google). */
+export function useCloudImportAuthorizationStatus(
+  organizationId: string,
+  enabled: boolean,
+  provider: 'onedrive' | 'google-drive' = 'onedrive',
+) {
+  return useConvexQuery(
+    api.cloud_import.queries.getAuthorizationStatus,
+    enabled ? { organizationId, provider } : 'skip',
+  );
+}
+
 export function useDocuments(
   organizationId: string,
   options?: { enabled?: boolean },
@@ -106,15 +118,19 @@ export function useFolders(organizationId: string, parentFolderId?: string) {
 }
 
 export function useOneDriveFiles(
+  organizationId: string,
   folderId: string | undefined,
   enabled: boolean,
 ) {
   const listOneDriveFiles = useConvexAction(api.onedrive.actions.listFiles);
 
   return useReactQuery({
-    queryKey: ['onedrive-items', folderId],
+    queryKey: ['onedrive-items', organizationId, folderId],
     queryFn: async () => {
-      const result = await listOneDriveFiles.mutateAsync({ folderId });
+      const result = await listOneDriveFiles.mutateAsync({
+        organizationId,
+        folderId,
+      });
       if (!result.success || !result.items) {
         throw new Error(result.error || 'Failed to load OneDrive files');
       }
@@ -126,15 +142,15 @@ export function useOneDriveFiles(
   });
 }
 
-export function useSharePointSites(enabled: boolean) {
+export function useSharePointSites(organizationId: string, enabled: boolean) {
   const listSharePointSites = useConvexAction(
     api.onedrive.actions.listSharePointSites,
   );
 
   return useReactQuery({
-    queryKey: ['sharepoint-sites'],
+    queryKey: ['sharepoint-sites', organizationId],
     queryFn: async () => {
-      const result = await listSharePointSites.mutateAsync({});
+      const result = await listSharePointSites.mutateAsync({ organizationId });
       if (!result.success || !result.sites) {
         throw new Error(result.error || 'Failed to load SharePoint sites');
       }
@@ -147,6 +163,7 @@ export function useSharePointSites(enabled: boolean) {
 }
 
 export function useSharePointDrives(
+  organizationId: string,
   siteId: string | undefined,
   enabled: boolean,
 ) {
@@ -155,10 +172,13 @@ export function useSharePointDrives(
   );
 
   return useReactQuery({
-    queryKey: ['sharepoint-drives', siteId],
+    queryKey: ['sharepoint-drives', organizationId, siteId],
     queryFn: async () => {
       if (!siteId) throw new Error('No site selected');
-      const result = await listSharePointDrives.mutateAsync({ siteId });
+      const result = await listSharePointDrives.mutateAsync({
+        organizationId,
+        siteId,
+      });
       if (!result.success || !result.drives) {
         throw new Error(result.error || 'Failed to load SharePoint drives');
       }
@@ -191,6 +211,7 @@ export function useListDocumentsPaginated(args: ListDocumentsPaginatedArgs) {
 }
 
 export function useSharePointFiles(
+  organizationId: string,
   siteId: string | undefined,
   driveId: string | undefined,
   folderId: string | undefined,
@@ -201,10 +222,11 @@ export function useSharePointFiles(
   );
 
   return useReactQuery({
-    queryKey: ['sharepoint-files', siteId, driveId, folderId],
+    queryKey: ['sharepoint-files', organizationId, siteId, driveId, folderId],
     queryFn: async () => {
       if (!siteId || !driveId) throw new Error('No site/drive selected');
       const result = await listSharePointFiles.mutateAsync({
+        organizationId,
         siteId,
         driveId,
         folderId,

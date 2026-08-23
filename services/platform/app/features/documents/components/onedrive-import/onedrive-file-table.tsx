@@ -13,14 +13,12 @@ import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
-import { MicrosoftReauthButton } from '../microsoft-reauth-button';
 import type { OneDriveApiItem, OneDriveSelectedItem } from './types';
 import { isFolder } from './types';
 
 interface OneDriveFileTableProps {
   items: OneDriveApiItem[];
   isLoading: boolean;
-  isMicrosoftAccountError: boolean;
   searchQuery: string;
   selectedItems: Map<string, OneDriveSelectedItem>;
   getSelectAllState: () => boolean | 'indeterminate';
@@ -34,7 +32,6 @@ interface OneDriveFileTableProps {
 export function OneDriveFileTable({
   items,
   isLoading,
-  isMicrosoftAccountError,
   searchQuery,
   getSelectAllState,
   handleSelectAllChange,
@@ -161,13 +158,6 @@ export function OneDriveFileTable({
   );
 
   const emptyState = useMemo(() => {
-    if (isMicrosoftAccountError) {
-      return {
-        title: t('onedrive.microsoftNotConnected'),
-        description: t('onedrive.microsoftNotConnectedDescription'),
-        customAction: <MicrosoftReauthButton className="mx-auto" />,
-      };
-    }
     if (searchQuery) {
       return {
         title: t('noItemsFound'),
@@ -178,7 +168,7 @@ export function OneDriveFileTable({
       title: t('noItemsAvailable'),
       description: t('onedrive.folderEmpty'),
     };
-  }, [isMicrosoftAccountError, searchQuery, t]);
+  }, [searchQuery, t]);
 
   return (
     <DataTable

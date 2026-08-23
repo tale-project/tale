@@ -64,16 +64,14 @@ export function SharePointSitesTable({
       },
       {
         id: 'url',
-        header: () => (
-          <div className="text-right">{t('microsoft365.siteUrl')}</div>
-        ),
+        header: t('microsoft365.siteUrl'),
+        meta: { align: 'right' as const },
         cell: ({ row }) => (
           <Text
             as="div"
             variant="muted"
             truncate
             align="right"
-            className="max-w-[200px]"
             title={row.original.webUrl}
           >
             {getPathFromUrl(row.original.webUrl)}

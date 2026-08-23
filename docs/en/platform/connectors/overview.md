@@ -3,7 +3,7 @@ title: Connectors
 description: The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and chat.
 ---
 
-An connector is two things at once: a **connector** that ships with the platform, and the **credentials** your organisation stores against that connector. The connector carries the vendor knowledge — which actions exist, what each one takes and returns, how signing in works — and is identical in every organisation. The credentials are yours, and a connector holds as many as you need: one per workspace, store, mailbox, or bot. Thirteen connectors ship today, and each one is already listed under **Settings > Connectors**, waiting for its first credential.
+An connector is two things at once: a **connector** that ships with the platform, and the **credentials** your organisation stores against that connector. The connector carries the vendor knowledge — which actions exist, what each one takes and returns, how signing in works — and is identical in every organisation. The credentials are yours, and a connector holds as many as you need: one per workspace, store, mailbox, or bot. Fourteen connectors ship today, and each one is already listed under **Settings > Connectors**, waiting for its first credential.
 
 Prefer to watch first? Episode 7 walks the doors to the outside world — connectors, MCP, and the boundaries — in two and a half minutes, captions included.
 
@@ -19,7 +19,7 @@ Because the definition is shared, the only thing your organisation decides is wh
 
 ## The connectors that ship
 
-Thirteen connectors ship, each tagged with the category it belongs to — Knowledge, Messaging, Email, Developer, Commerce, Search, or Files. **Sign-in** is the authentication method the connector accepts, which decides what the credential form asks for; **Actions** is how many operations it exposes, the same count the connector's section shows on the settings page.
+Fourteen connectors ship, each tagged with the category it belongs to — Knowledge, Messaging, Email, Developer, Commerce, Search, or Files. **Sign-in** is the authentication method the connector accepts, which decides what the credential form asks for; **Actions** is how many operations it exposes, the same count the connector's section shows on the settings page.
 
 | Connector               | What connecting it buys you                                                                                 | Sign-in             | Actions |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------- | ------- |
@@ -98,7 +98,7 @@ Write actions change something in the other system: a message posted, an issue o
 
 ## When no connector fits
 
-Thirteen connectors cover the systems most teams reach for, and they cannot cover an internal API, a homegrown tool, or a vendor nobody has written a connector for. That is what MCP is for: you host a server, Tale registers it, and its tools join the agent toolbelt alongside connector actions. The bridge is your code rather than a shipped definition, which is exactly the trade — more freedom, more to maintain.
+Fourteen connectors cover the systems most teams reach for, and they cannot cover an internal API, a homegrown tool, or a vendor nobody has written a connector for. That is what MCP is for: you host a server, Tale registers it, and its tools join the agent toolbelt alongside connector actions. The bridge is your code rather than a shipped definition, which is exactly the trade — more freedom, more to maintain.
 
 Register one under **Settings > API > MCP**, as described in [MCP servers](/platform/connectors/mcp-servers).
 

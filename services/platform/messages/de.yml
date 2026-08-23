@@ -2264,9 +2264,17 @@ documents:
     settingsDescription:
       Wähle, wie deine {count} ausgewählten {count, plural, one
       {Element} other {Elemente}} importiert werden sollen.
-    microsoftNotConnected: Microsoft-Konto nicht verbunden
-    microsoftNotConnectedDescription: Um auf deine Microsoft 365-Dateien
-      zuzugreifen, musst du dein Microsoft-Konto verknüpfen.
+    microsoftNotConnected: Microsoft 365 verbinden
+    microsoftNotConnectedDescription:
+      Autorisiere OneDrive und SharePoint, damit du Dateien für Dokumente
+      auswählen kannst.
+    connect: Microsoft 365 verbinden
+    reconnect: Microsoft 365 erneut verbinden
+    disconnect: Microsoft 365 trennen
+    disconnecting: Trenne Microsoft 365…
+    disconnectFailed: Microsoft 365 konnte nicht getrennt werden
+    grantPermissions: Microsoft 365-Berechtigungen erteilen
+    redirecting: Weiterleitung…
     folderEmpty: Dieser Ordner ist leer.
     loadFailed: Elemente konnten nicht geladen werden
     oneTimeImport: Einmaliger Import

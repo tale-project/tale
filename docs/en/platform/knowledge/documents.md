@@ -51,7 +51,7 @@ Open the document preview and confirm that it shows the replacement. Then open t
 
 ## Importing from Microsoft 365
 
-**From Microsoft 365** imports from OneDrive or SharePoint instead of disk: pick files or folders, then choose the import mode. **One-time import** brings the files in once — they behave like uploads from disk. **Sync import** keeps the selection synchronized: new files in the OneDrive folder appear on a later sync pass, changed files re-index, and files deleted at the source leave the workspace. Both modes preserve the folder structure of your selection. Sync covers personal OneDrive folders — a SharePoint selection always imports once.
+**From Microsoft 365** is always on the upload menu. The first time you use it, Tale asks you to authorize OneDrive and SharePoint for importing into Documents. After you connect, pick files or folders from **My OneDrive** or **SharePoint Sites**, then choose the import mode. **One-time import** brings the files in once — they behave like uploads from disk. **Sync import** keeps the selection synchronized: new files in the OneDrive folder appear on a later sync pass, changed files re-index, and files deleted at the source leave the workspace. Both modes preserve the folder structure of your selection. Sync covers personal OneDrive folders — a SharePoint selection always imports once.
 
 To stop syncing — a whole synced folder or a single synced file — open the row's menu and click **Stop syncing**; the imported documents stay in the workspace and stop updating. Deleting a synced folder or file also stops its sync. In every case the originals in OneDrive are untouched.
 

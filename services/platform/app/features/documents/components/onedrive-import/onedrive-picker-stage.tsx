@@ -8,11 +8,14 @@ import { Text } from '@tale/ui/text';
 import type { TFunction } from 'i18next';
 import { Home } from 'lucide-react';
 
+import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useT } from '@/lib/i18n/client';
 
+import { MicrosoftDisconnectButton } from '../microsoft-disconnect-button';
+import { MicrosoftReauthButton } from '../microsoft-reauth-button';
 import { OneDriveFileTable } from './onedrive-file-table';
 import { SharePointDrivesTable } from './sharepoint-drives-table';
 import { SharePointSitesTable } from './sharepoint-sites-table';
@@ -58,6 +61,7 @@ interface OneDrivePickerStageProps {
   onSpDriveReset: () => void;
   onSpFolderBreadcrumbClick: (index: number) => void;
   onProceedToSettings: () => void;
+  onDisconnected?: () => void;
   /** `documents`-namespace translator, owned by the dialog. This stage is a
    *  plain function (not a component), so it must not call hooks itself —
    *  the picker↔settings switch would change the parent's hook count. */
@@ -98,50 +102,74 @@ export function OneDrivePickerStage({
   onSpDriveReset,
   onSpFolderBreadcrumbClick,
   onProceedToSettings,
+  onDisconnected,
   t,
 }: OneDrivePickerStageProps) {
   return {
     customHeader: (
       <div className="border-border border-b">
-        <div className="px-6 pt-6 pb-4">
+        <div className="px-8 pt-5 pb-3">
           <SectionHeader
-            title={t('microsoft365.title')}
-            description={t('microsoft365.selectDescription')}
+            title={
+              isMicrosoftAccountError
+                ? t('onedrive.microsoftNotConnected')
+                : t('microsoft365.title')
+            }
+            description={
+              isMicrosoftAccountError
+                ? undefined
+                : t('microsoft365.selectDescription')
+            }
+            action={
+              isMicrosoftAccountError ? undefined : (
+                <MicrosoftDisconnectButton onDisconnected={onDisconnected} />
+              )
+            }
           />
         </div>
-        <div className="px-6">
-          <Tabs
-            variant="underline"
-            value={sourceTab}
-            onValueChange={(v) => {
-              if (v === 'onedrive' || v === 'sharepoint') onTabChange(v);
-            }}
-            items={[
-              {
-                value: 'onedrive',
-                label: (
-                  <span className="flex items-center gap-2">
-                    <OneDriveIcon className="size-4" />
-                    {t('microsoft365.myOneDrive')}
-                  </span>
-                ),
-              },
-              {
-                value: 'sharepoint',
-                label: (
-                  <span className="flex items-center gap-2">
-                    <SharePointIcon className="size-4" />
-                    {t('microsoft365.sharePointSites')}
-                  </span>
-                ),
-              },
-            ]}
-          />
-        </div>
+        {!isMicrosoftAccountError && (
+          <div className="px-8">
+            <Tabs
+              variant="underline"
+              value={sourceTab}
+              onValueChange={(v) => {
+                if (v === 'onedrive' || v === 'sharepoint') onTabChange(v);
+              }}
+              items={[
+                {
+                  value: 'onedrive',
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <OneDriveIcon className="size-4" />
+                      {t('microsoft365.myOneDrive')}
+                    </span>
+                  ),
+                },
+                {
+                  value: 'sharepoint',
+                  label: (
+                    <span className="flex items-center gap-2">
+                      <SharePointIcon className="size-4" />
+                      {t('microsoft365.sharePointSites')}
+                    </span>
+                  ),
+                },
+              ]}
+            />
+          </div>
+        )}
       </div>
     ),
-    content: (
-      <Stack gap={4} className="px-6 py-4">
+    content: isMicrosoftAccountError ? (
+      <Stack gap={3} className="items-center px-8 py-8 text-center">
+        <MicrosoftIcon className="size-8" />
+        <Text as="div" variant="muted" className="max-w-sm">
+          {t('onedrive.microsoftNotConnectedDescription')}
+        </Text>
+        <MicrosoftReauthButton />
+      </Stack>
+    ) : (
+      <div className="flex flex-col gap-3 px-8 pt-3 pb-6">
         {sourceTab === 'onedrive' && (
           <>
             {folderPath.length > 1 && (
@@ -173,7 +201,7 @@ export function OneDrivePickerStage({
               <Button
                 onClick={onProceedToSettings}
                 disabled={selectedItems.size === 0}
-                className="px-6 whitespace-nowrap"
+                className="whitespace-nowrap"
               >
                 {t('onedrive.importCount', { count: selectedItems.size })}
               </Button>
@@ -182,7 +210,6 @@ export function OneDrivePickerStage({
             <OneDriveFileTable
               items={filteredItems}
               isLoading={loading}
-              isMicrosoftAccountError={isMicrosoftAccountError}
               searchQuery={searchQuery}
               selectedItems={selectedItems}
               getSelectAllState={getSelectAllState}
@@ -197,15 +224,17 @@ export function OneDrivePickerStage({
 
         {sourceTab === 'sharepoint' && (
           <>
-            <SharePointBreadcrumb
-              selectedSite={selectedSite}
-              selectedDrive={selectedDrive}
-              spFolderPath={spFolderPath}
-              onSiteReset={onSpSiteReset}
-              onDriveReset={onSpDriveReset}
-              onBreadcrumbReset={onSpBreadcrumbReset}
-              onFolderBreadcrumbClick={onSpFolderBreadcrumbClick}
-            />
+            {selectedSite && (
+              <SharePointBreadcrumb
+                selectedSite={selectedSite}
+                selectedDrive={selectedDrive}
+                spFolderPath={spFolderPath}
+                onSiteReset={onSpSiteReset}
+                onDriveReset={onSpDriveReset}
+                onBreadcrumbReset={onSpBreadcrumbReset}
+                onFolderBreadcrumbClick={onSpFolderBreadcrumbClick}
+              />
+            )}
 
             {!selectedSite && (
               <SharePointSitesTable
@@ -235,7 +264,7 @@ export function OneDrivePickerStage({
                   <Button
                     onClick={onProceedToSettings}
                     disabled={selectedItems.size === 0}
-                    className="px-6 whitespace-nowrap"
+                    className="whitespace-nowrap"
                   >
                     {t('onedrive.importCount', { count: selectedItems.size })}
                   </Button>
@@ -243,7 +272,6 @@ export function OneDrivePickerStage({
                 <OneDriveFileTable
                   items={currentItems}
                   isLoading={loadingSpFiles}
-                  isMicrosoftAccountError={false}
                   searchQuery={searchQuery}
                   selectedItems={selectedItems}
                   getSelectAllState={getSelectAllState}
@@ -257,7 +285,7 @@ export function OneDrivePickerStage({
             )}
           </>
         )}
-      </Stack>
+      </div>
     ),
   };
 }
