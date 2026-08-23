@@ -61,6 +61,9 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     auditIntegrityUnverifiable: "Audit log signatures can't be verified",
     auditIntegrityUnverifiableDetails:
       "This organization's audit log checkpoints are signed, but no signing key is configured to verify them: {reason}. Set TALE_AUDIT_SIGNING_KEY to restore tamper-evidence — this is a configuration gap, not detected tampering.",
+    websiteScanPaused: 'Website scans paused: {domain}',
+    websiteScanPausedDetails:
+      "Scans of {domain} were paused after {failures} consecutive attempts couldn't reach this organization's knowledge database. Check the connection under Settings → Data residency, then resume scanning from the Websites page.",
     dsarScheduled: 'Erasure request scheduled',
     dsarScheduledBody:
       'An erasure request was filed for a member of this organization. It runs in {coolingOffHours} hours — open the receipt to review or cancel it.',
@@ -131,6 +134,9 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Audit-Log-Signaturen können nicht überprüft werden',
     auditIntegrityUnverifiableDetails:
       'Die Audit-Log-Checkpoints dieser Organisation sind signiert, aber es ist kein Signaturschlüssel zur Überprüfung konfiguriert: {reason}. Setze TALE_AUDIT_SIGNING_KEY, um die Manipulationssicherheit wiederherzustellen — das ist eine Konfigurationslücke, keine festgestellte Manipulation.',
+    websiteScanPaused: 'Website-Scans pausiert: {domain}',
+    websiteScanPausedDetails:
+      'Die Scans von {domain} wurden pausiert, nachdem die Wissensdatenbank dieser Organisation {failures} Mal in Folge nicht erreichbar war. Prüfe die Verbindung unter Einstellungen → Datenresidenz und setze die Scans danach auf der Websites-Seite fort.',
     dsarScheduled: 'Löschungsanfrage geplant',
     dsarScheduledBody:
       'Eine Löschungsanfrage wurde für ein Mitglied dieser Organisation eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt — öffne den Beleg, um sie zu prüfen oder abzubrechen.',
@@ -204,6 +210,9 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
       "Les signatures du journal d'audit ne peuvent pas être vérifiées",
     auditIntegrityUnverifiableDetails:
       "Les points de contrôle du journal d'audit de cette organisation sont signés, mais aucune clé de signature n'est configurée pour les vérifier : {reason}. Définis TALE_AUDIT_SIGNING_KEY pour rétablir la protection contre l'altération — il s'agit d'une lacune de configuration, pas d'une altération détectée.",
+    websiteScanPaused: 'Analyses du site web suspendues : {domain}',
+    websiteScanPausedDetails:
+      "Les analyses de {domain} ont été suspendues après {failures} tentatives consécutives sans parvenir à joindre la base de connaissances de cette organisation. Vérifie la connexion sous Paramètres → Résidence des données, puis reprends l'analyse depuis la page Sites web.",
     dsarScheduled: "Demande d'effacement planifiée",
     dsarScheduledBody:
       "Une demande d'effacement a été déposée concernant un membre de cette organisation. Elle s'exécute dans {coolingOffHours} heures — ouvre le reçu pour la consulter ou l'annuler.",

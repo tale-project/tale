@@ -27,6 +27,8 @@ entries:
   - 'notifications.auditIntegrityFailedDetails'
   - 'notifications.auditIntegrityUnverifiable'
   - 'notifications.auditIntegrityUnverifiableDetails'
+  - 'notifications.websiteScanPaused'
+  - 'notifications.websiteScanPausedDetails'
   - 'notifications.dsarScheduled'
   - 'notifications.dsarScheduledBody'
   - 'notifications.dsarScheduledByBody'

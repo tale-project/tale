@@ -317,6 +317,55 @@ export function isDataCorrupted(err: unknown): boolean {
   return sqlState(err) === 'XX001';
 }
 
+/** SQLSTATE classes where the failure is about REACHING the database, not
+ * about the statement: 08 (connection exception) and 28 (invalid
+ * authorization — a rotated or revoked credential). */
+const CONNECTION_SQLSTATE_CLASSES = new Set(['08', '28']);
+
+/** Single connection-class SQLSTATEs outside those classes: 3D000 (the
+ * database does not exist) and 57P03 (the server is not accepting
+ * connections). */
+const CONNECTION_SQLSTATES = new Set(['3D000', '57P03']);
+
+/** Errors thrown below the protocol: postgres.js's own connection lifecycle
+ * codes plus the Node system errors that surface through it (DNS, refused,
+ * reset, unreachable). */
+const CONNECTION_ERRNO_CODES = new Set([
+  'CONNECT_TIMEOUT',
+  'CONNECTION_CLOSED',
+  'CONNECTION_ENDED',
+  'CONNECTION_DESTROYED',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'EPIPE',
+]);
+
+/**
+ * Whether an error means the database itself could not be reached or used at
+ * all — bad credentials, DNS, refused/reset connections, a missing database —
+ * as opposed to a statement that failed against a healthy connection.
+ *
+ * The distinction matters to callers whose FALLBACK STORE is the same
+ * database: recording a failure into an unreachable corpus loses the record,
+ * so a connection-class failure has to be reported somewhere else (the crawl
+ * engine records it on the Convex `websites` row).
+ */
+export function isConnectionFailure(err: unknown): boolean {
+  const code = sqlState(err);
+  if (code === '') return false;
+  if (CONNECTION_ERRNO_CODES.has(code)) return true;
+  if (code.length !== 5) return false;
+  return (
+    CONNECTION_SQLSTATES.has(code) ||
+    CONNECTION_SQLSTATE_CLASSES.has(code.slice(0, 2))
+  );
+}
+
 function sqlState(err: unknown): string {
   if (err instanceof Error && 'code' in err && typeof err.code === 'string') {
     return err.code;

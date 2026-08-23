@@ -6,6 +6,11 @@ import { getOrganizationMember } from '../lib/rls/organization/get_organization_
 import * as WebsitesHelpers from './helpers';
 import { scanIntervalToSeconds } from './internal_actions';
 import { listWebsitesPaginated as listWebsitesPaginatedHelper } from './list_websites_paginated';
+import {
+  connectionFailureCount,
+  lastScanAttemptAt,
+  scanPausedAt,
+} from './scan_scheduling';
 
 export const getWebsite = internalQuery({
   args: {
@@ -71,8 +76,11 @@ export const listWebsitesForScanScheduling = internalQuery({
       organizationId: v.string(),
       scanIntervalSeconds: v.number(),
       lastScannedAt: v.optional(v.number()),
+      lastAttemptAt: v.optional(v.number()),
       status: v.optional(v.string()),
       createdAt: v.number(),
+      connectionFailures: v.number(),
+      scanPaused: v.boolean(),
     }),
   ),
   handler: async (ctx) => {
@@ -82,8 +90,11 @@ export const listWebsitesForScanScheduling = internalQuery({
       organizationId: website.organizationId,
       scanIntervalSeconds: scanIntervalToSeconds(website.scanInterval),
       lastScannedAt: website.lastScannedAt,
+      lastAttemptAt: lastScanAttemptAt(website.metadata) ?? undefined,
       status: website.status,
       createdAt: website._creationTime,
+      connectionFailures: connectionFailureCount(website.metadata),
+      scanPaused: scanPausedAt(website.metadata) !== null,
     }));
   },
 });

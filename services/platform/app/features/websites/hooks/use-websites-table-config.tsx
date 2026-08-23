@@ -9,6 +9,7 @@ import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-tim
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
 
 import { WebsiteRowActions } from '../components/website-row-actions';
+import { isScanPaused } from '../lib/scan-paused';
 
 const statusVariant = {
   active: 'green',
@@ -56,6 +57,16 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       header: tTables('headers.status'),
       size: 108,
       cell: ({ row }) => {
+        // Paused (repeated failures to reach the knowledge database) wins
+        // over the stored status: the row keeps `error`, but "Error" alone
+        // would suggest the crawler is still retrying.
+        if (isScanPaused(row.original)) {
+          return (
+            <Badge variant="orange" dot>
+              {tEntity('scanPausedBadge')}
+            </Badge>
+          );
+        }
         const s = row.original.status;
         const variant = s && s in statusVariant ? statusVariant[s] : 'outline';
         const statusLabels: Record<string, string> = {

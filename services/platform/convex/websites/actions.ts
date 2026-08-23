@@ -303,6 +303,50 @@ export const updateWebsite = action({
   },
 });
 
+/**
+ * Resume a website whose scans were paused after repeated failures to reach
+ * the organization's knowledge database (see `scan_scheduling.ts`), and kick
+ * a scan immediately so the fix is verified now instead of on the next
+ * interval. Clears the whole failure bookkeeping: a resume is a fresh start,
+ * and if the connection is still broken the pause re-arms after the usual
+ * threshold — with a fresh admin notification.
+ */
+export const resumeScanning = action({
+  args: {
+    websiteId: v.id('websites'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const { website } = await loadOwnedWebsite(ctx, args.websiteId);
+    const orgSlug = await orgSlugFromId(ctx, website.organizationId);
+
+    await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
+      websiteId: args.websiteId,
+      status: 'scanning',
+      metadata: {
+        // Cleared with null, never undefined — undefined would not survive
+        // serialization and the metadata merge would keep the stale values.
+        scanPausedAt: null,
+        corpusConnectionFailures: null,
+        lastScanAttemptAt: null,
+        lastSyncError: null,
+      },
+    });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.knowledge.crawl_action.scanWebsite,
+      {
+        domain: website.domain,
+        orgSlug,
+        organizationId: website.organizationId,
+      },
+    );
+
+    return null;
+  },
+});
+
 export const syncStatuses = action({
   args: {
     organizationId: v.string(),

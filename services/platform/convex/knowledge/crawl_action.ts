@@ -26,6 +26,13 @@
  * organization's own database when it brought one. On a shared database a
  * domain is crawled once for all member organizations; the claim is what
  * keeps two of them from crawling it concurrently.
+ *
+ * When that database itself cannot be reached (a rotated credential, DNS, a
+ * refused connection), the failure is recorded on the Convex `websites` row —
+ * the only store still standing — instead of the corpus. Failed scans back
+ * off to a bounded retry window, and repeated connection failures pause the
+ * site's scans and notify the organization's admins; the policy lives in
+ * `websites/scan_scheduling.ts`.
  */
 
 import { computeContentHash } from '@tale/shared/utils/hashing';
@@ -59,11 +66,16 @@ import {
 } from '../lib/http/safe_fetch';
 import { extractText } from '../lib/knowledge/extraction/router';
 import { renderUrlsInSandbox } from '../node_only/sandbox/render_fetch';
+import { isDueForScan } from '../websites/scan_scheduling';
 import { readOrgEmbeddingConfig } from './connection';
 import { MAX_URLS_PER_DOMAIN, URL_INSERT_BATCH } from './crawl';
 import { pinDimensions } from './dimensions';
 import { Embedder, embedderForOrg, EmbeddingNotConfigured } from './embedding';
-import { getKnowledgePoolForOrg, resolveOrgUrl } from './pool';
+import {
+  getKnowledgePoolForOrg,
+  isConnectionFailure,
+  resolveOrgUrl,
+} from './pool';
 
 /** One continuation link crawls at most this long before rescheduling —
  * far under the ~10-minute point where the runtime kills a node action
@@ -162,7 +174,21 @@ export const scanWebsite = internalAction({
       orgSlug: args.orgSlug,
       organizationId: args.organizationId,
     };
-    const sql = await getKnowledgePoolForOrg(args.orgSlug);
+
+    // Acquiring the pool runs real SQL on a bring-your-own database (the
+    // corpus-schema bootstrap), so a rotated credential or an unreachable
+    // host throws right here. Uncaught, this was TALE-PROJECT-106: the error
+    // escaped the action, nothing was recorded anywhere, and the scheduler
+    // re-queued the domain forever.
+    let sql: Sql;
+    try {
+      sql = await getKnowledgePoolForOrg(args.orgSlug);
+    } catch (error) {
+      await recordFailureOnWebsiteRow(ctx, identity, error, {
+        corpusUnreachable: true,
+      });
+      return null;
+    }
 
     try {
       const kind = await domainKind(sql, args.domain);
@@ -315,9 +341,32 @@ export const scanWebsite = internalAction({
         [args.domain],
       );
       console.log(`[crawl] ${args.domain}: scan finished`);
+      // The scan completed, so the site leaves the failure-retry cadence and
+      // returns to its own interval. Best-effort: a hiccup here must not
+      // flip a finished scan into the error path.
+      await ctx
+        .runMutation(internal.websites.internal_mutations.clearScanFailures, {
+          organizationId: args.organizationId,
+          domain: args.domain,
+        })
+        .catch((clearError: unknown) => {
+          console.warn(
+            `[crawl] ${args.domain}: could not clear the failure bookkeeping:`,
+            clearError instanceof Error ? clearError.message : clearError,
+          );
+        });
     } catch (error) {
+      if (isConnectionFailure(error)) {
+        // The corpus database dropped away mid-scan. Recording the failure
+        // into it would fail with it, and the row-sync fan-out below reads
+        // it — the Convex row is the only store still standing, so record
+        // there and stop.
+        await recordFailureOnWebsiteRow(ctx, identity, error, {
+          corpusUnreachable: true,
+        });
+        return null;
+      }
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`[crawl] ${args.domain}: scan failed:`, message);
       await sql
         .unsafe(
           `UPDATE ${PUBLIC_WEB_SCHEMA}.websites
@@ -331,6 +380,12 @@ export const scanWebsite = internalAction({
             markError,
           );
         });
+      // Stamp the attempt on the Convex row too: it advances the scheduler's
+      // clock (the backoff), where the corpus-side marker alone left the
+      // domain due again on the very next five-minute tick.
+      await recordFailureOnWebsiteRow(ctx, identity, error, {
+        corpusUnreachable: false,
+      });
     }
 
     await fanOutRowSync(ctx, sql, args.domain);
@@ -353,19 +408,9 @@ export const scanDueWebsites = internalAction({
       {},
     );
     const now = Date.now();
-    const due = websites.filter((site) => {
-      if (site.status === 'deleting') return false;
-      const intervalMs = site.scanIntervalSeconds * 1000;
-      if (site.status === 'scanning') {
-        // A healthy scan refreshes its corpus claim, not the Convex row —
-        // treat a row stuck in `scanning` for two hours as crashed and let
-        // the corpus-side claim takeover decide.
-        const since = site.lastScannedAt ?? site.createdAt;
-        return now - since > 2 * 60 * 60 * 1000;
-      }
-      if (site.lastScannedAt === undefined) return true;
-      return now - site.lastScannedAt > intervalMs;
-    });
+    // The policy (intervals, stuck-scan takeover, failure backoff, pause) is
+    // the pure `isDueForScan` in websites/scan_scheduling.ts.
+    const due = websites.filter((site) => isDueForScan(site, now));
 
     const batch = due.slice(0, MAX_SCANS_PER_TICK);
     if (due.length > batch.length) {
@@ -1003,6 +1048,48 @@ async function boilerplateHashes(
     [domain],
   );
   return new Set(rows.map((row) => row.paragraph_hash));
+}
+
+/**
+ * Record a failed scan attempt on the organization's Convex `websites` row —
+ * for connection-class failures the ONLY reachable store — and log the pause
+ * transition when the failure streak crosses the threshold. Never throws: a
+ * failure to record must not mask the scan failure being recorded.
+ */
+async function recordFailureOnWebsiteRow(
+  ctx: ActionCtx,
+  identity: ScanIdentity,
+  error: unknown,
+  options: { corpusUnreachable: boolean },
+): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(
+    `[crawl] ${identity.domain}: scan failed${
+      options.corpusUnreachable ? ' (knowledge database unreachable)' : ''
+    }:`,
+    message,
+  );
+  try {
+    const { paused } = await ctx.runMutation(
+      internal.websites.internal_mutations.recordScanFailure,
+      {
+        organizationId: identity.organizationId,
+        domain: identity.domain,
+        message,
+        corpusUnreachable: options.corpusUnreachable,
+      },
+    );
+    if (paused) {
+      console.warn(
+        `[crawl] ${identity.domain}: scans paused after repeated connection failures; org admins notified`,
+      );
+    }
+  } catch (recordError) {
+    console.error(
+      `[crawl] ${identity.domain}: could not record the failure on the websites row:`,
+      recordError instanceof Error ? recordError.message : recordError,
+    );
+  }
 }
 
 /** Push the corpus-side truth onto every member organization's Convex row —

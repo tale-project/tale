@@ -37,6 +37,8 @@ import type {
 } from '@/convex/websites/types';
 import { useT } from '@/lib/i18n/client';
 
+import { isScanPaused } from '../lib/scan-paused';
+
 const PAGE_SIZE = 20;
 
 const statusVariant = {
@@ -326,30 +328,44 @@ export function ViewWebsiteDialog({
         label: t('viewDialog.status'),
         value: (
           <Row gap={2} wrap>
-            <Badge
-              variant={
-                website.status && website.status in statusVariant
-                  ? statusVariant[website.status]
-                  : 'outline'
-              }
-              dot
-            >
-              {(website.status &&
-                (
-                  {
-                    idle: t('filter.status.idle'),
-                    scanning: t('filter.status.scanning'),
-                    active: t('filter.status.active'),
-                    error: t('filter.status.error'),
-                    deleting: t('filter.status.deleting'),
-                  } satisfies Record<string, string>
-                )[website.status]) ||
-                website.status ||
-                t('viewDialog.unknown')}
-            </Badge>
+            {isScanPaused(website) ? (
+              // Paused (repeated failures to reach the knowledge database)
+              // wins over the stored `error` status — this site stopped
+              // retrying and needs a manual resume.
+              <Badge variant="orange" dot>
+                {t('scanPausedBadge')}
+              </Badge>
+            ) : (
+              <Badge
+                variant={
+                  website.status && website.status in statusVariant
+                    ? statusVariant[website.status]
+                    : 'outline'
+                }
+                dot
+              >
+                {(website.status &&
+                  (
+                    {
+                      idle: t('filter.status.idle'),
+                      scanning: t('filter.status.scanning'),
+                      active: t('filter.status.active'),
+                      error: t('filter.status.error'),
+                      deleting: t('filter.status.deleting'),
+                    } satisfies Record<string, string>
+                  )[website.status]) ||
+                  website.status ||
+                  t('viewDialog.unknown')}
+              </Badge>
+            )}
             {website.status === 'error' && website.metadata?.lastSyncError && (
               <Text variant="caption" className="text-destructive">
                 {String(website.metadata.lastSyncError)}
+              </Text>
+            )}
+            {isScanPaused(website) && (
+              <Text variant="caption" className="text-muted-foreground">
+                {t('viewDialog.scanPausedNotice')}
               </Text>
             )}
           </Row>

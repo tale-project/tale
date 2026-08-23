@@ -4422,6 +4422,11 @@ notifications:
     configurée pour les vérifier : {reason}. Définis TALE_AUDIT_SIGNING_KEY pour
     rétablir la protection contre l'altération — il s'agit d'une lacune de
     configuration, pas d'une altération détectée."
+  websiteScanPaused: 'Analyses du site web suspendues : {domain}'
+  websiteScanPausedDetails: "Les analyses de {domain} ont été suspendues après
+    {failures} tentatives consécutives sans parvenir à joindre la base de
+    connaissances de cette organisation. Vérifie la connexion sous Paramètres →
+    Résidence des données, puis reprends l'analyse depuis la page Sites web."
   dsarScheduled: Demande d'effacement planifiée
   dsarScheduledBody: Une demande d'effacement a été déposée concernant un membre
     de cette organisation. Elle s'exécute dans {coolingOffHours} heures — ouvre
@@ -7064,6 +7069,11 @@ websites:
     description: Description
     created: Créé
     unknown: Inconnu
+    scanPausedNotice: L'analyse est suspendue après plusieurs échecs d'accès à
+      la base de connaissances. Vérifie la connexion sous Paramètres →
+      Résidence des données, puis reprends l'analyse.
+  scanPausedBadge: Suspendu
+  resumeScanning: Reprendre l'analyse
   viewPages: Voir les pages
   indexed: Indexé
   indexedTooltip: '{percentage} % - {crawled} sur {total} pages'

@@ -14,6 +14,7 @@ import {
   getKnowledgePool,
   getKnowledgePoolForOrg,
   invalidateOrgUrl,
+  isConnectionFailure,
   markBm25Unavailable,
   resolveOrgUrl,
   setPoolFactory,
@@ -296,5 +297,65 @@ describe('the deployment default connection string', () => {
       'postgresql://tale:secret@knowledge-db:5432/tale_knowledge',
     );
     process.env.KNOWLEDGE_DATABASE_URL = DEFAULT_URL;
+  });
+});
+
+describe('connection-failure classification', () => {
+  /**
+   * The distinction under test: a connection-class failure means the database
+   * itself is unreachable, so recording anything INTO it is futile — the
+   * crawl engine must record on the Convex row instead. Misclassifying a
+   * statement error as connection-class would hide real scan bugs from the
+   * corpus-side status; missing a connection error re-creates
+   * TALE-PROJECT-106 (an uncaught auth failure retried forever).
+   */
+  function withCode(code: string): Error {
+    return Object.assign(new Error(`failure carrying ${code}`), { code });
+  }
+
+  it('classifies the failures that mean the database is unreachable', () => {
+    // Server-reported SQLSTATEs: a rotated credential, connection
+    // exceptions, a missing database, a server refusing connections.
+    for (const code of [
+      '28P01',
+      '28000',
+      '08006',
+      '08001',
+      '08P01',
+      '3D000',
+      '57P03',
+    ]) {
+      expect(isConnectionFailure(withCode(code)), code).toBe(true);
+    }
+    // Below the protocol: postgres.js lifecycle codes and the Node system
+    // errors that surface through it.
+    for (const code of [
+      'CONNECT_TIMEOUT',
+      'CONNECTION_CLOSED',
+      'CONNECTION_ENDED',
+      'ECONNREFUSED',
+      'ECONNRESET',
+      'ENOTFOUND',
+      'EAI_AGAIN',
+      'ETIMEDOUT',
+    ]) {
+      expect(isConnectionFailure(withCode(code)), code).toBe(true);
+    }
+  });
+
+  it('leaves statement-level failures alone — the database answered', () => {
+    // An FK violation (the Jul 18 website_urls incident), missing
+    // tables/columns mid-migration, syntax errors, index limits, corruption:
+    // all failures OF a statement, all recordable in the corpus itself.
+    for (const code of ['23503', '42P01', '42703', '42601', '54000', 'XX000']) {
+      expect(isConnectionFailure(withCode(code)), code).toBe(false);
+    }
+  });
+
+  it('never classifies an error that carries no code', () => {
+    expect(isConnectionFailure(new Error('boom'))).toBe(false);
+    expect(isConnectionFailure('password authentication failed')).toBe(false);
+    expect(isConnectionFailure(null)).toBe(false);
+    expect(isConnectionFailure(undefined)).toBe(false);
   });
 });

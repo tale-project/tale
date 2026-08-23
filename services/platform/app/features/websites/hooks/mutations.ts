@@ -16,3 +16,7 @@ export function useUpdateWebsite() {
 export function useSyncWebsiteStatuses() {
   return useConvexAction(api.websites.actions.syncStatuses);
 }
+
+export function useResumeScanning() {
+  return useConvexAction(api.websites.actions.resumeScanning);
+}

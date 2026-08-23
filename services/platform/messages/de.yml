@@ -4342,6 +4342,11 @@ notifications:
     Überprüfung konfiguriert: {reason}. Setze TALE_AUDIT_SIGNING_KEY, um die
     Manipulationssicherheit wiederherzustellen — das ist eine
     Konfigurationslücke, keine festgestellte Manipulation.'
+  websiteScanPaused: 'Website-Scans pausiert: {domain}'
+  websiteScanPausedDetails: 'Die Scans von {domain} wurden pausiert, nachdem
+    die Wissensdatenbank dieser Organisation {failures} Mal in Folge nicht
+    erreichbar war. Prüfe die Verbindung unter Einstellungen → Datenresidenz
+    und setze die Scans danach auf der Websites-Seite fort.'
   dsarScheduled: Löschungsanfrage geplant
   dsarScheduledBody: Eine Löschungsanfrage wurde für ein Mitglied dieser
     Organisation eingereicht. Sie wird in {coolingOffHours} Stunden ausgeführt —
@@ -6946,6 +6951,11 @@ websites:
     description: Beschreibung
     created: Erstellt
     unknown: Unbekannt
+    scanPausedNotice: Die Scans sind pausiert, weil die Wissensdatenbank
+      mehrfach nicht erreichbar war. Prüfe die Verbindung unter Einstellungen →
+      Datenresidenz und setze die Scans danach fort.
+  scanPausedBadge: Pausiert
+  resumeScanning: Scans fortsetzen
   viewPages: Seiten anzeigen
   indexed: Indexiert
   indexedTooltip: '{percentage} % – {crawled} von {total} Seiten'
