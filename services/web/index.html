@@ -22,6 +22,19 @@
         } catch (_) {}
       })();
     </script>
+    <!--
+      Self-hosted analytics, proxied first-party at /_a (deployment lives in
+      tale-project/ops, services/analytics). Two things to preserve: keep the
+      src same-origin, because the CSP this server sends allows same-origin
+      scripts only; and keep this tag OUTSIDE the seo markers below, which the
+      prerenderer rewrites per route. The id comes from services/analytics/seed.py.
+    -->
+    <script
+      defer
+      src="/_a/script.js"
+      data-website-id="86021df0-293b-4436-8dd3-aa83bdf4b86e"
+      data-domains="tale.dev"
+    ></script>
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link
       rel="icon"
