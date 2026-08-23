@@ -219,7 +219,7 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
     buttonVariant = 'secondary';
     buttonClassName = cn(
       buttonClassName,
-      'bg-muted text-muted-foreground hover:bg-muted gap-2 px-4 cursor-default',
+      'bg-muted text-muted-foreground hover:bg-muted cursor-default gap-2 px-4',
     );
     showLoadingLabel = true;
   } else if (speaking) {
@@ -262,7 +262,7 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
     buttonVariant = 'secondary';
     buttonClassName = cn(
       buttonClassName,
-      'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200',
+      'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
     );
   } else {
     // Idle with playable history — manual replay affordance.

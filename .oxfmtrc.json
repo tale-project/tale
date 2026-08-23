@@ -1,4 +1,5 @@
 {
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "singleQuote": true,
   "printWidth": 80,
   "tabWidth": 2,
@@ -6,19 +7,26 @@
   "semi": true,
   "trailingComma": "all",
   "arrowParens": "always",
-  "experimentalSortImports": {},
-  "experimentalTailwindcss": {},
+  "sortImports": true,
+  "sortTailwindcss": { "functions": ["cn", "cva"] },
   "ignorePatterns": [
-    ".output",
-    ".vinxi",
-    "**/_generated",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/dist-ssr/**",
+    "**/coverage/**",
+    "**/test-results/**",
+    "**/playwright-report*/**",
+    "**/_generated/**",
     "*.gen.ts",
     "*.gen.tsx",
-    "**/public/canvas-libs",
-    "**/dist",
-    "**/dist-ssr",
-    "**/search-index-*.json",
-    "tools/plop/templates",
-    "tools/opengrep/rules"
+    "bun.lock",
+    "**/package-lock.json",
+    "**/*.md",
+    "**/*.yml",
+    "**/*.yaml",
+    "tools/plop/templates/**",
+    "tools/opengrep/rules/**",
+    "**/public/canvas-libs/**",
+    "**/mock_data/**"
   ]
 }

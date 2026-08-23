@@ -19,10 +19,12 @@ import { useMemo, useState } from 'react';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import type {
-  AutomationSettings,
-  SettingsField,
-  SettingsForm,
+import {
+  type AutomationSettings,
+  type AnySettingsForm,
+  isFieldsForm,
+  type SettingsField,
+  type SettingsForm,
 } from '@/lib/shared/schemas/automation_settings';
 
 import {
@@ -89,14 +91,23 @@ export function fieldIssue(
   return null;
 }
 
-/** What a save did: the files written, or which forms refused validation. */
+/** What a save did: the files written, or which forms refused validation.
+ * `firstInvalid` names the first offending field in declaration order, so a
+ * caller can reveal it (scroll/focus, or switch to its tab) — the refusal
+ * itself is otherwise invisible when the control sits off-screen. */
 export type SettingsSaveResult =
   | { ok: true; written: string[] }
-  | { ok: false; invalidFiles: string[] };
+  | {
+      ok: false;
+      invalidFiles: string[];
+      firstInvalid?: { file: string; key: string };
+    };
 
 export interface SettingsEditor {
-  /** The declared forms, in declaration order. */
-  forms: readonly SettingsForm[];
+  /** The declared forms, in declaration order — uploads panels included. */
+  forms: readonly AnySettingsForm[];
+  /** Only the field forms — the ones with values, dirt, and saves. */
+  fieldsForms: readonly SettingsForm[];
   pending: boolean;
   failed: boolean;
   saving: boolean;
@@ -158,19 +169,24 @@ export function useSettingsEditor({
   // write is in flight, so the state is the fact itself.
   const [saving, setSaving] = useState(false);
 
+  const fieldsForms = useMemo(
+    () => settings.forms.filter(isFieldsForm),
+    [settings],
+  );
+
   // What a save would write if nobody had typed: the file's values with the
   // declaration's defaults applied. It is also the clean baseline — a boolean
   // materializing 'false' or a default prefilling must not read as an edit.
   const fromFiles = useMemo(() => {
     const out: ValuesByFile = {};
-    for (const form of settings.forms) {
+    for (const form of fieldsForms) {
       const file = stored.data?.[form.file] ?? {};
       out[form.file] = Object.fromEntries(
         form.fields.map((field) => [field.key, initialValue(field, file)]),
       );
     }
     return out;
-  }, [settings, stored.data]);
+  }, [fieldsForms, stored.data]);
 
   const valuesOf = (file: string): Record<string, string> => ({
     ...fromFiles[file],
@@ -178,7 +194,7 @@ export function useSettingsEditor({
   });
 
   const isDirty = (file: string): boolean => {
-    const form = settings.forms.find((entry) => entry.file === file);
+    const form = fieldsForms.find((entry) => entry.file === file);
     if (form === undefined) return false;
     const current = yamlOf(form, valuesOf(file));
     const onDisk = yamlOf(form, fromFiles[file] ?? {});
@@ -221,18 +237,22 @@ export function useSettingsEditor({
   }): Promise<SettingsSaveResult> => {
     if (saving) return { ok: false, invalidFiles: [] };
     const found: Record<string, Record<string, SettingsFieldIssue>> = {};
+    let firstInvalid: { file: string; key: string } | undefined;
     for (const form of validate) {
       const values = valuesOf(form.file);
       for (const field of form.fields) {
         const issue = fieldIssue(field, values[field.key] ?? '');
         if (issue !== null) {
+          firstInvalid ??= { file: form.file, key: field.key };
           found[form.file] = { ...found[form.file], [field.key]: issue };
         }
       }
     }
     setIssues(found);
     const invalidFiles = Object.keys(found);
-    if (invalidFiles.length > 0) return { ok: false, invalidFiles };
+    if (invalidFiles.length > 0) {
+      return { ok: false, invalidFiles, ...(firstInvalid && { firstInvalid }) };
+    }
 
     setSaving(true);
     try {
@@ -254,14 +274,17 @@ export function useSettingsEditor({
 
   return {
     forms: settings.forms,
-    pending: stored.isPending,
+    fieldsForms,
+    // An uploads-only declaration reads no files: the query stays disabled
+    // (permanently pending), which must not read as "loading".
+    pending: fieldsForms.length > 0 && stored.isPending,
     failed: stored.isError,
     saving,
     valuesOf,
     issueOf: (file, key) => issues[file]?.[key] ?? null,
     setField,
     isDirty,
-    dirtyFiles: settings.forms
+    dirtyFiles: fieldsForms
       .map((form) => form.file)
       .filter((file) => isDirty(file)),
     save,

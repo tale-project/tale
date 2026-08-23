@@ -48,7 +48,7 @@ export function ComparisonChangeBlock({
             <Row gap={2} align="start">
               <span
                 className={cn(
-                  'mt-0.5 shrink-0 select-none font-mono text-xs font-semibold',
+                  'mt-0.5 shrink-0 font-mono text-xs font-semibold select-none',
                   item.type === 'added' && 'text-green-700 dark:text-green-400',
                   item.type === 'deleted' && 'text-red-700 dark:text-red-400',
                   item.type === 'modified' &&

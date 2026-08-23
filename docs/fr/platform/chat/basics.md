@@ -57,13 +57,15 @@ Quand la conversation dépasse la fenêtre de contexte du modèle, les messages 
 
 L’assistant porte exactement trois outils, tous tournés vers la récupération et tous en lecture seule — c’est la frontière qui fait du chat une conversation plutôt qu’un établi.
 
-| Outil        | Ce qu’il atteint                                                                                                                                               |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rag_search` | Les connaissances de l’organisation et son travail : documents, entrées de connaissances, pages de sites web explorés, produits, contacts, tâches et projets   |
-| `rag_fetch`  | Le détail derrière une référence — un document par son identifiant de fichier, une page explorée par son URL, une tâche par la référence issue d’une recherche |
-| `web_fetch`  | Une page web publique, récupérée en direct — l’étape au-delà des connaissances de l’organisation ; le contenu déjà exploré passe par `rag_fetch`               |
+| Outil        | Ce qu’il atteint                                                                                                                                                                                                        |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rag_search` | Les connaissances de l’organisation et son travail : documents, entrées de connaissances, pages de sites web explorés, produits, contacts, sites web, tâches et projets — et les conversations de la boîte de réception |
+| `rag_fetch`  | Le détail derrière une référence — un document par son identifiant de fichier, une page explorée par son URL, une tâche par la référence issue d’une recherche                                                          |
+| `web_fetch`  | Une page web publique, récupérée en direct — l’étape au-delà des connaissances de l’organisation ; le contenu déjà exploré passe par `rag_fetch`                                                                        |
 
 Interroger le tableau — ce qui est ouvert sur un projet, par exemple — relève de la recherche, pas d’une autre fonctionnalité. La même `rag_search` lit les tâches et les projets que tu peux voir, filtrés selon ton propre accès, et l’assistant répond à partir de là plutôt que de proposer un outil externe. Un résultat de tâche porte son titre, son statut et son projet ; `rag_fetch` sur sa référence ajoute la description complète, les commentaires, les sous-tâches et les bloqueurs.
+
+Parcourir, c’est le même outil avec son second verbe. « Liste les tâches en revue » ou « montre nos contacts » fait tourner `rag_search` en listage explicite plutôt qu’en correspondance de texte : une seule sorte par appel, le tableau courant sans les lignes archivées, au plus vingt lignes par page. L’assistant sait quand une page n’est pas l’ensemble complet — il va chercher la page suivante ou dit quelle partie il a vue, au lieu de présenter vingt lignes comme le tout.
 
 Une recherche est honnête sur ce qu’elle a couvert : le résultat nomme chaque source interrogée et dit lesquelles étaient indisponibles — une organisation sans modèle d’embedding configuré reçoit par exemple « les documents et les pages explorées ne peuvent pas encore être cherchés » plutôt qu’une liste vide et muette, et l’assistant relaie ce constat au lieu de deviner autour.
 
@@ -78,7 +80,7 @@ Demande à l’assistant une présentation, un document traduit ou n’importe q
 La réponse arrive en streaming à mesure qu’elle se génère. Au-dessus d’elle, le déroulé de réflexion consigne ce que l’assistant a fait, dans l’ordre :
 
 - Une ligne repliable **« A réfléchi pendant _n_ s »** porte le raisonnement du modèle — clique pour déplier la prose.
-- Chaque appel d’outil est une ligne d’étape — _Recherche dans la base de connaissances pour « … »_, _Lecture de example.com_ — avec un indicateur d’activité pendant qu’il tourne et, quand il échoue, un avertissement qui en donne la raison. Les étapes restent visibles quand le raisonnement est replié ; elles sont la trace de ce que l’assistant est allé chercher.
+- Chaque appel d’outil est une ligne d’étape — _Recherche de « … » dans l’espace de travail_, _Liste des tâches_, _Lecture de example.com_ — avec un indicateur d’activité pendant qu’il tourne et, quand il échoue, un avertissement qui en donne la raison. Les étapes restent visibles quand le raisonnement est replié ; elles sont la trace de ce que l’assistant est allé chercher.
 
 Sous la réponse, **Sources** liste les pages et les documents que l’assistant a réellement chargés — la liste dérive des résultats d’outils, pas de la prose, si bien qu’une carte de source ne revendique jamais une lecture qui n’a pas eu lieu. Les sources web s’ouvrent dans un nouvel onglet.
 

@@ -42,8 +42,7 @@ describe('CappedScrollRegion', () => {
       unobserve = vi.fn();
       disconnect = vi.fn();
     }
-    globalThis.ResizeObserver =
-      RecordingResizeObserver as unknown as typeof ResizeObserver;
+    globalThis.ResizeObserver = RecordingResizeObserver;
 
     const { container } = render(
       <CappedScrollRegion
@@ -92,8 +91,7 @@ describe('CappedScrollRegion', () => {
       unobserve = vi.fn();
       disconnect = vi.fn();
     }
-    globalThis.ResizeObserver =
-      RecordingResizeObserver as unknown as typeof ResizeObserver;
+    globalThis.ResizeObserver = RecordingResizeObserver;
 
     const scrollTo = vi.fn();
     const { container, user } = render(

@@ -253,33 +253,34 @@ const DictationButtonComponent = forwardRef<
           )}
         </Button>
       </Tooltip>
-      {hasFailedRecording && !isTranscribing && (
-        // Persistent recovery affordance: the failed recording is held in
-        // memory so the user can fix their provider and retry without
-        // re-recording. Discard drops the retained audio.
-        <span className="border-destructive/40 bg-destructive/5 text-destructive flex items-center gap-1 rounded-full border px-2 py-1 text-xs">
-          <AlertCircle className="size-3 shrink-0" aria-hidden="true" />
-          <span>{t('dictation.transcriptionFailedShort')}</span>
-          <button
-            type="button"
-            aria-label={t('dictation.retry')}
-            title={t('dictation.retry')}
-            onClick={recorder.retryTranscription}
-            className="hover:bg-destructive/10 flex size-6 items-center justify-center rounded-full transition-colors"
-          >
-            <RotateCcw className="size-3" />
-          </button>
-          <button
-            type="button"
-            aria-label={t('dictation.discard')}
-            title={t('dictation.discard')}
-            onClick={recorder.discardFailedRecording}
-            className="hover:bg-destructive/10 flex size-6 items-center justify-center rounded-full transition-colors"
-          >
-            <X className="size-3" />
-          </button>
-        </span>
-      )}
+      {hasFailedRecording &&
+        !isTranscribing && (
+          // Persistent recovery affordance: the failed recording is held in
+          // memory so the user can fix their provider and retry without
+          // re-recording. Discard drops the retained audio.
+          <span className="border-destructive/40 bg-destructive/5 text-destructive flex items-center gap-1 rounded-full border px-2 py-1 text-xs">
+            <AlertCircle className="size-3 shrink-0" aria-hidden="true" />
+            <span>{t('dictation.transcriptionFailedShort')}</span>
+            <button
+              type="button"
+              aria-label={t('dictation.retry')}
+              title={t('dictation.retry')}
+              onClick={recorder.retryTranscription}
+              className="hover:bg-destructive/10 flex size-6 items-center justify-center rounded-full transition-colors"
+            >
+              <RotateCcw className="size-3" />
+            </button>
+            <button
+              type="button"
+              aria-label={t('dictation.discard')}
+              title={t('dictation.discard')}
+              onClick={recorder.discardFailedRecording}
+              className="hover:bg-destructive/10 flex size-6 items-center justify-center rounded-full transition-colors"
+            >
+              <X className="size-3" />
+            </button>
+          </span>
+        )}
     </span>
   );
 });

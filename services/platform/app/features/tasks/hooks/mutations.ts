@@ -1,5 +1,9 @@
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n/client';
+import { convexUserMessage } from '@/lib/utils/convex-error';
+
+import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 
 export function useCreateTask() {
   return useConvexMutation(api.tasks.mutations.createTask);
@@ -46,7 +50,19 @@ export function useDeleteTask() {
 }
 
 export function useMoveTask() {
-  return useConvexMutation(api.tasks.mutations.moveTask);
+  const { t } = useT('tasks');
+  const { t: tToast } = useT('toast');
+  // Dropping In review → Done IS the review approve, so the org's
+  // review_policy can refuse a drag — name the reason instead of the generic
+  // failure copy (the card still snaps back either way).
+  return useConvexMutation(api.tasks.mutations.moveTask, {
+    errorToast: {
+      title: tToast('error.generic.title'),
+      description: (error) =>
+        reviewPolicyErrorMessage(error, t) ??
+        convexUserMessage(error, tToast('error.generic.description')),
+    },
+  });
 }
 
 export function useAddTaskDependency() {
@@ -83,10 +99,6 @@ export function useSaveBoardView() {
 
 export function useDeleteBoardView() {
   return useConvexMutation(api.tasks.mutations.deleteBoardView);
-}
-
-export function useRespondToTaskReview() {
-  return useConvexMutation(api.tasks.review_mutations.respondToTaskReview);
 }
 
 export function useSetTaskReviewer() {

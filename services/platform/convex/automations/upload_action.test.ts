@@ -153,7 +153,7 @@ function errorCode(err: unknown): string | undefined {
   if (err instanceof ConvexError) {
     const data: unknown = err.data;
     if (typeof data === 'object' && data !== null && 'code' in data) {
-      return String((data as { code: unknown }).code);
+      return String(data.code);
     }
   }
   return undefined;

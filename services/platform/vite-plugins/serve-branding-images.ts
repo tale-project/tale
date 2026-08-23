@@ -89,6 +89,9 @@ export function serveBrandingImages(): Plugin {
             err,
           );
         }
+        // Connect middleware hands off via next(); calling it from the catch
+        // is the intended fall-through, not a callback/promise mix-up.
+        // oxlint-disable-next-line promise/no-callback-in-promise
         next();
       });
   };

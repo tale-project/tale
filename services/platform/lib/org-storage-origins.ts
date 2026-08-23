@@ -125,9 +125,7 @@ export function collectOrgObjectStorageOrigins(configDir: string): string[] {
       continue;
     }
     if (typeof parsed !== 'object' || parsed === null) continue;
-    for (const origin of originsForConnection(
-      parsed as OriginExtractionInput,
-    )) {
+    for (const origin of originsForConnection(parsed)) {
       origins.add(origin);
     }
   }

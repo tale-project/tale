@@ -27,6 +27,7 @@ import { internalQuery, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { sessionOpLastSignOfLifeMs } from '../sandbox/agent_deadline';
+import { AUTO_RETRY_MAX_ATTEMPTS } from './agent_retry';
 import { readCheckpoints } from './checkpoints';
 import {
   automationReadStore,
@@ -435,6 +436,9 @@ export const getRun = query({
       detail: v.optional(v.string()),
       startedAt: v.number(),
       finishedAt: v.optional(v.number()),
+      /** The engine's agent-node auto-retry cap, projected so the retry
+       * caption never hardcodes it. */
+      agentAutoRetryMax: v.number(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -444,6 +448,7 @@ export const getRun = query({
     // learns nothing about whether it exists elsewhere.
     if (!row || row.organizationId !== args.organizationId) return null;
     return {
+      agentAutoRetryMax: AUTO_RETRY_MAX_ATTEMPTS,
       id: row._id,
       name: row.name,
       version: row.version,

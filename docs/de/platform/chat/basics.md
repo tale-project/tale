@@ -57,13 +57,15 @@ Wächst das Gespräch über das Kontextfenster des Modells hinaus, fallen die ä
 
 Der Assistent trägt genau drei Tools, alle drei reiner Lese-Abruf — das ist die Grenze, die Chat ein Gespräch bleiben lässt statt einer Werkbank.
 
-| Tool         | Was es erreicht                                                                                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rag_search` | Das Wissen der Organisation und ihre Arbeit: Dokumente, Wissenseinträge, gecrawlte Website-Seiten, Produkte, Kontakte, Aufgaben und Projekte            |
-| `rag_fetch`  | Das Detail hinter einer Referenz — ein Dokument über seine Datei-ID, eine gecrawlte Seite über ihre URL, eine Aufgabe über die Referenz aus einer Suche |
-| `web_fetch`  | Eine öffentliche Webseite, live geholt — der Schritt über das Org-Wissen hinaus; bereits gecrawlte Inhalte liefert `rag_fetch`                          |
+| Tool         | Was es erreicht                                                                                                                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `rag_search` | Das Wissen der Organisation und ihre Arbeit: Dokumente, Wissenseinträge, gecrawlte Website-Seiten, Produkte, Kontakte, Websites, Aufgaben und Projekte — und die Konversationen des Posteingangs |
+| `rag_fetch`  | Das Detail hinter einer Referenz — ein Dokument über seine Datei-ID, eine gecrawlte Seite über ihre URL, eine Aufgabe über die Referenz aus einer Suche                                          |
+| `web_fetch`  | Eine öffentliche Webseite, live geholt — der Schritt über das Org-Wissen hinaus; bereits gecrawlte Inhalte liefert `rag_fetch`                                                                   |
 
 Nach dem Board zu fragen — etwa was in einem Projekt offen ist — ist eine Suche, kein separates Feature. Dieselbe `rag_search` liest die Aufgaben und Projekte, die du sehen darfst, auf deinen eigenen Zugriff gefiltert, und der Assistent antwortet daraus, statt einen externen Tracker vorzuschlagen. Ein Aufgaben-Treffer bringt Titel, Status und Projekt mit; `rag_fetch` auf seine Referenz ergänzt die vollständige Beschreibung, Kommentare, Teilaufgaben und Blocker.
+
+Durchblättern ist dasselbe Tool mit seinem zweiten Verb. „Liste die Aufgaben in Review" oder „zeig unsere Kontakte" lässt `rag_search` explizit auflisten statt Text zu matchen: eine Art pro Aufruf, das aktuelle Board ohne archivierte Zeilen, höchstens zwanzig Zeilen pro Seite. Der Assistent erfährt, wenn eine Seite nicht die ganze Menge ist — er holt dann die nächste Seite oder sagt, welchen Ausschnitt er gesehen hat, statt zwanzig Zeilen als alles auszugeben.
 
 Eine Suche ist ehrlich darüber, was sie abgedeckt hat: Das Ergebnis benennt jede durchsuchte Quelle und sagt, welche nicht verfügbar waren — eine Organisation ohne konfiguriertes Embedding-Modell bekommt zum Beispiel „Dokumente und gecrawlte Seiten sind noch nicht durchsuchbar" statt einer stumm leeren Liste, und der Assistent gibt das weiter, statt darum herumzuraten.
 
@@ -78,7 +80,7 @@ Bitte den Assistenten um eine Präsentation, ein übersetztes Dokument oder ein 
 Die Antwort streamt herein, während sie entsteht. Darüber hält der Denkverlauf fest, was der Assistent getan hat, in Reihenfolge:
 
 - Eine einklappbare Zeile **„Hat _n_ s nachgedacht"** trägt das Nachdenken des Modells — ein Klick klappt die Prosa auf.
-- Jeder Tool-Aufruf ist eine Schrittzeile — _Durchsucht die Wissensdatenbank nach "…"_, _Liest example.com_ — mit einem Spinner, solange er läuft, und einer Warnung samt Grund, wenn er scheitert. Die Schritte bleiben sichtbar, wenn das Nachdenken eingeklappt ist; sie sind das Protokoll dessen, wonach der Assistent gegriffen hat.
+- Jeder Tool-Aufruf ist eine Schrittzeile — _Durchsucht den Workspace nach "…"_, _Listet Aufgaben auf_, _Liest example.com_ — mit einem Spinner, solange er läuft, und einer Warnung samt Grund, wenn er scheitert. Die Schritte bleiben sichtbar, wenn das Nachdenken eingeklappt ist; sie sind das Protokoll dessen, wonach der Assistent gegriffen hat.
 
 Unter der Antwort listet **Quellen** die Seiten und Dokumente, die der Assistent tatsächlich geladen hat — abgeleitet aus den Tool-Ergebnissen, nicht aus der Prosa, sodass eine Quellenkarte nie eine Lektüre behauptet, die nicht stattgefunden hat. Web-Quellen öffnen in einem neuen Tab.
 

@@ -20,7 +20,7 @@ import { DocumentRecordBadge } from '../components/document-record-badge';
 import { DocumentRowActions } from '../components/document-row-actions';
 import { RagStatusBadge } from '../components/rag-status-badge';
 
-type DocumentsT = ReturnType<typeof useT<'documents'>>['t'];
+type DocumentsT = ReturnType<typeof useT>['t'];
 
 interface SourceInfo {
   title: string;

@@ -67,6 +67,13 @@ import {
   type AutomationAgentHost,
   type WorkflowAgentRequest,
 } from './agent_host';
+import {
+  AUTO_RETRY_MAX_ATTEMPTS,
+  executedMsOf,
+  isWorkflowAgentRetryable,
+  mergeBurnedHashes,
+  nextAttempt,
+} from './agent_retry';
 import type {
   AgentCursor,
   NodeCheckpoint,
@@ -1086,16 +1093,91 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
   }
 
   if (settled.errored) {
-    throw new Error(
+    const reason =
       settled.reason ??
-        (settled.text !== ''
-          ? `the agent turn failed: ${settled.text.slice(0, 300)}`
-          : 'the agent turn ended without producing a reply'),
+      (settled.text !== ''
+        ? `the agent turn failed: ${settled.text.slice(0, 300)}`
+        : 'the agent turn ended without producing a reply');
+    const attempt = parked.attempt ?? 0;
+    // In-node auto-retry (task-lane parity): a retryable failure re-kicks the
+    // SAME resolved request in place — upstream checkpoints, the run row, and
+    // the session workspace all survive — under a fixed budget. An attempt
+    // that executed past the progress threshold refreshes the budget instead
+    // of counting toward it, so `nextAttempt` both gates and numbers the
+    // re-kick. Exhaustion and denylisted codes fall through to the throw,
+    // which is the run's durable record of how many attempts burned.
+    const retryAttempt = nextAttempt(
+      attempt,
+      executedMsOf(parked.launchedAt, Date.now()),
+    );
+    if (
+      isWorkflowAgentRetryable(settled.failureCode) &&
+      retryAttempt <= AUTO_RETRY_MAX_ATTEMPTS &&
+      // The runaway guard charges only executions that happen: a trip here
+      // falls through to the exhaust throw carrying the settle's reason.
+      checkpoints.executions < DEFAULT_MAX_NODE_EXECUTIONS
+    ) {
+      checkpoints.executions++;
+      const burned = mergeBurnedHashes(
+        parked.burnedBrokerTokenHashes,
+        parked.brokerTokenHash,
+      );
+      const kicked = await run.agent.kick({
+        runId: run.runId,
+        nodeId: node.id,
+        // The reverse of the kick-time cast: the request was stored as
+        // plain JSON, and the start action re-validates it anyway.
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- recorded verbatim from a WorkflowAgentRequest at kick time
+        request: parked.input as unknown as WorkflowAgentRequest,
+        ...(burned.length > 0 ? { excludeBrokerTokenHashes: burned } : {}),
+      });
+      const agent: AgentCursor = {
+        execId: kicked.execId,
+        sessionId: kicked.sessionId,
+        deadlineAt: kicked.deadlineAt,
+        providerSlug: kicked.providerSlug,
+        gatewayModel: kicked.gatewayModel,
+        harness: kicked.harness,
+        input: parked.input,
+        attempt: retryAttempt,
+        ...(burned.length > 0 ? { burnedBrokerTokenHashes: burned } : {}),
+      };
+      const cursor: NodeCursor = {
+        node: node.id,
+        index: 0,
+        passes: 0,
+        outs: [],
+        agent,
+      };
+      const waited = await sink.wait({
+        detail: `agent:${node.id}`,
+        cursor,
+        executions: checkpoints.executions,
+        resumeInMs: AGENT_POLL_MS,
+      });
+      if (waited === 'cancelled') return { kind: 'cancelled' };
+      if (waited === 'suspended') {
+        checkpoints.cursor = cursor;
+        return { kind: 'suspended' };
+      }
+      throw new Error(
+        'an agent node cannot run inside a subautomation — hoist it to the top level of the calling automation',
+      );
+    }
+    throw new Error(
+      attempt > 0 ? `${reason} (after ${attempt + 1} attempts)` : reason,
     );
   }
   const output = {
     text: settled.text,
     files: settled.files,
+    // Deliverables the harvest dropped (caps, read/storage failures) stay
+    // visible in the node output — downstream nodes and the run surface must
+    // see WHAT is missing, not a shorter list that reads as complete.
+    ...(settled.harvestSkipped !== undefined &&
+    settled.harvestSkipped.length > 0
+      ? { harvestSkipped: settled.harvestSkipped }
+      : {}),
     status: settled.status ?? 'ok',
   };
   trace.status = 'ok';

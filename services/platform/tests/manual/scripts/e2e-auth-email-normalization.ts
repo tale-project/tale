@@ -112,7 +112,7 @@ async function scimPostUser(
     typeof body === 'object' &&
     body !== null &&
     'id' in body &&
-    typeof (body as { id: unknown }).id === 'string'
+    typeof body.id === 'string'
       ? (body as { id: string }).id
       : undefined;
   return { status: res.status, body, userId };

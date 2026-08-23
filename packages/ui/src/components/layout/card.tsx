@@ -19,7 +19,7 @@ import { Grid } from './layout';
  * `text-fg-*`), matching Button/Badge and the markdown Card.
  */
 export const cardVariants = cva(
-  'bg-bg-base text-fg-base border border-border-base transition-[colors,box-shadow]',
+  'bg-bg-base text-fg-base border-border-base border transition-[colors,box-shadow]',
   {
     variants: {
       /**
@@ -38,7 +38,7 @@ export const cardVariants = cva(
        * harmless) on a plain `<div>` card.
        */
       interactive: {
-        true: 'cursor-pointer hover:border-border-strong focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+        true: 'hover:border-border-strong focus-visible:ring-ring cursor-pointer focus-visible:ring-2 focus-visible:outline-none',
         false: '',
       },
     },
@@ -109,7 +109,7 @@ export const CardTitle = forwardRef<
     <Tag
       ref={ref}
       className={cn(
-        'text-fg-base font-semibold leading-none tracking-tight',
+        'text-fg-base leading-none font-semibold tracking-tight',
         className,
       )}
       {...props}

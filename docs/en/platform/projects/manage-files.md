@@ -15,7 +15,7 @@ The Knowledge tab is not the org-wide knowledge base in the [Documents](/platfor
 
 ## Folders
 
-Project files live in a folder tree. **New folder** creates a folder at the root; the folder-with-plus icon on a folder row creates a subfolder inside it. Click a folder to select it — the drop area switches to _Add file to "…"_ and uploads land inside. Deleting a folder deletes everything in it, including the files' entries in the retrieval index; the confirmation says so before anything happens. Folders here are project-scoped: a same-named folder in the org-wide library is a different folder.
+Project files live in a folder tree. **New folder** creates a folder at the root; the folder-with-plus icon on a folder row creates a subfolder inside it. Click a folder to select it — the drop area switches to _Add file to "…"_ and uploads land inside. **Add folder** uploads a whole folder from disk: pick a directory and its files land with the subfolder structure recreated under the selected folder — files the upload gate refuses are skipped and reported, and one pick is capped at 200 files / 200 MB. Deleting a folder deletes everything in it, including the files' entries in the retrieval index; the confirmation says so before anything happens. Folders here are project-scoped: a same-named folder in the org-wide library is a different folder.
 
 ## A worked upload
 
@@ -37,7 +37,7 @@ Per-file and per-project limits are set by the org under [Policies and limits](/
 
 A chat started inside a project automatically has access to every file in the project's Knowledge tab. The agent's retrieval tool sees project files alongside any agent-bound Knowledge sources. Citations from project files are scoped to the chat that produced them — sharing that chat outside the project preserves the citations, but the viewer cannot click through to the source unless they are also in the project.
 
-Pinning with `@` narrows a single turn: `@file` pins one file, `@folder` pins a folder and everything under it (the picker offers the project's folders inside project chats, and org-wide folders everywhere). Pinned files are also delivered to the agent's sandbox under `/user/uploads`, so a project agent on a coding harness — Claude Code and the other harnesses included — can open the actual bytes, not just quote retrieval snippets.
+Pinning with `@` narrows a single turn: `@file` pins one file, `@folder` pins a folder and everything under it (the picker offers the project's folders inside project chats, and org-wide folders everywhere). Pinned files are also delivered to the agent's sandbox under `/agent/uploads`, so a project agent on a coding harness — Claude Code and the other harnesses included — can open the actual bytes, not just quote retrieval snippets.
 
 ## Where this fits
 

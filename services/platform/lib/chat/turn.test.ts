@@ -164,9 +164,7 @@ function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
       },
       updateAssistantParts(update) {
         calls.ops.push('updateAssistantParts');
-        calls.partsWrites.push(
-          update.parts.map((part) => ({ ...part }) as Record<string, unknown>),
-        );
+        calls.partsWrites.push(update.parts.map((part) => ({ ...part })));
         return Promise.resolve();
       },
       finalizeAssistantMessage(message) {

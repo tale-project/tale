@@ -89,7 +89,7 @@ export function AdaptiveHeaderSlot({ className }: AdaptiveHeaderSlotProps) {
     // one copy exposed even where the responsive stylesheet isn't applied.
     <div
       aria-hidden={!isMobile || undefined}
-      className={cn('flex items-center flex-1 min-w-0', className)}
+      className={cn('flex min-w-0 flex-1 items-center', className)}
     >
       {content}
     </div>
@@ -144,9 +144,9 @@ export function AdaptiveHeaderRoot({
         // Fixed height (not min-h): action clusters (e.g. the settings
         // Save/Discard buttons) would otherwise grow the strip by a pixel
         // and shift the page content whenever they mount/unmount.
-        'hidden md:flex h-13 px-4 py-2 shrink-0',
-        standalone && 'sticky top-0 z-20 bg-background/50 backdrop-blur-md',
-        showBorder && 'border-b border-border',
+        'hidden h-13 shrink-0 px-4 py-2 md:flex',
+        standalone && 'bg-background/50 sticky top-0 z-20 backdrop-blur-md',
+        showBorder && 'border-border border-b',
         className,
       )}
     >
@@ -171,7 +171,7 @@ export function AdaptiveHeaderTitle({
   return (
     <h1
       className={cn(
-        'text-base font-semibold text-foreground truncate',
+        'text-foreground truncate text-base font-semibold',
         className,
       )}
     >

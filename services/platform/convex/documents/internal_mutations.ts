@@ -1,14 +1,17 @@
 import { ConvexError, v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import type { Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { cleanupEmptyAncestorFolders } from '../folders/cleanup_empty_ancestors';
 import { eraseDocumentBlobs } from '../governance/erase_document_blobs';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { blobRefValidator } from '../lib/storage/blob_ref';
+import { consumeRestUploadIntentCore } from '../projects/rest_upload_intents';
 import { assertRecordTrashable } from './access';
 import { createDocument as createDocumentHelper } from './create_document';
+import { createDocumentFromUploadCore } from './mutations';
 import { scheduleHubDocumentRagIndexing as scheduleHubDocumentRagIndexingImpl } from './schedule_hub_document_rag_indexing';
 import { updateDocumentInternal as updateDocumentInternalHelper } from './update_document_internal';
 import { upsertDocumentByExternalId as upsertDocumentByExternalIdHelper } from './upsert_document_by_external_id';
@@ -198,6 +201,93 @@ export const createDocument = internalMutation({
   handler: async (ctx, args) => {
     const result = await createDocumentHelper(ctx, args);
     return result.documentId;
+  },
+});
+
+/**
+ * Create a PROJECT document from an uploaded blob on behalf of an explicit
+ * user — the backing mutation of `POST /api/v1/projects/{id}/files`. Reuses
+ * the session `createDocumentFromUpload` core wholesale: membership + project
+ * edit access re-run against `userId`, the folder-belongs-to-project opaque
+ * 404, the per-org `file:upload` charge and upload policy validation
+ * (authoritative size, MIME allowlist, scheduled s3 size verify), the sticky
+ * `skipRagIndexing` persistence, and the project attach audit.
+ *
+ * Unlike the session mutation, `projectId` and `folderId` are REQUIRED —
+ * this door only writes project working files into project folders — and
+ * they arrive as wire strings (garbage collapses into the same opaque
+ * refusals as absence).
+ *
+ * When `uploadId` is present, the REST upload intent is verified and consumed
+ * IN THIS TRANSACTION, before the create core runs: any refusal after it — a
+ * foreign folder, the upload policy, the per-org `file:upload` budget — rolls
+ * the consume back, so the single-use handshake survives for a corrected
+ * retry instead of orphaning the uploaded object (S3-lane objects are only
+ * sweepable through their intent row).
+ */
+export const createDocumentFromUploadForUser = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    userEmail: v.optional(v.string()),
+    projectId: v.string(),
+    folderId: v.string(),
+    fileId: blobRefValidator,
+    fileName: v.string(),
+    contentType: v.optional(v.string()),
+    contentHash: v.optional(v.string()),
+    metadata: v.optional(jsonRecordValidator),
+    fileSize: v.optional(v.number()),
+    skipRagIndexing: v.optional(v.boolean()),
+    /** REST upload-intent id (`rest_upload_intents`), consumed atomically
+     * with the create when present. */
+    uploadId: v.optional(v.string()),
+  },
+  returns: v.object({ documentId: v.id('documents') }),
+  handler: async (ctx, args): Promise<{ documentId: Id<'documents'> }> => {
+    if (args.uploadId !== undefined) {
+      await consumeRestUploadIntentCore(ctx, {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        projectId: args.projectId,
+        uploadId: args.uploadId,
+        fileId: args.fileId,
+      });
+    }
+    const projectId = ctx.db.normalizeId('projects', args.projectId);
+    if (projectId === null) {
+      throw new ConvexError({
+        code: 'PROJECT_NOT_FOUND',
+        message: 'Project not found',
+      });
+    }
+    const folderId = ctx.db.normalizeId('folders', args.folderId);
+    if (folderId === null) {
+      throw new ConvexError({
+        code: 'FOLDER_NOT_FOUND',
+        message: 'Folder not found',
+      });
+    }
+
+    const result = await createDocumentFromUploadCore(ctx, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      userEmail: args.userEmail,
+      fileId: args.fileId,
+      fileName: args.fileName,
+      contentType: args.contentType,
+      contentHash: args.contentHash,
+      metadata: args.metadata,
+      fileSize: args.fileSize,
+      projectId,
+      folderId,
+      skipRagIndexing: args.skipRagIndexing,
+      // The REST bind body carries no client fileSize; persist the row from
+      // the validated authoritative size so both the skip flag AND an
+      // explicit opt-in to indexing have a home (see the core's arg doc).
+      ensureFileMetadata: true,
+    });
+    return { documentId: result.documentId };
   },
 });
 

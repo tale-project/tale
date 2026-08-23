@@ -727,7 +727,7 @@ export async function listAuditLogs(
       }
     }
 
-    logs.push(log as AuditLogItem);
+    logs.push(log);
 
     if (logs.length >= limit + 1) {
       break;
@@ -760,7 +760,7 @@ export async function getResourceAuditTrail(
         .eq('resourceId', args.resourceId),
     )
     .order('desc')) {
-    logs.push(log as AuditLogItem);
+    logs.push(log);
 
     if (logs.length >= limit) {
       break;

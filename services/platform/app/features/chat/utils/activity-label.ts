@@ -9,6 +9,8 @@
 
 import type { TFunction } from 'i18next';
 
+import { isRecord } from '@/lib/utils/type-utils';
+
 /** The hostname of a URL, when it parses — shared by the "Reading {hostname}"
  * step titles and the web source cards' muted detail. */
 export function hostnameOf(url: string): string | undefined {
@@ -26,6 +28,41 @@ export interface StepActivity {
   readonly detail?: string;
   /** The fetched document's filename, when the result named one. */
   readonly resultName?: string;
+  /** The raw call arguments, for the labels one argument cannot carry —
+   * a rag_search list call has no query, only filters. */
+  readonly input?: unknown;
+}
+
+/** Label key per listed kind — literal strings, so the i18n usage scan sees
+ * every key. Anything unknown (or a kind added later) falls back to the
+ * generic line rather than an empty-quotes search label. */
+const LISTING_LABEL_KEYS: Record<string, string> = {
+  task: 'thinking.listing.tasks',
+  project: 'thinking.listing.projects',
+  contact: 'thinking.listing.contacts',
+  product: 'thinking.listing.products',
+  document: 'thinking.listing.documents',
+  website: 'thinking.listing.websites',
+  'knowledge-entry': 'thinking.listing.knowledgeEntries',
+  conversation: 'thinking.listing.conversations',
+  'mail-attachment': 'thinking.listing.mailAttachments',
+};
+
+/**
+ * The kind a rag_search call is LISTING, when it is one. An explicit
+ * `action: 'list'` decides; a call with a kind and no query is the same
+ * intent (the executor runs it as a list). Every historical `{query}` row
+ * stays a search — this is what keeps old transcripts rendering.
+ */
+export function ragSearchListingKind(input: unknown): string | undefined {
+  if (!isRecord(input)) return undefined;
+  const kind = typeof input.kind === 'string' ? input.kind : undefined;
+  if (input.action === 'list') return kind ?? 'generic';
+  const query = typeof input.query === 'string' ? input.query.trim() : '';
+  if (input.action === undefined && query === '' && kind !== undefined) {
+    return kind;
+  }
+  return undefined;
 }
 
 /**
@@ -35,6 +72,10 @@ export interface StepActivity {
  */
 export function stepActivityLabel(t: TFunction, step: StepActivity): string {
   if (step.tool === 'rag_search') {
+    const listedKind = ragSearchListingKind(step.input);
+    if (listedKind !== undefined) {
+      return t(LISTING_LABEL_KEYS[listedKind] ?? 'thinking.listing.generic');
+    }
     return t('thinking.searchingKnowledgeBase', { query: step.detail ?? '' });
   }
   if (

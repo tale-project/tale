@@ -6,7 +6,7 @@ import { forwardRef, type HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils/cn';
 
 const panelHeaderVariants = cva(
-  'sticky top-0 z-50 flex shrink-0 items-center border-b border-border bg-background/50',
+  'border-border bg-background/50 sticky top-0 z-50 flex shrink-0 items-center border-b',
   {
     variants: {
       variant: {

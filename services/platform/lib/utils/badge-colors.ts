@@ -12,10 +12,10 @@ const roleBadgeVariants = cva('', {
   variants: {
     role: {
       owner:
-        'bg-purple-100 dark:bg-purple-950/20 text-purple-800 dark:text-purple-200',
-      admin: 'bg-red-100 dark:bg-red-950/20 text-red-800 dark:text-red-200',
+        'bg-purple-100 text-purple-800 dark:bg-purple-950/20 dark:text-purple-200',
+      admin: 'bg-red-100 text-red-800 dark:bg-red-950/20 dark:text-red-200',
       developer:
-        'bg-blue-100 dark:bg-blue-950/20 text-blue-800 dark:text-blue-200',
+        'bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-200',
       member: 'bg-muted text-muted-foreground',
       viewer: 'bg-muted text-muted-foreground',
     },

@@ -6,6 +6,7 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { blobRefValidator } from '../lib/storage/blob_ref';
 import { toId } from '../lib/type_cast_helpers';
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
+import { isActiveDocument } from './_helpers';
 import {
   knowledgeAccessScopeValidator,
   type ResolvedKnowledgeAccess,
@@ -172,6 +173,207 @@ export const listDocumentsForScope = internalQuery({
   },
 });
 
+const projectFileRowValidator = v.object({
+  id: v.id('documents'),
+  fileName: v.string(),
+  folderId: v.optional(v.id('folders')),
+  createdAt: v.number(),
+  size: v.optional(v.number()),
+  ragStatus: v.optional(v.string()),
+});
+
+interface ProjectFileRow {
+  id: Id<'documents'>;
+  fileName: string;
+  folderId?: Id<'folders'>;
+  createdAt: number;
+  size?: number;
+  ragStatus?: string;
+}
+
+type ListProjectFilesResult =
+  | null
+  | { status: 'folder_not_found' }
+  | {
+      status: 'ok';
+      page: ProjectFileRow[];
+      isDone: boolean;
+      continueCursor: string;
+    };
+
+/**
+ * A project's documents for an explicit user — the backing query of
+ * `GET /api/v1/projects/{id}/files`. Project visibility is re-run against
+ * `userId`; `null` covers absent, cross-org, garbage-id, AND invisible
+ * projects so the REST surface answers all of them with one opaque 404.
+ * An optional `folderId` narrows to one folder, which must belong to the
+ * project (anything else is `folder_not_found` — same opaque tone as the
+ * upload path). Trashed documents are filtered POST-pagination, so a page
+ * may run short of `numItems` — the same trade as the hub documents REST
+ * list. `size`/`ragStatus` ride along from the fileMetadata row (one
+ * indexed point read per row).
+ */
+export const listProjectFilesForUser = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    projectId: v.string(),
+    folderId: v.optional(v.string()),
+    paginationOpts: v.object({
+      numItems: v.number(),
+      cursor: v.union(v.string(), v.null()),
+    }),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({ status: v.literal('folder_not_found') }),
+    v.object({
+      status: v.literal('ok'),
+      page: v.array(projectFileRowValidator),
+      isDone: v.boolean(),
+      continueCursor: v.string(),
+    }),
+  ),
+  handler: async (ctx, args): Promise<ListProjectFilesResult> => {
+    const projectId = ctx.db.normalizeId('projects', args.projectId);
+    if (projectId === null) return null;
+    const access = await resolveProjectAccessForUser(ctx, projectId, {
+      userId: args.userId,
+      organizationId: args.organizationId,
+    });
+    if (!access.canRead) return null;
+
+    let folderId: Id<'folders'> | undefined;
+    if (args.folderId !== undefined) {
+      const normalized = ctx.db.normalizeId('folders', args.folderId);
+      if (normalized === null) return { status: 'folder_not_found' };
+      const folder = await ctx.db.get(normalized);
+      if (
+        !folder ||
+        folder.organizationId !== args.organizationId ||
+        folder.projectId !== projectId
+      ) {
+        return { status: 'folder_not_found' };
+      }
+      folderId = normalized;
+    }
+
+    const narrowedFolderId = folderId;
+    const result = narrowedFolderId
+      ? await ctx.db
+          .query('documents')
+          .withIndex('by_organizationId_and_folderId', (q) =>
+            q
+              .eq('organizationId', args.organizationId)
+              .eq('folderId', narrowedFolderId),
+          )
+          .order('desc')
+          .paginate(args.paginationOpts)
+      : await ctx.db
+          .query('documents')
+          .withIndex('by_organizationId_and_projectId', (q) =>
+            q
+              .eq('organizationId', args.organizationId)
+              .eq('projectId', projectId),
+          )
+          .order('desc')
+          .paginate(args.paginationOpts);
+
+    const page: ProjectFileRow[] = [];
+    for (const doc of result.page) {
+      // The folder lane re-checks the project link (a folder is single-scope,
+      // but fail closed); both lanes drop trashed rows post-pagination.
+      if (doc.projectId !== projectId || !isActiveDocument(doc)) continue;
+      const row: ProjectFileRow = {
+        id: doc._id,
+        fileName: doc.title ?? '',
+        folderId: doc.folderId,
+        createdAt: doc._creationTime,
+      };
+      if (doc.fileId) {
+        const docFileId = doc.fileId;
+        const meta = await ctx.db
+          .query('fileMetadata')
+          .withIndex('by_storageId', (q) => q.eq('storageId', docFileId))
+          .first();
+        if (meta) {
+          row.size = meta.size;
+          row.ragStatus = meta.ragStatus;
+        }
+      }
+      page.push(row);
+    }
+
+    return {
+      status: 'ok',
+      page,
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    };
+  },
+});
+
+/**
+ * One project file's blob reference for the machine door's content endpoint
+ * (`GET /api/v1/projects/{id}/files/{documentId}/content`): org-scoped, gated
+ * on the minting user's project READ visibility, and the document must belong
+ * to exactly that project — garbage, cross-org, cross-project, trashed, and
+ * fileless documents all collapse into `null` (the route's opaque 404).
+ */
+export const getProjectFileForUser = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    projectId: v.string(),
+    documentId: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      fileId: v.string(),
+      fileName: v.string(),
+      contentType: v.optional(v.string()),
+    }),
+  ),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    fileId: string;
+    fileName: string;
+    contentType?: string;
+  } | null> => {
+    const projectId = ctx.db.normalizeId('projects', args.projectId);
+    const documentId = ctx.db.normalizeId('documents', args.documentId);
+    if (projectId === null || documentId === null) return null;
+    const access = await resolveProjectAccessForUser(ctx, projectId, {
+      userId: args.userId,
+      organizationId: args.organizationId,
+    });
+    if (!access.canRead) return null;
+    const doc = await ctx.db.get(documentId);
+    if (
+      !doc ||
+      doc.organizationId !== args.organizationId ||
+      doc.projectId !== projectId ||
+      !isActiveDocument(doc) ||
+      !doc.fileId
+    ) {
+      return null;
+    }
+    const fileId = doc.fileId;
+    const meta = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', fileId))
+      .first();
+    return {
+      fileId,
+      fileName: doc.title ?? meta?.fileName ?? 'file',
+      contentType: meta?.contentType,
+    };
+  },
+});
+
 export const getAccessibleDocumentIds = internalQuery({
   args: {
     organizationId: v.string(),
@@ -276,25 +478,32 @@ export const getAgentScopedFileIds = internalQuery({
 });
 
 /**
- * Files DIRECTLY inside one folder — see {@link listFilesByFolder}. Auth-free
- * by design: the caller is the workflow sandbox-staging action, which acts
+ * Files inside one folder — see {@link listFilesByFolder}. Auth-free by
+ * design: the caller is the workflow sandbox-staging action, which acts
  * with workflow authority (the org boundary is still enforced via
- * `organizationId` on the index / path lookup).
+ * `organizationId` on the index / path lookup). `truncated` marks a listing a
+ * cap cut short — consumers must treat it as incomplete, never as the tree.
  */
 export const listFilesByFolderInternal = internalQuery({
   args: {
     organizationId: v.string(),
     folderId: v.optional(v.id('folders')),
     folderPath: v.optional(v.string()),
+    // Walk subfolders too; file names then carry the subfolder path
+    // ("Documentation/Invoice 123.pdf") so writers can recreate the tree.
+    recursive: v.optional(v.boolean()),
   },
   returns: v.union(
     v.null(),
-    v.array(
-      v.object({
-        fileId: blobRefValidator,
-        name: v.string(),
-      }),
-    ),
+    v.object({
+      files: v.array(
+        v.object({
+          fileId: blobRefValidator,
+          name: v.string(),
+        }),
+      ),
+      truncated: v.boolean(),
+    }),
   ),
   handler: async (ctx, args) => {
     return await listFilesByFolder(ctx, args);

@@ -1,10 +1,20 @@
+import { ConvexError } from 'convex/values';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  argsOf,
+  jsonBody,
+  restCtx,
+  restRequest,
+  TEST_USER_ID,
+  testSession,
+} from './handler_kit.testkit';
 import type { HttpCtx } from './helpers';
 import {
   authenticateRequest,
   BadRequestError,
   httpStatusForConvexCode,
+  jsonOk,
   optionalBoolean,
   optionalEnum,
   optionalNumber,
@@ -14,6 +24,8 @@ import {
   readJsonObject,
   readJsonObjectOrEmpty,
   requiredString,
+  REST_CORS_HEADERS,
+  withRestAuth,
 } from './helpers';
 
 // `authenticateRequest` resolves identity through Better Auth; stub `createAuth`
@@ -21,6 +33,18 @@ import {
 const getSession = vi.fn();
 vi.mock('../../auth', () => ({
   createAuth: vi.fn(() => ({ api: { getSession } })),
+}));
+
+// The `withRestAuth` tests drive the wrapper directly (see
+// handler_kit.testkit.ts): `httpAction` becomes the identity function and the
+// IP limiter always admits.
+vi.mock('../../_generated/server', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  httpAction: (handler: unknown) => handler,
+}));
+vi.mock('../rate_limiter/helpers', () => ({
+  checkIpRateLimit: vi.fn(),
+  RateLimitExceededError: class extends Error {},
 }));
 
 function bearerRequest(token: string): Request {
@@ -77,6 +101,8 @@ describe('httpStatusForConvexCode', () => {
     ['AUTOMATION_SAVE_REJECTED', 400],
     ['AUTOMATION_TRIGGER_REJECTED', 400],
     ['AUTOMATION_RUN_NOT_FOUND', 404],
+    // A project binding must point at a real automation.
+    ['AUTOMATION_NOT_FOUND', 404],
     // A create against a name that already has versions.
     ['AUTOMATION_NAME_TAKEN', 409],
     // A run named a real project the automation is not bound to (bad argument,
@@ -86,6 +112,14 @@ describe('httpStatusForConvexCode', () => {
     ['FORBIDDEN_DEVELOPER_SETTINGS', 403],
     ['ORG_FORBIDDEN', 403],
     ['ORG_NOT_FOUND', 404],
+    // Org resolution at the REST boundary (resolve_user_organization).
+    ['ORG_SLUG_REQUIRED', 400],
+    ['ORG_SLUG_INVALID', 400],
+    // An explicit project key failing the 2-6 char shape.
+    ['PROJECT_KEY_INVALID', 400],
+    // A blank/over-length task comment body (transport pre-guards; the row
+    // keeps a future cap divergence a 400).
+    ['TASK_COMMENT_INVALID', 400],
     // Chat threads filed under a project
     ['PROJECT_FORBIDDEN', 403],
     ['PROJECT_NOT_FOUND', 404],
@@ -116,6 +150,41 @@ describe('httpStatusForConvexCode', () => {
     ['CRAWLER_WEBSITE_NOT_FOUND', 404],
     ['INVALID_SCAN_INTERVAL', 400],
     ['invalid_locale', 400],
+  ])('maps %s to %i', (code, status) => {
+    expect(httpStatusForConvexCode(code)).toBe(status);
+  });
+
+  /**
+   * The machine-door groundwork: codes the /api/v1/projects and /api/v1/tasks
+   * endpoints (and the shared upload lane) surface. All exist in the codebase
+   * today except PROJECT_DUPLICATE_EXTERNAL_ID, declared ahead of its producer
+   * in projects/mutations.ts.
+   */
+  it.each([
+    ['RBAC_FORBIDDEN', 403],
+    ['LEGAL_HOLD_ACTIVE', 403],
+    // Projects
+    ['PROJECT_KEY_TAKEN', 409],
+    ['PROJECT_DUPLICATE_EXTERNAL_ID', 409],
+    ['PROJECT_NAME_INVALID', 400],
+    // Folders and document scoping
+    ['FOLDER_DUPLICATE_NAME', 409],
+    ['FOLDER_SCOPE_CONFLICT', 400],
+    ['DOCUMENT_SCOPE_CONFLICT', 409],
+    // Tasks
+    ['TASK_NOT_FOUND', 404],
+    ['TASK_COMMENT_NOT_FOUND', 404],
+    ['TASK_ATTACHMENT_NOT_FOUND', 404],
+    ['SETUP_FOLDER_MISSING', 409],
+    ['INVALID_ARGUMENTS', 400],
+    // Label validation inside the create-task upsert (labels passthrough).
+    ['TASK_LABELS_INVALID', 400],
+    // Rate limiting and upload validation
+    ['RATE_LIMITED', 429],
+    ['FILE_TOO_LARGE', 413],
+    ['UNSUPPORTED_FILE_TYPE', 415],
+    ['UPLOAD_POLICY_REJECTED', 400],
+    ['UPLOAD_BLOB_INVALID', 400],
   ])('maps %s to %i', (code, status) => {
     expect(httpStatusForConvexCode(code)).toBe(status);
   });
@@ -320,4 +389,173 @@ describe('authenticateRequest — records api-key last-used (#2317)', () => {
     ).rejects.toThrow('Missing or invalid Authorization header');
     expect(runMutation).not.toHaveBeenCalled();
   });
+});
+
+describe('REST_CORS_HEADERS', () => {
+  it('lets a browser preflight send X-Organization-Slug', () => {
+    const allowHeaders = REST_CORS_HEADERS['Access-Control-Allow-Headers'];
+    expect(allowHeaders).toContain('Authorization');
+    expect(allowHeaders).toContain('X-Organization-Slug');
+  });
+});
+
+const RESOLVE_ORG =
+  'organizations/resolve_user_organization:resolveUserOrganization';
+
+type Invoke = (ctx: HttpCtx, request: Request) => Promise<Response>;
+
+/**
+ * Org-resolution plumbing in `withRestAuth`: the `X-Organization-Slug` header
+ * flows into the resolver on every route, `requireExplicitOrgSlug` flows
+ * per-route, and a resolver refusal surfaces through the coded-error map —
+ * ORG_FORBIDDEN → 403 for a non-member slug, ORG_SLUG_REQUIRED → 400 for an
+ * undecidable multi-org key — while an uncoded failure stays a 400 with the
+ * Convex stack wrapper stripped from the body. The resolver's own branching is
+ * pinned in organizations/resolve_user_organization.test.ts.
+ */
+describe('withRestAuth — organization resolution plumbing', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function asInvoke(wrapped: unknown): Invoke {
+    return wrapped as Invoke;
+  }
+
+  it('feeds the X-Organization-Slug header into the resolver', async () => {
+    getSession.mockResolvedValue(testSession());
+    const { ctx, calls } = restCtx({
+      [RESOLVE_ORG]: () => ({
+        organizationId: 'org_two',
+        orgSlug: 'acme-two',
+      }),
+    });
+    const handler = asInvoke(
+      withRestAuth('rest:api', async (rc) => jsonOk({ slug: rc.org.orgSlug })),
+    );
+
+    const response = await handler(
+      ctx,
+      restRequest('/api/v1/projects', {
+        headers: { 'X-Organization-Slug': 'acme-two' },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(jsonBody(response)).resolves.toEqual({ slug: 'acme-two' });
+    expect(argsOf(calls, RESOLVE_ORG)).toMatchObject({
+      userId: TEST_USER_ID,
+      orgSlug: 'acme-two',
+    });
+  });
+
+  it('surfaces the membership refusal for a non-member slug as coded 403', async () => {
+    getSession.mockResolvedValue(testSession());
+    const { ctx } = restCtx({
+      [RESOLVE_ORG]: () => {
+        throw new ConvexError({
+          code: 'ORG_FORBIDDEN',
+          message: 'Not a member of organization acme-two',
+        });
+      },
+    });
+    const handler = asInvoke(withRestAuth('rest:api', async () => jsonOk({})));
+
+    const response = await handler(
+      ctx,
+      restRequest('/api/v1/projects', {
+        headers: { 'X-Organization-Slug': 'acme-two' },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    await expect(jsonBody(response)).resolves.toEqual({
+      error: 'Not a member of organization acme-two',
+    });
+  });
+
+  it('answers a fixed 500 for uncoded resolver failures — no Convex prelude leaks', async () => {
+    getSession.mockResolvedValue(testSession());
+    const { ctx } = restCtx({
+      [RESOLVE_ORG]: () => {
+        throw new Error(
+          '[CONVEX Q(organizations/resolve_user_organization:resolveUserOrganization)] [Request ID: abc123] Server Error\nUncaught Error: backing store exploded\n    at handler (../../convex/organizations/resolve_user_organization.ts:128:10)',
+        );
+      },
+    });
+    const handler = asInvoke(withRestAuth('rest:api', async () => jsonOk({})));
+
+    const response = await handler(ctx, restRequest('/api/v1/projects'));
+
+    expect(response.status).toBe(500);
+    await expect(jsonBody(response)).resolves.toEqual({
+      error: 'Failed to resolve organization',
+    });
+  });
+
+  it('forwards requireExplicitOrgSlug and answers 400 naming the header', async () => {
+    getSession.mockResolvedValue(testSession());
+    const { ctx, calls } = restCtx({
+      [RESOLVE_ORG]: () => {
+        throw new ConvexError({
+          code: 'ORG_SLUG_REQUIRED',
+          message:
+            'User belongs to multiple organizations. Provide X-Organization-Slug header.',
+        });
+      },
+    });
+    const handler = asInvoke(
+      withRestAuth('rest:api', async () => jsonOk({}), {
+        requireExplicitOrgSlug: true,
+      }),
+    );
+
+    const response = await handler(ctx, restRequest('/api/v1/projects'));
+
+    expect(response.status).toBe(400);
+    const body = await jsonBody(response);
+    expect(body.error).toContain('X-Organization-Slug');
+    expect(argsOf(calls, RESOLVE_ORG)).toMatchObject({
+      requireExplicitOrgSlug: true,
+    });
+  });
+
+  it('keeps legacy auto-resolution when no header and no flag are given', async () => {
+    getSession.mockResolvedValue(testSession());
+    const { ctx, calls } = restCtx();
+    const handler = asInvoke(withRestAuth('rest:api', async () => jsonOk({})));
+
+    const response = await handler(ctx, restRequest('/api/v1/projects'));
+
+    expect(response.status).toBe(200);
+    const args = argsOf(calls, RESOLVE_ORG);
+    expect(args?.orgSlug).toBeUndefined();
+    expect(args?.requireExplicitOrgSlug).toBeUndefined();
+  });
+
+  it.each([
+    // Nested shape (projects/tasks mapRateLimitError)...
+    [{ code: 'RATE_LIMITED', data: { retryAfterMs: 30_500 } }, '31'],
+    // ...and flat shape (documents/validate_upload).
+    [
+      { code: 'RATE_LIMITED', message: 'upload limit', retryAfterMs: 1200 },
+      '2',
+    ],
+  ])(
+    'answers 429 with Retry-After when a backing function throws RATE_LIMITED',
+    async (payload, retryAfter) => {
+      getSession.mockResolvedValue(testSession());
+      const { ctx } = restCtx();
+      const handler = asInvoke(
+        withRestAuth('rest:api', async () => {
+          throw new ConvexError(payload);
+        }),
+      );
+
+      const response = await handler(ctx, restRequest('/api/v1/projects'));
+
+      expect(response.status).toBe(429);
+      expect(response.headers.get('Retry-After')).toBe(retryAfter);
+    },
+  );
 });

@@ -38,7 +38,7 @@ export const sandboxErrorCodeLiterals = [
   'UPLOAD_REPORT_FAILED',
   // Pre-stage attestation failure raised by the platform when
   // `ExecuteResponse.priorStage.skipped` shows files the platform expected
-  // to inject didn't actually make it onto `/user/output/`. The
+  // to inject didn't actually make it onto `/agent/output/`. The
   // spawner never emits this code itself — it's an action-side gate — but
   // the literal lives here so the parity guard on the Convex side stays
   // satisfied.
@@ -55,7 +55,7 @@ export const sandboxErrorCodeLiterals = [
   // restartPolicy Always), so the caller distinguishes "retry against the
   // same session" from "session is gone, create a new one" via
   // GET /v1/sessions/:id state. INVALID_CWD rejects an exec whose cwd
-  // fails the runnerd realpath-under-/user check (no silent mkdir).
+  // fails the runnerd realpath-under-/agent check (no silent mkdir).
   'SESSION_LOST',
   'INVALID_CWD',
 ] as const;

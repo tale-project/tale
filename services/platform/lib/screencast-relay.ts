@@ -256,7 +256,7 @@ export function createScreencastRelayHandler(): import('bun').WebSocketHandler<S
     // ws.data type carrier (Bun TS workaround) — never read at runtime; the
     // real data is supplied per-connection by server.upgrade(req, { data }).
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    data: undefined as unknown as ScreencastWsData,
+    data: undefined,
 
     open(ws): void {
       const { sessionId, control } = ws.data;

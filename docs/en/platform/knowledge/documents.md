@@ -13,9 +13,9 @@ The Documents tab is the knowledge base's file surface. Editors upload files, Ta
 
 ## Uploading
 
-Open **Knowledge > Documents** and click **Upload documents** — the menu offers **From your device** and **From Microsoft 365**. The upload gate accepts the formats that cover the bulk of org knowledge: PDF, Word (`.doc`, `.docx`), OpenDocument text (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, plain text, and images (JPG, PNG, GIF, WEBP). Anything else is refused at upload.
+Open **Knowledge > Documents** and click **Upload documents** — the menu offers **From your device** and **From Microsoft 365**. The upload gate accepts the formats that cover the bulk of org knowledge: PDF, Word (`.doc`, `.docx`), OpenDocument text (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, plain text and text-based working files (Markdown, JSON, YAML, `.py`), bookkeeping ledgers (`.ac2`), and images (JPG, PNG, GIF, WEBP). Anything else is refused at upload, and an organization's upload policy can narrow the set further.
 
-Uploading and indexing are separate facts, and the **RAG status** column tracks the second one: **Indexing** while the pipeline runs, **Indexed** when agents can retrieve the content, **Failed** when the pipeline errored, and **Needs reindex** when the stored chunks are stale. Modern formats index; the legacy Office trio (`.doc`, `.xls`, `.ppt`) uploads and stays downloadable but shows **Not indexed** — agents cannot retrieve its content until you re-save it in the modern format.
+Uploading and indexing are separate facts, and the **RAG status** column tracks the second one: **Indexing** while the pipeline runs, **Indexed** when agents can retrieve the content, **Failed** when the pipeline errored, and **Needs reindex** when the stored chunks are stale. Modern formats index; the legacy Office trio (`.doc`, `.xls`, `.ppt`) uploads and stays downloadable but shows **Not indexed** — agents cannot retrieve its content until you re-save it in the modern format. A ledger container (`.ac2`) is stored as an opaque file: downloadable, never previewed or indexed.
 
 ## Revising a controlled document
 

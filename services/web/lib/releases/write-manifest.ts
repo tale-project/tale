@@ -59,13 +59,23 @@ export async function isOxfmtClean(path: string): Promise<boolean> {
   return code === 0;
 }
 
-/** Write the releases manifest and format it in place. */
+export interface WriteReleasesManifestOptions {
+  /**
+   * Run oxfmt on the written file. Default `true` — keeps `oxfmt --check`
+   * green when the manifest is regenerated in the repo. Set `false` where no
+   * formatter is available and only the content matters (the Docker builder).
+   */
+  format?: boolean;
+}
+
+/** Write the releases manifest and (by default) format it in place. */
 export async function writeReleasesManifest(
   outPath: string,
   releases: readonly Release[],
   fetchedAt: string,
+  { format = true }: WriteReleasesManifestOptions = {},
 ): Promise<void> {
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, renderReleasesManifestSource(releases, fetchedAt));
-  await formatGeneratedFile(outPath);
+  if (format) await formatGeneratedFile(outPath);
 }

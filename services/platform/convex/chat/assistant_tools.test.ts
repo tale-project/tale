@@ -14,6 +14,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CHAT_ASSISTANT_SLUG,
   RAG_SEARCH_ENTITY_LIMIT,
+  RAG_SEARCH_MAX_LIMIT,
   RAG_SEARCH_MIN_SIMILARITY,
 } from '../../lib/chat';
 import { SafeFetchError } from '../lib/http/safe_fetch';
@@ -111,6 +112,7 @@ const TASK_BY_ID_FN = 'tasks/internal_queries:getTaskByIdInternal';
 const TASK_CONTEXT_FN = 'tasks/internal_queries:getTaskContextForAgent';
 const CONVERSATIONS_SEARCH_FN =
   'conversations/search_for_chat:searchConversationsForChat';
+const DOCUMENTS_LIST_FN = 'documents/internal_queries:listForAgent';
 
 const WHO = { organizationId: 'org_1', userId: 'user_1' };
 
@@ -143,6 +145,13 @@ function createCtx(
       continueCursor: '',
     }),
     [CONVERSATIONS_SEARCH_FN]: () => ({ conversations: [], truncated: false }),
+    [DOCUMENTS_LIST_FN]: () => ({
+      documents: [],
+      totalCount: 0,
+      hasMore: false,
+      cursor: null,
+      warning: null,
+    }),
     [TASK_BY_ID_FN]: () => null,
     [TASK_CONTEXT_FN]: () => null,
     [DOCUMENT_ROW_FN]: () => null,
@@ -1157,7 +1166,7 @@ describe('rag_search work legs', () => {
     await executor.execute({
       id: 'c1',
       name: 'rag_search',
-      input: { query: 'what is open', status: 'open' },
+      input: { query: 'zebra payments', status: 'open' },
     });
     const call = runQuery.mock.calls.find(
       ([ref]) => fnName(ref) === TASKS_SEARCH_FN,
@@ -1679,6 +1688,40 @@ describe('rag_search archive context', () => {
 });
 
 describe('rag_search reports a listing as a listing', () => {
+  it('hands the model a date, not an epoch number, on a task due date', async () => {
+    // Asking the model to convert epoch milliseconds produced dates weeks off
+    // on a live deployment. Every timestamp the tool emits is now ISO 8601 UTC,
+    // matching the `Current time:` line in the system prompt.
+    const { ctx } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          page: [
+            {
+              _id: 'task_1',
+              title: 'Verify billing',
+              status: 'todo',
+              dueDate: 1_787_124_301_288,
+            },
+          ],
+          isDone: true,
+          continueCursor: '',
+          listed: false,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'search', query: 'billing' },
+    })) as Record<string, unknown>;
+
+    const entries = result.results as Array<{ data?: Record<string, unknown> }>;
+    const due = entries.find((entry) => entry.data?.dueDate)?.data?.dueDate;
+    expect(due).toBe('2026-08-19T07:25:01.288Z');
+    expect(typeof due).toBe('string');
+  });
+
   it('says the tasks source listed rather than matched', async () => {
     const { ctx } = createCtx({
       reads: {
@@ -1694,7 +1737,10 @@ describe('rag_search reports a listing as a listing', () => {
     const result = (await executor.execute({
       id: 'c1',
       name: 'rag_search',
-      input: { query: 'are there any open tasks' },
+      // A residue noun keeps this a SEARCH; the words then match nothing and
+      // the reader falls back to its listing. (Pure listing language would
+      // now be steered to action "list" before any leg runs.)
+      input: { query: 'billing cadence tasks' },
     })) as Record<string, unknown>;
     // The model must not read a list as "these matched your words".
     expect((result.sources as Record<string, string>).tasks).toContain(
@@ -1727,7 +1773,7 @@ describe('rag_search reports a listing as a listing', () => {
     const result = (await executor.execute({
       id: 'c1',
       name: 'rag_search',
-      input: { query: 'are there any open tasks' },
+      input: { query: 'billing cadence tasks' },
     })) as Record<string, unknown>;
     const tasks = (result.sources as Record<string, string>).tasks;
     expect(tasks).toContain('listed');
@@ -1784,5 +1830,520 @@ describe('rag_search reports a listing as a listing', () => {
     // Unassigned is a state an admin acts on, so it is stated rather than left
     // as an absent field the model has to infer from.
     expect(rows[1].data).toMatchObject({ unassigned: true });
+  });
+});
+
+describe('rag_search action contract', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('treats a query with no action as the search it always meant', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({ hits: [], diagnostics: {} });
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'zebra payments' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('ok');
+    expect(searchKnowledgeMock).toHaveBeenCalled();
+  });
+
+  it('treats a kind with no action and no query as the list it can only mean', async () => {
+    const { ctx, runQuery } = createCtx();
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { kind: 'contact' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('ok');
+    expect(result.action).toBe('list');
+    const call = runQuery.mock.calls.find(
+      ([ref]) => fnName(ref) === CONTACTS_FN,
+    );
+    expect(call?.[1]).not.toHaveProperty('searchTerm');
+  });
+
+  it('refuses a verbless empty call with both example calls', async () => {
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: {},
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('invalid_args');
+    expect(result.message).toContain('"action":"search"');
+    expect(result.message).toContain('"action":"list"');
+    expect(searchKnowledgeMock).not.toHaveBeenCalled();
+  });
+
+  it('points an empty search that already names a status at the list call', async () => {
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'search', query: '  ', status: 'in_review' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('invalid_args');
+    expect(result.message).toContain(
+      '{"action":"list","kind":"task","status":"in_review"}',
+    );
+  });
+
+  it('steers a stuffed listing utterance to the list call it means', async () => {
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'search', query: 'list all in-review tasks' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('invalid_args');
+    expect(result.message).toContain(
+      '{"action":"list","kind":"task","status":"in_review"}',
+    );
+    expect(searchKnowledgeMock).not.toHaveBeenCalled();
+  });
+
+  it('honors a search for one named item even when a status word appears', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({ hits: [], diagnostics: {} });
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'search', query: 'show me the login review task' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('ok');
+    expect(searchKnowledgeMock).toHaveBeenCalled();
+  });
+
+  it('ignores a cursor on search instead of failing the call', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({ hits: [], diagnostics: {} });
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'search', query: 'zebra', cursor: 'task:task_9' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('ok');
+  });
+
+  it('refuses the second identical call of a turn and lets paging through', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          page: [],
+          isDone: false,
+          continueCursor: 'task_9',
+          listed: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const first = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task', status: 'open' },
+    })) as Record<string, unknown>;
+    expect(first.status).toBe('ok');
+
+    const repeat = (await executor.execute({
+      id: 'c2',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task', status: 'open' },
+    })) as Record<string, unknown>;
+    expect(repeat.status).toBe('invalid_args');
+    expect(repeat.message).toContain('already ran this turn');
+
+    // A different cursor is a different page, never a repetition.
+    const nextPage = (await executor.execute({
+      id: 'c3',
+      name: 'rag_search',
+      input: {
+        action: 'list',
+        kind: 'task',
+        status: 'open',
+        cursor: 'task:task_9',
+      },
+    })) as Record<string, unknown>;
+    expect(nextPage.status).toBe('ok');
+  });
+
+  it('keeps giving the corrective message when a rejected call is repeated', async () => {
+    const executor = await makeExecutor(createCtx().ctx);
+    const call = { action: 'list', kind: 'task' };
+    const first = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: call,
+    })) as Record<string, unknown>;
+    const second = (await executor.execute({
+      id: 'c2',
+      name: 'rag_search',
+      input: call,
+    })) as Record<string, unknown>;
+    // A failure never registers in the repeat guard — the model must keep
+    // seeing what to fix, not a dead end.
+    expect(first.message).toBe(second.message);
+    expect(second.message).not.toContain('already ran this turn');
+  });
+});
+
+describe('rag_search list action', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('requires a kind, naming the listable ones', async () => {
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('invalid_args');
+    expect(result.message).toContain('"task"');
+    expect(result.message).toContain('"contact"');
+    expect(result.message).not.toContain('"web-page"');
+  });
+
+  it('refuses to list crawled pages, steering to the site catalog', async () => {
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'web-page' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('invalid_args');
+    expect(result.message).toContain('"kind":"website"');
+  });
+
+  it('refuses a list that smuggles a query, showing the corrected call', async () => {
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task', status: 'open', query: 'stuff' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('invalid_args');
+    expect(result.message).toContain(
+      '{"action":"list","kind":"task","status":"open"}',
+    );
+  });
+
+  it('refuses a whole-workspace task dump and an unknown list status', async () => {
+    const executor = await makeExecutor(createCtx().ctx);
+    const noSlice = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task' },
+    })) as Record<string, unknown>;
+    expect(noSlice.status).toBe('invalid_args');
+    expect(noSlice.message).toContain('"status"');
+    expect(noSlice.message).toContain('"projectId"');
+
+    // A search drops an unknown status; a listing of one must not silently
+    // become a listing of everything.
+    const badStatus = (await executor.execute({
+      id: 'c2',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task', status: 'nonsense' },
+    })) as Record<string, unknown>;
+    expect(badStatus.status).toBe('invalid_args');
+    expect(badStatus.message).toContain('in_review');
+  });
+
+  it('lists tasks by status through the reader, text off and archived out', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          // A title that does NOT contain the word "review" — a list is a
+          // board slice, never a text match.
+          page: [
+            { _id: 'task_1', title: 'Verify billing', status: 'in_review' },
+          ],
+          isDone: true,
+          continueCursor: 'task_1',
+          listed: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task', status: 'in_review' },
+    })) as Record<string, unknown>;
+
+    expect(result.status).toBe('ok');
+    expect(result.action).toBe('list');
+    expect(result.kind).toBe('task');
+    expect(result.hasMore).toBe(false);
+    expect(result).not.toHaveProperty('continueCursor');
+    const rows = result.results as Array<Record<string, unknown>>;
+    expect(rows[0]?.title).toBe('Verify billing');
+    expect(rows[0]?.ref).toBe('task:task_1');
+    expect((result.sources as Record<string, string>).tasks).toBe('listed');
+
+    const call = runQuery.mock.calls.find(
+      ([ref]) => fnName(ref) === TASKS_SEARCH_FN,
+    )?.[1] as Record<string, unknown>;
+    expect(call).toMatchObject({
+      term: '',
+      list: true,
+      excludeArchived: true,
+      status: 'in_review',
+    });
+    expect((call.paginationOpts as Record<string, unknown>).numItems).toBe(
+      RAG_SEARCH_MAX_LIMIT,
+    );
+  });
+
+  it('reports an unfinished walk as hasMore with a redeemable tagged cursor', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          page: [{ _id: 'task_1', title: 'Verify billing', status: 'todo' }],
+          isDone: false,
+          continueCursor: 'task_9',
+          listed: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task', status: 'open' },
+    })) as Record<string, unknown>;
+    expect(result.hasMore).toBe(true);
+    expect(result.continueCursor).toBe('task:task_9');
+    expect(result).not.toHaveProperty('totalCount');
+    expect(result.message).toContain('one page');
+
+    // The tagged cursor redeems: the tag comes off before the reader sees it.
+    await executor.execute({
+      id: 'c2',
+      name: 'rag_search',
+      input: {
+        action: 'list',
+        kind: 'task',
+        status: 'open',
+        cursor: 'task:task_9',
+      },
+    });
+    const second = runQuery.mock.calls.findLast(
+      ([ref]) => fnName(ref) === TASKS_SEARCH_FN,
+    )?.[1] as Record<string, unknown>;
+    expect((second.paginationOpts as Record<string, unknown>).cursor).toBe(
+      'task_9',
+    );
+  });
+
+  it('refuses a cursor from another kind before touching the index', async () => {
+    const { ctx, runQuery } = createCtx();
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: {
+        action: 'list',
+        kind: 'task',
+        status: 'open',
+        cursor: 'contact:xyz',
+      },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('invalid_args');
+    expect(
+      runQuery.mock.calls.some(([ref]) => fnName(ref) === TASKS_SEARCH_FN),
+    ).toBe(false);
+  });
+
+  it('refuses a projectId outside the readable set, uniformly', async () => {
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task', projectId: 'project_foreign' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('invalid_args');
+    expect(result.message).toContain('No readable project');
+  });
+
+  it('lists contacts with the term off and marks a non-active row', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [CONTACTS_FN]: () => ({
+          page: [
+            { name: 'Ada Acme', email: 'ada@acme.com' },
+            { name: 'Gone Corp', lifecycleStatus: 'expired' },
+          ],
+          isDone: true,
+          continueCursor: 'contact_2',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'contact' },
+    })) as Record<string, unknown>;
+
+    const rows = result.results as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.data).not.toHaveProperty('lifecycleStatus');
+    // A trashed row must not read as the current address book.
+    expect(rows[1]?.data).toMatchObject({ lifecycleStatus: 'expired' });
+
+    const call = runQuery.mock.calls.find(
+      ([ref]) => fnName(ref) === CONTACTS_FN,
+    )?.[1] as Record<string, unknown>;
+    expect(call).not.toHaveProperty('searchTerm');
+    expect((call.paginationOpts as Record<string, unknown>).numItems).toBe(
+      RAG_SEARCH_MAX_LIMIT,
+    );
+  });
+
+  it('lists websites without paging, saying the list does not page', async () => {
+    const summaries = Array.from({ length: 25 }, (_, i) => ({
+      domain: `site-${i}.example`,
+      title: `Site ${i}`,
+      pageCount: i,
+    }));
+    const { ctx } = createCtx({ reads: { [WEBSITES_FN]: () => summaries } });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'website' },
+    })) as Record<string, unknown>;
+
+    const rows = result.results as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(RAG_SEARCH_MAX_LIMIT);
+    expect(rows[1]?.data).toMatchObject({ pageCount: 1 });
+    expect(result.hasMore).toBe(true);
+    expect(result).not.toHaveProperty('continueCursor');
+  });
+
+  it('overfetches conversations so a full page never claims completeness', async () => {
+    const inbox = Array.from({ length: 21 }, (_, i) => ({
+      _id: `conv_${i}`,
+      subject: `Ticket ${i}`,
+    }));
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [CONVERSATIONS_SEARCH_FN]: () => ({
+          conversations: inbox,
+          truncated: false,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'conversation' },
+    })) as Record<string, unknown>;
+
+    expect((result.results as unknown[]).length).toBe(RAG_SEARCH_MAX_LIMIT);
+    expect(result.hasMore).toBe(true);
+    expect(result).not.toHaveProperty('continueCursor');
+    expect(result.message).toContain('does not page');
+    expect((result.sources as Record<string, string>).conversations).toContain(
+      'recent only',
+    );
+
+    const call = runQuery.mock.calls.find(
+      ([ref]) => fnName(ref) === CONVERSATIONS_SEARCH_FN,
+    )?.[1] as Record<string, unknown>;
+    expect(call).toMatchObject({ term: '', list: true, limit: 21 });
+  });
+
+  it('lists hub documents through listForAgent, relaying its warning', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [DOCUMENTS_LIST_FN]: () => ({
+          documents: [
+            {
+              fileId: 'file_9',
+              title: 'Q3 report.pdf',
+              extension: 'pdf',
+              folderPath: '/reports',
+              teamId: null,
+              createdAt: 1_700_000_000_000,
+              sizeBytes: 1024,
+            },
+          ],
+          totalCount: null,
+          hasMore: true,
+          cursor: 20,
+          warning: 'Scan limit reached: results may be incomplete.',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'document' },
+    })) as Record<string, unknown>;
+
+    const rows = result.results as Array<Record<string, unknown>>;
+    expect(rows[0]?.ref).toBe('file_9');
+    expect(rows[0]?.data).toMatchObject({ folderPath: '/reports' });
+    expect(result.hasMore).toBe(true);
+    expect(result.continueCursor).toBe('document:20');
+    expect(result).not.toHaveProperty('totalCount');
+    expect(result.message).toContain('Scan limit reached');
+    expect((result.sources as Record<string, string>).documents).toContain(
+      'hub and team files',
+    );
+
+    const call = runQuery.mock.calls.find(
+      ([ref]) => fnName(ref) === DOCUMENTS_LIST_FN,
+    )?.[1] as Record<string, unknown>;
+    expect(call).toMatchObject({ organizationId: 'org_1', userId: 'user_1' });
+  });
+
+  it('answers a denied subject with unavailable, not an empty page', async () => {
+    const { ctx, runQuery } = createCtx({
+      access: (subject) => ({
+        allowed: subject !== 'contacts',
+        role: 'member',
+      }),
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'contact' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('unavailable');
+    expect(
+      runQuery.mock.calls.some(([ref]) => fnName(ref) === CONTACTS_FN),
+    ).toBe(false);
+  });
+
+  it('narrows a search to one kind when the model names it', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [CONTACTS_FN]: () => ({
+          page: [{ name: 'Ada Acme' }],
+          isDone: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'search', query: 'ada', kind: 'contact' },
+    })) as Record<string, unknown>;
+
+    expect(result.status).toBe('ok');
+    expect(result.sources).toEqual({ contacts: 'searched' });
+    // The other legs never ran — no corpus call, no task read.
+    expect(searchKnowledgeMock).not.toHaveBeenCalled();
+    expect(
+      runQuery.mock.calls.some(([ref]) => fnName(ref) === TASKS_SEARCH_FN),
+    ).toBe(false);
   });
 });

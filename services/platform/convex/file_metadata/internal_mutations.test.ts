@@ -39,6 +39,13 @@ vi.mock('./rag_dispatch', () => ({
   promoteQueuedRagJobs: vi.fn(),
 }));
 
+// The hub second-chance scheduler linkDocumentToFile calls. Mocked so the
+// link tests can assert WHETHER it was invoked (its own gating logic is
+// covered by the create_document_from_upload_rag_skip convex-test suite).
+vi.mock('../documents/schedule_hub_document_rag_indexing', () => ({
+  scheduleHubDocumentRagIndexing: vi.fn(),
+}));
+
 vi.mock('../_generated/api', () => ({
   internal: {
     governance: { retention_cleanup: { runRetentionCleanup: 'mock' } },
@@ -107,6 +114,12 @@ async function getLinkHandler() {
 async function getUpdateRagStatusHandler() {
   const { updateFileRagStatus } = await import('./internal_mutations');
   return (updateFileRagStatus as unknown as { handler: Function }).handler;
+}
+
+async function getRequeueHandler() {
+  const { requeueFileForRagIndexing } = await import('./internal_mutations');
+  return (requeueFileForRagIndexing as unknown as { handler: Function })
+    .handler;
 }
 
 async function getEnsureHandler() {
@@ -281,7 +294,7 @@ describe('saveFileMetadata (internal)', () => {
       expect(maybeDispatchRagIndexing).not.toHaveBeenCalled();
     });
 
-    it('leaves an indexable file unqueued and undispatched when indexing is skipped', async () => {
+    it('leaves an indexable file unqueued and undispatched when indexing is skipped, persisting the opt-out', async () => {
       const { ctx } = createMockCtx(null);
       const handler = await getSaveHandler();
       const { maybeDispatchRagIndexing } = await import('./rag_dispatch');
@@ -290,18 +303,20 @@ describe('saveFileMetadata (internal)', () => {
 
       // `undefined`, NOT `'queued'` (would burn a cap slot forever) and NOT
       // `'unsupported'` (a .pdf is indexable — it just isn't being indexed,
-      // and `unsupported` is terminal and refuses retry).
+      // and `unsupported` is terminal and refuses retry). The opt-out itself
+      // is stored so it survives later saves and hub links.
       expect(ctx.db.insert).toHaveBeenCalledWith(
         'fileMetadata',
         expect.objectContaining({
           ragStatus: undefined,
           ragQueuedAt: undefined,
+          skipRagIndexing: true,
         }),
       );
       expect(maybeDispatchRagIndexing).not.toHaveBeenCalled();
     });
 
-    it('does not queue a skipped file on the patch path either', async () => {
+    it('does not queue a skipped file on the patch path either, and persists the opt-out', async () => {
       const { ctx } = createMockCtx({
         _id: 'fm_existing',
         organizationId: 'org_1',
@@ -319,12 +334,42 @@ describe('saveFileMetadata (internal)', () => {
         ctx.db.patch as unknown as { mock: { calls: unknown[][] } }
       ).mock.calls[0][1] as Record<string, unknown>;
       expect(patch).not.toHaveProperty('ragStatus');
+      expect(patch.skipRagIndexing).toBe(true);
       expect(maybeDispatchRagIndexing).not.toHaveBeenCalled();
     });
 
-    it('still indexes a previously skipped blob when it is saved again for indexing', async () => {
-      // Skip is not terminal: `needsRagRetry` accepts an `undefined` status, so
-      // the same bytes attached to a Hub document later still index.
+    it('keeps a persisted opt-out sticky: a later save WITHOUT the flag neither clears it nor queues', async () => {
+      // The REST project-file posture: the row was created with
+      // `skipRagIndexing: true`, and a later plain re-save of the same blob
+      // (document link, connector re-touch) must not resurrect indexing.
+      const { ctx } = createMockCtx({
+        _id: 'fm_existing',
+        organizationId: 'org_1',
+        storageId: 'storage_1',
+        fileName: 'test.pdf',
+        contentType: 'application/pdf',
+        size: 1024,
+        ragStatus: undefined,
+        skipRagIndexing: true,
+      });
+      const handler = await getSaveHandler();
+      const { maybeDispatchRagIndexing } = await import('./rag_dispatch');
+
+      await handler(ctx, baseArgs);
+
+      const patch = (
+        ctx.db.patch as unknown as { mock: { calls: unknown[][] } }
+      ).mock.calls[0][1] as Record<string, unknown>;
+      expect(patch).not.toHaveProperty('ragStatus');
+      expect(patch).not.toHaveProperty('skipRagIndexing');
+      expect(maybeDispatchRagIndexing).not.toHaveBeenCalled();
+    });
+
+    it('still indexes an unflagged never-indexed blob when it is saved again for indexing', async () => {
+      // A row WITHOUT the persisted opt-out (legacy rows, or a plain upload
+      // that simply never indexed) keeps today's behavior: `needsRagRetry`
+      // accepts an `undefined` status, so the same bytes attached to a Hub
+      // document later still index. Only the persisted flag is sticky.
       const { ctx } = createMockCtx({
         _id: 'fm_existing',
         organizationId: 'org_1',
@@ -488,6 +533,77 @@ describe('linkDocumentToFile', () => {
       documentId: 'doc_1',
       source: 'user',
     });
+  });
+
+  it('gives an unflagged never-indexed row its second chance at hub indexing', async () => {
+    const { ctx } = createMockCtx({
+      _id: 'fm_existing',
+      storageId: 'storage_1',
+      ragStatus: undefined,
+    });
+    const handler = await getLinkHandler();
+    const { scheduleHubDocumentRagIndexing } =
+      await import('../documents/schedule_hub_document_rag_indexing');
+
+    await handler(ctx, { storageId: 'storage_1', documentId: 'doc_1' });
+
+    expect(scheduleHubDocumentRagIndexing).toHaveBeenCalledWith(ctx, {
+      documentId: 'doc_1',
+    });
+  });
+
+  it('never resurrects indexing for a row persisted with skipRagIndexing (the second-chance trap)', async () => {
+    // The security seam: a skip-flagged upload used to be re-queued the
+    // moment a document linked it, because its `undefined` status looked
+    // like a legacy row. The persisted flag marks it as intent instead.
+    const { ctx } = createMockCtx({
+      _id: 'fm_existing',
+      storageId: 'storage_1',
+      ragStatus: undefined,
+      skipRagIndexing: true,
+    });
+    const handler = await getLinkHandler();
+    const { scheduleHubDocumentRagIndexing } =
+      await import('../documents/schedule_hub_document_rag_indexing');
+
+    await handler(ctx, { storageId: 'storage_1', documentId: 'doc_1' });
+
+    // The link itself still lands — only the indexing second chance is off.
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_existing', {
+      documentId: 'doc_1',
+    });
+    expect(scheduleHubDocumentRagIndexing).not.toHaveBeenCalled();
+  });
+});
+
+describe('requeueFileForRagIndexing (explicit retry surface)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('clears a persisted skipRagIndexing opt-out — an explicit index request wins', async () => {
+    const { ctx } = createMockCtx({
+      _id: 'fm_existing',
+      storageId: 'storage_1',
+      ragStatus: undefined,
+      skipRagIndexing: true,
+    });
+    const handler = await getRequeueHandler();
+    const { maybeDispatchRagIndexing } = await import('./rag_dispatch');
+
+    await handler(ctx, { storageId: 'storage_1' });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'fm_existing',
+      expect.objectContaining({
+        ragStatus: 'queued',
+        skipRagIndexing: undefined,
+      }),
+    );
+    const patch = (ctx.db.patch as unknown as { mock: { calls: unknown[][] } })
+      .mock.calls[0][1] as Record<string, unknown>;
+    expect('skipRagIndexing' in patch).toBe(true);
+    expect(maybeDispatchRagIndexing).toHaveBeenCalledWith(ctx, 'storage_1');
   });
 });
 
@@ -991,6 +1107,66 @@ describe('bindFileToConversation', () => {
     // 'queued' row that is neither dispatched nor parked holds an org RAG slot
     // for good.
     expect(await dispatchSpy()).toHaveBeenCalledWith(ctx, 'storage_1');
+  });
+
+  it('stamps when the mail arrived, so the row enters the mail index', async () => {
+    // `mailReceivedAt` is what puts a row in
+    // `by_organizationId_and_mailReceivedAt`. Without it the attachment is
+    // bound, indexed, and still unlistable.
+    const { ctx } = createMockCtx(attachmentRow());
+    const handler = await getBindHandler();
+
+    await handler(ctx, { ...args, receivedAt: 1_234 });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'fm_1',
+      expect.objectContaining({ mailReceivedAt: 1_234 }),
+    );
+  });
+
+  it("falls back to the row's creation time when the mail date is unknown", async () => {
+    const { ctx } = createMockCtx(attachmentRow({ _creationTime: 9_999 }));
+    const handler = await getBindHandler();
+
+    await handler(ctx, args);
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'fm_1',
+      expect.objectContaining({ mailReceivedAt: 9_999 }),
+    );
+  });
+
+  it('back-fills the arrival time on a row bound before the field existed', async () => {
+    // Already bound and already indexed, so nothing else needs doing — but a
+    // row with no arrival time is invisible to the listing, so this must not
+    // short-circuit to `unchanged`.
+    const { ctx } = createMockCtx(
+      attachmentRow({
+        conversationId: 'conv_1',
+        ragStatus: 'completed',
+        _creationTime: 4_242,
+      }),
+    );
+    const handler = await getBindHandler();
+
+    expect(await handler(ctx, args)).not.toBe('unchanged');
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_1', {
+      mailReceivedAt: 4_242,
+    });
+  });
+
+  it('leaves an arrival time that is already recorded alone', async () => {
+    const { ctx } = createMockCtx(
+      attachmentRow({
+        conversationId: 'conv_1',
+        ragStatus: 'completed',
+        mailReceivedAt: 777,
+      }),
+    );
+    const handler = await getBindHandler();
+
+    expect(await handler(ctx, args)).toBe('unchanged');
+    expect(ctx.db.patch).not.toHaveBeenCalled();
   });
 
   it('binds without re-indexing a file that already has a RAG outcome', async () => {

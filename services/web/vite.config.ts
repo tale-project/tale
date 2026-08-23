@@ -2,8 +2,15 @@ import { artifactsPlugin } from '@tale/ui/seo/vite-plugin-artifacts';
 import { yamlImports } from '@tale/ui/vite/yaml';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
+import type { Connect } from 'vite';
 import { defineConfig } from 'vite';
 
+import {
+  RELEASES,
+  RELEASES_FETCHED_AT,
+} from './app/generated/releases-manifest';
+import { createReleaseFeed } from './lib/releases/feed';
+import { handleReleasesRequest, RELEASES_ROUTE } from './lib/releases/route';
 import { createMarketingArtifactsServer } from './lib/seo/artifacts-server';
 
 // In dev the SSR loader is bound at the first artifact request via the
@@ -21,6 +28,30 @@ const devArtifactsServer = createMarketingArtifactsServer({
     },
   },
 });
+
+// `/api/releases` is a `server.ts` route in production. Mirror it in dev and
+// preview — through the same handler — so the changelog page exercises the real
+// code path locally and under Playwright.
+const devReleaseFeed = createReleaseFeed({
+  snapshot: RELEASES,
+  snapshotFetchedAt: RELEASES_FETCHED_AT,
+});
+
+function mountReleaseFeedRoute(middlewares: Connect.Server): void {
+  middlewares.use(RELEASES_ROUTE, (request, nodeResponse) => {
+    const response = handleReleasesRequest(
+      new Request(`http://localhost${RELEASES_ROUTE}`, {
+        method: request.method ?? 'GET',
+      }),
+      devReleaseFeed,
+    );
+    nodeResponse.statusCode = response.status;
+    for (const [key, value] of response.headers) {
+      nodeResponse.setHeader(key, value);
+    }
+    void response.text().then((text) => nodeResponse.end(text));
+  });
+}
 
 export default defineConfig({
   // Absolute base so the SPA shell loads its assets correctly when served
@@ -87,6 +118,12 @@ export default defineConfig({
           return mod.render(url);
         };
       },
+    },
+    {
+      name: 'tale-web:release-feed',
+      configureServer: (server) => mountReleaseFeedRoute(server.middlewares),
+      configurePreviewServer: (server) =>
+        mountReleaseFeedRoute(server.middlewares),
     },
     artifactsPlugin({ server: devArtifactsServer }),
   ],

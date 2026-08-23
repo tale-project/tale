@@ -27,7 +27,7 @@ export const FilterButton = forwardRef<HTMLButtonElement, FilterButtonProps>(
         variant="secondary"
         aria-label={t('labels.filter')}
         className={cn(
-          'hover:bg-muted relative gap-2 h-9',
+          'hover:bg-muted relative h-9 gap-2',
           hasActiveFilters && 'border-primary',
           isLoading && 'opacity-75',
           className,

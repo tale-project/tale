@@ -17,7 +17,7 @@ const FLOATING_DOCK_END_PAD =
   'pb-[calc(var(--content-area-pb)+var(--mobile-floating-actions-pad,0px))]';
 
 const contentAreaVariants = cva(
-  'flex min-w-0 w-full flex-col [--content-area-pb:1.5rem]',
+  'flex w-full min-w-0 flex-col [--content-area-pb:1.5rem]',
   {
     variants: {
       variant: {

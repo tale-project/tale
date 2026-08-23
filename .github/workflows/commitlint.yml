@@ -4,6 +4,9 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,4 +34,19 @@ jobs:
           start-turbo-cache: 'false'
 
       - name: Run commitlint
-        run: bunx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+        # PR: lint the branch range. Push: lint the pushed range; a forced or
+        # history-less push (all-zero `before`) degrades to the last commit.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            bunx commitlint --from "$PR_BASE" --to "$PR_HEAD" --verbose
+          elif [ -z "$PUSH_BEFORE" ] || [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            bunx commitlint --last --verbose
+          else
+            bunx commitlint --from "$PUSH_BEFORE" --to "$PUSH_SHA" --verbose
+          fi

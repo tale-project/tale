@@ -89,7 +89,7 @@ describe('buildDockerSessionRunArgs', () => {
     // Container + workspace mount.
     expect(args).toContain('tale-sbx-ses-ses-abc-123');
     expect(args).toContain(
-      'type=bind,src=/var/lib/tale-sandbox/sessions/ses-ses-abc-123,dst=/user',
+      'type=bind,src=/var/lib/tale-sandbox/sessions/ses-ses-abc-123,dst=/agent',
     );
     // Shared per-org caches on disk volumes — bun alongside pip/npm so its
     // cache doesn't fall to ~/.bun in the per-user workspace.

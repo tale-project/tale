@@ -55,9 +55,11 @@ import {
   assertRunProjectAllowed,
   automationStore,
   bindAutomationToProject,
+  deleteAutomationCascade,
   deploymentRow,
   reconcileAutomationProjects,
   soleBindingProject,
+  tombstoneRow,
   triggerRow,
   versionRow,
   versionsOf,
@@ -297,6 +299,35 @@ export const deleteTrigger = mutation({
     const row = await triggerRow(ctx, args.organizationId, args.name);
     if (row) await ctx.db.delete(row._id);
     return null;
+  },
+});
+
+/**
+ * Delete an automation: every version, its deployment, its triggers (a
+ * webhook URL dies here, a schedule stops firing) and its project bindings —
+ * one transaction, so no partial automation is ever observable.
+ *
+ * Refused while any run is still queued, running or waiting: a live run
+ * holds a sandbox session and may be parked on a human question, and failing
+ * it as a side effect of deletion would destroy in-flight work silently.
+ * Cancel the runs (or let them finish) first.
+ *
+ * Run history is deliberately KEPT — terminal runs are the audit record of
+ * what the automation did, and the `workflowLog` retention sweep already
+ * owns their lifecycle. A tombstone is recorded so the default-pack seeder
+ * does not resurrect a deleted builtin on the next deploy; saving the name
+ * again clears it.
+ */
+export const deleteAutomation = mutation({
+  args: { organizationId: v.string(), name: v.string() },
+  returns: v.object({ name: v.string(), versions: v.number() }),
+  handler: async (ctx, args) => {
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    return await deleteAutomationCascade(ctx, {
+      organizationId: args.organizationId,
+      name: args.name,
+      actor: auth.userId,
+    });
   },
 });
 
@@ -874,6 +905,16 @@ export const seedDefaultPacks = internalMutation({
       const document = pack.document as Automation;
       const name = assertAutomationName(document.name ?? '');
       const existing = await versionsOf(ctx, args.organizationId, name);
+      if (existing.length === 0) {
+        // A deliberate deletion outlives the deploy cycle: the tombstone says
+        // this organization removed the pack, so provisioning must not bring
+        // it back. Saving the name again (re-create, upload) clears it.
+        const tombstone = await tombstoneRow(ctx, args.organizationId, name);
+        if (tombstone !== null) {
+          skipped.push(name);
+          continue;
+        }
+      }
       if (existing.length > 0) {
         // The organization's own history wins for BEHAVIOUR, but its
         // automations should not keep reading as slugs because they were
@@ -1421,6 +1462,69 @@ export const recordAgentTurnSettled = internalMutation({
       runId: args.runId,
     });
     return { recorded: true };
+  },
+});
+
+/**
+ * Stamp launch facts onto the parked agent cursor once the start action's
+ * mint succeeds: when the attempt actually began executing, and (on the
+ * subscription lane) which broker account served it. Best-effort by design —
+ * the stamp races the kick-side cursor commit, and losing that race leaves
+ * `launchedAt` absent, which the retry gate reads as ZERO executed time
+ * (undercounting progress is safe; overcounting would re-arm the budget).
+ * The gates mirror `recordAgentTurnSettled`: a stamp arriving after the turn
+ * settled or after a re-kick moved the cursor to a new exec is refused.
+ */
+export const stampAgentTurnLaunch = internalMutation({
+  args: {
+    organizationId: v.string(),
+    runId: v.id('automationRuns'),
+    nodeId: v.string(),
+    execId: v.string(),
+    launchedAt: v.number(),
+    brokerTokenHash: v.optional(v.string()),
+  },
+  returns: v.object({ stamped: v.boolean() }),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.runId);
+    if (!row || row.organizationId !== args.organizationId) {
+      return { stamped: false };
+    }
+    if (
+      row.status !== 'waiting' &&
+      row.status !== 'running' &&
+      row.status !== 'queued'
+    ) {
+      return { stamped: false };
+    }
+    const checkpoints = readCheckpoints(row.checkpoints);
+    const cursor = checkpoints.cursor;
+    if (
+      cursor === undefined ||
+      cursor.node !== args.nodeId ||
+      cursor.agent === undefined ||
+      cursor.agent.execId !== args.execId ||
+      cursor.agent.result !== undefined
+    ) {
+      return { stamped: false };
+    }
+    await ctx.db.patch(args.runId, {
+      checkpoints: {
+        nodes: checkpoints.nodes,
+        cursor: {
+          ...cursor,
+          agent: {
+            ...cursor.agent,
+            launchedAt: args.launchedAt,
+            ...(args.brokerTokenHash !== undefined && {
+              brokerTokenHash: args.brokerTokenHash,
+            }),
+          },
+        },
+        executions: checkpoints.executions,
+      },
+    });
+    return { stamped: true };
   },
 });
 

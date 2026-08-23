@@ -48,8 +48,7 @@ export const Sample: Story = {
 export const WithMarkdownComponents: Story = {
   args: {
     children: SAMPLE,
-    // oxlint-disable-next-line typescript/no-explicit-any -- custom component keys aren't HTML element tags
-    components: markdownComponents as any,
+    components: markdownComponents,
   },
 };
 

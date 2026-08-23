@@ -3,8 +3,10 @@
 // `createPrecompiledServer` (`@tale/ui/seo`). Marketing routes were
 // SSR-rendered and converted to markdown in the Docker builder stage —
 // no SSR happens at request time. Plus a Discord-webhook proxy for form
-// submissions. The boilerplate (locale negotiation, static serving,
-// `/api/health`, security headers) lives in `@tale/ui/server`.
+// submissions and `/api/releases`, a TTL-cached GitHub Releases feed that
+// keeps the changelog current between deploys. The boilerplate (locale
+// negotiation, static serving, `/api/health`, security headers) lives in
+// `@tale/ui/server`.
 
 import { resolve } from 'node:path';
 
@@ -14,10 +16,16 @@ import {
   startReactServer,
 } from '@tale/ui/server';
 
+import {
+  RELEASES,
+  RELEASES_FETCHED_AT,
+} from './app/generated/releases-manifest';
 import { buildDiscordPayload } from './lib/forms/discord-embeds';
 import { webHealthStatus } from './lib/forms/health';
 import { checkRateLimit } from './lib/forms/rate-limit';
 import { MIN_SUBMIT_DELAY_MS, submitRequest } from './lib/forms/schemas';
+import { createReleaseFeed } from './lib/releases/feed';
+import { handleReleasesRequest, RELEASES_ROUTE } from './lib/releases/route';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -158,6 +166,18 @@ async function handleFormSubmit(request: Request): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------------
+// Release feed (web-specific)
+// ---------------------------------------------------------------------------
+
+// Unauthenticated on purpose: the TTL keeps us at a handful of calls per hour,
+// well inside GitHub's 60/hour/IP budget, and the marketing deployment stays
+// free of a GitHub token.
+const releaseFeed = createReleaseFeed({
+  snapshot: RELEASES,
+  snapshotFetchedAt: RELEASES_FETCHED_AT,
+});
+
+// ---------------------------------------------------------------------------
 // Server bootstrap
 // ---------------------------------------------------------------------------
 
@@ -180,6 +200,13 @@ startReactServer({
     if (url.pathname === '/api/forms/submit') {
       return handleFormSubmit(request);
     }
+    if (url.pathname === RELEASES_ROUTE) {
+      return handleReleasesRequest(request, releaseFeed);
+    }
     return null;
   },
 });
+
+// Warm the feed at boot so the first visitor already gets the live list
+// instead of the build-time snapshot. Failures are logged inside the feed.
+void releaseFeed.refresh();

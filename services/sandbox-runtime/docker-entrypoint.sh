@@ -7,7 +7,7 @@
 #
 #   - The spawner is the trust boundary; it has already validated the
 #     positional args we receive ($1 language, $2 packages.json, ...).
-#   - The user's code lives on a host bind-mount at /user/code/.
+#   - The user's code lives on a host bind-mount at /agent/code/.
 #   - There's no daemon to initialise — this script's only job is to
 #     `exec` `entrypoint.sh` with the args preserved so signals (SIGTERM
 #     from the spawner's kill on timeout) reach the language process.

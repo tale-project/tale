@@ -60,6 +60,7 @@ const projectRowValidator = v.object({
   icon: v.optional(v.string()),
   color: v.optional(v.string()),
   key: v.optional(v.string()),
+  externalItemId: v.optional(v.string()),
   taskCounter: v.optional(v.number()),
   // Denormalized rollups — see the bucket semantics on `projectsTable`.
   openTaskCount: v.optional(v.number()),

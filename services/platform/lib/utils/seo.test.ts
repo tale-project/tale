@@ -36,7 +36,7 @@ describe('seo', () => {
     getTitleSuffix.mockReturnValue('QA Guides Org');
 
     // oxlint-disable-next-line typescript/no-explicit-any -- narrowing the metadata-page key union is irrelevant to this composition test
-    const tags = seo('chat' as any);
+    const tags = seo('chat');
 
     expect(titleOf(tags)).toBe('Chat - QA Guides Org');
     expect(tags).toContainEqual({
@@ -49,7 +49,7 @@ describe('seo', () => {
     getTitleSuffix.mockReturnValue(undefined);
 
     // oxlint-disable-next-line typescript/no-explicit-any -- see above
-    const tags = seo('chat' as any);
+    const tags = seo('chat');
 
     expect(titleOf(tags)).toBe(`Chat - ${FALLBACK_SUFFIX}`);
   });
@@ -59,7 +59,7 @@ describe('seo', () => {
       getTitleSuffix.mockReturnValue('QA Guides Org');
 
       // oxlint-disable-next-line typescript/no-explicit-any -- see above
-      const tags = seo('chat' as any, 'Getting started');
+      const tags = seo('chat', 'Getting started');
 
       expect(titleOf(tags)).toBe('Getting started - QA Guides Org');
       expect(tags).toContainEqual({
@@ -72,7 +72,7 @@ describe('seo', () => {
       getTitleSuffix.mockReturnValue('QA Guides Org');
 
       // oxlint-disable-next-line typescript/no-explicit-any -- see above
-      const tags = seo('chat' as any, undefined);
+      const tags = seo('chat', undefined);
 
       expect(titleOf(tags)).toBe('Chat - QA Guides Org');
     });

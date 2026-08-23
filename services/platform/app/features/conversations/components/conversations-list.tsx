@@ -189,7 +189,7 @@ const ConversationRow = memo(function ConversationRow({
       className={cn(
         'hover:bg-muted relative cursor-pointer px-4 py-2.5 transition-colors',
         isSelected && 'bg-muted',
-        placeholder && 'cursor-default pointer-events-none',
+        placeholder && 'pointer-events-none cursor-default',
       )}
     >
       {isSelected && (

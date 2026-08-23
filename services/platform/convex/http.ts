@@ -83,6 +83,12 @@ import {
   deleteProduct,
 } from './products/rest_api';
 import {
+  lookupProjects,
+  createProjectRest,
+  getProjectResource,
+  projectPostActions,
+} from './projects/rest_api';
+import {
   connectorsExecuteHandler,
   connectorsStatusHandler,
 } from './sandbox/connectors_http';
@@ -98,6 +104,11 @@ import {
   scimUsersHandler,
 } from './scim/http_actions';
 import { deleteSkill, getSkill, listSkills, putSkill } from './skills/rest_api';
+import {
+  createTaskRest,
+  getTaskResource,
+  taskPostActions,
+} from './tasks/rest_api';
 import { trustedHeadersAuthHandler } from './trusted_headers_auth/http_handlers';
 import {
   listWebsites,
@@ -1242,6 +1253,71 @@ http.route({
 });
 http.route({
   pathPrefix: '/api/v1/contacts/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Projects — the machine door (find/create a project, prepare folders,
+// upload files into them, verify). One handler per METHOD dispatches the
+// sub-resources (`/folders`, `/uploads`, `/files`) because the router
+// matches a path prefix, not a pattern. See projects/rest_api.ts.
+http.route({
+  path: '/api/v1/projects',
+  method: 'GET',
+  handler: lookupProjects,
+});
+http.route({
+  path: '/api/v1/projects',
+  method: 'POST',
+  handler: createProjectRest,
+});
+http.route({
+  path: '/api/v1/projects',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  pathPrefix: '/api/v1/projects/',
+  method: 'GET',
+  handler: getProjectResource,
+});
+http.route({
+  pathPrefix: '/api/v1/projects/',
+  method: 'POST',
+  handler: projectPostActions,
+});
+http.route({
+  pathPrefix: '/api/v1/projects/',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+
+// Tasks — the machine door (idempotent create from an external ref, state
+// polling, workflow start, user-attributed comments). One handler per METHOD
+// dispatches the sub-resources (`/start`, `/comments`) because the router
+// matches a path prefix, not a pattern. See tasks/rest_api.ts.
+http.route({
+  path: '/api/v1/tasks',
+  method: 'POST',
+  handler: createTaskRest,
+});
+http.route({
+  path: '/api/v1/tasks',
+  method: 'OPTIONS',
+  handler: restOptionsHandler,
+});
+http.route({
+  pathPrefix: '/api/v1/tasks/',
+  method: 'GET',
+  handler: getTaskResource,
+});
+http.route({
+  pathPrefix: '/api/v1/tasks/',
+  method: 'POST',
+  handler: taskPostActions,
+});
+http.route({
+  pathPrefix: '/api/v1/tasks/',
   method: 'OPTIONS',
   handler: restOptionsHandler,
 });

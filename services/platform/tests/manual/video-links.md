@@ -69,7 +69,7 @@ Have ready: a public YouTube URL **with** captions, one **without** captions
 | F1, F4  | ⛔ manual-only | —                                                                                                                                                             |
 | F2, F3  | 🔶 partial     | components only: `convex/video_links/captions_parser.test.ts`, `url_safety.test.ts`, `synthetic_file_metadata.test.ts`, `donor_reuse.test.ts`; no e2e job run |
 | F5      | 🔶 partial     | `lib/shared/video-url.test.ts` (playlist detection); the ConvexError surface is manual                                                                        |
-| F6, F7  | 🔶 partial     | `convex/video_links/ytdlp_live.test.ts` — gated `YOUTUBE_LIVE_TEST=1` (the CI Unit job in `.github/workflows/test.yml` runs it from a datacenter IP)          |
+| F6, F7  | 🔶 partial     | `convex/video_links/ytdlp_live.test.ts` — gated `YOUTUBE_LIVE_TEST=1` (the CI Unit job in `.github/workflows/checks.yml` runs it from a datacenter IP)          |
 | B1–B3   | 🔶 partial     | `convex/video_links/ytdlp.test.ts` (stderr classifier, env-flag builders, log sanitizer); the live job-row/log behaviour is manual                            |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only.

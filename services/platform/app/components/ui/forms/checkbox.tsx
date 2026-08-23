@@ -48,7 +48,7 @@ const CheckboxBase = React.forwardRef<
         ref={ref}
         id={id}
         className={cn(
-          'peer size-4 shrink-0 rounded-sm border border-border ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-[state=checked]:bg-(--color-accent-base) data-[state=checked]:border-(--color-accent-base) data-[state=checked]:text-(--color-accent-fg) data-[state=indeterminate]:text-(--color-accent-fg) data-[state=indeterminate]:bg-(--color-accent-base) data-[state=indeterminate]:border-(--color-accent-base) bg-background transition-colors duration-150',
+          'peer border-border ring-offset-background focus-visible:ring-ring bg-background size-4 shrink-0 rounded-sm border transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-[state=checked]:border-(--color-accent-base) data-[state=checked]:bg-(--color-accent-base) data-[state=checked]:text-(--color-accent-fg) data-[state=indeterminate]:border-(--color-accent-base) data-[state=indeterminate]:bg-(--color-accent-base) data-[state=indeterminate]:text-(--color-accent-fg)',
           className,
         )}
         onCheckedChange={onCheckedChange}
@@ -59,7 +59,7 @@ const CheckboxBase = React.forwardRef<
       >
         <CheckboxPrimitive.Indicator
           className={cn(
-            'flex items-center justify-center text-current pt-[0.025rem]',
+            'flex items-center justify-center pt-[0.025rem] text-current',
           )}
         >
           {checked === 'indeterminate' ? (

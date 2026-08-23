@@ -5,7 +5,10 @@ import { useConvex, useConvexAuth } from 'convex/react';
 
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import type { AutomationSettings } from '@/lib/shared/schemas/automation_settings';
+import {
+  type AutomationSettings,
+  isUploadsForm,
+} from '@/lib/shared/schemas/automation_settings';
 
 /** What each declared settings file currently holds, keyed by file name. A
  *  file that does not exist yet reads as `{}` (the action's own contract). */
@@ -37,7 +40,11 @@ export function useAutomationSettingsValues(
 ) {
   const convex = useConvex();
   const { isAuthenticated } = useConvexAuth();
-  const files = (settings?.forms ?? []).map((form) => form.file).sort();
+  // Only FIELD forms own a YAML file; uploads panels read the folder's
+  // documents through their own query instead.
+  const files = (settings?.forms ?? [])
+    .flatMap((form) => (isUploadsForm(form) ? [] : [form.file]))
+    .sort();
   return useQuery({
     // The file list rides the key: a redeployed automation that declares
     // another file must not read the previous deployment's cached answer.

@@ -303,7 +303,10 @@ const taskStore: WorkflowTaskStore = {
 
 const documentStore: WorkflowDocumentStore = {
   listFolder: () =>
-    Promise.resolve([{ name: 'invoice-001.pdf', storageId: 'blob_a' }]),
+    Promise.resolve({
+      files: [{ name: 'invoice-001.pdf', storageId: 'blob_a' }],
+      truncated: false,
+    }),
   create: ({ name }) =>
     Promise.resolve({ documentId: `doc_${name.length}`, action: 'created' }),
 };

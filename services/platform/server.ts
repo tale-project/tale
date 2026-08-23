@@ -165,7 +165,7 @@ async function resolveAllowedOrgSlugs(
     const body: unknown = await res.json();
     const slugs =
       body && typeof body === 'object' && 'orgSlugs' in body
-        ? (body as { orgSlugs: unknown }).orgSlugs
+        ? body.orgSlugs
         : null;
     if (!Array.isArray(slugs)) return new Set();
     return new Set(
@@ -234,7 +234,7 @@ export async function authorizeScreencast(
       const body: unknown = await res.json();
       sessionId =
         body && typeof body === 'object' && 'sessionId' in body
-          ? (body as { sessionId: unknown }).sessionId
+          ? body.sessionId
           : undefined;
       controlGranted =
         body !== null &&

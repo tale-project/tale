@@ -83,7 +83,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Binaries the bundled document skills (configs/platform/custom/skills/*) and any agent
 # asked to read/convert .docx/.xlsx/.pptx/.pdf shell out to. These CANNOT come
 # in via the per-execution `uv pip install` path (that only provides Python
-# *libraries* into /user/.runtime/deps/python — see entrypoint.sh install_python),
+# *libraries* into /agent/.runtime/deps/python — see entrypoint.sh install_python),
 # so the OS-level tools must be baked here:
 #   libreoffice-writer/calc/impress — faithful Office→PDF conversion (docx,
 #       xlsx, pptx) and xlsx formula recalc via `soffice --headless`. Install
@@ -395,9 +395,12 @@ COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
 # (includeCoAuthoredBy:false — the byline is appended by the CLI at
 # commit/PR time and a cloned repo's CLAUDE.md can't override a harness
 # default; managed scope so a cloned app repo / BYO user can't re-enable
-# it), and register the steer hook (mid-turn message injection — hooks
-# merge across settings sources, so /user configs can't shadow it). NOT
-# permission rules — those are per-run flags.
+# it), keep transcripts a year (cleanupPeriodDays — the CLI's ~30-day
+# janitor would silently break `--resume` on a standing session's older
+# tasks; the store lives on the org's own /agent volume), and register the
+# steer hook (mid-turn message injection — hooks merge across settings
+# sources, so /agent configs can't shadow it). NOT permission rules — those
+# are per-run flags.
 COPY services/sandbox-runtime/managed-settings.json /etc/claude-code/managed-settings.json
 
 # Steer hook: injects platform-queued user messages into a RUNNING Claude
@@ -442,7 +445,7 @@ COPY services/sandbox-runtime/tale-vision-read-hook /usr/local/bin/tale-vision-r
 # same no-provider-key-in-container lane as tale-vision-transcribe (which stays
 # the single-image Read-hook polyfill). Pillow lives in a dedicated venv and
 # the shim runs `python -E -s` so the per-exec user deps that entrypoint.sh
-# prepends onto PYTHONPATH (/user/.runtime/deps/python) can never shadow PIL.
+# prepends onto PYTHONPATH (/agent/.runtime/deps/python) can never shadow PIL.
 RUN python3 -m venv /opt/tale-vision \
     && /opt/tale-vision/bin/pip install --no-cache-dir "Pillow==${PILLOW_VERSION}" \
     && printf '#!/bin/sh\nexec /opt/tale-vision/bin/python -E -s /opt/tale-vision/cli.py "$@"\n' \
@@ -471,7 +474,7 @@ RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-creden
 # profile); this is just the named account the session profile selects.
 # Absolute paths: the ENV PATH override above drops /usr/sbin.
 RUN /usr/sbin/groupadd --gid 10001 agent \
-    && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /user/.runtime/home \
+    && /usr/sbin/useradd --uid 10001 --gid 10001 --home-dir /agent/.runtime/home \
        --shell /bin/bash --no-create-home agent \
     # docker-in-container: the inner dockerd creates /var/run/docker.sock as
     # root:docker (660), so the agent (uid 10001, runs `docker` after the
@@ -503,6 +506,6 @@ RUN if getent group redsocks >/dev/null; then \
 # (65534 one-shot, 10001 session-agent).
 USER 65534:65534
 
-WORKDIR /user
+WORKDIR /agent
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

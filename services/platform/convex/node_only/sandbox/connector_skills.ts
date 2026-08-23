@@ -230,7 +230,7 @@ export async function stageConnectorSkills(
     "Connectors equipped for this conversation (call them via the `connector` MCP tool; read a connector's skill before first using it):",
     ...staged.map(
       (slug) =>
-        `- ${slug} — /user/${args.skillsDir}/${CONNECTOR_SKILL_PREFIX}${slug}/SKILL.md`,
+        `- ${slug} — /agent/${args.skillsDir}/${CONNECTOR_SKILL_PREFIX}${slug}/SKILL.md`,
     ),
     'Call `connector_status` to see what is usable right now.',
   ].join('\n');

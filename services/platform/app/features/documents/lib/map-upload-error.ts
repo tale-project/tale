@@ -26,9 +26,9 @@ function readUploadErrorData(err: unknown): UploadErrorData | undefined {
   if (err == null || typeof err !== 'object' || !('data' in err)) {
     return undefined;
   }
-  const data = (err as { data: unknown }).data;
+  const data = err.data;
   if (data == null || typeof data !== 'object') return undefined;
-  return data as UploadErrorData;
+  return data;
 }
 
 /** Whether retrying the exact same staged bytes can plausibly succeed. */

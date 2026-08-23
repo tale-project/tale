@@ -57,7 +57,10 @@ import {
   parseMentionTokens,
   type ResolvedMention,
 } from './mentions';
-import { requestTaskReview } from './review_shared';
+import {
+  closePendingTaskReviewOnStatusLeave,
+  requestTaskReview,
+} from './review_shared';
 import {
   type CommentEventComment,
   taskActivityAttributionValidator,
@@ -475,6 +478,26 @@ export const agentUpsertTaskByExternalRef = internalMutation({
         externalUrl: args.externalUrl,
         updatedAt: now,
       };
+      // Attribution backfill for a task that predates its owner: a create
+      // without an owning slug leaves the assignee empty, and the task
+      // modal's work panel (the subject contract) then has nothing to key
+      // on. A re-pick that DOES name the owner fills exactly that void —
+      // an existing assignee (human triage, another app) is never clobbered.
+      if (existing.assigneeId === undefined) {
+        const ownerAutomation =
+          args.automationSlug ??
+          (args.runWorkflowSlug
+            ? await automationOwnerOfWorkflowSlug(
+                ctx,
+                args.organizationId,
+                args.runWorkflowSlug,
+              )
+            : null);
+        if (ownerAutomation !== null && ownerAutomation !== undefined) {
+          patch.assigneeType = 'app';
+          patch.assigneeId = ownerAutomation;
+        }
+      }
       // The external lifecycle drives done/reopen; local triage owns the rest.
       // HARD RULE (task-ops invariant, same as `agentUpdateTaskStatus`): only
       // the workflow engine may COMPLETE a task. A non-workflow actor — an
@@ -509,6 +532,17 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       }
       if (statusFrom) {
         patch.statusChangedAt = now;
+      }
+      // An external close that pulls the task out of `in_review` (the
+      // completing 'workflow' actor → done) moots any pending review: the
+      // external lifecycle owns the completion, no human decided a review, so
+      // the request is withdrawn and its bells dismissed.
+      if (patch.status !== undefined && patch.status !== existing.status) {
+        await closePendingTaskReviewOnStatusLeave(ctx, {
+          task: existing,
+          toStatus: patch.status,
+          actor: { kind: 'system', actorId: args.actorId },
+        });
       }
       await ctx.db.patch(existing._id, patch);
       // Unconditional — a label-only reconcile leaves `patch.status` unset and
@@ -699,6 +733,17 @@ export const agentUpdateTaskStatus = internalMutation({
     ) {
       return { ok: false, reason: 'TASK_HAS_OPEN_SUBTASKS' };
     }
+
+    // A non-human transition out of `in_review` (an agent's
+    // `task_update_status`, an automation's own completion) WITHDRAWS any
+    // pending review — no human decided, so nothing is recorded as approved,
+    // but the bells and the Needs-my-review facet must not keep ringing for a
+    // state the board has left.
+    await closePendingTaskReviewOnStatusLeave(ctx, {
+      task,
+      toStatus: args.status,
+      actor: { kind: 'system', actorId: args.actorId },
+    });
 
     const now = Date.now();
     const rank = await computeEndRank(ctx, task.projectId, args.status);
@@ -1811,6 +1856,10 @@ export const scheduleTaskWorkflowStart = internalMutation({
     taskId: v.id('tasks'),
     workflowSlug: v.string(),
     userId: v.string(),
+    /** Run-log attribution prefix: session callers stamp `user:<id>` (the
+     *  default); the REST create door stamps `api-key:<id>` so a machine
+     *  start never reads like a human UI start. */
+    startedVia: v.optional(v.union(v.literal('user'), v.literal('api-key'))),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -1832,7 +1881,7 @@ export const scheduleTaskWorkflowStart = internalMutation({
         name: args.workflowSlug,
         taskId: String(args.taskId),
         projectId: task.projectId,
-        startedBy: `user:${args.userId}`,
+        startedBy: `${args.startedVia ?? 'user'}:${args.userId}`,
         // The same subject shape the task-board Start builds — the workflow
         // templates read `input.task.*`.
         input: {

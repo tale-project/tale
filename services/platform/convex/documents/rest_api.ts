@@ -35,12 +35,7 @@ export const listDocuments = withRestAuth('rest:api', async (rc, request) => {
     {
       organizationId: rc.org.organizationId,
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- user input validated at runtime
-      sourceProvider: sourceProvider as
-        | 'upload'
-        | 'onedrive'
-        | 'sharepoint'
-        | 'agent'
-        | undefined,
+      sourceProvider: sourceProvider,
       paginationOpts: { numItems: limit, cursor },
     },
   );
@@ -237,6 +232,24 @@ export const documentSubActions = withRestAuth(
       );
       if (!doc) {
         return jsonError('Document not found', 404);
+      }
+      // Project files are not addressable via the hub REST API — same opaque
+      // 404 as GET/PATCH/DELETE, so this sub-action can neither confirm a
+      // project document exists nor push one into the org's knowledge corpus.
+      if (doc.projectId != null) {
+        return jsonError('Document not found', 404);
+      }
+      // A file whose metadata carries the persisted RAG opt-out never indexes
+      // (uploadDocumentToRag refuses it) — answer honestly instead of claiming
+      // 'indexing'. Clearing the opt-out stays a deliberate UI action.
+      if (doc.fileId !== undefined) {
+        const fileMetadata = await rc.ctx.runQuery(
+          internal.file_metadata.internal_queries.getByStorageId,
+          { storageId: doc.fileId },
+        );
+        if (fileMetadata?.skipRagIndexing === true) {
+          return jsonOk({ status: 'skipped' });
+        }
       }
       await rc.ctx.runAction(
         internal.documents.internal_actions.uploadDocumentToRag,

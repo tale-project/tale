@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { isTextBasedFile } from '../utils/text-file-types';
 import {
   detectMediaMime,
+  DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
   extractExtension,
   getDocumentPreviewKind,
@@ -300,6 +301,12 @@ describe('isAllowedDocumentUpload', () => {
     ],
     ['text/csv', 'data.csv'],
     ['text/plain', 'notes.txt'],
+    ['text/markdown', 'notes.md'],
+    ['application/json', 'history-2025-Q1-filed.json'],
+    ['application/x-yaml', 'client-policy.yaml'],
+    ['', 'fx-rates.yml'],
+    ['text/x-python', 'transform.py'],
+    ['', 'ledger-2025.ac2'],
     ['image/jpeg', 'photo.jpg'],
     ['image/png', 'screenshot.png'],
     ['image/gif', 'animation.gif'],
@@ -472,8 +479,10 @@ describe('upload-accept / preview-support parity (#2380)', () => {
   // Formats the upload dialog accepts that knowingly have no preview
   // renderer yet. Shrink this list when a renderer is added; never grow it
   // silently — a newly accepted format must ship with a preview (or be
-  // deliberately added here).
-  const KNOWN_UNPREVIEWABLE = new Set(['ppt', 'pptx']);
+  // deliberately added here). 'ac2' is an opaque bookkeeping-ledger
+  // container — a binary blob by design (file-types.ts documents it as
+  // no-preview).
+  const KNOWN_UNPREVIEWABLE = new Set(['ppt', 'pptx', 'ac2']);
 
   it('every accepted upload extension is previewable or a known exception', () => {
     const unpreviewable = [...DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS].filter(
@@ -482,6 +491,29 @@ describe('upload-accept / preview-support parity (#2380)', () => {
         !isTextBasedFile(`file.${ext}`),
     );
     expect(new Set(unpreviewable)).toEqual(KNOWN_UNPREVIEWABLE);
+  });
+
+  it('every allowed extension appears in the picker accept string (no drift)', () => {
+    // The validation floor and the picker filter must name the same set — an
+    // extension in one but not the other is uploadable by drop/API yet
+    // invisible to the picker (or vice versa), which reads as a lost upload.
+    const acceptTokens = new Set(
+      DOCUMENT_UPLOAD_ACCEPT.split(',')
+        .filter((token) => token.startsWith('.'))
+        .map((token) => token.slice(1).toLowerCase()),
+    );
+    for (const ext of DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS) {
+      expect(
+        acceptTokens,
+        `.${ext} missing from DOCUMENT_UPLOAD_ACCEPT`,
+      ).toContain(ext);
+    }
+    for (const token of acceptTokens) {
+      expect(
+        DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
+        `.${token} offered by the picker but not allowed`,
+      ).toContain(token);
+    }
   });
 
   it('odt is accepted and routes to the odt renderer', () => {

@@ -460,8 +460,7 @@ const StableMarkdown = memo(
       <Markdown
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={REHYPE_PLUGINS}
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same as StreamingMarkdown
-        components={components as Components}
+        components={components}
       >
         {normalized}
       </Markdown>

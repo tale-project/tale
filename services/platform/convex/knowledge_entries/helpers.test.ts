@@ -140,7 +140,7 @@ describe('validateTopicAndContent', () => {
       if (typeof data !== 'object' || data === null || !('code' in data)) {
         return undefined;
       }
-      const candidate: unknown = (data as { code: unknown }).code;
+      const candidate: unknown = data.code;
       return typeof candidate === 'string' ? candidate : undefined;
     }
     return undefined;

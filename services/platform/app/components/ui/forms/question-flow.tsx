@@ -218,8 +218,14 @@ export function QuestionFlow({
       value: option.label,
       label: option.label,
       description: option.description,
+      recommended: option.recommended === true,
     })),
-    { value: OTHER_OPTION_ID, label: t('otherOption'), description: undefined },
+    {
+      value: OTHER_OPTION_ID,
+      label: t('otherOption'),
+      description: undefined,
+      recommended: false,
+    },
   ];
 
   const optionClasses = (active: boolean) =>
@@ -228,7 +234,7 @@ export function QuestionFlow({
       // the input area into a full-height form; this keeps the whole set in
       // roughly the footprint the composer occupied. Still well past the 24px
       // minimum target size.
-      'flex w-full min-h-9 cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors',
+      'flex min-h-9 w-full cursor-pointer items-start gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors',
       'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
       // The multi-select row is a <label> around a visually hidden input, so
       // the ring has to come from the input's focus, not the row's.
@@ -265,9 +271,18 @@ export function QuestionFlow({
           <>
             {marker(active)}
             <span className="flex min-w-0 flex-col gap-0.5">
-              <Text as="span" className="text-sm leading-snug">
-                {choice.label}
-              </Text>
+              <span className="flex flex-wrap items-center gap-1.5">
+                <Text as="span" className="text-sm leading-snug">
+                  {choice.label}
+                </Text>
+                {/* The asker's recommendation rides the ANSWER, not the
+                    description — a truncated preview must never hide it. */}
+                {choice.recommended && (
+                  <span className="bg-primary/10 text-primary rounded-full px-1.5 py-px text-[10px] font-medium tracking-wide uppercase">
+                    {t('recommended')}
+                  </span>
+                )}
+              </span>
               {choice.description !== undefined && (
                 <Text
                   as="span"

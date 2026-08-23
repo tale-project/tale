@@ -256,3 +256,64 @@ describe('searchConversationsForChat — the assignment is returned', () => {
     expect(pool?.assigneeTeamId).toBeUndefined();
   });
 });
+
+describe('searchConversationsForChat — explicit list mode', () => {
+  let t: T;
+
+  beforeEach(async () => {
+    t = convexTest(schema, modules);
+    await seedWorld(t);
+  });
+
+  async function listFor(userId: string, limit = 10) {
+    return t.query(
+      internal.conversations.search_for_chat.searchConversationsForChat,
+      { organizationId: ORG, userId, term: '', list: true, limit },
+    );
+  }
+
+  it('lists without any words — the text predicate is off', async () => {
+    const result = await listFor(ADMIN);
+    expect(result.conversations.map((c) => c.subject ?? '').sort()).toEqual([
+      'Refund owned by a person',
+      'Refund pool unassigned',
+      'Refund queued to team X',
+    ]);
+    expect(result.truncated).toBe(false);
+  });
+
+  // Turning the words off must not turn the privacy off: the listing passes
+  // exactly the same assignment predicate as the search.
+  it('shows a plain member nothing, listed or searched', async () => {
+    const result = await listFor(PLAIN_MEMBER);
+    expect(result.conversations).toEqual([]);
+  });
+
+  it('shows a team member their team queue only', async () => {
+    const result = await listFor(TEAM_MEMBER);
+    expect(result.conversations.map((c) => c.subject ?? '')).toEqual([
+      'Refund queued to team X',
+    ]);
+  });
+
+  it('honours the limit, newest first', async () => {
+    const result = await listFor(ADMIN, 2);
+    expect(result.conversations.map((c) => c.subject ?? '')).toEqual([
+      'Refund pool unassigned',
+      'Refund queued to team X',
+    ]);
+    // The limit-break is NOT the scan cap: truncated stays false, which is
+    // why the caller overfetches by one to detect a fuller inbox.
+    expect(result.truncated).toBe(false);
+  });
+
+  // Search behavior is untouched: term '' without the flag still matches
+  // nothing, because an empty token list passes no row in 'any' mode.
+  it('keeps the searchless empty result without the flag', async () => {
+    const result = await t.query(
+      internal.conversations.search_for_chat.searchConversationsForChat,
+      { organizationId: ORG, userId: ADMIN, term: '', limit: 10 },
+    );
+    expect(result.conversations).toEqual([]);
+  });
+});

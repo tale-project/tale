@@ -28,9 +28,9 @@ import frMessages from '@/messages/fr.yml';
 type Bundle = Record<string, Record<string, string>>;
 
 const LOCALES: Record<string, Bundle> = {
-  en: enMessages as unknown as Bundle,
-  de: deMessages as unknown as Bundle,
-  fr: frMessages as unknown as Bundle,
+  en: enMessages,
+  de: deMessages,
+  fr: frMessages,
 };
 
 /** Substitute `{name}` placeholders the way i18next does (no ICU here). */

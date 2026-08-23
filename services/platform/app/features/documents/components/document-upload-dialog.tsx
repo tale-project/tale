@@ -242,10 +242,10 @@ export function DocumentUploadDialog({
             disabled={isUploading || allCompleted}
             inputId="document-file-upload"
             className={cn(
-              'relative flex flex-col items-center justify-center gap-2 rounded-lg border bg-card/30 py-8 px-4 text-center cursor-pointer transition-colors',
+              'bg-card/30 relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border px-4 py-8 text-center transition-colors',
               'hover:border-primary/40 hover:bg-muted/50',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              (isUploading || allCompleted) && 'opacity-50 cursor-not-allowed',
+              'focus-visible:ring-ring focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+              (isUploading || allCompleted) && 'cursor-not-allowed opacity-50',
             )}
           >
             <FileUpload.Overlay className="rounded-lg" />

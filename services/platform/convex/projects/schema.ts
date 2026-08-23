@@ -54,6 +54,14 @@ export const projectsTable = defineTable({
    */
   key: v.optional(v.string()),
   /**
+   * Opaque caller-owned external key (an upstream system's id for this
+   * project). Unique within the organization — regardless of lifecycle, so a
+   * conflict against an archived project is still a conflict — and never
+   * interpreted by the platform. Set at creation; `createProject` stores the
+   * trimmed value and probes `by_organization_externalItemId` for duplicates.
+   */
+  externalItemId: v.optional(v.string()),
+  /**
    * Monotonic per-project counter backing task numbering. Incremented on every
    * task insert; a task's `number` is the value it claimed. Never decremented
    * (deleting a task does not recycle its number), so identifiers are stable.
@@ -155,8 +163,34 @@ export const projectsTable = defineTable({
 })
   .index('by_organization', ['organizationId'])
   .index('by_organization_archived', ['organizationId', 'archivedAt'])
+  .index('by_organization_externalItemId', ['organizationId', 'externalItemId'])
   .index('by_organization_key', ['organizationId', 'key'])
   .index('by_organization_updatedAt', ['organizationId', 'updatedAt']);
+
+/**
+ * Single-use handshake row for the projects REST upload lane:
+ * `POST /api/v1/projects/{id}/uploads` mints one alongside a backend-aware
+ * upload handoff, and `POST /api/v1/projects/{id}/files` consumes it when the
+ * blob is bound as a project file. The row pins the handoff to
+ * `(organizationId, userId, projectId)` so the bind step never trusts a
+ * caller-supplied blob reference: an S3 handoff admits only the exact `s3Ref`
+ * it presigned; a Convex handoff admits only a valid, still-unclaimed
+ * `_storage` id. The row's own `_id` IS the wire `uploadId` (unguessable).
+ *
+ * TTL'd (60 minutes, `REST_UPLOAD_INTENT_TTL_MS`) and lazily swept on every
+ * mint — see `projects/rest_upload_intents.ts`. Tenant isolation: the row
+ * carries the owning `organizationId` and consume compares it against the
+ * caller's before anything else.
+ */
+export const restUploadIntentsTable = defineTable({
+  organizationId: v.string(),
+  userId: v.string(),
+  projectId: v.id('projects'),
+  /** Present iff the handoff was a presigned S3 PUT — the exact blob
+   * reference the bind step must claim (and the sweep can reclaim). */
+  s3Ref: v.optional(v.string()),
+  createdAt: v.number(),
+}).index('by_organizationId', ['organizationId']);
 
 /**
  * A user-created agent of a project: a named worker bound to one sandbox

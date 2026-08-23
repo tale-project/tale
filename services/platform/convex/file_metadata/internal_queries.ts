@@ -3,7 +3,9 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
+import { NO_SUBJECT } from '../conversations/ingest/constants';
 import { blobRefValidator } from '../lib/storage/blob_ref';
+import { listMailAttachments } from './list_mail_attachments';
 
 export const getById = internalQuery({
   args: { fileMetadataId: v.id('fileMetadata') },
@@ -32,19 +34,94 @@ export const getByStorageId = internalQuery({
  * from parked, a later slice of a large file) picks up whatever the binding is
  * now. Org-scoped, because a blob ref is caller-supplied on some paths.
  */
+/**
+ * The emailed attachments a caller may read. See `list_mail_attachments.ts` for
+ * why scope is the conversation's live assignment and why both bounds are
+ * reported.
+ */
+export const listMailAttachmentsForChat = internalQuery({
+  args: {
+    organizationId: v.string(),
+    /** The turn user. Absent denies everything — an inbox attachment is never
+     *  listed for an unidentified caller. */
+    userId: v.optional(v.string()),
+    limit: v.number(),
+  },
+  returns: v.object({
+    attachments: v.array(
+      v.object({
+        ref: v.string(),
+        fileName: v.string(),
+        contentType: v.string(),
+        size: v.number(),
+        conversationId: v.string(),
+        receivedAt: v.number(),
+        indexed: v.boolean(),
+      }),
+    ),
+    truncated: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    return await listMailAttachments(ctx, args);
+  },
+});
+
 export const getConversationBindingForBlob = internalQuery({
   args: {
     organizationId: v.string(),
     storageId: blobRefValidator,
   },
-  returns: v.union(v.string(), v.null()),
+  returns: v.union(
+    v.object({
+      conversationId: v.string(),
+      /** The mail's subject, absent when it had none. Never the stored
+       *  `NO_SUBJECT` placeholder — that is not prose and must not be
+       *  indexed as if it were. */
+      subject: v.optional(v.string()),
+      /** Who the mail is with, when a contact is linked and named. */
+      correspondent: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
   async handler(ctx, args) {
     const row = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
     if (!row || row.organizationId !== args.organizationId) return null;
-    return row.conversationId ?? null;
+    const conversationId = row.conversationId;
+    if (conversationId === undefined) return null;
+
+    // Read through the conversation for the context an attachment inherits.
+    // A missing or foreign conversation yields the binding alone rather than
+    // failing: the id is what scope depends on, the context is only enrichment.
+    const conversation = await ctx.db.get(conversationId);
+    const usable =
+      conversation !== null &&
+      conversation.organizationId === args.organizationId;
+    const subject =
+      usable &&
+      conversation.subject !== undefined &&
+      conversation.subject !== '' &&
+      conversation.subject !== NO_SUBJECT
+        ? conversation.subject
+        : undefined;
+    const contact =
+      usable && conversation.contactId !== undefined
+        ? await ctx.db.get(conversation.contactId)
+        : null;
+    const correspondent =
+      contact !== null &&
+      contact.organizationId === args.organizationId &&
+      contact.name !== undefined &&
+      contact.name !== ''
+        ? contact.name
+        : undefined;
+    return {
+      conversationId: String(conversationId),
+      ...(subject !== undefined ? { subject } : {}),
+      ...(correspondent !== undefined ? { correspondent } : {}),
+    };
   },
 });
 

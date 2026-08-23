@@ -12,6 +12,7 @@ import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
 import { migration as m0_4_1_01 } from '../versions/v0_4_1/01_automation_pins_to_bindings/migration';
 import { migration as m0_4_1_02 } from '../versions/v0_4_1/02_task_labels_to_catalog/migration';
 import { migration as m0_4_1_03 } from '../versions/v0_4_1/03_backfill_project_rollup_counts/migration';
+import { migration as m0_4_1_05 } from '../versions/v0_4_1/05_backfill_mail_attachment_received_at/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
 export const ALL_META: readonly MigrationMeta[] = [
@@ -63,6 +64,18 @@ export const ALL_META: readonly MigrationMeta[] = [
     destructive: false,
     snapshot: 'none',
   },
+  {
+    id: "0.4.1/05_backfill_mail_attachment_received_at",
+    semver: "0.4.1",
+    numericId: 5,
+    slug: "backfill_mail_attachment_received_at",
+    title: "Backfill mail attachment arrival times",
+    description: "up stamps mailReceivedAt from the row's creation time on every fileMetadata row that carries a conversationId but no arrival time, so attachments bound before the field existed appear in the mail index; down clears mailReceivedAt on rows carrying a conversationId, restoring the pre-field shape.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(
@@ -81,6 +94,7 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   "0.4.1/01_automation_pins_to_bindings": composeDb(requireMeta("0.4.1/01_automation_pins_to_bindings"), m0_4_1_01),
   "0.4.1/02_task_labels_to_catalog": composeDb(requireMeta("0.4.1/02_task_labels_to_catalog"), m0_4_1_02),
   "0.4.1/03_backfill_project_rollup_counts": composeDb(requireMeta("0.4.1/03_backfill_project_rollup_counts"), m0_4_1_03),
+  "0.4.1/05_backfill_mail_attachment_received_at": composeDb(requireMeta("0.4.1/05_backfill_mail_attachment_received_at"), m0_4_1_05),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */

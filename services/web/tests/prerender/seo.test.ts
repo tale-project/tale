@@ -54,6 +54,18 @@ describe('prerender SEO suite', () => {
         const html = readHtml(url);
         expect(html ?? '').toMatch(/rel="canonical"/i);
       });
+
+      // The analytics tag lives outside the seo markers so it survives
+      // prerendering on every route, and it must stay same-origin: this
+      // server sends script-src 'self' + inline hashes, so an absolute
+      // tracker URL would be blocked in the browser.
+      it('keeps the first-party analytics tag', () => {
+        const html = readHtml(url) ?? '';
+        expect(html).toContain(
+          'data-website-id="86021df0-293b-4436-8dd3-aa83bdf4b86e"',
+        );
+        expect(html).toMatch(/<script[^>]+src="\/_a\/script\.js"/);
+      });
     });
   }
 

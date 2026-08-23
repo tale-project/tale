@@ -38,6 +38,8 @@ const MIME_TYPES = {
   // Text
   PLAIN: 'text/plain',
   MARKDOWN: 'text/markdown',
+  JSON: 'application/json',
+  YAML: 'application/x-yaml',
 
   // Audio
   MP3: 'audio/mpeg',
@@ -491,6 +493,9 @@ const DOCUMENT_UPLOAD_ALLOWED_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.XLSX,
   MIME_TYPES.CSV,
   MIME_TYPES.PLAIN,
+  MIME_TYPES.MARKDOWN,
+  MIME_TYPES.JSON,
+  MIME_TYPES.YAML,
   MIME_TYPES.JPEG,
   MIME_TYPES.PNG,
   MIME_TYPES.GIF,
@@ -514,9 +519,27 @@ export const DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
   'png',
   'gif',
   'webp',
+  // Plain-text working files: operator-provided setup material (transforms,
+  // policy/seed files) is a document the OPERATOR hand-uploads into a
+  // project's Setup folder — pack protocols depend on it. Stored and
+  // previewed as text; nothing executes on upload.
+  'md',
+  'json',
+  'yaml',
+  'yml',
+  'py',
+  // Opaque vendor container (bookkeeping ledger delivered alongside the
+  // documents it accounts for): stored as a blob — no preview, no parsing,
+  // no indexing. An org that never sees the format can block it via
+  // `upload_policy.blockedExtensions`.
+  'ac2',
 ]);
 
-/** Document upload dialog: all supported document types + images */
+/** Document upload dialog: all supported document types + images. Every
+ * member of DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS must appear as a `.ext` token
+ * here — the picker filter and the validation floor drifting apart makes a
+ * type uploadable by drop/API but invisible to the picker (guarded by the
+ * accept↔extensions parity test). */
 export const DOCUMENT_UPLOAD_ACCEPT = [
   MIME_TYPES.PDF,
   MIME_TYPES.DOC,
@@ -532,7 +555,7 @@ export const DOCUMENT_UPLOAD_ACCEPT = [
   MIME_TYPES.PNG,
   MIME_TYPES.GIF,
   MIME_TYPES.WEBP,
-  '.pdf,.doc,.docx,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.gif,.webp',
+  '.pdf,.doc,.docx,.odt,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.md,.json,.yaml,.yml,.py,.ac2,.jpg,.jpeg,.png,.gif,.webp',
 ].join(',');
 
 /** Data import forms: spreadsheets only */

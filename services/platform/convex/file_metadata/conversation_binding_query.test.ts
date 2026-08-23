@@ -8,6 +8,7 @@ import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
 import { internal } from '../_generated/api';
+import { NO_SUBJECT } from '../conversations/ingest/constants';
 import schema from '../schema';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'file_metadata';
@@ -30,13 +31,32 @@ const ORG = 'org_binding';
 const OTHER_ORG = 'org_binding_other';
 type T = TestConvex<typeof schema>;
 
-async function seedConversation(t: T, organizationId: string): Promise<string> {
+async function seedConversation(
+  t: T,
+  organizationId: string,
+  fields: Record<string, unknown> = {},
+): Promise<string> {
   return await t.run(async (ctx) =>
     ctx.db.insert('conversations', {
       organizationId,
       subject: 'CV',
       status: 'open',
       channel: 'email',
+      ...fields,
+    }),
+  );
+}
+
+async function seedContact(
+  t: T,
+  organizationId: string,
+  name: string,
+): Promise<string> {
+  return await t.run(async (ctx) =>
+    ctx.db.insert('contacts', {
+      organizationId,
+      name,
+      source: 'manual_import',
     }),
   );
 }
@@ -76,7 +96,10 @@ describe('getConversationBindingForBlob', () => {
       conversationId,
     });
 
-    expect(await read(t, ORG, 'blob_bound')).toBe(conversationId);
+    expect(await read(t, ORG, 'blob_bound')).toMatchObject({
+      conversationId,
+      subject: 'CV',
+    });
   });
 
   it('returns null for a file that arrived any other way', async () => {
@@ -97,7 +120,87 @@ describe('getConversationBindingForBlob', () => {
 
     // The row exists and is bound; it just is not this org's.
     expect(await read(t, ORG, 'blob_foreign')).toBeNull();
-    expect(await read(t, OTHER_ORG, 'blob_foreign')).toBe(foreign);
+    expect(await read(t, OTHER_ORG, 'blob_foreign')).toMatchObject({
+      conversationId: foreign,
+    });
+  });
+
+  it("carries the mail's subject and correspondent as retrieval context", async () => {
+    // A CV named for its author says nothing about the role it was sent for.
+    // The subject line usually does, and the header is both embedded and
+    // keyword-indexed, so this is what makes the attachment findable by role.
+    const t = convexTest(schema, modules);
+    const contactId = await seedContact(t, ORG, 'Hiring Inbox');
+    const conversationId = await seedConversation(t, ORG, {
+      subject: 'Application — Field Sales Agent',
+      contactId,
+    });
+    await seedAttachment(t, {
+      organizationId: ORG,
+      storageId: 'blob_ctx',
+      conversationId,
+    });
+
+    expect(await read(t, ORG, 'blob_ctx')).toEqual({
+      conversationId,
+      subject: 'Application — Field Sales Agent',
+      correspondent: 'Hiring Inbox',
+    });
+  });
+
+  it('never reports the no-subject placeholder as a subject', async () => {
+    // `(no subject)` is a STORED value, not a render-time fallback. Indexing it
+    // would put the placeholder into the search corpus as if it were prose.
+    const t = convexTest(schema, modules);
+    const conversationId = await seedConversation(t, ORG, {
+      subject: NO_SUBJECT,
+    });
+    await seedAttachment(t, {
+      organizationId: ORG,
+      storageId: 'blob_nosubj',
+      conversationId,
+    });
+
+    expect(await read(t, ORG, 'blob_nosubj')).toEqual({ conversationId });
+  });
+
+  it('still binds when the conversation is gone, dropping only the context', async () => {
+    // Scope depends on the id; the subject and correspondent are enrichment.
+    // A dangling conversation must not cost the binding.
+    const t = convexTest(schema, modules);
+    const conversationId = await seedConversation(t, ORG);
+    await seedAttachment(t, {
+      organizationId: ORG,
+      storageId: 'blob_dangling',
+      conversationId,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.delete(conversationId as never);
+    });
+
+    expect(await read(t, ORG, 'blob_dangling')).toEqual({ conversationId });
+  });
+
+  it("never takes a correspondent name from another organization's contact", async () => {
+    // A contact id is a reference, not a permission. Reading a foreign contact's
+    // name would put it into this org's chunk header, where it becomes both
+    // keyword-matchable and embedded.
+    const t = convexTest(schema, modules);
+    const foreignContact = await seedContact(t, OTHER_ORG, 'Foreign Contact');
+    const conversationId = await seedConversation(t, ORG, {
+      subject: 'Application',
+      contactId: foreignContact,
+    });
+    await seedAttachment(t, {
+      organizationId: ORG,
+      storageId: 'blob_foreign_contact',
+      conversationId,
+    });
+
+    expect(await read(t, ORG, 'blob_foreign_contact')).toEqual({
+      conversationId,
+      subject: 'Application',
+    });
   });
 
   it('returns null for a storage id with no row', async () => {

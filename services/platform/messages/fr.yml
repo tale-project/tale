@@ -609,6 +609,13 @@ automations:
       orgWide: Toute l’organisation
       confirmOrgWide: Cette exécution opère sur toute l’organisation, dans tous les projets.
       confirmProject: Cette exécution opère dans le projet {project} — ses outils de tâches et de documents agissent là.
+    delete:
+      action: Supprimer l’automatisation
+      title: Supprimer cette automatisation ?
+      description: Supprime toutes les versions, le déploiement, le déclencheur et les liens avec les projets. Les exécutions passées restent visibles jusqu’à ce que la rétention les supprime.
+      warning: Une planification ne se déclenche plus et une URL de webhook cesse de fonctionner immédiatement. Cette action est irréversible.
+      done: Automatisation supprimée
+      failed: Impossible de supprimer l’automatisation
   trigger:
     title: Déclencheur
     none: Rien ne démarre encore cette automatisation.
@@ -783,6 +790,9 @@ automations:
     heading: 'Exécution de {automation}'
     empty: Cette automatisation ne s’est encore jamais exécutée.
     loading: Chargement de l’exécution…
+    # Pendant que la plateforme retente d’elle-même l’étape agent échouée —
+    # pour distinguer sa relance de la tienne.
+    autoRetrying: 'Tentative automatique {n} sur {max}'
     cancel: Arrêter l’exécution
     startedBy: 'Lancée par {actor}'
     startedAt: 'Lancée {date}'
@@ -831,8 +841,11 @@ automations:
     loadFailed: Impossible de charger les paramètres — ferme le dialogue et réessaie.
     save: Enregistrer
     saveAndContinue: Enregistrer et continuer
+    showMore: Voir plus
+    showLess: Voir moins
     dialogTitle: '{name} — paramètres'
     tabsLabel: Sections des paramètres
+    moreTabs: Autres sections des paramètres
     unsavedTab: Modifications non enregistrées
     saved: Paramètres enregistrés.
     saveFailed: Impossible d'enregistrer les paramètres — réessaie.
@@ -840,6 +853,30 @@ automations:
       required: Ce champ est requis.
       number: Saisis un nombre.
       pattern: Ne correspond pas au format attendu.
+    uploads:
+      empty: Aucun fichier pour l'instant.
+      loading: Chargement des fichiers…
+      treeLabel: Fichiers téléversés
+      addButton: Dépose des fichiers ici ou clique pour téléverser
+      addToFolder: 'Dépose des fichiers ici — ils iront dans « {folder} »'
+      pickFolderHint: Crée ou choisis un dossier ci-dessus — les fichiers iront dans le dossier sélectionné.
+      newFolderButton: Nouveau dossier
+      newFolderTitle: Créer un dossier
+      newFolderCreate: Créer
+      newFolderPlaceholder: p. ex. Factures
+      newFolderParent: 'Créé dans « {folder} »'
+      newFolderFailed: Impossible de créer le dossier — réessaie.
+      uploading: Téléversement…
+      uploaded: '{count} fichier(s) téléversé(s).'
+      uploadFailed: Échec du téléversement — réessaie.
+      wrongType: 'Seuls ces types de fichiers sont acceptés : {types}'
+      wrongName: Le nom du fichier ne correspond pas au motif attendu pour ce formulaire.
+      tooLarge: Le fichier dépasse la limite de {max} Mo.
+      remove: Supprimer {name}
+      removeTitle: Supprimer ce fichier ?
+      removeDescription: '« {name} » est supprimé définitivement du projet — cette action est irréversible.'
+      removeConfirm: Supprimer
+      removeFailed: Impossible de supprimer le fichier — réessaie.
 changelog:
   toast:
     title: Mis à jour vers v{version}
@@ -1383,6 +1420,17 @@ chat:
     searchingKnowledgeBase: Recherche de "{query}" dans l'espace de travail
     readingDocument: Lecture de {name}
     readingTask: Lecture de la tâche {name}
+    listing:
+      generic: Liste de l'espace de travail
+      tasks: Liste des tâches
+      projects: Liste des projets
+      contacts: Liste des contacts
+      products: Liste des produits
+      documents: Liste des documents
+      websites: Liste des sites web
+      knowledgeEntries: Liste des entrées de connaissances
+      conversations: Liste des conversations
+      mailAttachments: Liste des pièces jointes
     seconds: '{seconds}s'
     summaryReasoningOnly: A montré son raisonnement
   sources:
@@ -2203,7 +2251,7 @@ documents:
     allMembersHint: Les documents accessibles à toute l'organisation sont
       disponibles pour tous les membres de l'organisation.
     dropZoneTitle: Téléverser un fichier
-    dropZoneDescription: PDF, DOCX, ODT, XLSX, CSV, TXT jusqu'à {maxSize} Mo
+    dropZoneDescription: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML jusqu'à {maxSize} Mo
     retryUpload: Réessayer le téléversement
     retry: Réessayer
     documentsUploadedSuccessfully:
@@ -2211,7 +2259,7 @@ documents:
       other {documents téléversés}} — indexation en cours en arrière-plan'
     unsupportedFileType: Type de fichier non pris en charge
     unsupportedFileTypeDescription: "{name} n'est pas un format pris en charge.
-      Formats acceptés : PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, images."
+      Formats acceptés : PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML, PY, AC2, images."
     extensionBlocked:
       '{name} : les fichiers .{ext} sont bloqués par la politique de
       téléversement.'
@@ -4690,6 +4738,7 @@ questions:
   collapsedOne: Répondre à la question
   collapsedMany: 'Répondre à {count} questions'
   errorSubmitFailed: Tes réponses ne sont pas parties. Réessaie.
+  recommended: Recommandé
 skills:
   searchPlaceholder: Rechercher des skills
   sectionDescription:
@@ -6334,14 +6383,16 @@ inbox:
   taskCommentedByBody: '{actor} a commenté « {title} ».'
   mentionByBody: "{actor} t'a mentionné dans « {title} »."
   taskReviewRequested: Revue demandée
-  taskReviewRequestedBody: '{agentSlug} a terminé « {taskTitle} » — approuvez ou
-    demandez des modifications.'
+  taskReviewRequestedBody: '{agentSlug} a terminé « {taskTitle} » — passe la
+    tâche en « Terminé » pour approuver, ou renvoie-la avec un commentaire.'
   taskReviewRequestedBodyNoAgent: Le travail de l'agent sur « {taskTitle} » est
-    prêt pour la revue — approuvez ou demandez des modifications.
+    prêt pour la revue — passe la tâche en « Terminé » pour approuver, ou
+    renvoie-la avec un commentaire.
   taskReviewRequestedByBody: '{actor} te demande une revue de « {taskTitle} » —
-    approuve ou demande des modifications.'
-  taskReviewRequestedBodyHuman: « {taskTitle} » attend ta revue — approuve ou
-    demande des modifications.
+    passe la tâche en « Terminé » pour approuver, ou renvoie-la avec un
+    commentaire.'
+  taskReviewRequestedBodyHuman: « {taskTitle} » attend ta revue — passe la
+    tâche en « Terminé » pour approuver, ou renvoie-la avec un commentaire.
   taskReviewApproved: Revue approuvée
   taskReviewApprovedBody: « {taskTitle} » a été approuvée et terminée.
   taskReviewChangesRequested: Modifications demandées
@@ -6459,6 +6510,9 @@ tasks:
     # l'organisation est plein — l'exécution repart d'elle-même dès qu'une
     # place se libère.
     waitingForSlot: En attente d'une place de sandbox
+    # Ligne sous le statut pendant que la plateforme relance elle-même une
+    # exécution échouée — pour distinguer sa relance de la tienne.
+    autoRetrying: 'Tentative automatique {n} sur {max}'
     retry: Relancer
     cancel: Annuler l'exécution
   automation:
@@ -6485,6 +6539,11 @@ tasks:
     uploading: Téléversement…
     dropHint: Dépose des fichiers ici, ou clique pour parcourir
     uploadFailed: Le téléversement a échoué — réessaie.
+    remove: 'Supprimer {name}'
+    removeTitle: Supprimer ce fichier ?
+    removeDescription: '« {name} » est supprimé définitivement du projet — cette action est irréversible.'
+    removeConfirm: Supprimer
+    removeFailed: Le fichier n'a pas pu être supprimé — réessaie.
   template:
     blank: Tâche vierge
     nameLabel: Nom
@@ -6648,23 +6707,14 @@ tasks:
     agentRunRefused: Exécution refusée
   review:
     needsReview: Revue requise
-    defaultQuestion: '{agent} a terminé son travail sur cette tâche — examinez le résultat.'
-    submittedQuestion: Cette tâche a été soumise en revue — approuve-la ou
-      renvoie-la.
     waitingOn: 'En attente de {name}'
     waitingOnYou: En attente de ta relecture
     filterTitle: Relecture
     needsMyReview: En attente de ma relecture
-    approve: Approuver
-    requestChanges: Demander des modifications
-    sendFeedback: Envoyer le feedback
-    feedbackPlaceholder: Que faut-il changer ? Ajouté en commentaire — un agent
-      responsable le reçoit tel quel.
-    approvedToast: Tâche approuvée et terminée
-    approvedRecordedToast: Approuvé — décision enregistrée
-    changesRequestedToast: Modifications demandées — l'agent s'en occupe
-    sentBackToast: Modifications demandées — retour en « En cours »
-    changesRecordedToast: Modifications demandées — ton feedback est ajouté en commentaire
+    independentReviewerRequired: Ton organisation exige une relecture
+      indépendante — quelqu'un d'autre doit approuver ce travail.
+    competenceRequired: Approuver cette relecture demande une compétence que tu
+      n'as pas. Demande à un admin de ton organisation de te l'accorder.
   reviewer:
     none: Aucun relecteur
     assignToMe: Relire moi-même
@@ -7139,6 +7189,9 @@ projects:
     indexingRetryFailed: Impossible de relancer l'indexation
     treeLabel: Fichiers du projet
     addToFolder: Ajouter un fichier à « {folder} »
+    addFolderButton: Ajouter un dossier
+    batchTooLarge: Un téléversement de dossier est limité à {maxFiles} fichiers / {maxSize} Mo — divise le dossier et réessaie.
+    moreSkipped: +{count} autre(s) fichier(s) ont été ignorés.
     folderGone: Ce dossier n'existe plus.
     folderDeleted: Dossier supprimé
     folderDeleteFailed: Impossible de supprimer le dossier
@@ -7149,7 +7202,6 @@ projects:
       seront retirés du projet et de l'index de connaissances. Cette action est
       irréversible.
     newSubfolderAction: Nouveau sous-dossier
-    uploadFailedTitle: Échec de l'envoi
     uploadingIndicator: Envoi en cours…
     historyAction: Historique des versions
   threads:
@@ -7324,6 +7376,8 @@ projects:
       Utilise 2 à 6 lettres ou chiffres, en commençant par une
       lettre (par ex. TAL).
     PROJECT_KEY_TAKEN: Cette clé est déjà utilisée par un autre projet. Choisis-en une autre.
+    PROJECT_EXTERNAL_ITEM_ID_INVALID: L'identifiant externe doit faire entre 1 et 256 caractères.
+    PROJECT_DUPLICATE_EXTERNAL_ID: Un autre projet utilise déjà cet identifiant externe.
     PROJECT_DESCRIPTION_INVALID: La description est trop longue.
     PROJECT_INSTRUCTIONS_TOO_LONG: Les instructions dépassent la limite de {cap}
       caractères. Raccourcis-les avant d'enregistrer.

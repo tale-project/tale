@@ -88,7 +88,7 @@ function SegmentedThemeSwitcher({ className }: { className?: string }) {
               'focus-visible:ring-fg-base/60 focus-visible:ring-offset-bg-muted relative inline-flex size-[26px] cursor-pointer items-center justify-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 motion-reduce:transition-none',
               isActive
                 ? 'text-fg-base'
-                : 'text-fg-muted hover:text-fg-base dark:text-[#6b7280] dark:hover:text-fg-base',
+                : 'text-fg-muted hover:text-fg-base dark:hover:text-fg-base dark:text-[#6b7280]',
             )}
           >
             <Icon aria-hidden className="size-3.5" />

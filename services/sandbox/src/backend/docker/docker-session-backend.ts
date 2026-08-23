@@ -82,7 +82,7 @@ export class DockerSessionBackend implements SessionBackend {
    * user's preserved work. So this resolver, IN ORDER:
    *
    *   1. Uses the new flat path if its dir already exists (the common case).
-   *   2. Else, if the session's container still exists, reads the ACTUAL `/user`
+   *   2. Else, if the session's container still exists, reads the ACTUAL `/agent`
    *      bind-mount source straight from `docker inspect` — never re-derive a
    *      path docker already knows, and never move a live container's mount.
    *   3. Else (stopped legacy session), scans the immediate sub-directories of
@@ -137,7 +137,7 @@ export class DockerSessionBackend implements SessionBackend {
     return flat;
   }
 
-  /** Read the host source of a session container's `/user` bind mount via
+  /** Read the host source of a session container's `/agent` bind mount via
    * `docker inspect`, or null when the container is absent / has no such mount.
    * Used by the legacy-compat resolver so a resume re-attaches the EXACT dir
    * docker already mounts instead of re-deriving a (possibly colour-rooted)
@@ -150,7 +150,7 @@ export class DockerSessionBackend implements SessionBackend {
       [
         'inspect',
         '--format',
-        '{{range .Mounts}}{{if eq .Destination "/user"}}{{.Source}}{{end}}{{end}}',
+        '{{range .Mounts}}{{if eq .Destination "/agent"}}{{.Source}}{{end}}{{end}}',
         containerName,
       ],
       { timeoutMs: 5_000 },

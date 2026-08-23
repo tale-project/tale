@@ -2,12 +2,12 @@ managed-baseline:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
@@ -15,14 +15,14 @@ managed-model-opus:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
     - --model
     - claude-opus-4-6
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
@@ -30,14 +30,14 @@ managed-model-gateway-ref:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
     - --model
     - openrouter/anthropic/claude-sonnet-4.6
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
@@ -45,14 +45,14 @@ managed-model-default:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
     - --model
     - default
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
@@ -60,12 +60,12 @@ managed-plan:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
@@ -73,12 +73,12 @@ managed-act:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
@@ -86,14 +86,14 @@ managed-resume:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
     - --resume
     - golden-resume-handle
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
@@ -101,12 +101,12 @@ managed-instructions:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}},"system_prompt":"Golden
     instructions: follow the org runbook."}'
@@ -115,16 +115,16 @@ managed-dirs:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
     - --include-directories
-    - /user/uploads
+    - /agent/uploads
     - --include-directories
-    - /user/shared-data
+    - /agent/shared-data
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
@@ -132,12 +132,12 @@ managed-mcp-headless-bridge:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}'
   stdinMode: close
@@ -145,12 +145,12 @@ managed-mcp-cdp:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--cdp-endpoint","http://127.0.0.1:9222"]}}}}'
   stdinMode: close
@@ -158,12 +158,12 @@ managed-mcp-bridge-only:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}'
   stdinMode: close
@@ -171,12 +171,12 @@ managed-vision:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}}'
   stdinMode: close
@@ -184,12 +184,12 @@ managed-steer:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]}}}'
   stdinMode: close
@@ -197,20 +197,20 @@ managed-kitchen-sink:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
     - --resume
     - golden-resume-handle
     - --model
     - claude-opus-4-6
     - --include-directories
-    - /user/uploads
+    - /agent/uploads
     - --include-directories
-    - /user/shared-data
+    - /agent/shared-data
   env:
     GEMINI_API_KEY: golden-session-virtual-key
     GOOGLE_GEMINI_BASE_URL: http://golden-gw:8080/genai
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"security":{"auth":{"selectedType":"gemini-api-key"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["google_web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}},"system_prompt":"Golden
     instructions: follow the org runbook."}'
@@ -219,10 +219,10 @@ byo-baseline:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200}}}'
   stdinMode: close
@@ -230,12 +230,12 @@ byo-model:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
     - --model
     - claude-opus-4-6
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200}}}'
   stdinMode: close
@@ -243,12 +243,12 @@ byo-model-default:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
     - --model
     - default
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200}}}'
   stdinMode: close
@@ -256,18 +256,18 @@ byo-kitchen-sink:
   argv:
     - tale-gemini-run
     - --workdir
-    - /user/workspace
+    - /agent/workspace
     - --resume
     - golden-resume-handle
     - --model
     - claude-opus-4-6
     - --include-directories
-    - /user/uploads
+    - /agent/uploads
     - --include-directories
-    - /user/shared-data
+    - /agent/shared-data
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: '{"prompt":"Golden battery prompt: fix the flaky login
     test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}},"system_prompt":"Golden
     instructions: follow the org runbook."}'

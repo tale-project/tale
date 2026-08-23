@@ -250,5 +250,5 @@ export async function transformConversation(
   };
 
   // Doc<'conversations'> spread has branded Id<> types while ConversationItem expects plain strings
-  return result as ConversationItem;
+  return result;
 }

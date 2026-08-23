@@ -1,7 +1,6 @@
 import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import {
   cleanupRemovedAttachments,
@@ -13,7 +12,7 @@ const ORG = 'org_1';
 
 function img(fileId: string): TaskAttachmentInput {
   return {
-    fileId: fileId as Id<'_storage'>,
+    fileId: fileId,
     fileName: 'shot.png',
     fileType: 'image/png',
     fileSize: 1024,
@@ -94,6 +93,21 @@ describe('validateTaskAttachments', () => {
         { ...img('s1'), fileType: 'video/mp4' },
       ]),
     ).rejects.toThrow(ConvexError);
+  });
+
+  it('accepts text-based files the shared picker offers (md/json/yaml/py)', async () => {
+    // Parity with the conversations lane and the client upload hook: the
+    // picker's shared accept string offers these, so the server gate must not
+    // reject them AFTER the blob upload (which stranded an orphaned blob
+    // behind a generic error).
+    const ctx = ctxWith({ s1: ORG, s2: ORG, s3: ORG, s4: ORG });
+    const result = await validateTaskAttachments(ctx, ORG, [
+      { ...img('s1'), fileName: 'notes.md', fileType: 'text/markdown' },
+      { ...img('s2'), fileName: 'seed.json', fileType: 'application/json' },
+      { ...img('s3'), fileName: 'policy.yaml', fileType: '' },
+      { ...img('s4'), fileName: 'transform.py', fileType: 'text/x-python' },
+    ]);
+    expect(result).toHaveLength(4);
   });
 
   it('rejects a storage id with no fileMetadata row', async () => {

@@ -50,11 +50,7 @@ function RoutedAnchor({ href, children }: ComponentPropsWithoutRef<'a'>) {
   }
 
   return (
-    <Link
-      // oxlint-disable-next-line typescript/no-explicit-any -- runtime-typed router target
-      to={href as any}
-      className={ROUTER_LINK_CLASS}
-    >
+    <Link to={href} className={ROUTER_LINK_CLASS}>
       {children}
     </Link>
   );

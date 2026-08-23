@@ -130,7 +130,7 @@ export async function registerFilesWithAgent(
         const { fileId: agentFileId } = await ctx.runMutation(
           components.agent.files.addFile,
           {
-            storageId: attachment.fileId as string,
+            storageId: attachment.fileId,
             hash,
             mimeType: attachment.fileType,
             filename: attachment.fileName,

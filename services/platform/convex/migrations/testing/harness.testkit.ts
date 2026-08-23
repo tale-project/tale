@@ -188,7 +188,7 @@ export function defineMigrationTest(spec: MigrationTestSpec): void {
         meta,
         configRoot,
         orgs,
-        run: (fn) => t.run(fn as never),
+        run: (fn) => t.run(fn),
         applyUpOnly: async () => {
           await t.action(internal.migrations.framework.entrypoints.applyUp, {
             only: [meta.id],
@@ -224,7 +224,7 @@ export function defineMigrationTest(spec: MigrationTestSpec): void {
       if (spec.seedFs) await spec.seedFs(configRoot, orgs);
       if (spec.seed) {
         await t.run(async (ctx) => {
-          await spec.seed?.(ctx as unknown as WorldSeedCtx, orgs);
+          await spec.seed?.(ctx, orgs);
         });
       }
       return world;

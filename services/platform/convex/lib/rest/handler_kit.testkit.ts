@@ -56,6 +56,8 @@ export interface RestCtxOptions {
   /** Organization the API key resolves to. */
   readonly organizationId?: string;
   readonly orgSlug?: string;
+  /** Blob store for content-serving routes — absent blobs by default. */
+  readonly storage?: { get: (id: string) => Promise<Blob | null> };
 }
 
 const TRUSTED_PROXIES = 'login_attempts/internal_queries:getTrustedProxies';
@@ -100,6 +102,7 @@ export function restCtx(
     runQuery: call,
     runMutation: call,
     runAction: call,
+    storage: options.storage ?? { get: async () => null },
     scheduler: {
       runAfter: async (_delay: number, reference: unknown, args: unknown) => {
         await call(reference, args);

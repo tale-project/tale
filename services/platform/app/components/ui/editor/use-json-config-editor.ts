@@ -138,9 +138,7 @@ export function useJsonConfigEditor<T>({
   }, [config, savedConfig, isDirty]);
 
   const updateConfig = useCallback((partial: Partial<T>) => {
-    setConfig((prev) =>
-      prev === undefined ? prev : ({ ...prev, ...partial } as T),
-    );
+    setConfig((prev) => (prev === undefined ? prev : { ...prev, ...partial }));
   }, []);
 
   const overrideConfig = useCallback((next: T) => {

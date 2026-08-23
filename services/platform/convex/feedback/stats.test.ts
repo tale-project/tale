@@ -18,7 +18,7 @@ function row(overrides: Partial<FeedbackRow>): FeedbackRow {
     rating: 'positive',
     createdAt: 1_000,
     ...overrides,
-  } as FeedbackRow;
+  };
 }
 
 const NO_FILTER = {

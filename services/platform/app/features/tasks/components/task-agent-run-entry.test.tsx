@@ -22,6 +22,9 @@ vi.mock('@/lib/i18n/client', () => ({
       if (key === 'agentRun.waitingForSlot') {
         return 'Waiting for a sandbox slot';
       }
+      if (key === 'agentRun.autoRetrying') {
+        return `Auto-retry ${String(values?.n)} of ${String(values?.max)}`;
+      }
       if (key === 'runs.agentLog.title') return 'Agent log';
       if (key === 'runs.agentLog.visionModel') {
         return `Images in this run were read by ${String(values?.model)}.`;
@@ -100,7 +103,7 @@ describe('TaskAgentRunEntry details', () => {
           type: 'tool-Bash',
           state: 'output-available',
           toolCallId: 't1',
-          input: { command: 'ls /user/output' },
+          input: { command: 'ls /agent/output' },
         },
       ],
     };
@@ -121,7 +124,7 @@ describe('TaskAgentRunEntry details', () => {
     // The dialog title alone names the transcript — no "Agent log" subhead.
     expect(screen.queryByText('Agent log')).not.toBeInTheDocument();
     expect(screen.getByText('built the deck')).toBeInTheDocument();
-    expect(screen.getByText('ls /user/output')).toBeInTheDocument();
+    expect(screen.getByText('ls /agent/output')).toBeInTheDocument();
   });
 
   it('names the model that read the run’s images, once it recorded one', async () => {
@@ -180,6 +183,45 @@ describe('TaskAgentRunEntry details', () => {
     );
     expect(screen.getByText('Waiting for a sandbox slot')).toBeInTheDocument();
     expect(screen.queryByText('Queued')).not.toBeInTheDocument();
+  });
+
+  it('labels a live machine-kicked retry with its streak position', () => {
+    // The user watched the run fail; without the caption the platform's own
+    // retry is indistinguishable from their Retry click.
+    state.run = {
+      ...settledRun(),
+      status: 'running',
+      settledAt: undefined,
+      trigger: 'auto_retry',
+      autoRetryAttempt: 2,
+      autoRetryMax: 3,
+    };
+    state.op = null;
+    render(
+      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+    );
+    expect(screen.getByText('Auto-retry 2 of 3')).toBeInTheDocument();
+  });
+
+  it('drops the retry caption once the run stops', () => {
+    // A terminal auto_retry row reads exactly like today's Failed strip —
+    // the caption narrates the machine WORKING, not history.
+    state.run = {
+      ...settledRun(),
+      status: 'failed',
+      error: 'API Error: Request rejected (429)',
+      trigger: 'auto_retry',
+      autoRetryAttempt: 3,
+      autoRetryMax: 3,
+    };
+    state.op = null;
+    render(
+      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+    );
+    expect(screen.queryByText(/Auto-retry/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText('API Error: Request rejected (429)'),
+    ).toBeInTheDocument();
   });
 
   it('titles a live run in the present tense', async () => {

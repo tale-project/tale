@@ -40,9 +40,11 @@ Wenn du unser Kontaktformular oder unser Demo-Anfrageformular abschickst, erhebe
 
 ### 3.2 Automatisch erhobene Daten
 
-Unsere Website nutzt kein Analytics-System, keine Tracking-Pixel, keine Werbe-Skripte und keine Drittanbieter-Cookies — und wir erstellen keine Besucherprofile.
+Unsere Website misst aggregierte Zugriffszahlen mit Umami, einem quelloffenen Analytics-Werkzeug, das wir selbst auf unserem eigenen Server in Frankfurt (Deutschland) betreiben. Es wird von unserer eigenen Domain ausgeliefert, setzt keine Cookies, speichert keinen Identifikator in deinem Browser und sendet nichts an Dritte — keine Analysedaten verlassen jemals unsere Infrastruktur, und wir verfolgen dich nicht über andere Websites hinweg.
 
-Zur Auslieferung der Website verarbeiten wir vorübergehend minimale technische Daten (siehe Server-Logs unten); zudem speichert die Website ein funktionales Sprach-Cookie sowie eine Theme-Einstellung in deinem Browser (siehe Cookies unten).
+Pro Seitenaufruf erfassen wir die aufgerufene Adresse, die verweisende Seite, deinen ungefähren Standort (Land, Region, Stadt), deine Bildschirmgröße sowie Browser, Betriebssystem und Gerätetyp. Deine IP-Adresse dient ausschließlich dazu, diesen ungefähren Standort abzuleiten und — zusammen mit einem regelmäßig wechselnden Geheimnis — einen Einweg-Hash zu bilden, der die Anfragen eines einzelnen Besuchs gruppiert; die IP-Adresse selbst wird nie gespeichert. Wir erstellen keine Besucherprofile und können dich anhand dieser Daten nicht identifizieren.
+
+Zur Auslieferung der Website verarbeiten wir zudem vorübergehend minimale technische Daten (siehe Server-Logs unten); außerdem speichert die Website ein funktionales Sprach-Cookie sowie eine Theme-Einstellung in deinem Browser (siehe Cookies unten).
 
 ### 3.3 Server-Logs
 
@@ -52,12 +54,13 @@ Wenn du unsere Website besuchst, verarbeitet unser selbst betriebener Webserver 
 
 Wir verarbeiten deine personenbezogenen Daten zu folgenden Zwecken:
 
-| Zweck                                        | Betroffene Daten                                | Rechtsgrundlage (FADP) | Rechtsgrundlage (DSGVO)                                |
-| -------------------------------------------- | ----------------------------------------------- | ---------------------- | ------------------------------------------------------ |
-| Beantwortung deiner Anfrage                  | Name, Email, Firma, Nachricht                   | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse    |
-| Planung und Durchführung einer Produkt-Demo  | Name, Email, Telefon, Firma, Interessensbereich | Berechtigtes Interesse | Art. 6 Abs. 1 lit. b DSGVO — Vorvertragliche Maßnahmen |
-| Betrieb und Sicherheit unserer Website       | Technische Daten (IP-Adresse, Browser)          | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse    |
-| Anbahnung einer möglichen Geschäftsbeziehung | Daten aus Kontaktformularen                     | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse    |
+| Zweck                                        | Betroffene Daten                                                                      | Rechtsgrundlage (FADP) | Rechtsgrundlage (DSGVO)                                |
+| -------------------------------------------- | ------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------ |
+| Beantwortung deiner Anfrage                  | Name, Email, Firma, Nachricht                                                         | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse    |
+| Planung und Durchführung einer Produkt-Demo  | Name, Email, Telefon, Firma, Interessensbereich                                       | Berechtigtes Interesse | Art. 6 Abs. 1 lit. b DSGVO — Vorvertragliche Maßnahmen |
+| Betrieb und Sicherheit unserer Website       | Technische Daten (IP-Adresse, Browser)                                                | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse    |
+| Messung der Website-Nutzung                  | Aufgerufene Adresse, verweisende Seite, ungefährer Standort, Geräte- und Browserdaten | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse    |
+| Anbahnung einer möglichen Geschäftsbeziehung | Daten aus Kontaktformularen                                                           | Berechtigtes Interesse | Art. 6 Abs. 1 lit. f DSGVO — Berechtigtes Interesse    |
 
 Nach dem Schweizer FADP ist die Verarbeitung personenbezogener Daten grundsätzlich zulässig, solange sie die Persönlichkeit der betroffenen Person nicht verletzt. Wir verarbeiten deine Daten in gutem Glauben, verhältnismäßig und ausschließlich zu den oben genannten Zwecken.
 
@@ -106,7 +109,7 @@ Wenn du der Meinung bist, dass deine Datenschutzrechte verletzt wurden, hast du 
 
 ## 9. Cookies
 
-Unsere Website nutzt keine Cookies für Analytics oder Tracking. Sie speichert genau ein funktionales Cookie: `tale_locale`, das deine Sprachwahl für ein Jahr speichert, damit Seiten beim nächsten Besuch in deiner Sprache laden. Es enthält keine personenbezogenen Daten und keinen Identifikator. Deine Hell-/Dunkel-Einstellung liegt im Local Storage deines Browsers und verlässt dein Gerät nie.
+Unsere Website nutzt keine Cookies für Analytics oder Tracking — die oben beschriebene selbst betriebene Analyse setzt kein Cookie und speichert keinen Identifikator in deinem Browser. Sie speichert genau ein funktionales Cookie: `tale_locale`, das deine Sprachwahl für ein Jahr speichert, damit Seiten beim nächsten Besuch in deiner Sprache laden. Es enthält keine personenbezogenen Daten und keinen Identifikator. Deine Hell-/Dunkel-Einstellung liegt im Local Storage deines Browsers und verlässt dein Gerät nie.
 
 Sollten wir künftig Cookies oder Drittanbieter-Dienste einführen, die eine Einwilligung erfordern, aktualisieren wir diese Datenschutzerklärung und implementieren einen passenden Einwilligungs-Mechanismus.
 

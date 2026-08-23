@@ -170,7 +170,7 @@ function unwrapEnvelope(valueJson: string): unknown {
     );
   }
   return parsed !== null && typeof parsed === 'object' && 'v' in parsed
-    ? (parsed as { v: unknown }).v
+    ? parsed.v
     : undefined;
 }
 

@@ -48,7 +48,7 @@ function run(
   if (out === undefined || out === null) return undefined;
   const parsed: unknown = JSON.parse(String(out));
   return parsed !== null && typeof parsed === 'object' && 'v' in parsed
-    ? (parsed as { v: unknown }).v
+    ? parsed.v
     : undefined;
 }
 
@@ -89,7 +89,7 @@ async function runAsync(
   if (typeof out !== 'string') return undefined;
   const parsed: unknown = JSON.parse(out);
   return parsed !== null && typeof parsed === 'object' && 'v' in parsed
-    ? (parsed as { v: unknown }).v
+    ? parsed.v
     : undefined;
 }
 

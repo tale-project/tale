@@ -18,7 +18,7 @@ const FILES_BY_KIND: Record<ToolKind, string[]> = {
   typescript: [
     'package.json.hbs',
     'tsconfig.json.hbs',
-    '.oxlintrc.json',
+    '.oxlintrc.json.hbs',
     '.gitignore',
     'README.md.hbs',
     'src/index.ts',

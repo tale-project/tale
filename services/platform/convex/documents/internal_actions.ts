@@ -360,6 +360,24 @@ export const uploadDocumentToRag = internalAction({
       return null;
     }
 
+    // Defense in depth for the persisted "never index" opt-out: every
+    // scheduling site already refuses a flagged row, but this action is also
+    // reachable directly (the REST retry-indexing sub-action, a first-time
+    // index scheduled by a document update), so the executor itself refuses
+    // too. The row stays exactly as it was — an explicit user retry goes
+    // through `requeueFileForRagIndexing`, which clears the flag BEFORE the
+    // dispatcher schedules this action.
+    const fileMetadata = await ctx.runQuery(
+      internal.file_metadata.internal_queries.getByStorageId,
+      { storageId: args.expectedFileId },
+    );
+    if (fileMetadata?.skipRagIndexing === true) {
+      console.info(
+        `[uploadDocumentToRag] Refusing ${args.documentId}: file is marked skipRagIndexing`,
+      );
+      return null;
+    }
+
     await ctx.runMutation(
       internal.file_metadata.internal_mutations.ensureFileMetadataForDocument,
       {

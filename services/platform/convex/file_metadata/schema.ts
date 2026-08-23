@@ -74,6 +74,18 @@ export const fileMetadataTable = defineTable({
   // file without indexing it, pass `skipRagIndexing` and leave `ragStatus`
   // unset.
   ragParked: v.optional(v.boolean()),
+  // Persisted "never index this file" opt-out, stamped at save time when the
+  // caller passes `skipRagIndexing` (REST project-file uploads, external-agent
+  // chat attachments, email attachment storage). STICKY: a later save WITHOUT
+  // the flag neither clears it nor re-queues indexing — creation-time intent
+  // survives re-saves, and every hub enqueue chokepoint
+  // (`scheduleHubDocumentRagIndexing`, `linkDocumentToFile`'s second chance,
+  // `uploadDocumentToRag`) refuses a flagged row. Only an EXPLICIT index
+  // request clears it (`requeueFileForRagIndexing`, the UI retry surface).
+  // The email-bind upgrade (`bindFileToConversation`) deliberately ignores it:
+  // that lane stores attachments flagged and indexes them conversation-scoped
+  // once the conversation is known.
+  skipRagIndexing: v.optional(v.boolean()),
   // Unix SECONDS when ragStatus most recently reached 'completed'. Canonical
   // replacement for the retired documents.ragInfo.indexedAt — stamped by
   // updateFileRagStatus on completion, read by getDocumentRagProjection. Seconds
@@ -133,7 +145,7 @@ export const fileMetadataTable = defineTable({
   // SHA-256 (hex) of the raw bytes for sandbox-harvested output files.
   // Set by `insertOutputFiles` from the spawner's harvest payload; used for
   // pre-stage attestation when the same file is later re-injected into
-  // another run's `/user/output/`. Distinct from `contentHash` (audio
+  // another run's `/agent/output/`. Distinct from `contentHash` (audio
   // transcript dedup) — different write source, different purpose. Optional
   // because non-sandbox uploads (chat attachments, document imports) don't
   // compute it.
@@ -174,6 +186,20 @@ export const fileMetadataTable = defineTable({
    * would be wrong the moment the conversation is reassigned.
    */
   conversationId: v.optional(v.id('conversations')),
+  /**
+   * When the mail carrying this attachment arrived. Set alongside
+   * `conversationId`, absent on every file that did not arrive by mail.
+   *
+   * Exists so "what has come in recently?" can be answered by an index walk
+   * rather than by collecting every bound row and sorting it. Convex has no
+   * partial indexes, so a field that is present only on mail attachments is
+   * what makes `by_organizationId_and_mailReceivedAt` a mail-only index.
+   *
+   * The mail's own date where the sync knows it, so importing old mail sorts by
+   * when it was sent rather than when it was imported. Falls back to the row's
+   * creation time, which is within minutes of arrival on a live sync.
+   */
+  mailReceivedAt: v.optional(v.number()),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
 })
@@ -191,6 +217,14 @@ export const fileMetadataTable = defineTable({
   ])
   .index('by_org_user', ['organizationId', 'uploadedBy'])
   .index('by_org_contentHash', ['organizationId', 'contentHash'])
+  // Mail attachments newest-first. Only bound rows carry `mailReceivedAt`, so a
+  // range above `undefined` is a mail-only walk in true arrival order — which
+  // no other index gives: pairing with `conversationId` orders by conversation
+  // first, and the org index is dominated by rows that never arrived by mail.
+  .index('by_organizationId_and_mailReceivedAt', [
+    'organizationId',
+    'mailReceivedAt',
+  ])
   .index('by_organizationId_and_conversationId', [
     'organizationId',
     'conversationId',

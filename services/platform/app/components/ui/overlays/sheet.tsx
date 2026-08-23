@@ -41,18 +41,18 @@ const sheetVariants = cva(
   // an interactive control, so the browser's default focus outline reads as a
   // stray blue ring around the whole panel — suppress it. Focusable controls
   // inside the panel keep their own `focus-visible` rings.
-  'fixed z-50 gap-4 overflow-y-auto bg-background p-6 pr-[calc(1.5rem+var(--safe-right))] pl-[calc(1.5rem+var(--safe-left))] shadow-lg transition ease-in-out focus:outline-none data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out',
+  'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 gap-4 overflow-y-auto p-6 pr-[calc(1.5rem+var(--safe-right))] pl-[calc(1.5rem+var(--safe-left))] shadow-lg transition ease-in-out focus:outline-none data-[state=closed]:duration-300 data-[state=open]:duration-500',
   {
     variants: {
       side: {
-        top: 'inset-x-0 top-0 h-full sm:h-auto border-b pt-[calc(1.5rem+var(--safe-top))] data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top',
+        top: 'data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 h-full border-b pt-[calc(1.5rem+var(--safe-top))] sm:h-auto',
         bottom:
-          'inset-x-0 bottom-0 h-full sm:h-auto border-t pb-[calc(1.5rem+var(--safe-bottom))] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
+          'data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-full border-t pb-[calc(1.5rem+var(--safe-bottom))] sm:h-auto',
         // Side borders only from `sm` up — below that the panel is `w-full` and
         // an edge border against the viewport reads as a stray hairline.
-        left: 'inset-y-0 left-0 h-full w-full sm:w-3/4 sm:border-r pt-[calc(1.5rem+var(--safe-top))] pb-[calc(1.5rem+var(--safe-bottom))] data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm',
+        left: 'data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-full pt-[calc(1.5rem+var(--safe-top))] pb-[calc(1.5rem+var(--safe-bottom))] sm:w-3/4 sm:max-w-sm sm:border-r',
         right:
-          'inset-y-0 right-0 h-full w-full sm:w-3/4 sm:border-l pt-[calc(1.5rem+var(--safe-top))] pb-[calc(1.5rem+var(--safe-bottom))] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm',
+          'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-full pt-[calc(1.5rem+var(--safe-top))] pb-[calc(1.5rem+var(--safe-bottom))] sm:w-3/4 sm:max-w-sm sm:border-l',
       },
       size: {
         sm: '',

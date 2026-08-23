@@ -15,7 +15,7 @@ L’onglet Connaissances n’est pas la base de connaissances de l’organisatio
 
 ## Dossiers
 
-Les fichiers du projet vivent dans une arborescence de dossiers. **Nouveau dossier** en crée un à la racine ; l’icône dossier-plus sur une ligne de dossier crée un sous-dossier. Clique un dossier pour le sélectionner — la zone de dépôt passe à _Ajouter un fichier à « … »_ et les téléversements y atterrissent. Supprimer un dossier supprime tout son contenu, y compris les entrées des fichiers dans l’index de récupération ; la confirmation le dit avant que quoi que ce soit n’arrive. Les dossiers ici sont scopés au projet : un dossier homonyme dans la bibliothèque de l’organisation est un dossier différent.
+Les fichiers du projet vivent dans une arborescence de dossiers. **Nouveau dossier** en crée un à la racine ; l’icône dossier-plus sur une ligne de dossier crée un sous-dossier. Clique un dossier pour le sélectionner — la zone de dépôt passe à _Ajouter un fichier à « … »_ et les téléversements y atterrissent. **Ajouter un dossier** téléverse un dossier entier depuis le disque : choisis un répertoire, et ses fichiers atterrissent avec la structure de sous-dossiers recréée sous le dossier sélectionné — les fichiers que le portail refuse sont ignorés et signalés, et une sélection est plafonnée à 200 fichiers / 200 Mo. Supprimer un dossier supprime tout son contenu, y compris les entrées des fichiers dans l’index de récupération ; la confirmation le dit avant que quoi que ce soit n’arrive. Les dossiers ici sont scopés au projet : un dossier homonyme dans la bibliothèque de l’organisation est un dossier différent.
 
 ## Un téléversement déroulé
 
@@ -37,7 +37,7 @@ Les limites par fichier et par projet sont fixées par l’organisation sous [Po
 
 Un chat démarré à l’intérieur d’un projet a automatiquement accès à chaque fichier de l’onglet Connaissances du projet. L’outil de récupération de l’agent voit les fichiers du projet à côté de toute source de Connaissances liée à l’agent. Les citations issues de fichiers du projet sont scopées au chat qui les a produites — partager ce chat hors du projet préserve les citations, mais le visiteur ne peut pas cliquer vers la source à moins d’être lui aussi dans le projet.
 
-Épingler avec `@` resserre un seul tour : `@fichier` épingle un fichier, `@dossier` épingle un dossier et tout ce qu’il contient (le sélecteur propose les dossiers du projet dans les chats de projet, et les dossiers de l’organisation partout). Les fichiers épinglés sont aussi livrés dans la sandbox de l’agent sous `/user/uploads` — un agent de projet sur un harness de code comme Claude Code ouvre donc les vrais octets au lieu de ne citer que des extraits de récupération.
+Épingler avec `@` resserre un seul tour : `@fichier` épingle un fichier, `@dossier` épingle un dossier et tout ce qu’il contient (le sélecteur propose les dossiers du projet dans les chats de projet, et les dossiers de l’organisation partout). Les fichiers épinglés sont aussi livrés dans la sandbox de l’agent sous `/agent/uploads` — un agent de projet sur un harness de code comme Claude Code ouvre donc les vrais octets au lieu de ne citer que des extraits de récupération.
 
 ## Où cela s’inscrit
 

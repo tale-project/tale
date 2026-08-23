@@ -105,7 +105,7 @@ export const taskAttachmentValidator = v.object({
 });
 
 /**
- * One agent-produced deliverable on the task — the harvested `/user/output`
+ * One agent-produced deliverable on the task — the harvested `/agent/output`
  * files of the task's agent runs. Self-described like an attachment, plus the
  * run that produced it. Merged by `fileName`: a rerun producing the same name
  * REPLACES the entry (and its blob), so the task always shows the latest
@@ -133,7 +133,7 @@ export const tasksTable = defineTable({
   // by createTask/updateTask like `labels`. Bounded by TASK_MAX_ATTACHMENTS.
   attachments: v.optional(v.array(taskAttachmentValidator)),
 
-  // Agent-run deliverables (harvested `/user/output`), merged by fileName —
+  // Agent-run deliverables (harvested `/agent/output`), merged by fileName —
   // written only by the task-agent settle, never by the client.
   outputs: v.optional(v.array(taskOutputValidator)),
 
@@ -506,9 +506,12 @@ export const projectAgentRunsTable = defineTable({
   resultText: v.optional(v.string()),
   /** The settled result's task-comment message id (success only). */
   resultMessageId: v.optional(v.string()),
-  /** What kicked the run: the explicit verb / board drag (default) or a
-   * comment @mention of the agent. */
-  trigger: v.optional(v.union(v.literal('manual'), v.literal('mention'))),
+  /** What kicked the run: the explicit verb / board drag (default), a
+   * comment @mention of the agent, or the automatic retry of a failed
+   * predecessor (`task_auto_retry.ts`). */
+  trigger: v.optional(
+    v.union(v.literal('manual'), v.literal('mention'), v.literal('auto_retry')),
+  ),
   /** Reviewer feedback carried into the turn's brief — the body of the
    * @mention comment that kicked this run. */
   feedback: v.optional(v.string()),
@@ -519,8 +522,37 @@ export const projectAgentRunsTable = defineTable({
    * the stamp a queued run is a start in flight, and the watchdog's
    * staleness window applies to it. */
   waitingForCapacityAt: v.optional(v.number()),
+  /** The harness's OWN conversation id, stamped at settle from the last drain
+   * window — the `--resume` handle a LATER kick of the same task continues
+   * with (`resolveTaskKickResume`). Never exposed on public payloads: the
+   * run-card and Details queries project explicitly. Rows predating the
+   * stamp fall back to the run's own session op. */
+  agentSessionId: v.optional(v.string()),
+  /** `sandboxSessions.createdAt` of the incarnation that produced the handle,
+   * stamped with it — the kick's binds-check compares it to the live row so a
+   * destroyed-and-recreated session (fresh workspace, no conversation store)
+   * never gets a foreign `--resume`. */
+  sessionCreatedAt: v.optional(v.number()),
   startedBy: v.string(),
   startedAt: v.number(),
+  /** When the turn ACTUALLY launched (`setTaskAgentRunRunning`), as opposed
+   * to `startedAt` = kick time, which includes any capacity-parked wait.
+   * Absent ⇒ the run never executed — the auto-retry budget reads that as
+   * zero progress, never as a long run (a parked-out run must not pass for
+   * one that worked 12h). */
+  launchedAt: v.optional(v.number()),
+  /** sha256 hex of the subscription-broker token this turn was served with —
+   * accounting only, the plaintext never persists. The auto-retry kick
+   * excludes the consecutive-failure streak's hashes so the next vend
+   * advances to a different pool account. */
+  brokerTokenHash: v.optional(v.string()),
+  /** HTTP status of the provider error that ended an errored turn, when the
+   * harness reported one (claude only today; absent for mid-stream deaths). */
+  apiErrorStatus: v.optional(v.number()),
+  /** 1-based position of this run within its auto-retry streak — display
+   * bookkeeping for the run card; the budget itself is re-derived from the
+   * rows, never from this stamp. */
+  autoRetryAttempt: v.optional(v.number()),
   deadlineAt: v.number(),
   settledAt: v.optional(v.number()),
   updatedAt: v.number(),

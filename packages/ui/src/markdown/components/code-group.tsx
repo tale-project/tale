@@ -105,7 +105,7 @@ export function CodeGroup({ children, className }: CodeGroupProps) {
               onClick={() => setActive(i)}
               onKeyDown={(e) => handleKeyDown(e, i)}
               className={cn(
-                '-mb-px border-b-2 px-4 py-2 font-mono text-xs transition-colors focus:outline-none focus-visible:bg-bg-base/40',
+                'focus-visible:bg-bg-base/40 -mb-px border-b-2 px-4 py-2 font-mono text-xs transition-colors focus:outline-none',
                 isActive
                   ? 'border-fg-base text-fg-base'
                   : 'text-fg-muted hover:text-fg-base border-transparent',

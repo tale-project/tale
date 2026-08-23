@@ -106,6 +106,45 @@ export const generateWebdavBlobUpload = internalAction({
 });
 
 /**
+ * Backend-aware upload handoff for the projects REST door
+ * (`POST /api/v1/projects/{id}/uploads`). Mirrors `generateWebdavBlobUpload`
+ * — internal, org resolved by id, Convex `_storage` fallback when the org is
+ * unresolvable — but rewrites the Convex POST lane through the public proxy
+ * like the public `generateBlobUpload` does: the caller is an external worker
+ * on the public origin, with no re-homing layer of its own. The S3 presigned
+ * PUT already addresses the org's public endpoint, so it stays untouched.
+ */
+export const generateRestBlobUpload = internalAction({
+  args: {
+    organizationId: v.string(),
+    contentType: v.optional(v.string()),
+  },
+  returns: v.object({
+    url: v.string(),
+    method: v.union(v.literal('POST'), v.literal('PUT')),
+    s3Ref: v.optional(v.string()),
+  }),
+  handler: async (ctx, args): Promise<BlobUploadHandoff> => {
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[generateRestBlobUpload] org ${args.organizationId} unresolvable; using Convex _storage`,
+      );
+      return {
+        url: toPublicUrl(await ctx.storage.generateUploadUrl()),
+        method: 'POST',
+      };
+    }
+    const handoff = await generateBlobUploadHandoff(ctx, orgSlug, {
+      contentType: args.contentType,
+    });
+    const url =
+      handoff.method === 'POST' ? toPublicUrl(handoff.url) : handoff.url;
+    return { url, method: handoff.method, s3Ref: handoff.s3Ref };
+  },
+});
+
+/**
  * Presign a short-lived GET URL for an `s3:` blob so the V8 `/storage` httpAction
  * (which cannot sign S3 requests) can 302-redirect the browser to it. Resolves
  * the org's bucket from `organizationId`; returns `null` when the org is

@@ -92,7 +92,7 @@ function installFetch() {
             resolve({
               ok: outcome?.ok ?? true,
               json: async () => ({ storageId }),
-            } as Response),
+            }),
           );
         }),
     ),

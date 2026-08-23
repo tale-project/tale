@@ -54,8 +54,20 @@ export interface AgentTurnFile {
 export interface AgentTurnResult {
   errored: boolean;
   reason?: string;
+  /** Producer-side classification of an errored settle (a
+   * `WorkflowAgentFailureCode`), read by the stepper's auto-retry gate.
+   * Absent on results settled before the field existed — that reads as
+   * retryable by design. */
+  failureCode?: string;
+  /** HTTP status of a turn-terminating API error the harness reported
+   * (429, 401, …), carried for display — never branched on for retry. */
+  apiErrorStatus?: number;
   text: string;
   files: AgentTurnFile[];
+  /** Outputs the harvest could not bring back (over a cap, unreadable,
+   * storage rejection) — carried so the node output names every dropped
+   * deliverable instead of silently omitting it. */
+  harvestSkipped?: Array<{ path: string; reason: string }>;
   status?: string;
   usage?: {
     inputTokens: number;
@@ -76,9 +88,26 @@ export interface AgentCursor {
   sessionId: string;
   deadlineAt: number;
   providerSlug: string;
+  /** The exec's model string: the gateway ref on the gateway lane, the
+   * vendor-native catalog id on the subscription lane. */
   gatewayModel: string;
   harness: string;
   input: Record<string, unknown>;
+  /** How many auto-retries preceded this attempt (0 = the original kick).
+   * The counter lives here — not on the run row — so it dies with the node
+   * execution and `finishRun`'s cursor drop. */
+  attempt?: number;
+  /** Stamped by `stampAgentTurnLaunch` once the start action's mint
+   * succeeds. Absent ⇒ the attempt never actually ran; the retry gate then
+   * counts ZERO executed time, never a long run. */
+  launchedAt?: number;
+  /** sha256 of the subscription-broker token this attempt was minted on
+   * (absent on the gateway lane), so a retry can rotate away from it. */
+  brokerTokenHash?: string;
+  /** Broker-token hashes burned by prior failed attempts of this node
+   * execution, carried so the re-kick's mint can exclude them (softly — an
+   * exhausted pool falls back to every account). */
+  burnedBrokerTokenHashes?: string[];
   result?: AgentTurnResult;
 }
 

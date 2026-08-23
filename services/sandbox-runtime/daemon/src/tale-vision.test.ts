@@ -96,7 +96,7 @@ const runCli = async (
       TALE_GATEWAY_URL: '',
       TALE_GATEWAY_TOKEN: '',
       TALE_VISION_MODEL: '',
-      // Cache falls back to $TMPDIR/tale-vision (no /user on hosts); pin it
+      // Cache falls back to $TMPDIR/tale-vision (no /agent on hosts); pin it
       // into the per-test dir so cache tests are isolated.
       TMPDIR: workDir,
       ...env,

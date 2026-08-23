@@ -219,7 +219,7 @@ async function readAndAuth(
   } catch (err) {
     const status =
       err && typeof err === 'object' && 'httpStatus' in err
-        ? Number((err as { httpStatus: unknown }).httpStatus)
+        ? Number(err.httpStatus)
         : 400;
     return {
       error: jsonResponse(
@@ -521,6 +521,7 @@ async function main(): Promise<void> {
                 `[sandbox.session] max-linger (${cfg.session.maxLingerMs}ms) reached while draining — reclaimed ${n} session(s); workspaces preserved for resume.`,
               );
             }
+            return null;
           })
           .catch((err) => {
             console.warn('[sandbox.session] linger reap failed:', err);

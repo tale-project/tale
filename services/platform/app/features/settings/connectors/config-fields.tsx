@@ -52,13 +52,13 @@ function isSupplied(value: string | number | boolean | undefined): boolean {
   return true;
 }
 
-export function ConnectorConfigFields<V extends ConnectorVendorLike>({
+export function ConnectorConfigFields({
   vendor,
   value,
   onChange,
   disabled,
 }: {
-  vendor: V;
+  vendor: ConnectorVendorLike;
   value: ConnectorConfigValue;
   onChange: (next: ConnectorConfigValue) => void;
   disabled?: boolean;

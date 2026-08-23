@@ -94,8 +94,8 @@ export async function notifyTaskReviewRequested(
   },
 ): Promise<void> {
   // Nobody is asked to review their own submission: the approval is still
-  // minted (card, board chip and the needs-my-review facet all read it), only
-  // the ping is pointless.
+  // minted (the board chip and the needs-my-review facet read it), only the
+  // ping is pointless.
   if (
     args.submitter.kind === 'user' &&
     args.submitter.userId === args.reviewerUserId

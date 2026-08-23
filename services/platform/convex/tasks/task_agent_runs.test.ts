@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 
 import { api, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
+import { sessionIdForProjectAgent } from '../sandbox/session_naming';
 import schema from '../schema';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'tasks';
@@ -234,9 +235,14 @@ describe('listStalledTaskAgentTurns', () => {
     const t = convexTest(schema, modules);
     const { taskId, run } = await seedRun(t);
     // The scheduled start died before its op upsert; the run row is the
-    // durable proof the turn exists. Age it past the staleness window.
+    // durable proof the turn exists. Age it past the staleness window —
+    // `updatedAt` too: the no-op-row grace honors the LATEST of the two, so
+    // a wake of a long-parked run (claim bumps `updatedAt`) gets its window.
     await t.run(async (ctx) => {
-      await ctx.db.patch(run._id, { startedAt: STALE_BEFORE - 1 });
+      await ctx.db.patch(run._id, {
+        startedAt: STALE_BEFORE - 1,
+        updatedAt: STALE_BEFORE - 1,
+      });
     });
 
     const listed = await stalled(t);
@@ -714,8 +720,12 @@ describe('getTaskBriefForAgentRun', () => {
       { taskId },
     );
     expect(brief?.discussion).toEqual([
-      { author: 'user', body: '请对齐字体' },
-      { author: 'agent', body: 'Done — delivered deck.pptx with 20 slides.' },
+      { author: 'user', body: '请对齐字体', at: expect.any(Number) },
+      {
+        author: 'agent',
+        body: 'Done — delivered deck.pptx with 20 slides.',
+        at: expect.any(Number),
+      },
     ]);
     expect(brief?.attachments).toEqual([
       { fileId: 'blob-spec', fileName: 'spec.pdf' },
@@ -966,5 +976,690 @@ describe('mid-run comment steering', () => {
     });
 
     expect(await runRows(t)).toHaveLength(1); // already_running → refused
+  });
+});
+
+// Kick-time resume: a later kick of the same task CONTINUES the
+// predecessor's harness conversation. The decision table is pure-tested in
+// task_kick_resume.test.ts; these lock what the two schedulers (kick, wake)
+// actually carry into the scheduled start — the only contract the node host
+// consumes.
+describe('kick-time resume', () => {
+  const HANDLE = 'c2a38047-3e04-4874-b87a-6a38f56d5041';
+
+  async function scheduledStartArgs(t: T) {
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    const starts = scheduled.filter((job) =>
+      job.name.includes('startTaskAgentTurn'),
+    );
+    expect(starts).toHaveLength(1);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- system table args are untyped
+    return starts[0]?.args[0] as {
+      resume?: string;
+      resumeSessionCreatedAt?: number;
+      resumeDiscussionSince?: number;
+      resumePredecessorExecId?: string;
+      sweep?: boolean;
+      inspectNote?: boolean;
+    };
+  }
+
+  /** The agent's standing-session row plus a terminal predecessor run that
+   * actually launched — the world a Retry resumes into. `stampRun: false`
+   * seeds a pre-feature row (handle only on its session op). */
+  async function seedResumableWorld(
+    t: T,
+    options: {
+      runStatus?: 'settled' | 'failed';
+      stampRun?: boolean;
+      liveCreatedAt?: number;
+    } = {},
+  ) {
+    const { taskId, agentId, projectId } = await seedWorld(t);
+    const sessionId = sessionIdForProjectAgent(agentId);
+    const stampedCreatedAt = 111;
+    await t.run(async (ctx) => {
+      await ctx.db.insert('sandboxSessions', {
+        organizationId: ORG,
+        sessionId,
+        profile: 'agent',
+        status: 'stopped',
+        ownerType: 'project_agent',
+        ownerId: String(agentId),
+        createdBy: 'system:task-agent',
+        createdAt: options.liveCreatedAt ?? stampedCreatedAt,
+        expiresAt: Date.now() + 60_000,
+      });
+      await ctx.db.insert('projectAgentRuns', {
+        organizationId: ORG,
+        projectId,
+        taskId,
+        agentId,
+        execId: 'exec-prev',
+        sessionId,
+        status: options.runStatus ?? 'failed',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        ...(options.stampRun === false
+          ? {}
+          : { agentSessionId: HANDLE, sessionCreatedAt: stampedCreatedAt }),
+        startedBy: EDITOR,
+        startedAt: 1_000,
+        deadlineAt: 2_000,
+        settledAt: 1_500,
+        updatedAt: 1_500,
+      });
+      if (options.stampRun === false) {
+        await ctx.db.insert('sandboxSessionOps', {
+          organizationId: ORG,
+          sessionId,
+          execId: 'exec-prev',
+          kind: 'task-agent',
+          status: 'failed',
+          startedAt: 1_000,
+          heartbeatAt: 1_000,
+          agentSessionId: HANDLE,
+        });
+      }
+    });
+    return { taskId, agentId, projectId, sessionId };
+  }
+
+  it('Retry after a failed run carries --resume and protects the box', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId } = await seedResumableWorld(t, { runStatus: 'failed' });
+
+    const result = await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+    expect(result).toEqual({ started: true });
+
+    // A NEW queued row is still minted — terminal rows stay terminal.
+    const rows = await t.run((ctx) =>
+      ctx.db.query('projectAgentRuns').collect(),
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.status).sort()).toEqual(['failed', 'queued']);
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBe(HANDLE);
+    expect(args.resumeSessionCreatedAt).toBe(111);
+    expect(args.resumeDiscussionSince).toBe(1_000);
+    // The predecessor's exec rides along so the start can reap a
+    // still-dying incarnation before forking its conversation.
+    expect(args.resumePredecessorExecId).toBe('exec-prev');
+    expect(args.sweep).toBe(false); // the box may hold the only copy
+    expect(args.inspectNote).toBe(true);
+  });
+
+  it('a settled predecessor resumes AND sweeps its harvested leftovers', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId } = await seedResumableWorld(t, { runStatus: 'settled' });
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBe(HANDLE);
+    expect(args.sweep).toBe(true); // leftovers already on task.outputs
+    expect(args.inspectNote).toBe(false);
+  });
+
+  it('the first start omits resume and sweeps (no predecessor)', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId } = await seedWorld(t);
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBeUndefined();
+    expect(args.sweep).toBe(true);
+    expect(args.inspectNote).toBe(false);
+  });
+
+  it("a pre-stamp predecessor's handle is recovered from its own session op", async () => {
+    const t = convexTest(schema, modules);
+    const { taskId } = await seedResumableWorld(t, { stampRun: false });
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBe(HANDLE);
+    // No stamp on an op-recovered handle — the start's re-check binds it
+    // through the predecessor-settle bound instead.
+    expect(args.resumeSessionCreatedAt).toBe(111);
+    expect(args.resumeDiscussionSince).toBe(1_000);
+  });
+
+  it('a destroyed-and-recreated session never gets the old handle', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId } = await seedResumableWorld(t, {
+      runStatus: 'failed',
+      liveCreatedAt: 9_999, // recreated AFTER the stamp's incarnation
+    });
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBeUndefined();
+    expect(args.sweep).toBe(false); // fresh per the failed predecessor
+    expect(args.inspectNote).toBe(true);
+  });
+
+  it('the wake of a fail-then-parked run carries the predecessor handle', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, projectId, sessionId } = await seedResumableWorld(
+      t,
+      { runStatus: 'failed' },
+    );
+    // The Retry parked on capacity before its start could run — the wake
+    // must re-decide on the PREDECESSOR, not drop the resume.
+    await t.run(async (ctx) => {
+      await ctx.db.insert('projectAgentRuns', {
+        organizationId: ORG,
+        projectId,
+        taskId,
+        agentId,
+        execId: 'exec-parked',
+        sessionId,
+        status: 'queued',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        waitingForCapacityAt: 2_000,
+        startedBy: EDITOR,
+        startedAt: 2_000,
+        deadlineAt: Date.now() + 60_000,
+        updatedAt: 2_000,
+      });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.wakeParkedTaskAgentRuns, {
+      organizationId: ORG,
+    });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBe(HANDLE);
+    expect(args.resumeSessionCreatedAt).toBe(111);
+    expect(args.sweep).toBe(false);
+  });
+
+  it('the wake of a never-started first run omits resume', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, projectId } = await seedWorld(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('projectAgentRuns', {
+        organizationId: ORG,
+        projectId,
+        taskId,
+        agentId,
+        execId: 'exec-first',
+        sessionId: 'pa-x',
+        status: 'queued',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        waitingForCapacityAt: 5,
+        startedBy: EDITOR,
+        startedAt: 1,
+        deadlineAt: Date.now() + 60_000,
+        updatedAt: 1,
+      });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.wakeParkedTaskAgentRuns, {
+      organizationId: ORG,
+    });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBeUndefined();
+    expect(args.sweep).toBe(true);
+  });
+
+  it('a never-launched terminal row is skipped — the walk decides on the run behind it', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, projectId, sessionId } = await seedResumableWorld(
+      t,
+      { runStatus: 'failed' },
+    );
+    // A later kick that died before spawning (no handle, no op row) — e.g. a
+    // refused model resolution. It says nothing about the box or the
+    // conversation and must not mask the resumable run behind it.
+    await t.run(async (ctx) => {
+      await ctx.db.insert('projectAgentRuns', {
+        organizationId: ORG,
+        projectId,
+        taskId,
+        agentId,
+        execId: 'exec-neverran',
+        sessionId,
+        status: 'failed',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        startedBy: EDITOR,
+        startedAt: 3_000,
+        deadlineAt: 4_000,
+        settledAt: 3_100,
+        updatedAt: 3_100,
+      });
+    });
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBe(HANDLE);
+  });
+
+  /** Insert `count` never-launched terminal rows (no handle, no op row). */
+  async function seedNeverLaunchedRuns(
+    t: T,
+    world: {
+      taskId: Id<'tasks'>;
+      agentId: Id<'projectAgents'>;
+      projectId: Id<'projects'>;
+      sessionId: string;
+    },
+    count: number,
+  ) {
+    await t.run(async (ctx) => {
+      for (let i = 0; i < count; i += 1) {
+        await ctx.db.insert('projectAgentRuns', {
+          organizationId: ORG,
+          projectId: world.projectId,
+          taskId: world.taskId,
+          agentId: world.agentId,
+          execId: `exec-neverran-${i}`,
+          sessionId: world.sessionId,
+          status: 'failed',
+          harness: 'claude-code',
+          model: 'z-ai/glm-5',
+          startedBy: EDITOR,
+          startedAt: 3_000 + i,
+          deadlineAt: 4_000 + i,
+          settledAt: 3_100 + i,
+          updatedAt: 3_100 + i,
+        });
+      }
+    });
+  }
+
+  it('an EXHAUSTED walk keeps the box instead of masquerading as a first start', async () => {
+    const t = convexTest(schema, modules);
+    const world = await seedResumableWorld(t, { runStatus: 'failed' });
+    // Enough never-launched rows to burn the whole scan budget: the launched
+    // failed run (whose box may hold the only copy) sits beyond the horizon.
+    await seedNeverLaunchedRuns(t, world, 15);
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, {
+        taskId: world.taskId,
+      });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBeUndefined();
+    expect(args.sweep).toBe(false); // unknown ≠ first start — keep the box
+    expect(args.inspectNote).toBe(true);
+  });
+
+  it('a NATURALLY drained walk (nothing ever launched) still sweeps as a first start', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, projectId } = await seedWorld(t);
+    await seedNeverLaunchedRuns(
+      t,
+      { taskId, agentId, projectId, sessionId: 'pa-x' },
+      3,
+    );
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBeUndefined();
+    expect(args.sweep).toBe(true); // provably nothing in the box
+    expect(args.inspectNote).toBe(false);
+  });
+});
+
+// Auto retry: a retryably-failed run re-kicks itself — the budget is a
+// consecutive-failure streak with a 15-minute-execution reset, the kick is a
+// normal `kickTaskAgentRun` (trigger 'auto_retry'), and the subscription vend
+// excludes the streak's burned broker accounts. The budget math itself is
+// pure-tested in task_auto_retry.test.ts; these lock the arming (the failed
+// mark schedules exactly one kick), the transactional re-checks, and what the
+// retry carries into the scheduled start.
+describe('auto retry', () => {
+  const FIFTEEN_MIN = 15 * 60 * 1000;
+
+  async function autoRetryJobs(t: T) {
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    return scheduled.filter((job) => job.name.includes('kickAutoRetryRun'));
+  }
+
+  async function scheduledStartArgs(t: T) {
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    const starts = scheduled.filter((job) =>
+      job.name.includes('startTaskAgentTurn'),
+    );
+    expect(starts).toHaveLength(1);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- system table args are untyped
+    return starts[0]?.args[0] as {
+      resume?: string;
+      sweep?: boolean;
+      excludeBrokerTokenHashes?: string[];
+    };
+  }
+
+  /** A task parked at in_progress (the state a failed run leaves it in) plus
+   * `failures` consecutive failed rows, newest last inserted. Each failure
+   * launched and settled within a minute unless overridden. */
+  async function seedFailureStreak(
+    t: T,
+    failures: Array<{
+      launchedAt?: number | undefined;
+      settledAt?: number;
+      brokerTokenHash?: string;
+      trigger?: 'manual' | 'auto_retry';
+    }>,
+  ) {
+    const { taskId, agentId, projectId } = await seedWorld(t);
+    const sessionId = sessionIdForProjectAgent(agentId);
+    const runIds: Id<'projectAgentRuns'>[] = [];
+    await t.run(async (ctx) => {
+      await ctx.db.patch(taskId, { status: 'in_progress' });
+      let at = 1_000;
+      for (const failure of failures) {
+        const startedAt = at;
+        const settledAt = failure.settledAt ?? startedAt + 60_000;
+        runIds.push(
+          await ctx.db.insert('projectAgentRuns', {
+            organizationId: ORG,
+            projectId,
+            taskId,
+            agentId,
+            execId: `exec-${runIds.length}`,
+            sessionId,
+            status: 'failed',
+            harness: 'claude-code',
+            model: 'z-ai/glm-5',
+            trigger: failure.trigger ?? 'manual',
+            ...('launchedAt' in failure
+              ? failure.launchedAt !== undefined
+                ? { launchedAt: failure.launchedAt }
+                : {}
+              : { launchedAt: startedAt }),
+            ...(failure.brokerTokenHash !== undefined
+              ? { brokerTokenHash: failure.brokerTokenHash }
+              : {}),
+            startedBy: EDITOR,
+            startedAt,
+            deadlineAt: startedAt + 12 * 60 * 60 * 1000,
+            settledAt,
+            updatedAt: settledAt,
+          }),
+        );
+        at = settledAt + 1_000;
+      }
+    });
+    const newestRunId = runIds.at(-1);
+    if (newestRunId === undefined) throw new Error('seed needs ≥1 failure');
+    return { taskId, agentId, projectId, sessionId, runIds, newestRunId };
+  }
+
+  it('a retryable failed mark arms exactly one auto-retry kick', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, projectId } = await seedWorld(t);
+    const runId = await t.run(async (ctx) => {
+      await ctx.db.patch(taskId, { status: 'in_progress' });
+      return await ctx.db.insert('projectAgentRuns', {
+        organizationId: ORG,
+        projectId,
+        taskId,
+        agentId,
+        execId: 'exec-live',
+        sessionId: sessionIdForProjectAgent(agentId),
+        status: 'running',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        launchedAt: 1_000,
+        startedBy: EDITOR,
+        startedAt: 1_000,
+        deadlineAt: Date.now() + 60_000,
+        updatedAt: 1_000,
+      });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
+      runId,
+      error: 'API Error: Request rejected (429)',
+      execId: 'exec-live',
+      failureCode: 'harness_error',
+      apiErrorStatus: 429,
+    });
+
+    const jobs = await autoRetryJobs(t);
+    expect(jobs).toHaveLength(1);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- system table args are untyped
+    expect(jobs[0]?.args[0] as { expectedRunId: string }).toMatchObject({
+      expectedRunId: runId,
+    });
+    const row = await t.run((ctx) => ctx.db.get(runId));
+    expect(row?.apiErrorStatus).toBe(429);
+  });
+
+  it('a denylisted failure code does not arm a retry', async () => {
+    const t = convexTest(schema, modules);
+    const { newestRunId } = await seedFailureStreak(t, [{}]);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(newestRunId, { status: 'running' });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
+      runId: newestRunId,
+      error: 'the agent run ran past its time limit and was stopped',
+      failureCode: 'deadline',
+    });
+
+    expect(await autoRetryJobs(t)).toHaveLength(0);
+  });
+
+  it("a superseded exec's losing mark arms nothing", async () => {
+    const t = convexTest(schema, modules);
+    const { newestRunId } = await seedFailureStreak(t, [{}]);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(newestRunId, { status: 'running' });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
+      runId: newestRunId,
+      error: 'stale chain settle',
+      execId: 'exec-superseded',
+      failureCode: 'harness_error',
+    });
+
+    const row = await t.run((ctx) => ctx.db.get(newestRunId));
+    expect(row?.status).toBe('running'); // the mark lost — no flip
+    expect(await autoRetryJobs(t)).toHaveLength(0);
+  });
+
+  it('the retry kick mints an auto_retry row and carries the broker exclusions', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, newestRunId } = await seedFailureStreak(t, [
+      { brokerTokenHash: 'hash-a' },
+      { brokerTokenHash: 'hash-b' },
+    ]);
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: newestRunId,
+    });
+    expect(kicked).toEqual({ started: true });
+
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query('projectAgentRuns')
+        .withIndex('by_task', (q) => q.eq('taskId', taskId))
+        .collect(),
+    );
+    const queued = rows.find((row) => row.status === 'queued');
+    expect(queued).toMatchObject({
+      trigger: 'auto_retry',
+      autoRetryAttempt: 2, // two consecutive short failures behind it
+      startedBy: EDITOR, // the failed run's own starter
+    });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.excludeBrokerTokenHashes?.sort()).toEqual(['hash-a', 'hash-b']);
+  });
+
+  it('the fourth consecutive short failure exhausts the budget', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, newestRunId } = await seedFailureStreak(t, [
+      {},
+      {},
+      {},
+      {},
+    ]);
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: newestRunId,
+    });
+    expect(kicked).toEqual({ started: false, reason: 'budget_exhausted' });
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query('projectAgentRuns')
+          .withIndex('by_task', (q) => q.eq('taskId', taskId))
+          .collect(),
+      ),
+    ).toHaveLength(4); // no new row
+  });
+
+  it('an attempt that executed past the threshold resets the budget', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, newestRunId } = await seedFailureStreak(t, [
+      {},
+      {},
+      {},
+      { launchedAt: 500_000, settledAt: 500_000 + FIFTEEN_MIN },
+    ]);
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: newestRunId,
+    });
+    expect(kicked).toEqual({ started: true });
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query('projectAgentRuns')
+        .withIndex('by_task', (q) => q.eq('taskId', taskId))
+        .collect(),
+    );
+    expect(rows.find((row) => row.status === 'queued')?.autoRetryAttempt).toBe(
+      1,
+    );
+  });
+
+  it('a parked-out run (never launched, 12h wide) is NOT a reset boundary', async () => {
+    const t = convexTest(schema, modules);
+    // Three short failures around one park-timeout row: launchedAt absent,
+    // settledAt − startedAt ≈ 12h. Reading that span as execution would
+    // reset the budget on every park timeout.
+    const { taskId, agentId, newestRunId } = await seedFailureStreak(t, [
+      {},
+      {},
+      { launchedAt: undefined, settledAt: 200_000 + 12 * 60 * 60 * 1000 },
+      {},
+    ]);
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: newestRunId,
+    });
+    expect(kicked).toEqual({ started: false, reason: 'budget_exhausted' });
+  });
+
+  it('a raced newer run supersedes the retry', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, runIds } = await seedFailureStreak(t, [{}, {}]);
+    const older = runIds[0];
+    if (older === undefined) throw new Error('seed produced no rows');
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: older,
+    });
+    expect(kicked).toEqual({ started: false, reason: 'superseded' });
+  });
+
+  it('a card moved off in_progress cancels the retry', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, newestRunId } = await seedFailureStreak(t, [{}]);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(taskId, { status: 'backlog' });
+    });
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: newestRunId,
+    });
+    expect(kicked).toEqual({ started: false, reason: 'task_moved' });
+  });
+
+  it('the capacity wake still collects the streak exclusions past its own queued row', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, projectId, sessionId } = await seedFailureStreak(
+      t,
+      [{ brokerTokenHash: 'hash-a' }],
+    );
+    // The retry parked on capacity: ITS queued row is now the newest — the
+    // hash collection must skip it (not seal) to reach the failed rows.
+    await t.run(async (ctx) => {
+      await ctx.db.insert('projectAgentRuns', {
+        organizationId: ORG,
+        projectId,
+        taskId,
+        agentId,
+        execId: 'exec-parked',
+        sessionId,
+        status: 'queued',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        trigger: 'auto_retry',
+        waitingForCapacityAt: 900_000,
+        startedBy: EDITOR,
+        startedAt: 900_000,
+        deadlineAt: Date.now() + 60_000,
+        updatedAt: 900_000,
+      });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.wakeParkedTaskAgentRuns, {
+      organizationId: ORG,
+    });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.excludeBrokerTokenHashes).toEqual(['hash-a']);
   });
 });

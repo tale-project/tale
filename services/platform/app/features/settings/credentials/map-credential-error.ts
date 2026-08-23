@@ -33,9 +33,9 @@ const OPAQUE_FALLBACK = 'Something went wrong. Reload and try again.';
 
 export function mapCredentialError(err: unknown): string {
   if (err != null && typeof err === 'object' && 'data' in err) {
-    const data = (err as { data: unknown }).data;
+    const data = err.data;
     if (data != null && typeof data === 'object' && 'message' in data) {
-      const message = (data as { message: unknown }).message;
+      const message = data.message;
       if (typeof message === 'string' && message.length > 0) {
         return isOpaqueServerErrorMessage(message) ? OPAQUE_FALLBACK : message;
       }

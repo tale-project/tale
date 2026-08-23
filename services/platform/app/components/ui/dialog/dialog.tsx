@@ -29,15 +29,15 @@ const dialogContentVariants = cva(
   // while the middle section scrolls. `overflow-hidden` + `min-h-0` make
   // `max-h` win: without them a flex item's `min-height: auto` grows the
   // shell past the viewport, and `top-1/2 -translate-y-1/2` clips both ends.
-  'fixed z-50 flex min-h-0 flex-col overflow-hidden border-none gap-4 ring-1 ring-border bg-card shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none ' +
+  'ring-border bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed z-50 flex min-h-0 flex-col gap-4 overflow-hidden border-none shadow-lg ring-1 duration-200 motion-reduce:animate-none ' +
     // Mobile: bottom sheet
-    'inset-x-0 bottom-0 top-auto left-0 right-0 w-full max-w-full max-h-[88dvh] rounded-t-2xl rounded-b-none p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 ' +
+    'data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 inset-x-0 top-auto right-0 bottom-0 left-0 max-h-[88dvh] w-full max-w-full rounded-t-2xl rounded-b-none p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] ' +
     // md+: centered dialog. `md:left-1/2 md:right-auto` is the correct
     // horizontal centering pair — pairing them with `md:inset-x-auto`
     // (which sets BOTH left+right to auto) caused the inset shorthand to
     // overwrite the left positioning, anchoring the dialog at the viewport
     // edge instead of the centre.
-    'md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:w-full md:-translate-x-1/2 md:-translate-y-1/2 md:max-h-[90dvh] md:p-6 md:pb-6 md:pt-5 md:rounded-2xl md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=closed]:slide-out-to-bottom-0',
+    'md:data-[state=open]:slide-in-from-bottom-0 md:data-[state=closed]:slide-out-to-bottom-0 md:top-1/2 md:right-auto md:bottom-auto md:left-1/2 md:max-h-[90dvh] md:w-full md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:p-6 md:pt-5 md:pb-6',
   {
     variants: {
       size: {
@@ -51,7 +51,7 @@ const dialogContentVariants = cva(
         // so it reads at the same width as the equivalent settings page instead
         // of sprawling to `wide`.
         '3xl': 'md:max-w-3xl',
-        wide: 'md:max-w-[1100px] md:w-[95vw]',
+        wide: 'md:w-[95vw] md:max-w-[1100px]',
       },
     },
     defaultVariants: {
@@ -256,7 +256,7 @@ export function Dialog({
                     className={cn(
                       'flex items-center gap-3',
                       headerActions &&
-                        'flex-col items-start space-y-2 gap-0 flex-1 min-w-0',
+                        'min-w-0 flex-1 flex-col items-start gap-0 space-y-2',
                     )}
                   >
                     {icon && <div className="shrink-0">{icon}</div>}
@@ -292,7 +292,7 @@ export function Dialog({
             {footer && (
               <div
                 className={cn(
-                  'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2 shrink-0',
+                  'flex shrink-0 flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end',
                   footerClassName,
                 )}
               >

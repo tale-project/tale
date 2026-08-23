@@ -49,8 +49,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             readOnly={softDisabled ? true : readOnly}
             className={cn(
               'min-h-[120px] w-full rounded-lg border px-3 py-2 text-base md:text-sm',
-              'border-[color:var(--color-border-input)] bg-[color:var(--color-bg-base)] text-[color:var(--color-fg-base)] placeholder:text-[color:var(--color-fg-subtle)] shadow-sm transition-colors',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent-base)]/30 focus-visible:border-[color:var(--color-accent-base)]',
+              'border-[color:var(--color-border-input)] bg-[color:var(--color-bg-base)] text-[color:var(--color-fg-base)] shadow-sm transition-colors placeholder:text-[color:var(--color-fg-subtle)]',
+              'focus-visible:border-[color:var(--color-accent-base)] focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent-base)]/30 focus-visible:outline-none',
               'disabled:cursor-not-allowed disabled:opacity-50',
               'aria-disabled:cursor-not-allowed aria-disabled:opacity-50',
               'aria-invalid:border-[color:var(--color-danger)] aria-invalid:ring-[color:var(--color-danger)]/20',

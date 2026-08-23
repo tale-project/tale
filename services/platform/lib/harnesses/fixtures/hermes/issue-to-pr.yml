@@ -25,7 +25,7 @@ events:
     type: tool_call_start
     call_id: call_2
     tool: read_file
-    summary: /user/workspace/README.md
+    summary: /agent/workspace/README.md
     ts: 2026-07-05T12:00:03Z
   - schema_version: 1
     type: tool_call_end

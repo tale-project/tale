@@ -53,6 +53,9 @@ export function SilentSsoFrame({ onSuccess, onFailure }: SilentSsoFrameProps) {
   const authorizeUrl = `${siteUrl}${basePath}/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}&seamless=true`;
 
   return (
+    // The silent SSO authorize flow needs the IdP's own cookies and scripts;
+    // a sandbox attribute breaks the seamless session handshake.
+    // oxlint-disable-next-line react/iframe-missing-sandbox
     <iframe
       ref={iframeRef}
       src={authorizeUrl}

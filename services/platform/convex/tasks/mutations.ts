@@ -59,6 +59,7 @@ import {
   hasProjectAccess,
   normalizeAssignee,
 } from './access';
+import { resolveTaskKickStartArgs } from './agent_runs';
 import {
   cleanupRemovedAttachments,
   validateTaskAttachments,
@@ -96,7 +97,11 @@ import {
   type ResolvedMention,
 } from './mentions';
 import { rankBetween } from './rank';
-import { requestTaskReview } from './review_shared';
+import {
+  closePendingTaskReviewOnStatusLeave,
+  isReviewPolicyRefusal,
+  requestTaskReview,
+} from './review_shared';
 import {
   boardViewFiltersValidator,
   boardViewTypeValidator,
@@ -107,6 +112,7 @@ import {
   taskPriorityValidator,
   taskStatusValidator,
 } from './schema';
+import { resolveAutoRetryBudget } from './task_auto_retry';
 
 const BULK_UPDATE_MAX = 100;
 
@@ -705,6 +711,15 @@ export const updateTaskStatus = mutation({
       throw new ConvexError({ code: 'TASK_HAS_OPEN_SUBTASKS' });
     }
 
+    // Leaving `in_review` closes the review gate: Done records the approve
+    // (the org's `review_policy` still applies, so the picker cannot decide
+    // what the respond door would refuse); any other leave withdraws it.
+    await closePendingTaskReviewOnStatusLeave(ctx, {
+      task,
+      toStatus: args.status,
+      actor: { kind: 'user', userId: auth.userId, email: auth.email },
+    });
+
     const now = Date.now();
     // Moving columns: append to the end of the destination column.
     const rank = await computeEndRank(ctx, task.projectId, args.status);
@@ -1180,6 +1195,154 @@ export const removeTaskDependency = mutation({
 // Comment (with @mention parsing)
 // ---------------------------------------------------------------------------
 
+/**
+ * THE single write path for a USER-authored comment, shared by the session
+ * mutation below and the REST door's {@link addTaskCommentForUser} — one
+ * implementation of the READ-level gate, the body cap, the per-user
+ * `task:comment` budget, the discussion write, and every fan-out (count,
+ * activity, audit, notify, events, the @mention work trigger). Callers own
+ * only WHO the actor is: the session path resolves it from `ctx.auth`, the
+ * REST path from the API key's minting user.
+ */
+async function applyUserTaskComment(
+  ctx: MutationCtx,
+  args: {
+    task: Doc<'tasks'>;
+    project: Doc<'projects'>;
+    auth: AuthContext;
+    body: string;
+  },
+): Promise<{
+  messageId: string;
+  threadId: string;
+  unresolvedMentionTokens: string[];
+}> {
+  const { task, project, auth } = args;
+  // Commenting is a READ-level action on the unified task_discussion surface:
+  // any org member who can read the task may post, exactly like a project
+  // discussion reply (`discussions/postReply` + `can_access_thread`'s
+  // discussion branch). Gating this on write access (editor+) locked plain
+  // members — including a task's own assignee — out of collaboration (#2339).
+  assertTaskReadable(project, auth);
+
+  const body = args.body.trim();
+  if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
+    throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
+  }
+
+  try {
+    await checkUserRateLimit(ctx, 'task:comment', auth.userId);
+  } catch (error) {
+    mapRateLimitError(error);
+  }
+
+  // Unified surface: persist the comment as a message in the task's
+  // discussion thread (+ its lockstep author/mentions meta row).
+  const { messageId, threadId, mentions } = await postTaskDiscussionMessage(
+    ctx,
+    {
+      organizationId: task.organizationId,
+      task,
+      project,
+      actorType: 'user',
+      actorId: auth.userId,
+      body,
+    },
+  );
+
+  // Denormalized count — CRITICAL for the board comment indicator.
+  await ctx.db.patch(task._id, {
+    commentCount: (task.commentCount ?? 0) + 1,
+  });
+
+  await recordActivity(ctx, {
+    task,
+    actorType: 'user',
+    actorId: auth.userId,
+    action: 'comment.added',
+  });
+
+  await createAuditLog(ctx, {
+    organizationId: task.organizationId,
+    actorId: auth.userId,
+    actorEmail: auth.email,
+    actorType: 'user',
+    action: TASK_AUDIT_ACTIONS.commentCreated,
+    category: 'data',
+    resourceType: TASK_COMMENT_RESOURCE_TYPE,
+    resourceId: messageId,
+    resourceName: task.title,
+    metadata: {
+      taskId: String(task._id),
+      mentionCount: mentions.length,
+    },
+    status: 'success',
+  });
+
+  await notifyTaskComment(ctx, {
+    task,
+    commentId: messageId,
+    mentions,
+    actorType: 'user',
+    actorId: auth.userId,
+  });
+
+  // No `taskComments` doc exists — reconstruct the event `comment` to the
+  // shape the task-ops pack reads (`input.comment.body` + `comment.projectId`).
+  const comment: CommentEventComment = {
+    body,
+    projectId: String(task.projectId),
+    taskId: String(task._id),
+    mentions,
+  };
+  await emitEvent(ctx, {
+    organizationId: task.organizationId,
+    eventType: 'comment.created',
+    eventData: {
+      comment,
+      taskId: String(task._id),
+      actorType: 'user',
+      actorId: auth.userId,
+    },
+  });
+  if (mentions.length > 0) {
+    await emitEvent(ctx, {
+      organizationId: task.organizationId,
+      eventType: 'comment.mentioned',
+      eventData: {
+        comment,
+        taskId: String(task._id),
+        mentions,
+        actorType: 'user',
+        actorId: auth.userId,
+      },
+    });
+  }
+
+  // @-ing one of the PROJECT's agent instances puts it to work: the task is
+  // (re)assigned to the first mentioned instance and a run kicks with this
+  // comment as its feedback. Gated on WRITE access — commenting is
+  // read-level, but assigning and running are edits, so a read-only
+  // member's @ only notifies. A refusal (live engine, archived, missing
+  // model) leaves the comment as a plain note; the run card's state is the
+  // user-visible answer either way.
+  await triggerMentionedProjectAgent(ctx, {
+    task,
+    project,
+    auth,
+    mentions,
+    feedback: body,
+  });
+
+  const { unresolvedMentionTokens } = await resolveSurfaceMentions(ctx, {
+    organizationId: task.organizationId,
+    body,
+    projectId: task.projectId,
+  });
+
+  return { messageId, threadId, unresolvedMentionTokens };
+}
+
 export const addTaskComment = mutation({
   args: {
     taskId: v.id('tasks'),
@@ -1204,129 +1367,77 @@ export const addTaskComment = mutation({
     const task = await loadTaskOrThrow(ctx, args.taskId);
     const project = await loadProjectOrThrow(ctx, task.projectId);
     const auth = await getAuthContext(ctx, task.organizationId);
-    // Commenting is a READ-level action on the unified task_discussion surface:
-    // any org member who can read the task may post, exactly like a project
-    // discussion reply (`discussions/postReply` + `can_access_thread`'s
-    // discussion branch). Gating this on write access (editor+) locked plain
-    // members — including a task's own assignee — out of collaboration (#2339).
-    assertTaskReadable(project, auth);
-
-    const body = args.body.trim();
-    if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
-      throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
-    }
-
-    try {
-      await checkUserRateLimit(ctx, 'task:comment', auth.userId);
-    } catch (error) {
-      mapRateLimitError(error);
-    }
-
-    // Unified surface: persist the comment as a message in the task's
-    // discussion thread (+ its lockstep author/mentions meta row).
-    const { messageId, threadId, mentions } = await postTaskDiscussionMessage(
-      ctx,
-      {
-        organizationId: task.organizationId,
-        task,
-        project,
-        actorType: 'user',
-        actorId: auth.userId,
-        body,
-      },
-    );
-
-    // Denormalized count — CRITICAL for the board comment indicator.
-    await ctx.db.patch(args.taskId, {
-      commentCount: (task.commentCount ?? 0) + 1,
-    });
-
-    await recordActivity(ctx, {
-      task,
-      actorType: 'user',
-      actorId: auth.userId,
-      action: 'comment.added',
-    });
-
-    await createAuditLog(ctx, {
-      organizationId: task.organizationId,
-      actorId: auth.userId,
-      actorEmail: auth.email,
-      actorType: 'user',
-      action: TASK_AUDIT_ACTIONS.commentCreated,
-      category: 'data',
-      resourceType: TASK_COMMENT_RESOURCE_TYPE,
-      resourceId: messageId,
-      resourceName: task.title,
-      metadata: {
-        taskId: String(args.taskId),
-        mentionCount: mentions.length,
-      },
-      status: 'success',
-    });
-
-    await notifyTaskComment(ctx, {
-      task,
-      commentId: messageId,
-      mentions,
-      actorType: 'user',
-      actorId: auth.userId,
-    });
-
-    // No `taskComments` doc exists — reconstruct the event `comment` to the
-    // shape the task-ops pack reads (`input.comment.body` + `comment.projectId`).
-    const comment: CommentEventComment = {
-      body,
-      projectId: String(task.projectId),
-      taskId: String(args.taskId),
-      mentions,
-    };
-    await emitEvent(ctx, {
-      organizationId: task.organizationId,
-      eventType: 'comment.created',
-      eventData: {
-        comment,
-        taskId: String(args.taskId),
-        actorType: 'user',
-        actorId: auth.userId,
-      },
-    });
-    if (mentions.length > 0) {
-      await emitEvent(ctx, {
-        organizationId: task.organizationId,
-        eventType: 'comment.mentioned',
-        eventData: {
-          comment,
-          taskId: String(args.taskId),
-          mentions,
-          actorType: 'user',
-          actorId: auth.userId,
-        },
-      });
-    }
-
-    // @-ing one of the PROJECT's agent instances puts it to work: the task is
-    // (re)assigned to the first mentioned instance and a run kicks with this
-    // comment as its feedback. Gated on WRITE access — commenting is
-    // read-level, but assigning and running are edits, so a read-only
-    // member's @ only notifies. A refusal (live engine, archived, missing
-    // model) leaves the comment as a plain note; the run card's state is the
-    // user-visible answer either way.
-    await triggerMentionedProjectAgent(ctx, {
+    return await applyUserTaskComment(ctx, {
       task,
       project,
       auth,
-      mentions,
-      feedback: body,
+      body: args.body,
     });
+  },
+});
 
-    const { unresolvedMentionTokens } = await resolveSurfaceMentions(ctx, {
-      organizationId: task.organizationId,
-      body,
-      projectId: task.projectId,
+/**
+ * The REST door's comment lane: post as the MINTING USER of an API key —
+ * same core as {@link addTaskComment}, with the actor supplied explicitly
+ * instead of read from `ctx.auth` (session functions are not callable from
+ * an API-key httpAction). `agentAddComment` deliberately does not serve
+ * here: it hard-codes `actorType: 'agent'`, and a key holder's comment is a
+ * human's.
+ *
+ * Opaque visibility: a garbage id, a cross-org task, and a task whose
+ * project the user cannot read all answer the SAME `TASK_NOT_FOUND`, so the
+ * door never confirms foreign or invisible tasks exist.
+ */
+export const addTaskCommentForUser = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    userEmail: v.optional(v.string()),
+    taskId: v.string(),
+    body: v.string(),
+  },
+  returns: v.object({ messageId: v.string(), threadId: v.string() }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ messageId: string; threadId: string }> => {
+    const notFound = () =>
+      new ConvexError({ code: 'TASK_NOT_FOUND', message: 'Task not found' });
+    const taskId = ctx.db.normalizeId('tasks', args.taskId);
+    if (taskId === null) throw notFound();
+    const task = await ctx.db.get(taskId);
+    if (!task || task.organizationId !== args.organizationId) throw notFound();
+    const project = await ctx.db.get(task.projectId);
+    if (!project || project.organizationId !== args.organizationId) {
+      throw notFound();
+    }
+    // The same read gate `assertTaskReadable` applies, resolved for the
+    // EXPLICIT user (role + teams, failing closed) — but answered as the
+    // opaque not-found instead of TASK_FORBIDDEN.
+    const context = await resolveUserAccessContext(
+      ctx,
+      args.organizationId,
+      args.userId,
+    );
+    if (
+      !context ||
+      !checkProjectAccess(project, context.teamIds, context.role).canRead
+    ) {
+      throw notFound();
+    }
+
+    const { messageId, threadId } = await applyUserTaskComment(ctx, {
+      task,
+      project,
+      auth: {
+        userId: args.userId,
+        email: args.userEmail,
+        role: context.role,
+        teamIds: context.teamIds,
+      },
+      body: args.body,
     });
-
-    return { messageId, threadId, unresolvedMentionTokens };
+    return { messageId, threadId };
   },
 });
 
@@ -1770,6 +1881,17 @@ export const moveTask = mutation({
       throw new ConvexError({ code: 'TASK_HAS_OPEN_SUBTASKS' });
     }
 
+    // Dragging out of `in_review` closes the review gate: dropping on Done IS
+    // the approve (the org's `review_policy` still applies — a refused drag
+    // throws and the card snaps back); any other lane withdraws the request.
+    if (statusChanged) {
+      await closePendingTaskReviewOnStatusLeave(ctx, {
+        task,
+        toStatus: args.status,
+        actor: { kind: 'user', userId: auth.userId, email: auth.email },
+      });
+    }
+
     const beforeRank = args.beforeTaskId
       ? (await ctx.db.get(args.beforeTaskId))?.rank
       : undefined;
@@ -1852,6 +1974,15 @@ export const moveTask = mutation({
             actorId: auth.userId,
           },
         });
+        // Dropping INTO In review opens the gate, exactly like the picker and
+        // the bulk path — the gate belongs to the STATE, whichever gesture
+        // brought the card there.
+        if (args.status === 'in_review') {
+          await requestTaskReview(ctx, {
+            task: updated,
+            trigger: { kind: 'human', actorId: auth.userId },
+          });
+        }
       }
     }
 
@@ -1959,6 +2090,23 @@ export const bulkUpdateTasks = mutation({
         ) {
           skipped += 1;
           continue;
+        }
+        if (statusChanged) {
+          // A bulk leave from `in_review` closes the gate like the single-card
+          // paths. `review_policy` refusals skip the task instead of aborting
+          // the batch (the close validates before writing, so nothing is
+          // half-recorded on a skip) — same shape as the subtask guard above.
+          try {
+            await closePendingTaskReviewOnStatusLeave(ctx, {
+              task,
+              toStatus: args.status,
+              actor: { kind: 'user', userId: auth.userId, email: auth.email },
+            });
+          } catch (error) {
+            if (!isReviewPolicyRefusal(error)) throw error;
+            skipped += 1;
+            continue;
+          }
         }
         patch.status = args.status;
         patch.rank = await computeEndRank(ctx, task.projectId, args.status);
@@ -2521,7 +2669,16 @@ async function deleteTaskTree(
 // Task agent runs (kick / cancel) — the agent-ownership board verbs
 // ---------------------------------------------------------------------------
 
-/** The run still holding this task (queued or running), if any. */
+/** The run still holding this task (queued or running), if any.
+ *
+ * `.collect()` over the full `by_task` range — never `.first()` / `.take()`:
+ * the whole-range read set is THE double-kick guard. Two racing kicks (e.g.
+ * a double-clicked Retry) both read this range; the winner's insert lands
+ * inside the loser's read set, Convex OCC retries the loser, and its re-read
+ * finds the queued row → `already_running`. After a FAILED run the task is
+ * already `in_progress`, so the status patch is skipped and this range read
+ * is the ONLY conflict surface — a prefix read (`first`) would let a
+ * later-creation-time insert land outside it and admit both kicks. */
 async function liveTaskAgentRun(
   ctx: MutationCtx,
   taskId: Id<'tasks'>,
@@ -2558,8 +2715,11 @@ async function kickTaskAgentRun(
   args: {
     task: Doc<'tasks'>;
     auth: { userId: string };
-    trigger: 'manual' | 'mention';
+    trigger: 'manual' | 'mention' | 'auto_retry';
     feedback?: string;
+    /** 1-based streak position, stamped for the run card ("Auto-retry N of
+     * 3") — passed only by the auto-retry kick. */
+    autoRetryAttempt?: number;
   },
 ): Promise<{ started: boolean; reason?: string }> {
   const { task, auth } = args;
@@ -2596,6 +2756,16 @@ async function kickTaskAgentRun(
   const execId = crypto.randomUUID();
   const sessionId = sessionIdForProjectAgent(agentDbId);
   const deadlineAt = now + agentWorkTurnDeadlineMs();
+  // Same task, same agent, same harness ⇒ the next turn CONTINUES the
+  // previous harness conversation (`--resume`) instead of opening on a
+  // rebuilt brief; the decision (and the fresh fallback's box semantics)
+  // is shared verbatim with the capacity wake.
+  const kickStart = await resolveTaskKickStartArgs(ctx, {
+    taskId: task._id,
+    agentId: agentDbId,
+    harness: agent.harness,
+    sessionId,
+  });
   const runId = await ctx.db.insert('projectAgentRuns', {
     organizationId: task.organizationId,
     projectId: task.projectId,
@@ -2615,12 +2785,24 @@ async function kickTaskAgentRun(
     updatedAt: now,
     trigger: args.trigger,
     ...(args.feedback !== undefined ? { feedback: args.feedback } : {}),
+    ...(args.autoRetryAttempt !== undefined
+      ? { autoRetryAttempt: args.autoRetryAttempt }
+      : {}),
   });
 
   // The board verb IS the interface: kicking the run moves the card. The
   // status write is the CALLER's act (they dragged / clicked / commented),
   // so it lands as a user activity, not an agent one.
   if (task.status !== 'in_progress') {
+    // Kicking out of `in_review` hands the work back to the driver — the
+    // pending review is withdrawn (a leave to in_progress, never an approve),
+    // so the reviewer's bells and the Needs-my-review facet let go. Runs only
+    // on a real kick: every refusal above returned before this point.
+    await closePendingTaskReviewOnStatusLeave(ctx, {
+      task,
+      toStatus: 'in_progress',
+      actor: { kind: 'user', userId: auth.userId },
+    });
     const rank = await computeEndRank(ctx, task.projectId, 'in_progress');
     await ctx.db.patch(task._id, {
       status: 'in_progress',
@@ -2658,6 +2840,7 @@ async function kickTaskAgentRun(
       sessionId,
       harness: agent.harness,
       deadlineAt,
+      ...kickStart,
       model: agent.model,
       ...(agent.modelProvider !== undefined
         ? { modelProvider: agent.modelProvider }
@@ -2685,6 +2868,84 @@ export const startTaskAgentRun = mutation({
     assertTaskWritable(project, auth);
     assertTaskNotArchived(task);
     return await kickTaskAgentRun(ctx, { task, auth, trigger: 'manual' });
+  },
+});
+
+/**
+ * The auto-retry kick, scheduled by `markTaskAgentRunFailed` when a run
+ * failed retryably. Everything is re-derived here, transactionally: the
+ * failed run must still be the task's NEWEST run (a raced manual Retry or
+ * mention kick supersedes the retry), the card must still sit at
+ * `in_progress` (a person moving it elsewhere is an intervention this must
+ * not override — and the kick would otherwise re-move it as a ghost user
+ * activity), and the consecutive-failure budget must have room
+ * (`resolveAutoRetryBudget`). The kick core then re-checks its own guard
+ * matrix and inherits the `--resume` decision and the broker-hash exclusion
+ * from `resolveTaskKickStartArgs`. Attribution stays with the failed run's
+ * own starter — the retry continues THEIR kick.
+ */
+export const kickAutoRetryRun = internalMutation({
+  args: {
+    taskId: v.id('tasks'),
+    agentId: v.id('projectAgents'),
+    expectedRunId: v.id('projectAgentRuns'),
+  },
+  returns: v.object({
+    started: v.boolean(),
+    reason: v.optional(v.string()),
+  }),
+  // Explicit return type: this module and the run host reference each other
+  // through `internal` (the failed mark schedules this), and TS needs one
+  // side annotated to break the inference cycle.
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ started: boolean; reason?: string }> => {
+    const task = await ctx.db.get(args.taskId);
+    if (task === null || task.archivedAt !== undefined) {
+      return { started: false, reason: 'task_unavailable' };
+    }
+    if (task.status !== 'in_progress') {
+      return { started: false, reason: 'task_moved' };
+    }
+    // Full-range read like `liveTaskAgentRun`: the whole `by_task` range is
+    // the conflict surface against a concurrent manual Retry — a prefix read
+    // would let its insert land outside and admit both kicks.
+    const runs = await ctx.db
+      .query('projectAgentRuns')
+      .withIndex('by_task', (q) => q.eq('taskId', args.taskId))
+      .collect();
+    runs.sort((a, b) => b._creationTime - a._creationTime);
+    const newest = runs[0];
+    if (newest === undefined || newest._id !== args.expectedRunId) {
+      return { started: false, reason: 'superseded' };
+    }
+    if (newest.status !== 'failed') {
+      return { started: false, reason: 'not_failed' };
+    }
+    const budget = resolveAutoRetryBudget(
+      runs.map((run) => ({
+        agentId: String(run.agentId),
+        status: run.status,
+        launchedAt: run.launchedAt,
+        settledAt: run.settledAt,
+      })),
+    );
+    if (!budget.retry) {
+      return { started: false, reason: 'budget_exhausted' };
+    }
+    const kicked = await kickTaskAgentRun(ctx, {
+      task,
+      auth: { userId: newest.startedBy },
+      trigger: 'auto_retry',
+      autoRetryAttempt: budget.attempt,
+    });
+    if (!kicked.started) {
+      console.warn(
+        `[tasks] auto-retry kick refused: ${kicked.reason ?? 'unknown'}`,
+      );
+    }
+    return kicked;
   },
 });
 

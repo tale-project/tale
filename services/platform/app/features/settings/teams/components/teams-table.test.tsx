@@ -39,7 +39,7 @@ function makeTeam(overrides: Partial<Team> = {}): Team {
     memberCount: 5,
     createdAt: Date.now(),
     ...overrides,
-  } as Team;
+  };
 }
 
 describe('TeamsTable', () => {

@@ -503,7 +503,7 @@ describe('event triggers — loop safety', () => {
         });
       }
     });
-    return [ids[0] as string, ids[1] as string];
+    return [ids[0], ids[1]];
   }
 
   it('pins an event run to the project a comment payload names', async () => {

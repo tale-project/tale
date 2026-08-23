@@ -82,6 +82,17 @@ export interface IndexDocumentArgs {
    * clause — every scope column NULL reads as org-wide.
    */
   readonly conversationId?: string | null;
+  /**
+   * What the chunk header announces, when it should differ from `filename`.
+   *
+   * `filename` is what the corpus row stores and the UI shows; this is what
+   * the header prepended to every chunk says. They are the same for a Document
+   * Hub file. They differ for an emailed attachment, whose header carries the
+   * mail it arrived on — a CV named for its author says nothing about the role
+   * it was sent for, and the subject line usually does. The header feeds BOTH
+   * the keyword leg and the embedding, so this widens retrieval on both.
+   */
+  readonly title?: string;
   readonly sourceCreatedAt?: Date | null;
   readonly sourceModifiedAt?: Date | null;
   /** Chunks to commit in this invocation. */
@@ -127,7 +138,9 @@ export async function indexDocument(
     }
   }
 
-  const chunks = chunkDocument(args.text, { title: args.filename });
+  const chunks = chunkDocument(args.text, {
+    title: args.title ?? args.filename,
+  });
   if (chunks.length === 0) {
     return {
       fileId: args.fileId,

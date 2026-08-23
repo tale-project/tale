@@ -34,7 +34,7 @@ function codeOf(err: unknown): string | undefined {
   if (err === null || typeof err !== 'object' || !('data' in err)) {
     return undefined;
   }
-  let data: unknown = (err as { data: unknown }).data;
+  let data: unknown = err.data;
   // convex-test can double-encode the payload (a JSON string of a JSON string),
   // so unwrap repeatedly until we reach the object (bounded to avoid a loop).
   for (let i = 0; i < 3 && typeof data === 'string'; i++) {
@@ -47,7 +47,7 @@ function codeOf(err: unknown): string | undefined {
   if (typeof data !== 'object' || data === null || !('code' in data)) {
     return undefined;
   }
-  const candidate: unknown = (data as { code: unknown }).code;
+  const candidate: unknown = data.code;
   return typeof candidate === 'string' ? candidate : undefined;
 }
 

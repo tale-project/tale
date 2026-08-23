@@ -205,6 +205,24 @@ describe('DocumentPreview routing', () => {
     expect(screen.getByTestId('markdown-preview')).toBeInTheDocument();
   });
 
+  // REGRESSION: harvested deliverables like `0001-fix.patch` carry a generic
+  // octet-stream mime; the extension alone must route them to the source
+  // preview instead of the "not available" state.
+  it.each(['patch', 'diff'])(
+    'routes .%s files to text preview despite a generic mime',
+    (ext) => {
+      render(
+        <DocumentPreview
+          url={`https://example.com/0001-fix.${ext}`}
+          fileName={`0001-fix.${ext}`}
+          mimeType="application/octet-stream"
+        />,
+      );
+
+      expect(screen.getByTestId('text-preview')).toBeInTheDocument();
+    },
+  );
+
   it('prefers mimeType over an unhelpful filename', () => {
     render(
       <DocumentPreview

@@ -56,7 +56,7 @@ describe('useClockOffset', () => {
     vi.spyOn(Date, 'now').mockReturnValue(1000);
     const { result, rerender } = renderHook(
       ({ serverNow }: { serverNow?: number }) => useProbe(serverNow),
-      { wrapper, initialProps: { serverNow: 9000 as number | undefined } },
+      { wrapper, initialProps: { serverNow: 9000 } },
     );
     expect(result.current.offsetMs).toBe(8000);
 

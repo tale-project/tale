@@ -15,7 +15,7 @@ Der Wissen-Tab ist nicht die org-weite Wissensdatenbank im Sinn von [Dokumente](
 
 ## Ordner
 
-Projekt-Dateien liegen in einem Ordnerbaum. **Neuer Ordner** legt einen Ordner auf der Wurzelebene an; das Ordner-Plus-Symbol auf einer Ordnerzeile erstellt einen Unterordner. Klick einen Ordner an, um ihn auszuwählen — der Drop-Bereich wechselt zu _Datei zu „…" hinzufügen_ und Uploads landen darin. Einen Ordner zu löschen löscht alles darin, inklusive der Einträge im Retrieval-Index; die Bestätigung sagt das, bevor irgendetwas passiert. Ordner hier sind projekt-gebunden: ein gleichnamiger Ordner in der org-weiten Dokumentbibliothek ist ein anderer Ordner.
+Projekt-Dateien liegen in einem Ordnerbaum. **Neuer Ordner** legt einen Ordner auf der Wurzelebene an; das Ordner-Plus-Symbol auf einer Ordnerzeile erstellt einen Unterordner. Klick einen Ordner an, um ihn auszuwählen — der Drop-Bereich wechselt zu _Datei zu „…" hinzufügen_ und Uploads landen darin. **Ordner hinzufügen** lädt einen ganzen Ordner von der Festplatte hoch: Wähl ein Verzeichnis, und seine Dateien landen mit nachgebauter Unterordner-Struktur unter dem ausgewählten Ordner — Dateien, die das Upload-Tor ablehnt, werden übersprungen und gemeldet, und eine Auswahl ist auf 200 Dateien / 200 MB begrenzt. Einen Ordner zu löschen löscht alles darin, inklusive der Einträge im Retrieval-Index; die Bestätigung sagt das, bevor irgendetwas passiert. Ordner hier sind projekt-gebunden: ein gleichnamiger Ordner in der org-weiten Dokumentbibliothek ist ein anderer Ordner.
 
 ## Ein durchgespielter Upload
 
@@ -37,7 +37,7 @@ Pro-Datei- und Pro-Projekt-Limits werden von der Org unter [Richtlinien und Limi
 
 Ein Chat, der in einem Projekt gestartet wird, hat automatisch Zugriff auf jede Datei im Wissen-Tab des Projekts. Das Retrieval-Tool des Agents sieht Projekt-Dateien neben jeglichen agent-gebundenen Wissensquellen. Zitate aus Projekt-Dateien sind auf den Chat begrenzt, der sie erzeugt hat — einen Chat ausserhalb des Projekts zu teilen bewahrt die Zitate, aber der Betrachter kann nicht zur Quelle durchklicken, ausser er ist auch im Projekt.
 
-Anheften mit `@` verengt einen einzelnen Turn: `@Datei` heftet eine Datei an, `@Ordner` einen Ordner samt allem darunter (der Picker bietet in Projekt-Chats die Ordner des Projekts an, überall sonst die org-weiten Ordner). Angeheftete Dateien werden zusätzlich in die Sandbox des Agents unter `/user/uploads` geliefert — ein Projekt-Agent auf einem Coding-Harness wie Claude Code öffnet also die echten Bytes, statt nur Retrieval-Schnipsel zu zitieren.
+Anheften mit `@` verengt einen einzelnen Turn: `@Datei` heftet eine Datei an, `@Ordner` einen Ordner samt allem darunter (der Picker bietet in Projekt-Chats die Ordner des Projekts an, überall sonst die org-weiten Ordner). Angeheftete Dateien werden zusätzlich in die Sandbox des Agents unter `/agent/uploads` geliefert — ein Projekt-Agent auf einem Coding-Harness wie Claude Code öffnet also die echten Bytes, statt nur Retrieval-Schnipsel zu zitieren.
 
 ## Wo das hineinpasst
 

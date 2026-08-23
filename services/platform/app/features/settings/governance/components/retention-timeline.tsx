@@ -107,7 +107,7 @@ function Step({ label, sub, tone }: StepProps) {
     <Stack gap={1} align="center" className="w-20 text-center sm:w-32">
       <div
         className={cn(
-          'h-3 w-3 rounded-full ring-2 ring-offset-2 ring-offset-background',
+          'ring-offset-background h-3 w-3 rounded-full ring-2 ring-offset-2',
           tone === 'active' && 'bg-success ring-success/30',
           tone === 'trash' && 'bg-warning ring-warning/30',
           tone === 'permanent' && 'bg-destructive ring-destructive/30',

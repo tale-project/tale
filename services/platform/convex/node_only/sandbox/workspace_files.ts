@@ -19,10 +19,10 @@ import {
 } from './helpers/session_client';
 
 /** The agent's working area (Part C) and the explorer's root. We deliberately
- * root at `/user/workspace`, NOT the `/user` data root: the panel is "Workspace
+ * root at `/agent/workspace`, NOT the `/agent` data root: the panel is "Workspace
  * files", so it shows the agent's working tree (cloned repos, created files) —
  * not the sibling `uploads/`/`output/` I/O dirs or the hidden `.runtime/`. */
-const WORKSPACE_ROOT = '/user/workspace';
+const WORKSPACE_ROOT = '/agent/workspace';
 
 /** Hard cap on entries returned for one directory — protects the wire + UI from
  * a pathological directory; `truncated` tells the browser the list was clipped. */
@@ -48,7 +48,7 @@ const fsEntryValidator = v.object({
  *
  * Server-side filtering: `node_modules` / `.git` are always dropped; when
  * `showHidden` is false, dot-files are dropped too (this is what hides
- * `/user/.runtime` at the root). Results are sorted dirs-first then alpha and
+ * `/agent/.runtime` at the root). Results are sorted dirs-first then alpha and
  * capped at MAX_ENTRIES.
  */
 export const listWorkspaceDir = action({

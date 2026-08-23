@@ -97,7 +97,24 @@ settings:
 
 A form owns its file: saving rewrites `Setup/validation-policy.yaml` from the form's values, and the form pre-fills from whatever the file holds — whether the form wrote it or someone uploaded it by hand. Fields are `text`, `number`, `boolean`, or `select`; every value lands as a string, a `text` field may pin a `pattern`, and titles, labels, help lines, and option labels localize through per-entry `i18n` blocks. Anything richer than a flat key–value file — nested blocks, lists — belongs in a separate hand-authored file the workflow reads alongside.
 
-Mark a form `required: true` and the create dialog enforces it per project: the first time someone picks the automation's task template in a project that hasn't been set up, the forms appear before the task's own field, and creating continues only once they're saved. From then on a **Settings** button in the same dialog reopens the forms for editing — each with its own **Save**, active only when something changed.
+Mark a form `required: true` and the create dialog enforces it per project: the first time someone picks the automation's task template in a project that hasn't been set up, the forms appear before the task's own field, and creating continues only once they're saved — one **Save and continue** writes them all. From then on a **Settings** button in the same dialog reopens the forms for editing, as tabs behind a single **Save**: it writes every form you changed, a dot marks tabs with unsaved edits, and closing with unsaved changes asks first.
+
+Some settings are files rather than values — reference documents the runs read as-is. Declare those as an **uploads form** (`kind: uploads`): instead of writing a YAML file, the form manages a project folder, with a drop zone, a folder picker, and a listing of what's already there.
+
+```yaml
+# automation.yml
+settings:
+  folder: Setup
+  forms:
+    - kind: uploads
+      title: Reference documents
+      subdir: reference
+      accept: ['.pdf', '.json']
+      match: '\.(pdf|json)$'
+      requireFolder: true
+```
+
+`accept` names the extensions the picker offers, `match` filters which file names the panel lists (case-insensitive — and an upload whose name would never match is refused up front, so nothing lands and then "vanishes" from the listing), `subdir` scopes the form to a dedicated subfolder of the settings folder, and `requireFolder: true` makes you pick or create a subfolder before uploading — for material that must stay organised per period or topic instead of piling up at the root. Uploads apply immediately: an uploads form has no **Save**, never gates task creation, and runs read the folder's current contents.
 
 ## Deliverables the pack declares
 
@@ -122,7 +139,10 @@ Only the pack knows which of its written files are the point, so nothing is
 guessed platform-side: a name that no run has filed yet still shows as a promised
 row marked _Not ready yet_, so the task names what it will produce before it
 produces it. `*` and `?` wildcards are honoured (`return-*.xml`) for a name a run
-derives. Declare nothing and the Outcome zone falls back to every file the runs
+derives. A deliverable only some runs produce — an audit roll-up that exists only
+for certain projects — is declared as `{ name: audit-summary.md, optional: true }`:
+it appears once a run files it, and is never announced as a promise that might
+not come. Declare nothing and the Outcome zone falls back to every file the runs
 filed, newest first.
 
 ## Where this fits

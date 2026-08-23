@@ -54,6 +54,12 @@ A live run does not execute in one go. It steps node by node, and every complete
 
 The same checkpoints cover a run whose continuation was lost. A run left in a non-terminal state past a grace period is picked back up automatically and continues from where its checkpoints say it got to, rather than restarting or sitting unfinished forever.
 
+## When an agent step fails
+
+An agent step that fails for a reason a fresh attempt could change — the provider refused the call, the sandbox died under it, the harness crashed — is retried by the run itself: up to three automatic attempts, immediately, on top of the original one. Everything upstream keeps its checkpoints, the run stays live the whole time, and its header counts the platform's attempts as **Auto-retry 1 of 3**, so you can tell the engine's retry from a rerun you started yourself. An attempt that made real progress — fifteen minutes of actual execution — refreshes the budget instead of spending it, and on providers served by a pool of subscription accounts each new attempt avoids the accounts that just failed.
+
+Two failures are never retried, because a fresh attempt could not end differently: a step that ran out its whole time window, and a question left unanswered until it expired. Once the budget is spent the run fails with the last error and says how many attempts it burned; each attempt is billed on its own, so a run that retried three times paid for four. A retrying run is still one live run — **Stop the run** is the way out when you can see the retries are not going to change anything.
+
 ## A worked debugging session
 
 The daily reminder did not go out. Open the automation and look at the **Runs** list: this morning's run is there and it is **Failed**, with its reason on the row.

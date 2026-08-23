@@ -50,7 +50,7 @@ async function loadOrgRetentionConfig(
     { area: 'retention', orgSlug },
   );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- validated by readConfigArea
-  return own ? (own as RetentionDefaultsConfig) : null;
+  return own ? own : null;
 }
 
 /**

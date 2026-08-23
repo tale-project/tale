@@ -259,7 +259,7 @@ describe('saveFileMetadata (public)', () => {
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });
 
-  it('skips RAG indexing when skipRagIndexing is set (external agent)', async () => {
+  it('skips RAG indexing when skipRagIndexing is set (external agent), persisting the opt-out', async () => {
     mockGetAuthUser.mockResolvedValue(AUTH_USER);
     const { ctx } = createMockCtx(null);
     const handler = await getHandler();
@@ -273,8 +273,33 @@ describe('saveFileMetadata (public)', () => {
       expect.objectContaining({
         ragStatus: undefined,
         ragQueuedAt: undefined,
+        skipRagIndexing: true,
       }),
     );
+    expect(mockMaybeDispatchRagIndexing).not.toHaveBeenCalled();
+  });
+
+  it('keeps a persisted opt-out sticky: a re-save WITHOUT the flag neither clears it nor queues', async () => {
+    mockGetAuthUser.mockResolvedValue(AUTH_USER);
+    const existing = {
+      _id: 'fm_existing',
+      organizationId: 'org_1',
+      storageId: 'storage_1',
+      fileName: 'test.pdf',
+      contentType: 'application/pdf',
+      size: 1024,
+      ragStatus: undefined,
+      skipRagIndexing: true,
+    };
+    const { ctx } = createMockCtx(existing);
+    const handler = await getHandler();
+
+    await handler(ctx, baseArgs);
+
+    const patch = (ctx.db.patch as unknown as { mock: { calls: unknown[][] } })
+      .mock.calls[0][1] as Record<string, unknown>;
+    expect(patch).not.toHaveProperty('ragStatus');
+    expect(patch).not.toHaveProperty('skipRagIndexing');
     expect(mockMaybeDispatchRagIndexing).not.toHaveBeenCalled();
   });
 

@@ -45,14 +45,14 @@ const MAIN_PAYLOAD = JSON.stringify({
   tool_name: 'Bash',
   session_id: 's-1',
   transcript_path:
-    '/user/.runtime/home/.claude/projects/-user-workspace/s-1.jsonl',
+    '/agent/.runtime/home/.claude/projects/-user-workspace/s-1.jsonl',
 });
 const SUBAGENT_PAYLOAD = JSON.stringify({
   hook_event_name: 'PostToolUse',
   tool_name: 'Bash',
   session_id: 's-1',
   transcript_path:
-    '/user/.runtime/home/.claude/projects/-user-workspace/s-1.jsonl',
+    '/agent/.runtime/home/.claude/projects/-user-workspace/s-1.jsonl',
   agent_id: 'a70ae7242b88701bc',
   agent_type: 'general-purpose',
 });

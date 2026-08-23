@@ -8,13 +8,14 @@ import { Field } from '@tale/ui/field';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Input } from '@tale/ui/input';
 import { Text } from '@tale/ui/text';
-import { Link } from '@tanstack/react-router';
-import { CheckCircle2, Play, SearchX, Save, Zap } from 'lucide-react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { CheckCircle2, Play, SearchX, Save, Trash2, Zap } from 'lucide-react';
 import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { PageActionHeader } from '@/app/components/layout/page-action-header';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import {
   EditorActions,
@@ -27,14 +28,22 @@ import {
 import { Select } from '@/app/components/ui/forms/select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
-import { automationDisplayDescription } from '@/lib/shared/schemas/automation_presentation';
+import {
+  automationDisplayDescription,
+  automationDisplayName,
+} from '@/lib/shared/schemas/automation_presentation';
 
 import { mergeNodeTypes } from '../hooks/backend';
-import { useSaveAutomation, useStartAutomationRun } from '../hooks/mutations';
+import {
+  useDeleteAutomation,
+  useSaveAutomation,
+  useStartAutomationRun,
+} from '../hooks/mutations';
 import {
   useAutomation,
   useAutomationProjects,
@@ -181,6 +190,7 @@ export function AutomationDetail({
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   /** The version the author asked to switch to while holding a draft. */
   const [pendingVersion, setPendingVersion] = useState<number | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const automationQuery = useAutomation(
     organizationId,
@@ -194,6 +204,44 @@ export function AutomationDetail({
   const { projects } = useProjects(organizationId);
   const save = useSaveAutomation();
   const startRun = useStartAutomationRun();
+  const deleteAutomation = useDeleteAutomation();
+  const navigate = useNavigate();
+
+  // Deleting navigates back to the listing this page was opened from — the
+  // project shell's tab when inside a project, the org list otherwise. The
+  // draft is dropped FIRST so the dirty-navigation guard has nothing left to
+  // protect: the document it guards no longer exists.
+  const confirmDelete = async (): Promise<void> => {
+    try {
+      await deleteAutomation.mutateAsync({
+        organizationId,
+        name: automationSlug,
+      });
+      setDraft(null);
+      setDeleteOpen(false);
+      toast({ title: t('detail.delete.done'), variant: 'success' });
+      await navigate(
+        projectId !== undefined
+          ? {
+              to: '/dashboard/$id/projects/$projectId/automations',
+              params: { id: organizationId, projectId },
+            }
+          : {
+              to: '/dashboard/$id/automations',
+              params: { id: organizationId },
+            },
+      );
+    } catch (error) {
+      // The refusal names the blocker (a run still queued/running/waiting) —
+      // hand the server's own sentence to the author, not a generic failure.
+      setDeleteOpen(false);
+      toast({
+        title: t('detail.delete.failed'),
+        description: automationErrorMessage(error),
+        variant: 'destructive',
+      });
+    }
+  };
 
   // The projects a run may target: the automation's own bindings, resolved to
   // names. A run scope only needs choosing when there are two or more — one
@@ -499,6 +547,18 @@ export function AutomationDetail({
               </Button>
             )}
             {canAuthor && <AutomationEditorActions />}
+            {canAuthor && (
+              <Button
+                size="icon"
+                variant="ghost"
+                icon={Trash2}
+                title={t('detail.delete.action')}
+                disabled={deleteAutomation.isPending}
+                onClick={() => {
+                  setDeleteOpen(true);
+                }}
+              />
+            )}
           </div>
         }
       />
@@ -722,6 +782,31 @@ export function AutomationDetail({
           setSelectedVersion(pendingVersion ?? undefined);
           setPendingVersion(null);
         }}
+      />
+
+      {/* Deleting removes the automation as a whole — every version, the
+          deployment, the triggers (a webhook URL dies with them) and the
+          project bindings. Run history stays until retention expires it, and
+          the server refuses while a run is still live, so nothing in flight
+          can be destroyed from here. */}
+      <DeleteDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          if (!deleteAutomation.isPending) setDeleteOpen(open);
+        }}
+        title={t('detail.delete.title')}
+        description={t('detail.delete.description')}
+        preview={{
+          primary: automationDisplayName(
+            automationQuery.data?.presentation,
+            automationSlug,
+            locale,
+          ),
+          secondary: automationSlug,
+        }}
+        warning={t('detail.delete.warning')}
+        isDeleting={deleteAutomation.isPending}
+        onDelete={() => void confirmDelete()}
       />
     </>
   );

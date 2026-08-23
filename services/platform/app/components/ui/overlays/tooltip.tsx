@@ -46,7 +46,7 @@ export function Tooltip({
             sideOffset={sideOffset}
             collisionPadding={collisionPadding}
             className={cn(
-              'z-[60] overflow-hidden rounded-lg border bg-foreground p-2 py-1 text-xs text-background shadow-md animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
+              'bg-foreground text-background animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md',
               contentClassName,
             )}
           >

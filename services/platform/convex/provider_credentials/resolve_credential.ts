@@ -48,6 +48,7 @@ import {
   diagnoseTokenMapping,
   pickToken,
 } from './broker_pool';
+import { filterBrokerTokensByHash } from './token_hash';
 
 /** The full row shape the internal queries return (`returns: v.any()`
  * erases it on the wire). */
@@ -71,6 +72,13 @@ export interface ResolveCredentialArgs {
   /** Broker tokens already tried this turn — rotation always advances to a
    * fresh one. Ignored for the other auth methods. */
   readonly excludeBrokerTokens?: readonly string[];
+  /** sha256 hex of broker tokens a failure streak already burned
+   * (`hashBrokerToken` stamps on the run rows) — the pick advances past
+   * them. Softer than `excludeBrokerTokens`: when the exclusions would empty
+   * the pool, the pick falls back to the FULL pool instead of refusing — a
+   * one-account deployment must retry on its only account, not starve
+   * itself. Ignored for the other auth methods. */
+  readonly excludeBrokerTokenHashes?: readonly string[];
 }
 
 export type ResolvedProviderCredential =
@@ -267,8 +275,21 @@ async function resolveBroker(
       `The token broker behind credential "${row.name}" yielded no usable tokens: ${describeEmptyPool(diagnostics, broker.responseMapping)}`,
     );
   }
-  const token = pickToken(
+  // Hash-based exclusion (a retry steering away from the streak's burned
+  // accounts) is advisory: when it would empty the pool, fall back to the
+  // full pool — retrying the only account beats not retrying at all.
+  const excludedHashes = new Set(args.excludeBrokerTokenHashes ?? []);
+  const { candidates, fellBack } = filterBrokerTokensByHash(
     diagnostics.usableTokens,
+    excludedHashes,
+  );
+  if (fellBack) {
+    console.warn(
+      `[credentials] broker "${row.name}": every usable token (pool size ${diagnostics.usableTokens.length}, ${excludedHashes.size} hash exclusion(s)) was already tried by the failure streak — falling back to the full pool`,
+    );
+  }
+  const token = pickToken(
+    candidates,
     new Set(args.excludeBrokerTokens ?? []),
     broker.selection,
   );

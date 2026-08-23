@@ -39,7 +39,7 @@ const FILES_BY_KIND: Record<ServiceKind, string[]> = {
     'Dockerfile.dockerignore.hbs',
     'docker-entrypoint.sh.hbs',
     '.gitignore',
-    '.oxlintrc.json',
+    '.oxlintrc.json.hbs',
     'README.md.hbs',
     'server.ts.hbs',
     'app/main.tsx.hbs',

@@ -206,6 +206,22 @@ export async function triggerRow(
     .unique();
 }
 
+/** The deletion marker for a name, if one stands. The default-pack seeder
+ * consults it so a deliberately deleted builtin does not come back on the
+ * next deploy; `save` clears it (the name is alive again). */
+export async function tombstoneRow(
+  ctx: QueryCtx,
+  organizationId: string,
+  name: string,
+): Promise<Doc<'automationTombstones'> | null> {
+  return await ctx.db
+    .query('automationTombstones')
+    .withIndex('by_org_name', (q) =>
+      q.eq('organizationId', organizationId).eq('name', name),
+    )
+    .unique();
+}
+
 /** One automation's project bindings. The binding set is the scope: empty
  * means org-level, non-empty means exactly those projects. */
 export async function bindingsOf(
@@ -438,6 +454,92 @@ export async function reconcileAutomationProjects(
 }
 
 /**
+ * Delete an automation: every version, its deployment, its triggers (a
+ * webhook URL dies here, a schedule stops firing) and its project bindings —
+ * one transaction, so no partial automation is ever observable.
+ *
+ * Refused while any run is still queued, running or waiting: a live run
+ * holds a sandbox session and may be parked on a human question, and failing
+ * it as a side effect of deletion would destroy in-flight work silently.
+ * Cancel the runs (or let them finish) first.
+ *
+ * Run history is deliberately KEPT — terminal runs are the audit record of
+ * what the automation did, and the `workflowLog` retention sweep already
+ * owns their lifecycle. A tombstone is recorded so the default-pack seeder
+ * does not resurrect a deleted builtin on the next deploy; saving the name
+ * again clears it.
+ */
+export async function deleteAutomationCascade(
+  ctx: MutationCtx,
+  args: { organizationId: string; name: string; actor: Actor },
+): Promise<{ name: string; versions: number }> {
+  const name = assertAutomationName(args.name);
+  const versions = await versionsOf(ctx, args.organizationId, name);
+  if (versions.length === 0) {
+    throw new ConvexError({
+      code: 'AUTOMATION_NOT_FOUND',
+      message: 'No such automation for this organization.',
+    });
+  }
+  // The index range is (org, name) — every run of this automation, live and
+  // terminal alike. The scan is bounded in practice by the workflowLog
+  // retention sweep, which expires and hard-deletes aged terminal rows.
+  const activeRun = await ctx.db
+    .query('automationRuns')
+    .withIndex('by_org_name', (q) =>
+      q.eq('organizationId', args.organizationId).eq('name', name),
+    )
+    .filter((q) =>
+      q.or(
+        q.eq(q.field('status'), 'queued'),
+        q.eq(q.field('status'), 'running'),
+        q.eq(q.field('status'), 'waiting'),
+      ),
+    )
+    .first();
+  if (activeRun !== null) {
+    throw new ConvexError({
+      code: 'AUTOMATION_HAS_ACTIVE_RUNS',
+      message: `A run of "${name}" is still ${activeRun.status} — cancel it (or let it finish) before deleting the automation.`,
+    });
+  }
+  for (const version of versions) {
+    await ctx.db.delete(version._id);
+  }
+  const deployment = await deploymentRow(ctx, args.organizationId, name);
+  if (deployment !== null) await ctx.db.delete(deployment._id);
+  // One trigger per name is the store's rule, but the delete sweeps the
+  // whole index range so a historic duplicate cannot keep firing.
+  const triggers = await ctx.db
+    .query('automationTriggers')
+    .withIndex('by_org_name', (q) =>
+      q.eq('organizationId', args.organizationId).eq('name', name),
+    )
+    .collect();
+  for (const trigger of triggers) {
+    await ctx.db.delete(trigger._id);
+  }
+  for (const binding of await bindingsOf(ctx, args.organizationId, name)) {
+    await ctx.db.delete(binding._id);
+  }
+  const tombstone = await tombstoneRow(ctx, args.organizationId, name);
+  if (tombstone === null) {
+    await ctx.db.insert('automationTombstones', {
+      organizationId: args.organizationId,
+      name,
+      deletedBy: args.actor,
+      deletedAt: Date.now(),
+    });
+  } else {
+    await ctx.db.patch(tombstone._id, {
+      deletedBy: args.actor,
+      deletedAt: Date.now(),
+    });
+  }
+  return { name, versions: versions.length };
+}
+
+/**
  * The full store for one organization. `ctx` must be a mutation context: the
  * write methods are what make this more than the read adapter above.
  */
@@ -474,6 +576,10 @@ export function automationStore(
         });
       }
       const version = (rows.at(-1)?.version ?? 0) + 1;
+      // A save under a deleted name revives it: without this, a re-created
+      // builtin would stay invisible to the default-pack seeder forever.
+      const tombstone = await tombstoneRow(ctx, organizationId, name);
+      if (tombstone !== null) await ctx.db.delete(tombstone._id);
       await ctx.db.insert('automations', {
         organizationId,
         name,

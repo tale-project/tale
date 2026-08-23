@@ -228,7 +228,7 @@ export function SiteHeader({
         <div
           className={cn(
             'grid lg:hidden',
-            'motion-reduce:transition-none transition-[grid-template-rows] duration-200 ease-out',
+            'transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none',
             open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
           )}
         >

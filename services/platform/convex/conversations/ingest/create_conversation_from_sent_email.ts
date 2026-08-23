@@ -8,7 +8,7 @@ import { buildConversationMetadata } from './build_conversation_metadata';
 import { buildInitialMessage } from './build_initial_message';
 import { checkConversationExists } from './check_conversation_exists';
 import { checkMessageExists } from './check_message_exists';
-import { MAX_EMAILS_PER_BATCH } from './constants';
+import { MAX_EMAILS_PER_BATCH, NO_SUBJECT } from './constants';
 import { findOrCreateContactFromEmail } from './find_or_create_contact_from_email';
 import { normalizeEmails } from './normalize_email';
 import { normalizeExternalMessageId } from './normalize_external_message_id';
@@ -257,7 +257,7 @@ export async function createConversationFromSentEmail(
         organizationId: params.organizationId,
         contactId: contactResult.contactId,
         externalMessageId: normalizeExternalMessageId(email.messageId),
-        subject: email.subject || '(no subject)',
+        subject: email.subject || NO_SUBJECT,
         status: params.status ?? 'open',
         priority: params.priority,
         type: params.type || 'general',

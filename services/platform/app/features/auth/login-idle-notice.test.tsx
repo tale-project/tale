@@ -7,7 +7,7 @@ import { render } from '@/tests/utils/render';
 // ── Router ───────────────────────────────────────────────────────────────────
 const { mockNavigate, mockSearch } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
-  mockSearch: { value: {} as Record<string, unknown> },
+  mockSearch: { value: {} },
 }));
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => () => ({ component: null }),

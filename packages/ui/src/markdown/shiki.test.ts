@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { highlightCode, resolveShikiTheme } from './shiki';
+import { highlightCode, resolveLanguage, resolveShikiTheme } from './shiki';
 
 describe('resolveShikiTheme', () => {
   it('maps light aliases onto min-light', () => {
@@ -23,5 +23,30 @@ describe('highlightCode themes', () => {
 
     const light = await highlightCode('{"a":1}', 'json', 'github-light');
     expect(light?.html).toContain('class="shiki min-light"');
+  });
+});
+
+describe('diff highlighting', () => {
+  it('resolves .patch onto the diff grammar', () => {
+    expect(resolveLanguage('patch')).toBe('diff');
+    expect(resolveLanguage('diff')).toBe('diff');
+  });
+
+  // REGRESSION: the min-* themes ship no colors for the diff scopes, so a
+  // previewed .patch file rendered fully monochrome. The extended themes must
+  // give added and removed lines distinct colors.
+  it('colors added and removed lines distinctly', async () => {
+    const result = await highlightCode(
+      '@@ -1,2 +1,2 @@\n-const a = 1;\n+const a = 2;\n',
+      'patch',
+      'light',
+    );
+    expect(result?.language).toBe('diff');
+    expect(result?.html).toContain('#22863A');
+    expect(result?.html).toContain('#B31D28');
+
+    const dark = await highlightCode('-old\n+new\n', 'diff', 'dark');
+    expect(dark?.html).toContain('#85E89D');
+    expect(dark?.html).toContain('#F97583');
   });
 });

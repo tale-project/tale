@@ -27,7 +27,7 @@ export function FilePreviewCard({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-xl border border-border p-3',
+        'border-border flex items-center gap-3 rounded-xl border p-3',
         className,
       )}
     >

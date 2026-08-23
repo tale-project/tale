@@ -58,7 +58,7 @@ export const BottomTabBar = forwardRef<HTMLElement, BottomTabBarProps>(
       aria-label={ariaLabel}
       className={cn(
         'bg-background/95 border-border flex border-t shadow-[0_-1px_2px_rgba(0,0,0,0.04)] backdrop-blur-md md:hidden',
-        'pb-(--safe-bottom) pl-(--safe-left) pr-(--safe-right)',
+        'pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)',
         className,
       )}
       {...props}
@@ -91,7 +91,7 @@ function BottomTabBarButton({ item }: BottomTabBarButtonProps) {
       aria-current={item.active ? 'page' : undefined}
       className={cn(
         'group relative flex min-h-12 min-w-0 flex-1 basis-0 touch-manipulation flex-col items-center justify-start gap-0.5 px-1 pt-2 pb-1.5 text-[11px] font-medium transition-colors select-none [-webkit-tap-highlight-color:transparent]',
-        'focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-inset focus-visible:outline-none',
+        'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
         item.active
           ? item.accentColor
             ? ''

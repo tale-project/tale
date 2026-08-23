@@ -9,15 +9,21 @@
  * self-chaining drive action re-attaches in short windows (the same
  * ring-buffer protocol the chat lane uses, through the shared
  * `drainHarnessWindow` core); when the harness ends, the settle harvests
- * `/user/output`, revokes the turn's gateway key, writes the result into the
- * run's cursor, and pokes the stepper — which consumes it on its next entry.
+ * `/agent/output`, revokes the turn's gateway key (when the lane minted
+ * one), writes the result into the run's cursor, and pokes the stepper —
+ * which consumes it on its next entry.
+ *
+ * Serving is two-lane (`resolveWorkflowAgentServing`): a direct api-key/env
+ * credential behind a session gateway key — the default — or a vendor
+ * subscription credential (e.g. a brokered Claude OAuth pool) redeemed per
+ * turn and handed to the harness's own CLI, exactly the task lane's split.
  *
  * Everything org-scoped is bound here at construction (the run decides whose
  * session, whose skills, whose credentials — never the document), mirroring
  * `automationLlmCall`.
  */
 
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { v } from 'convex/values';
 
@@ -30,12 +36,14 @@ import {
   buildExternalTurnExec,
   classifyHarnessEnd,
   drainHarnessWindow,
+  type ExternalTurnServing,
   type HarnessTimelinePart,
   connectorsBridgeUrlForSessions,
   isManagedHarness,
   SKILLS_DIR,
 } from '../chat/external_turn_shared';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { resolveWorkflowAgentServing } from '../lib/providers/agent_serving';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
@@ -50,11 +58,14 @@ import {
 import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
 import {
   getVirtualKeySpendCents,
+  hashVirtualKey,
   resolveGatewayRouting,
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
+import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import { hashBrokerToken } from '../provider_credentials/token_hash';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import {
   sessionIdForWorkflowExecution,
@@ -69,7 +80,6 @@ import {
   secretsGuidance,
 } from '../sandbox/tool_names';
 import type { AgentTurnFile, AgentTurnResult } from './checkpoints';
-import { resolveServingTarget } from './llm_call';
 
 // The turn's wall-clock deadline is the shared work-turn knob
 // (`agentWorkTurnDeadlineMs`) — the exec's own `timeoutMs` is only a sliding
@@ -109,6 +119,8 @@ export interface WorkflowAgentKick {
   sessionId: string;
   deadlineAt: number;
   providerSlug: string;
+  /** The exec's model string: the gateway ref on the gateway lane, the
+   * vendor-native catalog id on the subscription lane. */
   gatewayModel: string;
   harness: string;
 }
@@ -124,6 +136,9 @@ export interface AutomationAgentHost {
     runId: string;
     nodeId: string;
     request: WorkflowAgentRequest;
+    /** Broker-token hashes burned by prior failed attempts of this node
+     * execution — the mint rotates away from them (softly). */
+    excludeBrokerTokenHashes?: string[];
   }): Promise<WorkflowAgentKick>;
   /** The settled result, or `null` while the turn still runs. Reads fresh —
    * the settle may land after the stepper's turn loaded its checkpoints. */
@@ -284,26 +299,38 @@ export function automationAgentHost(
   organizationId: string,
 ): AutomationAgentHost {
   return {
-    kick: async ({ runId, nodeId, request }) => {
+    kick: async ({ runId, nodeId, request, excludeBrokerTokenHashes }) => {
       const harness = request.harness ?? DEFAULT_HARNESS;
       if (!isManagedHarness(harness)) {
         throw new Error(
           `the harness "${harness}" cannot run a managed automation turn — pick a managed-capable harness (e.g. "claude-code" or "codex")`,
         );
       }
-      const target = await resolveServingTarget(
-        ctx,
+      const serving = await resolveWorkflowAgentServing(ctx, {
         organizationId,
-        request.model,
-      );
-      const routing = resolveGatewayRouting(
-        target.providerSlug,
-        target.modelId,
-      );
+        model: request.model,
+        harness,
+      });
+      // The exec's model string: the gateway ref on the gateway lane, the
+      // vendor-native catalog id on the subscription lane (the vendor CLI
+      // authenticates directly and knows nothing of gateway refs).
+      const execModel =
+        serving.lane === 'gateway'
+          ? resolveGatewayRouting(serving.providerSlug, serving.modelId)
+              .gatewayModel
+          : serving.modelId;
       // A text-only serving model still meets image inputs (scanned PDFs,
       // screenshots) — arm the harness vision polyfill with the org's vision
       // model so those route through the gateway instead of 404ing the turn.
-      const vision = await resolveTurnVisionModel(ctx, organizationId, target);
+      // Gateway lane only: the subscription lane mints no gateway key for a
+      // polyfill call to ride on.
+      const vision =
+        serving.lane === 'gateway'
+          ? await resolveTurnVisionModel(ctx, organizationId, {
+              providerSlug: serving.providerSlug,
+              modelId: serving.modelId,
+            })
+          : null;
       const execId = randomUUID();
       const sessionId = sessionIdForWorkflowExecution(runId);
       const deadlineAt = Date.now() + agentWorkTurnDeadlineMs();
@@ -320,7 +347,7 @@ export function automationAgentHost(
           execId,
           kind: 'workflow-agent',
           status: 'running',
-          modelRef: `${target.providerSlug}/${routing.gatewayModel}`,
+          modelRef: `${serving.providerSlug}/${execModel}`,
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
         },
@@ -336,14 +363,22 @@ export function automationAgentHost(
           execId,
           sessionId,
           harness,
-          providerSlug: target.providerSlug,
-          modelId: target.modelId,
-          gatewayModel: routing.gatewayModel,
+          lane: serving.lane,
+          providerSlug: serving.providerSlug,
+          modelId: serving.modelId,
+          gatewayModel: execModel,
+          ...(serving.lane === 'subscription'
+            ? { apiBaseUrl: serving.apiBaseUrl }
+            : {}),
           ...(vision !== null
             ? {
                 visionProviderSlug: vision.providerSlug,
                 visionModelId: vision.modelId,
               }
+            : {}),
+          ...(excludeBrokerTokenHashes !== undefined &&
+          excludeBrokerTokenHashes.length > 0
+            ? { excludeBrokerTokenHashes }
             : {}),
           deadlineAt,
           request: {
@@ -366,8 +401,8 @@ export function automationAgentHost(
         execId,
         sessionId,
         deadlineAt,
-        providerSlug: target.providerSlug,
-        gatewayModel: routing.gatewayModel,
+        providerSlug: serving.providerSlug,
+        gatewayModel: execModel,
         harness,
       };
     },
@@ -406,6 +441,7 @@ export function automationAgentHost(
               errored: true,
               reason:
                 'the agent asked the operator a question and nobody answered within 7 days',
+              failureCode: 'ask_expired',
               text: '',
               files: [],
             },
@@ -621,7 +657,7 @@ export async function resolveRunSkillViewer(
 }
 
 /**
- * Stage one skill's WHOLE bundle at `destDir` (a `/user`-relative path),
+ * Stage one skill's WHOLE bundle at `destDir` (a `/agent`-relative path),
  * read as `viewer` — the run's own scope, resolved by
  * {@link resolveRunSkillViewer} or the task host. A missing skill and one the
  * scope may not equip fail the same way, by name — a run against a skill
@@ -680,7 +716,7 @@ export async function stageWorkflowSkills(
   }
   return [
     'Skills equipped for this task (read a skill before using it):',
-    ...skillSlugs.map((slug) => `- /user/${SKILLS_DIR}/${slug}/SKILL.md`),
+    ...skillSlugs.map((slug) => `- /agent/${SKILLS_DIR}/${slug}/SKILL.md`),
   ].join('\n');
 }
 
@@ -722,7 +758,7 @@ function mountNameOf(raw: string): string {
 
 /**
  * Stage the node's `files` map into the session workspace: each mount becomes
- * `/user/<prefix><name>/…` holding the referenced folder's documents (or the
+ * `/agent/<prefix><name>/…` holding the referenced folder's documents (or the
  * inline content). A folder reference that does not resolve fails the turn —
  * a run against the wrong folder must not quietly proceed with nothing.
  */
@@ -762,7 +798,7 @@ export async function stageWorkflowFiles(
       mounts.push(name);
       continue;
     }
-    const rows = await ctx.runQuery(
+    const listing = await ctx.runQuery(
       internal.documents.internal_queries.listFilesByFolderInternal,
       {
         organizationId,
@@ -770,14 +806,26 @@ export async function stageWorkflowFiles(
           ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reference is data from the run's own scope; a wrong id resolves to null below
             { folderId: source.folderId as never }
           : { folderPath: source.folderPath }),
+        // Mounting a folder means mounting its TREE: subfolder files stage
+        // under their relative path (the daemon mkdirs parents), so a
+        // client's delivered folder structure survives into the workspace.
+        recursive: true,
       },
     );
-    if (rows === null) {
+    if (listing === null) {
       throw new Error(
         `the folder referenced by files.${name} does not exist (${JSON.stringify(source)})`,
       );
     }
-    for (const file of rows) {
+    if (listing.truncated) {
+      // A truncated mount is NOT the folder — staging it would hand the run a
+      // complete-looking subset of its inputs, the silent-partial class that
+      // once made runs read as "produced nothing". Fail the turn instead.
+      throw new Error(
+        `the folder referenced by files.${name} exceeds the staging caps — the listing was truncated, so the run would see only part of its inputs`,
+      );
+    }
+    for (const file of listing.files) {
       // Blob-aware: a BYO-bucket org's documents carry `s3:` refs, which stage
       // via the token-gated stream route instead of a `_storage` URL.
       const url = await stageUrlForBlobRef(
@@ -812,6 +860,117 @@ const requestValidator = v.object({
   files: v.optional(v.any()),
 });
 
+/** What one workflow agent turn's exec authenticates with, minted per lane
+ * (the task lane's `mintTurnServing` shape, automation-scoped). */
+interface WorkflowTurnAuth {
+  serving: ExternalTurnServing;
+  /** VK id for the op row + settle spend/revoke; absent on subscription. */
+  mintedKeyId?: string;
+  /** sha256 of the exec's bearer, for the session-token row. */
+  tokenHash: string;
+  /** The session-token scope's model allowlist (gateway refs). */
+  allowedModels: string[];
+  /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
+  budgetCents: number;
+  /** sha256 of the broker token this turn was minted on — only the
+   * subscription-broker branch, where a retry can rotate accounts. */
+  brokerTokenHash?: string;
+}
+
+/**
+ * Mint what the resolved lane authenticates with — called late (after the
+ * session ensure and staging) so a parked or failed start never leaks a
+ * minted key. GATEWAY: the session virtual key over serving + vision models,
+ * exactly the pre-subscription flow. SUBSCRIPTION: redeem the serving
+ * provider's default subscription credential (broker failures carry their
+ * typed, actionable messages into the node error) and mint NO virtual key —
+ * the vendor token serves inference, while a random session token keeps the
+ * capability bridge reachable; there is no gateway spend to meter, and
+ * nothing to revoke at settle. Shared by the fresh start and the answered-ask
+ * resume so the two paths can never drift.
+ */
+async function mintWorkflowTurnAuth(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    lane: 'gateway' | 'subscription';
+    providerSlug: string;
+    modelId: string;
+    /** The exec's model string: gateway ref, or vendor-native catalog id. */
+    gatewayModel: string;
+    /** Subscription lane only — the vendor API base the CLI calls. */
+    apiBaseUrl?: string;
+    vision: { providerSlug: string; modelId: string } | null;
+    /** Broker accounts burned by prior failed attempts — excluded softly
+     * (an emptied pool falls back to every account). */
+    excludeBrokerTokenHashes?: readonly string[];
+  },
+): Promise<WorkflowTurnAuth> {
+  if (args.lane === 'gateway') {
+    const budgetCents = workflowAgentBudgetCents();
+    const key = await provisionSessionGatewayKey(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      allowedModels: [
+        { providerSlug: args.providerSlug, modelId: args.modelId },
+        ...(args.vision !== null ? [args.vision] : []),
+      ],
+      budgetCents,
+    });
+    return {
+      serving: { kind: 'gateway', token: key.token },
+      mintedKeyId: key.keyId,
+      tokenHash: key.keyHash,
+      allowedModels: [args.gatewayModel],
+      budgetCents,
+    };
+  }
+  if (args.apiBaseUrl === undefined) {
+    // The kick always resolves one before picking this lane; a missing value
+    // here is a legacy in-flight call and must not launch an unpointed CLI.
+    throw new Error(
+      `provider "${args.providerSlug}" resolved to the subscription lane without an API base URL — rerun the automation`,
+    );
+  }
+  const credential = await resolveProviderCredential(ctx, {
+    organizationId: args.organizationId,
+    providerSlug: args.providerSlug,
+    ...(args.excludeBrokerTokenHashes !== undefined &&
+    args.excludeBrokerTokenHashes.length > 0
+      ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
+      : {}),
+  });
+  if (
+    credential.authMethod !== 'subscription-key' &&
+    credential.authMethod !== 'subscription-broker'
+  ) {
+    // The default credential changed shape between resolution and redeem.
+    throw new Error(
+      `provider "${args.providerSlug}"'s default credential is no longer a subscription — rerun the automation`,
+    );
+  }
+  const secret =
+    credential.authMethod === 'subscription-broker'
+      ? credential.token
+      : credential.secret;
+  const bridgeToken = `tale-sub-${randomBytes(24).toString('base64url')}`;
+  return {
+    serving: {
+      kind: 'subscription',
+      secret,
+      baseUrl: args.apiBaseUrl,
+      bridgeToken,
+    },
+    tokenHash: hashVirtualKey(bridgeToken),
+    allowedModels: [],
+    budgetCents: 0,
+    ...(credential.authMethod === 'subscription-broker'
+      ? { brokerTokenHash: hashBrokerToken(credential.token) }
+      : {}),
+  };
+}
+
 /**
  * The scheduled turn start — everything slow: session ensure, staging, key
  * mint, exec build, first window. Any throw settles the node with the error
@@ -825,13 +984,25 @@ export const startWorkflowAgentTurn = internalAction({
     execId: v.string(),
     sessionId: v.string(),
     harness: v.string(),
+    /** The serving lane the kick resolved; absent on in-flight calls from
+     * before the subscription lane existed — those are gateway turns. */
+    lane: v.optional(v.union(v.literal('gateway'), v.literal('subscription'))),
     providerSlug: v.string(),
     modelId: v.string(),
+    /** The exec's model string: the gateway ref on the gateway lane, the
+     * vendor-native catalog id on the subscription lane. */
     gatewayModel: v.string(),
+    /** Subscription lane only — the vendor API base the CLI calls. */
+    apiBaseUrl: v.optional(v.string()),
     /** Vision-polyfill model (absent when the serving model reads images
-     * itself) — provisioned onto the turn key and armed on the exec. */
+     * itself, and always on the subscription lane) — provisioned onto the
+     * turn key and armed on the exec. */
     visionProviderSlug: v.optional(v.string()),
     visionModelId: v.optional(v.string()),
+    /** Broker accounts burned by prior failed attempts of this node
+     * execution — absent on first kicks and on in-flight calls from before
+     * auto-retry existed. */
+    excludeBrokerTokenHashes: v.optional(v.array(v.string())),
     deadlineAt: v.number(),
     request: requestValidator,
   },
@@ -861,7 +1032,6 @@ export const startWorkflowAgentTurn = internalAction({
         'workspace/',
       );
 
-      const budgetCents = workflowAgentBudgetCents();
       const visionRef =
         args.visionProviderSlug !== undefined &&
         args.visionModelId !== undefined
@@ -878,27 +1048,51 @@ export const startWorkflowAgentTurn = internalAction({
           ? resolveGatewayRouting(visionRef.providerSlug, visionRef.modelId)
               .gatewayModel
           : undefined;
-      const key = await provisionSessionGatewayKey(ctx, {
+      const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
-        allowedModels: [
-          { providerSlug: args.providerSlug, modelId: args.modelId },
-          ...(visionRef !== null ? [visionRef] : []),
-        ],
-        budgetCents,
+        lane: args.lane ?? 'gateway',
+        providerSlug: args.providerSlug,
+        modelId: args.modelId,
+        gatewayModel: args.gatewayModel,
+        ...(args.apiBaseUrl !== undefined
+          ? { apiBaseUrl: args.apiBaseUrl }
+          : {}),
+        vision: visionRef,
+        ...(args.excludeBrokerTokenHashes !== undefined
+          ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
+          : {}),
       });
+      // Launch facts for the retry gate: the attempt is executing from here
+      // on, and (broker lane) on which account. Best-effort — a refused
+      // stamp only undercounts progress, never blocks the turn.
+      await ctx.runMutation(
+        internal.automations.mutations.stampAgentTurnLaunch,
+        {
+          organizationId: args.organizationId,
+          runId: args.runId,
+          nodeId: args.nodeId,
+          execId: args.execId,
+          launchedAt: Date.now(),
+          ...(auth.brokerTokenHash !== undefined
+            ? { brokerTokenHash: auth.brokerTokenHash }
+            : {}),
+        },
+      );
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
           organizationId: args.organizationId,
           sessionId: args.sessionId,
-          tokenHash: key.keyHash,
-          llmGatewayKeyId: key.keyId,
+          tokenHash: auth.tokenHash,
+          ...(auth.mintedKeyId !== undefined
+            ? { llmGatewayKeyId: auth.mintedKeyId }
+            : {}),
           scope: {
             agentKind: args.harness,
-            allowedModels: [args.gatewayModel],
+            allowedModels: auth.allowedModels,
             connectorGrants: [...(args.request.connectors ?? [])],
-            budgetCents,
+            budgetCents: auth.budgetCents,
             // The automation baseline — ask_human + the knowledge pair
             // (visibility derives from THIS run's project binding at dispatch,
             // so the grant alone never widens what the run can read) — PLUS
@@ -924,7 +1118,9 @@ export const startWorkflowAgentTurn = internalAction({
           modelRef: `${args.providerSlug}/${args.gatewayModel}`,
           deadlineMs: args.deadlineAt,
           heartbeatAt: Date.now(),
-          mintedKeyId: key.keyId,
+          ...(auth.mintedKeyId !== undefined
+            ? { mintedKeyId: auth.mintedKeyId }
+            : {}),
         },
       );
 
@@ -950,7 +1146,7 @@ export const startWorkflowAgentTurn = internalAction({
           ? [
               [
                 'Input files staged for this task:',
-                ...mounts.map((name) => `- /user/workspace/${name}/`),
+                ...mounts.map((name) => `- /agent/workspace/${name}/`),
               ].join('\n'),
             ]
           : []),
@@ -959,7 +1155,7 @@ export const startWorkflowAgentTurn = internalAction({
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
         ...(projectGuidance !== undefined ? [projectGuidance] : []),
         ...secretsGuidance(args.request.secrets ?? []),
-        "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
+        "Write every file you produce to /agent/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');
 
       // Per-exec credential env: the node's referenced secrets + any brokerable
@@ -975,7 +1171,7 @@ export const startWorkflowAgentTurn = internalAction({
       const exec = buildExternalTurnExec({
         harness: args.harness,
         gatewayModel: args.gatewayModel,
-        serving: { kind: 'gateway', token: key.token },
+        serving: auth.serving,
         instructions,
         prompt: args.request.prompt,
         execId: args.execId,
@@ -1009,6 +1205,7 @@ export const startWorkflowAgentTurn = internalAction({
       await settleWorkflowAgentTurn(ctx, args, {
         errored: true,
         reason: `the agent turn could not start: ${err instanceof Error ? err.message : String(err)}`,
+        failureCode: 'start_failed',
         text: '',
         files: [],
       });
@@ -1080,6 +1277,7 @@ export const driveWorkflowAgentTurn = internalAction({
       await settleWorkflowAgentTurn(ctx, args, {
         errored: true,
         reason: 'the agent turn ran past its time limit and was stopped',
+        failureCode: 'deadline',
         text: '',
         files: [],
       });
@@ -1099,9 +1297,13 @@ export const driveWorkflowAgentTurn = internalAction({
     } catch (err) {
       console.error('[agent-host] drive window threw:', err);
       await progress.flush();
+      // A drain that died at the deadline is the deadline, not a crash — a
+      // retry of a burned 12h window would be pure waste.
+      const pastDeadline = Date.now() > args.deadlineAt;
       await settleWorkflowAgentTurn(ctx, args, {
         errored: true,
-        reason: 'the agent turn stopped unexpectedly',
+        reason: `the agent turn stopped unexpectedly: ${err instanceof Error ? err.message : String(err)}`,
+        failureCode: pastDeadline ? 'deadline' : 'turn_crashed',
         text: '',
         files: [],
       });
@@ -1177,28 +1379,38 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       gatewayModel: agent.gatewayModel,
       deadlineAt,
     };
+    // Which exec the cursor names decides where a failure settle can land:
+    // before the retarget it still names the ASKING exec, so a settle under
+    // the fresh id would be refused by the record's execId fence and the run
+    // would sit parked until its ask-extended deadline.
+    let retargeted = false;
     try {
       // The wait may have outlived the container (idle reaper stops and
       // preserves) — the session volume holds the workspace AND the harness's
       // own conversation state, so an adopt-or-recreate brings both back.
       await ensureWorkflowSession(ctx, args.organizationId, askRunId);
 
-      const target = await resolveServingTarget(
-        ctx,
-        args.organizationId,
-        request.model,
-      );
-      const routing = resolveGatewayRouting(
-        target.providerSlug,
-        target.modelId,
-      );
-      keys.providerSlug = target.providerSlug;
-      keys.gatewayModel = routing.gatewayModel;
-      const vision = await resolveTurnVisionModel(
-        ctx,
-        args.organizationId,
-        target,
-      );
+      const serving = await resolveWorkflowAgentServing(ctx, {
+        organizationId: args.organizationId,
+        model: request.model,
+        harness: agent.harness,
+      });
+      const execModel =
+        serving.lane === 'gateway'
+          ? resolveGatewayRouting(serving.providerSlug, serving.modelId)
+              .gatewayModel
+          : serving.modelId;
+      keys.providerSlug = serving.providerSlug;
+      keys.gatewayModel = execModel;
+      // Gateway lane only — the subscription lane mints no gateway key for a
+      // vision-polyfill call to ride on.
+      const vision =
+        serving.lane === 'gateway'
+          ? await resolveTurnVisionModel(ctx, args.organizationId, {
+              providerSlug: serving.providerSlug,
+              modelId: serving.modelId,
+            })
+          : null;
       // Resolved once, for the harness and for the op row's record of which
       // model read this turn's images.
       const visionModelRef =
@@ -1206,30 +1418,38 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
           ? resolveGatewayRouting(vision.providerSlug, vision.modelId)
               .gatewayModel
           : undefined;
-      const budgetCents = workflowAgentBudgetCents();
-      const key = await provisionSessionGatewayKey(ctx, {
+      const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,
         sessionId,
-        allowedModels: [
-          { providerSlug: target.providerSlug, modelId: target.modelId },
-          ...(vision !== null
-            ? [{ providerSlug: vision.providerSlug, modelId: vision.modelId }]
-            : []),
-        ],
-        budgetCents,
+        lane: serving.lane,
+        providerSlug: serving.providerSlug,
+        modelId: serving.modelId,
+        gatewayModel: execModel,
+        ...(serving.lane === 'subscription'
+          ? { apiBaseUrl: serving.apiBaseUrl }
+          : {}),
+        vision,
+        // The resumed turn rotates like a re-kick would — re-minting on an
+        // account prior attempts already burned wastes the answer.
+        ...(agent.burnedBrokerTokenHashes !== undefined &&
+        agent.burnedBrokerTokenHashes.length > 0
+          ? { excludeBrokerTokenHashes: agent.burnedBrokerTokenHashes }
+          : {}),
       });
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
           organizationId: args.organizationId,
           sessionId,
-          tokenHash: key.keyHash,
-          llmGatewayKeyId: key.keyId,
+          tokenHash: auth.tokenHash,
+          ...(auth.mintedKeyId !== undefined
+            ? { llmGatewayKeyId: auth.mintedKeyId }
+            : {}),
           scope: {
             agentKind: agent.harness,
-            allowedModels: [routing.gatewayModel],
+            allowedModels: auth.allowedModels,
             connectorGrants: [...(request.connectors ?? [])],
-            budgetCents,
+            budgetCents: auth.budgetCents,
             // Same grant set as the node's first start: baseline + configured
             // tool grants, so the resumed turn keeps the equipment it had.
             toolGrants: [
@@ -1262,6 +1482,24 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         );
         return null;
       }
+      retargeted = true;
+      // Launch facts under the resume's exec (the retarget just installed
+      // it): executed time measures the post-answer slice, matching the
+      // task lane's per-launch semantics.
+      await ctx.runMutation(
+        internal.automations.mutations.stampAgentTurnLaunch,
+        {
+          organizationId: args.organizationId,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the ask row carries the durable run id
+          runId: askRunId as never,
+          nodeId: ask.nodeId,
+          execId,
+          launchedAt: Date.now(),
+          ...(auth.brokerTokenHash !== undefined
+            ? { brokerTokenHash: auth.brokerTokenHash }
+            : {}),
+        },
+      );
       await ctx.runMutation(
         internal.sandbox.session_mutations.upsertSessionOp,
         {
@@ -1273,7 +1511,9 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
           modelRef: `${keys.providerSlug}/${keys.gatewayModel}`,
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
-          mintedKeyId: key.keyId,
+          ...(auth.mintedKeyId !== undefined
+            ? { mintedKeyId: auth.mintedKeyId }
+            : {}),
         },
       );
 
@@ -1301,7 +1541,7 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
         ...(projectGuidance !== undefined ? [projectGuidance] : []),
         ...secretsGuidance(request.secrets ?? []),
-        "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
+        "Write every file you produce to /agent/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');
       const prompt = [
         'The operator answered your question:',
@@ -1319,7 +1559,7 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       const exec = buildExternalTurnExec({
         harness: agent.harness,
         gatewayModel: keys.gatewayModel,
-        serving: { kind: 'gateway', token: key.token },
+        serving: auth.serving,
         instructions,
         prompt,
         execId,
@@ -1359,12 +1599,23 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       await continueOrSettle(ctx, keys, window);
     } catch (err) {
       console.error('[agent-host] answered-ask resume failed:', err);
-      await settleWorkflowAgentTurn(ctx, keys, {
-        errored: true,
-        reason: `the agent turn could not resume after the answer: ${err instanceof Error ? err.message : String(err)}`,
-        text: '',
-        files: [],
-      });
+      // A death BEFORE the retarget settles under the asking exec the cursor
+      // still names: its finalize claim was burned at the ask park, but the
+      // dead-winner branch completes the record (cursor matches, no result),
+      // so the run wakes into the retry gate instead of burning silently to
+      // the ask-extended deadline. After the retarget the fresh exec is the
+      // cursor's, and the settle targets it as before.
+      await settleWorkflowAgentTurn(
+        ctx,
+        retargeted ? keys : { ...keys, execId: ask.execId },
+        {
+          errored: true,
+          reason: `the agent turn could not resume after the answer: ${err instanceof Error ? err.message : String(err)}`,
+          failureCode: 'resume_failed',
+          text: '',
+          files: [],
+        },
+      );
     }
     return null;
   },
@@ -1507,6 +1758,7 @@ async function continueOrSettle(
     await settleWorkflowAgentTurn(ctx, args, {
       errored: true,
       reason: 'the sandbox session ended before the agent turn finished',
+      failureCode: 'session_gone',
       text: '',
       files: [],
     });
@@ -1593,6 +1845,19 @@ async function continueOrSettle(
     {
       errored,
       ...(crashReason !== undefined ? { reason: crashReason } : {}),
+      // Classification for the retry gate: a harness-reported error and a
+      // crashed-no-result window both read `harness_error` (mirroring the
+      // task lane), except a death at the deadline — retrying a burned 12h
+      // window is waste. The API status rides along for display only.
+      ...(errored
+        ? {
+            failureCode:
+              Date.now() > args.deadlineAt ? 'deadline' : 'harness_error',
+          }
+        : {}),
+      ...(errored && ended?.apiErrorStatus !== undefined
+        ? { apiErrorStatus: ended.apiErrorStatus }
+        : {}),
       text,
       files: [],
       ...(ended?.status !== undefined ? { status: ended.status } : {}),
@@ -1611,7 +1876,7 @@ async function continueOrSettle(
 }
 
 /**
- * Settle the turn exactly once: harvest `/user/output`, revoke the key, stamp
+ * Settle the turn exactly once: harvest `/agent/output`, revoke the key, stamp
  * the op row, write the result into the run's cursor, and poke the stepper.
  * Losers of the finalize claim do nothing — the winner's cursor write is what
  * the stepper consumes.
@@ -1662,6 +1927,8 @@ async function settleWorkflowAgentTurn(
   }
 
   let files: AgentTurnFile[] = result.files;
+  let harvestSkipped: AgentTurnResult['harvestSkipped'];
+  let harvestError: string | undefined;
   if (opts.harvest === true) {
     try {
       const harvested = await harvestSessionOutput(ctx, {
@@ -1675,8 +1942,18 @@ async function settleWorkflowAgentTurn(
         size: file.size,
         contentType: file.contentType,
       }));
+      if (harvested.harvestSkipped.length > 0) {
+        // Skips ride the result so the stepper's node output carries them —
+        // a dropped deliverable must be visible, never silently absent.
+        harvestSkipped = harvested.harvestSkipped;
+      }
     } catch (err) {
+      // The turn's work may be done, but its deliverables are gone — settling
+      // clean here would launder an infra fault into "produced nothing" (the
+      // exact class harvestSessionOutput now throws to expose). Record the
+      // settle (the turn must settle exactly once) but as a failed one.
       console.warn('[agent-host] output harvest failed:', err);
+      harvestError = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -1686,6 +1963,23 @@ async function settleWorkflowAgentTurn(
     runId: args.runId as never,
     nodeId: args.nodeId,
     execId: args.execId,
-    result: { ...result, files },
+    result: {
+      ...result,
+      files,
+      ...(harvestSkipped !== undefined ? { harvestSkipped } : {}),
+      // An already-errored turn keeps its primary reason AND its primary
+      // failure code (a denylisted code must not be laundered into a
+      // retryable harvest_failed); the harvest fault rides along.
+      ...(harvestError !== undefined
+        ? {
+            errored: true,
+            reason:
+              result.errored && result.reason !== undefined
+                ? `${result.reason}; output harvest failed: ${harvestError}`
+                : `output harvest failed: ${harvestError}`,
+            failureCode: result.failureCode ?? 'harvest_failed',
+          }
+        : {}),
+    },
   });
 }

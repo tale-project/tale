@@ -9,7 +9,7 @@ export function readConvexErrorData(
 ): Record<string, unknown> | undefined {
   if (err == null || typeof err !== 'object') return undefined;
   if (!('data' in err)) return undefined;
-  const data = (err as { data: unknown }).data;
+  const data = err.data;
   if (data == null || typeof data !== 'object') return undefined;
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runtime-checked above
   return data as Record<string, unknown>;

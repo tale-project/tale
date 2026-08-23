@@ -194,6 +194,38 @@ describe('getTaskAgentRunSandboxOp', () => {
     expect(op).toBeNull();
   });
 
+  it('keeps the resume handle OFF the payload — the op projection is the contract', async () => {
+    const t = convexTest(schema, modules);
+    const { run, taskId } = await seedRun(t);
+    await seedOp(t, run, { progressText: 'working' });
+    await t.run(async (ctx) => {
+      const op = await ctx.db.query('sandboxSessionOps').first();
+      if (op) {
+        await ctx.db.patch(op._id, { agentSessionId: 'conv-handle-secret' });
+      }
+      await ctx.db.patch(run._id, {
+        agentSessionId: 'conv-handle-secret',
+        sessionCreatedAt: 111,
+      });
+    });
+
+    const asEditor = t.withIdentity({ subject: EDITOR });
+    const op = await asEditor.query(
+      api.tasks.queries.getTaskAgentRunSandboxOp,
+      {
+        organizationId: ORG,
+        runId: run._id,
+      },
+    );
+    const card = await asEditor.query(
+      api.tasks.queries.getLatestTaskAgentRunForTask,
+      { organizationId: ORG, taskId },
+    );
+    expect(JSON.stringify(op)).not.toContain('conv-handle-secret');
+    expect(JSON.stringify(card)).not.toContain('conv-handle-secret');
+    expect(JSON.stringify(card)).not.toContain('sessionCreatedAt');
+  });
+
   it('fails closed for a non-member', async () => {
     const t = convexTest(schema, modules);
     const { run } = await seedRun(t);
