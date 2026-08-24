@@ -139,6 +139,45 @@ describe('ThreadList', () => {
     ).toBeInTheDocument();
   });
 
+  it('does not put a gray draft dot on ordinary idle threads', () => {
+    render(
+      <ThreadList
+        organizationId="org-1"
+        threads={[{ ...THREADS[0], generating: false, lastReplyAt: undefined }]}
+      />,
+    );
+
+    const row = screen.getByRole('link', { name: /Quarterly report/ });
+    expect(row.querySelector('[aria-hidden].rounded-full')).toBeNull();
+  });
+
+  it('shows a New chat draft row with a gray indicator while composing', () => {
+    render(
+      <ThreadList organizationId="org-1" threads={THREADS} draftNewChat />,
+    );
+
+    const draft = screen.getByRole('link', {
+      name: 'New chat',
+      current: 'page',
+    });
+    expect(draft.querySelector('[aria-hidden].rounded-full')).not.toBeNull();
+    expect(draft).toHaveTextContent('New chat');
+  });
+
+  it('starts a fresh chat from the chats header', async () => {
+    const { user } = render(
+      <ThreadList organizationId="org-1" threads={THREADS} />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'New chat' }));
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/dashboard/$id/chat',
+      params: { id: 'org-1' },
+      search: { new: true },
+    });
+  });
+
   it('marks the open thread as the current page', () => {
     render(
       <ThreadList

@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils/cn';
 
 import { useProjectPin } from '../data/chat-backend';
 import type { ChatProjectSummary, ChatThreadSummary } from '../types';
+import { NewChatDraftRow } from './new-chat-draft-row';
 import {
   dropZoneClassName,
   useProjectDropZone,
@@ -49,12 +50,15 @@ export function ProjectFolder({
   threads,
   explicitCollapsed,
   onSetCollapsed,
+  draftNewChat = false,
 }: {
   project: ChatProjectSummary;
   threads: readonly ChatThreadSummary[];
   /** Persisted user choice for this folder; `undefined` until toggled. */
   explicitCollapsed?: boolean;
   onSetCollapsed: (collapsed: boolean) => void;
+  /** Provisional New-chat row while composing inside this project. */
+  draftNewChat?: boolean;
 }) {
   const { t } = useT('chat');
   const { t: tProjects } = useT('projects');
@@ -130,8 +134,10 @@ export function ProjectFolder({
     activeThreadId !== undefined &&
     threads.some((thread) => thread.id === activeThreadId);
   // Collapsed by default; the open/closed choice is remembered once the user
-  // toggles it. Until then, the folder holding the open chat starts expanded.
-  const collapsed = explicitCollapsed ?? !containsCurrentThread;
+  // toggles it. Until then, the folder holding the open chat (or a project-
+  // scoped New-chat draft) starts expanded.
+  const collapsed =
+    explicitCollapsed ?? !(containsCurrentThread || draftNewChat);
 
   // Projects are always shown — even empty ones — so the list doesn't shift
   // when a drag begins and the PROJECTS section stays stable. An empty folder
@@ -202,7 +208,7 @@ export function ProjectFolder({
         </div>
       </div>
       <SubPanelDisclosureBody open={!collapsed}>
-        {threads.length === 0 ? (
+        {threads.length === 0 && !draftNewChat ? (
           <div className="border-border/60 mt-1 ml-3.5 border-l pl-1.5">
             <Text
               as="div"
@@ -218,6 +224,12 @@ export function ProjectFolder({
             gap={0}
             className="border-border/60 mt-1 ml-3.5 gap-0.5 border-l pl-1.5"
           >
+            {draftNewChat && (
+              <NewChatDraftRow
+                organizationId={organizationId}
+                projectId={project.id}
+              />
+            )}
             {threads.map((thread) => (
               <ThreadRow key={thread.id} thread={thread} />
             ))}

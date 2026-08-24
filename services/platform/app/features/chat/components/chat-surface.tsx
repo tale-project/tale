@@ -123,6 +123,7 @@ import type {
   ComposerModelOption,
   ComposerSelection,
 } from '../types';
+import { pickMostRecentThread } from '../utils/most-recent-thread';
 import {
   baselineSequenceOf,
   createPendingSend,
@@ -183,6 +184,11 @@ interface ChatSurfaceProps {
    * flow) — the thread is project-linked at creation, so its agent runs
    * pre-equipped with the project's per-agent binding. */
   projectId?: string;
+  /**
+   * Stay on the blank composer (header / shortcut / `?projectId`). When
+   * false on the index, the surface resumes the caller's most recent thread.
+   */
+  startFresh?: boolean;
 }
 
 export function ChatSurface(props: ChatSurfaceProps) {
@@ -200,6 +206,7 @@ function ChatSurfaceInner({
   organizationId,
   threadId,
   projectId,
+  startFresh = false,
 }: ChatSurfaceProps) {
   const { t } = useT('chat');
   const { t: tQuestions } = useT('questions');
@@ -211,6 +218,21 @@ function ChatSurfaceInner({
   const canManageProviders = ability.can('read', 'developerSettings');
 
   const threads = useChatThreads(organizationId);
+
+  // Landing on /chat without an explicit fresh intent resumes the caller's
+  // most recent thread. Fresh stays for `?new=1`, project new-chat, and when
+  // there is nothing to resume.
+  useEffect(() => {
+    if (threadId !== undefined || startFresh) return;
+    if (threads.status !== 'ready') return;
+    const latest = pickMostRecentThread(threads.data);
+    if (latest === undefined) return;
+    void navigate({
+      to: '/dashboard/$id/chat/$threadId',
+      params: { id: organizationId, threadId: latest.id },
+      replace: true,
+    });
+  }, [threadId, startFresh, threads, navigate, organizationId]);
 
   // The URL names the lineage ROOT; which edit/regenerate sibling the
   // conversation shows from each fork point is the root's selection map. The
@@ -1557,6 +1579,10 @@ function ChatSurfaceInner({
               threads={threadsAvailable ? threads.data : NO_THREADS}
               activeThreadId={threadId}
               available={threadsAvailable}
+              draftNewChat={threadId === undefined}
+              {...(projectId !== undefined
+                ? { draftProjectId: projectId }
+                : {})}
             />
           </div>
         </SubPanel>
@@ -1628,6 +1654,10 @@ function ChatSurfaceInner({
                 threads={threadsAvailable ? threads.data : NO_THREADS}
                 activeThreadId={threadId}
                 available={threadsAvailable}
+                draftNewChat={threadId === undefined}
+                {...(projectId !== undefined
+                  ? { draftProjectId: projectId }
+                  : {})}
               />
             </div>
           </Sheet>
@@ -1717,6 +1747,7 @@ function ChatSurfaceInner({
                     void navigate({
                       to: '/dashboard/$id/chat',
                       params: { id: organizationId },
+                      search: { new: true },
                     })
                   }
                 >

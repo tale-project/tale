@@ -4127,7 +4127,6 @@ metadata:
     title: Automation configuration
     description: Configure automation settings.
 navigation:
-  newChat: New chat
   chat: Chat
   knowledge: Knowledge
   automations: Automations

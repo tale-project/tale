@@ -71,6 +71,15 @@ function ChatSectionRoute() {
     search.projectId !== ''
       ? search.projectId
       : undefined;
+  // Explicit fresh composer (`?new=1` from the header / shortcut / empty
+  // state). Project-linked new chats are also fresh — they must not bounce
+  // into an unrelated last thread.
+  const startFresh =
+    threadId === undefined &&
+    (projectId !== undefined ||
+      search.new === true ||
+      search.new === '1' ||
+      search.new === 'true');
 
   return (
     <>
@@ -78,6 +87,7 @@ function ChatSectionRoute() {
         organizationId={id}
         {...(threadId !== undefined ? { threadId } : {})}
         {...(projectId !== undefined ? { projectId } : {})}
+        startFresh={startFresh}
       />
       <Outlet />
     </>

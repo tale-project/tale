@@ -68,18 +68,18 @@ export function useNavigationItems(businessId: string): NavigationItems {
     (): NavigationItems => ({
       primary: [
         {
-          label: tNav('newChat'),
+          // Section destination: opens the caller's last chat (or a blank
+          // composer when there is none). Fresh chats use the header + /
+          // ⌥⌘N shortcut with `?new=1`.
+          label: tNav('chat'),
           to: '/dashboard/$id/chat',
           params: { id: businessId },
           href: `/dashboard/${businessId}/chat`,
           icon: MessageCircle,
           shortcut: newChatShortcut,
-          // Exact match only: "New chat" is a verb, and the default
-          // startsWith matcher would keep it highlighted for every open
-          // thread (`/chat/<threadId>`) — the current thread's row in the
-          // chat sub-panel carries that highlight instead.
           isActivePath: (pathname) =>
-            pathname === `/dashboard/${businessId}/chat`,
+            pathname === `/dashboard/${businessId}/chat` ||
+            pathname.startsWith(`/dashboard/${businessId}/chat/`),
         },
         {
           label: tProjects('title'),
