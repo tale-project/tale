@@ -225,3 +225,17 @@ entries:
   # (app/features/chat/components/video-link-chip.tsx).
   - 'chat.videoLink.statuses'
   - 'chat.videoLink.errors'
+
+  # Shared OneDrive / Google Drive settings stage builds keys as
+  # `${messagePrefix}.…` (onedrive-settings-stage.tsx). Prefixes below cover
+  # every suffix that stage interpolates.
+  - 'documents.onedrive.importing'
+  - 'documents.onedrive.syncing'
+  - 'documents.onedrive.importItems'
+  - 'documents.onedrive.syncItems'
+  - 'documents.onedrive.importSettings'
+  - 'documents.onedrive.settingsDescription'
+  - 'documents.onedrive.oneTimeImport'
+  - 'documents.onedrive.oneTimeDescription'
+  - 'documents.onedrive.syncImport'
+  - 'documents.onedrive.syncDescription'

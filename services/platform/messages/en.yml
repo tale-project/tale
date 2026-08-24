@@ -399,11 +399,6 @@ auth:
       confirm: Log out
     toast:
       signOutFailed: Failed to sign out
-  microsoft:
-    grantPermissions: Grant Microsoft permissions
-    reauthenticate: Re-authenticate with Microsoft
-    signIn: Sign in with Microsoft
-    redirecting: Redirecting...
   changePassword:
     title: Change password
     currentPassword: Current password

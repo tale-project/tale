@@ -421,11 +421,6 @@ auth:
       confirm: Se déconnecter
     toast:
       signOutFailed: Échec de la déconnexion
-  microsoft:
-    grantPermissions: Accorder les permissions Microsoft
-    reauthenticate: Se réauthentifier avec Microsoft
-    signIn: Se connecter avec Microsoft
-    redirecting: Redirection...
   changePassword:
     title: Changer le mot de passe
     currentPassword: Mot de passe actuel

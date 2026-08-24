@@ -421,11 +421,6 @@ auth:
       confirm: Abmelden
     toast:
       signOutFailed: Abmelden fehlgeschlagen
-  microsoft:
-    grantPermissions: Microsoft-Berechtigungen erteilen
-    reauthenticate: Erneut mit Microsoft authentifizieren
-    signIn: Mit Microsoft anmelden
-    redirecting: Weiterleitung...
   changePassword:
     title: Passwort ändern
     currentPassword: Aktuelles Passwort
