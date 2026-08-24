@@ -770,6 +770,11 @@ export function httpStatusForConvexCode(code: string | undefined): number {
     // argument (400), distinct from PROJECT_NOT_FOUND's "no such project" (404).
     case 'PROJECT_NOT_BOUND':
       return 400;
+    // An empty organizationId reached a membership gate — a bad argument
+    // (caller-side gap), deliberately distinct from ORG_NOT_FOUND's
+    // "this org id no longer resolves" (404).
+    case 'ORG_ID_REQUIRED':
+      return 400;
     case 'not_found':
     case 'ORG_NOT_FOUND':
     case 'PROJECT_NOT_FOUND':
