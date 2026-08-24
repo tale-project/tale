@@ -222,6 +222,7 @@ const table = new Map<string, NodeTypeDef>([
         'prompt',
         'system',
         'model',
+        'modelProvider',
         'harness',
         'skills',
         'connectors',
@@ -329,6 +330,8 @@ export interface AgentFileRef {
  * resolves the templates inside them. */
 export interface AgentTurnRequest {
   model: string;
+  /** Provider pin saved with the model pick; the host honors it fail-closed. */
+  modelProvider?: string;
   prompt: string;
   system?: string;
   harness?: string;

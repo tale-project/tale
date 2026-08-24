@@ -13,13 +13,19 @@
  *    the provider's declared constraints to match the turn's harness AND
  *    that harness to declare a `subscription` delivery in its yml.
  *
- * {@link resolveWorkflowAgentServing} is the unpinned walk an automation
- * `agent` node uses: the DIRECT pass first — byte-for-byte the llm node's
+ * {@link resolveWorkflowAgentServing} is an automation `agent` node's door.
+ * Unpinned, it walks: the DIRECT pass first — byte-for-byte the llm node's
  * connector walk, so an org that serves the model directly today keeps that
  * serving (and its billing lane) unchanged — then the subscription pass over
  * the connectors the direct pass had to skip. First match wins in shipped
  * connector order; nothing serving is a clean, reasoned failure, never a
  * silent switch to a different model.
+ *
+ * {@link resolvePinnedAgentServing} is the pinned split both agent lanes
+ * share — a task agent's `projectAgents.modelProvider` and an automation
+ * node's `modelProvider` field: the pinned provider's DEFAULT credential
+ * shape decides the lane, and a pin that cannot serve throws rather than
+ * falling back to another provider.
  */
 
 import {
@@ -268,20 +274,146 @@ export async function walkDirectServing(
 }
 
 /**
- * Resolve one automation agent turn's serving lane, unpinned. DIRECT pass
- * first (an org serving the model directly today keeps that serving and its
- * billing lane); then the SUBSCRIPTION pass: the first connector whose
- * default credential is subscription-flavored, sanctioned for THIS harness
- * ({@link sanctionSubscriptionHarnessTurn}), whose allowlist permits the
- * model and whose catalog lists it. Throws — failing the node with the
- * reason — when nothing serves; the error carries every subscription
- * refusal, because "your broker credential exists but cannot drive this
- * harness" is the diagnosis the author needs.
+ * Resolve one agent turn's serving lane behind an explicit provider PIN —
+ * the split the task lane (`projectAgents.modelProvider`) and a pinned
+ * automation `agent` node share. The pinned provider's DEFAULT credential
+ * shape decides the lane: an api-key/env default serves the gateway lane
+ * through the direct walk narrowed to that one connector; a
+ * subscription-flavored default serves the subscription lane when the shared
+ * sanction approves the harness pair. Every refusal throws with the
+ * actionable reason — a pin NEVER falls back to another provider (the
+ * silent-swap billing surprise is the defect the pin exists to close).
+ */
+export async function resolvePinnedAgentServing(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    model: string;
+    modelProvider: string;
+    harness: string;
+  },
+): Promise<AgentTurnServing> {
+  const pinned = args.modelProvider;
+  const connectors = await resolveProvidersForOrgId(ctx, args.organizationId);
+  const connector = connectors.find((entry) => entry.name === pinned);
+  if (connector === undefined) {
+    throw new Error(
+      `the agent pins provider "${pinned}", which is not configured for this organization — edit the agent's model or reconnect the provider`,
+    );
+  }
+
+  // The lane split reads the pinned provider's DEFAULT credential shape —
+  // picking a non-default credential is a user act no picker offers yet, so
+  // resolution deliberately never reaches past the default.
+  const row = readAgentDefaultCredentialRow(
+    await ctx.runQuery(
+      internal.provider_credentials.queries.getDefaultCredentialInternal,
+      { organizationId: args.organizationId, providerSlug: pinned },
+    ),
+  );
+  if (row === null || row.status !== 'active') {
+    throw new Error(
+      `provider "${pinned}" has no active default credential — add or enable one in Settings → AI providers, or edit the agent's model`,
+    );
+  }
+
+  if (row.authMethod === 'api-key' || row.authMethod === 'env') {
+    const walk = await walkDirectServing(ctx, args.organizationId, args.model, [
+      connector,
+    ]);
+    if (walk.target !== null) {
+      return { lane: 'gateway', ...walk.target };
+    }
+    const detail =
+      walk.unreachable.length > 0
+        ? ` (the catalog for ${walk.unreachable.map((name) => `"${name}"`).join(', ')} was unreachable)`
+        : '';
+    throw new Error(
+      `provider "${pinned}" cannot serve model "${args.model}" — it needs an active default api-key/env credential whose catalog lists the model and whose allowlist permits it${detail}`,
+    );
+  }
+
+  // Subscription lane. The provider's own auth declaration carries the
+  // forced-harness constraints; the shared sanction owns the case split.
+  const sanction = sanctionSubscriptionHarnessTurn({
+    provider: connector,
+    authMethod: row.authMethod,
+    model: args.model,
+    harness: args.harness,
+  });
+  if (!sanction.ok) {
+    throw new Error(sanction.reason);
+  }
+
+  if (!modelAllowlistPermits(row.modelAllowlist, args.model)) {
+    throw new Error(
+      `provider "${pinned}"'s default credential does not permit model "${args.model}" — its allowlist excludes it`,
+    );
+  }
+  const catalog = await getProviderCatalog(connector);
+  const entry =
+    catalog.find((candidate) => candidate.id === args.model) ??
+    catalog.find((candidate) => modelIdsEquivalent(candidate.id, args.model));
+  if (entry === undefined) {
+    throw new Error(
+      `provider "${pinned}" does not list model "${args.model}" in its catalog — edit the agent's model`,
+    );
+  }
+  if (!entry.supportsVision) {
+    // The vision polyfill needs a gateway key this lane does not mint; a
+    // text-only subscription model would 400 on image reads. Every shipped
+    // subscription pair is vision-capable today, so this only warns.
+    console.warn(
+      `[agent-serving] subscription model "${entry.id}" is text-only — image inputs will fail this turn (no vision polyfill on the subscription lane)`,
+    );
+  }
+
+  const apiBaseUrl = subscriptionApiBaseUrl(connector, row.authMethod);
+  if (apiBaseUrl === undefined) {
+    throw new Error(
+      `provider "${pinned}" declares no API base URL — a subscription turn cannot point the vendor CLI anywhere; declare "baseUrl" in the provider config`,
+    );
+  }
+
+  return {
+    lane: 'subscription',
+    providerSlug: pinned,
+    modelId: entry.id,
+    apiBaseUrl,
+  };
+}
+
+/**
+ * Resolve one automation agent turn's serving lane. With a `modelProvider`
+ * pin (the node editor's saved pick) the resolution is
+ * {@link resolvePinnedAgentServing} — fail-closed on that one provider.
+ * Unpinned (nodes saved before the picker carried providers, or authored by
+ * hand): DIRECT pass first (an org serving the model directly today keeps
+ * that serving and its billing lane); then the SUBSCRIPTION pass: the first
+ * connector whose default credential is subscription-flavored, sanctioned
+ * for THIS harness ({@link sanctionSubscriptionHarnessTurn}), whose
+ * allowlist permits the model and whose catalog lists it. Throws — failing
+ * the node with the reason — when nothing serves; the error carries every
+ * subscription refusal, because "your broker credential exists but cannot
+ * drive this harness" is the diagnosis the author needs.
  */
 export async function resolveWorkflowAgentServing(
   ctx: ActionCtx,
-  args: { organizationId: string; model: string; harness: string },
+  args: {
+    organizationId: string;
+    model: string;
+    modelProvider?: string;
+    harness: string;
+  },
 ): Promise<AgentTurnServing> {
+  if (args.modelProvider !== undefined) {
+    return resolvePinnedAgentServing(ctx, {
+      organizationId: args.organizationId,
+      model: args.model,
+      modelProvider: args.modelProvider,
+      harness: args.harness,
+    });
+  }
   const connectors = await resolveProvidersForOrgId(ctx, args.organizationId);
   const direct = await walkDirectServing(
     ctx,

@@ -468,6 +468,9 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
         : await evalTemplates(node.files, scope());
     const agentInput = {
       model,
+      ...(node.modelProvider !== undefined && {
+        modelProvider: node.modelProvider,
+      }),
       prompt,
       ...(system !== undefined && { system }),
       ...(node.harness !== undefined && { harness: node.harness }),
@@ -996,6 +999,9 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         : await evalTemplates(node.files, scope);
     const request: WorkflowAgentRequest = {
       model,
+      ...(node.modelProvider !== undefined && {
+        modelProvider: node.modelProvider,
+      }),
       prompt,
       ...(system !== undefined && { system }),
       ...(node.harness !== undefined && { harness: node.harness }),

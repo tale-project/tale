@@ -303,6 +303,8 @@ describe('automationLlmCall', () => {
 });
 
 describe('resolveServingTarget', () => {
+  // Pinned resolution moved to `resolvePinnedAgentServing` and is proven in
+  // `lib/providers/agent_serving.test.ts`; this door is unpinned-only.
   it('walks connectors in order and serves from the first match', async () => {
     credentials = { first: DIRECT, second: DIRECT };
     getProviderCatalog.mockResolvedValue([{ id: 'vendor/shared' }]);
@@ -310,55 +312,5 @@ describe('resolveServingTarget', () => {
     await expect(
       resolveServingTarget(ctx, ORG, 'vendor/shared'),
     ).resolves.toEqual({ providerSlug: 'first', modelId: 'vendor/shared' });
-  });
-
-  it('honors a pinned provider over the walk order', async () => {
-    credentials = { first: DIRECT, second: DIRECT };
-    getProviderCatalog.mockResolvedValue([{ id: 'vendor/shared' }]);
-
-    await expect(
-      resolveServingTarget(ctx, ORG, 'vendor/shared', {
-        pinnedProvider: 'second',
-      }),
-    ).resolves.toEqual({ providerSlug: 'second', modelId: 'vendor/shared' });
-  });
-
-  it('fail-closed: a pin never falls back to another provider', async () => {
-    // Only "first" could serve; the pin names "second" (no credential).
-    credentials = { first: DIRECT };
-    getProviderCatalog.mockResolvedValue([{ id: 'vendor/shared' }]);
-
-    await expect(
-      resolveServingTarget(ctx, ORG, 'vendor/shared', {
-        pinnedProvider: 'second',
-      }),
-    ).rejects.toThrow(/provider "second" cannot serve model "vendor\/shared"/);
-  });
-
-  it('throws when the pin names an unconfigured provider', async () => {
-    credentials = { first: DIRECT };
-    getProviderCatalog.mockResolvedValue([{ id: 'vendor/shared' }]);
-
-    await expect(
-      resolveServingTarget(ctx, ORG, 'vendor/shared', {
-        pinnedProvider: 'third',
-      }),
-    ).rejects.toThrow(/pins provider "third", which is not configured/);
-  });
-
-  it('returns the pinned catalog spelling for an equivalent id', async () => {
-    credentials = { second: DIRECT };
-    getProviderCatalog.mockResolvedValue([
-      { id: 'anthropic/claude-haiku-4.5' },
-    ]);
-
-    await expect(
-      resolveServingTarget(ctx, ORG, 'claude-haiku-4-5', {
-        pinnedProvider: 'second',
-      }),
-    ).resolves.toEqual({
-      providerSlug: 'second',
-      modelId: 'anthropic/claude-haiku-4.5',
-    });
   });
 });

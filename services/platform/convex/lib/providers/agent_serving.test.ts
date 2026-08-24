@@ -1,12 +1,14 @@
 // @vitest-environment node
 
 /**
- * The unpinned agent-turn serving walk, off the wire: the DIRECT pass keeps
- * today's serving (and its billing lane) for any org that serves the model
- * directly, the SUBSCRIPTION pass serves a broker/key default only when the
- * shared sanction approves the harness pair, and every dead end names the
- * problem. The pinned task-lane split over the same helpers is proven in
- * `tasks/task_serving.test.ts`.
+ * The agent-turn serving resolution, off the wire. Unpinned: the DIRECT pass
+ * keeps today's serving (and its billing lane) for any org that serves the
+ * model directly, the SUBSCRIPTION pass serves a broker/key default only when
+ * the shared sanction approves the harness pair, and every dead end names the
+ * problem. Pinned (`modelProvider`): the shared fail-closed split — the pin
+ * decides the provider outright, and a pin that cannot serve throws instead
+ * of falling back to a connector that could. The task lane's delegation onto
+ * the same split is proven in `tasks/task_serving.test.ts`.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -313,5 +315,142 @@ describe('resolveWorkflowAgentServing — subscription pass', () => {
         harness: 'claude-code',
       }),
     ).rejects.toThrow(/the catalog for "anthropic" was unreachable/);
+  });
+});
+
+describe('resolveWorkflowAgentServing — pinned', () => {
+  /** Both lanes live: OpenRouter serves the model on a direct key AND
+   * Anthropic holds a broker default — the constellation where the unpinned
+   * walk lands on OpenRouter. */
+  function bothLanesServe() {
+    credentials = { anthropic: BROKER, openrouter: DIRECT };
+    getProviderCatalog.mockImplementation(
+      (connector: { name: string }): Promise<Array<{ id: string }>> =>
+        Promise.resolve(
+          connector.name === 'openrouter'
+            ? [{ id: 'anthropic/claude-fable-5' }]
+            : [{ id: 'claude-fable-5' }],
+        ),
+    );
+  }
+
+  it('serves a pinned subscription default even when a direct connector lists the model', async () => {
+    bothLanesServe();
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      modelProvider: 'anthropic',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toEqual({
+      lane: 'subscription',
+      providerSlug: 'anthropic',
+      modelId: 'claude-fable-5',
+      apiBaseUrl: 'https://api.anthropic.com',
+    });
+  });
+
+  it('serves a pinned direct default on the gateway lane, in its catalog spelling', async () => {
+    bothLanesServe();
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      modelProvider: 'openrouter',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toEqual({
+      lane: 'gateway',
+      providerSlug: 'openrouter',
+      modelId: 'anthropic/claude-fable-5',
+    });
+  });
+
+  it('honors a direct pin over the unpinned walk order', async () => {
+    // Both connectors hold direct credentials; unpinned, anthropic (first in
+    // shipped order) would win — the pin routes to the one the author chose.
+    credentials = { anthropic: DIRECT, openrouter: DIRECT };
+    getProviderCatalog.mockImplementation(
+      (connector: { name: string }): Promise<Array<{ id: string }>> =>
+        Promise.resolve(
+          connector.name === 'openrouter'
+            ? [{ id: 'anthropic/claude-fable-5' }]
+            : [{ id: 'claude-fable-5' }],
+        ),
+    );
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      modelProvider: 'openrouter',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toEqual({
+      lane: 'gateway',
+      providerSlug: 'openrouter',
+      modelId: 'anthropic/claude-fable-5',
+    });
+  });
+
+  it('never falls back to another provider when the pin cannot serve', async () => {
+    // OpenRouter could serve this model directly — a refused anthropic pin
+    // (codex is not the broker credential's forced harness) must throw, not
+    // quietly route (and bill) the turn through OpenRouter.
+    bothLanesServe();
+
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'claude-fable-5',
+        modelProvider: 'anthropic',
+        harness: 'codex',
+      }),
+    ).rejects.toThrow(/claude-code/);
+  });
+
+  it('throws when the pin names an unconfigured provider', async () => {
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'claude-fable-5',
+        modelProvider: 'mistral',
+        harness: 'claude-code',
+      }),
+    ).rejects.toThrow(/pins provider "mistral", which is not configured/);
+  });
+
+  it('throws when the pinned provider has no active default credential', async () => {
+    credentials = {
+      anthropic: { status: 'disabled', authMethod: 'subscription-broker' },
+    };
+
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'claude-fable-5',
+        modelProvider: 'anthropic',
+        harness: 'claude-code',
+      }),
+    ).rejects.toThrow(/no active default credential/);
+  });
+
+  it('throws when the pinned direct catalog does not list the model', async () => {
+    credentials = { openrouter: DIRECT };
+    getProviderCatalog.mockResolvedValue([{ id: 'gpt-5' }]);
+
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'claude-fable-5',
+        modelProvider: 'openrouter',
+        harness: 'claude-code',
+      }),
+    ).rejects.toThrow(
+      /provider "openrouter" cannot serve model "claude-fable-5"/,
+    );
   });
 });

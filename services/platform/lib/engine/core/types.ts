@@ -69,6 +69,13 @@ export interface NodeDef {
    */
   model?: string;
   /**
+   * agent: the provider slug that serves `model` — the editor picker saves
+   * the pair. Optional; when present the host honors it fail-closed instead
+   * of walking every connector (which provider serves — and bills — the turn
+   * stops being an ordering accident).
+   */
+  modelProvider?: string;
+  /**
    * llm: when present, a JSON Schema the reply must satisfy — the node's
    * output becomes the parsed object instead of `{text}`. This is the one
    * sanctioned bridge from unstructured text to structured data.

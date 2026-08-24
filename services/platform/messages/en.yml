@@ -648,6 +648,8 @@ automations:
     agent:
       equipmentLabel: Equipment
       harnessDefault: Default (Claude Code)
+      modelUnlisted: 'No connected provider offers the saved model "{model}"
+        for this harness — pick one from the list.'
     runTitle: In this run
     resolvedInput: Resolved input
     output: Output

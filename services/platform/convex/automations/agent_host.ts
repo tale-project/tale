@@ -98,6 +98,10 @@ export function workflowAgentBudgetCents(): number {
 /** What one agent node asks for, templates already resolved. */
 export interface WorkflowAgentRequest {
   model: string;
+  /** The provider slug the node's model pick pinned — serving resolution
+   * honors it fail-closed; absent on nodes saved before the picker carried
+   * providers (those keep the unpinned walk). */
+  modelProvider?: string;
   prompt: string;
   system?: string;
   harness?: string;
@@ -309,6 +313,9 @@ export function automationAgentHost(
       const serving = await resolveWorkflowAgentServing(ctx, {
         organizationId,
         model: request.model,
+        ...(request.modelProvider !== undefined
+          ? { modelProvider: request.modelProvider }
+          : {}),
         harness,
       });
       // The exec's model string: the gateway ref on the gateway lane, the
@@ -1393,6 +1400,9 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       const serving = await resolveWorkflowAgentServing(ctx, {
         organizationId: args.organizationId,
         model: request.model,
+        ...(request.modelProvider !== undefined
+          ? { modelProvider: request.modelProvider }
+          : {}),
         harness: agent.harness,
       });
       const execModel =
@@ -1633,6 +1643,7 @@ function readStringArray(value: unknown): string[] | undefined {
 
 function readWorkflowAgentRequest(input: Record<string, unknown>): {
   model: string;
+  modelProvider?: string;
   system?: string;
   connectors?: string[];
   tools?: string[];
@@ -1643,6 +1654,9 @@ function readWorkflowAgentRequest(input: Record<string, unknown>): {
   const secrets = readStringArray(input.secrets);
   return {
     model: typeof input.model === 'string' ? input.model : '',
+    ...(typeof input.modelProvider === 'string'
+      ? { modelProvider: input.modelProvider }
+      : {}),
     ...(typeof input.system === 'string' ? { system: input.system } : {}),
     ...(connectors !== undefined ? { connectors } : {}),
     ...(tools !== undefined ? { tools } : {}),
