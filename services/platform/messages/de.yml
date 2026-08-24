@@ -4235,7 +4235,6 @@ metadata:
     title: Automatisierungskonfiguration
     description: Automatisierungseinstellungen konfigurieren.
 navigation:
-  newChat: Neuer Chat
   chat: Chat
   knowledge: Wissen
   automations: Automatisierungen

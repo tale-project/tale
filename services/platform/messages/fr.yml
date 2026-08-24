@@ -4310,7 +4310,6 @@ metadata:
     title: Configuration de l'automatisation
     description: Configure les paramètres de l'automatisation.
 navigation:
-  newChat: Nouveau chat
   chat: Chat
   knowledge: Connaissances
   automations: Automatisations
