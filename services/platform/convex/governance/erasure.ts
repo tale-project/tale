@@ -753,6 +753,7 @@ const perCategoryValidator = v.object({
   twoFactorAttempts: rowsAndHoldValidator,
   policyAcknowledgements: rowsAndHoldValidator,
   onedrive: rowsAndHoldValidator,
+  userCloudAuthorizations: rowsAndHoldValidator,
   loginAttempts: v.object({
     attempts: v.number(),
     blockCounters: v.number(),
@@ -1525,6 +1526,33 @@ export const eraseSubjectOnedrive = internalMutation({
   },
 });
 
+export const eraseSubjectUserCloudAuthorizations = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
+  handler: async (ctx, args) => {
+    const iter = () =>
+      ctx.db
+        .query('userCloudAuthorizations')
+        .withIndex('by_org_user', (q) =>
+          q.eq('organizationId', args.organizationId).eq('userId', args.userId),
+        );
+    const guard = await countOrSkip(
+      ctx,
+      args.organizationId,
+      args.userId,
+      iter,
+    );
+    if (guard.heldByOrgOrUser)
+      return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
+      await ctx.db.delete(row._id);
+      rows++;
+    }
+    return { rows, skippedByHold: 0 };
+  },
+});
+
 /**
  * Look up the subject's plaintext email so loginAttempts /
  * loginBlockCounters (which are keyed on email, not userId) can be
@@ -1928,6 +1956,7 @@ export const processErasureRequest = internalAction({
       twoFactorAttempts: { rows: 0, skippedByHold: 0 },
       policyAcknowledgements: { rows: 0, skippedByHold: 0 },
       onedrive: { rows: 0, skippedByHold: 0 },
+      userCloudAuthorizations: { rows: 0, skippedByHold: 0 },
       loginAttempts: {
         attempts: 0,
         blockCounters: 0,
@@ -2201,6 +2230,13 @@ export const processErasureRequest = internalAction({
           userId: state.targetUserId,
         },
       );
+      perCategory.userCloudAuthorizations = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectUserCloudAuthorizations,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
       // H7: subject's workflow executions.
       perCategory.wfExecutions = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectWfExecutions,
@@ -2313,6 +2349,7 @@ interface PerCategoryCounts {
   twoFactorAttempts: RowsAndHold;
   policyAcknowledgements: RowsAndHold;
   onedrive: RowsAndHold;
+  userCloudAuthorizations: RowsAndHold;
   loginAttempts: LoginAttemptsCounts;
   notifications: RowsAndHold;
   userNotifications: RowsAndHold;

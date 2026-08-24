@@ -102,7 +102,8 @@ export const upsertOidc = action({
         pkce: args.pkce,
         claimMappings: args.claimMappings,
         domainHint: args.domainHint,
-        enableOneDriveAccess: args.enableOneDriveAccess,
+        // Deprecated — always clear. File import uses Knowledge cloud-import.
+        enableOneDriveAccess: false,
         autoProvisionRole: args.autoProvisionRole,
         defaultRole: args.defaultRole,
         roleMappingRules: args.roleMappingRules,

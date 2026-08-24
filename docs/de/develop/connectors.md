@@ -80,6 +80,8 @@ ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
 
 Client-ID und Secret kommen pro Connector aus der Umgebung des Deployments, benannt als `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` und `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, mit großgeschriebenem Slug und Bindestrichen als Unterstriche. Ist `SITE_URL` nicht gesetzt, verweigert der Freigabe-Flow den Start, statt einen Ursprung aus der Anfrage zu raten.
 
+Persönlicher OneDrive- / Google-Drive-Import für Wissen ist **kein** Org-Connector — siehe [Dokumente](/de/platform/knowledge/documents) und den Cloud-Import-Redirect unter [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference).
+
 <Warning>
 
 Die Redirect-URI muss Byte für Byte übereinstimmen — Schema, Host, Pfad und kein abschließender Schrägstrich. Eine Abweichung scheitert schon am Freigabe-Dialog des Anbieters mit einem `redirect_uri`-Fehler, bevor Tale den Callback überhaupt sieht; das ist der mit Abstand häufigste Grund, warum ein frischer OAuth-Connector nicht verbindet.

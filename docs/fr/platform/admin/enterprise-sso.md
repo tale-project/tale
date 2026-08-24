@@ -31,7 +31,7 @@ Ouvre **Paramètres > SSO d'entreprise**, choisis un **Protocole** et remplis un
 5. Ouvre **Certificats et secrets > Nouveau secret client** et copie la **Valeur** du secret (pas son ID).
 6. Dans Tale, choisis **Microsoft Entra ID** et saisis l’ID client, le secret client et l’URL d’émetteur.
 7. Pour la synchronisation groupe-vers-équipe, ajoute l’autorisation Microsoft Graph **GroupMember.Read.All** sous **Autorisations d'API** et accorde le consentement administrateur.
-8. Pour la synchronisation de documents OneDrive et SharePoint, ajoute les autorisations Microsoft Graph **Files.Read** et **Sites.Read.All** sous **Autorisations d'API** et accorde le consentement administrateur. Une nouvelle connexion demande les deux par défaut — le token SSO sert aussi de token Graph, les membres peuvent donc importer des fichiers dès la connexion. Si l’organisation ne veut que la connexion, retire ces deux scopes du champ **Scopes** ; l’entrée Microsoft 365 reste alors masquée sur la page des documents.
+8. L’import de fichiers OneDrive et SharePoint **ne fait pas** partie du SSO. Les membres l’autorisent dans **Connaissances → Documents → Depuis Microsoft 365 → Connecter Microsoft 365**, où Tale demande Graph **Files.Read** et **Sites.Read.All**. N’ajoute pas ces scopes au champ SSO **Scopes**.
 
 ## Google
 

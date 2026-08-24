@@ -6,9 +6,10 @@ info:
     Trimmed spec for the operations the Microsoft Teams connector
     (`configs/platform/system/connectors/teams/connector.yml`) and the Microsoft
     Outlook connector (`configs/platform/system/connectors/outlook/connector.yml`)
-    actually call. Both share the Microsoft Graph host. Mounted by the mock
-    gateway at `/mock/microsoft-graph`; paths mirror
-    `https://graph.microsoft.com` (the connectors target the `/v1.0` base).
+    actually call. Both share the Microsoft Graph host. Drive list/content paths
+    remain for Knowledge cloud-import mocks. Mounted by the mock gateway at
+    `/mock/microsoft-graph`; paths mirror `https://graph.microsoft.com` (the
+    connectors target the `/v1.0` base).
 servers:
   - url: /mock/microsoft-graph
 components:
@@ -830,3 +831,73 @@ paths:
                 emailAddresses:
                   - name: Jordan Mock
                     address: jordan@example.com
+  /v1.0/me/drive/items/{itemId}/children:
+    get:
+      operationId: listDriveChildren
+      summary: List children of a OneDrive folder (itemId may be "root").
+      parameters:
+        - { name: itemId, in: path, required: true, schema: { type: string } }
+        - { name: $top, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: A page of drive items.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        size: { type: number }
+                        eTag: { type: string }
+                        lastModifiedDateTime: { type: string }
+                        file:
+                          type: object
+                          properties:
+                            mimeType: { type: string }
+                            hashes:
+                              type: object
+                              properties:
+                                sha1Hash: { type: string }
+                        folder:
+                          type: object
+                  '@odata.nextLink': { type: [string, 'null'] }
+              example:
+                value:
+                  - id: 01DRIVEFILE00000000000000000001
+                    name: quarterly-report.pdf
+                    size: 204813
+                    eTag: '"etag-1"'
+                    lastModifiedDateTime: '2026-06-10T14:32:00.000Z'
+                    file:
+                      mimeType: application/pdf
+                      hashes:
+                        sha1Hash: 9e107d9d372bb6826bd81d3542a419d6
+                  - id: 01DRIVEFILE00000000000000000002
+                    name: meeting-notes.docx
+                    size: 15827
+                    eTag: '"etag-2"'
+                    lastModifiedDateTime: '2026-06-12T09:05:00.000Z'
+                    file:
+                      mimeType: application/vnd.openxmlformats-officedocument.wordprocessingml.document
+                      hashes:
+                        sha1Hash: e2fc714c4727ee9395f324cd2e7f331f
+                '@odata.nextLink': null
+  /v1.0/me/drive/items/{itemId}/content:
+    get:
+      operationId: downloadDriveItem
+      summary: Download a OneDrive file's content.
+      parameters:
+        - { name: itemId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: The raw file content.
+          content:
+            application/octet-stream:
+              schema: { type: string }
+              example: 'Tale mock OneDrive file content for quarterly-report.pdf'

@@ -80,6 +80,44 @@ Si les deux clés age ne sont pas définies, Tale stocke `providers/*.secrets.js
 
 La source de clé par variable d'environnement ne nécessite aucun commutateur de déploiement : des identifiants peuvent porter seulement le _nom_ d'une variable d'environnement au lieu d'une clé stockée, tant que ce nom porte le préfixe réservé `TALE_PROVIDER_KEY_`. La barrière est fail-closed — tout autre nom est rejeté, donc le champ ne peut jamais pointer sur un secret de déploiement étranger — et les noms sont plafonnés à 40 caractères. Définis la variable ici ou dans ton gestionnaire de secrets pour que la plateforme et le backend Convex puissent tous deux la lire ; le mécanisme complet est documenté dans [Fournisseurs](/fr/self-hosted/configuration/providers). Un identifiant de type courtier d'abonnement dispose d'un second espace de noms, distinct, pour le secret que Tale présente **au courtier** : ce champ accepte un nom de variable d'environnement sous le préfixe réservé `TALE_TOKEN_SOURCE_`, plafonné à 60 caractères. Les deux préfixes restent séparés à dessein — un secret de courtier n'est pas une clé API de fournisseur, et aucun des deux champs ne peut nommer une variable hors de son propre espace de noms.
 
+## Applications OAuth des connecteurs
+
+Les connecteurs OAuth (Gmail, Google Drive, Outlook, Teams, Slack, …) lisent les identifiants de leur application fournisseur uniquement depuis l’environnement. Pour chaque slug de connecteur :
+
+| Nom                                    | Défaut | Description                                                                                                               |
+| -------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID`     | unset  | Identifiant client OAuth pour ce connecteur. Slug en majuscules, tirets remplacés par des tirets bas (`gmail` → `GMAIL`). |
+| `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` | unset  | Secret client correspondant.                                                                                              |
+
+Enregistre `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` sur l’application fournisseur. Détails : [Connectors (développement)](/fr/develop/connectors).
+
+## Import cloud Knowledge (Documents)
+
+Les autorisations OneDrive / Google Drive par utilisateur pour **Connaissances → Documents** sont distinctes des connectors d’organisation et de la connexion. Enregistre cette URI de redirection sur l’app Microsoft (ou Google) :
+
+`${SITE_URL}${BASE_PATH}/api/cloud-import/oauth2/callback`
+
+Résolution des identifiants pour OneDrive (premier match gagne) :
+
+| Nom                                            | Description                                   |
+| ---------------------------------------------- | --------------------------------------------- |
+| `CLOUD_IMPORT_MICROSOFT_CLIENT_ID` / `_SECRET` | App dédiée à l’import Knowledge (préférée).   |
+| `CLOUD_IMPORT_MICROSOFT_TENANT_ID`             | ID d’annuaire (tenant) de cette app.          |
+| `AUTH_MICROSOFT_ENTRA_ID_ID` / `_SECRET`       | App de connexion Microsoft.                   |
+| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID`            | ID d’annuaire (tenant) de l’app de connexion. |
+
+Les inscriptions d’app Entra mono-tenant exigent une URL d’autorisation propre au tenant — `/common` échoue avec AADSTS50194. Définis l’ID de tenant (ou `organizations` / `common` pour une app multi-tenant). S’il est absent, Tale reprend le tenant de l’issuer SSO Entra de l’organisation s’il est configuré.
+
+L’écran de consentement Microsoft demande Graph **Files.Read** et **Sites.Read.All** (liste/téléchargement OneDrive et SharePoint), **User.Read** (libellé du compte) et **offline_access** (jeton de rafraîchissement pour la sync). Cette autorisation est intentionnelle et par utilisateur — elle n’est pas attachée à la connexion à Tale.
+
+Google Drive utilise uniquement une app dédiée (pas de repli sur l’app de connexion) :
+
+| Nom                                               | Description                          |
+| ------------------------------------------------- | ------------------------------------ |
+| `CLOUD_IMPORT_GOOGLE_DRIVE_CLIENT_ID` / `_SECRET` | App d’import Google Drive Knowledge. |
+
+Enregistre la même URI de callback cloud-import sur le client OAuth Google. Le consentement demande **drive.readonly** et **userinfo.email**.
+
 ## Drapeaux de fonctionnalité
 
 Bascules optionnelles pour des fonctionnalités non activées par défaut. Chaque drapeau active ou désactive une fonctionnalité au boot ; basculer demande un redémarrage du conteneur plateforme.

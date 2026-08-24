@@ -80,6 +80,8 @@ ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
 
 The client ID and secret for each connector come from the deployment environment, named per connector as `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` and `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, with the slug upper-cased and its dashes turned into underscores. When `SITE_URL` is unset the consent flow refuses to start rather than guessing an origin from the request.
 
+Personal OneDrive / Google Drive import for Knowledge is **not** an org connector — see [Documents](/platform/knowledge/documents) and the cloud-import redirect under [Environment reference](/self-hosted/configuration/environment-reference).
+
 <Warning>
 
 The redirect URI has to match byte for byte — scheme, host, path, and no trailing slash. A mismatch fails at the vendor's consent screen with a `redirect_uri` error before Tale ever sees the callback, which is the single most common reason a fresh OAuth connector will not connect.

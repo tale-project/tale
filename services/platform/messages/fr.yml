@@ -3866,6 +3866,7 @@ governance:
       twoFactorAttempts: Tentatives 2FA
       policyAcknowledgements: Accusés de réception de politiques
       onedrive: Configurations de synchronisation OneDrive
+      userCloudAuthorizations: Autorisations d'importation cloud
       loginAttempts: Tentatives de connexion et verrouillages
       notifications: Notifications de sécurité
       wfExecutions: Exécutions d'automatisation

@@ -14,7 +14,6 @@ import type {
 import {
   MICROSOFT_LOGIN_BASE,
   MICROSOFT_GRAPH_BASE,
-  ONEDRIVE_SCOPES,
   EntraIssuerError,
   extractTenantId,
 } from './constants';
@@ -23,7 +22,8 @@ import { mapEntraRoleToPlatformRole } from './role_mapping';
 const capabilities: SsoProviderCapabilities = {
   supportsGroupSync: true,
   supportsRoleMapping: true,
-  supportsOneDriveAccess: true,
+  // File import is Knowledge cloud-import OAuth, not SSO.
+  supportsOneDriveAccess: false,
   supportsGoogleDriveAccess: false,
   // PKCE stays off for Entra until verified against confidential-client
   // tenant policies; the generic OIDC adapter carries it (#1506).
@@ -342,4 +342,4 @@ export const entraIdAdapter: SsoProviderAdapter = {
   mapToRole,
 };
 
-export { ONEDRIVE_SCOPES, parseIdTokenAuthContext };
+export { parseIdTokenAuthContext };

@@ -37,7 +37,7 @@ Treize connecteurs sont livrés, chacun marqué de la catégorie à laquelle il 
 | **Twilio**              | Envoyer des SMS et passer des appels vocaux via Twilio.                                                     | Nom d’utilisateur et mot de passe | 7       |
 | **WebDAV Files**        | Lire, écrire et lister les fichiers du stockage WebDAV de l’organisation — ceux que sert l’endpoint `/dav`. | Nom d’utilisateur et mot de passe | 4       |
 
-Les pages et fichiers entrés par Confluence ou Google Drive passent par la même indexation qu’un téléversement direct, et les réponses les citent en remontant à la source — voir [Documents](/fr/platform/knowledge/documents). Le connecteur WebDAV est le côté écriture du stockage que tes appareils montent comme lecteur réseau, décrit dans [WebDAV](/fr/platform/connectors/webdav).
+Les pages et fichiers entrés par Confluence ou Google Drive passent par la même indexation qu’un téléversement direct, et les réponses les citent en remontant à la source — voir [Documents](/fr/platform/knowledge/documents). L’import OneDrive et SharePoint passe par Connaissances → Documents (autorisation par utilisateur), pas comme connector d’organisation. Le connecteur WebDAV est le côté écriture du stockage que tes appareils montent comme lecteur réseau, décrit dans [WebDAV](/fr/platform/connectors/webdav).
 
 ## Les identifiants d’un connecteur
 

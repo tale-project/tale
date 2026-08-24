@@ -1,12 +1,13 @@
 'use node';
 
 /**
- * Public write surface of the connector-credential domain — the two entry
+ * Public write surface of the connector-credential domain — the three entry
  * points that may carry secret material, and therefore run as `'use node'`
  * actions: plaintext exists only inside this module, is encrypted with
  * `lib/secret_box` into the single `encryptedData` envelope, and only
  * ciphertext (plus the write-time masked preview) crosses into the V8
  * transactional mutations. Nothing here ever RETURNS secret material.
+ * `storeOauth2Credential` is the internal OAuth-callback path (no session).
  *
  * Everything the CONNECTOR decides is enforced here, because the shipped
  * catalog lives on disk and a V8 mutation cannot read it:
@@ -27,7 +28,7 @@ import { ConvexError, v } from 'convex/values';
 import type { Connector } from '../../lib/shared/schemas/connectors';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
-import { action } from '../_generated/server';
+import { action, internalAction } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { encryptSecret, type EncryptedSecret } from '../lib/secret_box';
 import {
@@ -507,5 +508,55 @@ export const updateCredential = action({
       },
     );
     return null;
+  },
+});
+
+/**
+ * Persist an OAuth2 authorization-code grant from the connector HTTP callback.
+ *
+ * The callback has no Convex user identity — the user was authorized at
+ * `/oauth2/start` and recorded on the pending-state row — so this action takes
+ * `createdBy` explicitly and must not call `requireOrgAdminOrDeveloper`. It is
+ * `internalAction` so only other Convex functions (the OAuth callback) can
+ * invoke it with tokens.
+ */
+export const storeOauth2Credential = internalAction({
+  args: {
+    organizationId: v.string(),
+    connectorSlug: v.string(),
+    createdBy: v.string(),
+    name: v.string(),
+    accessToken: v.string(),
+    refreshToken: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+    scopes: v.array(v.string()),
+  },
+  returns: v.object({ credentialId: v.string() }),
+  handler: async (ctx, args) => {
+    requireConnectorAuthMethod(args.connectorSlug, 'oauth2');
+    const sealed = sealPayload(
+      buildPayload('oauth2', {
+        accessToken: args.accessToken,
+        refreshToken: args.refreshToken,
+        expiresAt: args.expiresAt,
+        scopes: args.scopes,
+      }),
+    );
+    const credentialId: Id<'connectorCredentials'> = await ctx.runMutation(
+      internal.connector_credentials.mutations.insertCredentialInternal,
+      {
+        organizationId: args.organizationId,
+        connectorSlug: args.connectorSlug,
+        authMethod: 'oauth2',
+        name: args.name,
+        encryptedData: sealed.encryptedData,
+        ...(sealed.maskedPreview !== undefined && {
+          maskedPreview: sealed.maskedPreview,
+        }),
+        status: 'active',
+        createdBy: args.createdBy,
+      },
+    );
+    return { credentialId };
   },
 });

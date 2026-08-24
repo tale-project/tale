@@ -101,6 +101,60 @@ tables:
       ft:
         type: string
       optional: true
+  agentSecrets:
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    createdBy:
+      ft:
+        type: string
+      optional: false
+    description:
+      ft:
+        type: string
+      optional: true
+    encryptedValue:
+      ft:
+        type: object
+        value:
+          authTag:
+            fieldType:
+              type: string
+            optional: false
+          ciphertext:
+            fieldType:
+              type: string
+            optional: false
+          keyFingerprint:
+            fieldType:
+              type: string
+            optional: false
+          nonce:
+            fieldType:
+              type: string
+            optional: false
+      optional: false
+    maskedPreview:
+      ft:
+        type: string
+      optional: true
+    name:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    updatedAt:
+      ft:
+        type: number
+      optional: false
+    updatedBy:
+      ft:
+        type: string
+      optional: false
   approvals:
     approvedBy:
       ft:
@@ -545,6 +599,10 @@ tables:
       ft:
         type: string
       optional: false
+    questions:
+      ft:
+        type: any
+      optional: true
     runId:
       ft:
         tableName: automationRuns
@@ -756,6 +814,23 @@ tables:
     version:
       ft:
         type: number
+      optional: false
+  automationTombstones:
+    deletedAt:
+      ft:
+        type: number
+      optional: false
+    deletedBy:
+      ft:
+        type: string
+      optional: false
+    name:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
       optional: false
   automationTriggers:
     createdAt:
@@ -1167,6 +1242,44 @@ tables:
       ft:
         type: boolean
       optional: true
+  cloudImportOauthStates:
+    codeVerifier:
+      ft:
+        type: string
+      optional: false
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    expiresAt:
+      ft:
+        type: number
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    provider:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: onedrive
+          - type: literal
+            value: google-drive
+      optional: false
+    redirectUri:
+      ft:
+        type: string
+      optional: false
+    stateHash:
+      ft:
+        type: string
+      optional: false
+    userId:
+      ft:
+        type: string
+      optional: false
   competenceRecords:
     competence:
       ft:
@@ -1821,6 +1934,102 @@ tables:
       ft:
         type: string
       optional: true
+  deferredSends:
+    attachments:
+      ft:
+        type: array
+        value:
+          type: object
+          value:
+            fileId:
+              fieldType:
+                type: string
+              optional: false
+            fileName:
+              fieldType:
+                type: string
+              optional: false
+            fileSize:
+              fieldType:
+                type: number
+              optional: false
+            fileType:
+              fieldType:
+                type: string
+              optional: false
+      optional: true
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    locale:
+      ft:
+        type: string
+      optional: false
+    modelId:
+      ft:
+        type: string
+      optional: true
+    modelSelection:
+      ft:
+        type: literal
+        value: auto
+      optional: true
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    providerSlug:
+      ft:
+        type: string
+      optional: true
+    reasoningEffort:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: low
+          - type: literal
+            value: medium
+          - type: literal
+            value: high
+          - type: literal
+            value: extra
+          - type: literal
+            value: max
+      optional: true
+    status:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: waiting
+          - type: literal
+            value: claimed
+      optional: false
+    threadId:
+      ft:
+        type: string
+      optional: false
+    userId:
+      ft:
+        type: string
+      optional: false
+    userText:
+      ft:
+        type: string
+      optional: false
+    videoJobIds:
+      ft:
+        type: array
+        value:
+          tableName: videoLinkJobs
+          type: id
+      optional: true
+    waitingSince:
+      ft:
+        type: number
+      optional: false
   documents:
     content:
       ft:
@@ -2107,6 +2316,11 @@ tables:
       ft:
         type: string
       optional: false
+    conversationId:
+      ft:
+        tableName: conversations
+        type: id
+      optional: true
     documentId:
       ft:
         tableName: documents
@@ -2128,6 +2342,10 @@ tables:
             value: expired
           - type: literal
             value: deleted
+      optional: true
+    mailReceivedAt:
+      ft:
+        type: number
       optional: true
     ocrApplied:
       ft:
@@ -2192,6 +2410,10 @@ tables:
       ft:
         type: number
       optional: false
+    skipRagIndexing:
+      ft:
+        type: boolean
+      optional: true
     source:
       ft:
         type: string
@@ -2832,7 +3054,7 @@ tables:
         type: union
         value:
           - type: number
-          - type: 'null'
+          - type: "null"
       optional: false
   loginBlockCounters:
     email:
@@ -3094,7 +3316,7 @@ tables:
         type: union
         value:
           - type: string
-          - type: 'null'
+          - type: "null"
       optional: true
     direction:
       ft:
@@ -3130,7 +3352,7 @@ tables:
         type: union
         value:
           - type: string
-          - type: 'null'
+          - type: "null"
       optional: true
     processedOrgs:
       ft:
@@ -3218,6 +3440,10 @@ tables:
         type: boolean
       optional: true
     taskCommented:
+      ft:
+        type: boolean
+      optional: true
+    taskDeadlines:
       ft:
         type: boolean
       optional: true
@@ -3351,7 +3577,7 @@ tables:
         type: union
         value:
           - type: string
-          - type: 'null'
+          - type: "null"
       optional: false
     dryRun:
       ft:
@@ -3709,6 +3935,22 @@ tables:
         tableName: projectAgents
         type: id
       optional: false
+    agentSessionId:
+      ft:
+        type: string
+      optional: true
+    apiErrorStatus:
+      ft:
+        type: number
+      optional: true
+    autoRetryAttempt:
+      ft:
+        type: number
+      optional: true
+    brokerTokenHash:
+      ft:
+        type: string
+      optional: true
     deadlineAt:
       ft:
         type: number
@@ -3729,10 +3971,18 @@ tables:
       ft:
         type: string
       optional: false
+    launchedAt:
+      ft:
+        type: number
+      optional: true
     model:
       ft:
         type: string
       optional: false
+    modelProvider:
+      ft:
+        type: string
+      optional: true
     organizationId:
       ft:
         type: string
@@ -3749,6 +3999,10 @@ tables:
     resultText:
       ft:
         type: string
+      optional: true
+    sessionCreatedAt:
+      ft:
+        type: number
       optional: true
     sessionId:
       ft:
@@ -3794,6 +4048,8 @@ tables:
             value: manual
           - type: literal
             value: mention
+          - type: literal
+            value: auto_retry
       optional: true
     updatedAt:
       ft:
@@ -3841,6 +4097,10 @@ tables:
       ft:
         type: string
       optional: true
+    modelProvider:
+      ft:
+        type: string
+      optional: true
     name:
       ft:
         type: string
@@ -3854,12 +4114,24 @@ tables:
         tableName: projects
         type: id
       optional: false
+    secrets:
+      ft:
+        type: array
+        value:
+          type: string
+      optional: true
     skills:
       ft:
         type: array
         value:
           type: string
       optional: false
+    tools:
+      ft:
+        type: array
+        value:
+          type: string
+      optional: true
     updatedAt:
       ft:
         type: number
@@ -3946,6 +4218,14 @@ tables:
       ft:
         type: string
       optional: true
+    doneTaskCount:
+      ft:
+        type: number
+      optional: true
+    externalItemId:
+      ft:
+        type: string
+      optional: true
     icon:
       ft:
         type: string
@@ -3986,11 +4266,19 @@ tables:
       ft:
         type: string
       optional: false
+    openTaskCount:
+      ft:
+        type: number
+      optional: true
     organizationId:
       ft:
         type: string
       optional: false
     pinnedAt:
+      ft:
+        type: number
+      optional: true
+    projectAgentCount:
       ft:
         type: number
       optional: true
@@ -4173,6 +4461,28 @@ tables:
     updatedAt:
       ft:
         type: number
+      optional: false
+  restUploadIntents:
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    projectId:
+      ft:
+        tableName: projects
+        type: id
+      optional: false
+    s3Ref:
+      ft:
+        type: string
+      optional: true
+    userId:
+      ft:
+        type: string
       optional: false
   retentionAppliedBounds:
     appliedAt:
@@ -5774,6 +6084,10 @@ tables:
       ft:
         type: number
       optional: true
+    startNotifiedAt:
+      ft:
+        type: number
+      optional: true
     status:
       ft:
         type: union
@@ -5836,6 +6150,8 @@ tables:
             value: commenter
           - type: literal
             value: mention
+          - type: literal
+            value: reviewer
           - type: literal
             value: manual
       optional: false
@@ -6749,7 +7065,7 @@ tables:
         type: union
         value:
           - type: string
-          - type: 'null'
+          - type: "null"
       optional: false
     updatedAt:
       ft:
@@ -6769,7 +7085,7 @@ tables:
         type: union
         value:
           - type: number
-          - type: 'null'
+          - type: "null"
       optional: false
     userId:
       ft:
@@ -6876,6 +7192,74 @@ tables:
       ft:
         type: string
       optional: false
+  userCloudAuthorizations:
+    accountLabel:
+      ft:
+        type: string
+      optional: true
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    encryptedData:
+      ft:
+        type: object
+        value:
+          authTag:
+            fieldType:
+              type: string
+            optional: false
+          ciphertext:
+            fieldType:
+              type: string
+            optional: false
+          keyFingerprint:
+            fieldType:
+              type: string
+            optional: false
+          nonce:
+            fieldType:
+              type: string
+            optional: false
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    provider:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: onedrive
+          - type: literal
+            value: google-drive
+      optional: false
+    scopes:
+      ft:
+        type: array
+        value:
+          type: string
+      optional: false
+    status:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: active
+          - type: literal
+            value: needs-reauth
+          - type: literal
+            value: revoked
+      optional: false
+    updatedAt:
+      ft:
+        type: number
+      optional: false
+    userId:
+      ft:
+        type: string
+      optional: false
   userNotifications:
     actorId:
       ft:
@@ -6896,10 +7280,19 @@ tables:
       ft:
         type: string
       optional: false
+    coalesceKey:
+      ft:
+        type: string
+      optional: true
     createdAt:
       ft:
         type: number
       optional: false
+    emailJobId:
+      ft:
+        tableName: _scheduled_functions
+        type: id
+      optional: true
     organizationId:
       ft:
         type: string
@@ -6940,6 +7333,10 @@ tables:
             value: dashboard
           - type: literal
             value: conversation
+          - type: literal
+            value: document_review
+          - type: literal
+            value: document
       optional: false
     taskId:
       ft:
@@ -6957,15 +7354,25 @@ tables:
           - type: literal
             value: task_assigned
           - type: literal
+            value: task_unassigned
+          - type: literal
             value: task_status_changed
           - type: literal
             value: task_commented
           - type: literal
             value: mention
           - type: literal
+            value: task_deadline
+          - type: literal
             value: task_review_requested
           - type: literal
             value: task_review_resolved
+          - type: literal
+            value: task_reviewer_assigned
+          - type: literal
+            value: document_review_requested
+          - type: literal
+            value: document_review_resolved
           - type: literal
             value: agent_escalation
           - type: literal
@@ -7259,7 +7666,7 @@ tables:
         type: union
         value:
           - type: literal
-            value: '0'
+            value: "0"
           - type: literal
             value: infinity
       optional: false
@@ -7521,7 +7928,7 @@ tables:
         type: union
         value:
           - type: string
-          - type: 'null'
+          - type: "null"
       optional: false
     workflowConfig:
       ft:

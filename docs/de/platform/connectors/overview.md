@@ -37,7 +37,7 @@ Dreizehn Connectoren werden ausgeliefert, jeder mit der Kategorie, zu der er geh
 | **Twilio**              | SMS verschicken und Sprachanrufe über Twilio führen.                                                           | Benutzername & Passwort | 7        |
 | **WebDAV Files**        | Dateien im WebDAV-Speicher der Organisation lesen, schreiben und auflisten — dieselben, die `/dav` ausliefert. | Benutzername & Passwort | 4        |
 
-Seiten und Dateien, die über Confluence oder Google Drive hereinkommen, laufen durch dieselbe Indexierung wie ein direkter Upload, und Antworten zitieren sie zurück auf die Quelle — siehe [Dokumente](/de/platform/knowledge/documents). Der WebDAV-Connector ist die Schreibseite desselben Speichers, den deine Geräte als Netzlaufwerk einbinden; das beschreibt [WebDAV](/de/platform/connectors/webdav).
+Seiten und Dateien, die über Confluence oder Google Drive hereinkommen, laufen durch dieselbe Indexierung wie ein direkter Upload, und Antworten zitieren sie zurück auf die Quelle — siehe [Dokumente](/de/platform/knowledge/documents). OneDrive- und SharePoint-Import läuft über Wissen → Dokumente (pro Benutzer autorisiert), nicht als Org-Connector. Der WebDAV-Connector ist die Schreibseite desselben Speichers, den deine Geräte als Netzlaufwerk einbinden; das beschreibt [WebDAV](/de/platform/connectors/webdav).
 
 ## Zugangsdaten an einem Connector
 

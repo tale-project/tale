@@ -80,6 +80,8 @@ ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
 
 L’identifiant client et le secret de chaque connecteur viennent de l’environnement du déploiement, nommés par connecteur `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` et `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, le slug en majuscules et ses tirets changés en tirets bas. Quand `SITE_URL` n’est pas défini, le consentement refuse de démarrer au lieu de deviner une origine à partir de la requête.
 
+L’import personnel OneDrive / Google Drive pour Knowledge n’est **pas** un connector d’organisation — voir [Documents](/fr/platform/knowledge/documents) et l’URI cloud-import sous [Référence d’environnement](/fr/self-hosted/configuration/environment-reference).
+
 <Warning>
 
 L’URI de redirection doit correspondre octet pour octet — schéma, hôte, chemin, et pas de barre oblique finale. Un écart échoue dès l’écran de consentement du fournisseur avec une erreur `redirect_uri`, avant même que Tale ne voie le callback ; c’est de loin la raison la plus fréquente pour laquelle un nouveau connecteur OAuth ne se connecte pas.

@@ -20,6 +20,8 @@ vi.mock('../_generated/api', () => ({
         eraseSubjectPolicyAcknowledgements:
           'eraseSubjectPolicyAcknowledgements',
         eraseSubjectOnedrive: 'eraseSubjectOnedrive',
+        eraseSubjectUserCloudAuthorizations:
+          'eraseSubjectUserCloudAuthorizations',
         eraseSubjectLoginAttempts: 'eraseSubjectLoginAttempts',
         eraseSubjectNotifications: 'eraseSubjectNotifications',
         lookupSubjectEmail: 'lookupSubjectEmail',

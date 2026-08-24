@@ -80,6 +80,44 @@ Wenn beide age-Vars unset sind, speichert Tale `providers/*.secrets.json` als Kl
 
 Die Umgebungsvariablen-Schlüsselquelle braucht keinen Deployment-Schalter: Zugangsdaten können statt eines gespeicherten Schlüssels nur den _Namen_ einer Umgebungsvariable halten, solange dieser Name das reservierte Präfix `TALE_PROVIDER_KEY_` trägt. Die Schranke ist fail-closed — jeder andere Name wird abgelehnt, das Feld kann also nie auf ein fremdes Deployment-Geheimnis zeigen — und Namen sind auf 40 Zeichen begrenzt. Definier die Variable hier oder in deinem Secret-Manager, damit sowohl die Plattform als auch das Convex-Backend sie lesen können; den vollen Mechanismus beschreibt [Anbieter](/de/self-hosted/configuration/providers). Zugangsdaten mit Subscription-Broker haben einen zweiten, getrennten Namensraum für das Geheimnis, das Tale **dem Broker** präsentiert: Dieses Feld nimmt einen Umgebungsvariablen-Namen unter dem reservierten Präfix `TALE_TOKEN_SOURCE_`, begrenzt auf 60 Zeichen. Die zwei Präfixe bleiben mit Absicht getrennt — ein Broker-Geheimnis ist kein Anbieter-API-Schlüssel, und keines der Felder kann eine Variable außerhalb seines eigenen Namensraums benennen.
 
+## Connector-OAuth-Apps
+
+OAuth-Connectoren (Gmail, Google Drive, Outlook, Teams, Slack, …) lesen ihre Vendor-App-Zugangsdaten nur aus der Umgebung. Pro Connector-Slug:
+
+| Name                                   | Default | Beschreibung                                                                                                   |
+| -------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID`     | unset   | OAuth-Client-ID für diesen Connector. Slug großgeschrieben, Bindestriche als Unterstriche (`gmail` → `GMAIL`). |
+| `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET` | unset   | Passendes Client-Secret.                                                                                       |
+
+Registriere `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` in der Vendor-App. Details: [Connectors (Develop)](/de/develop/connectors).
+
+## Knowledge-Cloud-Import (Dokumente)
+
+Pro-Benutzer-Autorisierungen für OneDrive / Google Drive unter **Wissen → Dokumente** sind getrennt von Org-Connectors und vom Login. Registriere diese Redirect-URI in der Microsoft- (oder Google-)App:
+
+`${SITE_URL}${BASE_PATH}/api/cloud-import/oauth2/callback`
+
+Credential-Auflösung für OneDrive (erster Treffer gewinnt):
+
+| Name                                           | Beschreibung                             |
+| ---------------------------------------------- | ---------------------------------------- |
+| `CLOUD_IMPORT_MICROSOFT_CLIENT_ID` / `_SECRET` | Eigene Knowledge-Import-App (bevorzugt). |
+| `CLOUD_IMPORT_MICROSOFT_TENANT_ID`             | Directory-(Tenant-)ID für diese App.     |
+| `AUTH_MICROSOFT_ENTRA_ID_ID` / `_SECRET`       | Microsoft-Login-App.                     |
+| `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID`            | Directory-(Tenant-)ID für die Login-App. |
+
+Single-Tenant-Entra-App-Registrierungen brauchen eine tenant-spezifische Authorize-URL — `/common` scheitert mit AADSTS50194. Setze die Tenant-ID (oder `organizations` / `common` für eine Multi-Tenant-App). Fehlt sie, fällt Tale auf den Entra-SSO-Issuer-Tenant der Organisation zurück, falls konfiguriert.
+
+Der Microsoft-Freigabe-Dialog fordert Graph **Files.Read** und **Sites.Read.All** (OneDrive und SharePoint listen/laden), **User.Read** (Konto-Label) und **offline_access** (Refresh-Token für Sync). Die Freigabe ist absichtlich und pro Benutzer — sie kommt nicht mit der Tale-Anmeldung.
+
+Google Drive nutzt nur eine eigene App (kein Login-App-Fallback):
+
+| Name                                              | Beschreibung                       |
+| ------------------------------------------------- | ---------------------------------- |
+| `CLOUD_IMPORT_GOOGLE_DRIVE_CLIENT_ID` / `_SECRET` | Knowledge-Google-Drive-Import-App. |
+
+Registriere dieselbe Cloud-Import-Callback-URI am Google-OAuth-Client. Die Freigabe fordert **drive.readonly** und **userinfo.email**.
+
 ## Feature-Flags
 
 Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jeder Flag schaltet ein Feature beim Boot ein oder aus; das Umschalten braucht einen Neustart des Plattform-Containers.

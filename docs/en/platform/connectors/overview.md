@@ -37,7 +37,7 @@ Thirteen connectors ship, each tagged with the category it belongs to — Knowle
 | **Twilio**              | Send SMS and make voice calls with Twilio.                                                                  | Username & password | 7       |
 | **WebDAV Files**        | Read, write, and list files in the organisation's WebDAV store — the same files the `/dav` endpoint serves. | Username & password | 4       |
 
-Pages and files pulled in through Confluence or Google Drive run through the same indexing pipeline as a direct upload, and answers cite them back to the source — see [Documents](/platform/knowledge/documents). The WebDAV connector is the write side of the same store your devices mount as a network drive, covered in [WebDAV](/platform/connectors/webdav).
+Pages and files pulled in through Confluence or Google Drive run through the same indexing pipeline as a direct upload, and answers cite them back to the source — see [Documents](/platform/knowledge/documents). OneDrive and SharePoint import from Knowledge → Documents (per-user authorization), not as an org connector. The WebDAV connector is the write side of the same store your devices mount as a network drive, covered in [WebDAV](/platform/connectors/webdav).
 
 ## Credentials on a connector
 

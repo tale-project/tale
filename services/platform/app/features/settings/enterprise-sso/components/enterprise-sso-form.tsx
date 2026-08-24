@@ -79,12 +79,10 @@ interface Props {
 }
 
 const DEFAULT_SCOPES: Record<UiProtocol, string> = {
-  // Files.Read + Sites.Read.All make OneDrive/SharePoint document sync work
-  // out of the box for Entra orgs (the SSO token doubles as the Graph token).
-  // Orgs that only want sign-in delete the two scopes here — the documents
-  // menu hides its Microsoft 365 entry when the granted scopes lack Files.Read.
+  // Identity + group sync only. OneDrive/SharePoint file import uses Knowledge
+  // cloud-import OAuth (Documents → From Microsoft 365 → Connect), not SSO.
   'entra-id':
-    'openid email profile offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/GroupMember.Read.All https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Sites.Read.All',
+    'openid email profile offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/GroupMember.Read.All',
   'generic-oidc': 'openid email profile',
   oauth2: 'email profile',
   saml: '',
@@ -434,10 +432,9 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             scopes: scopeList,
             pkce: values.pkce,
             domainHint: values.domainHint || undefined,
-            // No UI toggle for this yet, so preserve whatever is stored (the
-            // cutover migration can set it for Entra orgs) rather than silently
-            // clearing it on every re-save.
-            enableOneDriveAccess: config?.oidc?.enableOneDriveAccess,
+            // Deprecated: SSO never requests Graph file scopes. Knowledge
+            // import uses cloud-import OAuth. Always clear on save.
+            enableOneDriveAccess: false,
             ...provisioning,
           });
         } else {

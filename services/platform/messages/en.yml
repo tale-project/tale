@@ -3655,6 +3655,7 @@ governance:
       twoFactorAttempts: Two-factor attempts
       policyAcknowledgements: Policy acknowledgements
       onedrive: OneDrive sync configs
+      userCloudAuthorizations: Cloud import authorizations
       loginAttempts: Login attempts and lockouts
       notifications: Security notifications
       wfExecutions: Automation runs

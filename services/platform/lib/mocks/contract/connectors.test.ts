@@ -128,6 +128,13 @@ describe('other connector gateways serve connector-shaped responses', () => {
     expect(Array.isArray(body.value)).toBe(true);
   });
 
+  test('microsoft graph list OneDrive children → { value[] }', async () => {
+    const body = await getJson(
+      '/mock/microsoft-graph/v1.0/me/drive/items/root/children',
+    );
+    expect(Array.isArray(body.value)).toBe(true);
+  });
+
   test('gmail list messages → { messages[] }', async () => {
     const body = await getJson('/mock/gmail/gmail/v1/users/me/messages');
     expect(Array.isArray(body.messages)).toBe(true);
