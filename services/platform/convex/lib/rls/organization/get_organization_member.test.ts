@@ -225,27 +225,65 @@ describe('getOrganizationMember', () => {
 
   it('throws UnauthorizedError for disabled member found via email fallback', async () => {
     const ctx = createMockCtx();
-    // First query: no direct match
-    ctx.runQuery.mockResolvedValueOnce({ page: [] });
-    // Email lookup: find user by email
-    ctx.runQuery.mockResolvedValueOnce({
-      page: [{ _id: 'user_2', email: 'test@example.com' }],
-    });
-    // Second member lookup by email-resolved userId
-    ctx.runQuery.mockResolvedValueOnce({
-      page: [
-        {
-          _id: 'om_2',
-          organizationId: ORG_ID,
-          userId: 'user_2',
-          role: 'disabled',
-          createdAt: 1000,
-        },
-      ],
-    });
+    // Ref+model-routed mock: the org-existence check now runs BETWEEN the
+    // direct member lookup and the email fallback, so a call-order sequence
+    // would silently misalign.
+    let memberLookups = 0;
+    ctx.runQuery.mockImplementation(
+      async (ref: string, args: { model?: string }) => {
+        if (ref === 'betterAuth:adapter:findOne') return { _id: ORG_ID };
+        if (args.model === 'user') {
+          return { page: [{ _id: 'user_2', email: 'test@example.com' }] };
+        }
+        memberLookups += 1;
+        // Direct lookup misses; the email-resolved lookup finds the disabled row.
+        if (memberLookups === 1) return { page: [] };
+        return {
+          page: [
+            {
+              _id: 'om_2',
+              organizationId: ORG_ID,
+              userId: 'user_2',
+              role: 'disabled',
+              createdAt: 1000,
+            },
+          ],
+        };
+      },
+    );
 
-    await expect(
+    const error = await rejection(
       getOrganizationMember(ctx as never, ORG_ID, authUser),
-    ).rejects.toThrow(UnauthorizedError);
+    );
+
+    expect(error).toBeInstanceOf(UnauthorizedError);
+    expect(error).toMatchObject({ code: 'ORG_FORBIDDEN' });
+    expect(memberLookups).toBe(2);
+  });
+
+  it('short-circuits a dead org before the email fallback', async () => {
+    const ctx = createMockCtx();
+    const models: string[] = [];
+    ctx.runQuery.mockImplementation(
+      async (ref: string, args: { model?: string }) => {
+        models.push(args.model ?? '?');
+        if (ref === 'betterAuth:adapter:findOne') return null; // org row gone
+        return { page: [] };
+      },
+    );
+
+    const error = await rejection(
+      // authUser HAS an email — the fallback would run if not short-circuited.
+      getOrganizationMember(ctx as never, ORG_ID, authUser),
+    );
+
+    expect(error).toBeInstanceOf(UnauthorizedError);
+    expect(error).toMatchObject({ code: 'ORG_NOT_FOUND' });
+    // Exactly one member lookup + one organization lookup — the 2-read email
+    // fallback must NOT run for a nonexistent org. An org deletion re-executes
+    // every subscribed org-scoped query at once; the shorter path is what
+    // keeps those failures inside the function budget (structured, not a
+    // timeout) on a loaded backend.
+    expect(models).toEqual(['member', 'organization']);
   });
 });

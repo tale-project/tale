@@ -30,9 +30,11 @@ vi.mock('@/app/router', () => ({
 
 const {
   handleOrgScopedQueryError,
+  installOrgErrorRecovery,
   isDeadOrgError,
   resetOrgErrorRecoveryForTests,
 } = await import('./org-error-recovery');
+const { QueryClient } = await import('@tanstack/react-query');
 
 /** A ConvexError as the client sees it: duck-typed `data` payload. */
 function convexError(code: string): Error {
@@ -127,5 +129,70 @@ describe('handleOrgScopedQueryError', () => {
     expect(mocks.invalidateQueries).toHaveBeenCalled();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe('installOrgErrorRecovery (real query cache)', () => {
+  it('dispatches when a queryFn rejects with a dead-org error', async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const uninstall = installOrgErrorRecovery(qc);
+
+    await qc.prefetchQuery({
+      queryKey: ['dead-org-fetch'],
+      queryFn: () => Promise.reject(convexError('ORG_NOT_FOUND')),
+    });
+    await recoverySettled();
+
+    expect(mocks.setActive).toHaveBeenCalledWith({ organizationId: null });
+    uninstall();
+    qc.clear();
+  });
+
+  it('dispatches when a live subscription writes the error state directly', async () => {
+    // The @convex-dev/react-query bridge delivers WS-pushed failures via
+    // query.setState — never through a queryFn rejection. This is the path an
+    // OPEN tab sees when its org is deleted mid-session (verified manually);
+    // QueryCache onError never fires for it.
+    const qc = new QueryClient();
+    const uninstall = installOrgErrorRecovery(qc);
+
+    const query = qc
+      .getQueryCache()
+      .build(qc, { queryKey: ['dead-org-live'], queryFn: async () => null });
+    const error = convexError('ORG_NOT_FOUND');
+    query.setState({
+      // Mirrors ConvexQueryClient.onUpdateQueryKeyHash's error delivery.
+      error: error as never,
+      errorUpdateCount: query.state.errorUpdateCount + 1,
+      errorUpdatedAt: Date.now(),
+      fetchFailureCount: query.state.fetchFailureCount + 1,
+      fetchFailureReason: error as never,
+      fetchStatus: 'idle',
+      status: 'error',
+    });
+    await recoverySettled();
+
+    expect(mocks.setActive).toHaveBeenCalledWith({ organizationId: null });
+    uninstall();
+    qc.clear();
+  });
+
+  it('stays quiet for non-dead-org error states', async () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const uninstall = installOrgErrorRecovery(qc);
+
+    await qc.prefetchQuery({
+      queryKey: ['other-error'],
+      queryFn: () => Promise.reject(convexError('ORG_FORBIDDEN')),
+    });
+    await recoverySettled();
+
+    expect(mocks.setActive).not.toHaveBeenCalled();
+    uninstall();
+    qc.clear();
   });
 });

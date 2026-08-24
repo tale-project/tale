@@ -1,13 +1,13 @@
 import { ConvexQueryClient } from '@convex-dev/react-query';
 import * as Sentry from '@sentry/tanstackstart-react';
-import { QueryCache, QueryClient } from '@tanstack/react-query';
+import { QueryClient } from '@tanstack/react-query';
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 
 import { GlobalErrorDisplay } from '@/app/components/error-boundaries/displays/global-error-display';
 import { RouteNotFound } from '@/app/components/layout/route-not-found';
 import { isStructuredConvexError } from '@/app/hooks/use-action-query';
 import { warmSession } from '@/app/lib/auth/session-query';
-import { handleOrgScopedQueryError } from '@/app/lib/org-error-recovery';
+import { installOrgErrorRecovery } from '@/app/lib/org-error-recovery';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import { normalizeConvexSentryEvent } from '@/app/lib/sentry-normalize';
 import { getEnv } from '@/lib/env';
@@ -27,15 +27,6 @@ export const convexQueryClient = new ConvexQueryClient(
 );
 
 export const queryClient = new QueryClient({
-  queryCache: new QueryCache({
-    // Global stale-org recovery: a query failing with ConvexError
-    // ORG_NOT_FOUND means the active organization is gone (deleted org id
-    // persisted in the session, or an empty/garbage org context in a stale
-    // tab). Without this, such a session retries the same dead org-scoped
-    // queries on every visit, forever — clear the stale org and re-resolve
-    // through the picker instead. No-op for every other error.
-    onError: (error) => handleOrgScopedQueryError(error),
-  }),
   defaultOptions: {
     queries: {
       queryKeyHashFn: convexQueryClient.hashFn(),
@@ -64,6 +55,14 @@ export const queryClient = new QueryClient({
 });
 
 convexQueryClient.connect(queryClient);
+
+// Global stale-org recovery: any query erroring with ConvexError ORG_NOT_FOUND
+// means the active organization is gone (deleted org id persisted in the
+// session, or an empty/garbage org context in a stale tab). Without this, such
+// a session retries the same dead org-scoped queries on every visit, forever —
+// clear the stale org and re-resolve through the picker instead. A cache
+// subscription (not QueryCache onError) so live WS-pushed errors are seen too.
+installOrgErrorRecovery(queryClient);
 
 // Kick off the Better Auth session fetch AND the Convex token mint at module
 // load, in parallel — the auth provider then resolves both against in-flight

@@ -58,12 +58,20 @@ async function findMemberInMirror(
 }
 
 /**
- * Classify a membership miss before throwing: an org that no longer exists
- * (deleted, or the id is not even id-shaped — a stale client polling a dead
- * persisted active org) is `ORG_NOT_FOUND`, a live org the user simply isn't
- * in is `ORG_FORBIDDEN`. Clients dispatch recovery on `ORG_NOT_FOUND` (clear
- * the stale active org, return to the picker), so the two must not be
- * conflated. One extra adapter read, only on the (terminal) failure path.
+ * Classify a membership miss the moment the authoritative member lookup
+ * comes back empty: an org that no longer exists (deleted, or the id is not
+ * even id-shaped — a stale client polling a dead persisted active org) is
+ * `ORG_NOT_FOUND`, a live org the user simply isn't in is `ORG_FORBIDDEN`.
+ * Clients dispatch recovery on `ORG_NOT_FOUND` (clear the stale active org,
+ * return to the picker), so the two must not be conflated.
+ *
+ * Checked BEFORE the email fallback: no fallback can conjure a membership in
+ * an organization that has no row, so a dead org short-circuits here — two
+ * cross-component reads total, CHEAPER than the old always-run fallback
+ * chain. That matters precisely on this path's hot case: an org deletion
+ * re-executes every subscribed org-scoped query at once, and on a loaded
+ * backend the 4-read fallback chain blew the function budget, surfacing
+ * timeouts instead of the structured miss (observed in manual testing).
  * The `looksLikeConvexDocumentId` pre-check keeps a non-id string out of the
  * adapter's `db.get`, which would throw an opaque decode error (see
  * `lib/helpers/id_shape.ts`).
@@ -140,7 +148,18 @@ export async function getOrganizationMember(
 
   member = member ?? result?.page?.[0];
 
-  // Fallback to email lookup if no direct match.
+  // Membership miss: classify the org FIRST. A deleted/nonexistent org is a
+  // terminal, structured miss — running the email fallback for it would only
+  // add two more cross-component reads that cannot succeed (see
+  // `organizationExists` above for why that latency matters here).
+  if (!member && !(await organizationExists(ctx, organizationId))) {
+    throw new UnauthorizedError(
+      `Organization "${organizationId}" not found.`,
+      'ORG_NOT_FOUND',
+    );
+  }
+
+  // Fallback to email lookup if no direct match (org known to exist here).
   // This handles cases where the JWT userId doesn't match the stored userId, which can occur during:
   // - Account migrations (e.g., user data moved between auth providers)
   // - Account linking (e.g., social login linked to existing email account)
@@ -182,12 +201,8 @@ export async function getOrganizationMember(
   }
 
   if (!member) {
-    if (!(await organizationExists(ctx, organizationId))) {
-      throw new UnauthorizedError(
-        `Organization "${organizationId}" not found.`,
-        'ORG_NOT_FOUND',
-      );
-    }
+    // The org exists (checked above before the fallback) — this is a live-org
+    // membership refusal, not a dead-org miss.
     throw new UnauthorizedError(
       `Not a member of organization ${organizationId}`,
       'ORG_FORBIDDEN',

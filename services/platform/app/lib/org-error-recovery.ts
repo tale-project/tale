@@ -9,16 +9,27 @@
  * as a month of weekly `listAgents` / `readBranding` / `listProviders` error
  * bursts from one user in GlitchTip — the session never healed on its own.
  *
- * Wired as the query cache's global `onError` (app/router.tsx): on the first
- * dead-org failure it clears every client hint that would rehydrate the dead
- * org, then routes back through `/dashboard/` — whose index re-resolves a
- * valid membership (or the create-organization wizard) and re-persists it.
+ * Installed as a query-cache SUBSCRIPTION (`installOrgErrorRecovery`, called
+ * from app/router.tsx): on the first dead-org failure it clears every client
+ * hint that would rehydrate the dead org, then routes back through
+ * `/dashboard/` — whose index re-resolves a valid membership (or the
+ * create-org wizard) and re-persists it.
+ *
+ * A cache subscription, NOT `QueryCache({ onError })`: `onError` only fires
+ * when a queryFn rejects, but the @convex-dev/react-query bridge delivers a
+ * LIVE subscription failure by writing the error state directly
+ * (`query.setState`) — exactly what an open tab receives when its org is
+ * deleted mid-session. Observing cache events covers both delivery paths
+ * (verified manually: an open dashboard tab whose org was deleted only
+ * received the structured error via the setState path).
  *
  * Deliberately NOT triggered by `ORG_FORBIDDEN` (org exists, caller isn't a
  * member): the dashboard layout renders the intentional "you've been removed"
  * AccessDenied screen for that state (see routes/dashboard/$id.tsx), and a
  * structured ConvexError is never retried, so forbidden states don't loop.
  */
+
+import type { QueryClient } from '@tanstack/react-query';
 
 import { convexErrorCode } from '@/app/hooks/use-action-query';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
@@ -42,7 +53,7 @@ export function resetOrgErrorRecoveryForTests(): void {
 }
 
 /**
- * Query-cache `onError` hook. Fire-and-forget: react-query's error handling
+ * Per-error entry point. Fire-and-forget: react-query's error handling
  * (error states, boundaries) proceeds regardless; this only heals the session
  * in the background.
  */
@@ -54,6 +65,21 @@ export function handleOrgScopedQueryError(error: unknown): void {
   }
   lastRecoveryAt = now;
   void recoverFromDeadOrg();
+}
+
+/**
+ * Watch every query error the cache ever holds — whether it arrived as a
+ * queryFn rejection or as a live subscription update written via
+ * `query.setState` — and dispatch dead-org recovery. Returns the unsubscribe
+ * for symmetry/tests; the app installs it once for the client's lifetime.
+ */
+export function installOrgErrorRecovery(queryClient: QueryClient): () => void {
+  return queryClient.getQueryCache().subscribe((event) => {
+    if (event.type !== 'updated') return;
+    const { error, status } = event.query.state;
+    if (status !== 'error' || error == null) return;
+    handleOrgScopedQueryError(error);
+  });
 }
 
 async function recoverFromDeadOrg(): Promise<void> {
