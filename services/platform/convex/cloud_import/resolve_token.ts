@@ -7,6 +7,7 @@
 
 import { v } from 'convex/values';
 
+import { getNumber, getString, isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import {
@@ -27,6 +28,25 @@ const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 export type ResolveCloudTokenResult =
   | { success: true; accessToken: string }
   | { success: false; error: string; needsReauth?: boolean };
+
+function parseOAuthTokenResponse(data: unknown): {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number;
+} | null {
+  if (!isRecord(data)) return null;
+  const accessToken = getString(data, 'access_token');
+  if (accessToken === undefined) return null;
+  const refreshToken = getString(data, 'refresh_token');
+  const expiresIn = getNumber(data, 'expires_in');
+  return {
+    accessToken,
+    ...(refreshToken !== undefined && { refreshToken }),
+    ...(expiresIn !== undefined && {
+      expiresAt: Date.now() + expiresIn * 1000,
+    }),
+  };
+}
 
 async function refreshMicrosoftAccessToken(args: {
   refreshToken: string;
@@ -50,28 +70,7 @@ async function refreshMicrosoftAccessToken(args: {
     }),
   });
   if (!response.ok) return null;
-  const data: unknown = await response.json();
-  if (
-    typeof data !== 'object' ||
-    data === null ||
-    typeof (data as { access_token?: unknown }).access_token !== 'string'
-  ) {
-    return null;
-  }
-  const record = data as {
-    access_token: string;
-    refresh_token?: string;
-    expires_in?: number;
-  };
-  return {
-    accessToken: record.access_token,
-    ...(typeof record.refresh_token === 'string' && {
-      refreshToken: record.refresh_token,
-    }),
-    ...(typeof record.expires_in === 'number' && {
-      expiresAt: Date.now() + record.expires_in * 1000,
-    }),
-  };
+  return parseOAuthTokenResponse(await response.json());
 }
 
 async function refreshGoogleAccessToken(args: {
@@ -95,28 +94,7 @@ async function refreshGoogleAccessToken(args: {
     }),
   });
   if (!response.ok) return null;
-  const data: unknown = await response.json();
-  if (
-    typeof data !== 'object' ||
-    data === null ||
-    typeof (data as { access_token?: unknown }).access_token !== 'string'
-  ) {
-    return null;
-  }
-  const record = data as {
-    access_token: string;
-    refresh_token?: string;
-    expires_in?: number;
-  };
-  return {
-    accessToken: record.access_token,
-    ...(typeof record.refresh_token === 'string' && {
-      refreshToken: record.refresh_token,
-    }),
-    ...(typeof record.expires_in === 'number' && {
-      expiresAt: Date.now() + record.expires_in * 1000,
-    }),
-  };
+  return parseOAuthTokenResponse(await response.json());
 }
 
 export const resolveAccessToken = internalAction({
@@ -153,10 +131,7 @@ export const resolveAccessToken = internalAction({
     let payload: ConnectorSecretPayload;
     try {
       const plaintext = decryptSecret(row.encryptedData);
-      payload = parseSecretPayload(
-        'oauth2',
-        JSON.parse(plaintext) as Record<string, unknown>,
-      );
+      payload = parseSecretPayload('oauth2', JSON.parse(plaintext));
     } catch {
       return {
         success: false,

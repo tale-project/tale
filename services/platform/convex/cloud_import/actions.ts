@@ -8,6 +8,7 @@
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
 import {
   parseSecretPayload,
@@ -27,7 +28,7 @@ export const storeAuthorization = internalAction({
     scopes: v.array(v.string()),
     accountLabel: v.optional(v.string()),
   },
-  returns: v.object({ authorizationId: v.string() }),
+  returns: v.object({ authorizationId: v.id('userCloudAuthorizations') }),
   handler: async (ctx, args) => {
     let payload;
     try {
@@ -41,25 +42,26 @@ export const storeAuthorization = internalAction({
       });
     } catch (err) {
       if (err instanceof SecretPayloadError) {
-        throw new Error(err.message);
+        throw new Error(err.message, { cause: err });
       }
       throw err;
     }
     const { authMethod: _method, ...document } = payload;
     const encryptedData = encryptSecret(JSON.stringify(document));
-    const authorizationId = await ctx.runMutation(
-      internal.cloud_import.mutations.upsertAuthorizationInternal,
-      {
-        organizationId: args.organizationId,
-        userId: args.userId,
-        provider: args.provider,
-        encryptedData,
-        scopes: args.scopes,
-        ...(args.accountLabel !== undefined && {
-          accountLabel: args.accountLabel,
-        }),
-      },
-    );
-    return { authorizationId: authorizationId as string };
+    const authorizationId: Id<'userCloudAuthorizations'> =
+      await ctx.runMutation(
+        internal.cloud_import.mutations.upsertAuthorizationInternal,
+        {
+          organizationId: args.organizationId,
+          userId: args.userId,
+          provider: args.provider,
+          encryptedData,
+          scopes: args.scopes,
+          ...(args.accountLabel !== undefined && {
+            accountLabel: args.accountLabel,
+          }),
+        },
+      );
+    return { authorizationId };
   },
 });

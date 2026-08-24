@@ -8,6 +8,7 @@
  */
 
 import { defineAbilityFor } from '../../lib/permissions/ability';
+import { getString, isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import {
@@ -148,11 +149,10 @@ async function fetchMicrosoftAccountLabel(
     );
     if (!response.ok) return undefined;
     const data: unknown = await response.json();
-    if (typeof data !== 'object' || data === null) return undefined;
-    const record = data as Record<string, unknown>;
+    if (!isRecord(data)) return undefined;
     for (const key of ['mail', 'userPrincipalName', 'displayName'] as const) {
-      const value = record[key];
-      if (typeof value === 'string' && value.trim().length > 0) {
+      const value = getString(data, key);
+      if (value !== undefined && value.trim().length > 0) {
         return value.trim();
       }
     }
@@ -172,11 +172,10 @@ async function fetchGoogleAccountLabel(
     );
     if (!response.ok) return undefined;
     const data: unknown = await response.json();
-    if (typeof data !== 'object' || data === null) return undefined;
-    const record = data as Record<string, unknown>;
+    if (!isRecord(data)) return undefined;
     for (const key of ['email', 'name'] as const) {
-      const value = record[key];
-      if (typeof value === 'string' && value.trim().length > 0) {
+      const value = getString(data, key);
+      if (value !== undefined && value.trim().length > 0) {
         return value.trim();
       }
     }
