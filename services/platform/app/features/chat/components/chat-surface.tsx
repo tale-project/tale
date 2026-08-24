@@ -1579,6 +1579,10 @@ function ChatSurfaceInner({
               threads={threadsAvailable ? threads.data : NO_THREADS}
               activeThreadId={threadId}
               available={threadsAvailable}
+              draftNewChat={threadId === undefined}
+              {...(projectId !== undefined
+                ? { draftProjectId: projectId }
+                : {})}
             />
           </div>
         </SubPanel>
@@ -1650,6 +1654,10 @@ function ChatSurfaceInner({
                 threads={threadsAvailable ? threads.data : NO_THREADS}
                 activeThreadId={threadId}
                 available={threadsAvailable}
+                draftNewChat={threadId === undefined}
+                {...(projectId !== undefined
+                  ? { draftProjectId: projectId }
+                  : {})}
               />
             </div>
           </Sheet>

@@ -44,6 +44,7 @@ import { useT } from '@/lib/i18n/client';
 import { useChatProjects, useThreadHolds } from '../data/chat-backend';
 import type { ChatProjectSummary, ChatThreadSummary } from '../types';
 import { ArchivedSection } from './archived-section';
+import { NewChatDraftRow } from './new-chat-draft-row';
 import { ProjectFolder, LooseThreadsDropZone } from './project-folder';
 import { ThreadDndProvider } from './thread-dnd';
 import {
@@ -58,6 +59,14 @@ interface ThreadListProps {
   activeThreadId?: string;
   /** False while the chat backend has not answered — the skeleton holds. */
   available?: boolean;
+  /**
+   * The blank composer is open (no thread yet). Surfaces a provisional
+   * "New chat" row with the gray draft indicator so the side panel mirrors
+   * the empty conversation on screen.
+   */
+  draftNewChat?: boolean;
+  /** Project the draft is filed under (`?projectId=` New-chat flow). */
+  draftProjectId?: string;
 }
 
 /** Stable stand-in while the project read has not answered — a fresh `[]` each
@@ -69,6 +78,8 @@ export const ThreadList = memo(function ThreadList({
   threads,
   activeThreadId,
   available = true,
+  draftNewChat = false,
+  draftProjectId,
 }: ThreadListProps) {
   const { t } = useT('chat');
   const sidebar = useOptionalSidebar();
@@ -226,7 +237,13 @@ export const ThreadList = memo(function ThreadList({
     !projectsLoading &&
     !threadsLoading &&
     threads.length === 0 &&
-    sortedProjects.length === 0;
+    sortedProjects.length === 0 &&
+    !draftNewChat;
+
+  const looseDraft =
+    draftNewChat && draftProjectId === undefined ? (
+      <NewChatDraftRow organizationId={organizationId} />
+    ) : null;
 
   return (
     <ThreadListFrameProvider value={frame}>
@@ -255,6 +272,7 @@ export const ThreadList = memo(function ThreadList({
                   onSetCollapsed={(collapsed) =>
                     setProjectCollapsed(project.id, collapsed)
                   }
+                  draftNewChat={draftNewChat && draftProjectId === project.id}
                 />
               ))
             )}
@@ -307,7 +325,10 @@ export const ThreadList = memo(function ThreadList({
                     <ChatRowsSkeleton />
                   </Skeletonize>
                 ) : (
-                  <LooseThreadsDropZone hasThreads={looseThreads.length > 0}>
+                  <LooseThreadsDropZone
+                    hasThreads={looseThreads.length > 0 || looseDraft !== null}
+                  >
+                    {looseDraft}
                     {looseThreads.map((thread) => (
                       <ThreadRow key={thread.id} thread={thread} />
                     ))}

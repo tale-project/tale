@@ -139,7 +139,7 @@ describe('ThreadList', () => {
     ).toBeInTheDocument();
   });
 
-  it('keeps a quiet gray indicator on idle threads', () => {
+  it('does not put a gray draft dot on ordinary idle threads', () => {
     render(
       <ThreadList
         organizationId="org-1"
@@ -148,10 +148,20 @@ describe('ThreadList', () => {
     );
 
     const row = screen.getByRole('link', { name: /Quarterly report/ });
-    expect(row.querySelector('[aria-hidden].rounded-full')).not.toBeNull();
-    expect(
-      screen.queryByRole('status', { name: 'Generating response' }),
-    ).toBeNull();
+    expect(row.querySelector('[aria-hidden].rounded-full')).toBeNull();
+  });
+
+  it('shows a New chat draft row with a gray indicator while composing', () => {
+    render(
+      <ThreadList organizationId="org-1" threads={THREADS} draftNewChat />,
+    );
+
+    const draft = screen.getByRole('link', {
+      name: 'New chat',
+      current: 'page',
+    });
+    expect(draft.querySelector('[aria-hidden].rounded-full')).not.toBeNull();
+    expect(draft).toHaveTextContent('New chat');
   });
 
   it('starts a fresh chat from the chats header', async () => {

@@ -120,8 +120,7 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
           {...(treatment.style !== undefined ? { style: treatment.style } : {})}
         >
           {/* The leading state dot: blue while a reply streams, green for a
-              finished reply not yet read, quiet gray otherwise — always
-              present so every row keeps the same left edge. */}
+              finished reply not yet read, nothing otherwise. */}
           {thread.generating ? (
             <span
               role="status"
@@ -134,12 +133,7 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
               aria-label={t('newResponse')}
               className="bg-success size-2 shrink-0 rounded-full"
             />
-          ) : (
-            <span
-              aria-hidden
-              className="bg-muted-foreground/50 size-2 shrink-0 rounded-full"
-            />
-          )}
+          ) : null}
           {thread.pinnedAt !== undefined && (
             <Pin
               aria-label={t('pinned')}
