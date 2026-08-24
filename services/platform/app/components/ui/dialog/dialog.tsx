@@ -100,6 +100,12 @@ export interface DialogProps {
   footer?: React.ReactNode;
   /** Additional className for DialogContent */
   className?: string;
+  /**
+   * ClassName for the scrollable body wrapper around `children`. Use
+   * `m-0 p-0` with a flush `className` (`p-0`) when the body owns its own
+   * padding — otherwise the default `-mx-2 px-2` inset stacks a second layer.
+   */
+  bodyClassName?: string;
   /** Whether to hide the close button */
   hideClose?: boolean;
   /** Additional className for DialogHeader */
@@ -164,6 +170,7 @@ export function Dialog({
   children,
   footer,
   className,
+  bodyClassName,
   hideClose,
   headerClassName,
   footerClassName,
@@ -285,7 +292,12 @@ export function Dialog({
               </div>
             )}
             {hasBody && (
-              <div className="-mx-2 -my-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-1">
+              <div
+                className={cn(
+                  '-mx-2 -my-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-1',
+                  bodyClassName,
+                )}
+              >
                 {children}
               </div>
             )}
