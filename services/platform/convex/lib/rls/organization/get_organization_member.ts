@@ -102,14 +102,23 @@ export async function getOrganizationMember(
   user?: AuthenticatedUser,
 ): Promise<OrganizationMember> {
   // Reject an empty id at the boundary: callers validate `organizationId` as
-  // `v.string()`, so a client with an empty persisted org context reaches
-  // this gate with `""` — which can never match a membership and used to
-  // surface as the unactionable "Not a member of organization " (sic). Fail
-  // it as the structured, terminal miss it is, before any lookup.
+  // `v.string()`, so a client whose org context is still resolving (or a
+  // stale tab with an empty persisted org) reaches this gate with `""` —
+  // which can never match a membership and used to surface as the
+  // unactionable "Not a member of organization " (sic). Fail it as the
+  // structured, terminal miss it is, before any lookup.
+  //
+  // `ORG_ID_REQUIRED`, deliberately NOT `ORG_NOT_FOUND`: an empty id is a
+  // caller-side gap (a component racing its data, a stale tab), not evidence
+  // that the session's persisted org is gone — the client's dead-org
+  // recovery keys on `ORG_NOT_FOUND` and must not yank a working session to
+  // the org picker over it (observed: the E2E project specs open the task
+  // modal, a transient "" query fired, and the recovery navigated the tab
+  // away mid-flow).
   if (!organizationId) {
     throw new UnauthorizedError(
       'Organization id is required.',
-      'ORG_NOT_FOUND',
+      'ORG_ID_REQUIRED',
     );
   }
 

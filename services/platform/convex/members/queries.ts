@@ -92,10 +92,12 @@ export const getCurrentMemberContext = query({
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         // getOrganizationMember already disambiguated the miss: a dead or
-        // malformed org id throws `ORG_NOT_FOUND`, a live org the user isn't
-        // a (non-disabled) member of throws `ORG_FORBIDDEN` — no second
-        // organization lookup needed here.
-        return error.code === 'ORG_NOT_FOUND'
+        // malformed org id throws `ORG_NOT_FOUND`, an empty id throws
+        // `ORG_ID_REQUIRED` (both mean "no such workspace" to this caller),
+        // and a live org the user isn't a (non-disabled) member of throws
+        // `ORG_FORBIDDEN` — no second organization lookup needed here.
+        return error.code === 'ORG_NOT_FOUND' ||
+          error.code === 'ORG_ID_REQUIRED'
           ? { status: 'not_found' as const }
           : { status: 'not_member' as const };
       }

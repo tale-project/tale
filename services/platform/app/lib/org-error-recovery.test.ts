@@ -108,8 +108,13 @@ describe('handleOrgScopedQueryError', () => {
     expect(mocks.navigate).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores forbidden and unstructured errors', async () => {
+  it('ignores forbidden, empty-arg, and unstructured errors', async () => {
     handleOrgScopedQueryError(convexError('ORG_FORBIDDEN'));
+    // ORG_ID_REQUIRED = a component transiently sent "" (caller-side gap) —
+    // recovering (navigating to the picker) over it would yank a WORKING
+    // session out of its page, which is exactly what broke the E2E project
+    // specs before the code split.
+    handleOrgScopedQueryError(convexError('ORG_ID_REQUIRED'));
     handleOrgScopedQueryError(new Error('network flake'));
     await recoverySettled();
 

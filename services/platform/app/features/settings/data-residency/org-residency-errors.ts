@@ -30,6 +30,7 @@ export function mapOrgResidencyError(err: unknown, t: Translator): string {
 
   switch (code) {
     case 'UNAUTHENTICATED':
+    case 'ORG_ID_REQUIRED':
     case 'ORG_NOT_FOUND':
     case 'ORG_FORBIDDEN':
       return t('dataResidency.orgStorage.errors.forbidden');

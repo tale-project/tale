@@ -97,7 +97,7 @@ describe('getOrganizationMember', () => {
     expect(ctx.runQuery).not.toHaveBeenCalled();
   });
 
-  it('rejects an empty organization id at the boundary with ORG_NOT_FOUND', async () => {
+  it('rejects an empty organization id at the boundary with ORG_ID_REQUIRED', async () => {
     const ctx = createMockCtx();
 
     const error = await rejection(
@@ -106,9 +106,15 @@ describe('getOrganizationMember', () => {
 
     expect(error).toBeInstanceOf(UnauthorizedError);
     // Structured wire payload: clients dispatch stale-org recovery on this.
+    // ORG_ID_REQUIRED, not ORG_NOT_FOUND: an empty id is a caller-side gap,
+    // and the client's dead-org recovery (which keys on ORG_NOT_FOUND) must
+    // not fire for it.
     expect(error).toMatchObject({
-      code: 'ORG_NOT_FOUND',
-      data: { code: 'ORG_NOT_FOUND', message: 'Organization id is required.' },
+      code: 'ORG_ID_REQUIRED',
+      data: {
+        code: 'ORG_ID_REQUIRED',
+        message: 'Organization id is required.',
+      },
       message: 'Organization id is required.',
     });
     // Terminal before any lookup — no mirror read, no adapter round-trip.

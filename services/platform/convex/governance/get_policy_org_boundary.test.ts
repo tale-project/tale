@@ -94,7 +94,7 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('org-scoped query boundary with a stale org context', () => {
-  it('rejects an empty organizationId as structured ORG_NOT_FOUND', async () => {
+  it('rejects an empty organizationId as structured ORG_ID_REQUIRED', async () => {
     const t = newT();
 
     const error = await rejection(
@@ -104,7 +104,11 @@ describe('org-scoped query boundary with a stale org context', () => {
       }),
     );
 
-    expect(thrownConvexErrorCode(error)).toBe('ORG_NOT_FOUND');
+    // Distinct from ORG_NOT_FOUND on purpose: an in-app component racing its
+    // data can transiently send "" (observed via the task modal in the E2E
+    // project specs), and the client's dead-org recovery must not treat that
+    // as a dead persisted org and navigate the tab away.
+    expect(thrownConvexErrorCode(error)).toBe('ORG_ID_REQUIRED');
   });
 
   it('rejects a deleted org id as structured ORG_NOT_FOUND, not "not a member"', async () => {
