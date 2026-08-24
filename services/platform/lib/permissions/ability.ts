@@ -17,6 +17,7 @@ export type PlatformResource =
   | 'documents'
   | 'connectors'
   | 'onedriveSyncConfigs'
+  | 'googleDriveSyncConfigs'
   | 'products'
   | 'projects'
   | 'websites'
@@ -97,6 +98,7 @@ export function defineAbilityFor(role: string | null): AppAbility {
       const readOnlyResources: PlatformResource[] = [
         'connectors',
         'onedriveSyncConfigs',
+        'googleDriveSyncConfigs',
         'wfDefinitions',
         'wfExecutions',
         'workflowProcessingRecords',

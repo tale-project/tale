@@ -13,9 +13,9 @@ L’onglet Documents est la surface fichiers de la base de connaissances. Les é
 
 ## Téléverser
 
-Ouvre **Connaissances > Documents** et clique sur **Téléverser des documents** — le menu propose **Depuis ton appareil** et **Depuis Microsoft 365**. Le portail de téléversement accepte les formats qui couvrent l’essentiel des connaissances d’une organisation : PDF, Word (`.doc`, `.docx`), texte OpenDocument (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, texte brut et fichiers de travail textuels (Markdown, JSON, YAML, `.py`), conteneurs comptables (`.ac2`) et images (JPG, PNG, GIF, WEBP). Tout le reste est refusé dès le téléversement, et la politique de téléversement d'une organisation peut restreindre encore la liste.
+Ouvre **Connaissances > Documents** et clique sur **Téléverser des documents** — le menu propose **Depuis ton appareil**, **Depuis Microsoft 365** et **Depuis Google Drive**. Le portail de téléversement accepte les formats qui couvrent l’essentiel des connaissances d’une organisation : PDF, Word (`.doc`, `.docx`), texte OpenDocument (`.odt`), PowerPoint (`.ppt`, `.pptx`), Excel (`.xls`, `.xlsx`), CSV, texte brut et images (JPG, PNG, GIF, WEBP). Tout le reste est refusé dès le téléversement.
 
-Téléverser et indexer sont deux faits distincts, et la colonne **Statut RAG** suit le second : **Indexation** pendant que le pipeline tourne, **Indexé** quand les agents peuvent récupérer le contenu, **Échoué** quand le pipeline a rencontré une erreur, et **Réindexation nécessaire** quand les fragments stockés sont périmés. Les formats modernes s’indexent ; le trio Office historique (`.doc`, `.xls`, `.ppt`) se téléverse et reste téléchargeable mais affiche **Non indexé** — les agents ne peuvent pas récupérer son contenu tant que tu ne l’as pas réenregistré au format moderne. Un conteneur comptable (`.ac2`) est stocké comme fichier opaque : téléchargeable, jamais prévisualisé ni indexé.
+Téléverser et indexer sont deux faits distincts, et la colonne **Statut RAG** suit le second : **Indexation** pendant que le pipeline tourne, **Indexé** quand les agents peuvent récupérer le contenu, **Échoué** quand le pipeline a rencontré une erreur, et **Réindexation nécessaire** quand les fragments stockés sont périmés. Les formats modernes s’indexent ; le trio Office historique (`.doc`, `.xls`, `.ppt`) se téléverse et reste téléchargeable mais affiche **Non indexé** — les agents ne peuvent pas récupérer son contenu tant que tu ne l’as pas réenregistré au format moderne.
 
 ## Réviser un document maîtrisé
 
@@ -55,15 +55,23 @@ Ouvre l’aperçu du document et vérifie qu’il affiche le fichier de remplace
 
 Pour arrêter la synchronisation — d’un dossier synchronisé entier ou d’un seul fichier synchronisé — ouvre le menu de la ligne et clique sur **Arrêter la synchronisation** ; les documents importés restent dans l’espace de travail et cessent d’être mis à jour. Supprimer un dossier ou un fichier synchronisé arrête aussi sa synchronisation. Dans tous les cas, les fichiers dans OneDrive restent intacts.
 
+## Importer depuis Google Drive
+
+**Depuis Google Drive** est toujours dans le menu de téléversement. La première fois, Tale te demande d’autoriser Google Drive pour importer dans Documents. Ensuite, choisis des fichiers ou des dossiers dans Mon Drive, puis le mode d’importation. **Importation unique** apporte les fichiers une fois — ils se comportent comme des téléversements depuis le disque. **Importation synchronisée** garde la sélection alignée : les nouveaux fichiers du dossier Drive apparaissent au prochain passage de sync, les fichiers modifiés sont réindexés, et les fichiers supprimés à la source quittent l’espace de travail. Les deux modes préservent la structure de dossiers de ta sélection. Les Docs, Sheets et Slides natifs Google sont ignorés — exporte-les d’abord en PDF ou format Office si tu en as besoin dans Documents.
+
+Pour arrêter la synchronisation — un dossier synchronisé entier ou un fichier synchronisé seul — ouvre le menu de la ligne et clique sur **Arrêter la synchronisation** ; les documents importés restent dans l’espace de travail et cessent de se mettre à jour. Supprimer un dossier ou un fichier synchronisé arrête aussi sa sync. Dans tous les cas, les originaux dans Google Drive ne sont pas touchés.
+
+Utilise **Déconnecter Google Drive** dans l’en-tête du dialogue d’importation pour révoquer l’autorisation ; reconnecte-toi quand tu veux importer d’autres fichiers.
+
 ## Portée, dossiers, sources
 
 Chaque ligne porte une cellule **Équipes** — **Toute l'organisation** par défaut, ou les équipes que tu choisis via **Assigner une équipe** dans le menu de la ligne. Un document limité à une équipe est invisible pour les membres et les agents hors de cette équipe ; c’est le levier d’accès de la base de connaissances. Les fichiers de projet sont entièrement hors de ce modèle : l’onglet **Connaissances** d’un projet contient des fichiers scopés à ce seul projet, et ils n’apparaissent ni dans cette bibliothèque ni dans sa portée par équipe — voir [Gérer les fichiers](/fr/platform/projects/manage-files).
 
-**Nouveau dossier** garde les grandes bibliothèques navigables, et les connectors apportent leur propre structure : les documents synchronisés depuis OneDrive ou SharePoint atterrissent dans des dossiers de synchronisation et affichent leur origine dans la colonne **Source**, ce qui garde les citations traçables jusqu’au système amont.
+**Nouveau dossier** garde les grandes bibliothèques navigables, et les connectors apportent leur propre structure : les documents synchronisés depuis OneDrive, SharePoint ou Google Drive atterrissent dans des dossiers de synchronisation et affichent leur origine dans la colonne **Source**, ce qui garde les citations traçables jusqu’au système amont.
 
 <Warning>
 
-Supprimer un dossier supprime définitivement chaque fichier et sous-dossier qu’il contient. Supprimer un dossier de synchronisation OneDrive retire aussi sa configuration de synchronisation automatique et son historique — mais jamais les fichiers dans OneDrive lui-même.
+Supprimer un dossier supprime définitivement chaque fichier et sous-dossier qu’il contient. Supprimer un dossier de synchronisation OneDrive ou Google Drive retire aussi sa configuration de synchronisation automatique et son historique — mais jamais les fichiers dans OneDrive ou Google Drive eux-mêmes.
 
 </Warning>
 

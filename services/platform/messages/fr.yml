@@ -2151,6 +2151,7 @@ documents:
     navigation: Fil d'Ariane
     documents: Documents
     oneDrive: OneDrive
+    googleDrive: Google Drive
   aria:
     openFolder: Ouvrir le dossier {name}
     openDocument: Ouvrir le document {name}
@@ -2207,6 +2208,7 @@ documents:
     importDocuments: Téléverser des documents
     fromYourDevice: Depuis ton appareil
     fromMicrosoft365: Depuis Microsoft 365
+    fromGoogleDrive: Depuis Google Drive
     uploadInProgress: Téléversement en cours
     uploadingFileNamed: Téléversement de {fileName}
     confirming: Confirmation du téléversement…
@@ -2309,6 +2311,45 @@ documents:
     syncStarted: Synchronisation démarrée
     importingItems: Importation de {count} éléments vers le stockage...
     syncingItems: Synchronisation de {count} éléments vers le stockage...
+    importCompleted: Importation terminée
+    syncCompleted: Synchronisation terminée
+    filesImportedCount: '{count} sur {total} fichiers importés'
+    filesSyncedCount: '{count} sur {total} fichiers synchronisés'
+    importFailed: Échec de l'importation
+    syncFailed: Échec de la synchronisation
+    importItems: Importer {count} {count, plural, one {élément} other {éléments}}
+    syncItems: Synchroniser {count} {count, plural, one {élément} other {éléments}}
+  googledrive:
+    title: Importer depuis Google Drive
+    selectDescription: Choisis des fichiers ou des dossiers à importer
+    notConnected: Connecter Google Drive
+    notConnectedDescription: Autorise Google Drive pour choisir des fichiers à importer dans Documents.
+    connect: Connecter Google Drive
+    reconnect: Reconnecter Google Drive
+    disconnect: Déconnecter Google Drive
+    disconnecting: Déconnexion de Google Drive…
+    disconnectFailed: Impossible de déconnecter Google Drive
+    grantPermissions: Accorder les permissions Google Drive
+    redirecting: Redirection…
+    loadFailed: Échec du chargement des éléments
+    noFilesSelected: Aucun fichier importable dans la sélection
+    oneTimeImport: Importation unique
+    oneTimeDescription:
+      Importe les fichiers une seule fois et stocke-les dans ton espace de
+      travail
+    syncImport: Importation synchronisée
+    syncDescription: Maintiens les fichiers automatiquement synchronisés
+    importSettings: Paramètres d'importation
+    settingsDescription:
+      Choisis comment importer tes {count} {count, plural, one
+      {élément sélectionné} other {éléments sélectionnés}}.
+    importCount: Importer ({count})
+    importing: Importation…
+    syncing: Synchronisation…
+    importStarted: Importation démarrée
+    syncStarted: Synchronisation démarrée
+    importingItems: Importation de {count} éléments vers le stockage…
+    syncingItems: Synchronisation de {count} éléments vers le stockage…
     importCompleted: Importation terminée
     syncCompleted: Synchronisation terminée
     filesImportedCount: '{count} sur {total} fichiers importés'
@@ -3868,6 +3909,7 @@ governance:
       twoFactorAttempts: Tentatives 2FA
       policyAcknowledgements: Accusés de réception de politiques
       onedrive: Configurations de synchronisation OneDrive
+      googleDriveSync: Configurations de synchronisation Google Drive
       userCloudAuthorizations: Autorisations d'importation cloud
       loginAttempts: Tentatives de connexion et verrouillages
       notifications: Notifications de sécurité

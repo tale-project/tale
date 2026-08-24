@@ -70,6 +70,7 @@ import {
 import { messageFeedbackTable } from './feedback/schema';
 import { fileMetadataTable } from './file_metadata/schema';
 import { foldersTable } from './folders/schema';
+import { googleDriveSyncConfigsTable } from './google_drive/schema';
 import {
   activeErasureClaimsTable,
   activeLegalHoldClaimsTable,
@@ -283,6 +284,9 @@ export default defineSchema({
   notifications: notificationsTable,
   objectStorageBackfillRuns: objectStorageBackfillRunsTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
+  // Per-user Google Drive sync targets for Knowledge Documents. Same shape as
+  // onedriveSyncConfigs; tenant isolation via organizationId indexes.
+  googleDriveSyncConfigs: googleDriveSyncConfigsTable,
   // The thread container (task-comment and automation threads); predates
   // the chat rewrite but is live — see discussions/schema.ts.
   threadMetadata: threadMetadataTable,

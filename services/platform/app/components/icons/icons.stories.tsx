@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { ClaudeIcon } from './claude-icon';
 import { EnterKeyIcon } from './enter-key-icon';
 import { GmailIcon } from './gmail-icon';
+import { GoogleDriveIcon } from './google-drive-icon';
 import { LocaleIcon } from './locale-icon';
 import { MicrosoftIcon } from './microsoft-icon';
 import { OneDriveIcon } from './onedrive-icon';
@@ -40,6 +41,11 @@ const icons = [
     name: 'OneDriveIcon',
     component: OneDriveIcon,
     description: 'Microsoft OneDrive storage',
+  },
+  {
+    name: 'GoogleDriveIcon',
+    component: GoogleDriveIcon,
+    description: 'Google Drive storage',
   },
   {
     name: 'LocaleIcon',
@@ -150,18 +156,23 @@ export const IconSizes: StoryObj = {
 export const BrandIcons: StoryObj = {
   render: () => (
     <div className="flex flex-wrap items-center justify-center gap-6">
-      {[MicrosoftIcon, ShopifyIcon, GmailIcon, OutlookIcon, OneDriveIcon].map(
-        (Icon, i) => (
-          <div
-            key={i}
-            className="bg-muted flex size-16 items-center justify-center rounded-lg"
-          >
-            <div className="size-8">
-              <Icon />
-            </div>
+      {[
+        MicrosoftIcon,
+        ShopifyIcon,
+        GmailIcon,
+        OutlookIcon,
+        OneDriveIcon,
+        GoogleDriveIcon,
+      ].map((Icon, i) => (
+        <div
+          key={i}
+          className="bg-muted flex size-16 items-center justify-center rounded-lg"
+        >
+          <div className="size-8">
+            <Icon />
           </div>
-        ),
-      )}
+        </div>
+      ))}
     </div>
   ),
   parameters: {

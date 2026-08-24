@@ -1,8 +1,8 @@
 /**
- * Deactivate Sync Configs - Stop syncing when the target folder is deleted.
+ * Deactivate Sync Configs - Stop syncing when the target folder/file is deleted.
+ * Covers OneDrive and Google Drive sync config tables.
  */
 
-import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { DocumentMetadata } from '../documents/types';
 import { toId } from '../lib/type_cast_helpers';
@@ -32,29 +32,52 @@ export async function deactivateSyncConfigsForPath(
     }
   }
 
+  for await (const config of ctx.db
+    .query('googleDriveSyncConfigs')
+    .withIndex('by_organizationId_and_status', (q) =>
+      q.eq('organizationId', organizationId).eq('status', 'active'),
+    )) {
+    const itemPath = config.itemPath ?? '';
+    if (itemPath === folderPath || itemPath.startsWith(`${folderPath}/`)) {
+      await ctx.db.patch(config._id, { status: 'inactive' });
+      deactivated++;
+    }
+  }
+
   return deactivated;
 }
 
 /**
- * Deactivate one sync config by id (org-scoped). No-op when the config is
- * missing, belongs to another org, or is already inactive. Returns whether a
- * row was flipped.
+ * Deactivate one sync config by id (org-scoped). Tries OneDrive then Google
+ * Drive — Convex ids are table-scoped, so at most one lookup hits. No-op when
+ * missing, other-org, or already inactive.
  */
 export async function deactivateSyncConfigById(
   ctx: MutationCtx,
   organizationId: string,
-  configId: Id<'onedriveSyncConfigs'>,
+  configId: string,
 ): Promise<boolean> {
-  const config = await ctx.db.get(configId);
+  const onedrive = await ctx.db.get(toId<'onedriveSyncConfigs'>(configId));
   if (
-    !config ||
-    config.organizationId !== organizationId ||
-    config.status === 'inactive'
+    onedrive &&
+    onedrive.organizationId === organizationId &&
+    onedrive.status !== 'inactive'
   ) {
-    return false;
+    await ctx.db.patch(onedrive._id, { status: 'inactive' });
+    return true;
   }
-  await ctx.db.patch(configId, { status: 'inactive' });
-  return true;
+
+  const google = await ctx.db.get(toId<'googleDriveSyncConfigs'>(configId));
+  if (
+    google &&
+    google.organizationId === organizationId &&
+    google.status !== 'inactive'
+  ) {
+    await ctx.db.patch(google._id, { status: 'inactive' });
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -82,6 +105,6 @@ export async function stopSyncForDeletedDocument(
   return deactivateSyncConfigById(
     ctx,
     document.organizationId,
-    toId<'onedriveSyncConfigs'>(meta.syncConfigId),
+    meta.syncConfigId,
   );
 }

@@ -5,11 +5,14 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
+import type { ComponentType } from 'react';
 import { useMemo } from 'react';
 
+import { GoogleDriveIcon } from '@/app/components/icons/google-drive-icon';
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
+import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import { documentScopeKind, scopeTeamIds } from '@/lib/knowledge/types';
@@ -24,6 +27,7 @@ type DocumentsT = ReturnType<typeof useT>['t'];
 
 interface SourceInfo {
   title: string;
+  Icon?: ComponentType<{ className?: string }>;
 }
 
 function getSourceInfo(
@@ -60,6 +64,7 @@ function getSourceInfo(
   if (sourceProvider === 'google_drive') {
     return {
       title: t('sourceType.googleDrive'),
+      Icon: GoogleDriveIcon,
     };
   }
   if (sourceProvider === 'webdav') {
@@ -180,6 +185,21 @@ export function useDocumentsTableConfig({
             tDocuments,
           );
           if (!source) return null;
+          if (source.Icon) {
+            const Icon = source.Icon;
+            return (
+              <div className="flex justify-center">
+                <Tooltip content={source.title}>
+                  <span
+                    className="inline-flex size-5 items-center justify-center"
+                    aria-label={source.title}
+                  >
+                    <Icon className="size-5" />
+                  </span>
+                </Tooltip>
+              </div>
+            );
+          }
           return (
             <Text as="span" variant="muted" className="block text-center">
               {source.title}

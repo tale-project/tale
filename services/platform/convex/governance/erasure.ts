@@ -753,6 +753,7 @@ const perCategoryValidator = v.object({
   twoFactorAttempts: rowsAndHoldValidator,
   policyAcknowledgements: rowsAndHoldValidator,
   onedrive: rowsAndHoldValidator,
+  googleDriveSync: rowsAndHoldValidator,
   userCloudAuthorizations: rowsAndHoldValidator,
   loginAttempts: v.object({
     attempts: v.number(),
@@ -1526,6 +1527,33 @@ export const eraseSubjectOnedrive = internalMutation({
   },
 });
 
+export const eraseSubjectGoogleDriveSync = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
+  handler: async (ctx, args) => {
+    const iter = () =>
+      ctx.db
+        .query('googleDriveSyncConfigs')
+        .withIndex('by_userId', (q) => q.eq('userId', args.userId));
+    const guard = await countOrSkip(ctx, args.organizationId, args.userId, () =>
+      (async function* () {
+        for await (const row of iter()) {
+          if (row.organizationId === args.organizationId) yield row;
+        }
+      })(),
+    );
+    if (guard.heldByOrgOrUser)
+      return { rows: 0, skippedByHold: guard.skippedByHold };
+    let rows = 0;
+    for await (const row of iter()) {
+      if (row.organizationId !== args.organizationId) continue;
+      await ctx.db.delete(row._id);
+      rows++;
+    }
+    return { rows, skippedByHold: 0 };
+  },
+});
+
 export const eraseSubjectUserCloudAuthorizations = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
   returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
@@ -1956,6 +1984,7 @@ export const processErasureRequest = internalAction({
       twoFactorAttempts: { rows: 0, skippedByHold: 0 },
       policyAcknowledgements: { rows: 0, skippedByHold: 0 },
       onedrive: { rows: 0, skippedByHold: 0 },
+      googleDriveSync: { rows: 0, skippedByHold: 0 },
       userCloudAuthorizations: { rows: 0, skippedByHold: 0 },
       loginAttempts: {
         attempts: 0,
@@ -2230,6 +2259,13 @@ export const processErasureRequest = internalAction({
           userId: state.targetUserId,
         },
       );
+      perCategory.googleDriveSync = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectGoogleDriveSync,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
       perCategory.userCloudAuthorizations = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectUserCloudAuthorizations,
         {
@@ -2349,6 +2385,7 @@ interface PerCategoryCounts {
   twoFactorAttempts: RowsAndHold;
   policyAcknowledgements: RowsAndHold;
   onedrive: RowsAndHold;
+  googleDriveSync: RowsAndHold;
   userCloudAuthorizations: RowsAndHold;
   loginAttempts: LoginAttemptsCounts;
   notifications: RowsAndHold;

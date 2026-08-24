@@ -19,6 +19,7 @@ type PlatformTable =
   | 'connectorCredentials'
   | 'connectors'
   | 'onedriveSyncConfigs'
+  | 'googleDriveSyncConfigs'
   | 'conversations'
   | 'conversationMessages'
   | 'wfDefinitions' // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
@@ -70,6 +71,7 @@ const platformPermissions: Record<
     connectorCredentials: ALL,
     connectors: ALL,
     onedriveSyncConfigs: ALL,
+    googleDriveSyncConfigs: ALL,
     conversations: ALL,
     conversationMessages: ALL,
     wfDefinitions: ALL,
@@ -98,6 +100,7 @@ const platformPermissions: Record<
     connectorCredentials: ALL,
     connectors: ALL,
     onedriveSyncConfigs: ALL,
+    googleDriveSyncConfigs: ALL,
     conversations: ALL,
     conversationMessages: ALL,
     wfDefinitions: ALL,
@@ -124,6 +127,7 @@ const platformPermissions: Record<
     connectorCredentials: READ_ONLY,
     connectors: READ_ONLY,
     onedriveSyncConfigs: READ_ONLY,
+    googleDriveSyncConfigs: READ_ONLY,
     conversations: ALL,
     conversationMessages: ALL,
     wfDefinitions: READ_ONLY,
@@ -150,6 +154,7 @@ const platformPermissions: Record<
     connectorCredentials: READ_ONLY,
     connectors: READ_ONLY,
     onedriveSyncConfigs: READ_ONLY,
+    googleDriveSyncConfigs: READ_ONLY,
     conversations: READ_ONLY,
     conversationMessages: READ_ONLY,
     wfDefinitions: READ_ONLY,
@@ -180,6 +185,7 @@ const platformPermissions: Record<
     connectorCredentials: NONE,
     connectors: NONE,
     onedriveSyncConfigs: NONE,
+    googleDriveSyncConfigs: NONE,
     conversations: NONE,
     conversationMessages: NONE,
     wfDefinitions: NONE,

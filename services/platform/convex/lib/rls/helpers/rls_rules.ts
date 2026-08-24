@@ -287,6 +287,42 @@ export async function rlsRules(
       },
     },
 
+    // Google Drive Sync Configs - organization-scoped (mirrors OneDrive)
+    googleDriveSyncConfigs: {
+      read: async (_, config) => {
+        if (!user) return false;
+        if (!userOrgIds.has(config.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === config.organizationId,
+        );
+        return authorizeRls(membership?.role, 'googleDriveSyncConfigs', 'read');
+      },
+      modify: async (_, config) => {
+        if (!user) return false;
+        if (!userOrgIds.has(config.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === config.organizationId,
+        );
+        return authorizeRls(
+          membership?.role,
+          'googleDriveSyncConfigs',
+          'write',
+        );
+      },
+      insert: async ({ user: ruleUser }, config) => {
+        if (!ruleUser) return false;
+        if (!userOrgIds.has(config.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === config.organizationId,
+        );
+        return authorizeRls(
+          membership?.role,
+          'googleDriveSyncConfigs',
+          'write',
+        );
+      },
+    },
+
     // Conversations - organization-scoped
     conversations: {
       read: async (_, conversation) => {

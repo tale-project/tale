@@ -15,6 +15,7 @@ import type { DocumentRecordInfo, RagStatus } from '@/types/documents';
 
 import { useRetryRagIndexing } from '../hooks/actions';
 import {
+  useCancelGoogleDriveSync,
   useCancelOneDriveSync,
   useDeleteDocument,
   useDeleteFolder,
@@ -75,8 +76,13 @@ export function DocumentRowActions({
   const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
   const { mutate: deleteFolder, isPending: isDeletingFolder } =
     useDeleteFolder();
-  const { mutateAsync: cancelSync, isPending: isCancellingSync } =
+  const { mutateAsync: cancelOneDriveSync, isPending: isCancellingOneDrive } =
     useCancelOneDriveSync();
+  const {
+    mutateAsync: cancelGoogleDriveSync,
+    isPending: isCancellingGoogleDrive,
+  } = useCancelGoogleDriveSync();
+  const isCancellingSync = isCancellingOneDrive || isCancellingGoogleDrive;
   const { mutateAsync: retryRagIndexing, isPending: isReindexing } =
     useRetryRagIndexing();
   // The record lifecycle entries + their dialogs, plus the legal-hold /
@@ -175,9 +181,15 @@ export function DocumentRowActions({
   const handleStopSync = useCallback(async () => {
     if (!syncConfigId || isCancellingSync) return;
     try {
-      await cancelSync({
-        configId: toId<'onedriveSyncConfigs'>(syncConfigId),
-      });
+      if (sourceProvider === 'google_drive') {
+        await cancelGoogleDriveSync({
+          configId: toId<'googleDriveSyncConfigs'>(syncConfigId),
+        });
+      } else {
+        await cancelOneDriveSync({
+          configId: toId<'onedriveSyncConfigs'>(syncConfigId),
+        });
+      }
       toast({
         title: tDocuments('actions.stopSyncDone'),
         variant: 'success',
@@ -188,7 +200,14 @@ export function DocumentRowActions({
         variant: 'destructive',
       });
     }
-  }, [cancelSync, syncConfigId, isCancellingSync, tDocuments]);
+  }, [
+    cancelGoogleDriveSync,
+    cancelOneDriveSync,
+    syncConfigId,
+    sourceProvider,
+    isCancellingSync,
+    tDocuments,
+  ]);
 
   const deleteLabel =
     itemType === 'folder' && syncConfigId

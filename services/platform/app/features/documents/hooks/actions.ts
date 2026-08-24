@@ -8,3 +8,7 @@ export function useRetryRagIndexing() {
 export function useImportOneDriveFiles() {
   return useConvexAction(api.onedrive.actions.importFiles);
 }
+
+export function useImportGoogleDriveFiles() {
+  return useConvexAction(api.google_drive.actions.importFiles);
+}
