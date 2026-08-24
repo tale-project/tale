@@ -1062,22 +1062,28 @@ describe('dispatchWorkspaceTool — write tools (task family + document_create)'
     // date arrives already in the format its `Current time:` directive uses.
     const { dispatch } = await getActions();
     const { ctx } = createCtx({
-      readQuery: vi.fn((ref: unknown) =>
-        fnName(ref).includes('listTasksForAgent')
-          ? Promise.resolve([
-              {
-                _id: 'task_1',
-                number: 7,
-                title: 'Chase the invoice',
-                status: 'todo',
-                projectId: 'proj_1',
-                commentCount: 0,
-                createdAt: 1_787_124_301_288,
-                updatedAt: 1_787_210_701_288,
-              },
-            ])
-          : Promise.resolve(null),
-      ),
+      readQuery: vi.fn((ref: unknown) => {
+        if (fnName(ref).includes('listTasksForAgent')) {
+          return Promise.resolve([
+            {
+              _id: 'task_1',
+              number: 7,
+              title: 'Chase the invoice',
+              status: 'todo',
+              projectId: 'proj_1',
+              commentCount: 0,
+              createdAt: 1_787_124_301_288,
+              updatedAt: 1_787_210_701_288,
+            },
+          ]);
+        }
+        if (fnName(ref).includes('getProjectLabelsForOrg')) {
+          return Promise.resolve([
+            { id: 'proj_1', name: 'Billing', key: 'BILL' },
+          ]);
+        }
+        return Promise.resolve(null);
+      }),
     });
     const result = await dispatch(ctx, {
       ...BASE,
@@ -1089,6 +1095,11 @@ describe('dispatchWorkspaceTool — write tools (task family + document_create)'
       .tasks;
     expect(task?.createdAt).toBe('2026-08-19T07:25:01.288Z');
     expect(task?.updatedAt).toBe('2026-08-20T07:25:01.288Z');
+    expect(task).toMatchObject({
+      projectId: 'proj_1',
+      project: 'Billing',
+      projectKey: 'BILL',
+    });
   });
 
   it('task_get on a multi-bound org run refuses a task outside the bound set', async () => {

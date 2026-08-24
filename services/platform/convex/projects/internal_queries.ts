@@ -309,3 +309,40 @@ export const getProjectByIdForOrg = internalQuery({
     return toProjectLookup(project);
   },
 });
+
+/**
+ * Name + key for a batch of project ids — the labels chat/sandbox task rows
+ * carry next to `projectId`. Org-scoped: foreign or malformed ids are skipped,
+ * never reported. Missing keys stay absent (project key is optional).
+ */
+export const getProjectLabelsForOrg = internalQuery({
+  args: {
+    organizationId: v.string(),
+    projectIds: v.array(v.string()),
+  },
+  returns: v.array(
+    v.object({
+      id: v.string(),
+      name: v.string(),
+      key: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const labels: Array<{ id: string; name: string; key?: string }> = [];
+    const seen = new Set<string>();
+    for (const raw of args.projectIds) {
+      if (seen.has(raw)) continue;
+      seen.add(raw);
+      const projectId = ctx.db.normalizeId('projects', raw);
+      if (projectId === null) continue;
+      const project = await ctx.db.get(projectId);
+      if (!project || project.organizationId !== args.organizationId) continue;
+      labels.push({
+        id: String(project._id),
+        name: project.name,
+        ...(project.key !== undefined ? { key: project.key } : {}),
+      });
+    }
+    return labels;
+  },
+});

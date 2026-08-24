@@ -127,15 +127,28 @@ function toolResultFromError(error: unknown): ToolResult {
   return { status: 'error', message: message.slice(0, 400) };
 }
 
+/** Name (+ optional key) for the task's project — kept beside `projectId` so
+ * a list spanning several projects is readable without a follow-up fetch. */
+type ProjectLabel = { name: string; key?: string };
+
 /** The compact task shape the list/read tools answer with — identity, board
  * position, and the external-sync key; `description` only on `task_get`. */
-function compactTask(task: Doc<'tasks'>): Record<string, unknown> {
+function compactTask(
+  task: Doc<'tasks'>,
+  project?: ProjectLabel | null,
+): Record<string, unknown> {
   return {
     taskId: String(task._id),
     number: task.number,
     title: task.title,
     status: task.status,
     projectId: String(task.projectId),
+    ...(project != null
+      ? {
+          project: project.name,
+          ...(project.key !== undefined ? { projectKey: project.key } : {}),
+        }
+      : {}),
     ...(task.priority !== undefined ? { priority: task.priority } : {}),
     ...(task.assigneeType !== undefined
       ? { assigneeType: task.assigneeType }
@@ -158,6 +171,27 @@ function compactTask(task: Doc<'tasks'>): Record<string, unknown> {
     createdAt: modelTimestamp(task.createdAt),
     updatedAt: modelTimestamp(task.updatedAt),
   };
+}
+
+async function projectLabelsById(
+  ctx: ActionCtx,
+  organizationId: string,
+  projectIds: readonly string[],
+): Promise<ReadonlyMap<string, ProjectLabel>> {
+  const unique = [...new Set(projectIds)];
+  if (unique.length === 0) return new Map();
+  const labels = await ctx.runQuery(
+    internal.projects.internal_queries.getProjectLabelsForOrg,
+    { organizationId, projectIds: unique },
+  );
+  return new Map(
+    labels.map((row) => [
+      row.id,
+      row.key !== undefined
+        ? { name: row.name, key: row.key }
+        : { name: row.name },
+    ]),
+  );
 }
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ids are data from the run's own scope; a wrong id fails the callee's validator/org check and reads as a structured refusal
@@ -311,10 +345,18 @@ export async function runTaskTool(
             : {}),
         },
       );
+      const sliced = rows.slice(0, limit);
+      const projectsById = await projectLabelsById(
+        ctx,
+        organizationId,
+        sliced.map((task) => String(task.projectId)),
+      );
       return {
         status: 'ok',
         output: {
-          tasks: rows.slice(0, limit).map(compactTask),
+          tasks: sliced.map((task) =>
+            compactTask(task, projectsById.get(String(task.projectId)) ?? null),
+          ),
           totalFound: rows.length,
           ...(rows.length > limit
             ? { note: `Showing the first ${limit} of ${rows.length}.` }
@@ -358,7 +400,7 @@ export async function runTaskTool(
         status: 'ok',
         output: {
           task: {
-            ...compactTask(context.task),
+            ...compactTask(context.task, context.project),
             ...(context.task.description !== undefined
               ? { description: context.task.description }
               : {}),

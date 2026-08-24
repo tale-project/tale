@@ -167,10 +167,18 @@ interface SearchResultEntry {
 // The search legs and the list action build their rows through ONE mapper
 // per kind, so the two surfaces can never disagree about what a row says.
 
+/** Name (+ optional key) for a project id — what a task row shows the model
+ * next to `projectId`, matching the `rag_fetch` task fields. */
+type ProjectLabel = { name: string; key?: string };
+
 function taskResultEntry(
   task: Doc<'tasks'>,
   archivedProjectIds: ReadonlySet<string>,
+  projectsById: ReadonlyMap<string, ProjectLabel> = new Map(),
 ): SearchResultEntry {
+  const projectId = task.projectId != null ? String(task.projectId) : undefined;
+  const label =
+    projectId !== undefined ? projectsById.get(projectId) : undefined;
   return {
     kind: 'task',
     title: task.title,
@@ -184,17 +192,54 @@ function taskResultEntry(
       status: task.status,
       ...(task.priority ? { priority: task.priority } : {}),
       ...(task.assigneeType ? { assigneeType: task.assigneeType } : {}),
-      ...(task.projectId ? { projectId: String(task.projectId) } : {}),
+      // Keep the id as the follow-up handle; name/key are what a reader
+      // needs to tell one project from another in a multi-project list.
+      ...(projectId !== undefined ? { projectId } : {}),
+      ...(label !== undefined
+        ? {
+            project: label.name,
+            ...(label.key !== undefined ? { projectKey: label.key } : {}),
+          }
+        : {}),
       ...(modelTimestamp(task.dueDate) !== undefined
         ? { dueDate: modelTimestamp(task.dueDate) }
         : {}),
       ...archiveFlags({
         archivedAt: task.archivedAt,
-        projectId: task.projectId != null ? String(task.projectId) : null,
+        projectId: projectId ?? null,
         archivedProjectIds,
       }),
     },
   };
+}
+
+/** Resolve name/key for the distinct project ids on a task page. One query
+ * for the page, never per row — the ids are already the readable set. */
+async function projectLabelsById(
+  ctx: ActionCtx,
+  organizationId: string,
+  projectIds: Iterable<string | null | undefined>,
+): Promise<ReadonlyMap<string, ProjectLabel>> {
+  const unique = [
+    ...new Set(
+      [...projectIds].filter(
+        (id): id is string => typeof id === 'string' && id.length > 0,
+      ),
+    ),
+  ];
+  if (unique.length === 0) return new Map();
+  const labels = await ctx.runQuery(
+    internal.projects.internal_queries.getProjectLabelsForOrg,
+    { organizationId, projectIds: unique },
+  );
+  return new Map(
+    labels.map((row) => [
+      row.id,
+      row.key !== undefined
+        ? { name: row.name, key: row.key }
+        : { name: row.name },
+    ]),
+  );
 }
 
 function projectResultEntry(
@@ -965,8 +1010,17 @@ export function createChatToolExecutor(
                 },
               },
             );
+            const projectsById = await projectLabelsById(
+              ctx,
+              who.organizationId,
+              tasks.page.map((task) =>
+                task.projectId != null ? String(task.projectId) : null,
+              ),
+            );
             for (const task of tasks.page) {
-              results.push(taskResultEntry(task, archivedProjectIds));
+              results.push(
+                taskResultEntry(task, archivedProjectIds, projectsById),
+              );
             }
             sources.tasks =
               tasks.page.length === 0
@@ -1258,8 +1312,15 @@ export function createChatToolExecutor(
         );
       }
       const hasMore = !tasks.isDone;
+      const projectsById = await projectLabelsById(
+        ctx,
+        who.organizationId,
+        tasks.page.map((task) =>
+          task.projectId != null ? String(task.projectId) : null,
+        ),
+      );
       const results = tasks.page.map((task) =>
-        taskResultEntry(task, archivedProjectIds),
+        taskResultEntry(task, archivedProjectIds, projectsById),
       );
       return envelope({
         results,
