@@ -55,7 +55,7 @@ vi.mock('@/app/hooks/use-navigation-items', () => ({
   useNavigationItems: () => ({
     primary: [
       {
-        label: 'New chat',
+        label: 'Chat',
         to: '/dashboard/$id/chat',
         params: { id: 'org-1' },
         href: '/dashboard/org-1/chat',
@@ -93,7 +93,7 @@ describe('AppSidebar', () => {
       }),
     ).toBeInTheDocument();
     // Tiles are icon-only links: the label rides along as the accessible name.
-    expect(screen.getByRole('link', { name: 'New chat' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Chat' })).toHaveAttribute(
       'href',
       '/dashboard/$id/chat',
     );

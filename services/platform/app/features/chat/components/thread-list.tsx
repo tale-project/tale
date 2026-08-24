@@ -13,8 +13,8 @@
  *
  * Filing is drag-and-drop AND a row-menu action: every project folder is a
  * drop target, the loose CHATS section is one too, and the row's More-actions
- * menu offers the same move for keyboard users. New chat lives on the nav
- * rail, not here.
+ * menu offers the same move for keyboard users. New chat lives on the
+ * header + / shortcut (`?new=1`); the Chat nav item resumes the last thread.
  */
 
 import { Button } from '@tale/ui/button';
@@ -202,6 +202,7 @@ export const ThreadList = memo(function ThreadList({
             void navigate({
               to: '/dashboard/$id/chat',
               params: { id: organizationId },
+              search: { new: true },
             })
           }
           aria-label={t('newChat')}

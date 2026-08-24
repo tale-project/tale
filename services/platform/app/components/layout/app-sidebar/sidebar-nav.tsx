@@ -138,9 +138,7 @@ export function SidebarNav({ organizationId }: SidebarNavProps) {
   // New-chat shortcut, registered on the always-mounted sidebar so it works
   // from anywhere in the dashboard. ⌥⌘N on Mac, Alt+Ctrl+N elsewhere —
   // Option+N is a dead key on macOS, so match on `code` ("KeyN"), not `key`.
-  // Navigating to the base chat route resets to a fresh chat: when leaving an
-  // open thread the chat layout's own thread→new effect clears the prior
-  // state.
+  // `?new=1` keeps a fresh composer; plain /chat resumes the last thread.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const isMod = isMac ? e.metaKey : e.ctrlKey;
@@ -150,6 +148,7 @@ export function SidebarNav({ organizationId }: SidebarNavProps) {
         void navigate({
           to: '/dashboard/$id/chat',
           params: { id: organizationId },
+          search: { new: true },
         });
       }
     };

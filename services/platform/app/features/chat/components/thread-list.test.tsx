@@ -139,6 +139,35 @@ describe('ThreadList', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps a quiet gray indicator on idle threads', () => {
+    render(
+      <ThreadList
+        organizationId="org-1"
+        threads={[{ ...THREADS[0], generating: false, lastReplyAt: undefined }]}
+      />,
+    );
+
+    const row = screen.getByRole('link', { name: /Quarterly report/ });
+    expect(row.querySelector('[aria-hidden].rounded-full')).not.toBeNull();
+    expect(
+      screen.queryByRole('status', { name: 'Generating response' }),
+    ).toBeNull();
+  });
+
+  it('starts a fresh chat from the chats header', async () => {
+    const { user } = render(
+      <ThreadList organizationId="org-1" threads={THREADS} />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'New chat' }));
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/dashboard/$id/chat',
+      params: { id: 'org-1' },
+      search: { new: true },
+    });
+  });
+
   it('marks the open thread as the current page', () => {
     render(
       <ThreadList

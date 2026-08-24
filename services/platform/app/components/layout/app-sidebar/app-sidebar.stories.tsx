@@ -26,7 +26,7 @@ interface NavItemData {
 }
 
 const sampleItems: NavItemData[] = [
-  { label: 'New chat', icon: MessageCircle, isActive: true },
+  { label: 'Chat', icon: MessageCircle, isActive: true },
   { label: 'Projects', icon: Folder },
   { label: 'Knowledge', icon: BrainIcon },
   { label: 'Agents', icon: Bot },

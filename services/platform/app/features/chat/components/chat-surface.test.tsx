@@ -968,7 +968,7 @@ describe('ChatSurface on a dead thread link', () => {
     expect(screen.queryByRole('textbox', { name: 'Message input' })).toBeNull();
   });
 
-  it('routes the way out to the chat index', async () => {
+  it('routes the way out to a fresh chat', async () => {
     const { user } = render(
       <ChatSurface organizationId="org-1" threadId="thread-gone" />,
     );
@@ -976,7 +976,89 @@ describe('ChatSurface on a dead thread link', () => {
     await user.click(screen.getByRole('button', { name: 'New chat' }));
 
     expect(navigateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ to: '/dashboard/$id/chat' }),
+      expect.objectContaining({
+        to: '/dashboard/$id/chat',
+        search: { new: true },
+      }),
+    );
+  });
+});
+
+describe('ChatSurface resume on the chat index', () => {
+  it('opens the most recent thread when landing without a fresh intent', async () => {
+    vi.mocked(useChatThreads).mockReturnValue({
+      status: 'ready',
+      data: [
+        {
+          id: 'older',
+          kind: 'direct',
+          archived: false,
+          createdAt: 1,
+          updatedAt: 1,
+          lastReplyAt: 10,
+          generating: false,
+        },
+        {
+          id: 'newer',
+          kind: 'direct',
+          archived: false,
+          createdAt: 2,
+          updatedAt: 2,
+          lastReplyAt: 50,
+          generating: false,
+        },
+      ],
+    });
+
+    render(<ChatSurface organizationId="org-1" />);
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/dashboard/$id/chat/$threadId',
+        params: { id: 'org-1', threadId: 'newer' },
+        replace: true,
+      });
+    });
+  });
+
+  it('stays on the blank composer when startFresh is set', () => {
+    vi.mocked(useChatThreads).mockReturnValue({
+      status: 'ready',
+      data: [
+        {
+          id: 'existing',
+          kind: 'direct',
+          archived: false,
+          createdAt: 1,
+          updatedAt: 1,
+          generating: false,
+        },
+      ],
+    });
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [
+          {
+            id: 'deepseek-v4-flash',
+            label: 'deepseek-v4-flash',
+            providerSlug: 'deepseek',
+            credential: { authMethod: 'api-key' as const },
+          },
+        ],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+
+    render(<ChatSurface organizationId="org-1" startFresh />);
+
+    expect(
+      screen.getByRole('textbox', { name: 'Message input' }),
+    ).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: '/dashboard/$id/chat/$threadId',
+      }),
     );
   });
 });
