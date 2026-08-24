@@ -167,7 +167,7 @@ export function OneDriveImportDialog({
 
   const isMicrosoftAccountError =
     (!cloudImportAuthLoading &&
-      (cloudImportAuth === null || cloudImportAuth.status !== 'active')) ||
+      (!cloudImportAuth || cloudImportAuth.status !== 'active')) ||
     isCloudImportAuthError(loadError) ||
     isCloudImportAuthError(sitesError);
 
