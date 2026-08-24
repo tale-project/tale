@@ -56,7 +56,7 @@ export function createImportFilesDeps(
           contentType,
           size,
           documentId,
-          scheduleRag: false,
+          deferRagDispatch: true,
           source: 'user',
         },
       );

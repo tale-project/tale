@@ -109,7 +109,7 @@ export function GoogleDriveImportDialog({
 
   const isGoogleAccountError =
     (!cloudImportAuthLoading &&
-      (cloudImportAuth === null || cloudImportAuth.status !== 'active')) ||
+      (!cloudImportAuth || cloudImportAuth.status !== 'active')) ||
     isCloudImportAuthError(loadError);
 
   const currentItems = useMemo(
