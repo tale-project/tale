@@ -9,7 +9,7 @@ Le versant organisation — ajouter des identifiants, choisir celui par défaut,
 
 ## Comment un connecteur est déclaré
 
-Chaque connecteur est un répertoire sous `configs/platform/system/connectors/`, nommé d’après son slug, contenant un `connector.yml` et l’icône que la page de paramètres affiche. Le slug est à la fois le nom du répertoire, le `name` déclaré du connecteur et la première moitié du type de nœud avec lequel une automatisation pose une de ses actions — `<connector>.<action>`. Treize de ces répertoires sont livrés aujourd’hui.
+Chaque connecteur est un répertoire sous `configs/platform/system/connectors/`, nommé d’après son slug, contenant un `connector.yml` et l’icône que la page de paramètres affiche. Le slug est à la fois le nom du répertoire, le `name` déclaré du connecteur et la première moitié du type de nœud avec lequel une automatisation pose une de ses actions — `<connector>.<action>`. Quatorze connecteurs fournisseurs apparaissent aujourd’hui dans Paramètres (plus quelques connecteurs d’auth plateforme absents du sélecteur).
 
 Le fichier s’ouvre sur l’identité du connecteur et son contrat d’authentification, puis énumère les actions :
 

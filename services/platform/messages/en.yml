@@ -399,11 +399,6 @@ auth:
       confirm: Log out
     toast:
       signOutFailed: Failed to sign out
-  microsoft:
-    grantPermissions: Grant Microsoft permissions
-    reauthenticate: Re-authenticate with Microsoft
-    signIn: Sign in with Microsoft
-    redirecting: Redirecting...
   changePassword:
     title: Change password
     currentPassword: Current password
@@ -2187,10 +2182,15 @@ documents:
     settingsDescription:
       Choose how to import your {count} selected {count, plural,
       one {item} other {items}}.
-    microsoftNotConnected: Microsoft account not connected
-    microsoftNotConnectedDescription:
-      To access your Microsoft 365 files, you need
-      to link your Microsoft account.
+    microsoftNotConnected: Connect Microsoft 365
+    microsoftNotConnectedDescription: Authorize OneDrive and SharePoint so you can pick files for Documents.
+    connect: Connect Microsoft 365
+    reconnect: Reconnect Microsoft 365
+    disconnect: Disconnect Microsoft 365
+    disconnecting: Disconnecting Microsoft 365…
+    disconnectFailed: Could not disconnect Microsoft 365
+    grantPermissions: Grant Microsoft 365 permissions
+    redirecting: Redirecting...
     folderEmpty: This folder is empty.
     loadFailed: Failed to load items
     oneTimeImport: One-time import

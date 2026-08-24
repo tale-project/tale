@@ -36,7 +36,9 @@ interface DocumentsTableProps {
   searchQuery?: string;
   currentFolderId?: string;
   docId?: string;
-  hasMicrosoftAccount?: boolean;
+  /** Controlled Microsoft 365 picker (set after cloud-import OAuth return). */
+  oneDriveOpen?: boolean;
+  onOneDriveOpenChange?: (open: boolean) => void;
 }
 
 export function DocumentsTable({
@@ -44,7 +46,8 @@ export function DocumentsTable({
   searchQuery,
   currentFolderId,
   docId,
-  hasMicrosoftAccount = false,
+  oneDriveOpen,
+  onOneDriveOpenChange,
 }: DocumentsTableProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -404,7 +407,8 @@ export function DocumentsTable({
             organizationId={organizationId}
             currentFolderId={currentFolderId}
             parentFolderTeamId={parentFolderTeamId}
-            hasMicrosoftAccount={hasMicrosoftAccount}
+            oneDriveOpen={oneDriveOpen}
+            onOneDriveOpenChange={onOneDriveOpenChange}
           />
         }
         emptyState={{

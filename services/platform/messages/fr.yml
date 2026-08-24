@@ -421,11 +421,6 @@ auth:
       confirm: Se déconnecter
     toast:
       signOutFailed: Échec de la déconnexion
-  microsoft:
-    grantPermissions: Accorder les permissions Microsoft
-    reauthenticate: Se réauthentifier avec Microsoft
-    signIn: Se connecter avec Microsoft
-    redirecting: Redirection...
   changePassword:
     title: Changer le mot de passe
     currentPassword: Mot de passe actuel
@@ -2288,10 +2283,17 @@ documents:
     settingsDescription:
       Choisis comment importer tes {count} {count, plural, one
       {élément sélectionné} other {éléments sélectionnés}}.
-    microsoftNotConnected: Compte Microsoft non connecté
+    microsoftNotConnected: Connecter Microsoft 365
     microsoftNotConnectedDescription:
-      Pour accéder à tes fichiers Microsoft 365, tu
-      dois associer ton compte Microsoft.
+      Autorise OneDrive et SharePoint pour choisir des fichiers à importer dans
+      Documents.
+    connect: Connecter Microsoft 365
+    reconnect: Reconnecter Microsoft 365
+    disconnect: Déconnecter Microsoft 365
+    disconnecting: Déconnexion de Microsoft 365…
+    disconnectFailed: Impossible de déconnecter Microsoft 365
+    grantPermissions: Accorder les permissions Microsoft 365
+    redirecting: Redirection…
     folderEmpty: Ce dossier est vide.
     loadFailed: Échec du chargement des éléments
     oneTimeImport: Importation unique

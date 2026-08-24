@@ -21,6 +21,7 @@ import { withMicrosoftToken } from './with_microsoft_token';
 
 export const listFiles = action({
   args: {
+    organizationId: v.string(),
     folderId: v.optional(v.string()),
     search: v.optional(v.string()),
   },
@@ -30,7 +31,8 @@ export const listFiles = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const tokenResult = await withMicrosoftToken(ctx);
+    await requireOrgMembershipById(ctx, args.organizationId);
+    const tokenResult = await withMicrosoftToken(ctx, args.organizationId);
     if (!tokenResult.success) {
       return { success: false, error: tokenResult.error };
     }
@@ -59,7 +61,7 @@ export const importFiles = action({
     // documents (and, below, installs the sync engine) into that org.
     await requireOrgMembershipById(ctx, args.organizationId);
 
-    const tokenResult = await withMicrosoftToken(ctx);
+    const tokenResult = await withMicrosoftToken(ctx, args.organizationId);
     if (!tokenResult.success) {
       return {
         success: false,
@@ -92,6 +94,7 @@ export const importFiles = action({
 
 export const listSharePointSites = action({
   args: {
+    organizationId: v.string(),
     search: v.optional(v.string()),
   },
   returns: v.object({
@@ -100,7 +103,8 @@ export const listSharePointSites = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const tokenResult = await withMicrosoftToken(ctx);
+    await requireOrgMembershipById(ctx, args.organizationId);
+    const tokenResult = await withMicrosoftToken(ctx, args.organizationId);
     if (!tokenResult.success) {
       return { success: false, error: tokenResult.error };
     }
@@ -113,6 +117,7 @@ export const listSharePointSites = action({
 
 export const listSharePointDrives = action({
   args: {
+    organizationId: v.string(),
     siteId: v.string(),
   },
   returns: v.object({
@@ -121,7 +126,8 @@ export const listSharePointDrives = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const tokenResult = await withMicrosoftToken(ctx);
+    await requireOrgMembershipById(ctx, args.organizationId);
+    const tokenResult = await withMicrosoftToken(ctx, args.organizationId);
     if (!tokenResult.success) {
       return { success: false, error: tokenResult.error };
     }
@@ -134,6 +140,7 @@ export const listSharePointDrives = action({
 
 export const listSharePointFiles = action({
   args: {
+    organizationId: v.string(),
     siteId: v.string(),
     driveId: v.string(),
     folderId: v.optional(v.string()),
@@ -144,7 +151,8 @@ export const listSharePointFiles = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const tokenResult = await withMicrosoftToken(ctx);
+    await requireOrgMembershipById(ctx, args.organizationId);
+    const tokenResult = await withMicrosoftToken(ctx, args.organizationId);
     if (!tokenResult.success) {
       return { success: false, error: tokenResult.error };
     }

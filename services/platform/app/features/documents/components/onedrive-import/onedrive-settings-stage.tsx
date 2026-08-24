@@ -38,6 +38,11 @@ interface OneDriveSettingsStageProps {
   t: TFunction;
   /** `common`-namespace translator, owned by the dialog. */
   tCommon: TFunction;
+  /**
+   * Message-key prefix under the documents catalog (`onedrive` or
+   * `googledrive`). Both providers share the same settings shape.
+   */
+  messagePrefix?: 'onedrive' | 'googledrive';
   onImportTypeChange: (type: ImportType) => void;
   onSelectTeam: (teamId: string | undefined) => void;
   onBack: () => void;
@@ -53,6 +58,7 @@ export function OneDriveSettingsStage({
   selectedTeamId,
   t,
   tCommon,
+  messagePrefix = 'onedrive',
   onImportTypeChange,
   onSelectTeam,
   onBack,
@@ -73,15 +79,15 @@ export function OneDriveSettingsStage({
           <>
             <Loader2 className="mr-2 size-4 animate-spin" />
             {importType === 'one-time'
-              ? t('onedrive.importing')
-              : t('onedrive.syncing')}
+              ? t(`${messagePrefix}.importing`)
+              : t(`${messagePrefix}.syncing`)}
           </>
         ) : (
           <>
             <Database className="mr-2 size-4" />
             {importType === 'one-time'
-              ? t('onedrive.importItems', { count: selectedItemCount })
-              : t('onedrive.syncItems', { count: selectedItemCount })}
+              ? t(`${messagePrefix}.importItems`, { count: selectedItemCount })
+              : t(`${messagePrefix}.syncItems`, { count: selectedItemCount })}
           </>
         )}
       </Button>
@@ -89,8 +95,8 @@ export function OneDriveSettingsStage({
   );
 
   return {
-    title: t('onedrive.importSettings'),
-    description: t('onedrive.settingsDescription', {
+    title: t(`${messagePrefix}.importSettings`),
+    description: t(`${messagePrefix}.settingsDescription`, {
       count: selectedItemCount,
     }),
     footer,
@@ -103,8 +109,8 @@ export function OneDriveSettingsStage({
         className="border-border border-b px-6 py-5"
       >
         <SectionHeader
-          title={t('onedrive.importSettings')}
-          description={t('onedrive.settingsDescription', {
+          title={t(`${messagePrefix}.importSettings`)}
+          description={t(`${messagePrefix}.settingsDescription`, {
             count: selectedItemCount,
           })}
         />
@@ -135,9 +141,11 @@ export function OneDriveSettingsStage({
                 htmlFor="one-time"
                 className="cursor-pointer text-base font-medium"
               >
-                {t('onedrive.oneTimeImport')}
+                {t(`${messagePrefix}.oneTimeImport`)}
               </label>
-              <Description>{t('onedrive.oneTimeDescription')}</Description>
+              <Description>
+                {t(`${messagePrefix}.oneTimeDescription`)}
+              </Description>
             </div>
           </SelectableRow>
 
@@ -151,9 +159,9 @@ export function OneDriveSettingsStage({
                 htmlFor="sync"
                 className="cursor-pointer text-base font-medium"
               >
-                {t('onedrive.syncImport')}
+                {t(`${messagePrefix}.syncImport`)}
               </label>
-              <Description>{t('onedrive.syncDescription')}</Description>
+              <Description>{t(`${messagePrefix}.syncDescription`)}</Description>
             </div>
           </SelectableRow>
         </RadioGroup>

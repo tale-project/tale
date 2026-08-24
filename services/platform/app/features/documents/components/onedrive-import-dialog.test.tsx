@@ -63,8 +63,19 @@ vi.mock('@/app/hooks/use-convex-action', () => ({
   }),
 }));
 
+vi.mock('@/app/hooks/use-convex-mutation', () => ({
+  useConvexMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+}));
+
 vi.mock('@/convex/_generated/api', () => ({
   api: {
+    cloud_import: {
+      mutations: { revokeAuthorization: 'revokeAuthorization' },
+      actions: { startOAuth: 'startOAuth' },
+    },
     onedrive: {
       actions: { listFiles: 'listFiles', listSharePointFiles: 'listSpFiles' },
     },
@@ -85,6 +96,11 @@ vi.mock('../hooks/actions', () => ({
 }));
 
 vi.mock('../hooks/queries', () => ({
+  useCloudImportAuthorizationStatus: () => ({
+    data: { status: 'active', provider: 'microsoft' },
+    isLoading: false,
+    error: null,
+  }),
   useOneDriveFiles: () => ({
     data: [{ id: 'folder-1', name: 'Meetings', size: 0, isFolder: true }],
     isLoading: false,

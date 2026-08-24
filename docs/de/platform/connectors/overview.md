@@ -3,7 +3,7 @@ title: Connectors
 description: Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und im Chat landen.
 ---
 
-Eine Connector besteht aus zwei Teilen: einem **Connector**, der mit der Plattform ausgeliefert wird, und den **Zugangsdaten**, die deine Organisation dazu hinterlegt. Der Connector bringt das Wissen über den Anbieter mit — welche Aktionen es gibt, was jede davon entgegennimmt und zurückgibt, wie die Anmeldung läuft — und sieht in jeder Organisation gleich aus. Die Zugangsdaten gehören dir, und ein Connector hält davon so viele, wie du brauchst: einen Eintrag pro Workspace, Shop, Postfach oder Bot. Dreizehn Connectoren werden ausgeliefert, und jeder davon steht bereits unter **Einstellungen > Connectors** und wartet auf seinen ersten Eintrag.
+Eine Connector besteht aus zwei Teilen: einem **Connector**, der mit der Plattform ausgeliefert wird, und den **Zugangsdaten**, die deine Organisation dazu hinterlegt. Der Connector bringt das Wissen über den Anbieter mit — welche Aktionen es gibt, was jede davon entgegennimmt und zurückgibt, wie die Anmeldung läuft — und sieht in jeder Organisation gleich aus. Die Zugangsdaten gehören dir, und ein Connector hält davon so viele, wie du brauchst: einen Eintrag pro Workspace, Shop, Postfach oder Bot. Vierzehn Connectoren werden ausgeliefert, und jeder davon steht bereits unter **Einstellungen > Connectors** und wartet auf seinen ersten Eintrag.
 
 Lieber erst zusehen? Episode 7 geht die Türen zur Außenwelt ab — Connectoren, MCP und die Grenzen — in knapp drei Minuten, mit Untertiteln.
 
@@ -19,7 +19,7 @@ Weil diese Definition für alle gilt, entscheidet deine Organisation nur eines: 
 
 ## Die mitgelieferten Connectoren
 
-Dreizehn Connectoren werden ausgeliefert, jeder mit der Kategorie, zu der er gehört — Knowledge, Messaging, Email, Developer, Commerce, Search oder Files. **Anmeldung** ist die Authentifizierungsmethode, die der Connector akzeptiert; sie bestimmt, wonach das Formular fragt. **Aktionen** ist die Anzahl der Operationen, die er anbietet — dieselbe Zahl, die der Abschnitt des Connectors in den Einstellungen zeigt.
+Vierzehn Connectoren werden ausgeliefert, jeder mit der Kategorie, zu der er gehört — Knowledge, Messaging, Email, Developer, Commerce, Search oder Files. **Anmeldung** ist die Authentifizierungsmethode, die der Connector akzeptiert; sie bestimmt, wonach das Formular fragt. **Aktionen** ist die Anzahl der Operationen, die er anbietet — dieselbe Zahl, die der Abschnitt des Connectors in den Einstellungen zeigt.
 
 | Connector               | Was dir das Verbinden bringt                                                                                   | Anmeldung               | Aktionen |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------- | -------- |
@@ -98,7 +98,7 @@ Schreibende Aktionen verändern etwas im anderen System: eine gepostete Nachrich
 
 ## Wenn kein Connector passt
 
-Dreizehn Connectoren decken die Systeme ab, zu denen die meisten Teams greifen — und sie decken keine interne API ab, kein selbstgebautes Tool und keinen Anbieter, für den niemand einen Connector geschrieben hat. Dafür gibt es MCP: du betreibst einen Server, Tale registriert ihn, und seine Tools reihen sich neben den Connector-Aktionen in den Werkzeugkasten des Agents ein. Die Brücke ist dann dein Code statt einer mitgelieferten Definition — genau das ist der Handel: mehr Freiheit, mehr Wartung.
+Vierzehn Connectoren decken die Systeme ab, zu denen die meisten Teams greifen — und sie decken keine interne API ab, kein selbstgebautes Tool und keinen Anbieter, für den niemand einen Connector geschrieben hat. Dafür gibt es MCP: du betreibst einen Server, Tale registriert ihn, und seine Tools reihen sich neben den Connector-Aktionen in den Werkzeugkasten des Agents ein. Die Brücke ist dann dein Code statt einer mitgelieferten Definition — genau das ist der Handel: mehr Freiheit, mehr Wartung.
 
 Registriert wird ein solcher Server unter **Einstellungen > API > MCP**, beschrieben in [MCP-Server](/de/platform/connectors/mcp-servers).
 

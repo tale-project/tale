@@ -30,19 +30,27 @@ export interface DocumentsActionMenuProps {
   organizationId: string;
   currentFolderId?: string;
   parentFolderTeamId?: string;
-  hasMicrosoftAccount?: boolean;
+  /** Controlled open state for the Microsoft 365 picker (OAuth return). */
+  oneDriveOpen?: boolean;
+  onOneDriveOpenChange?: (open: boolean) => void;
 }
 
 export function DocumentsActionMenu({
   organizationId,
   currentFolderId,
   parentFolderTeamId,
-  hasMicrosoftAccount,
+  oneDriveOpen,
+  onOneDriveOpenChange,
 }: DocumentsActionMenuProps) {
   const { t: tDocuments } = useT('documents');
   const ability = useAbility();
 
-  const [isOneDriveDialogOpen, setIsOneDriveDialogOpen] = useState(false);
+  const [uncontrolledOneDriveOpen, setUncontrolledOneDriveOpen] =
+    useState(false);
+  const isOneDriveDialogOpen = oneDriveOpen ?? uncontrolledOneDriveOpen;
+  const setIsOneDriveDialogOpen =
+    onOneDriveOpenChange ?? setUncontrolledOneDriveOpen;
+
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
 
@@ -52,43 +60,31 @@ export function DocumentsActionMenu({
 
   const handleOneDriveClick = useCallback(() => {
     setIsOneDriveDialogOpen(true);
-  }, []);
+  }, [setIsOneDriveDialogOpen]);
 
   const handleCreateFolder = useCallback(() => {
     setIsCreateFolderOpen(true);
   }, []);
 
   const menuItems = useMemo<DataTableActionMenuItem[]>(() => {
-    const items: DataTableActionMenuItem[] = [
+    return [
       {
         label: tDocuments('upload.fromYourDevice'),
         icon: HardDrive,
         onClick: handleDeviceUpload,
       },
-    ];
-
-    if (hasMicrosoftAccount) {
-      items.push({
+      {
         label: tDocuments('upload.fromMicrosoft365'),
         icon: MicrosoftIcon,
         onClick: handleOneDriveClick,
-      });
-    }
-
-    items.push({
-      label: tDocuments('folder.newFolder'),
-      icon: FolderPlus,
-      onClick: handleCreateFolder,
-    });
-
-    return items;
-  }, [
-    tDocuments,
-    handleDeviceUpload,
-    handleOneDriveClick,
-    handleCreateFolder,
-    hasMicrosoftAccount,
-  ]);
+      },
+      {
+        label: tDocuments('folder.newFolder'),
+        icon: FolderPlus,
+        onClick: handleCreateFolder,
+      },
+    ];
+  }, [tDocuments, handleDeviceUpload, handleOneDriveClick, handleCreateFolder]);
 
   if (ability.cannot('write', 'knowledgeWrite')) {
     return null;

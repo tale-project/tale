@@ -1,8 +1,8 @@
 import { convexQuery } from '@convex-dev/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
-import { useHasMicrosoftAccount } from '@/app/features/auth/hooks/queries';
 import { DocumentsTable } from '@/app/features/documents/components/documents-table';
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
@@ -13,6 +13,8 @@ const searchSchema = z.object({
   query: z.string().optional(),
   folderId: z.string().optional(),
   doc: z.string().optional(),
+  cloudImport: z.string().optional(),
+  cloudImportStatus: z.string().optional(),
 });
 
 export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
@@ -21,9 +23,6 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
   }),
   validateSearch: searchSchema,
   loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.accounts.queries.hasMicrosoftAccount, {}),
-    );
     void context.queryClient.prefetchQuery(
       convexQuery(api.documents.queries.approxCountDocuments, {
         organizationId: params.id,
@@ -49,9 +48,33 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
 
 function DocumentsPage() {
   const { id: organizationId } = Route.useParams();
-  const { query: searchQuery, folderId, doc } = Route.useSearch();
+  const {
+    query: searchQuery,
+    folderId,
+    doc,
+    cloudImport,
+    cloudImportStatus,
+  } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
 
-  const { data: hasMicrosoftAccount = false } = useHasMicrosoftAccount();
+  // Latch open across the URL clean-up so remounting the action menu after
+  // replace:true does not close the picker.
+  const [oneDriveOpen, setOneDriveOpen] = useState(
+    () => cloudImport === 'onedrive' && cloudImportStatus === 'connected',
+  );
+
+  useEffect(() => {
+    if (cloudImportStatus !== 'connected') return;
+    if (cloudImport !== 'onedrive') return;
+    setOneDriveOpen(true);
+    void navigate({
+      search: (prev) => {
+        const { cloudImport: _p, cloudImportStatus: _s, ...rest } = prev;
+        return rest;
+      },
+      replace: true,
+    });
+  }, [cloudImport, cloudImportStatus, navigate]);
 
   return (
     <DocumentsTable
@@ -59,7 +82,8 @@ function DocumentsPage() {
       searchQuery={searchQuery?.trim()}
       currentFolderId={folderId}
       docId={doc}
-      hasMicrosoftAccount={hasMicrosoftAccount}
+      oneDriveOpen={oneDriveOpen}
+      onOneDriveOpenChange={setOneDriveOpen}
     />
   );
 }
