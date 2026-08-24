@@ -214,7 +214,7 @@ export const projectAgentsTable = defineTable({
   harness: v.string(),
   /**
    * The model the agent's turns call, as a composer model id resolved at run
-   * time via `resolveServingTarget`. Required at write (the dialog demands a
+   * time via `resolveTaskServing`. Required at write (the dialog demands a
    * choice); optional in the schema only for rows created before the field.
    */
   model: v.optional(v.string()),

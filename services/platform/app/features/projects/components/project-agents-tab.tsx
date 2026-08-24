@@ -22,11 +22,8 @@ import {
   useProjectCapabilityCatalog,
   useProjectHarnesses,
 } from '../hooks/queries';
-import {
-  type HarnessOption,
-  type ModelOption,
-  ProjectAgentDialog,
-} from './project-agent-dialog';
+import { toModelOptions, type ModelOption } from '../lib/model-options';
+import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
 
 interface ProjectAgentsTabProps {
   organizationId: string;
@@ -72,24 +69,7 @@ export function ProjectAgentsTab({
   // was how a pick silently landed on the wrong provider's bill.
   const modelRows = rosterQuery.data?.models;
   const models = useMemo<readonly ModelOption[]>(
-    () =>
-      (modelRows ?? []).map((model) => {
-        const option: ModelOption = {
-          id: model.id,
-          label: model.label,
-          providerSlug: model.providerSlug,
-          providerLabel: model.providerLabel,
-        };
-        if (
-          model.credential.authMethod === 'subscription-key' ||
-          model.credential.authMethod === 'subscription-broker'
-        ) {
-          option.subscription = {
-            harness: model.credential.constraints.harness,
-          };
-        }
-        return option;
-      }),
+    () => toModelOptions(modelRows ?? []),
     [modelRows],
   );
   const harnessBySlug = useMemo(() => {

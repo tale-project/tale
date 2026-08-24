@@ -4,9 +4,10 @@
  * The task-agent serving-lane split, off the wire: which lane a turn runs
  * on (gateway vs subscription), that a provider PIN is honored fail-closed
  * (never a silent fallback to another provider), and that every refusal
- * names the problem. The direct-credential walk itself is
- * `resolveServingTarget`'s and proven in its own suite — here it is
- * substituted, and only the delegation contract is asserted.
+ * names the problem. Unpinned resolution delegates to `resolveServingTarget`
+ * (proven in its own suite — substituted here, only the delegation
+ * asserted); pinned resolution is the shared `resolvePinnedAgentServing`,
+ * exercised for real over the mocked connector and catalog fixtures.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -161,7 +162,7 @@ describe('resolveTaskServing — gateway lane', () => {
     );
   });
 
-  it('delegates a pin over a DIRECT default credential with the pin', async () => {
+  it('serves a pin over a DIRECT default credential on the gateway lane', async () => {
     credentials = { openrouter: { status: 'active', authMethod: 'env' } };
 
     const serving = await resolveTaskServing(ctx, {
@@ -171,13 +172,14 @@ describe('resolveTaskServing — gateway lane', () => {
       harness: 'claude-code',
     });
 
-    expect(serving.lane).toBe('gateway');
-    expect(resolveServingTarget).toHaveBeenCalledWith(
-      ctx,
-      ORG,
-      'anthropic/claude-sonnet-4.6',
-      { pinnedProvider: 'openrouter' },
-    );
+    // The pinned walk resolves to the catalog's own spelling; the unpinned
+    // legacy door is never consulted.
+    expect(serving).toEqual({
+      lane: 'gateway',
+      providerSlug: 'openrouter',
+      modelId: 'claude-sonnet-4-6',
+    });
+    expect(resolveServingTarget).not.toHaveBeenCalled();
   });
 
   it('throws when the pin names an unconfigured provider', async () => {

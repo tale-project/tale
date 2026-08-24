@@ -685,6 +685,8 @@ automations:
     agent:
       equipmentLabel: Équipement
       harnessDefault: Par défaut (Claude Code)
+      modelUnlisted: 'Aucun fournisseur connecté ne propose le modèle
+        enregistré "{model}" pour ce harness — choisis-en un dans la liste.'
     runTitle: Dans cette exécution
     resolvedInput: Entrée résolue
     output: Sortie

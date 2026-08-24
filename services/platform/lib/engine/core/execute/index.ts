@@ -267,6 +267,9 @@ export async function execute(
               : await evalTemplates(n.input, scope());
           const agentInput: AgentTurnRequest = {
             model,
+            ...(n.modelProvider !== undefined && {
+              modelProvider: n.modelProvider,
+            }),
             prompt,
             ...(system !== undefined && { system }),
             ...(n.harness !== undefined && { harness: n.harness }),

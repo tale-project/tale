@@ -680,6 +680,8 @@ automations:
     agent:
       equipmentLabel: Ausrüstung
       harnessDefault: Standard (Claude Code)
+      modelUnlisted: 'Kein verbundener Anbieter bietet das gespeicherte Modell
+        "{model}" für diese Agent-Laufzeit an — wähle eines aus der Liste.'
     runTitle: In diesem Lauf
     resolvedInput: Aufgelöste Eingabe
     output: Ausgabe

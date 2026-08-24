@@ -2,12 +2,15 @@
 
 /**
  * The agent node's equipment, edited on the canvas with the SAME friendly
- * pickers the create wizard uses — a harness Select, the skills/connectors/
- * tools menu, and the secrets manager — instead of the raw JSON boxes the
- * generic node inspector falls back to. The node stores skills/connectors/
- * tools/secrets as flat string arrays; this component reads them into the
- * pickers and patches each field back on change (empty → removed, so the
- * document stays clean).
+ * pickers the project-agent dialog uses — a harness Select, the (provider,
+ * model) picker, the skills/connectors/tools menu, and the secrets manager —
+ * instead of the raw JSON boxes the generic node inspector falls back to.
+ * The model pick stores the PAIR (`model` + `modelProvider`), so the run is
+ * served — and billed — by exactly the provider on screen instead of
+ * whichever connector a walk reaches first. The node stores skills/
+ * connectors/tools/secrets as flat string arrays; this component reads them
+ * into the pickers and patches each field back on change (empty → removed,
+ * so the document stays clean).
  */
 
 import { Stack } from '@tale/ui/layout';
@@ -19,12 +22,17 @@ import {
   type SkillOption,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
+import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { AgentSecretsField } from '@/app/features/projects/components/agent-secrets-field';
 import {
   useAgentSecrets,
   useProjectHarnesses,
 } from '@/app/features/projects/hooks/queries';
+import {
+  findSelectedModel,
+  toModelOptions,
+} from '@/app/features/projects/lib/model-options';
 import type { Id } from '@/convex/_generated/dataModel';
 import { AGENT_TOOL_CATALOG } from '@/convex/sandbox/tool_names';
 import type { NodeDef } from '@/lib/engine/core/types';
@@ -36,9 +44,17 @@ import { useAutomationCapabilities } from '../hooks/queries';
  * cannot carry an empty-string value, so an unset harness maps to this. */
 const HARNESS_DEFAULT = '__default__';
 
+/** The harness the workflow host runs when the node names none — mirrors
+ * `convex/automations/agent_host.ts` `DEFAULT_HARNESS` (a 'use node' module
+ * the browser bundle cannot import); the "Default (Claude Code)" label above
+ * the picker states the same fact. */
+const DEFAULT_HARNESS = 'claude-code';
+
 /** The node fields this component owns — the inspector must NOT also render
  * them through its generic field loop. */
 export const AGENT_EQUIPMENT_FIELDS: readonly string[] = [
+  'model',
+  'modelProvider',
   'harness',
   'skills',
   'connectors',
@@ -120,6 +136,47 @@ export function AgentNodeFields({
   const harnessRaw: Record<string, unknown> = { ...node };
   const harness =
     typeof harnessRaw.harness === 'string' ? harnessRaw.harness : '';
+  const model = node.model ?? '';
+  const modelProvider = node.modelProvider ?? '';
+
+  const models = useMemo(
+    () => toModelOptions(roster.data?.models ?? []),
+    [roster.data],
+  );
+  // Subscription-served entries are bound to their forced harness — offer
+  // them only when the node's EFFECTIVE harness (the host default when the
+  // field is unset) is that one. Direct-served entries fit every harness.
+  const effectiveHarness = harness === '' ? DEFAULT_HARNESS : harness;
+  const offeredModels = useMemo(
+    () =>
+      models.filter(
+        (option) =>
+          option.subscription === undefined ||
+          option.subscription.harness === effectiveHarness,
+      ),
+    [models, effectiveHarness],
+  );
+  const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
+  // Only claim "not offered" once the listing has answered — an empty roster
+  // while it loads is not a missing model.
+  const modelUnlisted =
+    roster.data !== undefined && model !== '' && selectedModel === undefined;
+  const modelOptions = useMemo(
+    () =>
+      offeredModels.map((option, index) => ({
+        // Index-keyed: model ids carry `/` and `:`, so no composed string
+        // value can safely encode the (provider, id) pair.
+        value: String(index),
+        label: option.label,
+        description:
+          option.subscription === undefined
+            ? option.providerLabel
+            : tProjects('agents.modelProviderSubscription', {
+                provider: option.providerLabel,
+              }),
+      })),
+    [offeredModels, tProjects],
+  );
 
   return (
     <Stack gap={3}>
@@ -135,12 +192,49 @@ export function AgentNodeFields({
           onValueChange={(value) => {
             // Radix fires a spurious '' on unmount — never act on it.
             if (value === '') return;
+            const nextHarness = value === HARNESS_DEFAULT ? undefined : value;
+            // A subscription-served model pick is bound to its harness; a
+            // switch that invalidates it clears the pick rather than saving
+            // a pair the run would refuse — the author re-picks from what
+            // the new harness offers.
+            const selected = findSelectedModel(models, model, modelProvider);
+            const invalidated =
+              selected?.subscription !== undefined &&
+              selected.subscription.harness !==
+                (nextHarness ?? DEFAULT_HARNESS);
             onChange({
-              harness: value === HARNESS_DEFAULT ? undefined : value,
+              harness: nextHarness,
+              ...(invalidated
+                ? { model: undefined, modelProvider: undefined }
+                : {}),
             });
           }}
         />
       </Stack>
+
+      <SearchableSelect
+        id="automation-agent-model"
+        label={t('editor.fields.model')}
+        placeholder={tProjects('agents.modelPlaceholder')}
+        searchPlaceholder={tProjects('agents.modelSearchPlaceholder')}
+        emptyText={tProjects('agents.modelSearchEmpty')}
+        options={modelOptions}
+        required
+        disabled={readOnly}
+        value={
+          selectedModel !== undefined
+            ? String(offeredModels.indexOf(selectedModel))
+            : null
+        }
+        {...(modelUnlisted
+          ? { description: t('editor.agent.modelUnlisted', { model }) }
+          : {})}
+        onValueChange={(value) => {
+          const option = offeredModels[Number(value)];
+          if (option === undefined) return;
+          onChange({ model: option.id, modelProvider: option.providerSlug });
+        }}
+      />
 
       <Stack gap={1}>
         <Text as="span" variant="caption" className="font-medium">

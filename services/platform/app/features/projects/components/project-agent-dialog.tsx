@@ -34,6 +34,7 @@ import {
 } from '../hooks/mutations';
 import { useAgentSecrets, type AgentSecretSummary } from '../hooks/queries';
 import type { ProjectAgentRow } from '../hooks/queries';
+import { findSelectedModel, type ModelOption } from '../lib/model-options';
 import { AgentSecretsField } from './agent-secrets-field';
 
 /** One harness the agent can run on (the composer's managed roster entry). */
@@ -41,39 +42,6 @@ export interface HarnessOption {
   harness: string;
   label: string;
   iconUrl?: string;
-}
-
-/** One (provider, model) pair the agent can call — a composer model listing
- * entry. The same model id can appear once per provider that serves it; the
- * pick stores the PAIR, so the run bills exactly the provider on screen. */
-export interface ModelOption {
-  id: string;
-  label: string;
-  providerSlug: string;
-  /** The provider's human name, shown under each option. */
-  providerLabel: string;
-  /** Present when a subscription credential serves this entry — usable only
-   * by its forced harness, so the picker offers it for that harness alone. */
-  subscription?: { harness: string };
-}
-
-/** The offered option matching a saved pick: the exact (provider, id) pair,
- * falling back to the id alone for a row saved before providers were part of
- * the pick (same precedent as the chat composer's picker). */
-function findSelectedModel(
-  options: readonly ModelOption[],
-  model: string,
-  modelProvider: string,
-): ModelOption | undefined {
-  if (model === '') return undefined;
-  return (
-    options.find(
-      (option) => option.id === model && option.providerSlug === modelProvider,
-    ) ??
-    (modelProvider === ''
-      ? options.find((option) => option.id === model)
-      : undefined)
-  );
 }
 
 interface ProjectAgentDialogProps {

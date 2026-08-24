@@ -820,6 +820,22 @@ const readInvoices: Automation = {
   output: '{{ nodes.extract.output }}',
 };
 
+/** The same read, with the model pick pinned to its serving provider. */
+const readInvoicesPinned: Automation = {
+  version: 1,
+  name: 'ops/read-invoices-pinned',
+  nodes: [
+    {
+      id: 'extract',
+      type: 'agent',
+      model: 'vendor/coder-1',
+      modelProvider: 'vendor',
+      prompt: 'Read invoices for {{ input.quarter }}',
+    },
+  ],
+  output: '{{ nodes.extract.output }}',
+};
+
 /** Every kick/cancel the stepper asked the agent door for. */
 const agentKicks: Array<{
   runId: string;
@@ -896,6 +912,31 @@ describe('durable stepper — agent nodes', () => {
     ]);
     // Mock mode never consults the host.
     expect(agentKicks).toHaveLength(0);
+  });
+
+  it('carries the node model-provider pin into the kick request', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoicesPinned);
+    const runId = await queueRun(t, 'ops/read-invoices-pinned', {
+      quarter: '2026Q1',
+    });
+
+    await turn(t, runId);
+    expect(agentKicks[0]?.request).toMatchObject({
+      model: 'vendor/coder-1',
+      modelProvider: 'vendor',
+    });
+
+    // Settle the parked turn so the test leaves no scheduled work behind.
+    await t.mutation(internal.automations.mutations.recordAgentTurnSettled, {
+      organizationId: ORG,
+      runId,
+      nodeId: 'extract',
+      execId: 'exec-1',
+      result: { errored: false, text: 'done', files: [], status: 'ok' },
+    });
+    expect(await drive(t, runId)).toBe('success');
   });
 
   it('kicks a live turn once, parks the run, and consumes the settled envelope', async () => {
