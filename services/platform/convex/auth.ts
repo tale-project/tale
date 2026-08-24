@@ -244,7 +244,7 @@ export function authorizeRls(
     normalized === 'developer' ||
     normalized === 'editor' ||
     normalized === 'disabled'
-      ? (normalized as PlatformRoleName)
+      ? normalized
       : 'member';
   const r = platformRoles[key];
   const req = { [table]: [action] } as Record<string, string[]>;

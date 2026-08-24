@@ -112,10 +112,7 @@ export function GoogleDriveImportDialog({
       (!cloudImportAuth || cloudImportAuth.status !== 'active')) ||
     isCloudImportAuthError(loadError);
 
-  const currentItems = useMemo(
-    () => (itemsData as OneDriveApiItem[] | undefined) ?? [],
-    [itemsData],
-  );
+  const currentItems = useMemo(() => itemsData ?? [], [itemsData]);
 
   const filteredItems = useMemo(() => {
     if (!searchQuery.trim()) return currentItems;
@@ -243,7 +240,7 @@ export function GoogleDriveImportDialog({
               ? { id: item.id, name: item.name, path: folderPathStr }
               : selectedParentInfo;
             const subFiles = await collectAllFiles(
-              folderResult.items as OneDriveApiItem[],
+              folderResult.items,
               folderPathStr,
               directlySelectedItems,
               parentInfoForSubFiles,

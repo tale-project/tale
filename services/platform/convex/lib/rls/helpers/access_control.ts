@@ -9,6 +9,12 @@ type PlatformTable =
   | 'documents'
   | 'products'
   | 'projects'
+  // A task has no ACL of its own — `tasks/access.ts` delegates every check to
+  // its parent project. Its grants therefore MIRROR `projects` on every row
+  // below; a task must never be reachable at a role that could not open the
+  // project holding it. The entry exists because `authorizeRls` denies by
+  // default, so an agent read subject without one is refused outright.
+  | 'tasks'
   | 'contacts'
   | 'connectorCredentials'
   | 'connectors'
@@ -60,6 +66,7 @@ const platformPermissions: Record<
     documents: ALL,
     products: ALL,
     projects: ALL,
+    tasks: ALL,
     contacts: ALL,
     connectorCredentials: ALL,
     connectors: ALL,
@@ -88,6 +95,7 @@ const platformPermissions: Record<
     documents: ALL,
     products: ALL,
     projects: ALL,
+    tasks: ALL,
     contacts: ALL,
     connectorCredentials: ALL,
     connectors: ALL,
@@ -114,6 +122,7 @@ const platformPermissions: Record<
     documents: ALL,
     products: ALL,
     projects: ALL,
+    tasks: ALL,
     contacts: ALL,
     connectorCredentials: READ_ONLY,
     connectors: READ_ONLY,
@@ -140,6 +149,7 @@ const platformPermissions: Record<
     documents: READ_ONLY,
     products: READ_ONLY,
     projects: READ_ONLY,
+    tasks: READ_ONLY,
     contacts: READ_ONLY,
     connectorCredentials: READ_ONLY,
     connectors: READ_ONLY,
@@ -170,6 +180,7 @@ const platformPermissions: Record<
     documents: NONE,
     products: NONE,
     projects: NONE,
+    tasks: NONE,
     contacts: NONE,
     connectorCredentials: NONE,
     connectors: NONE,
