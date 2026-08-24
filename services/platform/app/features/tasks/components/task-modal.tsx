@@ -1216,12 +1216,17 @@ function EditTaskBody({
           label={t('fields.description')}
           placeholder={t('detail.addDescription')}
           onSave={(description) =>
-            void updateTask
+            updateTask
               .mutateAsync({
                 taskId: task._id,
                 description: description.length ? description : null,
               })
-              .catch(onMutationError)
+              .catch((error: unknown) => {
+                onMutationError(error);
+                // Rethrow after reporting: the field keeps the editor open on
+                // a failed write instead of dropping the typed draft.
+                throw error;
+              })
           }
         />
       ) : (
