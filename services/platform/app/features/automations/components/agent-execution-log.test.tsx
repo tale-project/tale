@@ -94,6 +94,28 @@ describe('AgentExecutionLog', () => {
     expect(screen.getByText('new turn')).toBeInTheDocument();
   });
 
+  it('names the serving the turn ran on as a footnote', () => {
+    state.data = {
+      ...op([{ type: 'text', text: 'working' }]),
+      modelRef: 'anthropic/claude-fable-5',
+    };
+    render(<AgentExecutionLog organizationId="org-1" runId={runId} />);
+    expect(
+      screen.getByText(/ran on anthropic\/claude-fable-5/),
+    ).toBeInTheDocument();
+  });
+
+  it('collapses the doubled provider segment of a gateway-lane ref', () => {
+    state.data = {
+      ...op([{ type: 'text', text: 'working' }]),
+      modelRef: 'openrouter/openrouter/anthropic/claude-fable-5',
+    };
+    render(<AgentExecutionLog organizationId="org-1" runId={runId} />);
+    expect(
+      screen.getByText(/ran on openrouter\/anthropic\/claude-fable-5/),
+    ).toBeInTheDocument();
+  });
+
   it('renders nothing for a run without an agent op', () => {
     state.data = null;
     const { container } = render(

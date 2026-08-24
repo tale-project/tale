@@ -34,6 +34,7 @@ import {
 } from '../hooks/mutations';
 import { useAgentSecrets, type AgentSecretSummary } from '../hooks/queries';
 import type { ProjectAgentRow } from '../hooks/queries';
+import { useUnpinnedServingPreview } from '../hooks/use-unpinned-serving-preview';
 import { findSelectedModel, type ModelOption } from '../lib/model-options';
 import { AgentSecretsField } from './agent-secrets-field';
 
@@ -149,6 +150,41 @@ export function ProjectAgentDialog({
     [models, harness],
   );
   const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
+  // A pick saved before providers were part of it names a model but no
+  // provider — the run's walk decides at kick time. Show what that walk
+  // would pick RIGHT NOW (the task lane's own resolver answers, so display
+  // and run cannot drift), never a lookalike row matched by id alone.
+  const unpinnedModel = model !== '' && modelProvider === '';
+  const preview = useUnpinnedServingPreview(
+    'task',
+    open && unpinnedModel && harness !== ''
+      ? { organizationId, model, harness }
+      : undefined,
+  );
+  const resolved = preview.data;
+  const resolvedRow =
+    unpinnedModel && resolved?.ok === true
+      ? offeredModels.find(
+          (option) =>
+            option.providerSlug === resolved.providerSlug &&
+            option.id === resolved.modelId,
+        )
+      : undefined;
+  // What the trigger displays: the pinned pair, or the row runs would use.
+  const displayedModel = selectedModel ?? resolvedRow;
+  const unpinnedDescription = !unpinnedModel
+    ? undefined
+    : resolved === undefined
+      ? t('agents.modelUnpinnedResolving', { model })
+      : resolved.ok
+        ? t('agents.modelUnpinnedResolved', {
+            model,
+            provider: resolvedRow?.providerLabel ?? resolved.providerSlug,
+          })
+        : t('agents.modelUnpinnedUnserved', {
+            model,
+            reason: resolved.reason,
+          });
   const modelOptions = useMemo(
     () =>
       offeredModels.map((option, index) => ({
@@ -176,8 +212,9 @@ export function ProjectAgentDialog({
         harness,
         model,
         // A pick made in this dialog always carries its provider; the empty
-        // string only survives from a legacy row whose saved id no longer
-        // matches any offered option — keep that row unpinned.
+        // string survives only from a legacy row the author left untouched
+        // (the picker warns and offers pinning, but never adopts a provider
+        // on its own) — keep that row unpinned.
         ...(modelProvider !== '' ? { modelProvider } : {}),
         skills: [...binding.skills],
         connectors: [...binding.connectors],
@@ -293,10 +330,13 @@ export function ProjectAgentDialog({
         options={modelOptions}
         required
         value={
-          selectedModel !== undefined
-            ? String(offeredModels.indexOf(selectedModel))
+          displayedModel !== undefined
+            ? String(offeredModels.indexOf(displayedModel))
             : null
         }
+        {...(unpinnedDescription !== undefined
+          ? { description: unpinnedDescription }
+          : {})}
         onValueChange={(value) => {
           const option = offeredModels[Number(value)];
           if (option === undefined) return;

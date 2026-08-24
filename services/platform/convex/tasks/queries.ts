@@ -1405,6 +1405,9 @@ export const getTaskAgentRunSandboxOp = query({
       ),
       progressText: v.optional(v.string()),
       liveTimeline: v.optional(v.array(sessionOpTimelinePartValidator)),
+      /** The provider-qualified model this turn actually ran on — the serving
+       * the kick resolved, not whatever the org would resolve to today. */
+      modelRef: v.optional(v.string()),
       /** The model that read this turn's images, when the polyfill was armed. */
       visionModelRef: v.optional(v.string()),
       startedAt: v.number(),
@@ -1436,6 +1439,7 @@ export const getTaskAgentRunSandboxOp = query({
         status: op.status,
         ...(op.progressText !== undefined && { progressText: op.progressText }),
         ...(op.liveTimeline !== undefined && { liveTimeline: op.liveTimeline }),
+        ...(op.modelRef !== undefined && { modelRef: op.modelRef }),
         ...(op.visionModelRef !== undefined && {
           visionModelRef: op.visionModelRef,
         }),

@@ -579,6 +579,11 @@ automations:
   detail:
     loading: Automatisierung wird geladen …
     deployedVersion: 'Live: v{version}'
+    unpinnedModels: 'Die Live-Version (v{version}) hat {count, plural, one
+      {einen Agent-Node ({nodes})} other {Agent-Nodes ({nodes})}} ohne festen
+      Modellanbieter: Jeder Lauf wählt den Anbieter automatisch — nicht
+      unbedingt den, den der Editor anzeigt. Lege den Anbieter am Node fest,
+      speichere und schalte die neue Version live.'
     runMock: Testlauf
     saveVersion: Version speichern
     saveMessageLabel: Notiz zur Version
@@ -766,6 +771,7 @@ automations:
       title: Agenten-Log
       starting: Der Agent startet in der Sandbox…
       empty: Der Agent hat für diesen Lauf kein Log erzeugt.
+      servedBy: 'Diese Runde lief auf {model}.'
       visionModel: 'Bilder in diesem Lauf hat {model} gelesen.'
     approval:
       title: 'Wartet auf deine Freigabe: {operation}'
@@ -7121,6 +7127,13 @@ projects:
     modelSearchPlaceholder: Modelle suchen
     modelSearchEmpty: Keine Modelle gefunden
     modelProviderSubscription: '{provider} · Abo'
+    modelUnpinnedResolving: 'Als "{model}" ohne festen Anbieter gespeichert —
+      Tale ermittelt gerade, welchen Anbieter ein Lauf nehmen würde …'
+    modelUnpinnedResolved: 'Als "{model}" ohne festen Anbieter gespeichert —
+      Läufe landen aktuell bei {provider}. Wähle einen Eintrag, um ihn
+      festzulegen.'
+    modelUnpinnedUnserved: 'Als "{model}" ohne festen Anbieter gespeichert —
+      und aktuell kann kein Anbieter es bedienen: {reason}'
     equipmentLabel: Skills, Connectors & Tools
     equipmentVisibilityHint: Die Skills hier folgen dem Team-Zugriff des
       Projekts, nicht deiner persönlichen Sichtbarkeit.

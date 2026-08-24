@@ -575,6 +575,22 @@ export function AutomationDetail({
           <Alert variant="destructive" description={refusal} />
         )}
 
+        {/* The LIVE version runs agent nodes without a provider pin: serving
+            resolves by walk at run time, so the model picker's preselect is
+            not what necessarily bills. Standing warning until a pinned
+            version is deployed — saving alone does not move the trigger. */}
+        {meta?.deployedUnpinnedAgentNodes !== undefined &&
+          meta.deployedVersion !== undefined && (
+            <Alert
+              variant="warning"
+              description={t('detail.unpinnedModels', {
+                version: meta.deployedVersion,
+                nodes: meta.deployedUnpinnedAgentNodes.join(', '),
+                count: meta.deployedUnpinnedAgentNodes.length,
+              })}
+            />
+          )}
+
         {lastRun && (
           <div className="flex flex-wrap items-center gap-2">
             <Button

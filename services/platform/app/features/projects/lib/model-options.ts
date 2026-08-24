@@ -57,20 +57,18 @@ export function toModelOptions(
 }
 
 /** The offered option matching a saved pick: the exact (provider, id) pair,
- * falling back to the id alone for a row saved before providers were part of
- * the pick (same precedent as the chat composer's picker). */
+ * and nothing looser. A pinless legacy pick deliberately matches NOTHING
+ * here — an id-alone fallback used to preselect whichever provider happened
+ * to share the id, asserting a provider the run's walk might not use. The
+ * pickers render a pinless pick from the runtime's own resolution preview
+ * instead, so what is shown is what would actually serve. */
 export function findSelectedModel(
   options: readonly ModelOption[],
   model: string,
   modelProvider: string,
 ): ModelOption | undefined {
-  if (model === '') return undefined;
-  return (
-    options.find(
-      (option) => option.id === model && option.providerSlug === modelProvider,
-    ) ??
-    (modelProvider === ''
-      ? options.find((option) => option.id === model)
-      : undefined)
+  if (model === '' || modelProvider === '') return undefined;
+  return options.find(
+    (option) => option.id === model && option.providerSlug === modelProvider,
   );
 }

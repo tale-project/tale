@@ -296,3 +296,104 @@ describe('getOrgAutomationMetrics', () => {
     ).rejects.toThrow(/disabled/);
   });
 });
+
+describe('getAutomation deployed unpinned agent nodes', () => {
+  /** One stored version row; the document is the engine's own shape. */
+  async function seedVersion(
+    t: T,
+    name: string,
+    version: number,
+    nodes: Record<string, unknown>[],
+  ): Promise<void> {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('automations', {
+        organizationId: ORG,
+        name,
+        version,
+        document: { version: 1, name, nodes },
+        createdBy: MEMBER,
+        createdAt: version,
+      });
+    });
+  }
+
+  async function deploy(t: T, name: string, version: number): Promise<void> {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('automationDeployments', {
+        organizationId: ORG,
+        name,
+        version,
+        deployedBy: MEMBER,
+        deployedAt: version,
+      });
+    });
+  }
+
+  it('reports the DEPLOYED version’s pinless agent nodes, not the loaded one’s', async () => {
+    const t = convexTest(schema, modules);
+    await seedMembers(t);
+    // v1 (deployed): an unpinned agent node — the walk picks its provider.
+    // v2 (latest, what the editor loads): the same node, pinned. The warning
+    // must still fire, because triggers run v1.
+    await seedVersion(t, 'triage', 1, [
+      { id: 'agent', type: 'agent', model: 'claude-fable-5', prompt: 'p' },
+      // Same shape on a non-agent node: llm nodes are direct-only by design,
+      // so they are not the pin story and must not be reported.
+      { id: 'summarize', type: 'llm', model: 'claude-fable-5', prompt: 'p' },
+    ]);
+    await seedVersion(t, 'triage', 2, [
+      {
+        id: 'agent',
+        type: 'agent',
+        model: 'claude-fable-5',
+        modelProvider: 'anthropic',
+        prompt: 'p',
+      },
+    ]);
+    await deploy(t, 'triage', 1);
+
+    const loaded = await t
+      .withIdentity({ subject: MEMBER })
+      .query(api.automations.queries.getAutomation, {
+        organizationId: ORG,
+        name: 'triage',
+      });
+    expect(loaded?.version).toBe(2);
+    expect(loaded?.deployedVersion).toBe(1);
+    expect(loaded?.deployedUnpinnedAgentNodes).toEqual(['agent']);
+  });
+
+  it('stays silent when the deployed version is pinned, or nothing is deployed', async () => {
+    const t = convexTest(schema, modules);
+    await seedMembers(t);
+    await seedVersion(t, 'pinned', 1, [
+      {
+        id: 'agent',
+        type: 'agent',
+        model: 'claude-fable-5',
+        modelProvider: 'anthropic',
+        prompt: 'p',
+      },
+    ]);
+    await deploy(t, 'pinned', 1);
+    await seedVersion(t, 'draft-only', 1, [
+      { id: 'agent', type: 'agent', model: 'claude-fable-5', prompt: 'p' },
+    ]);
+
+    const pinned = await t
+      .withIdentity({ subject: MEMBER })
+      .query(api.automations.queries.getAutomation, {
+        organizationId: ORG,
+        name: 'pinned',
+      });
+    expect(pinned?.deployedUnpinnedAgentNodes).toBeUndefined();
+
+    const draftOnly = await t
+      .withIdentity({ subject: MEMBER })
+      .query(api.automations.queries.getAutomation, {
+        organizationId: ORG,
+        name: 'draft-only',
+      });
+    expect(draftOnly?.deployedUnpinnedAgentNodes).toBeUndefined();
+  });
+});
