@@ -83,6 +83,11 @@ Safety and architecture invariants — they hold even where no linter covers the
   run them.
 - **Scaffold a new part** (package / service / tool / skill) from a template (`bun run gen …`),
   never hand-rolled — so it carries the standard configs and test layout.
+- **Price the fix before you defer it** — a shortcoming you could fix in the same change is a
+  defect, not a limitation to write up. Check whether the index, field, or helper already exists,
+  and whether the repo already solves the same shape elsewhere; naming a follow-up route does not
+  make a deferral priced. A bounded listing's walk order, a cap's ordering, and a missing guard
+  are part of the feature, not caveats on it.
 - **Instructions are docs too** — change a path, command, or pattern a skill or an agent contract
   documents, and update it in the same change.
 
