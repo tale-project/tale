@@ -69,12 +69,15 @@ describe('requireOrgMembershipById', () => {
     });
   });
 
-  it('throws ORG_NOT_FOUND on an empty organization id (no adapter call)', async () => {
+  it('throws ORG_ID_REQUIRED on an empty organization id (no adapter call)', async () => {
     const ctx = makeCtx({});
+    // ORG_ID_REQUIRED, not ORG_NOT_FOUND: an empty id is a caller-side gap
+    // (a component racing its data), and the client's dead-org recovery —
+    // which keys on ORG_NOT_FOUND — must not fire for it.
     await expect(
       requireOrgMembershipById(ctx as never, ''),
     ).rejects.toMatchObject({
-      data: { code: 'ORG_NOT_FOUND' },
+      data: { code: 'ORG_ID_REQUIRED' },
     });
     // The empty id must never reach the adapter (`db.get('')` would throw).
     expect(ctx.runQuery).not.toHaveBeenCalled();

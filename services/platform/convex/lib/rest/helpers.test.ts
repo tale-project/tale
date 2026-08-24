@@ -112,6 +112,9 @@ describe('httpStatusForConvexCode', () => {
     ['FORBIDDEN_DEVELOPER_SETTINGS', 403],
     ['ORG_FORBIDDEN', 403],
     ['ORG_NOT_FOUND', 404],
+    // An empty organizationId at a membership gate (bad argument, distinct
+    // from ORG_NOT_FOUND's 404).
+    ['ORG_ID_REQUIRED', 400],
     // Org resolution at the REST boundary (resolve_user_organization).
     ['ORG_SLUG_REQUIRED', 400],
     ['ORG_SLUG_INVALID', 400],

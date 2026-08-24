@@ -73,10 +73,14 @@ export async function requireOrgMembershipById(
 
   // Reject an empty id up front: the adapter resolves an `_id` `eq` filter via
   // `db.get(value)`, and `db.get('')` throws the opaque "Invalid ID length 0"
-  // instead of a clean miss. Surface the same intent as an unknown org.
+  // instead of a clean miss. `ORG_ID_REQUIRED`, not `ORG_NOT_FOUND`: an empty
+  // id is a caller-side gap (a component racing its data), not evidence the
+  // caller's persisted org is gone — the client's dead-org recovery keys on
+  // `ORG_NOT_FOUND` and must not fire for it (see
+  // `lib/rls/organization/get_organization_member.ts`, same rule).
   if (!organizationId) {
     throw new ConvexError({
-      code: 'ORG_NOT_FOUND',
+      code: 'ORG_ID_REQUIRED',
       message: 'Organization id is required.',
     });
   }

@@ -1,26 +1,49 @@
 /**
  * RLS Error Types
+ *
+ * Every RLS error extends `ConvexError`, so an uncaught throw reaches the
+ * client as structured `{ code, message }` data it can dispatch on (the
+ * stale-org recovery keys off `code === 'ORG_NOT_FOUND'`) instead of an
+ * opaque redacted "Server Error" that clients blindly retry — part of the
+ * codebase-wide "throw ConvexError codes" migration
+ * (`lib/auth/require_org_membership.ts` is the reference).
+ *
+ * Server-side semantics are unchanged: class identity is preserved, so the
+ * many `error instanceof UnauthorizedError` degrade-gracefully catch sites
+ * (approvals, sandbox, members, team_members, erasure, …) keep working, and
+ * `message` is reassigned to the human sentence after `super()` so server
+ * logs stay readable (the wire format serializes `data`, never `message`).
  */
+
+import { ConvexError } from 'convex/values';
 
 /**
  * Base RLS error class
  */
-export class RLSError extends Error {
+export class RLSError extends ConvexError<{ code: string; message: string }> {
   constructor(
     message: string,
     public code: string,
   ) {
-    super(message);
+    super({ code, message });
     this.name = 'RLSError';
+    this.message = message;
   }
 }
 
 /**
- * Thrown when user is not authorized to access a resource
+ * Thrown when user is not authorized to access a resource.
+ *
+ * `code` defaults to the generic `UNAUTHORIZED`; org-membership gates pass
+ * `ORG_FORBIDDEN` / `ORG_NOT_FOUND` so clients can tell "you lack access"
+ * apart from "this organization is gone" (stale persisted active org).
  */
 export class UnauthorizedError extends RLSError {
-  constructor(message = 'Not authorized to access this resource') {
-    super(message, 'UNAUTHORIZED');
+  constructor(
+    message = 'Not authorized to access this resource',
+    code = 'UNAUTHORIZED',
+  ) {
+    super(message, code);
   }
 }
 

@@ -5,8 +5,11 @@ import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 
 import { GlobalErrorDisplay } from '@/app/components/error-boundaries/displays/global-error-display';
 import { RouteNotFound } from '@/app/components/layout/route-not-found';
+import { isStructuredConvexError } from '@/app/hooks/use-action-query';
 import { warmSession } from '@/app/lib/auth/session-query';
+import { installOrgErrorRecovery } from '@/app/lib/org-error-recovery';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
+import { normalizeConvexSentryEvent } from '@/app/lib/sentry-normalize';
 import { getEnv } from '@/lib/env';
 
 import { routeTree } from './routeTree.gen';
@@ -28,6 +31,13 @@ export const queryClient = new QueryClient({
     queries: {
       queryKeyHashFn: convexQueryClient.hashFn(),
       queryFn: convexQueryClient.queryFn(),
+      // ConvexError is deterministic — server-side validation, auth gate, or
+      // expected-state signal. Retrying just delays the error reaching the UI
+      // (and the recovery hook above); each retry also re-executes the failed
+      // function server-side, multiplying error-log volume. Network errors
+      // still retry the default 3 times. Same rationale as useActionQuery.
+      retry: (failureCount, err) =>
+        !isStructuredConvexError(err) && failureCount < 3,
       // 15min: bounds stale Convex subscription leak when components unmount
       // (the @convex-dev/react-query integration ties WS subscription teardown
       // to React Query's cache 'removed' event, which fires only after gcTime
@@ -45,6 +55,14 @@ export const queryClient = new QueryClient({
 });
 
 convexQueryClient.connect(queryClient);
+
+// Global stale-org recovery: any query erroring with ConvexError ORG_NOT_FOUND
+// means the active organization is gone (deleted org id persisted in the
+// session, or an empty/garbage org context in a stale tab). Without this, such
+// a session retries the same dead org-scoped queries on every visit, forever —
+// clear the stale org and re-resolve through the picker instead. A cache
+// subscription (not QueryCache onError) so live WS-pushed errors are seen too.
+installOrgErrorRecovery(queryClient);
 
 // Kick off the Better Auth session fetch AND the Convex token mint at module
 // load, in parallel — the auth provider then resolves both against in-flight
@@ -89,6 +107,10 @@ if (sentryDsn) {
       // Kept to `error` only (not `warn`) to bound event volume.
       Sentry.captureConsoleIntegration({ levels: ['error'] }),
     ],
+    // Convex failure text embeds a per-call `[Request ID: …]`, which defeats
+    // message-based grouping — every action failure opened its own issue.
+    // Strip it so events group by function + root cause.
+    beforeSend: (event) => normalizeConvexSentryEvent(event),
     tracesSampleRate: getEnv('SENTRY_TRACES_SAMPLE_RATE'),
   });
 }
