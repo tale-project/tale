@@ -108,6 +108,7 @@ const VIDEO_SOURCES_FN =
   'file_metadata/internal_queries:lookupVideoLinkSources';
 const TASKS_SEARCH_FN = 'tasks/search_for_chat:searchTasksForChat';
 const PROJECTS_SEARCH_FN = 'tasks/search_for_chat:searchProjectsForChat';
+const PROJECT_LABELS_FN = 'projects/internal_queries:getProjectLabelsForOrg';
 const TASK_BY_ID_FN = 'tasks/internal_queries:getTaskByIdInternal';
 const TASK_CONTEXT_FN = 'tasks/internal_queries:getTaskContextForAgent';
 const CONVERSATIONS_SEARCH_FN =
@@ -144,6 +145,7 @@ function createCtx(
       isDone: true,
       continueCursor: '',
     }),
+    [PROJECT_LABELS_FN]: () => [],
     [CONVERSATIONS_SEARCH_FN]: () => ({ conversations: [], truncated: false }),
     [DOCUMENTS_LIST_FN]: () => ({
       documents: [],
@@ -1130,6 +1132,56 @@ describe('rag_search work legs', () => {
     expect(task?.ref).toBe('task:task_1');
     expect(task?.data).toMatchObject({ status: 'todo', priority: 'p1' });
     expect(result.sources).toMatchObject({ tasks: 'searched' });
+  });
+
+  it('labels task rows with project name and key beside the id', async () => {
+    // #3044 — a multi-project open-task list must not leave the model with
+    // only opaque ids for the Project column.
+    const { ctx } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          page: [
+            taskRow({
+              _id: 'task_a',
+              title: 'Onboard docs',
+              projectId: 'project_docs',
+            }),
+            taskRow({
+              _id: 'task_b',
+              title: 'Hire agents',
+              projectId: 'project_sales',
+              priority: undefined,
+            }),
+          ],
+          isDone: true,
+          continueCursor: '',
+          listed: true,
+        }),
+        [PROJECT_LABELS_FN]: () => [
+          { id: 'project_docs', name: 'Product Docs', key: 'DOCS' },
+          { id: 'project_sales', name: 'Field Sales' },
+        ],
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'list', kind: 'task', status: 'open' },
+    })) as Record<string, unknown>;
+
+    const rows = result.results as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.data).toMatchObject({
+      projectId: 'project_docs',
+      project: 'Product Docs',
+      projectKey: 'DOCS',
+    });
+    expect(rows[1]?.data).toMatchObject({
+      projectId: 'project_sales',
+      project: 'Field Sales',
+    });
+    expect(rows[1]?.data).not.toHaveProperty('projectKey');
   });
 
   it('scopes the work legs to the projects the turn user can read', async () => {
