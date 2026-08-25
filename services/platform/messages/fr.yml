@@ -2295,8 +2295,8 @@ documents:
       {élément sélectionné} other {éléments sélectionnés}}.
     microsoftNotConnected: Connecter Microsoft 365
     microsoftNotConnectedDescription:
-      Autorise OneDrive et SharePoint pour choisir des fichiers à importer dans
-      Documents.
+      Pour importer des fichiers, tu dois autoriser l'accès à ton compte
+      Microsoft 365.
     connect: Connecter Microsoft 365
     reconnect: Reconnecter Microsoft 365
     disconnect: Déconnecter Microsoft 365
@@ -2331,7 +2331,9 @@ documents:
     title: Importer depuis Google Drive
     selectDescription: Choisis des fichiers ou des dossiers à importer
     notConnected: Connecter Google Drive
-    notConnectedDescription: Autorise Google Drive pour choisir des fichiers à importer dans Documents.
+    notConnectedDescription:
+      Pour importer des fichiers, tu dois autoriser l'accès à ton compte Google
+      Drive.
     connect: Connecter Google Drive
     reconnect: Reconnecter Google Drive
     disconnect: Déconnecter Google Drive

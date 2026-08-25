@@ -1,7 +1,7 @@
 'use client';
 
 import { FolderPlus, HardDrive, Upload } from 'lucide-react';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 
 import { GoogleIcon } from '@/app/components/icons/google-icon';
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
@@ -13,6 +13,8 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
+import { useCloudImportAuthorizationStatus } from '../hooks/queries';
+import { CloudImportConnectDialog } from './cloud-import-connect-dialog';
 import { CreateFolderDialog } from './create-folder-dialog';
 
 const OneDriveImportDialog = lazyComponent(() =>
@@ -57,33 +59,95 @@ export function DocumentsActionMenu({
   const { t: tDocuments } = useT('documents');
   const ability = useAbility();
 
-  const [uncontrolledOneDriveOpen, setUncontrolledOneDriveOpen] =
-    useState(false);
-  const isOneDriveDialogOpen = oneDriveOpen ?? uncontrolledOneDriveOpen;
-  const setIsOneDriveDialogOpen =
-    onOneDriveOpenChange ?? setUncontrolledOneDriveOpen;
+  const { data: microsoftAuth, isLoading: microsoftAuthLoading } =
+    useCloudImportAuthorizationStatus(organizationId, true, 'onedrive');
+  const { data: googleAuth, isLoading: googleAuthLoading } =
+    useCloudImportAuthorizationStatus(organizationId, true, 'google-drive');
 
-  const [uncontrolledGoogleDriveOpen, setUncontrolledGoogleDriveOpen] =
+  const [uncontrolledOneDriveImportOpen, setUncontrolledOneDriveImportOpen] =
     useState(false);
-  const isGoogleDriveDialogOpen =
-    googleDriveOpen ?? uncontrolledGoogleDriveOpen;
-  const setIsGoogleDriveDialogOpen =
-    onGoogleDriveOpenChange ?? setUncontrolledGoogleDriveOpen;
+  const isOneDriveImportOpen = oneDriveOpen ?? uncontrolledOneDriveImportOpen;
+  const setIsOneDriveImportOpen =
+    onOneDriveOpenChange ?? setUncontrolledOneDriveImportOpen;
+
+  const [
+    uncontrolledGoogleDriveImportOpen,
+    setUncontrolledGoogleDriveImportOpen,
+  ] = useState(false);
+  const isGoogleDriveImportOpen =
+    googleDriveOpen ?? uncontrolledGoogleDriveImportOpen;
+  const setIsGoogleDriveImportOpen =
+    onGoogleDriveOpenChange ?? setUncontrolledGoogleDriveImportOpen;
+
+  const [isOneDriveConnectOpen, setIsOneDriveConnectOpen] = useState(false);
+  const [isGoogleDriveConnectOpen, setIsGoogleDriveConnectOpen] =
+    useState(false);
+
+  // Menu click while auth status is still loading — resolve once the query
+  // settles so we open connect vs picker without guessing.
+  const [pendingOneDriveOpen, setPendingOneDriveOpen] = useState(false);
+  const [pendingGoogleDriveOpen, setPendingGoogleDriveOpen] = useState(false);
 
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+
+  const openOneDriveFlow = useCallback(() => {
+    if (microsoftAuth?.status === 'active') {
+      setIsOneDriveImportOpen(true);
+    } else {
+      setIsOneDriveConnectOpen(true);
+    }
+  }, [microsoftAuth?.status, setIsOneDriveImportOpen]);
+
+  const openGoogleDriveFlow = useCallback(() => {
+    if (googleAuth?.status === 'active') {
+      setIsGoogleDriveImportOpen(true);
+    } else {
+      setIsGoogleDriveConnectOpen(true);
+    }
+  }, [googleAuth?.status, setIsGoogleDriveImportOpen]);
+
+  useEffect(() => {
+    if (!pendingOneDriveOpen || microsoftAuthLoading) return;
+    setPendingOneDriveOpen(false);
+    openOneDriveFlow();
+  }, [pendingOneDriveOpen, microsoftAuthLoading, openOneDriveFlow]);
+
+  useEffect(() => {
+    if (!pendingGoogleDriveOpen || googleAuthLoading) return;
+    setPendingGoogleDriveOpen(false);
+    openGoogleDriveFlow();
+  }, [pendingGoogleDriveOpen, googleAuthLoading, openGoogleDriveFlow]);
 
   const handleDeviceUpload = useCallback(() => {
     setIsUploadDialogOpen(true);
   }, []);
 
   const handleOneDriveClick = useCallback(() => {
-    setIsOneDriveDialogOpen(true);
-  }, [setIsOneDriveDialogOpen]);
+    if (microsoftAuthLoading) {
+      setPendingOneDriveOpen(true);
+      return;
+    }
+    openOneDriveFlow();
+  }, [microsoftAuthLoading, openOneDriveFlow]);
 
   const handleGoogleDriveClick = useCallback(() => {
-    setIsGoogleDriveDialogOpen(true);
-  }, [setIsGoogleDriveDialogOpen]);
+    if (googleAuthLoading) {
+      setPendingGoogleDriveOpen(true);
+      return;
+    }
+    openGoogleDriveFlow();
+  }, [googleAuthLoading, openGoogleDriveFlow]);
+
+  const handleOneDriveDisconnected = useCallback(() => {
+    setIsOneDriveImportOpen(false);
+    setIsOneDriveConnectOpen(true);
+  }, [setIsOneDriveImportOpen]);
+
+  const handleGoogleDriveDisconnected = useCallback(() => {
+    setIsGoogleDriveImportOpen(false);
+    setIsGoogleDriveConnectOpen(true);
+  }, [setIsGoogleDriveImportOpen]);
 
   const handleCreateFolder = useCallback(() => {
     setIsCreateFolderOpen(true);
@@ -141,21 +205,39 @@ export function DocumentsActionMenu({
         />
       )}
 
-      {isOneDriveDialogOpen && (
-        <OneDriveImportDialog
-          open={isOneDriveDialogOpen}
-          onOpenChange={setIsOneDriveDialogOpen}
-          organizationId={organizationId}
-          onSuccess={() => setIsOneDriveDialogOpen(false)}
+      {isOneDriveConnectOpen && (
+        <CloudImportConnectDialog
+          open={isOneDriveConnectOpen}
+          onOpenChange={setIsOneDriveConnectOpen}
+          provider="onedrive"
         />
       )}
 
-      {isGoogleDriveDialogOpen && (
-        <GoogleDriveImportDialog
-          open={isGoogleDriveDialogOpen}
-          onOpenChange={setIsGoogleDriveDialogOpen}
+      {isGoogleDriveConnectOpen && (
+        <CloudImportConnectDialog
+          open={isGoogleDriveConnectOpen}
+          onOpenChange={setIsGoogleDriveConnectOpen}
+          provider="google-drive"
+        />
+      )}
+
+      {isOneDriveImportOpen && (
+        <OneDriveImportDialog
+          open={isOneDriveImportOpen}
+          onOpenChange={setIsOneDriveImportOpen}
           organizationId={organizationId}
-          onSuccess={() => setIsGoogleDriveDialogOpen(false)}
+          onSuccess={() => setIsOneDriveImportOpen(false)}
+          onRequireConnect={handleOneDriveDisconnected}
+        />
+      )}
+
+      {isGoogleDriveImportOpen && (
+        <GoogleDriveImportDialog
+          open={isGoogleDriveImportOpen}
+          onOpenChange={setIsGoogleDriveImportOpen}
+          organizationId={organizationId}
+          onSuccess={() => setIsGoogleDriveImportOpen(false)}
+          onRequireConnect={handleGoogleDriveDisconnected}
         />
       )}
 

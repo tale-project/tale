@@ -16,7 +16,7 @@ interface MicrosoftDisconnectButtonProps {
 
 /**
  * Revokes the signed-in member's Knowledge cloud-import grant for Microsoft
- * 365 so the import dialog returns to the connect empty state.
+ * 365. The import dialog closes and the compact connect dialog opens.
  */
 export function MicrosoftDisconnectButton({
   className,

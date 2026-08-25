@@ -1,21 +1,19 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Stack, HStack } from '@tale/ui/layout';
+import { HStack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import type { TFunction } from 'i18next';
 import { Home } from 'lucide-react';
 
-import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useT } from '@/lib/i18n/client';
 
 import { MicrosoftDisconnectButton } from '../microsoft-disconnect-button';
-import { MicrosoftReauthButton } from '../microsoft-reauth-button';
 import { OneDriveFileTable } from './onedrive-file-table';
 import { SharePointDrivesTable } from './sharepoint-drives-table';
 import { SharePointSitesTable } from './sharepoint-sites-table';
@@ -33,7 +31,6 @@ interface OneDrivePickerStageProps {
   selectedItems: Map<string, OneDriveSelectedItem>;
   filteredItems: OneDriveApiItem[];
   loading: boolean;
-  isMicrosoftAccountError: boolean;
   folderPath: Array<{ id: string | undefined; name: string }>;
   sitesData: SharePointSite[] | undefined;
   loadingSites: boolean;
@@ -74,7 +71,6 @@ export function OneDrivePickerStage({
   selectedItems,
   filteredItems,
   loading,
-  isMicrosoftAccountError,
   folderPath,
   sitesData,
   loadingSites,
@@ -110,65 +106,45 @@ export function OneDrivePickerStage({
       <div className="border-border border-b">
         <div className="px-8 pt-5 pb-3">
           <SectionHeader
-            title={
-              isMicrosoftAccountError
-                ? t('onedrive.microsoftNotConnected')
-                : t('microsoft365.title')
-            }
-            description={
-              isMicrosoftAccountError
-                ? undefined
-                : t('microsoft365.selectDescription')
-            }
+            title={t('microsoft365.title')}
+            description={t('microsoft365.selectDescription')}
             action={
-              isMicrosoftAccountError ? undefined : (
-                <MicrosoftDisconnectButton onDisconnected={onDisconnected} />
-              )
+              <MicrosoftDisconnectButton onDisconnected={onDisconnected} />
             }
           />
         </div>
-        {!isMicrosoftAccountError && (
-          <div className="px-8">
-            <Tabs
-              variant="underline"
-              value={sourceTab}
-              onValueChange={(v) => {
-                if (v === 'onedrive' || v === 'sharepoint') onTabChange(v);
-              }}
-              items={[
-                {
-                  value: 'onedrive',
-                  label: (
-                    <span className="flex items-center gap-2">
-                      <OneDriveIcon className="size-4" />
-                      {t('microsoft365.myOneDrive')}
-                    </span>
-                  ),
-                },
-                {
-                  value: 'sharepoint',
-                  label: (
-                    <span className="flex items-center gap-2">
-                      <SharePointIcon className="size-4" />
-                      {t('microsoft365.sharePointSites')}
-                    </span>
-                  ),
-                },
-              ]}
-            />
-          </div>
-        )}
+        <div className="px-8">
+          <Tabs
+            variant="underline"
+            value={sourceTab}
+            onValueChange={(v) => {
+              if (v === 'onedrive' || v === 'sharepoint') onTabChange(v);
+            }}
+            items={[
+              {
+                value: 'onedrive',
+                label: (
+                  <span className="flex items-center gap-2">
+                    <OneDriveIcon className="size-4" />
+                    {t('microsoft365.myOneDrive')}
+                  </span>
+                ),
+              },
+              {
+                value: 'sharepoint',
+                label: (
+                  <span className="flex items-center gap-2">
+                    <SharePointIcon className="size-4" />
+                    {t('microsoft365.sharePointSites')}
+                  </span>
+                ),
+              },
+            ]}
+          />
+        </div>
       </div>
     ),
-    content: isMicrosoftAccountError ? (
-      <Stack gap={3} className="items-center px-8 py-8 text-center">
-        <MicrosoftIcon className="size-8" />
-        <Text as="div" variant="muted" className="max-w-sm">
-          {t('onedrive.microsoftNotConnectedDescription')}
-        </Text>
-        <MicrosoftReauthButton />
-      </Stack>
-    ) : (
+    content: (
       <div className="flex flex-col gap-3 px-8 pt-3 pb-6">
         {sourceTab === 'onedrive' && (
           <>

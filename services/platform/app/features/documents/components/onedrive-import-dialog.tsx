@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -46,6 +46,8 @@ interface OneDriveImportDialogProps {
   onOpenChange?: (open: boolean) => void;
   organizationId: string;
   onSuccess?: () => void;
+  /** Hand off to the compact connect dialog — never shrink this wide picker. */
+  onRequireConnect?: () => void;
 }
 
 const noop = () => {};
@@ -53,7 +55,9 @@ const noop = () => {};
 export function OneDriveImportDialog({
   organizationId,
   onSuccess,
-  ...props
+  onRequireConnect,
+  open,
+  onOpenChange,
 }: OneDriveImportDialogProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -100,7 +104,7 @@ export function OneDriveImportDialog({
   const { teams, isLoading: isLoadingTeams } = useTeams();
 
   const { data: cloudImportAuth, isLoading: cloudImportAuthLoading } =
-    useCloudImportAuthorizationStatus(organizationId, props.open === true);
+    useCloudImportAuthorizationStatus(organizationId, open === true);
 
   const handleDisconnected = useCallback(() => {
     setSelectedItems(new Map());
@@ -112,7 +116,11 @@ export function OneDriveImportDialog({
     setSpFolderId(undefined);
     setSpFolderPath([]);
     setSourceTab('onedrive');
-  }, [t]);
+    // Close the wide picker and open the compact connect dialog — do not
+    // morph this shell to md.
+    (onOpenChange ?? noop)(false);
+    onRequireConnect?.();
+  }, [t, onOpenChange, onRequireConnect]);
 
   const handleSelectTeam = useCallback((teamId: string | undefined) => {
     setSelectedTeamId_local(teamId);
@@ -170,6 +178,21 @@ export function OneDriveImportDialog({
       (!cloudImportAuth || cloudImportAuth.status !== 'active')) ||
     isCloudImportAuthError(loadError) ||
     isCloudImportAuthError(sitesError);
+
+  // Safety net: if the picker opens without a grant (or the grant dies
+  // mid-session), hand off to the connect dialog instead of resizing.
+  useEffect(() => {
+    if (open !== true || cloudImportAuthLoading) return;
+    if (!isMicrosoftAccountError) return;
+    (onOpenChange ?? noop)(false);
+    onRequireConnect?.();
+  }, [
+    open,
+    onOpenChange,
+    cloudImportAuthLoading,
+    isMicrosoftAccountError,
+    onRequireConnect,
+  ]);
 
   const collectAllFiles = async (
     items: OneDriveApiItem[],
@@ -497,7 +520,6 @@ export function OneDriveImportDialog({
       selectedItems,
       filteredItems,
       loading,
-      isMicrosoftAccountError,
       folderPath,
       sitesData,
       loadingSites,
@@ -557,8 +579,8 @@ export function OneDriveImportDialog({
 
     return (
       <Dialog
-        open={props.open ?? false}
-        onOpenChange={props.onOpenChange ?? noop}
+        open={open ?? false}
+        onOpenChange={onOpenChange ?? noop}
         title={t('microsoft365.title')}
         hideClose
         size="wide"
@@ -589,8 +611,8 @@ export function OneDriveImportDialog({
 
     return (
       <Dialog
-        open={props.open ?? false}
-        onOpenChange={props.onOpenChange ?? noop}
+        open={open ?? false}
+        onOpenChange={onOpenChange ?? noop}
         title={settings.title}
         description={settings.description}
         size="md"
