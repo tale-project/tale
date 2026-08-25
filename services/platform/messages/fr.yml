@@ -510,13 +510,7 @@ automations:
   title: Automatisations
   entityLabel: automatisations
   entityLabelOne: automatisation
-  switcher:
-    title: Changer d'automatisation
-    searchPlaceholder: Rechercher des automatisations
-    empty: Aucune automatisation trouvée
-    ariaLabel: "Changer d'automatisation, actuelle : {name}"
   list:
-    createButton: Créer une automatisation
     searchPlaceholder: Rechercher des automatisations
     columnName: Nom
     columnProjects: Projets

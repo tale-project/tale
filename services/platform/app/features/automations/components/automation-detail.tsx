@@ -415,10 +415,9 @@ export function AutomationDetail({
             type: 'item' as const,
             label: t('versions.versionLabel', { version: entry.version }),
             selected: entry.version === lookingVersion,
-            trailing:
-              entry.version === meta?.deployedVersion
-                ? t('versions.deployed')
-                : undefined,
+            ...(entry.version === meta?.deployedVersion
+              ? { trailing: t('versions.deployed') }
+              : {}),
             onClick: () => {
               if (entry.version !== lookingVersion) {
                 requestVersionSwitch(entry.version);

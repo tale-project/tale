@@ -158,7 +158,7 @@ describe('AutomationsList create menu', () => {
     ).not.toBeInTheDocument();
 
     await user.click(
-      screen.getByRole('button', { name: 'automations.list.createButton' }),
+      screen.getByRole('button', { name: 'automations.builder.new' }),
     );
 
     expect(
@@ -182,7 +182,7 @@ describe('AutomationsList create menu', () => {
       screen.queryByText('automations.list.description'),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'automations.list.createButton' }),
+      screen.getByRole('button', { name: 'automations.builder.new' }),
     ).toBeInTheDocument();
     expect(screen.getByTestId('row-actions')).toBeInTheDocument();
     expect(
