@@ -9,7 +9,7 @@ Diese Seite ist die praktische Hälfte der Automatisierungen: was du klickst und
 
 Öffne **Automatisierungen** in der Seitenleiste. Die Liste zeigt jede Automatisierung der Organisation mit der Anzahl ihrer Versionen und entweder der Version, die live ist, oder **Nicht live**, solange es keine gibt. Klick eine an, und du landest auf ihrer Seite.
 
-Diese Seite ist eine einzige durchgehende Fläche statt einer Reihe von Tabs. Oben stehen der Name der Automatisierung, die Version, die du ansiehst, die Live-Version und die Schaltfläche zum Starten. Darunter liegt der Canvas mit dem Node-Panel daneben, dann die Speicherleiste, der Bereich **Trigger** und der Bereich **Projekte** — welche Projekt-Task-Boards die Automatisierung sehen; keiner heißt die ganze Organisation — und ganz unten die Listen **Versionen** und **Läufe** nebeneinander.
+Diese Seite ist ein Arbeitsplatz, keine Reihe von Tabs. Der Name trägt das Badge **Live**, wenn die Version auf dem Canvas live ist. **Version**, **Testlauf**, **Live ausführen**, **Verwerfen** und **Speichern** stehen rechts — **Diese Version live schalten** sitzt neben **Version**, wenn die Auswahl nicht live ist. Die Beschreibung sitzt darunter, wenn die Automatisierung eine hat. Neben dem Canvas zeigt das Panel **Trigger** und **Projekte** — welche Projekt-Task-Boards die Automatisierung sehen; keines heißt die ganze Organisation — bis du eine Box anklickst. Das Panel ist so hoch wie der Canvas, der das Fenster unter der Kopfzeile füllt. Wählst du eine Node, bleibt der Canvas gleich hoch — überzählige Felder scrollst du im Panel. Klick **Schließen**, drück Escape, klick die ausgewählte Box noch einmal, oder in den leeren Canvas, und sie kommen zurück. **Versionen** und **Läufe** liegen darunter.
 
 ## Den Canvas lesen
 
@@ -19,6 +19,8 @@ Die Ablaufsteuerung erscheint als Badge an der Box, für die sie gilt, im selben
 
 Zwei Zustände lohnen sich zu kennen. Eine Version ohne Nodes sagt das und weist dich darauf hin, dem Dokument eine hinzuzufügen. Eine Version, deren Nodes im Kreis aufeinander verweisen, warnt dich, dass die gezeigte Reihenfolge die ist, in der sie im Dokument stehen, und nicht eine, die die Engine ausführen könnte — und bittet dich, eine der Referenzen zu entfernen, um den Kreis aufzubrechen.
 
+Ein Agent, der ein Modell ohne festen Anbieter nennt, warnt auf seiner Box. Lege den Anbieter am Node fest, speichere und schalte die neue Version live.
+
 <Note>
 
 Der Canvas dient zum Lesen und Auswählen. Du verbindest Nodes, indem du sie referenzierst, nicht indem du eine Linie zwischen zwei Boxen ziehst.
@@ -27,11 +29,11 @@ Der Canvas dient zum Lesen und Auswählen. Du verbindest Nodes, indem du sie ref
 
 ## Eine Node bearbeiten
 
-Klick eine Box an, und das Node-Panel neben dem Canvas füllt sich mit den Feldern dieser Node. Welche Felder auftauchen, hängt vom Typ ab: **Code** bei einer `transform`, **Prompt**, **System-Prompt**, **Modell** und **Ausgabeschema** bei einer `llm`, **Workflow** bei einem `subworkflow` und **Eingabe** überall dort, wo es eine gibt.
+Klick eine Box an, und das Panel neben dem Canvas wechselt von **Trigger** zu den Feldern dieser Node. Klick **Schließen**, drück Escape (wenn du nicht in einem Feld tippst), klick die Box noch einmal, oder in den leeren Canvas, um zurückzuwechseln. Welche Felder auftauchen, hängt vom Typ ab: **Code** bei einer `transform`, **Prompt**, **System-Prompt**, **Modell** und **Ausgabeschema** bei einer `llm`, **Workflow** bei einem `subworkflow` und **Eingabe** überall dort, wo es eine gibt. Die typabhängigen Felder sitzen über **Eingabe**.
 
 **Eingabe** ist ein JSON-Objekt, und dort leben die Referenzen. Ein Text-Wert darf die Ausgabe einer anderen Node referenzieren, und genau diese Referenz zeichnet den Pfeil auf dem Canvas. Solange das JSON unvollständig ist, sagt dir das Panel, dass es noch nicht gültig ist, und lässt die Node unverändert — eine halb getippte Änderung lässt sich so nie versehentlich speichern.
 
-Unter den typabhängigen Feldern sitzt die Gruppe **Ablaufsteuerung** mit **Wenn**, **Sonst zu**, **Für jedes** und **Wiederholen bis**. Es sind dieselben Felder, die die Badges auf dem Canvas spiegeln: Setzt du hier eines, ändert sich das Badge sofort.
+Öffne **Ablaufsteuerung** für **Wenn**, **Sonst zu**, **Für jedes** und **Wiederholen bis**. Es sind dieselben Felder, die die Badges auf dem Canvas spiegeln: Setzt du hier eines, ändert sich das Badge sofort. Die Gruppe ist aufgeklappt, sobald eines davon gesetzt ist.
 
 ## Speichern, starten, live schalten
 
@@ -41,7 +43,7 @@ Die drei Schritte sind bewusst getrennt. Geh sie beim ersten Mal der Reihe nach 
 
 <Step title="Eine Version speichern">
 
-Änderungen zeigen den Hinweis **Nicht gespeicherte Änderungen**, bis du speicherst. Schreib eine **Notiz zur Version**, die sagt, was sich geändert hat — diese Notiz unterscheidet später als Einziges zwei Versionen in der Liste —, und klick dann **Version speichern**. Das Speichern hängt eine neue Version an und lässt jede frühere genau so, wie sie war. Hat sich nichts geändert, sagt dir die Schaltfläche das, statt eine identische Version anzulegen.
+Änderungen zeigen den Hinweis **Nicht gespeicherte Änderungen**, bis du speicherst. Klick **Speichern**, schreib eine **Notiz zur Version**, die sagt, was sich geändert hat — diese Notiz unterscheidet später als Einziges zwei Versionen in der Liste —, und bestätige **Version speichern**. Das Speichern hängt eine neue Version an und lässt jede frühere genau so, wie sie war. Hat sich nichts geändert, sagt dir die Schaltfläche das, statt eine identische Version anzulegen.
 
 </Step>
 
@@ -55,7 +57,7 @@ Ist die Automatisierung an mehr als ein Projekt gebunden, sitzt neben den Lauf-S
 
 <Step title="Die gewünschte Version live schalten">
 
-Klick in der Liste **Versionen** bei der Version, die deine Trigger ausführen sollen, auf **Live schalten**. Die aktuelle trägt das Badge **Live**, und eine andere live zu schalten verschiebt dieses Badge, ohne den Inhalt irgendeiner Version anzufassen.
+Wenn die Version auf dem Canvas nicht live ist, schaltet **Diese Version live schalten** neben **Version** genau diese live. Die aktuelle trägt in **Versionen** das Badge **Live**, und eine andere live zu schalten verschiebt dieses Badge, ohne den Inhalt irgendeiner Version anzufassen.
 
 </Step>
 
@@ -80,27 +82,27 @@ tests:
         - connector: email.send
 ```
 
-Ob die Tests einer Version bestanden waren, wird beim Speichern festgehalten, und die Liste **Versionen** zeigt das Ergebnis als Badge **Tests bestanden** oder **Tests fehlgeschlagen**. Das Live-Schalten liest diesen Eintrag: Eine mit fehlgeschlagenen Tests gespeicherte Version wird abgewiesen, und die Liste sagt dir, dass sie nicht live geschaltet wurde, statt stillschweigend nichts zu tun. Behebe die Ursache und speichere eine neue Version — ein festgehaltenes Ergebnis ist eine Tatsache über diese Version und ändert sich nie.
+Ob die Tests einer Version bestanden waren, wird beim Speichern festgehalten, und die Liste **Versionen** zeigt das Ergebnis als Badge **Tests bestanden** oder **Tests fehlgeschlagen**. Das Live-Schalten liest diesen Eintrag: Eine mit fehlgeschlagenen Tests gespeicherte Version wird abgewiesen, und die Seite sagt dir, dass sie nicht live geschaltet wurde, statt stillschweigend nichts zu tun. Behebe die Ursache und speichere eine neue Version — ein festgehaltenes Ergebnis ist eine Tatsache über diese Version und ändert sich nie.
 
 ## Zurückrollen
 
-Zurückrollen heißt, eine ältere Version live zu schalten. Such die Version in der Liste, lies ihre Notiz, um sicherzugehen, dass es die richtige ist, und klick **Live schalten**. Das Badge wandert, die neueren Versionen bleiben unangetastet in der Liste, und kein Dokument wird umgeschrieben.
+Zurückrollen heißt, eine ältere Version live zu schalten. Wähl sie oben unter **Version** — oder such sie in **Versionen**, lies die Notiz und klick sie an — und klick **Diese Version live schalten**. Das Badge wandert, die neueren Versionen bleiben unangetastet in der Liste, und kein Dokument wird umgeschrieben.
 
 Deshalb zählen Versionsnotizen mehr, als sie aussehen. Sechs Versionen später sagt dir die Notiz, welche der letzte gute Stand war — schreib sie also für die Person, die sie während einer Störung lesen wird.
 
 ## Eine Automatisierung löschen
 
-Löschen betrifft die Automatisierung als Ganzes: alle Versionen, das Deployment, der Trigger und die Projekt-Bindungen gehen zusammen — ein Zeitplan löst danach nicht mehr aus, eine Webhook-URL funktioniert sofort nicht mehr. Der Papierkorb-Button neben den Seitenaktionen (**Automatisierung löschen**) fragt zuerst nach. Die bisherigen Läufe bleiben lesbar, bis die Aufbewahrungsfrist sie entfernt — was die Automatisierung getan hat, bleibt also nachvollziehbar.
+Löschen betrifft die Automatisierung als Ganzes: alle Versionen, das Deployment, der Trigger und die Projekt-Bindungen gehen zusammen — ein Zeitplan löst danach nicht mehr aus, eine Webhook-URL funktioniert sofort nicht mehr. Das passiert in der Liste, nicht auf dieser Seite: öffne **Automatisierungen**, das Zeilenmenü, und klicke **Löschen**. Die Bestätigung (**Automatisierung löschen**) nennt sie zuerst. Die bisherigen Läufe bleiben lesbar, bis die Aufbewahrungsfrist sie entfernt — was die Automatisierung getan hat, bleibt also nachvollziehbar.
 
 Zwei Leitplanken. Ein Lauf, der noch aussteht, läuft oder wartet, blockiert das Löschen — brich ihn ab oder lass ihn zu Ende laufen. Und ein gelöschtes mitgeliefertes Pack bleibt über Plattform-Upgrades hinweg gelöscht; legst du unter demselben Namen neu an, lebt der Name wieder.
 
 ## Den letzten Lauf auf dem Canvas lesen
 
-Sobald eine Automatisierung gelaufen ist, legt **Letzten Lauf einblenden** diesen Lauf über den Canvas. Jede Box übernimmt den Status, den der Lauf ihr gegeben hat — sie ist **Gelaufen**, wurde **Übersprungen**, ist **Fehlgeschlagen**, wurde **Nie erreicht** oder ist **Noch nicht erreicht**, solange der Lauf weitergeht. Ein Fehler wird so als Stelle im Graphen sichtbar statt als Zeile in einem Log.
+Sobald eine Automatisierung gelaufen ist, legt **Letzten Lauf einblenden** diesen Lauf über den Canvas — ein Symbol auf dem Canvas schaltet das ein (es heißt **Letzten Lauf ausblenden**, solange die Überlagerung an ist). Jede Box übernimmt den Status, den der Lauf ihr gegeben hat — sie ist **Gelaufen**, wurde **Übersprungen**, ist **Fehlgeschlagen**, wurde **Nie erreicht** oder ist **Noch nicht erreicht**, solange der Lauf weitergeht. Ein Fehler wird so als Stelle im Graphen sichtbar statt als Zeile in einem Log.
 
 Wähl bei eingeblendetem Lauf eine Node, und das Panel ergänzt einen Abschnitt **In diesem Lauf**: die **Aufgelöste Eingabe**, die die Node tatsächlich bekommen hat, nachdem jedes Template ausgewertet war, ihre **Ausgabe** und die Auswirkungen, die sie erzeugt hat, oder den Hinweis, dass sie außerhalb der Plattform nichts verändert hat. Die aufgelöste Eingabe beantwortet meist am schnellsten die Frage, warum eine Node getan hat, was sie getan hat — sie zeigt den Wert, den eine Referenz ergeben hat, nicht die Referenz, die du geschrieben hast.
 
-**Letzten Lauf öffnen** führt zur vollständigen Lauf-Seite, wo derselbe Canvas neben Eingabe, Ausgabe und der kompletten Liste der Auswirkungen steht. [Ausführungsprotokolle](/de/platform/automations/execution-logs) liest diese Seite von Anfang bis Ende.
+Ein Klick auf eine Zeile unter **Läufe** öffnet die Lauf-Seite, wo derselbe Canvas neben Eingabe, Ausgabe und der kompletten Liste der Auswirkungen steht. [Ausführungsprotokolle](/de/platform/automations/execution-logs) liest diese Seite von Anfang bis Ende.
 
 ## Wo das hingehört
 

@@ -22,11 +22,10 @@ import { automationErrorMessage } from '../lib/errors';
  * every project's board sees it, one or more means exactly those projects —
  * so the panel edits the whole selection and saves it in one reconcile
  * (`setAutomationProjects`), the same one-row-of-truth shape as the trigger
- * panel beside it. Deleting a project refuses while an automation is bound to
- * it, so removals happen here first, deliberately.
+ * panel. Deleting a project refuses while an automation is bound to it, so
+ * removals happen here first, deliberately.
  *
- * Laid out as a self-contained card so it can sit beside the Trigger panel
- * on wide screens: header, growing body, actions pinned to the bottom.
+ * Stacked under the trigger in the inspector when no node is selected.
  */
 export function ProjectBindingsSection({
   organizationId,
@@ -94,7 +93,7 @@ export function ProjectBindingsSection({
   return (
     <section
       aria-labelledby={headingId}
-      className="border-border flex h-full min-w-0 flex-col gap-4 rounded-lg border p-4"
+      className="border-border flex min-w-0 flex-col gap-4 border-t pt-4"
     >
       <header className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -115,7 +114,7 @@ export function ProjectBindingsSection({
         </Text>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex flex-col gap-3">
         {refusal !== null && (
           <Alert variant="destructive" description={refusal} />
         )}

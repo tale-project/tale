@@ -3,19 +3,27 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Field } from '@tale/ui/field';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Input } from '@tale/ui/input';
 import { Text } from '@tale/ui/text';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { CheckCircle2, Play, SearchX, Save, Trash2, Zap } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  Play,
+  Rocket,
+  SearchX,
+  Zap,
+} from 'lucide-react';
 import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { PageActionHeader } from '@/app/components/layout/page-action-header';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import {
   EditorActions,
@@ -28,19 +36,15 @@ import {
 import { Select } from '@/app/components/ui/forms/select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
-import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
-import { automationSlugToParam } from '@/lib/automations/slug';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
-import {
-  automationDisplayDescription,
-  automationDisplayName,
-} from '@/lib/shared/schemas/automation_presentation';
+import { automationDisplayDescription } from '@/lib/shared/schemas/automation_presentation';
+import { cn } from '@/lib/utils/cn';
 
 import { mergeNodeTypes } from '../hooks/backend';
 import {
-  useDeleteAutomation,
+  useDeployAutomation,
   useSaveAutomation,
   useStartAutomationRun,
 } from '../hooks/mutations';
@@ -51,10 +55,15 @@ import {
   useAutomationVersions,
   useNodeTypeCatalog,
 } from '../hooks/queries';
+import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { readDocument, readPositions } from '../lib/document';
 import { automationErrorMessage } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
 import { nodeStatusMap, projectRun } from '../lib/run-view';
+import {
+  AUTOMATION_WORKBENCH_CANVAS_SLOT,
+  AUTOMATION_WORKBENCH_GRID,
+} from '../lib/workbench';
 import { AutomationCanvas } from './automation-canvas';
 import { NodeInspector } from './node-inspector';
 import { ProjectBindingsSection } from './project-bindings-section';
@@ -175,10 +184,22 @@ export function AutomationDetail({
     undefined,
   );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const deselectNode = useCallback(() => {
+    const id = selectedNodeId;
+    setSelectedNodeId(null);
+    if (id !== null) {
+      queueMicrotask(() => {
+        focusAutomationNode(id);
+      });
+    }
+  }, [selectedNodeId]);
   const [draft, setDraft] = useState<Automation | null>(null);
   const [saveMessage, setSaveMessage] = useState('');
   /** A refused RUN, not refused save feedback — see the Alert below. */
   const [refusal, setRefusal] = useState<string | null>(null);
+  /** A refused DEPLOY from the looking-vs-live control. The Versions list
+   * keeps its own copy for row-level deploys. */
+  const [deployRefusal, setDeployRefusal] = useState<string | null>(null);
   const [showLastRun, setShowLastRun] = useState(true);
   const [confirmLiveRun, setConfirmLiveRun] = useState(false);
   /** Which project a manual run operates in — `undefined` means org-wide, the
@@ -191,7 +212,6 @@ export function AutomationDetail({
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   /** The version the author asked to switch to while holding a draft. */
   const [pendingVersion, setPendingVersion] = useState<number | null>(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const automationQuery = useAutomation(
     organizationId,
@@ -205,44 +225,7 @@ export function AutomationDetail({
   const { projects } = useProjects(organizationId);
   const save = useSaveAutomation();
   const startRun = useStartAutomationRun();
-  const deleteAutomation = useDeleteAutomation();
-  const navigate = useNavigate();
-
-  // Deleting navigates back to the listing this page was opened from — the
-  // project shell's tab when inside a project, the org list otherwise. The
-  // draft is dropped FIRST so the dirty-navigation guard has nothing left to
-  // protect: the document it guards no longer exists.
-  const confirmDelete = async (): Promise<void> => {
-    try {
-      await deleteAutomation.mutateAsync({
-        organizationId,
-        name: automationSlug,
-      });
-      setDraft(null);
-      setDeleteOpen(false);
-      toast({ title: t('detail.delete.done'), variant: 'success' });
-      await navigate(
-        projectId !== undefined
-          ? {
-              to: '/dashboard/$id/projects/$projectId/automations',
-              params: { id: organizationId, projectId },
-            }
-          : {
-              to: '/dashboard/$id/automations',
-              params: { id: organizationId },
-            },
-      );
-    } catch (error) {
-      // The refusal names the blocker (a run still queued/running/waiting) —
-      // hand the server's own sentence to the author, not a generic failure.
-      setDeleteOpen(false);
-      toast({
-        title: t('detail.delete.failed'),
-        description: automationErrorMessage(error),
-        variant: 'destructive',
-      });
-    }
-  };
+  const deploy = useDeployAutomation();
 
   // The projects a run may target: the automation's own bindings, resolved to
   // names. A run scope only needs choosing when there are two or more — one
@@ -322,6 +305,19 @@ export function AutomationDetail({
   );
 
   const isDirty = draft !== null;
+  const requestVersionSwitch = (version: number): void => {
+    // Another version replaces what the canvas shows, so a draft cannot
+    // survive the switch — ask before dropping it.
+    if (isDirty) {
+      setPendingVersion(version);
+      return;
+    }
+    setSelectedVersion(version);
+  };
+  const versionEntries = useMemo(
+    () => [...(versionsQuery.data ?? [])].sort((a, b) => b.version - a.version),
+    [versionsQuery.data],
+  );
 
   // The save-version dialog settles the promise `save()` handed back: confirming
   // resolves it once the version is written, backing out rejects it as a
@@ -410,8 +406,32 @@ export function AutomationDetail({
   }
 
   const meta = automationQuery.data;
+  const lookingVersion = meta?.version;
+  const lookingIsLive =
+    lookingVersion !== undefined && lookingVersion === meta?.deployedVersion;
+  const versionMenuItems: DropdownMenuGroup[] =
+    lookingVersion === undefined || versionEntries.length === 0
+      ? []
+      : [
+          versionEntries.map((entry) => ({
+            type: 'item' as const,
+            label: t('versions.versionLabel', { version: entry.version }),
+            selected: entry.version === lookingVersion,
+            ...(entry.version === meta?.deployedVersion
+              ? { trailing: t('versions.deployed') }
+              : {}),
+            onClick: () => {
+              if (entry.version !== lookingVersion) {
+                requestVersionSwitch(entry.version);
+              }
+            },
+          })),
+        ];
   const selectedNode =
     graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
+  const described =
+    automationDisplayDescription(automationQuery.data?.presentation, locale) ??
+    automation.description;
 
   const confirmSave = async (): Promise<void> => {
     const pending = pendingSaveRef.current;
@@ -443,32 +463,65 @@ export function AutomationDetail({
   return (
     <>
       <PageActionHeader
-        // The automation's display name is the area header's `h1` leaf
-        // (`AutomationBreadcrumbs`); this strip carries the description and
-        // the run / save actions only.
-        {...(() => {
-          // The manifest's own description in the reader's language when the
-          // pack declared one; the document's otherwise.
-          const described =
-            automationDisplayDescription(
-              automationQuery.data?.presentation,
-              locale,
-            ) ?? automation.description;
-          return described !== undefined ? { description: described } : {};
-        })()}
-        // Which version is on screen, and which one is live, belong beside the
-        // actions rather than inside the heading — a badge is status, not title.
+        // Display name is the breadcrumb h1 in AdaptiveHeader. Live sits
+        // next to that name when the canvas version is the live one. The
+        // version switcher and the run/save verbs portal to the right of
+        // the same row. The description sits under the name.
+        {...(described !== undefined && { description: described })}
+        {...(lookingIsLive && {
+          identity: (
+            <Badge variant="green" icon={CheckCircle2}>
+              {t('versions.deployed')}
+            </Badge>
+          ),
+        })}
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {meta && (
-              <Badge variant="slate">
-                {t('versions.versionLabel', { version: meta.version })}
-              </Badge>
+            {lookingVersion !== undefined && versionMenuItems.length > 0 && (
+              <DropdownMenu
+                align="end"
+                items={versionMenuItems}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    aria-label={t('detail.versionSelect')}
+                    aria-haspopup="menu"
+                    className="gap-1.5"
+                  >
+                    {t('versions.versionLabel', {
+                      version: lookingVersion,
+                    })}
+                    <ChevronDown aria-hidden className="size-3.5 shrink-0" />
+                  </Button>
+                }
+              />
             )}
-            {meta?.deployedVersion !== undefined && (
-              <Badge variant="green" icon={CheckCircle2}>
-                {t('detail.deployedVersion', { version: meta.deployedVersion })}
-              </Badge>
+            {canAuthor && lookingVersion !== undefined && !lookingIsLive && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={Rocket}
+                isLoading={deploy.isPending}
+                onClick={() => {
+                  setDeployRefusal(null);
+                  deploy.mutate(
+                    {
+                      organizationId,
+                      name: automationSlug,
+                      version: lookingVersion,
+                    },
+                    {
+                      onError: (error) => {
+                        setDeployRefusal(automationErrorMessage(error));
+                      },
+                    },
+                  );
+                }}
+              >
+                {t('detail.deployThis')}
+              </Button>
             )}
             {canChooseRunProject && (
               <Select
@@ -513,8 +566,8 @@ export function AutomationDetail({
                     organizationId,
                     name: automationSlug,
                     mode: 'mock',
-                    // A test run exercises the version on screen — the badge
-                    // beside this button — so an undeployed draft is testable.
+                    // A test run exercises the version on screen — the
+                    // header picker — so an undeployed draft is testable.
                     // Without a version the server falls back to the deployed
                     // one and refuses when there is none.
                     ...(meta && { version: meta.version }),
@@ -548,18 +601,6 @@ export function AutomationDetail({
               </Button>
             )}
             {canAuthor && <AutomationEditorActions />}
-            {canAuthor && (
-              <Button
-                size="icon"
-                variant="ghost"
-                icon={Trash2}
-                title={t('detail.delete.action')}
-                disabled={deleteAutomation.isPending}
-                onClick={() => {
-                  setDeleteOpen(true);
-                }}
-              />
-            )}
           </div>
         }
       />
@@ -575,66 +616,41 @@ export function AutomationDetail({
         {refusal !== null && (
           <Alert variant="destructive" description={refusal} />
         )}
-
-        {/* The LIVE version runs agent nodes without a provider pin: serving
-            resolves by walk at run time, so the model picker's preselect is
-            not what necessarily bills. Standing warning until a pinned
-            version is deployed — saving alone does not move the trigger. */}
-        {meta?.deployedUnpinnedAgentNodes !== undefined &&
-          meta.deployedVersion !== undefined && (
-            <Alert
-              variant="warning"
-              description={t('detail.unpinnedModels', {
-                version: meta.deployedVersion,
-                nodes: meta.deployedUnpinnedAgentNodes.join(', '),
-                count: meta.deployedUnpinnedAgentNodes.length,
-              })}
-            />
-          )}
-
-        {lastRun && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-pressed={showLastRun}
-              onClick={() => {
-                setShowLastRun((shown) => !shown);
-              }}
-            >
-              {showLastRun ? t('detail.hideLastRun') : t('detail.showLastRun')}
-            </Button>
-            {projectId ? (
-              <Link
-                to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId"
-                params={{
-                  id: organizationId,
-                  projectId,
-                  automationSlug: automationSlugToParam(automationSlug),
-                  runId: lastRun.id,
-                }}
-                className="focus-visible:ring-ring text-sm underline focus-visible:ring-2 focus-visible:outline-none"
-              >
-                {t('detail.openLastRun')}
-              </Link>
-            ) : (
-              <Link
-                to="/dashboard/$id/automations/$automationSlug/runs/$runId"
-                params={{
-                  id: organizationId,
-                  automationSlug: automationSlugToParam(automationSlug),
-                  runId: lastRun.id,
-                }}
-                className="focus-visible:ring-ring text-sm underline focus-visible:ring-2 focus-visible:outline-none"
-              >
-                {t('detail.openLastRun')}
-              </Link>
-            )}
-          </div>
+        {deployRefusal !== null && (
+          <Alert
+            variant="destructive"
+            title={t('versions.deployRefused')}
+            description={deployRefusal}
+          />
         )}
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="flex min-h-[26rem] flex-col">
+        <div className={AUTOMATION_WORKBENCH_GRID}>
+          <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>
+            {lastRun ? (
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-end p-2">
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="pointer-events-auto"
+                  aria-pressed={showLastRun}
+                  title={
+                    showLastRun
+                      ? t('detail.hideLastRun')
+                      : t('detail.showLastRun')
+                  }
+                  tooltipSide="left"
+                  onClick={() => {
+                    setShowLastRun((shown) => !shown);
+                  }}
+                >
+                  {showLastRun ? (
+                    <EyeOff className="size-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="size-4" aria-hidden="true" />
+                  )}
+                </Button>
+              </div>
+            ) : null}
             <AutomationCanvas
               graph={graph}
               positions={positions}
@@ -658,40 +674,30 @@ export function AutomationDetail({
             onChange={onChangeNode}
             organizationId={organizationId}
             {...(projectId !== undefined && { projectId })}
-          />
-        </div>
-
-        <div className="grid items-stretch gap-6 lg:grid-cols-2">
-          <TriggerEditor
-            organizationId={organizationId}
-            name={automationSlug}
-            canEdit={canAuthor}
-          />
-
-          <ProjectBindingsSection
-            organizationId={organizationId}
-            name={automationSlug}
-            canEdit={canAuthor}
+            onDeselect={deselectNode}
+            workflow={
+              <>
+                <TriggerEditor
+                  organizationId={organizationId}
+                  name={automationSlug}
+                  canEdit={canAuthor}
+                />
+                <ProjectBindingsSection
+                  organizationId={organizationId}
+                  name={automationSlug}
+                  canEdit={canAuthor}
+                />
+              </>
+            }
           />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <VersionList
-            organizationId={organizationId}
-            name={automationSlug}
             versions={versionsQuery.data ?? []}
             deployedVersion={meta?.deployedVersion}
-            canDeploy={canAuthor}
             selectedVersion={selectedVersion ?? meta?.version}
-            onSelectVersion={(version) => {
-              // Another version replaces what the canvas shows, so a draft
-              // cannot survive the switch — ask before dropping it.
-              if (isDirty) {
-                setPendingVersion(version);
-                return;
-              }
-              setSelectedVersion(version);
-            }}
+            onSelectVersion={requestVersionSwitch}
           />
           <RunList
             organizationId={organizationId}
@@ -725,7 +731,6 @@ export function AutomationDetail({
             </Button>
             <Button
               type="button"
-              icon={Save}
               isLoading={save.isPending}
               onClick={() => void confirmSave()}
             >
@@ -799,31 +804,6 @@ export function AutomationDetail({
           setSelectedVersion(pendingVersion ?? undefined);
           setPendingVersion(null);
         }}
-      />
-
-      {/* Deleting removes the automation as a whole — every version, the
-          deployment, the triggers (a webhook URL dies with them) and the
-          project bindings. Run history stays until retention expires it, and
-          the server refuses while a run is still live, so nothing in flight
-          can be destroyed from here. */}
-      <DeleteDialog
-        open={deleteOpen}
-        onOpenChange={(open) => {
-          if (!deleteAutomation.isPending) setDeleteOpen(open);
-        }}
-        title={t('detail.delete.title')}
-        description={t('detail.delete.description')}
-        preview={{
-          primary: automationDisplayName(
-            automationQuery.data?.presentation,
-            automationSlug,
-            locale,
-          ),
-          secondary: automationSlug,
-        }}
-        warning={t('detail.delete.warning')}
-        isDeleting={deleteAutomation.isPending}
-        onDelete={() => void confirmDelete()}
       />
     </>
   );

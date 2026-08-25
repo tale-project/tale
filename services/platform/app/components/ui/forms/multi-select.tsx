@@ -319,7 +319,9 @@ function MultiSelectBase({
   const chips =
     selectedOptions.length === 0 ? (
       typeof placeholder === 'string' ? (
-        <span className="text-muted-foreground">{placeholder}</span>
+        <span className="text-muted-foreground min-w-0 truncate">
+          {placeholder}
+        </span>
       ) : (
         placeholder
       )
@@ -377,12 +379,17 @@ function MultiSelectBase({
       }}
       className={cn(
         selectTriggerClasses({ error }),
-        'h-auto min-h-9 cursor-pointer gap-1.5 py-1.5',
-        // Chips wrap inside the capped region when capped; otherwise on the
-        // trigger itself so a short selection still reads as one line.
-        chipsMaxHeightClassName !== undefined && selectedOptions.length > 0
-          ? 'items-start'
-          : 'flex-wrap items-center',
+        'cursor-pointer gap-1.5',
+        // Empty matches a closed Select (one row, chevron on the right).
+        // Chips need to wrap, so only then grow past h-9.
+        selectedOptions.length === 0
+          ? 'overflow-hidden'
+          : cn(
+              'h-auto min-h-9 py-1.5 whitespace-normal',
+              chipsMaxHeightClassName !== undefined
+                ? 'items-start'
+                : 'items-center',
+            ),
         disabled && 'pointer-events-none cursor-not-allowed opacity-50',
         triggerClassName,
       )}
@@ -397,7 +404,12 @@ function MultiSelectBase({
           <div className="flex flex-wrap items-center gap-1.5">{chips}</div>
         </CappedScrollRegion>
       ) : (
-        <div className="flex flex-1 flex-wrap items-center gap-1.5">
+        <div
+          className={cn(
+            'flex min-w-0 flex-1 items-center gap-1.5',
+            selectedOptions.length > 0 && 'flex-wrap',
+          )}
+        >
           {chips}
         </div>
       )}

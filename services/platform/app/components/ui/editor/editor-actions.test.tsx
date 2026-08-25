@@ -53,6 +53,20 @@ describe('EditorActions — mobile touch targets (#1980)', () => {
   });
 });
 
+describe('EditorActions — labeled text', () => {
+  it('does not decorate idle Save and Discard with icons', () => {
+    render(<EditorActions controller={makeController()} />);
+    expect(
+      screen
+        .getByRole('button', { name: 'actions.discard' })
+        .querySelector('svg'),
+    ).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'actions.save' }).querySelector('svg'),
+    ).toBeNull();
+  });
+});
+
 describe('EditorActions — suppressServerErrorToast', () => {
   it('toasts a server error by default', async () => {
     const controller = makeController({

@@ -65,10 +65,12 @@ export function RunList({
         </Text>
       ) : (
         <CappedScrollRegion
+          className="border-border bg-card overflow-hidden rounded-lg border"
+          fadeFromClassName="from-card"
           maxHeightClassName="max-h-72"
           scrollLabel={tCommon('aria.scrollDown')}
         >
-          <ul className="flex flex-col gap-2">
+          <ul className="divide-border divide-y">
             {runs.map((run) => (
               <li key={run.id}>
                 <Link
@@ -90,7 +92,7 @@ export function RunList({
                           runId: run.id,
                         },
                       })}
-                  className="border-border bg-card hover:bg-muted/50 focus-visible:ring-ring flex flex-wrap items-center gap-2 rounded-md border p-3 focus-visible:ring-2 focus-visible:outline-none"
+                  className="hover:bg-muted/50 focus-visible:bg-muted/50 flex flex-wrap items-center gap-2 px-3 py-2.5 focus-visible:outline-none"
                 >
                   <RunBadge status={readRunStatus(run.status)} />
                   <Badge variant={run.mode === 'live' ? 'orange' : 'slate'}>

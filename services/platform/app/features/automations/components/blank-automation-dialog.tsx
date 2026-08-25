@@ -14,7 +14,6 @@
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -76,6 +75,7 @@ export function BlankAutomationDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const { t: tProjects } = useT('projects');
   const navigate = useNavigate();
   const roster = useProjectHarnesses(organizationId);
@@ -312,10 +312,13 @@ export function BlankAutomationDialog({
       onSubmit={handleSubmit}
       customFooter={footer}
     >
-      <Text variant="caption" className="text-muted-foreground">
-        {t('blank.stepCounter', { current: step + 1, total: 2 })}
-      </Text>
-
+      <div aria-live="polite" className="sr-only">
+        {tCommon('stepProgress', {
+          current: step + 1,
+          total: 2,
+          label: step === 0 ? t('blank.stepAgent') : t('blank.stepTrigger'),
+        })}
+      </div>
       {step === 0 ? (
         <Stack gap={4}>
           <Input
@@ -347,26 +350,19 @@ export function BlankAutomationDialog({
             id="blank-automation-prompt"
             label={t('blank.promptLabel')}
             placeholder={t('blank.promptPlaceholder')}
-            description={t('blank.promptHint')}
             rows={4}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />
-          <Stack gap={1}>
-            <Text variant="caption" className="font-medium">
-              {t('blank.equipmentLabel')}
-            </Text>
-            <SkillsMenu
-              skills={capabilities.data?.skills ?? []}
-              connectors={capabilities.data?.connectors ?? []}
-              tools={toolOptions}
-              value={binding}
-              onChange={setBinding}
-            />
-            <Text variant="caption" className="text-muted-foreground">
-              {t('blank.equipmentHint')}
-            </Text>
-          </Stack>
+          <SkillsMenu
+            skills={capabilities.data?.skills ?? []}
+            connectors={capabilities.data?.connectors ?? []}
+            tools={toolOptions}
+            value={binding}
+            onChange={setBinding}
+            label={t('blank.equipmentLabel')}
+            description={tProjects('agents.equipmentHint')}
+          />
           <AgentSecretsField
             organizationId={organizationId}
             secrets={orgSecrets ?? []}
