@@ -55,7 +55,8 @@ export function GoogleDriveImportDialog({
   organizationId,
   onSuccess,
   onRequireConnect,
-  ...props
+  open,
+  onOpenChange,
 }: GoogleDriveImportDialogProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -90,7 +91,7 @@ export function GoogleDriveImportDialog({
   const { data: cloudImportAuth, isLoading: cloudImportAuthLoading } =
     useCloudImportAuthorizationStatus(
       organizationId,
-      props.open === true,
+      open === true,
       'google-drive',
     );
 
@@ -115,13 +116,13 @@ export function GoogleDriveImportDialog({
   // Safety net: if the picker opens without a grant (or the grant dies
   // mid-session), hand off to the connect dialog instead of resizing.
   useEffect(() => {
-    if (props.open !== true || cloudImportAuthLoading) return;
+    if (open !== true || cloudImportAuthLoading) return;
     if (!isGoogleAccountError) return;
-    (props.onOpenChange ?? noop)(false);
+    (onOpenChange ?? noop)(false);
     onRequireConnect?.();
   }, [
-    props.open,
-    props.onOpenChange,
+    open,
+    onOpenChange,
     cloudImportAuthLoading,
     isGoogleAccountError,
     onRequireConnect,
@@ -141,9 +142,9 @@ export function GoogleDriveImportDialog({
     setCurrentFolderId(undefined);
     setFolderPath([{ id: undefined, name: t('breadcrumb.googleDrive') }]);
     setStage('picker');
-    (props.onOpenChange ?? noop)(false);
+    (onOpenChange ?? noop)(false);
     onRequireConnect?.();
-  }, [t, props.onOpenChange, onRequireConnect]);
+  }, [t, onOpenChange, onRequireConnect]);
 
   const buildItemPath = (item: OneDriveApiItem): string => {
     const pathParts: string[] = [];
@@ -378,8 +379,8 @@ export function GoogleDriveImportDialog({
   if (stage === 'picker') {
     return (
       <Dialog
-        open={props.open ?? false}
-        onOpenChange={props.onOpenChange ?? noop}
+        open={open ?? false}
+        onOpenChange={onOpenChange ?? noop}
         title={t('googledrive.title')}
         hideClose
         size="wide"
@@ -470,8 +471,8 @@ export function GoogleDriveImportDialog({
 
   return (
     <Dialog
-      open={props.open ?? false}
-      onOpenChange={props.onOpenChange ?? noop}
+      open={open ?? false}
+      onOpenChange={onOpenChange ?? noop}
       title={settings.title}
       description={settings.description}
       size="md"

@@ -56,7 +56,8 @@ export function OneDriveImportDialog({
   organizationId,
   onSuccess,
   onRequireConnect,
-  ...props
+  open,
+  onOpenChange,
 }: OneDriveImportDialogProps) {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -103,7 +104,7 @@ export function OneDriveImportDialog({
   const { teams, isLoading: isLoadingTeams } = useTeams();
 
   const { data: cloudImportAuth, isLoading: cloudImportAuthLoading } =
-    useCloudImportAuthorizationStatus(organizationId, props.open === true);
+    useCloudImportAuthorizationStatus(organizationId, open === true);
 
   const handleDisconnected = useCallback(() => {
     setSelectedItems(new Map());
@@ -117,9 +118,9 @@ export function OneDriveImportDialog({
     setSourceTab('onedrive');
     // Close the wide picker and open the compact connect dialog — do not
     // morph this shell to md.
-    (props.onOpenChange ?? noop)(false);
+    (onOpenChange ?? noop)(false);
     onRequireConnect?.();
-  }, [t, props.onOpenChange, onRequireConnect]);
+  }, [t, onOpenChange, onRequireConnect]);
 
   const handleSelectTeam = useCallback((teamId: string | undefined) => {
     setSelectedTeamId_local(teamId);
@@ -181,13 +182,13 @@ export function OneDriveImportDialog({
   // Safety net: if the picker opens without a grant (or the grant dies
   // mid-session), hand off to the connect dialog instead of resizing.
   useEffect(() => {
-    if (props.open !== true || cloudImportAuthLoading) return;
+    if (open !== true || cloudImportAuthLoading) return;
     if (!isMicrosoftAccountError) return;
-    (props.onOpenChange ?? noop)(false);
+    (onOpenChange ?? noop)(false);
     onRequireConnect?.();
   }, [
-    props.open,
-    props.onOpenChange,
+    open,
+    onOpenChange,
     cloudImportAuthLoading,
     isMicrosoftAccountError,
     onRequireConnect,
@@ -578,8 +579,8 @@ export function OneDriveImportDialog({
 
     return (
       <Dialog
-        open={props.open ?? false}
-        onOpenChange={props.onOpenChange ?? noop}
+        open={open ?? false}
+        onOpenChange={onOpenChange ?? noop}
         title={t('microsoft365.title')}
         hideClose
         size="wide"
@@ -610,8 +611,8 @@ export function OneDriveImportDialog({
 
     return (
       <Dialog
-        open={props.open ?? false}
-        onOpenChange={props.onOpenChange ?? noop}
+        open={open ?? false}
+        onOpenChange={onOpenChange ?? noop}
         title={settings.title}
         description={settings.description}
         size="md"
