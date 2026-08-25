@@ -40,7 +40,7 @@ function ProjectAutomationShell() {
       <PageLayout
         organizationId={organizationId}
         header={
-          <AdaptiveHeaderRoot standalone={false} className="gap-2">
+          <AdaptiveHeaderRoot standalone={false} showBorder className="gap-2">
             <AutomationBreadcrumbs
               organizationId={organizationId}
               automationSlug={automationSlug}

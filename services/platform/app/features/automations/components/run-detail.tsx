@@ -7,7 +7,7 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { Ban, SearchX } from 'lucide-react';
-import { useId, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
@@ -23,6 +23,7 @@ import {
   useNodeTypeCatalog,
   useRunPendingAsk,
 } from '../hooks/queries';
+import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { readDocument, readPositions } from '../lib/document';
 import { automationErrorMessage } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
@@ -34,6 +35,10 @@ import {
   readRunCursorNode,
   readRunStatus,
 } from '../lib/run-view';
+import {
+  AUTOMATION_WORKBENCH_CANVAS_SLOT,
+  AUTOMATION_WORKBENCH_GRID,
+} from '../lib/workbench';
 import { AgentExecutionLog } from './agent-execution-log';
 import { AutomationCanvas } from './automation-canvas';
 import { EffectList } from './effect-list';
@@ -65,6 +70,15 @@ export function RunDetail({
   const inspectorId = useId();
   const effectsHeadingId = useId();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const deselectNode = useCallback(() => {
+    const id = selectedNodeId;
+    setSelectedNodeId(null);
+    if (id !== null) {
+      queueMicrotask(() => {
+        focusAutomationNode(id);
+      });
+    }
+  }, [selectedNodeId]);
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const runQuery = useAutomationRun(organizationId, runId);
@@ -221,8 +235,8 @@ export function RunDetail({
         );
       })()}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex min-h-[24rem] flex-col">
+      <div className={AUTOMATION_WORKBENCH_GRID}>
+        <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>
           <AutomationCanvas
             graph={graph}
             positions={positions}
@@ -245,6 +259,7 @@ export function RunDetail({
             // A recorded run is history: the inspector renders it read-only.
           }}
           organizationId={organizationId}
+          onDeselect={deselectNode}
         />
       </div>
 

@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Check, Loader2, Save, Undo2 } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -175,14 +174,10 @@ export function EditorActions({
         size="sm"
         onClick={handleDiscard}
         variant="secondary"
-        icon={Undo2}
-        iconClassName="size-3.5"
-        collapseLabel
-        // The `sm` size is 32px tall and, once the label collapses to an icon
-        // below the `sm` breakpoint, narrower than the 44px WCAG 2.5.5 touch
-        // target. Keep the visual box at 32px (matching the adjacent History
-        // button) and extend the tappable area to ≥44px via an invisible
-        // pseudo-element overlay on mobile only (WCAG 2.5.5 / #1980).
+        // The `sm` size is 32px tall — below the 44px WCAG 2.5.5 touch
+        // target. Keep the visual box at 32px and extend the tappable area
+        // to ≥44px via an invisible pseudo-element overlay on mobile only
+        // (WCAG 2.5.5 / #1980).
         className="relative max-sm:after:absolute max-sm:after:-inset-1.5 max-sm:after:content-['']"
         disabled={discardDisabled}
         aria-disabled={discardDisabled ? 'true' : undefined}
@@ -196,28 +191,14 @@ export function EditorActions({
         className="relative max-sm:after:absolute max-sm:after:-inset-1.5 max-sm:after:content-['']"
         onClick={formId ? undefined : () => void runSave()}
         disabled={saveDisabled}
+        isLoading={controller.isSaving}
         aria-busy={controller.isSaving ? 'true' : undefined}
       >
-        {controller.isSaving ? (
-          <Loader2
-            className="size-3.5 animate-spin sm:mr-1.5"
-            aria-hidden="true"
-          />
-        ) : flashSaved ? (
-          <Check className="size-3.5 sm:mr-1.5" aria-hidden="true" />
-        ) : (
-          <Save className="size-3.5 sm:mr-1.5" aria-hidden="true" />
-        )}
-        {/* Collapse the label to an icon on mobile (still in the a11y tree)
-            to match `collapseLabel`; the icon here is dynamic, so the pattern
-            is applied inline rather than via the Button prop. */}
-        <span className="sr-only sm:not-sr-only">
-          {controller.isSaving
-            ? t('actions.saving')
-            : flashSaved
-              ? t('actions.saved')
-              : t('actions.save')}
-        </span>
+        {controller.isSaving
+          ? t('actions.saving')
+          : flashSaved
+            ? t('actions.saved')
+            : t('actions.save')}
       </Button>
     </div>
   );

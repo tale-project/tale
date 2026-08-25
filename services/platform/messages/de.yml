@@ -500,10 +500,14 @@ auth:
       contactAdminMessage: Wende dich an deine Administration, um das zu beheben.
 automations:
   title: Automatisierungen
+  entityLabel: Automatisierungen
+  entityLabelOne: Automatisierung
   list:
-    description:
-      Alle Automatisierungen dieser Organisation, mit der Version, die
-      live ist.
+    searchPlaceholder: Automatisierungen suchen
+    columnName: Name
+    columnProjects: Projekte
+    columnVersions: Versionen
+    columnStatus: Status
     versionCount: '{count, plural, one {# Version} other {# Versionen}}'
     notDeployed: Nicht live
     projectBound: Projekt
@@ -516,10 +520,8 @@ automations:
     blank: Leer (Trigger + Agent)
   blank:
     title: Neue Automatisierung
-    stepCounter: 'Schritt {current} von {total}'
     stepAgent: Lege den Agenten fest — was er bei jedem Lauf tut.
-    stepTrigger: Wähle, wann er läuft. Alles Weitere verfeinerst du danach auf
-      der Canvas.
+    stepTrigger: Wähle, wann er läuft.
     nameLabel: Name
     namePlaceholder: z. B. GlitchTip-Issues triagieren
     slugHint: 'Gespeichert als: {slug}'
@@ -531,10 +533,7 @@ automations:
     promptLabel: Was soll er tun?
     promptPlaceholder: z. B. Offene GlitchTip-Issues durchsehen und für jede
       neue eine Aufgabe anlegen.
-    promptHint: Der Agent führt dies bei jedem Auslösen des Triggers aus. Tools
-      und Zugangsdaten fügst du im nächsten Schritt und auf der Canvas hinzu.
     equipmentLabel: Ausrüstung
-    equipmentHint: Skills, Connectors und Plattform-Tools, die dieser Agent nutzen kann. Secrets fügst du unten hinzu.
     webhookHint: Die Webhook-URL bekommst du nach dem Anlegen auf der
       Trigger-Karte der Automatisierung.
     triggerFailed: 'Die Automatisierung wurde angelegt, aber ihr Trigger ließ
@@ -574,11 +573,8 @@ automations:
   detail:
     loading: Automatisierung wird geladen …
     deployedVersion: 'Live: v{version}'
-    unpinnedModels: 'Die Live-Version (v{version}) hat {count, plural, one
-      {einen Agent-Node ({nodes})} other {Agent-Nodes ({nodes})}} ohne festen
-      Modellanbieter: Jeder Lauf wählt den Anbieter automatisch — nicht
-      unbedingt den, den der Editor anzeigt. Lege den Anbieter am Node fest,
-      speichere und schalte die neue Version live.'
+    versionSelect: Version
+    deployThis: Diese Version live schalten
     runMock: Testlauf
     saveVersion: Version speichern
     saveMessageLabel: Notiz zur Version
@@ -592,7 +588,6 @@ automations:
       confirm: Verwerfen und wechseln
     showLastRun: Letzten Lauf einblenden
     hideLastRun: Letzten Lauf ausblenden
-    openLastRun: Letzten Lauf öffnen
     runLive: Live ausführen
     runLiveNeedsDeploy: Schalte zuerst eine Version live — ein Live-Lauf führt
       die Version aus, die live ist.
@@ -604,10 +599,8 @@ automations:
       confirmOrgWide: Dieser Lauf arbeitet organisationsweit, über alle Projekte hinweg.
       confirmProject: Dieser Lauf arbeitet im Projekt {project} — seine Aufgaben- und Dokument-Tools wirken dort.
     delete:
-      action: Automatisierung löschen
-      title: Diese Automatisierung löschen?
-      description: Löscht alle Versionen, das Deployment, den Trigger und die Projekt-Bindungen. Die bisherigen Läufe bleiben sichtbar, bis die Aufbewahrungsfrist sie entfernt.
-      warning: Ein Zeitplan löst danach nicht mehr aus und eine Webhook-URL funktioniert sofort nicht mehr. Das lässt sich nicht rückgängig machen.
+      title: Automatisierung löschen
+      description: '"{name}" löschen? Trigger hören sofort auf. Die bisherigen Läufe bleiben, bis die Aufbewahrungsfrist sie entfernt.'
       done: Automatisierung gelöscht
       failed: Automatisierung konnte nicht gelöscht werden
   trigger:
@@ -646,6 +639,7 @@ automations:
   canvas:
     ariaLabel: Canvas der Automatisierung
     readsFrom: 'Liest {nodes}'
+    unpinnedModel: Kein fester Anbieter — der Lauf wählt ihn automatisch.
     empty:
       title: Diese Version hat keine Nodes
       description:
@@ -669,6 +663,7 @@ automations:
       onError: bei Fehler weiterlaufen
   editor:
     title: Node
+    workflowTitle: Workflow
     noSelection: Wähle eine Node auf dem Canvas, um zu sehen und zu ändern, was sie tut.
     unknownType: 'Unbekannter Node-Typ: {type}'
     catalogUnavailable:
@@ -718,7 +713,7 @@ automations:
     orgBadge: Organisationsweit
     countBadge: '{count, plural, one {An # Projekt gebunden} other {An # Projekte gebunden}}'
     hint: Wähle aus, welche Projekte diese Automatisierung nutzen können. Ohne Auswahl steht sie der gesamten Organisation zur Verfügung.
-    placeholder: Organisationsweit — keine Projekte ausgewählt
+    placeholder: Projekte wählen
     searchPlaceholder: Projekte durchsuchen
     empty: Keine passenden Projekte
     noProjects: Diese Organisation hat noch keine Projekte.
@@ -7178,6 +7173,8 @@ projects:
     modelUnpinnedUnserved: 'Als "{model}" ohne festen Anbieter gespeichert —
       und aktuell kann kein Anbieter es bedienen: {reason}'
     equipmentLabel: Skills, Connectors & Tools
+    equipmentHint: Skills, Connectors und Plattform-Tools, die dieser Agent
+      nutzen kann.
     equipmentVisibilityHint: Die Skills hier folgen dem Team-Zugriff des
       Projekts, nicht deiner persönlichen Sichtbarkeit.
     tool:
@@ -7204,13 +7201,8 @@ projects:
       document_create: Dokumente erstellen
     secrets:
       label: Secrets
-      hint: Umgebungsvariablen für die Einsätze dieses Agenten — ein eng
-        begrenzter API-Schlüssel für einen Dienst ohne Connector. Der Agent
-        liest sie aus seiner Shell und ruft die API direkt auf. Hinterlege nur
-        gering berechtigte, rotierbare Tokens; der Wert ist für den Agenten
-        sichtbar.
-      empty: Noch keine Secrets. Füge eines hinzu, um diesem Agenten einen
-        API-Schlüssel zu geben.
+      hint: Umgebungsvariablen, die der Agent lesen kann — hinterlege nur ein
+        eng begrenztes, rotierbares Token.
       addButton: Secret hinzufügen
       saveButton: Secret speichern
       cancelButton: Abbrechen

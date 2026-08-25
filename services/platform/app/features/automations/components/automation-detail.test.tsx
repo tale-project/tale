@@ -1,3 +1,4 @@
+import { forwardRef, type AnchorHTMLAttributes } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ActiveEditorProvider } from '@/app/components/ui/editor';
@@ -17,12 +18,11 @@ import { render, screen, waitFor, within } from '@/tests/utils/render';
 const {
   state,
   projectsData,
+  runsData,
   saveMutation,
   startRun,
   deploy,
   toastSpy,
-  deleteMutation,
-  mockNavigate,
 } = vi.hoisted(() => ({
   state: {
     document: {
@@ -32,6 +32,8 @@ const {
     } as unknown,
     /** The pack manifest's display half, when the test wants one. */
     presentation: undefined as unknown,
+    version: 3,
+    deployedVersion: 2 as number | undefined,
     /** Agent nodes of the DEPLOYED version without a provider pin. */
     deployedUnpinnedAgentNodes: undefined as string[] | undefined,
   },
@@ -41,20 +43,20 @@ const {
     list: [] as Array<{ _id: string; name: string }>,
     bound: [] as string[],
   },
+  /** Newest-first run log. Empty unless a test is pinning last-run chrome. */
+  runsData: [] as Array<{
+    id: string;
+    name: string;
+    version: number;
+    status: string;
+    mode: string;
+    startedBy: string;
+    startedAt: number;
+  }>,
   saveMutation: { mutateAsync: vi.fn(), isPending: false },
   startRun: { mutate: vi.fn(), isPending: false },
   deploy: { mutate: vi.fn(), isPending: false, variables: undefined },
   toastSpy: vi.fn(),
-  deleteMutation: { mutateAsync: vi.fn(), isPending: false },
-  mockNavigate: vi.fn(),
-}));
-
-// Deleting navigates back to the listing; the page itself renders no route,
-// so only the hook is substituted — `Link` stays real (never reached with an
-// empty run list).
-vi.mock('@tanstack/react-router', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
-  useNavigate: () => mockNavigate,
 }));
 
 // `EditorActions` owns every piece of save feedback and reaches for the
@@ -79,11 +81,15 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
 }));
 
 vi.mock('../hooks/queries', () => ({
-  useAutomation: () => ({
+  useAutomation: (
+    _organizationId: string,
+    _name: string,
+    version?: number,
+  ) => ({
     data: {
       document: state.document,
-      version: 3,
-      deployedVersion: 2,
+      version: version ?? state.version,
+      deployedVersion: state.deployedVersion,
       ...(state.presentation !== undefined
         ? { presentation: state.presentation }
         : {}),
@@ -109,7 +115,7 @@ vi.mock('../hooks/queries', () => ({
       },
     ],
   }),
-  useAutomationRuns: () => ({ data: [] }),
+  useAutomationRuns: () => ({ data: runsData }),
   useAutomationTriggers: () => ({ data: [] }),
   useAutomationProjects: () => ({ data: projectsData.bound }),
   useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
@@ -122,7 +128,24 @@ vi.mock('../hooks/mutations', () => ({
   useSetAutomationTrigger: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteAutomationTrigger: () => ({ mutate: vi.fn(), isPending: false }),
   useSetAutomationProjects: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteAutomation: () => deleteMutation,
+}));
+
+interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
+  to?: string;
+  params?: Record<string, string>;
+}
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: forwardRef<HTMLAnchorElement, MockLinkProps>(function Link(
+    { to, params: _params, children, ...rest },
+    ref,
+  ) {
+    return (
+      <a ref={ref} href={to ?? '#'} {...rest}>
+        {children}
+      </a>
+    );
+  }),
 }));
 
 // The canvas is a React Flow viewport and jsdom performs no layout; the page
@@ -133,7 +156,7 @@ vi.mock('./automation-canvas', () => ({
     onSelectNode,
   }: {
     graph: { nodes: readonly { id: string }[] };
-    onSelectNode: (nodeId: string) => void;
+    onSelectNode: (nodeId: string | null) => void;
   }) => (
     <div>
       {graph.nodes.map((node) => (
@@ -147,6 +170,9 @@ vi.mock('./automation-canvas', () => ({
           {`select ${node.id}`}
         </button>
       ))}
+      <button type="button" onClick={() => onSelectNode(null)}>
+        deselect
+      </button>
     </div>
   ),
 }));
@@ -174,6 +200,7 @@ function renderPage() {
 const saveButton = () => screen.getByRole('button', { name: 'Save' });
 const discardButton = () => screen.getByRole('button', { name: 'Discard' });
 const whenField = () => screen.getByRole('textbox', { name: 'When' });
+const versionPicker = () => screen.getByRole('button', { name: 'Version' });
 
 /** Select the one node and edit a field every node type accepts. */
 async function editTheNode(user: ReturnType<typeof renderPage>['user']) {
@@ -186,27 +213,27 @@ beforeEach(() => {
   saveMutation.isPending = false;
   toastSpy.mockClear();
   startRun.mutate.mockClear();
-  deleteMutation.mutateAsync = vi
-    .fn()
-    .mockResolvedValue({ name: 'billing/dunning', versions: 3 });
-  deleteMutation.isPending = false;
-  mockNavigate.mockClear();
+  deploy.mutate.mockReset();
   projectsData.list = [];
   projectsData.bound = [];
+  runsData.length = 0;
+  state.presentation = undefined;
+  state.version = 3;
+  state.deployedVersion = 2;
   state.deployedUnpinnedAgentNodes = undefined;
 });
 
 describe('AutomationDetail', () => {
-  it('shows the pack description under the area breadcrumb', () => {
+  it('shows the pack description in the header', () => {
     state.presentation = {
       name: 'Chase overdue invoices',
       description: 'Sends the dunning ladder.',
       i18n: { de: { name: 'Offene Rechnungen anmahnen' } },
     };
     renderPage();
-    // The display name is the area header's breadcrumb leaf (covered by
-    // `automation-breadcrumbs.test.tsx`); this strip only carries the blurb.
     expect(screen.getByText('Sends the dunning ladder.')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Projects' })).toBeVisible();
   });
 
   it('falls back to the document description when nothing was declared', () => {
@@ -215,14 +242,162 @@ describe('AutomationDetail', () => {
     expect(screen.getByText('Chases unpaid invoices.')).toBeVisible();
   });
 
-  it('warns when the DEPLOYED version runs agent nodes without a pin', () => {
+  it('swaps the inspector from the trigger to a node and back', async () => {
+    const { user } = renderPage();
+    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'select summary' }));
+    expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Trigger' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'deselect' }));
+    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+  });
+
+  it('returns to the workflow from Close and Escape', async () => {
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'select summary' }));
+    expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'select summary' }));
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
+  });
+
+  it('keeps the node inspector open on Escape while typing', async () => {
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'select summary' }));
+    await user.click(screen.getByRole('textbox', { name: 'Prompt' }));
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeVisible();
+  });
+
+  it('does not put a standing banner over pinless agents on the live version', () => {
     state.deployedUnpinnedAgentNodes = ['agent'];
     renderPage();
-    // The standing warning names the live version and its pinless nodes —
-    // the page otherwise shows v3, whose picker may look pinned.
+    expect(versionPicker()).toHaveTextContent('v3');
     expect(
-      screen.getByText(/The live version \(v2\) has an agent node \(agent\)/),
+      screen.queryByText(/The live version \(v2\) has an agent node/),
+    ).toBeNull();
+  });
+
+  it('deploys the canvas version from the header when it is not live', async () => {
+    const { user } = renderPage();
+    expect(versionPicker()).toHaveTextContent('v3');
+    expect(screen.queryByText('Live: v2')).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: /^Deploy$/ }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Deploy this version' }),
+    );
+    expect(deploy.mutate).toHaveBeenCalledWith(
+      {
+        organizationId: 'org-1',
+        name: 'billing/dunning',
+        version: 3,
+      },
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+  });
+
+  it("surfaces the deploy gate's own refusal, not a generic error", async () => {
+    deploy.mutate.mockImplementation(
+      (
+        _args: unknown,
+        handlers: { onError: (error: unknown) => void } | undefined,
+      ) => {
+        handlers?.onError({
+          data: {
+            code: 'AUTOMATION_DEPLOY_REJECTED',
+            message:
+              'deploy gate: billing/dunning@3 was saved with failing tests — fix them and save a new version',
+          },
+        });
+      },
+    );
+    const { user } = renderPage();
+    await user.click(
+      screen.getByRole('button', { name: 'Deploy this version' }),
+    );
+    expect(
+      screen.getByText(
+        'deploy gate: billing/dunning@3 was saved with failing tests — fix them and save a new version',
+      ),
     ).toBeVisible();
+  });
+
+  it('offers no header deploy when the canvas version is already live', () => {
+    state.deployedVersion = 3;
+    renderPage();
+    expect(versionPicker()).toHaveTextContent('v3');
+    expect(versionPicker()).not.toHaveTextContent('Live');
+    expect(screen.getAllByText('Live').length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText(/^Live:/)).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Deploy this version' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('still offers header deploy when nothing is live yet', () => {
+    state.deployedVersion = undefined;
+    renderPage();
+    expect(screen.queryByText('Live')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Deploy this version' }),
+    ).toBeVisible();
+  });
+
+  it('drops the header deploy after switching to the live version', async () => {
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'v2' }));
+    expect(versionPicker()).toHaveTextContent('v2');
+    expect(versionPicker()).not.toHaveTextContent('Live');
+    expect(screen.getAllByText('Live').length).toBeGreaterThanOrEqual(2);
+    expect(
+      screen.queryByRole('button', { name: 'Deploy this version' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('switches the canvas from the header version picker', async () => {
+    const { user } = renderPage();
+    expect(versionPicker()).toHaveTextContent('v3');
+    expect(
+      screen.getByRole('button', { name: 'Deploy this version' }),
+    ).toBeVisible();
+
+    await user.click(versionPicker());
+    await user.click(screen.getByRole('menuitem', { name: /^v2/ }));
+
+    expect(versionPicker()).toHaveTextContent('v2');
+    expect(versionPicker()).not.toHaveTextContent('Live');
+    expect(screen.getAllByText('Live').length).toBeGreaterThanOrEqual(2);
+    expect(
+      screen.queryByRole('button', { name: 'Deploy this version' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('toggles the last-run overlay from a canvas control', async () => {
+    runsData.push({
+      id: 'run_1',
+      name: 'billing/dunning',
+      version: 3,
+      status: 'success',
+      mode: 'mock',
+      startedBy: 'user:a',
+      startedAt: 1_700_000_200_000,
+    });
+    const { user } = renderPage();
+    const hide = screen.getByRole('button', { name: 'Hide last run' });
+    expect(hide).toHaveAttribute('aria-pressed', 'true');
+    expect(hide.closest('.absolute')).not.toBeNull();
+    expect(
+      screen.queryByRole('link', { name: 'Open the last run' }),
+    ).toBeNull();
+
+    await user.click(hide);
+    expect(
+      screen.getByRole('button', { name: 'Show last run' }),
+    ).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('stays quiet when the deployed version has no pinless agent node', () => {
@@ -459,62 +634,11 @@ describe('AutomationDetail', () => {
     expect(saveButton()).toBeDisabled();
   });
 
-  it('deletes the automation after the confirm, then navigates to the listing', async () => {
-    const { user } = renderPage();
-    await user.click(screen.getByRole('button', { name: 'Delete automation' }));
-    const dialog = screen.getByRole('dialog', {
-      name: 'Delete this automation?',
-    });
-    // The dialog names exactly what is being deleted — display name and slug.
+  it('does not put delete beside the save cluster', () => {
+    renderPage();
     expect(
-      within(dialog).getAllByText('billing/dunning').length,
-    ).toBeGreaterThan(0);
-
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
-
-    await waitFor(() => {
-      expect(deleteMutation.mutateAsync).toHaveBeenCalledWith({
-        organizationId: 'org-1',
-        name: 'billing/dunning',
-      });
-    });
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith({
-        to: '/dashboard/$id/automations',
-        params: { id: 'org-1' },
-      });
-    });
-    expect(toastSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ variant: 'success' }),
-    );
-  });
-
-  it("surfaces the server's refusal when the delete is blocked, and stays put", async () => {
-    // The one refusal that matters: a run still queued/running/waiting.
-    deleteMutation.mutateAsync = vi
-      .fn()
-      .mockRejectedValue(
-        new Error(
-          'A run of "billing/dunning" is still running — cancel it (or let it finish) before deleting the automation.',
-        ),
-      );
-    const { user } = renderPage();
-    await user.click(screen.getByRole('button', { name: 'Delete automation' }));
-    await user.click(
-      within(
-        screen.getByRole('dialog', { name: 'Delete this automation?' }),
-      ).getByRole('button', { name: 'Delete' }),
-    );
-
-    await waitFor(() => {
-      expect(toastSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          variant: 'destructive',
-          description: expect.stringContaining('still running'),
-        }),
-      );
-    });
-    expect(mockNavigate).not.toHaveBeenCalled();
+      screen.queryByRole('button', { name: 'Delete automation' }),
+    ).toBeNull();
   });
 
   it('passes an axe audit', async () => {

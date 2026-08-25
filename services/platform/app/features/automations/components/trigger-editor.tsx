@@ -43,8 +43,8 @@ function isTriggerKind(value: string): value is TriggerKind {
  * through the deployment — which is why the panel never warns about arming a
  * draft: arming is safe by construction.
  *
- * Laid out as a self-contained card so it can sit beside the Projects panel
- * on wide screens: header, growing body, actions pinned to the bottom.
+ * Lives in the inspector when no node is selected; fields stack in one
+ * column so they fit the panel.
  */
 export function TriggerEditor({
   organizationId,
@@ -145,7 +145,7 @@ export function TriggerEditor({
   return (
     <section
       aria-labelledby={headingId}
-      className="border-border flex h-full min-w-0 flex-col gap-4 rounded-lg border p-4"
+      className="flex min-w-0 flex-col gap-4"
     >
       <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <div className="flex min-w-0 flex-col gap-1">
@@ -208,13 +208,7 @@ export function TriggerEditor({
         )}
 
         {(canEdit || stored !== undefined) && (
-          <div
-            className={
-              kind === 'schedule'
-                ? 'grid gap-3 sm:grid-cols-3'
-                : 'grid gap-3 sm:grid-cols-2'
-            }
-          >
+          <div className="grid gap-3">
             <Select
               label={t('trigger.kindLabel')}
               options={TRIGGER_KINDS.map((value) => ({
@@ -270,7 +264,7 @@ export function TriggerEditor({
               </Field>
             )}
             {kind === 'webhook' && (
-              <div className="flex flex-col gap-1 sm:col-span-1">
+              <div className="flex flex-col gap-1">
                 <Text as="span" variant="muted" className="text-xs font-medium">
                   {t('trigger.webhookEndpointLabel')}
                 </Text>

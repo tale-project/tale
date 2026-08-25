@@ -11,7 +11,8 @@ import { AutomationCanvas } from './automation-canvas';
  * rendering node wrappers with `pointer-events: none` — which once made every
  * box unreachable by mouse while the keyboard path kept working. These tests
  * pin the repaired contract: the wrapper hands pointer events back, and a
- * plain click on a box selects it. (jsdom's synthetic clicks do not honour
+ * plain click on a box selects it (or clears the selection if it was already
+ * the selected box). (jsdom's synthetic clicks do not honour
  * pointer-events, so the style assertion is the load-bearing one.)
  */
 
@@ -69,5 +70,37 @@ describe('AutomationCanvas', () => {
     // `view` — null on jsdom's synthetic events.
     fireEvent.click(screen.getByRole('button', { name: /^calc/i }));
     expect(onSelectNode).toHaveBeenCalledWith('calc');
+  });
+
+  it('clears the selection when the selected box is clicked again', () => {
+    const onSelectNode = vi.fn();
+    render(
+      <AutomationCanvas
+        graph={graph}
+        positions={positions}
+        selectedNodeId="calc"
+        onSelectNode={onSelectNode}
+        inspectorId="inspector"
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /^calc/i }));
+    expect(onSelectNode).toHaveBeenCalledWith(null);
+  });
+
+  it('clears the selection when the pane is clicked', () => {
+    const onSelectNode = vi.fn();
+    const { container } = render(
+      <AutomationCanvas
+        graph={graph}
+        positions={positions}
+        selectedNodeId="calc"
+        onSelectNode={onSelectNode}
+        inspectorId="inspector"
+      />,
+    );
+    const pane = container.querySelector('.react-flow__pane');
+    expect(pane).not.toBeNull();
+    fireEvent.click(pane as Element);
+    expect(onSelectNode).toHaveBeenCalledWith(null);
   });
 });

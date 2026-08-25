@@ -505,10 +505,14 @@ auth:
       contactAdminMessage: Contacte ton administration pour résoudre ce problème.
 automations:
   title: Automatisations
+  entityLabel: automatisations
+  entityLabelOne: automatisation
   list:
-    description:
-      Toutes les automatisations de cette organisation, avec la version
-      qui est en service.
+    searchPlaceholder: Rechercher des automatisations
+    columnName: Nom
+    columnProjects: Projets
+    columnVersions: Versions
+    columnStatus: Statut
     versionCount: '{count, plural, one {# version} other {# versions}}'
     notDeployed: Pas en service
     projectBound: Projet
@@ -521,10 +525,8 @@ automations:
     blank: Vierge (trigger + agent)
   blank:
     title: Nouvelle automatisation
-    stepCounter: 'Étape {current} sur {total}'
     stepAgent: Définis l'agent — ce qu'il fait à chaque exécution.
-    stepTrigger: Choisis quand il tourne. Tu affines tout le reste sur le
-      canevas ensuite.
+    stepTrigger: Choisis quand il tourne.
     nameLabel: Nom
     namePlaceholder: p. ex. Trier les issues GlitchTip
     slugHint: 'Enregistrée sous : {slug}'
@@ -536,10 +538,7 @@ automations:
     promptLabel: Que doit-il faire ?
     promptPlaceholder: p. ex. Passer en revue les issues GlitchTip ouvertes et
       créer une tâche pour chaque nouvelle.
-    promptHint: L'agent exécute ceci à chaque déclenchement du trigger. Ajoute
-      les outils et les identifiants à l'écran suivant et sur le canevas.
     equipmentLabel: Équipement
-    equipmentHint: Skills, connectors et outils de la plateforme que cet agent peut utiliser. Ajoute les secrets ci-dessous.
     webhookHint: Tu obtiendras l'URL du webhook sur la carte Trigger de
       l'automatisation une fois créée.
     triggerFailed: "L'automatisation a été créée, mais son trigger n'a pas pu
@@ -580,12 +579,8 @@ automations:
   detail:
     loading: Chargement de l’automatisation…
     deployedVersion: 'En service : v{version}'
-    unpinnedModels: 'La version en service (v{version}) contient {count,
-      plural, one {un nœud agent ({nodes})} other {des nœuds agent ({nodes})}}
-      sans fournisseur de modèle épinglé : chaque exécution choisit un
-      fournisseur automatiquement — pas forcément celui que l''éditeur
-      affiche. Épingle le fournisseur sur le nœud, enregistre, puis mets la
-      nouvelle version en service.'
+    versionSelect: Version
+    deployThis: Mettre cette version en service
     runMock: Essai
     saveVersion: Enregistrer une version
     saveMessageLabel: Note de version
@@ -599,7 +594,6 @@ automations:
       confirm: Abandonner et changer
     showLastRun: Afficher la dernière exécution
     hideLastRun: Masquer la dernière exécution
-    openLastRun: Ouvrir la dernière exécution
     runLive: Exécuter en réel
     runLiveNeedsDeploy: Mets d’abord une version en service — une exécution
       réelle lance la version en service.
@@ -611,10 +605,8 @@ automations:
       confirmOrgWide: Cette exécution opère sur toute l’organisation, dans tous les projets.
       confirmProject: Cette exécution opère dans le projet {project} — ses outils de tâches et de documents agissent là.
     delete:
-      action: Supprimer l’automatisation
-      title: Supprimer cette automatisation ?
-      description: Supprime toutes les versions, le déploiement, le déclencheur et les liens avec les projets. Les exécutions passées restent visibles jusqu’à ce que la rétention les supprime.
-      warning: Une planification ne se déclenche plus et une URL de webhook cesse de fonctionner immédiatement. Cette action est irréversible.
+      title: Supprimer l’automatisation
+      description: "Supprimer \"{name}\"\u00a0? Les déclencheurs s'arrêtent immédiatement. L'historique des exécutions reste jusqu'à ce que la rétention le supprime."
       done: Automatisation supprimée
       failed: Impossible de supprimer l’automatisation
   trigger:
@@ -653,6 +645,7 @@ automations:
   canvas:
     ariaLabel: Canvas de l’automatisation
     readsFrom: 'Lit {nodes}'
+    unpinnedModel: Pas de fournisseur épinglé — chaque exécution en choisit un.
     empty:
       title: Cette version ne contient aucun nœud
       description:
@@ -676,6 +669,7 @@ automations:
       onError: continuer en cas d’erreur
   editor:
     title: Nœud
+    workflowTitle: Workflow
     noSelection: Sélectionne un nœud sur le canvas pour voir et modifier ce qu’il fait.
     unknownType: 'Type de nœud inconnu : {type}'
     catalogUnavailable:
@@ -725,7 +719,7 @@ automations:
     orgBadge: Toute l’organisation
     countBadge: '{count, plural, one {Lié à # projet} other {Lié à # projets}}'
     hint: Choisis les projets qui peuvent utiliser cette automatisation. Laisse vide pour la partager à toute l’organisation.
-    placeholder: Toute l’organisation — aucun projet sélectionné
+    placeholder: Choisir des projets
     searchPlaceholder: Rechercher des projets
     empty: Aucun projet ne correspond
     noProjects: Cette organisation n’a pas encore de projets.
@@ -7299,6 +7293,8 @@ projects:
       épinglé — et aucun fournisseur ne peut le servir pour l''instant :
       {reason}'
     equipmentLabel: Skills, connectors & outils
+    equipmentHint: Skills, connectors et outils de la plateforme que cet
+      agent peut utiliser.
     equipmentVisibilityHint: Les skills proposés ici suivent l'accès des
       équipes du projet, pas ta visibilité personnelle.
     tool:
@@ -7325,13 +7321,8 @@ projects:
       document_create: Créer des documents
     secrets:
       label: Secrets
-      hint: Variables d'environnement remises aux exécutions de cet agent — une
-        clé API restreinte pour un service sans connector. L'agent les lit depuis
-        son shell et appelle l'API directement. Ne stocke que des jetons peu
-        privilégiés et renouvelables ; la valeur est visible par l'agent.
-      empty:
-        Aucun secret pour l'instant. Ajoutes-en un pour remettre une clé API
-        à cet agent.
+      hint: Variables d'environnement que l'agent peut lire — n'utilise qu'un
+        token restreint et renouvelable.
       addButton: Ajouter un secret
       saveButton: Enregistrer le secret
       cancelButton: Annuler

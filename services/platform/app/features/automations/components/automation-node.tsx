@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { AlertTriangle } from 'lucide-react';
 import { createContext, useContext, useMemo } from 'react';
 
 import type { NodeDef } from '@/lib/engine/core/types';
@@ -25,7 +26,7 @@ export interface CanvasNodeContextValue {
   selectedNodeId: string | null;
   /** Id of the region the node's button expands — the inspector. */
   inspectorId: string;
-  onSelect: (nodeId: string) => void;
+  onSelect: (nodeId: string | null) => void;
   /** Called when a node box takes focus, so the viewport can bring it into
    * view for a keyboard user who cannot pan with a pointer. */
   onFocusNode: (nodeId: string) => void;
@@ -52,6 +53,17 @@ export interface AutomationNodeData extends Record<string, unknown> {
   node: NodeDef;
 }
 
+/**
+ * An agent that names a model but not a provider — the same predicate the
+ * store uses for `deployedUnpinnedAgentNodes`. The run walks connectors at
+ * kick time; the editor's preselect can look pinned.
+ */
+export function agentHasUnpinnedModel(node: NodeDef): boolean {
+  if (node.type !== 'agent') return false;
+  if (typeof node.model !== 'string' || node.model === '') return false;
+  return typeof node.modelProvider !== 'string' || node.modelProvider === '';
+}
+
 export interface AutomationNodeBoxProps {
   node: NodeDef;
   selected: boolean;
@@ -69,7 +81,7 @@ export interface AutomationNodeBoxProps {
  *
  * The box IS a button: React Flow's own focus handling is switched off on this
  * canvas, so every node is reachable with Tab in the order the document
- * executes, activates with Enter or Space, and expands the inspector — a canvas
+ * executes, activates with Enter or Space, and toggles the inspector — a canvas
  * that needs a pointer is not usable at all for a keyboard user.
  *
  * What the box shows is what the engine will do: the node's id and type, its
@@ -99,6 +111,8 @@ export function AutomationNodeBox({
       type="button"
       aria-expanded={selected}
       aria-controls={inspectorId}
+      // Must match AUTOMATION_NODE_ATTR — Close/Escape restore focus here.
+      data-automation-node={node.id}
       onClick={onSelect}
       onFocus={(event) => {
         // A mouse press focuses the button too, and panning then would drag
@@ -119,7 +133,18 @@ export function AutomationNodeBox({
         <span className="min-w-0 flex-1 truncate text-sm font-medium">
           {humanizeNodeId(node.id)}
         </span>
-        <Badge variant="slate">{node.type}</Badge>
+        <span className="flex shrink-0 items-center gap-1">
+          {agentHasUnpinnedModel(node) && (
+            <>
+              <AlertTriangle
+                className="size-3.5 text-amber-600 dark:text-amber-500"
+                aria-hidden="true"
+              />
+              <span className="sr-only">{t('canvas.unpinnedModel')}</span>
+            </>
+          )}
+          <Badge variant="slate">{node.type}</Badge>
+        </span>
       </span>
 
       {sources.length > 0 && (
@@ -181,7 +206,7 @@ export function AutomationNode({ data }: NodeProps) {
         sources={sources}
         runStatus={runStatusByNode.get(node.id)}
         onSelect={() => {
-          onSelect(node.id);
+          onSelect(selectedNodeId === node.id ? null : node.id);
         }}
         onFocus={() => {
           onFocusNode(node.id);

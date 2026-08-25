@@ -125,6 +125,41 @@ describe('AutomationNodeBox', () => {
     expect(button).toHaveAccessibleName(/when/i);
   });
 
+  it('marks an agent whose model has no pinned provider', () => {
+    render(
+      <AutomationNodeBox
+        node={{ id: 'agent', type: 'agent', model: 'claude-sonnet-4' }}
+        selected={false}
+        inspectorId="inspector"
+        sources={[]}
+        onSelect={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole('button');
+    expect(button).toHaveAccessibleName(/no pinned provider/i);
+    expect(button.querySelector('svg')).not.toBeNull();
+  });
+
+  it('stays quiet when the agent model is pinned', () => {
+    render(
+      <AutomationNodeBox
+        node={{
+          id: 'agent',
+          type: 'agent',
+          model: 'claude-sonnet-4',
+          modelProvider: 'anthropic',
+        }}
+        selected={false}
+        inspectorId="inspector"
+        sources={[]}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button')).not.toHaveAccessibleName(
+      /no pinned provider/i,
+    );
+  });
+
   it('calls back on focus so the viewport can follow a keyboard user', async () => {
     const onFocus = vi.fn();
     const { user } = render(

@@ -14,7 +14,6 @@
  */
 
 import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
 import { useMemo } from 'react';
 
 import {
@@ -220,37 +219,33 @@ export function AgentNodeFields({
 
   return (
     <Stack gap={3}>
-      <Stack gap={1}>
-        <Text as="span" variant="caption" className="font-medium">
-          {t('editor.fields.harness')}
-        </Text>
-        <Select
-          placeholder={t('editor.agent.harnessDefault')}
-          options={harnessOptions}
-          value={harness === '' ? HARNESS_DEFAULT : harness}
-          disabled={readOnly}
-          onValueChange={(value) => {
-            // Radix fires a spurious '' on unmount — never act on it.
-            if (value === '') return;
-            const nextHarness = value === HARNESS_DEFAULT ? undefined : value;
-            // A subscription-served model pick is bound to its harness; a
-            // switch that invalidates it clears the pick rather than saving
-            // a pair the run would refuse — the author re-picks from what
-            // the new harness offers.
-            const selected = findSelectedModel(models, model, modelProvider);
-            const invalidated =
-              selected?.subscription !== undefined &&
-              selected.subscription.harness !==
-                (nextHarness ?? DEFAULT_HARNESS);
-            onChange({
-              harness: nextHarness,
-              ...(invalidated
-                ? { model: undefined, modelProvider: undefined }
-                : {}),
-            });
-          }}
-        />
-      </Stack>
+      <Select
+        id="automation-agent-harness"
+        label={t('editor.fields.harness')}
+        placeholder={t('editor.agent.harnessDefault')}
+        options={harnessOptions}
+        value={harness === '' ? HARNESS_DEFAULT : harness}
+        disabled={readOnly}
+        onValueChange={(value) => {
+          // Radix fires a spurious '' on unmount — never act on it.
+          if (value === '') return;
+          const nextHarness = value === HARNESS_DEFAULT ? undefined : value;
+          // A subscription-served model pick is bound to its harness; a
+          // switch that invalidates it clears the pick rather than saving
+          // a pair the run would refuse — the author re-picks from what
+          // the new harness offers.
+          const selected = findSelectedModel(models, model, modelProvider);
+          const invalidated =
+            selected?.subscription !== undefined &&
+            selected.subscription.harness !== (nextHarness ?? DEFAULT_HARNESS);
+          onChange({
+            harness: nextHarness,
+            ...(invalidated
+              ? { model: undefined, modelProvider: undefined }
+              : {}),
+          });
+        }}
+      />
 
       <SearchableSelect
         id="automation-agent-model"
@@ -278,25 +273,22 @@ export function AgentNodeFields({
         }}
       />
 
-      <Stack gap={1}>
-        <Text as="span" variant="caption" className="font-medium">
-          {t('editor.agent.equipmentLabel')}
-        </Text>
-        <SkillsMenu
-          skills={capabilities.data?.skills ?? []}
-          connectors={capabilities.data?.connectors ?? []}
-          tools={toolOptions}
-          value={binding}
-          disabled={readOnly}
-          onChange={(next) =>
-            onChange({
-              skills: emptyToUndef(next.skills),
-              connectors: emptyToUndef(next.connectors),
-              tools: emptyToUndef(next.tools),
-            })
-          }
-        />
-      </Stack>
+      <SkillsMenu
+        skills={capabilities.data?.skills ?? []}
+        connectors={capabilities.data?.connectors ?? []}
+        tools={toolOptions}
+        value={binding}
+        disabled={readOnly}
+        onChange={(next) =>
+          onChange({
+            skills: emptyToUndef(next.skills),
+            connectors: emptyToUndef(next.connectors),
+            tools: emptyToUndef(next.tools),
+          })
+        }
+        label={t('editor.agent.equipmentLabel')}
+        description={tProjects('agents.equipmentHint')}
+      />
 
       <AgentSecretsField
         organizationId={organizationId}

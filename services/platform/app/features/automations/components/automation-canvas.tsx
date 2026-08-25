@@ -55,7 +55,7 @@ export interface AutomationCanvasProps {
    * one are laid out automatically. */
   positions: Record<string, NodePosition>;
   selectedNodeId: string | null;
-  onSelectNode: (nodeId: string) => void;
+  onSelectNode: (nodeId: string | null) => void;
   /** Id of the inspector region a node button expands. */
   inspectorId: string;
   runStatusByNode?: ReadonlyMap<string, NodeRunStatus>;
@@ -241,6 +241,9 @@ function CanvasInner({
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
+          onPaneClick={() => {
+            onSelectNode(null);
+          }}
           fitView
           backgroundProps={{ gap: 16 }}
         />

@@ -49,6 +49,38 @@ describe('NodeInspector', () => {
     expect(screen.getByText(/select a node on the canvas/i)).toBeVisible();
   });
 
+  it('shows the workflow slot when no node is selected', () => {
+    render(
+      <NodeInspector
+        id="inspector"
+        node={null}
+        nodeType={undefined}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+        workflow={<p>workflow body</p>}
+      />,
+    );
+    expect(screen.getByText('workflow body')).toBeVisible();
+    expect(screen.queryByText(/select a node on the canvas/i)).toBeNull();
+  });
+
+  it('hides the workflow slot while a node is selected', () => {
+    render(
+      <NodeInspector
+        id="inspector"
+        node={llmNode}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+        workflow={<p>workflow body</p>}
+      />,
+    );
+    expect(screen.queryByText('workflow body')).not.toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeVisible();
+  });
+
   it('renders exactly the fields the registry declares for the type', () => {
     render(
       <NodeInspector
@@ -119,6 +151,40 @@ describe('NodeInspector', () => {
     expect(screen.getByText(/not valid json yet/i)).toBeVisible();
   });
 
+  it('leads with the node fields, not the empty input JSON', () => {
+    render(
+      <NodeInspector
+        id="inspector"
+        node={llmNode}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+      />,
+    );
+    const prompt = screen.getByRole('textbox', { name: 'Prompt' });
+    const input = screen.getByRole('textbox', { name: 'Input' });
+    expect(
+      prompt.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+  });
+
+  it('does not dump the type catalog into the header', () => {
+    render(
+      <NodeInspector
+        id="inspector"
+        node={llmNode}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByText(/Call a language model with a templated prompt/),
+    ).toBeNull();
+  });
+
   it('shows the control-flow fields every node type accepts', () => {
     render(
       <NodeInspector
@@ -134,6 +200,45 @@ describe('NodeInspector', () => {
       '{{ nodes.calc.output.count > 0 }}',
     );
     expect(screen.getByRole('textbox', { name: 'For each' })).toHaveValue('');
+  });
+
+  it('keeps unused control flow behind a disclosure', async () => {
+    const { user } = render(
+      <NodeInspector
+        id="inspector"
+        node={{ id: 'calc', type: 'transform', code: 'return 1;' }}
+        nodeType={transformType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText('Control flow').closest('details'),
+    ).not.toHaveAttribute('open');
+    await user.click(screen.getByText('Control flow'));
+    expect(screen.getByText('Control flow').closest('details')).toHaveAttribute(
+      'open',
+    );
+    expect(screen.getByRole('textbox', { name: 'When' })).toBeVisible();
+  });
+
+  it('keeps an empty output schema behind a disclosure', () => {
+    render(
+      <NodeInspector
+        id="inspector"
+        node={llmNode}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen
+        .getByText('Output schema', { selector: 'summary' })
+        .closest('details'),
+    ).not.toHaveAttribute('open');
   });
 
   it('still shows the node when the catalog does not know its type', () => {
@@ -185,6 +290,115 @@ describe('NodeInspector', () => {
     );
   });
 
+  it('closes from the header control', async () => {
+    const onDeselect = vi.fn();
+    const { user } = render(
+      <NodeInspector
+        id="inspector"
+        node={llmNode}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+        onDeselect={onDeselect}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onDeselect).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes on Escape when a node is selected', async () => {
+    const onDeselect = vi.fn();
+    const { user } = render(
+      <NodeInspector
+        id="inspector"
+        node={llmNode}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+        onDeselect={onDeselect}
+      />,
+    );
+    await user.keyboard('{Escape}');
+    expect(onDeselect).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not close on Escape while a field is focused', async () => {
+    const onDeselect = vi.fn();
+    const { user } = render(
+      <NodeInspector
+        id="inspector"
+        node={llmNode}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+        onDeselect={onDeselect}
+      />,
+    );
+    await user.click(screen.getByRole('textbox', { name: 'Prompt' }));
+    await user.keyboard('{Escape}');
+    expect(onDeselect).not.toHaveBeenCalled();
+  });
+
+  it('moves focus into the inspector when a node is selected', () => {
+    const { rerender } = render(
+      <NodeInspector
+        id="inspector"
+        node={null}
+        nodeType={undefined}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+        workflow={<p>workflow body</p>}
+        onDeselect={vi.fn()}
+      />,
+    );
+    expect(document.getElementById('inspector')).not.toHaveFocus();
+    rerender(
+      <NodeInspector
+        id="inspector"
+        node={llmNode}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+        workflow={<p>workflow body</p>}
+        onDeselect={vi.fn()}
+      />,
+    );
+    expect(document.getElementById('inspector')).toHaveFocus();
+  });
+
+  it('scrolls to the top when the selected node changes', () => {
+    const { rerender } = render(
+      <NodeInspector
+        id="inspector"
+        node={llmNode}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+      />,
+    );
+    const section = document.getElementById('inspector');
+    expect(section).not.toBeNull();
+    if (section === null) return;
+    section.scrollTop = 120;
+    rerender(
+      <NodeInspector
+        id="inspector"
+        node={{ ...llmNode, id: 'other' }}
+        nodeType={llmType}
+        readOnly={false}
+        organizationId="org_test"
+        onChange={vi.fn()}
+      />,
+    );
+    expect(section.scrollTop).toBe(0);
+  });
+
   it('passes an axe audit', async () => {
     const { container } = render(
       <NodeInspector
@@ -194,6 +408,7 @@ describe('NodeInspector', () => {
         readOnly={false}
         organizationId="org_test"
         onChange={vi.fn()}
+        onDeselect={vi.fn()}
       />,
     );
     await checkAccessibility(container);

@@ -14,10 +14,13 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { Description } from '@tale/ui/description';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Blocks, ChevronDown } from 'lucide-react';
-import { useMemo } from 'react';
+import { useId, useMemo, type ReactNode } from 'react';
 
+import { FieldShell } from '@/app/components/ui/forms/field-shell';
+import { Label } from '@/app/components/ui/forms/label';
 import { useT } from '@/lib/i18n/client';
 
 /** One skill, connector, or tool on offer. */
@@ -51,6 +54,9 @@ interface SkillsMenuProps {
   /** Trigger styling per host surface (composer sits in a ghost toolbar). */
   variant?: 'ghost' | 'secondary';
   align?: 'start' | 'end';
+  /** Field label — same Label chrome as Input/Select. Omit only for unlabeled toolbars. */
+  label?: string;
+  description?: ReactNode;
 }
 
 function toggle(
@@ -71,10 +77,15 @@ export function SkillsMenu({
   disabled,
   variant = 'secondary',
   align = 'end',
+  label,
+  description,
 }: SkillsMenuProps) {
   // The capability vocabulary lives in the chat namespace; every surface
   // shares it so the labels can never diverge between hosts.
   const { t } = useT('chat');
+  const fieldId = useId();
+  const labelId = `${fieldId}-label`;
+  const descriptionId = `${fieldId}-description`;
 
   const items = useMemo<DropdownMenuGroup[]>(() => {
     const checkbox = (
@@ -170,29 +181,68 @@ export function SkillsMenu({
 
   const count =
     value.skills.length + value.connectors.length + value.tools.length;
+  const asField = label !== undefined || description !== undefined;
 
-  return (
+  const menu = (
     <DropdownMenu
-      align={align}
+      align={asField ? 'start' : align}
       disabled={disabled}
       trigger={
         <Button
           variant={variant}
-          size="sm"
+          size={asField ? 'default' : 'sm'}
           aria-label={t('skills.label')}
           aria-haspopup="menu"
-          className="min-w-0"
+          className={
+            asField
+              ? 'w-full min-w-0 justify-between'
+              : 'w-fit max-w-full min-w-0'
+          }
         >
-          <Blocks aria-hidden className="size-3.5 shrink-0" />
-          <span className="truncate">
-            {count > 0
-              ? t('skills.labelWithCount', { count })
-              : t('skills.label')}
+          <span className="flex min-w-0 items-center gap-2">
+            <Blocks aria-hidden className="size-3.5 shrink-0" />
+            <span className="truncate">
+              {count > 0
+                ? t('skills.labelWithCount', { count })
+                : t('skills.label')}
+            </span>
           </span>
-          <ChevronDown aria-hidden className="size-3.5 shrink-0" />
+          <ChevronDown
+            aria-hidden
+            className={
+              asField ? 'size-4 shrink-0 opacity-50' : 'size-3.5 shrink-0'
+            }
+          />
         </Button>
       }
       items={items}
     />
+  );
+
+  if (label === undefined && description === undefined) return menu;
+
+  return (
+    <FieldShell
+      wideControl
+      {...(label !== undefined
+        ? { label: <Label id={labelId}>{label}</Label> }
+        : {})}
+      {...(description !== undefined
+        ? {
+            description: (
+              <Description id={descriptionId}>{description}</Description>
+            ),
+          }
+        : {})}
+    >
+      <div
+        role="group"
+        className={asField ? 'w-full' : 'w-fit max-w-full'}
+        aria-labelledby={label !== undefined ? labelId : undefined}
+        aria-describedby={description !== undefined ? descriptionId : undefined}
+      >
+        {menu}
+      </div>
+    </FieldShell>
   );
 }

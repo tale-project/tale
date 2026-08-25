@@ -53,6 +53,7 @@ function AutomationsLayout() {
         header={
           <AdaptiveHeaderRoot
             standalone={false}
+            showBorder={automationSlug !== undefined}
             className={automationSlug !== undefined ? 'gap-2' : undefined}
           >
             {automationSlug !== undefined ? (

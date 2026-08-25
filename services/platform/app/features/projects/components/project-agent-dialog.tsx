@@ -8,8 +8,6 @@
  * `agent` present means edit, absent means create.
  */
 
-import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -347,24 +345,18 @@ export function ProjectAgentDialog({
         // scroll-lock shard, or the option list won't wheel-scroll.
         modal
       />
-      <Stack gap={1}>
-        <Text variant="caption" className="font-medium">
-          {t('agents.equipmentLabel')}
-        </Text>
-        <SkillsMenu
-          skills={skills}
-          connectors={connectors}
-          tools={toolOptions}
-          value={binding}
-          onChange={setBinding}
-        />
-        {/* Team skills resolve against the PROJECT's teams here, not the
-            member configuring the agent — the agent runs for everyone in
-            the project. */}
-        <Text variant="caption" className="text-muted-foreground">
-          {t('agents.equipmentVisibilityHint')}
-        </Text>
-      </Stack>
+      <SkillsMenu
+        skills={skills}
+        connectors={connectors}
+        tools={toolOptions}
+        value={binding}
+        onChange={setBinding}
+        label={t('agents.equipmentLabel')}
+        // Team skills resolve against the PROJECT's teams here, not the
+        // member configuring the agent — the agent runs for everyone in
+        // the project.
+        description={t('agents.equipmentVisibilityHint')}
+      />
       <AgentSecretsField
         organizationId={organizationId}
         secrets={secrets}

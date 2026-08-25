@@ -475,9 +475,14 @@ auth:
       contactAdminMessage: Contact your administrator to resolve this.
 automations:
   title: Automations
+  entityLabel: automations
+  entityLabelOne: automation
   list:
-    description: Every automation in this organization, with the version that is
-      live.
+    searchPlaceholder: Search automations
+    columnName: Name
+    columnProjects: Projects
+    columnVersions: Versions
+    columnStatus: Status
     versionCount: '{count, plural, one {# version} other {# versions}}'
     notDeployed: Not deployed
     projectBound: Project
@@ -490,10 +495,8 @@ automations:
     blank: Blank (trigger + agent)
   blank:
     title: New automation
-    stepCounter: 'Step {current} of {total}'
     stepAgent: Define the agent — what it does on every run.
-    stepTrigger: Choose when it runs. You can refine everything on the canvas
-      afterward.
+    stepTrigger: Choose when it runs.
     nameLabel: Name
     namePlaceholder: e.g. Triage GlitchTip issues
     slugHint: 'Saved as: {slug}'
@@ -505,10 +508,7 @@ automations:
     promptLabel: What should it do?
     promptPlaceholder: e.g. Scan open GlitchTip issues and open a task for each
       new one.
-    promptHint: The agent runs this each time the trigger fires. Add tools and
-      credentials on the next screen and the canvas.
     equipmentLabel: Equipment
-    equipmentHint: Skills, connectors, and platform tools this agent can use. Add secrets below.
     webhookHint: You'll get the webhook URL on the automation's Trigger card
       after it's created.
     triggerFailed: 'The automation was created, but its trigger could not be
@@ -549,11 +549,8 @@ automations:
   detail:
     loading: Loading the automation…
     deployedVersion: 'Live: v{version}'
-    unpinnedModels: 'The live version (v{version}) {count, plural, one {has an
-      agent node ({nodes}) that names} other {has agent nodes ({nodes}) that
-      name}} a model without a pinned provider, so each run picks a provider
-      automatically — possibly not the one the editor shows. Pin the model on
-      the node, save, and deploy the new version.'
+    versionSelect: Version
+    deployThis: Deploy this version
     runMock: Test run
     saveVersion: Save version
     saveMessageLabel: Version message
@@ -567,7 +564,6 @@ automations:
       confirm: Discard and switch
     showLastRun: Show last run
     hideLastRun: Hide last run
-    openLastRun: Open the last run
     runLive: Run live
     runLiveNeedsDeploy: Deploy a version first — a live run executes the
       deployed version.
@@ -579,10 +575,8 @@ automations:
       confirmOrgWide: This run operates organization-wide, across every project.
       confirmProject: This run operates in the {project} project — its task and document tools act there.
     delete:
-      action: Delete automation
-      title: Delete this automation?
-      description: Deletes every version, the deployment, the trigger and the project bindings. The run history stays until retention removes it.
-      warning: A schedule stops firing and any webhook URL stops working immediately. This cannot be undone.
+      title: Delete automation
+      description: Delete "{name}"? Triggers stop immediately. Run history stays until retention removes it.
       done: Automation deleted
       failed: Could not delete the automation
   trigger:
@@ -617,6 +611,7 @@ automations:
   canvas:
     ariaLabel: Automation canvas
     readsFrom: 'Reads {nodes}'
+    unpinnedModel: No pinned provider — each run picks one automatically.
     empty:
       title: This version has no nodes
       description:
@@ -640,6 +635,7 @@ automations:
       onError: continue on error
   editor:
     title: Node
+    workflowTitle: Workflow
     noSelection: Select a node on the canvas to see and edit what it does.
     unknownType: 'Unknown node type: {type}'
     catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
@@ -684,7 +680,7 @@ automations:
     orgBadge: Organization-wide
     countBadge: '{count, plural, one {Bound to # project} other {Bound to # projects}}'
     hint: Choose which projects can use this automation. Leave empty to share it org-wide.
-    placeholder: Organization-wide — no projects selected
+    placeholder: Select projects
     searchPlaceholder: Search projects
     empty: No projects match
     noProjects: This organization has no projects yet.
@@ -4854,6 +4850,7 @@ projects:
     modelUnpinnedUnserved: 'Saved as "{model}" without a pinned provider —
       and no run could serve it right now: {reason}'
     equipmentLabel: Skills, connectors & tools
+    equipmentHint: Skills, connectors, and platform tools this agent can use.
     equipmentVisibilityHint: Skills offered here follow the project’s
       team access, not your personal visibility.
     tool:
@@ -4880,11 +4877,8 @@ projects:
       document_create: Create documents
     secrets:
       label: Secrets
-      hint: Environment variables handed to this agent's runs — a scoped API key
-        for a service with no connector. The agent reads them from its shell and
-        calls the API directly. Store only low-privilege, rotatable tokens; the
-        value is visible to the agent.
-      empty: No secrets yet. Add one to hand this agent an API key.
+      hint: Environment variables this agent can read — use a scoped,
+        rotatable token.
       addButton: Add secret
       saveButton: Save secret
       cancelButton: Cancel

@@ -338,5 +338,24 @@ describe('MultiSelect', () => {
 
       expect(container.querySelector('.max-h-40')).toBeNull();
     });
+
+    it('keeps an empty trigger on one row so the chevron stays beside the placeholder', () => {
+      render(
+        <MultiSelect
+          value={[]}
+          onValueChange={vi.fn()}
+          options={options}
+          chipsMaxHeightClassName="max-h-40"
+          placeholder="Organization-wide — no projects selected"
+          aria-label="Projects"
+        />,
+      );
+
+      const combobox = screen.getByRole('combobox', { name: 'Projects' });
+      expect(combobox).not.toHaveClass('flex-wrap');
+      expect(combobox).not.toHaveClass('h-auto');
+      expect(combobox).toHaveClass('h-9');
+      expect(combobox.querySelector('svg')).toBeInTheDocument();
+    });
   });
 });
