@@ -51,4 +51,26 @@ describe('AdaptiveHeader', () => {
       );
     });
   });
+
+  it('keeps in-header sibling actions on the title row', () => {
+    // Settings (and a few other shells) pass Discard/Save as children of
+    // the root, not through the portal slot. Wrapping `{children}` in one
+    // block stacks those buttons under the name; the fixed `h-13` strip
+    // then clips them.
+    render(
+      <AdaptiveHeaderProvider>
+        <AdaptiveHeaderRoot>
+          <AdaptiveHeaderTitle>Settings</AdaptiveHeaderTitle>
+          <div className="ml-auto flex items-center gap-2">
+            <button type="button">Discard</button>
+            <button type="button">Save</button>
+          </div>
+        </AdaptiveHeaderRoot>
+      </AdaptiveHeaderProvider>,
+    );
+    const title = screen.getByRole('heading', { name: 'Settings' });
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(title.parentElement?.className).toMatch(/\bh-13\b/);
+    expect(save.parentElement?.parentElement).toBe(title.parentElement);
+  });
 });
