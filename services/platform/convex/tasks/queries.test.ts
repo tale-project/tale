@@ -446,10 +446,11 @@ describe('listTasksForAccessibleProjects', () => {
       });
     expect(result.canEdit).toBe(false);
     expect(result.tasks).toHaveLength(2);
-    expect(result.tasks.map((task) => task.projectKey).sort()).toEqual([
-      'AAA',
-      'BBB',
-    ]);
+    expect(
+      result.tasks
+        .map((task) => task.projectKey)
+        .sort((a, b) => String(a).localeCompare(String(b))),
+    ).toEqual(['AAA', 'BBB']);
   });
 
   it('excludes tasks in team-private projects the caller cannot read', async () => {
