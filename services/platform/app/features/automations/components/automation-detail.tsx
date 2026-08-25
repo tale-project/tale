@@ -80,6 +80,7 @@ const CLEARABLE_NODE_FIELDS = [
   'prompt',
   'system',
   'model',
+  'modelProvider',
   'outputSchema',
   'automation',
   // Agent equipment — clearing a picker to empty must delete the field, not

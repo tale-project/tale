@@ -59,14 +59,18 @@ describe('readDocument', () => {
   });
 
   it('round-trips an agent node with its equipment', () => {
-    // The wizard writes harness/skills/connectors/tools/secrets/files onto the
-    // agent node; the canvas reads THIS document and a later prompt edit saves
-    // it back, so dropping any of these here loses the grant on first save.
+    // The wizard writes harness/skills/connectors/tools/secrets/files and the
+    // model picker writes the (model, modelProvider) pair onto the agent node;
+    // the canvas reads THIS document and a later prompt edit saves it back, so
+    // dropping any of these here loses the grant — or the provider pin — on
+    // first save.
     const node = {
       id: 'agent',
       type: 'agent',
       prompt: 'do the thing',
       harness: 'claude-code',
+      model: 'claude-fable-5',
+      modelProvider: 'anthropic',
       skills: ['docx', 'pdf'],
       connectors: ['github'],
       tools: ['task_create', 'document_create'],
