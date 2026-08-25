@@ -68,6 +68,7 @@ import type * as automations_recover_agent_turns from "../automations/recover_ag
 import type * as automations_rest_api from "../automations/rest_api.js";
 import type * as automations_run_status from "../automations/run_status.js";
 import type * as automations_script_host from "../automations/script_host.js";
+import type * as automations_serving_preview from "../automations/serving_preview.js";
 import type * as automations_stepper from "../automations/stepper.js";
 import type * as automations_store from "../automations/store.js";
 import type * as automations_triggers from "../automations/triggers.js";
@@ -914,6 +915,7 @@ import type * as tasks_rest_api from "../tasks/rest_api.js";
 import type * as tasks_review_mutations from "../tasks/review_mutations.js";
 import type * as tasks_review_shared from "../tasks/review_shared.js";
 import type * as tasks_search_for_chat from "../tasks/search_for_chat.js";
+import type * as tasks_serving_preview from "../tasks/serving_preview.js";
 import type * as tasks_stats from "../tasks/stats.js";
 import type * as tasks_task_auto_retry from "../tasks/task_auto_retry.js";
 import type * as tasks_task_kick_resume from "../tasks/task_kick_resume.js";
@@ -1069,6 +1071,7 @@ declare const fullApi: ApiFromModules<{
   "automations/rest_api": typeof automations_rest_api;
   "automations/run_status": typeof automations_run_status;
   "automations/script_host": typeof automations_script_host;
+  "automations/serving_preview": typeof automations_serving_preview;
   "automations/stepper": typeof automations_stepper;
   "automations/store": typeof automations_store;
   "automations/triggers": typeof automations_triggers;
@@ -1915,6 +1918,7 @@ declare const fullApi: ApiFromModules<{
   "tasks/review_mutations": typeof tasks_review_mutations;
   "tasks/review_shared": typeof tasks_review_shared;
   "tasks/search_for_chat": typeof tasks_search_for_chat;
+  "tasks/serving_preview": typeof tasks_serving_preview;
   "tasks/stats": typeof tasks_stats;
   "tasks/task_auto_retry": typeof tasks_task_auto_retry;
   "tasks/task_kick_resume": typeof tasks_task_kick_resume;

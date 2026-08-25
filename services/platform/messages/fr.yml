@@ -580,6 +580,12 @@ automations:
   detail:
     loading: Chargement de l’automatisation…
     deployedVersion: 'En service : v{version}'
+    unpinnedModels: 'La version en service (v{version}) contient {count,
+      plural, one {un nœud agent ({nodes})} other {des nœuds agent ({nodes})}}
+      sans fournisseur de modèle épinglé : chaque exécution choisit un
+      fournisseur automatiquement — pas forcément celui que l''éditeur
+      affiche. Épingle le fournisseur sur le nœud, enregistre, puis mets la
+      nouvelle version en service.'
     runMock: Essai
     saveVersion: Enregistrer une version
     saveMessageLabel: Note de version
@@ -767,6 +773,7 @@ automations:
       title: Journal de l'agent
       starting: "L'agent démarre dans le bac à sable…"
       empty: "L'agent n'a produit aucun journal pour cette exécution."
+      servedBy: 'Ce tour a tourné sur {model}.'
       visionModel: 'Les images de cette exécution ont été lues par {model}.'
     approval:
       title: 'En attente de ton approbation : {operation}'
@@ -7283,6 +7290,14 @@ projects:
     modelSearchPlaceholder: Rechercher des modèles
     modelSearchEmpty: Aucun modèle trouvé
     modelProviderSubscription: '{provider} · Abonnement'
+    modelUnpinnedResolving: 'Enregistré comme "{model}" sans fournisseur
+      épinglé — Tale vérifie quel fournisseur une exécution utiliserait…'
+    modelUnpinnedResolved: 'Enregistré comme "{model}" sans fournisseur
+      épinglé — les exécutions passent actuellement par {provider}. Choisis
+      une entrée pour l''épingler.'
+    modelUnpinnedUnserved: 'Enregistré comme "{model}" sans fournisseur
+      épinglé — et aucun fournisseur ne peut le servir pour l''instant :
+      {reason}'
     equipmentLabel: Skills, connectors & outils
     equipmentVisibilityHint: Les skills proposés ici suivent l'accès des
       équipes du projet, pas ta visibilité personnelle.

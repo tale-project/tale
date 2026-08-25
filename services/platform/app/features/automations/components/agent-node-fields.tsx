@@ -29,6 +29,7 @@ import {
   useAgentSecrets,
   useProjectHarnesses,
 } from '@/app/features/projects/hooks/queries';
+import { useUnpinnedServingPreview } from '@/app/features/projects/hooks/use-unpinned-serving-preview';
 import {
   findSelectedModel,
   toModelOptions,
@@ -158,9 +159,48 @@ export function AgentNodeFields({
   );
   const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
   // Only claim "not offered" once the listing has answered — an empty roster
-  // while it loads is not a missing model.
+  // while it loads is not a missing model. Pinned picks only: a pinless pick
+  // is not missing, it is unresolved, and gets the preview treatment below.
   const modelUnlisted =
-    roster.data !== undefined && model !== '' && selectedModel === undefined;
+    roster.data !== undefined &&
+    model !== '' &&
+    modelProvider !== '' &&
+    selectedModel === undefined;
+  // A pick saved before providers were part of it names a model but no
+  // provider — the run's walk decides at kick time. Show what that walk
+  // would pick RIGHT NOW (the runtime's own resolver answers, so display
+  // and run cannot drift), never a lookalike row matched by id alone.
+  const unpinnedModel = model !== '' && modelProvider === '';
+  const preview = useUnpinnedServingPreview(
+    'workflow',
+    unpinnedModel
+      ? { organizationId, model, harness: effectiveHarness }
+      : undefined,
+  );
+  const resolved = preview.data;
+  const resolvedRow =
+    unpinnedModel && resolved?.ok === true
+      ? offeredModels.find(
+          (option) =>
+            option.providerSlug === resolved.providerSlug &&
+            option.id === resolved.modelId,
+        )
+      : undefined;
+  // What the trigger displays: the pinned pair, or the row runs would use.
+  const displayedModel = selectedModel ?? resolvedRow;
+  const unpinnedDescription = !unpinnedModel
+    ? undefined
+    : resolved === undefined
+      ? tProjects('agents.modelUnpinnedResolving', { model })
+      : resolved.ok
+        ? tProjects('agents.modelUnpinnedResolved', {
+            model,
+            provider: resolvedRow?.providerLabel ?? resolved.providerSlug,
+          })
+        : tProjects('agents.modelUnpinnedUnserved', {
+            model,
+            reason: resolved.reason,
+          });
   const modelOptions = useMemo(
     () =>
       offeredModels.map((option, index) => ({
@@ -222,13 +262,15 @@ export function AgentNodeFields({
         required
         disabled={readOnly}
         value={
-          selectedModel !== undefined
-            ? String(offeredModels.indexOf(selectedModel))
+          displayedModel !== undefined
+            ? String(offeredModels.indexOf(displayedModel))
             : null
         }
         {...(modelUnlisted
           ? { description: t('editor.agent.modelUnlisted', { model }) }
-          : {})}
+          : unpinnedDescription !== undefined
+            ? { description: unpinnedDescription }
+            : {})}
         onValueChange={(value) => {
           const option = offeredModels[Number(value)];
           if (option === undefined) return;

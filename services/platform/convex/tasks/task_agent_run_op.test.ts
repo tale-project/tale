@@ -100,6 +100,7 @@ async function seedOp(
     progressText?: string;
     liveTimeline?: { type: string; text?: string }[];
     startedAt?: number;
+    modelRef?: string;
   } = {},
 ): Promise<void> {
   await t.run(async (ctx) => {
@@ -115,6 +116,9 @@ async function seedOp(
       }),
       ...(overrides.liveTimeline !== undefined && {
         liveTimeline: overrides.liveTimeline,
+      }),
+      ...(overrides.modelRef !== undefined && {
+        modelRef: overrides.modelRef,
       }),
     });
   });
@@ -141,6 +145,20 @@ describe('getTaskAgentRunSandboxOp', () => {
       progressText: 'laying out the slides',
       liveTimeline: [{ type: 'tool-Bash' }],
     });
+  });
+
+  it('surfaces the serving the turn ran on', async () => {
+    const t = convexTest(schema, modules);
+    const { run } = await seedRun(t);
+    await seedOp(t, run, { modelRef: 'anthropic/claude-fable-5' });
+
+    const op = await t
+      .withIdentity({ subject: EDITOR })
+      .query(api.tasks.queries.getTaskAgentRunSandboxOp, {
+        organizationId: ORG,
+        runId: run._id,
+      });
+    expect(op?.modelRef).toBe('anthropic/claude-fable-5');
   });
 
   it('matches a derived exec incarnation of the same run', async () => {

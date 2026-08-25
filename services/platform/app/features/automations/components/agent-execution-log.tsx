@@ -136,10 +136,25 @@ export interface AgentSandboxOpView {
   status: string;
   progressText?: string;
   liveTimeline?: TimelinePart[];
+  /** The provider-qualified model this turn ran on (`provider/model`),
+   * stamped by the kick that resolved the serving — the answer to "which
+   * provider actually served (and billed) this turn". */
+  modelRef?: string;
   /** The model that read images for this turn — absent when the serving model
    * reads them itself. Recorded per turn, so this is the model that actually
    * ran, not whatever the org would resolve to today. */
   visionModelRef?: string;
+}
+
+/** A stamped ref is `provider/model`, and on the gateway lane the model half
+ * is itself a gateway ref that starts with the same provider slug — collapse
+ * the doubled segment so `openrouter/openrouter/anthropic/x` reads as the
+ * one provider it names. */
+function displayModelRef(ref: string): string {
+  const [first, second, ...rest] = ref.split('/');
+  return first !== undefined && first === second
+    ? [first, ...rest].join('/')
+    : ref;
 }
 
 /**
@@ -347,13 +362,26 @@ export function ExecutionLogView({
           )}
         </div>
       )}
+      {/* Which serving the turn ACTUALLY ran on. A footnote like the vision
+          line: the question ("whose key billed this?") is only asked after
+          the fact, and the ref names the provider a pinless node's walk
+          landed on — which the editor cannot promise in advance. */}
+      {op.modelRef !== undefined && (
+        <Text as="p" variant="muted" className="text-xs">
+          {t('runs.agentLog.servedBy', {
+            model: displayModelRef(op.modelRef),
+          })}
+        </Text>
+      )}
       {/* Which model read this turn's images. A footnote, not a header row:
           it answers a question the reader only asks when an image read went
           wrong — and the task dialog hides the header entirely, which is
           exactly where that question gets asked. */}
       {op.visionModelRef !== undefined && (
         <Text as="p" variant="muted" className="text-xs">
-          {t('runs.agentLog.visionModel', { model: op.visionModelRef })}
+          {t('runs.agentLog.visionModel', {
+            model: displayModelRef(op.visionModelRef),
+          })}
         </Text>
       )}
     </Stack>

@@ -304,6 +304,27 @@ export const getLiveRunForTask = query({
   },
 });
 
+/**
+ * Agent nodes of one stored document whose model pick predates provider
+ * pinning — a model without a `modelProvider`. Such a node runs on the
+ * unpinned serving walk (whichever connector reaches the model first), while
+ * the editor's fallback preselect makes it LOOK pinned — so the detail page
+ * warns about the deployed version instead of letting the checkmark lie.
+ */
+function unpinnedAgentNodeIds(document: unknown): string[] {
+  if (!isRecord(document) || !Array.isArray(document.nodes)) return [];
+  const ids: string[] = [];
+  for (const node of document.nodes) {
+    if (!isRecord(node) || node.type !== 'agent') continue;
+    if (typeof node.model !== 'string' || node.model === '') continue;
+    if (typeof node.modelProvider === 'string' && node.modelProvider !== '') {
+      continue;
+    }
+    if (typeof node.id === 'string') ids.push(node.id);
+  }
+  return ids;
+}
+
 /** One version's document — the latest when `version` is omitted. */
 export const getAutomation = query({
   args: {
@@ -320,6 +341,10 @@ export const getAutomation = query({
       message: v.optional(v.string()),
       testsPassed: v.optional(v.boolean()),
       deployedVersion: v.optional(v.number()),
+      /** Agent nodes of the DEPLOYED version (not the loaded one) whose model
+       * carries no provider pin — present only when there is something to
+       * warn about, so the editor can nudge "re-pin and deploy". */
+      deployedUnpinnedAgentNodes: v.optional(v.array(v.string())),
       /** The version's display half — the name and description the automation's
        * own page shows above its slug. */
       presentation: v.optional(v.any()),
@@ -337,6 +362,22 @@ export const getAutomation = query({
     );
     if (!row) return null;
     const deployment = await deploymentRow(ctx, args.organizationId, args.name);
+    // The warning reads the version triggers RUN, which need not be the one
+    // the editor loaded — a pinned draft over an unpinned live version is
+    // exactly the trap worth naming.
+    const deployedRow =
+      deployment === null
+        ? null
+        : deployment.version === row.version
+          ? row
+          : await versionRow(
+              ctx,
+              args.organizationId,
+              args.name,
+              deployment.version,
+            );
+    const unpinned =
+      deployedRow === null ? [] : unpinnedAgentNodeIds(deployedRow.document);
     return {
       name: row.name,
       version: row.version,
@@ -345,6 +386,7 @@ export const getAutomation = query({
       ...(row.testsPassed !== undefined && { testsPassed: row.testsPassed }),
       ...(row.presentation !== undefined && { presentation: row.presentation }),
       ...(deployment !== null && { deployedVersion: deployment.version }),
+      ...(unpinned.length > 0 && { deployedUnpinnedAgentNodes: unpinned }),
       createdBy: row.createdBy,
       createdAt: row.createdAt,
     };

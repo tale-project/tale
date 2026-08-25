@@ -549,6 +549,11 @@ automations:
   detail:
     loading: Loading the automation…
     deployedVersion: 'Live: v{version}'
+    unpinnedModels: 'The live version (v{version}) {count, plural, one {has an
+      agent node ({nodes}) that names} other {has agent nodes ({nodes}) that
+      name}} a model without a pinned provider, so each run picks a provider
+      automatically — possibly not the one the editor shows. Pin the model on
+      the node, save, and deploy the new version.'
     runMock: Test run
     saveVersion: Save version
     saveMessageLabel: Version message
@@ -727,6 +732,7 @@ automations:
       title: Agent log
       starting: The agent is starting up in the sandbox…
       empty: The agent produced no log for this run.
+      servedBy: 'This turn ran on {model}.'
       visionModel: 'Images in this run were read by {model}.'
     approval:
       title: 'Waiting for your approval: {operation}'
@@ -4841,6 +4847,12 @@ projects:
     modelSearchPlaceholder: Search models
     modelSearchEmpty: No models found
     modelProviderSubscription: '{provider} · Subscription'
+    modelUnpinnedResolving: 'Saved as "{model}" without a pinned provider —
+      checking which provider runs would use…'
+    modelUnpinnedResolved: 'Saved as "{model}" without a pinned provider —
+      runs currently resolve to {provider}. Pick an entry to pin it.'
+    modelUnpinnedUnserved: 'Saved as "{model}" without a pinned provider —
+      and no run could serve it right now: {reason}'
     equipmentLabel: Skills, connectors & tools
     equipmentVisibilityHint: Skills offered here follow the project’s
       team access, not your personal visibility.

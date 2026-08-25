@@ -64,6 +64,7 @@ async function seedOp(
     liveTimeline?: { type: string; text?: string }[];
     progressText?: string;
     startedAt?: number;
+    modelRef?: string;
   } = {},
 ): Promise<void> {
   await t.run(async (ctx) => {
@@ -79,6 +80,9 @@ async function seedOp(
       }),
       ...(overrides.liveTimeline !== undefined && {
         liveTimeline: overrides.liveTimeline,
+      }),
+      ...(overrides.modelRef !== undefined && {
+        modelRef: overrides.modelRef,
       }),
     });
   });
@@ -104,6 +108,31 @@ describe('getAgentNodeSandboxOp', () => {
       progressText: 'reading the invoices',
       liveTimeline: [{ type: 'tool-Read' }],
     });
+  });
+
+  it('surfaces the serving the turn ran on, absent on pre-field rows', async () => {
+    const t = convexTest(schema, modules);
+    const runId = await seedRun(t);
+    await seedOp(t, runId, { startedAt: 1 });
+    const bare = await t
+      .withIdentity({ subject: MEMBER })
+      .query(api.sandbox.session_queries_public.getAgentNodeSandboxOp, {
+        organizationId: ORG,
+        runId,
+      });
+    expect(bare?.modelRef).toBeUndefined();
+
+    await seedOp(t, runId, {
+      startedAt: 2,
+      modelRef: 'openrouter/anthropic/claude-fable-5',
+    });
+    const op = await t
+      .withIdentity({ subject: MEMBER })
+      .query(api.sandbox.session_queries_public.getAgentNodeSandboxOp, {
+        organizationId: ORG,
+        runId,
+      });
+    expect(op?.modelRef).toBe('openrouter/anthropic/claude-fable-5');
   });
 
   it('ignores non-agent ops of the same session', async () => {

@@ -32,6 +32,8 @@ const {
     } as unknown,
     /** The pack manifest's display half, when the test wants one. */
     presentation: undefined as unknown,
+    /** Agent nodes of the DEPLOYED version without a provider pin. */
+    deployedUnpinnedAgentNodes: undefined as string[] | undefined,
   },
   /** The org's projects and the automation's bindings — the run-scope picker
    * appears only when two or more projects are bound. */
@@ -84,6 +86,9 @@ vi.mock('../hooks/queries', () => ({
       deployedVersion: 2,
       ...(state.presentation !== undefined
         ? { presentation: state.presentation }
+        : {}),
+      ...(state.deployedUnpinnedAgentNodes !== undefined
+        ? { deployedUnpinnedAgentNodes: state.deployedUnpinnedAgentNodes }
         : {}),
     },
     isPending: false,
@@ -188,6 +193,7 @@ beforeEach(() => {
   mockNavigate.mockClear();
   projectsData.list = [];
   projectsData.bound = [];
+  state.deployedUnpinnedAgentNodes = undefined;
 });
 
 describe('AutomationDetail', () => {
@@ -207,6 +213,23 @@ describe('AutomationDetail', () => {
     state.presentation = undefined;
     renderPage();
     expect(screen.getByText('Chases unpaid invoices.')).toBeVisible();
+  });
+
+  it('warns when the DEPLOYED version runs agent nodes without a pin', () => {
+    state.deployedUnpinnedAgentNodes = ['agent'];
+    renderPage();
+    // The standing warning names the live version and its pinless nodes —
+    // the page otherwise shows v3, whose picker may look pinned.
+    expect(
+      screen.getByText(/The live version \(v2\) has an agent node \(agent\)/),
+    ).toBeVisible();
+  });
+
+  it('stays quiet when the deployed version has no pinless agent node', () => {
+    renderPage();
+    expect(
+      screen.queryByText(/without a pinned provider/, { exact: false }),
+    ).toBeNull();
   });
 
   it('test-runs the version on screen, not the deployed one', async () => {
