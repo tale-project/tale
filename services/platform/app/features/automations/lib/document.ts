@@ -55,6 +55,10 @@ function readNode(value: unknown): NodeDef | undefined {
     'prompt',
     'system',
     'model',
+    // The provider pin saved with the model pick. Dropping it here made every
+    // stored pick render as unpinned — the editor showed whatever provider the
+    // serving walk would choose — and the next save persisted that loss.
+    'modelProvider',
     'automation',
     // Agent equipment: the harness that runs the turn. Dropping it here would
     // make the canvas read an agent node as unequipped and a later save would
