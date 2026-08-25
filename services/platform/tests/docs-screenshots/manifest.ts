@@ -589,7 +589,7 @@ export const SHOTS: readonly Shot[] = [
     route: '/dashboard/:orgId/automations',
     prepare: async (page) => {
       await page
-        .getByRole('button', { name: t('automations.list.createButton') })
+        .getByRole('button', { name: t('automations.builder.new') })
         .click();
       await page
         .getByRole('menuitem', { name: t('automations.upload.trigger') })

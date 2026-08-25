@@ -54,7 +54,11 @@ function AutomationsLayout() {
       <PageLayout
         organizationId={organizationId}
         header={
-          <AdaptiveHeaderRoot standalone={false} showBorder className="gap-2">
+          <AdaptiveHeaderRoot
+            standalone={false}
+            showBorder={automationSlug !== undefined}
+            className={automationSlug !== undefined ? 'gap-2' : undefined}
+          >
             {automationSlug !== undefined ? (
               <AutomationBreadcrumbs
                 organizationId={organizationId}

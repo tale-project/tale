@@ -243,7 +243,7 @@ export function AdaptiveHeaderRoot({
           className,
         )}
       >
-        {children}
+        <div className="min-w-0">{children}</div>
         <div
           ref={setIdentityElDesktop}
           className="flex shrink-0 items-center gap-2 empty:hidden"

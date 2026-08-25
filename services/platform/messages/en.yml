@@ -477,13 +477,7 @@ automations:
   title: Automations
   entityLabel: automations
   entityLabelOne: automation
-  switcher:
-    title: Switch automation
-    searchPlaceholder: Search automations
-    empty: No automations found
-    ariaLabel: 'Switch automation, current: {name}'
   list:
-    createButton: Create automation
     searchPlaceholder: Search automations
     columnName: Name
     columnProjects: Projects

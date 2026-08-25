@@ -326,7 +326,7 @@ export function AutomationsList({
           addAction={
             createMenuItems !== undefined
               ? {
-                  label: t('list.createButton'),
+                  label: t('builder.new'),
                   icon: Plus,
                   menuItems: createMenuItems,
                 }
