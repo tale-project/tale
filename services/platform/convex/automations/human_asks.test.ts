@@ -41,14 +41,52 @@ const EXEC = 'exec-ask-1';
 const NODE = 'repair_setup';
 
 async function seedMember(t: T, organizationId: string): Promise<void> {
+  await seedOrgUser(t, MEMBER, 'editor', organizationId);
+}
+
+async function seedOrgUser(
+  t: T,
+  userId: string,
+  role: string,
+  organizationId = ORG,
+): Promise<void> {
   await t.run(async (ctx) => {
     await ctx.db.insert('memberMirror', {
-      memberId: `m_${MEMBER}_${organizationId}`,
-      userId: MEMBER,
+      memberId: `m_${userId}_${organizationId}`,
+      userId,
       organizationId,
-      role: 'editor',
+      role,
       createdAt: 0,
     });
+  });
+}
+
+async function seedTeamMember(
+  t: T,
+  userId: string,
+  teamId: string,
+): Promise<void> {
+  await t.run(async (ctx) => {
+    await ctx.db.insert('teamMemberMirror', {
+      teamMemberId: `tm_${userId}_${teamId}`,
+      userId,
+      teamId,
+    });
+  });
+}
+
+/** The recipient's unread+read ask rows, oldest first. */
+async function askNotificationRows(t: T, userId: string) {
+  return t.run(async (ctx) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('userNotifications')
+      .withIndex('by_user_org_created', (q) =>
+        q.eq('userId', userId).eq('organizationId', ORG),
+      )) {
+      if (row.type === 'agent_escalation') rows.push(row);
+    }
+    return rows;
   });
 }
 
@@ -124,12 +162,17 @@ function createAsk(t: T, sessionId: string, question: string, org = ORG) {
   });
 }
 
-/** A real task row, so the run input's `task.id` normalizes. */
-async function seedTask(t: T): Promise<Id<'tasks'>> {
+/** A real task row, so the run input's `task.id` normalizes. Org-wide
+ * project by default; `teamId` scopes it to that team's members + admins. */
+async function seedTask(
+  t: T,
+  overrides: { teamId?: string } = {},
+): Promise<Id<'tasks'>> {
   return t.run(async (ctx) => {
     const projectId = await ctx.db.insert('projects', {
       organizationId: ORG,
       name: 'VAT desk',
+      ...(overrides.teamId !== undefined ? { teamId: overrides.teamId } : {}),
       createdBy: MEMBER,
       createdAt: 0,
       updatedAt: 0,
@@ -367,5 +410,187 @@ describe('retargetAgentCursor + closeAsk', () => {
     expect((await t.run((ctx) => ctx.db.get(created.askId)))?.status).toBe(
       'expired',
     );
+  });
+});
+
+describe('ask notifications (project-visibility fan-out)', () => {
+  it('writes one actionable row per project-visible member; a fold rewrites in place', async () => {
+    const t = convexTest(schema, modules);
+    const taskId = await seedTask(t);
+    const { sessionId } = await seedParkedRun(t, { taskId: String(taskId) });
+    await seedOrgUser(t, MEMBER, 'editor');
+    await seedOrgUser(t, 'u_second', 'member');
+    await seedOrgUser(t, 'u_admin', 'admin');
+    await seedOrgUser(t, 'u_off', 'disabled');
+
+    const created = await createAsk(t, sessionId, 'Which amount governs?');
+    if ('refused' in created) throw new Error('unexpected refusal');
+
+    for (const userId of [MEMBER, 'u_second', 'u_admin']) {
+      const rows = await askNotificationRows(t, userId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        type: 'agent_escalation',
+        titleKey: 'agentQuestionAsked',
+        bodyKey: 'agentQuestionAskedBody',
+        resourceType: 'task',
+        taskId,
+        read: false,
+        coalesceKey: `task:${String(taskId)}:question`,
+      });
+      expect(rows[0]?.params).toMatchObject({
+        name: 'vat-return-desk',
+        title: 'VAT return 2026Q1',
+        question: 'Which amount governs?',
+        askId: String(created.askId),
+      });
+      // agent_escalation is actionable — the email job is debounced, not skipped.
+      expect(rows[0]?.emailJobId).toBeDefined();
+    }
+    expect(await askNotificationRows(t, 'u_off')).toHaveLength(0);
+
+    // The folded follow-up rewrites each unread row (merged text), no stacking.
+    const folded = await createAsk(t, sessionId, 'And the CHE number?');
+    if ('refused' in folded) throw new Error('unexpected refusal');
+    const rows = await askNotificationRows(t, MEMBER);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.params).toMatchObject({
+      question: 'Which amount governs? And the CHE number?',
+    });
+  });
+
+  it('marks the rows read (answer, expiry) so nobody chases a closed question', async () => {
+    const t = convexTest(schema, modules);
+    const taskId = await seedTask(t);
+    const { sessionId } = await seedParkedRun(t, { taskId: String(taskId) });
+    await seedOrgUser(t, MEMBER, 'editor');
+    await seedOrgUser(t, 'u_second', 'member');
+    const created = await createAsk(t, sessionId, 'Which amount governs?');
+    if ('refused' in created) throw new Error('unexpected refusal');
+
+    await t
+      .withIdentity({ subject: MEMBER })
+      .mutation(api.automations.human_asks.answerAsk, {
+        organizationId: ORG,
+        askId: created.askId,
+        answer: 'The invoice copy.',
+      });
+    for (const userId of [MEMBER, 'u_second']) {
+      const rows = await askNotificationRows(t, userId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.read).toBe(true);
+    }
+
+    // Expiry dismisses the same way (fresh ask on a fresh parked run).
+    const second = await seedParkedRun(t, { taskId: String(taskId) });
+    const ask2 = await createAsk(t, second.sessionId, 'Still there?');
+    if ('refused' in ask2) throw new Error('unexpected refusal');
+    await t.mutation(internal.automations.human_asks.closeAsk, {
+      askId: ask2.askId,
+      status: 'expired',
+    });
+    const rows = await askNotificationRows(t, 'u_second');
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.read)).toBe(true);
+  });
+
+  it('honors the escalation preference and the project team scope', async () => {
+    const t = convexTest(schema, modules);
+    const taskId = await seedTask(t, { teamId: 'team_vat' });
+    const { sessionId } = await seedParkedRun(t, { taskId: String(taskId) });
+    await seedOrgUser(t, MEMBER, 'editor');
+    await seedTeamMember(t, MEMBER, 'team_vat');
+    await seedOrgUser(t, 'u_muted', 'editor');
+    await seedTeamMember(t, 'u_muted', 'team_vat');
+    await seedOrgUser(t, 'u_other_team', 'editor');
+    await seedTeamMember(t, 'u_other_team', 'team_other');
+    await seedOrgUser(t, 'u_admin', 'admin');
+    await t.run(async (ctx) => {
+      await ctx.db.insert('notificationPreferences', {
+        userId: 'u_muted',
+        organizationId: ORG,
+        escalation: false,
+        updatedAt: 0,
+      });
+    });
+
+    const created = await createAsk(t, sessionId, 'Which rate applies?');
+    if ('refused' in created) throw new Error('unexpected refusal');
+
+    expect(await askNotificationRows(t, MEMBER)).toHaveLength(1);
+    expect(await askNotificationRows(t, 'u_admin')).toHaveLength(1);
+    expect(await askNotificationRows(t, 'u_muted')).toHaveLength(0);
+    expect(await askNotificationRows(t, 'u_other_team')).toHaveLength(0);
+  });
+
+  it('falls back to the org admins for a run with no task subject', async () => {
+    const t = convexTest(schema, modules);
+    const { sessionId } = await seedParkedRun(t);
+    await seedOrgUser(t, MEMBER, 'editor');
+    await seedOrgUser(t, 'u_admin', 'admin');
+
+    const created = await createAsk(t, sessionId, 'What is the staging URL?');
+    if ('refused' in created) throw new Error('unexpected refusal');
+
+    expect(await askNotificationRows(t, MEMBER)).toHaveLength(0);
+    const rows = await askNotificationRows(t, 'u_admin');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      bodyKey: 'agentQuestionAskedNoTaskBody',
+      resourceType: 'dashboard',
+    });
+  });
+
+  it('surfaces the parked ask on the board indicators until it is answered', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ORG);
+    const taskId = await seedTask(t);
+    const projectId = await t.run(async (ctx) => {
+      const task = await ctx.db.get(taskId);
+      if (!task) throw new Error('task fixture missing');
+      return task.projectId;
+    });
+    const { runId, sessionId } = await seedParkedRun(t, {
+      taskId: String(taskId),
+    });
+    // The indicators query walks the project's runs — stamp the run the way
+    // the task-surface starter does.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(runId, { projectId });
+    });
+
+    const asMember = t.withIdentity({ subject: MEMBER });
+    const before = await asMember.query(
+      api.tasks.queries.getTaskOpsIndicators,
+      {
+        organizationId: ORG,
+        projectId,
+      },
+    );
+    expect(before.runningTaskIds).toContainEqual(taskId);
+    expect(before.askingTaskIds).toHaveLength(0);
+
+    const created = await createAsk(t, sessionId, 'Which amount governs?');
+    if ('refused' in created) throw new Error('unexpected refusal');
+    const asking = await asMember.query(
+      api.tasks.queries.getTaskOpsIndicators,
+      {
+        organizationId: ORG,
+        projectId,
+      },
+    );
+    expect(asking.askingTaskIds).toContainEqual(taskId);
+
+    await asMember.mutation(api.automations.human_asks.answerAsk, {
+      organizationId: ORG,
+      askId: created.askId,
+      answer: 'The invoice copy.',
+    });
+    const after = await asMember.query(api.tasks.queries.getTaskOpsIndicators, {
+      organizationId: ORG,
+      projectId,
+    });
+    expect(after.runningTaskIds).toContainEqual(taskId);
+    expect(after.askingTaskIds).toHaveLength(0);
   });
 });

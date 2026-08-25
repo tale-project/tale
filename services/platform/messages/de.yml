@@ -4359,7 +4359,8 @@ notificationPreferences:
       lockedHint: Immer an — das ist ein Sicherheitssignal.
     escalation:
       label: Agenten-Eskalationen
-      description: Wenn ein Agent eine Aufgabe an einen Menschen eskaliert.
+      description: Wenn ein Agent dir eine Frage stellt oder eine Aufgabe an
+        einen Menschen eskaliert.
     automationAlerts:
       label: Automatisierungs-Warnungen
       description: Fehler, Budget-Warnungen und offline gegangene Runtimes.
@@ -6367,6 +6368,9 @@ inbox:
     zugewiesen — öffne deine Inbox, um zu antworten.'
   agentEscalation: Agenten-Eskalation
   agentEscalationBody: '{agent} hat eskaliert: {reason}'
+  agentQuestionAsked: Agent braucht deine Antwort
+  agentQuestionAskedBody: '{name} hat eine Frage zu "{title}" und wartet auf dich: {question}'
+  agentQuestionAskedNoTaskBody: '{name} hat eine Frage und wartet auf dich: {question}'
   email:
     cta: In Tale öffnen
     footer:
@@ -6669,6 +6673,7 @@ tasks:
       bleibt unverändert.'
   agentRuns:
     working: Agent arbeitet…
+    needsAnswer: Wartet auf deine Antwort
     totalCost: '{amount} gesamt'
     status:
       running: Läuft

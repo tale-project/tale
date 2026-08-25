@@ -107,6 +107,7 @@ function actionableAutomationKeys(): EmittedKey[] {
  *   - collab/notify.ts: task_assigned, mention, conversation_assigned (+ team)
  *   - collab/notify_task_reviews.ts: task_review_requested (task_review_resolved
  *     is NOT actionable, so its keys are intentionally excluded)
+ *   - collab/notify_agent_asks.ts: agent_escalation (the ask_human fan-out)
  */
 const CODE_EMITTED_KEYS: readonly string[] = [
   'taskAssigned',
@@ -133,6 +134,10 @@ const CODE_EMITTED_KEYS: readonly string[] = [
   'taskStartReachedBody',
   'taskSlaEscalated',
   'taskSlaEscalatedBody',
+  // collab/notify_agent_asks.ts (agent_escalation — the ask_human fan-out)
+  'agentQuestionAsked',
+  'agentQuestionAskedBody',
+  'agentQuestionAskedNoTaskBody',
 ];
 
 describe('actionable email key coverage', () => {

@@ -41,7 +41,9 @@ export const notificationTypeValidator = v.union(
   v.literal('document_review_requested'),
   // The user's controlled-document submission was approved / sent back.
   v.literal('document_review_resolved'),
-  // An agent escalated to humans (root escalation / circuit breaker).
+  // An agent needs a human: an automation turn parked on an `ask_human`
+  // question (`collab/notify_agent_asks.ts`), or a root escalation / circuit
+  // breaker. Actionable.
   v.literal('agent_escalation'),
   // A task-ops pack workflow execution failed (admins).
   v.literal('automation_failed'),

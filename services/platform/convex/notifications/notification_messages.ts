@@ -258,6 +258,7 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
  * any is unmirrored. Sources beyond the individual code paths:
  *   - `taskReviewReminder*` / `taskReviewEscalated*` — `remind-reviewers` automation
  *   - `humanInputEscalated*` — `remind-reviewers` automation
+ *   - `agentQuestionAsked*` — `collab/notify_agent_asks.ts` (the `ask_human` fan-out)
  *   - `taskSlaEscalated*` / `taskDueSoon*` / `taskStartReached*` —
  *     `tasks/enforce_date_notifications` cron
  *   - `conversationTeamAssigned*` — `collab/notify.ts` team hand-off
@@ -283,6 +284,9 @@ export const ACTIONABLE_INBOX_KEYS = [
   'taskReviewEscalatedBody',
   'agentEscalation',
   'agentEscalationBody',
+  'agentQuestionAsked',
+  'agentQuestionAskedBody',
+  'agentQuestionAskedNoTaskBody',
   'humanInputEscalated',
   'humanInputEscalatedBody',
   'taskSlaEscalated',
@@ -333,6 +337,10 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'A review on "{title}" has been waiting for over a day.',
     agentEscalation: 'Agent escalation',
     agentEscalationBody: '{agent} escalated: {reason}',
+    agentQuestionAsked: 'Agent needs your answer',
+    agentQuestionAskedBody:
+      '{name} paused with a question on "{title}": {question}',
+    agentQuestionAskedNoTaskBody: '{name} paused with a question: {question}',
     humanInputEscalated: 'Automation waiting on input',
     humanInputEscalatedBody:
       'An automation has been waiting on human input for {ageHours} hours.',
@@ -389,6 +397,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Ein Review zu "{title}" wartet seit über einem Tag.',
     agentEscalation: 'Agenten-Eskalation',
     agentEscalationBody: '{agent} hat eskaliert: {reason}',
+    agentQuestionAsked: 'Agent braucht deine Antwort',
+    agentQuestionAskedBody:
+      '{name} hat eine Frage zu "{title}" und wartet auf dich: {question}',
+    agentQuestionAskedNoTaskBody:
+      '{name} hat eine Frage und wartet auf dich: {question}',
     humanInputEscalated: 'Automatisierung wartet auf Eingabe',
     humanInputEscalatedBody:
       'Eine Automatisierung wartet seit {ageHours} Stunden auf menschliche Eingabe.',
@@ -445,6 +458,10 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       "Une revue sur « {title} » attend depuis plus d'un jour.",
     agentEscalation: "Escalade d'agent",
     agentEscalationBody: '{agent} a escaladé : {reason}',
+    agentQuestionAsked: "L'agent attend ta réponse",
+    agentQuestionAskedBody:
+      '{name} attend ta réponse sur « {title} » : {question}',
+    agentQuestionAskedNoTaskBody: '{name} attend ta réponse : {question}',
     humanInputEscalated: "Automatisation en attente d'une saisie",
     humanInputEscalatedBody:
       'Une automatisation attend une saisie humaine depuis {ageHours} heures.',

@@ -4210,7 +4210,7 @@ notificationPreferences:
       lockedHint: Always on — it's a safety signal.
     escalation:
       label: Agent escalations
-      description: When an agent escalates a task to a human.
+      description: When an agent asks you a question or escalates a task to a human.
     automationAlerts:
       label: Automation alerts
       description: Failures, budget warnings, and offline runtimes.
@@ -6451,6 +6451,9 @@ inbox:
     open your Inbox to reply.'
   agentEscalation: Agent escalation
   agentEscalationBody: '{agent} escalated: {reason}'
+  agentQuestionAsked: Agent needs your answer
+  agentQuestionAskedBody: '{name} paused with a question on "{title}": {question}'
+  agentQuestionAskedNoTaskBody: '{name} paused with a question: {question}'
   email:
     cta: Open in Tale
     footer: You received this email because you have notifications enabled in Tale.
@@ -6745,6 +6748,7 @@ tasks:
     description: '{agent} could not start: {reason}. The task status is unchanged.'
   agentRuns:
     working: Agent is working…
+    needsAnswer: Waiting for your answer
     totalCost: '{amount} total'
     status:
       running: Running

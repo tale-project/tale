@@ -66,9 +66,13 @@ const DIMENSION: Partial<Record<NotificationType, string>> = {
   task_status_changed: 'status',
   // When it is due.
   task_deadline: 'deadline',
+  // The agent's open question on the work (`notify_agent_asks.ts`): a folded
+  // follow-up question rewrites the unread ask row instead of stacking a
+  // second card next to it.
+  agent_escalation: 'question',
   // Deliberately absent — each carries its own content, so each is its own row:
-  // mention, task_commented, conversation_message, agent_escalation,
-  // automation_failed, budget_alert, runtime_offline.
+  // mention, task_commented, conversation_message, automation_failed,
+  // budget_alert, runtime_offline.
 };
 
 /**

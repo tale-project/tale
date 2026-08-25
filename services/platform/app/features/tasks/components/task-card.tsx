@@ -19,6 +19,7 @@ import { PriorityPicker } from './priority-picker';
 import { TaskAutomationBadge } from './task-automation-badge';
 import { useTaskBoardContext } from './task-board-context';
 import {
+  AgentNeedsAnswerIndicator,
   AgentWorkingIndicator,
   BlockedIndicator,
   CommentCountIndicator,
@@ -65,6 +66,7 @@ export function TaskCard({
     isBlocked,
     getTask,
     isAgentWorking,
+    isAgentAsking,
     needsReview,
     reviewRequestedFor,
   } = useTaskBoardContext();
@@ -196,7 +198,12 @@ export function TaskCard({
               task={task}
               runActive={isAgentWorking(task._id)}
             />
-            <AgentWorkingIndicator working={isAgentWorking(task._id)} />
+            {/* A run parked on a question is the viewer's move — the ask chip
+                replaces the working pulse rather than pulsing next to it. */}
+            <AgentWorkingIndicator
+              working={isAgentWorking(task._id) && !isAgentAsking(task._id)}
+            />
+            <AgentNeedsAnswerIndicator asking={isAgentAsking(task._id)} />
             <NeedsReviewIndicator
               needsReview={needsReview(task._id)}
               reviewerName={reviewerName}
