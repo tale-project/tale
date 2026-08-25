@@ -16,6 +16,7 @@ interface GoogleDisconnectButtonProps {
 
 /**
  * Revokes the signed-in member's Knowledge cloud-import grant for Google Drive.
+ * The import dialog closes and the compact connect dialog opens.
  */
 export function GoogleDisconnectButton({
   className,

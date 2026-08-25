@@ -2269,8 +2269,8 @@ documents:
       {Element} other {Elemente}} importiert werden sollen.
     microsoftNotConnected: Microsoft 365 verbinden
     microsoftNotConnectedDescription:
-      Autorisiere OneDrive und SharePoint, damit du Dateien für Dokumente
-      auswählen kannst.
+      Um Dateien hochzuladen, musst du deinem Microsoft 365-Konto Zugriff
+      gewähren.
     connect: Microsoft 365 verbinden
     reconnect: Microsoft 365 erneut verbinden
     disconnect: Microsoft 365 trennen
@@ -2303,7 +2303,9 @@ documents:
     title: Von Google Drive importieren
     selectDescription: Wähle Dateien oder Ordner zum Importieren
     notConnected: Google Drive verbinden
-    notConnectedDescription: Autorisiere Google Drive, damit du Dateien für Dokumente auswählen kannst.
+    notConnectedDescription:
+      Um Dateien hochzuladen, musst du deinem Google Drive-Konto Zugriff
+      gewähren.
     connect: Google Drive verbinden
     reconnect: Google Drive erneut verbinden
     disconnect: Google Drive trennen

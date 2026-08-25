@@ -1,13 +1,11 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
-import { Text } from '@tale/ui/text';
 import { Home } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { GoogleIcon } from '@/app/components/icons/google-icon';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -23,7 +21,6 @@ import {
   useGoogleDriveFiles,
 } from '../hooks/queries';
 import { GoogleDisconnectButton } from './google-disconnect-button';
-import { GoogleReauthButton } from './google-reauth-button';
 import { OneDriveFileTable } from './onedrive-import/onedrive-file-table';
 import { OneDriveSettingsStage } from './onedrive-import/onedrive-settings-stage';
 import type {
@@ -50,11 +47,14 @@ interface GoogleDriveImportDialogProps {
   onOpenChange?: (open: boolean) => void;
   organizationId: string;
   onSuccess?: () => void;
+  /** Hand off to the compact connect dialog — never shrink this wide picker. */
+  onRequireConnect?: () => void;
 }
 
 export function GoogleDriveImportDialog({
   organizationId,
   onSuccess,
+  onRequireConnect,
   ...props
 }: GoogleDriveImportDialogProps) {
   const { t } = useT('documents');
@@ -112,6 +112,21 @@ export function GoogleDriveImportDialog({
       (!cloudImportAuth || cloudImportAuth.status !== 'active')) ||
     isCloudImportAuthError(loadError);
 
+  // Safety net: if the picker opens without a grant (or the grant dies
+  // mid-session), hand off to the connect dialog instead of resizing.
+  useEffect(() => {
+    if (props.open !== true || cloudImportAuthLoading) return;
+    if (!isGoogleAccountError) return;
+    (props.onOpenChange ?? noop)(false);
+    onRequireConnect?.();
+  }, [
+    props.open,
+    props.onOpenChange,
+    cloudImportAuthLoading,
+    isGoogleAccountError,
+    onRequireConnect,
+  ]);
+
   const currentItems = useMemo(() => itemsData ?? [], [itemsData]);
 
   const filteredItems = useMemo(() => {
@@ -126,7 +141,9 @@ export function GoogleDriveImportDialog({
     setCurrentFolderId(undefined);
     setFolderPath([{ id: undefined, name: t('breadcrumb.googleDrive') }]);
     setStage('picker');
-  }, [t]);
+    (props.onOpenChange ?? noop)(false);
+    onRequireConnect?.();
+  }, [t, props.onOpenChange, onRequireConnect]);
 
   const buildItemPath = (item: OneDriveApiItem): string => {
     const pathParts: string[] = [];
@@ -372,87 +389,65 @@ export function GoogleDriveImportDialog({
           <div className="border-border border-b">
             <div className="px-8 pt-5 pb-3">
               <SectionHeader
-                title={
-                  isGoogleAccountError
-                    ? t('googledrive.notConnected')
-                    : t('googledrive.title')
-                }
-                description={
-                  isGoogleAccountError
-                    ? undefined
-                    : t('googledrive.selectDescription')
-                }
+                title={t('googledrive.title')}
+                description={t('googledrive.selectDescription')}
                 action={
-                  isGoogleAccountError ? undefined : (
-                    <GoogleDisconnectButton
-                      onDisconnected={handleDisconnected}
-                    />
-                  )
+                  <GoogleDisconnectButton onDisconnected={handleDisconnected} />
                 }
               />
             </div>
           </div>
         }
       >
-        {isGoogleAccountError ? (
-          <Stack gap={3} className="items-center px-8 py-8 text-center">
-            <GoogleIcon className="size-8" />
-            <Text as="div" variant="muted" className="max-w-sm">
-              {t('googledrive.notConnectedDescription')}
-            </Text>
-            <GoogleReauthButton />
-          </Stack>
-        ) : (
-          <div className="flex flex-col gap-3 px-8 pt-3 pb-6">
-            {folderPath.length > 1 && (
-              <HStack gap={2} className="text-muted-foreground text-sm">
-                {folderPath.map((folder, index) => (
-                  <HStack key={folder.id || 'root'} gap={2}>
-                    <button
-                      type="button"
-                      onClick={() => handleBreadcrumbClick(index)}
-                      className="hover:text-blue-600 hover:underline"
-                    >
-                      {index === 0 ? <Home className="size-4" /> : folder.name}
-                    </button>
-                    {index < folderPath.length - 1 && (
-                      <span className="text-muted-foreground">/</span>
-                    )}
-                  </HStack>
-                ))}
-              </HStack>
-            )}
-
-            <HStack gap={3}>
-              <SearchInput
-                placeholder={t('searchFilesAndFolders')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                wrapperClassName="flex-1"
-              />
-              <Button
-                onClick={proceedToSettings}
-                disabled={selectedItems.size === 0}
-                className="whitespace-nowrap"
-              >
-                {t('googledrive.importCount', { count: selectedItems.size })}
-              </Button>
+        <div className="flex flex-col gap-3 px-8 pt-3 pb-6">
+          {folderPath.length > 1 && (
+            <HStack gap={2} className="text-muted-foreground text-sm">
+              {folderPath.map((folder, index) => (
+                <HStack key={folder.id || 'root'} gap={2}>
+                  <button
+                    type="button"
+                    onClick={() => handleBreadcrumbClick(index)}
+                    className="hover:text-blue-600 hover:underline"
+                  >
+                    {index === 0 ? <Home className="size-4" /> : folder.name}
+                  </button>
+                  {index < folderPath.length - 1 && (
+                    <span className="text-muted-foreground">/</span>
+                  )}
+                </HStack>
+              ))}
             </HStack>
+          )}
 
-            <OneDriveFileTable
-              items={filteredItems}
-              isLoading={loading}
-              searchQuery={searchQuery}
-              selectedItems={selectedItems}
-              getSelectAllState={getSelectAllState}
-              handleSelectAllChange={handleSelectAllChange}
-              getCheckedState={getCheckedState}
-              handleCheckChange={handleCheckChange}
-              handleFolderClick={handleFolderClick}
-              buildItemPath={buildItemPath}
+          <HStack gap={3}>
+            <SearchInput
+              placeholder={t('searchFilesAndFolders')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              wrapperClassName="flex-1"
             />
-          </div>
-        )}
+            <Button
+              onClick={proceedToSettings}
+              disabled={selectedItems.size === 0}
+              className="whitespace-nowrap"
+            >
+              {t('googledrive.importCount', { count: selectedItems.size })}
+            </Button>
+          </HStack>
+
+          <OneDriveFileTable
+            items={filteredItems}
+            isLoading={loading}
+            searchQuery={searchQuery}
+            selectedItems={selectedItems}
+            getSelectAllState={getSelectAllState}
+            handleSelectAllChange={handleSelectAllChange}
+            getCheckedState={getCheckedState}
+            handleCheckChange={handleCheckChange}
+            handleFolderClick={handleFolderClick}
+            buildItemPath={buildItemPath}
+          />
+        </div>
       </Dialog>
     );
   }

@@ -2191,7 +2191,9 @@ documents:
       Choose how to import your {count} selected {count, plural,
       one {item} other {items}}.
     microsoftNotConnected: Connect Microsoft 365
-    microsoftNotConnectedDescription: Authorize OneDrive and SharePoint so you can pick files for Documents.
+    microsoftNotConnectedDescription:
+      To upload files, you'll need to grant access to your Microsoft 365
+      account.
     connect: Connect Microsoft 365
     reconnect: Reconnect Microsoft 365
     disconnect: Disconnect Microsoft 365
@@ -2224,7 +2226,8 @@ documents:
     title: Import from Google Drive
     selectDescription: Choose files or folders to import
     notConnected: Connect Google Drive
-    notConnectedDescription: Authorize Google Drive so you can pick files for Documents.
+    notConnectedDescription:
+      To upload files, you'll need to grant access to your Google Drive account.
     connect: Connect Google Drive
     reconnect: Reconnect Google Drive
     disconnect: Disconnect Google Drive

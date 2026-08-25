@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -46,6 +46,8 @@ interface OneDriveImportDialogProps {
   onOpenChange?: (open: boolean) => void;
   organizationId: string;
   onSuccess?: () => void;
+  /** Hand off to the compact connect dialog — never shrink this wide picker. */
+  onRequireConnect?: () => void;
 }
 
 const noop = () => {};
@@ -53,6 +55,7 @@ const noop = () => {};
 export function OneDriveImportDialog({
   organizationId,
   onSuccess,
+  onRequireConnect,
   ...props
 }: OneDriveImportDialogProps) {
   const { t } = useT('documents');
@@ -112,7 +115,11 @@ export function OneDriveImportDialog({
     setSpFolderId(undefined);
     setSpFolderPath([]);
     setSourceTab('onedrive');
-  }, [t]);
+    // Close the wide picker and open the compact connect dialog — do not
+    // morph this shell to md.
+    (props.onOpenChange ?? noop)(false);
+    onRequireConnect?.();
+  }, [t, props.onOpenChange, onRequireConnect]);
 
   const handleSelectTeam = useCallback((teamId: string | undefined) => {
     setSelectedTeamId_local(teamId);
@@ -170,6 +177,21 @@ export function OneDriveImportDialog({
       (!cloudImportAuth || cloudImportAuth.status !== 'active')) ||
     isCloudImportAuthError(loadError) ||
     isCloudImportAuthError(sitesError);
+
+  // Safety net: if the picker opens without a grant (or the grant dies
+  // mid-session), hand off to the connect dialog instead of resizing.
+  useEffect(() => {
+    if (props.open !== true || cloudImportAuthLoading) return;
+    if (!isMicrosoftAccountError) return;
+    (props.onOpenChange ?? noop)(false);
+    onRequireConnect?.();
+  }, [
+    props.open,
+    props.onOpenChange,
+    cloudImportAuthLoading,
+    isMicrosoftAccountError,
+    onRequireConnect,
+  ]);
 
   const collectAllFiles = async (
     items: OneDriveApiItem[],
@@ -497,7 +519,6 @@ export function OneDriveImportDialog({
       selectedItems,
       filteredItems,
       loading,
-      isMicrosoftAccountError,
       folderPath,
       sitesData,
       loadingSites,
