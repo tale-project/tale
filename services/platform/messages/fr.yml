@@ -1914,6 +1914,7 @@ contacts:
     source:
       manual: Manuel
       upload: Téléversement
+      conversation: Conversation
   importForm:
     manualEntry: Saisie manuelle
     upload: Téléversement

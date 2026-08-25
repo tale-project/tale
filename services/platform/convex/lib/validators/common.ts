@@ -17,6 +17,7 @@ export const dataSourceValidator = v.union(
   v.literal('manual_import'),
   v.literal('file_upload'),
   v.literal('api_import'),
+  v.literal('conversation'),
   v.literal('shopify'),
   v.literal('woocommerce'),
   v.literal('magento'),

@@ -1897,6 +1897,7 @@ contacts:
     source:
       manual: Manuell
       upload: Upload
+      conversation: Konversation
   importForm:
     manualEntry: Manuelle Eingabe
     upload: Upload

@@ -1838,6 +1838,7 @@ contacts:
     source:
       manual: Manual
       upload: Upload
+      conversation: Conversation
   importForm:
     manualEntry: Manual entry
     upload: Upload

@@ -11,6 +11,9 @@ describe('getContactSourceLabel', () => {
 
   it('start-cases a single-word source enum', () => {
     expect(getContactSourceLabel('shopify', 'Unknown')).toBe('Shopify');
+    expect(getContactSourceLabel('conversation', 'Unknown')).toBe(
+      'Conversation',
+    );
   });
 
   it('falls back to the unknown label when source is unset', () => {

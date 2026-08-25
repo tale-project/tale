@@ -27,7 +27,7 @@ function createMockCtx() {
   const ctx = {
     runQuery: vi.fn(async () => null),
     runMutation: vi.fn(async (_ref, args: Record<string, unknown>) => {
-      if ('source' in args && args.source === 'manual_import') {
+      if ('source' in args && args.source === 'conversation') {
         return {
           contactId: 'cont_1' as Id<'contacts'>,
           created: true,
