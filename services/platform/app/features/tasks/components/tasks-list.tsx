@@ -64,7 +64,7 @@ export function TasksList({
   // Collapsed status sections, persisted per project so a fold survives reloads.
   const [collapsedStatuses, setCollapsedStatuses] = usePersistedState<
     TaskStatus[]
-  >(`tale.platform.tasks.${projectKey ?? 'p'}.collapsedStatuses`, []);
+  >(`tale.platform.tasks.${projectKey ?? 'all'}.collapsedStatuses`, []);
   const collapsed = useMemo(
     () => new Set(collapsedStatuses),
     [collapsedStatuses],
@@ -261,7 +261,10 @@ function TaskListRow({
   canEdit?: boolean;
 }) {
   const { t } = useT('tasks');
-  const identifier = formatTaskIdentifier(projectKey, task.number);
+  const identifier = formatTaskIdentifier(
+    task.projectKey ?? projectKey,
+    task.number,
+  );
   const assignTask = useAssignTask();
   const updateTask = useUpdateTask();
   const blocked = useTaskBoardContext().isBlocked(task._id);

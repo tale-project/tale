@@ -4728,6 +4728,8 @@ projects:
     searchPlaceholder: Search projects
     empty: No projects found
     ariaLabel: 'Switch project, current: {name}'
+    allProjects: All projects
+    allProjectsBadge: All
   navigation:
     overview: General
     files: Knowledge

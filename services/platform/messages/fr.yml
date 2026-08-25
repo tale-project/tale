@@ -7164,6 +7164,8 @@ projects:
     searchPlaceholder: Rechercher des projets
     empty: Aucun projet trouvé
     ariaLabel: 'Changer de projet, actuel : {name}'
+    allProjects: Tous les projets
+    allProjectsBadge: Tous
   navigation:
     overview: Général
     files: Connaissances

@@ -6,9 +6,11 @@ import {
   createFileRoute,
   Link,
   Outlet,
+  useLocation,
   useMatch,
+  useNavigate,
 } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ContentArea } from '@/app/components/layout/content-area';
@@ -27,7 +29,10 @@ import {
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
 import { useAutomations } from '@/app/features/automations/hooks/queries';
-import { ProjectBreadcrumbSwitcher } from '@/app/features/projects/components/project-breadcrumb-switcher';
+import {
+  isProjectTasksPath,
+  ProjectBreadcrumbSwitcher,
+} from '@/app/features/projects/components/project-breadcrumb-switcher';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { api } from '@/convex/_generated/api';
@@ -76,6 +81,8 @@ function ProjectDetailLayout() {
   const { t: tTasks } = useT('tasks');
   const { t: tSecrets } = useT('projectSecrets');
   const { t: tAutomations } = useT('automations');
+  const location = useLocation();
+  const navigate = useNavigate();
 
   // Project-scoped automation DETAIL routes live under the AUTOMATIONS chrome
   // (`AutomationDetailShell` — "Automations / <name>" breadcrumb + its own
@@ -106,6 +113,29 @@ function ProjectDetailLayout() {
   // the list is deliberately empty and the views route is retired.
   const viewTabs = EMPTY_VIEW_TABS;
 
+  const allProjectsMode =
+    (location.search as { projects?: unknown }).projects === 'all';
+  const onTasksPath = isProjectTasksPath(location.pathname, projectId);
+
+  // Stale `?projects=all` on a non-Tasks child (bookmark / manual URL) — send
+  // the operator to the Tasks board so the disabled sibling tabs stay coherent.
+  useEffect(() => {
+    if (!allProjectsMode || onTasksPath || isAutomationDetail) return;
+    void navigate({
+      to: '/dashboard/$id/projects/$projectId/tasks/board',
+      params: { id: organizationId, projectId },
+      search: { projects: 'all' },
+      replace: true,
+    });
+  }, [
+    allProjectsMode,
+    onTasksPath,
+    isAutomationDetail,
+    navigate,
+    organizationId,
+    projectId,
+  ]);
+
   // Memoize the tabs array — `TabNavigation` feeds it through a chain of
   // memos that bottom out at a `ResizeObserver` effect; a fresh array every
   // render kicks that effect (and the observer it owns) every render.
@@ -115,11 +145,13 @@ function ProjectDetailLayout() {
         label: t('navigation.overview'),
         href: `/dashboard/${organizationId}/projects/${projectId}`,
         matchMode: 'exact',
+        disabled: allProjectsMode,
       },
       {
         label: t('navigation.threads'),
         href: `/dashboard/${organizationId}/projects/${projectId}/threads`,
         matchMode: 'exact',
+        disabled: allProjectsMode,
       },
       {
         label: tTasks('title'),
@@ -127,20 +159,28 @@ function ProjectDetailLayout() {
         matchMode: 'exact',
         // The per-view pages (/tasks/board, /tasks/list — prefix-matched via
         // the bare /tasks entry) and the project metrics page are sub-views
-        // of Tasks, so keep the tab highlighted there.
+        // of Tasks, so keep the tab highlighted there. Metrics stays
+        // project-scoped — when All projects is on, that path is redirected
+        // away, so the highlight only covers board/list.
         additionalActivePaths: [
           `/dashboard/${organizationId}/projects/${projectId}/tasks`,
-          `/dashboard/${organizationId}/projects/${projectId}/metrics`,
+          ...(allProjectsMode
+            ? []
+            : [`/dashboard/${organizationId}/projects/${projectId}/metrics`]),
         ],
+        search: allProjectsMode ? { projects: 'all' } : undefined,
       },
       {
         label: t('navigation.files'),
         href: `/dashboard/${organizationId}/projects/${projectId}/files`,
         matchMode: 'exact',
+        disabled: allProjectsMode,
       },
       // Bound automations' views as first-class tabs (1 view = 1 tab) —
       // the operator surfaces, ahead of the management tabs below.
-      ...viewTabs,
+      ...viewTabs.map((tab) =>
+        allProjectsMode ? { ...tab, disabled: true } : tab,
+      ),
       // Automations bound to THIS project. Shown only when there are any:
       // tasks remain the day-to-day automation interface (status verbs run the
       // workflow, approvals and input files live in the task modal), so a
@@ -153,6 +193,7 @@ function ProjectDetailLayout() {
               label: tAutomations('title'),
               href: `/dashboard/${organizationId}/projects/${projectId}/automations`,
               matchMode: 'exact' as const,
+              disabled: allProjectsMode,
             },
           ]
         : []),
@@ -160,6 +201,7 @@ function ProjectDetailLayout() {
         label: t('navigation.agents'),
         href: `/dashboard/${organizationId}/projects/${projectId}/agents`,
         matchMode: 'exact',
+        disabled: allProjectsMode,
       },
       // Secrets are administer-only data — even the secret *names* are
       // sensitive (per the query doc comment). Hide the tab from non-admin
@@ -172,6 +214,7 @@ function ProjectDetailLayout() {
               label: tSecrets('title'),
               href: `/dashboard/${organizationId}/projects/${projectId}/secrets`,
               matchMode: 'exact' as const,
+              disabled: allProjectsMode,
             },
           ]
         : []),
@@ -189,6 +232,7 @@ function ProjectDetailLayout() {
       project?.canAdminister,
       hasAutomations,
       viewTabs,
+      allProjectsMode,
     ],
   );
 

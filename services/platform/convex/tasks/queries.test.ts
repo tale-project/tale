@@ -400,3 +400,135 @@ describe('listOpenExternalTaskRefs', () => {
     expect(refs.every((r) => typeof r.taskId === 'string')).toBe(true);
   });
 });
+
+describe('listTasksForAccessibleProjects', () => {
+  async function seedTeam(t: T, userId: string, teamId: string): Promise<void> {
+    await t.run((ctx) =>
+      ctx.db.insert('teamMemberMirror', {
+        teamMemberId: `tm_${userId}_${teamId}`,
+        userId,
+        teamId,
+        createdAt: 0,
+      }),
+    );
+  }
+
+  it('returns tasks from every accessible project and stamps projectKey', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'user_editor', 'editor');
+    const projectA = await t.run((ctx) =>
+      ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'A',
+        key: 'AAA',
+        createdBy: 'user_1',
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+    const projectB = await t.run((ctx) =>
+      ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'B',
+        key: 'BBB',
+        createdBy: 'user_1',
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+    await seedTask(t, projectA);
+    await seedTask(t, projectB);
+
+    const result = await t
+      .withIdentity({ subject: 'user_editor' })
+      .query(api.tasks.queries.listTasksForAccessibleProjects, {
+        organizationId: ORG,
+      });
+    expect(result.canEdit).toBe(false);
+    expect(result.tasks).toHaveLength(2);
+    expect(
+      result.tasks
+        .map((task) => task.projectKey)
+        .sort((a, b) => String(a).localeCompare(String(b))),
+    ).toEqual(['AAA', 'BBB']);
+  });
+
+  it('excludes tasks in team-private projects the caller cannot read', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'user_member', 'member');
+    const open = await seedProject(t, 'Open');
+    const hidden = await t.run((ctx) =>
+      ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Hidden',
+        teamId: 'team_hidden',
+        createdBy: 'user_1',
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+    const openTask = await seedTask(t, open);
+    await seedTask(t, hidden);
+
+    const result = await t
+      .withIdentity({ subject: 'user_member' })
+      .query(api.tasks.queries.listTasksForAccessibleProjects, {
+        organizationId: ORG,
+      });
+    expect(result.tasks.map((task) => task._id)).toEqual([openTask]);
+  });
+
+  it('includes team-private tasks when the caller is on that team', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'user_member', 'member');
+    await seedTeam(t, 'user_member', 'team_hidden');
+    const hidden = await t.run((ctx) =>
+      ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Hidden',
+        teamId: 'team_hidden',
+        createdBy: 'user_1',
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+    const taskId = await seedTask(t, hidden);
+
+    const result = await t
+      .withIdentity({ subject: 'user_member' })
+      .query(api.tasks.queries.listTasksForAccessibleProjects, {
+        organizationId: ORG,
+      });
+    expect(result.tasks.map((task) => task._id)).toEqual([taskId]);
+  });
+
+  it('honours the statuses facet', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'user_editor', 'editor');
+    const projectId = await seedProject(t, 'A');
+    await t.run(async (ctx) => {
+      for (const status of ['todo', 'done'] as const) {
+        await ctx.db.insert('tasks', {
+          organizationId: ORG,
+          projectId,
+          title: status,
+          status,
+          rank: 'a0',
+          number: 1,
+          createdBy: 'user_1',
+          createdByType: 'user',
+          createdAt: 0,
+          updatedAt: 0,
+        });
+      }
+    });
+
+    const result = await t
+      .withIdentity({ subject: 'user_editor' })
+      .query(api.tasks.queries.listTasksForAccessibleProjects, {
+        organizationId: ORG,
+        statuses: ['todo'],
+      });
+    expect(result.tasks.map((task) => task.status)).toEqual(['todo']);
+  });
+});

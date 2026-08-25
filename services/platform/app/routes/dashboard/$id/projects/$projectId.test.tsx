@@ -13,9 +13,13 @@ import { render, screen } from '@/tests/utils/render';
 // the org Automations page.
 // ---------------------------------------------------------------------------
 
-const { mockUseAutomations, mockUseProject } = vi.hoisted(() => ({
+const { mockUseAutomations, mockUseProject, mockLocation } = vi.hoisted(() => ({
   mockUseAutomations: vi.fn(),
   mockUseProject: vi.fn(),
+  mockLocation: {
+    pathname: '/dashboard/org-1/projects/proj-1',
+    search: {} as Record<string, unknown>,
+  },
 }));
 
 vi.mock('@tanstack/react-router', () => ({
@@ -28,6 +32,8 @@ vi.mock('@tanstack/react-router', () => ({
     <a href={to}>{children}</a>
   ),
   useMatch: () => undefined,
+  useLocation: () => mockLocation,
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock('@/lib/i18n/client', () => ({
@@ -46,6 +52,8 @@ vi.mock(
   '@/app/features/projects/components/project-breadcrumb-switcher',
   () => ({
     ProjectBreadcrumbSwitcher: () => <span>Apollo</span>,
+    isProjectTasksPath: (pathname: string, projectId: string) =>
+      pathname.includes(`/projects/${projectId}/tasks`),
   }),
 );
 
@@ -88,18 +96,26 @@ vi.mock('@/app/components/ui/editor', () => ({
 }));
 
 // Render the tab strip as plain links so the test reads what a user would see.
+// Disabled tabs render as spans (mirroring TabNavigation) so All-projects
+// mode can be asserted without the real nav primitive.
 vi.mock('@/app/components/ui/navigation/tab-navigation', () => ({
   TabNavigation: ({
     items,
   }: {
-    items: Array<{ label: string; href: string }>;
+    items: Array<{ label: string; href: string; disabled?: boolean }>;
   }) => (
     <nav>
-      {items.map((item) => (
-        <a key={item.href} href={item.href}>
-          {item.label}
-        </a>
-      ))}
+      {items.map((item) =>
+        item.disabled ? (
+          <span key={item.href} aria-disabled="true">
+            {item.label}
+          </span>
+        ) : (
+          <a key={item.href} href={item.href}>
+            {item.label}
+          </a>
+        ),
+      )}
     </nav>
   ),
 }));
@@ -127,6 +143,8 @@ function setup(automations: unknown[] | undefined) {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  mockLocation.pathname = '/dashboard/org-1/projects/proj-1';
+  mockLocation.search = {};
 });
 
 describe('project shell — Automations tab', () => {
@@ -173,6 +191,29 @@ describe('project shell — Automations tab', () => {
       'projects.navigation.agents',
     ]) {
       expect(screen.getByRole('link', { name: label })).toBeInTheDocument();
+    }
+  });
+});
+
+describe('project shell — All projects Tasks mode', () => {
+  it('disables non-Tasks tabs while projects=all is active', () => {
+    mockLocation.pathname = '/dashboard/org-1/projects/proj-1/tasks/board';
+    mockLocation.search = { projects: 'all' };
+    setup([]);
+
+    expect(
+      screen.getByRole('link', { name: 'tasks.title' }),
+    ).toBeInTheDocument();
+    for (const label of [
+      'projects.navigation.overview',
+      'projects.navigation.threads',
+      'projects.navigation.files',
+      'projects.navigation.agents',
+    ]) {
+      expect(
+        screen.queryByRole('link', { name: label }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText(label)).toHaveAttribute('aria-disabled', 'true');
     }
   });
 });

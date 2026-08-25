@@ -53,11 +53,24 @@ export function persistTaskView(projectId: string, view: TaskView): void {
   }
 }
 
-/** `?task=<id>` deep-link param shared by every tasks route (board, list,
- *  index redirect) — task URLs stay shareable across the view split. */
+/** `?task=<id>` deep-link + optional `?projects=all` aggregate scope — shared
+ *  by every tasks route (board, list, index redirect). */
 export function validateTaskSearch(search: Record<string, unknown>): {
   task?: string;
+  projects?: 'all';
 } {
-  const task = search.task;
-  return typeof task === 'string' && task.length > 0 ? { task } : {};
+  const task =
+    typeof search.task === 'string' && search.task.length > 0
+      ? search.task
+      : undefined;
+  const projects = search.projects === 'all' ? ('all' as const) : undefined;
+  return {
+    ...(task !== undefined ? { task } : {}),
+    ...(projects !== undefined ? { projects } : {}),
+  };
+}
+
+/** True when the Tasks board/list is in the cross-project aggregate scope. */
+export function isAllProjectsSearch(search: { projects?: 'all' }): boolean {
+  return search.projects === 'all';
 }

@@ -28,7 +28,25 @@ export async function collectPendingReviewsByTask(
   organizationId: string,
   projectId: Id<'projects'>,
 ): Promise<Map<string, PendingTaskReviewRef>> {
+  return collectPendingReviewsForProjects(
+    ctx,
+    organizationId,
+    new Set([String(projectId)]),
+  );
+}
+
+/**
+ * Pending review-gate approvals whose `metadata.projectId` is in the given
+ * set (string form). Used by the all-projects board so "Needs my review"
+ * spans every project the caller can read.
+ */
+export async function collectPendingReviewsForProjects(
+  ctx: Pick<QueryCtx, 'db'>,
+  organizationId: string,
+  projectIds: ReadonlySet<string>,
+): Promise<Map<string, PendingTaskReviewRef>> {
   const byTask = new Map<string, PendingTaskReviewRef>();
+  if (projectIds.size === 0) return byTask;
   for await (const approval of ctx.db
     .query('approvals')
     .withIndex('by_org_status_resourceType', (q) =>
@@ -39,7 +57,12 @@ export async function collectPendingReviewsByTask(
     )) {
     const metadata: unknown = approval.metadata;
     if (!isRecord(metadata)) continue;
-    if (metadata.projectId !== String(projectId)) continue;
+    if (
+      typeof metadata.projectId !== 'string' ||
+      !projectIds.has(metadata.projectId)
+    ) {
+      continue;
+    }
     const requestedFor =
       typeof metadata.requestedFor === 'string' && metadata.requestedFor !== ''
         ? metadata.requestedFor
