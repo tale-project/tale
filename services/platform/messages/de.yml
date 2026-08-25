@@ -7041,6 +7041,8 @@ projects:
     searchPlaceholder: Projekte suchen
     empty: Keine Projekte gefunden
     ariaLabel: 'Projekt wechseln, aktuell: {name}'
+    allProjects: Alle Projekte
+    allProjectsBadge: Alle
   navigation:
     overview: Allgemein
     files: Wissen

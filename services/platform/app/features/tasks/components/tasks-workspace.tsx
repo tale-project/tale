@@ -16,6 +16,8 @@ import { useT } from '@/lib/i18n/client';
 import {
   useProjectDependencies,
   useTaskOpsIndicators,
+  useTaskOpsIndicatorsAcrossProjects,
+  useTasksAcrossProjects,
   useTasksByProject,
 } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
@@ -50,6 +52,7 @@ export function TasksWorkspace({
   onViewChange,
   openTaskParam,
   onOpenTaskParamChange,
+  allProjects = false,
 }: {
   organizationId: string;
   projectId: string;
@@ -62,6 +65,8 @@ export function TasksWorkspace({
   openTaskParam?: string;
   /** Keeps the URL in sync so open tasks are shareable/linkable. */
   onOpenTaskParamChange?: (taskId: string | null) => void;
+  /** Cross-project aggregate scope (`?projects=all`). */
+  allProjects?: boolean;
 }) {
   const { t } = useT('tasks');
   const typedProjectId = asProjectId(projectId);
@@ -72,24 +77,44 @@ export function TasksWorkspace({
   const [needsMyReviewFilter, setNeedsMyReviewFilter] = useState(false);
   const { members, agents, currentUserId } = useActorDirectory(
     organizationId,
-    projectId,
+    // Agents are project-scoped; in all-projects mode the filter still lists
+    // org members, and agent assignees resolve via the directory without a
+    // project agent catalog.
+    allProjects ? undefined : projectId,
   );
   const assigneeQueryFilter = resolveAssigneeQueryFilter(
     assigneeFilter,
     currentUserId,
   );
-  const {
-    tasks: loadedTasks,
-    canEdit,
-    isLoading,
-  } = useTasksByProject(typedProjectId, {
+  const listOptions = {
     statuses: BOARD_TASK_STATUSES,
     includeArchived,
     assigneeId: assigneeQueryFilter,
+  };
+  const projectList = useTasksByProject(
+    allProjects ? undefined : typedProjectId,
+    listOptions,
+  );
+  const acrossList = useTasksAcrossProjects({
+    ...listOptions,
+    enabled: allProjects,
   });
-  const { edges } = useProjectDependencies(typedProjectId);
-  const { runningTaskIds, pendingReviews } =
-    useTaskOpsIndicators(typedProjectId);
+  const loadedTasks = allProjects ? acrossList.tasks : projectList.tasks;
+  const canEdit = allProjects ? acrossList.canEdit : projectList.canEdit;
+  const isLoading = allProjects ? acrossList.isLoading : projectList.isLoading;
+  const { edges } = useProjectDependencies(
+    allProjects ? undefined : typedProjectId,
+  );
+  const projectOps = useTaskOpsIndicators(
+    allProjects ? undefined : typedProjectId,
+  );
+  const acrossOps = useTaskOpsIndicatorsAcrossProjects(allProjects);
+  const runningTaskIds = allProjects
+    ? acrossOps.runningTaskIds
+    : projectOps.runningTaskIds;
+  const pendingReviews = allProjects
+    ? acrossOps.pendingReviews
+    : projectOps.pendingReviews;
   const reviewRequestedFor = useMemo(
     () =>
       new Map(
@@ -119,25 +144,38 @@ export function TasksWorkspace({
     ],
   );
   const { project } = useProject(typedProjectId);
-  const projectKey = project?.key ?? null;
+  const projectKey = allProjects ? null : (project?.key ?? null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [openTaskId, setOpenTaskIdState] = useState(
     openTaskParam ? asTaskId(openTaskParam) : null,
   );
+  // When opening from the all-projects board, the modal must target the row's
+  // real project — not the route anchor.
+  const [openTaskProjectId, setOpenTaskProjectId] =
+    useState<Id<'projects'>>(typedProjectId);
   // Re-sync from the URL when `?task=` changes while mounted (e.g. an inbox
   // link clicked from this page) — render-time state adjustment, no effect.
   const [prevOpenTaskParam, setPrevOpenTaskParam] = useState(openTaskParam);
   if (openTaskParam !== prevOpenTaskParam) {
     setPrevOpenTaskParam(openTaskParam);
     setOpenTaskIdState(openTaskParam ? asTaskId(openTaskParam) : null);
+    if (openTaskParam) {
+      const fromRow = loadedTasks.find((task) => task._id === openTaskParam);
+      if (fromRow) setOpenTaskProjectId(fromRow.projectId);
+    }
   }
-  const setOpenTaskId = (taskId: Id<'tasks'> | null) => {
+  const setOpenTaskId = (
+    taskId: Id<'tasks'> | null,
+    taskProjectId?: Id<'projects'>,
+  ) => {
     setOpenTaskIdState(taskId);
+    if (taskProjectId) setOpenTaskProjectId(taskProjectId);
     onOpenTaskParamChange?.(taskId);
   };
 
-  const handleOpenTask = (task: TaskRow) => setOpenTaskId(task._id);
+  const handleOpenTask = (task: TaskRow) =>
+    setOpenTaskId(task._id, task.projectId);
 
   const handleAssigneeFilterChange = useCallback((values: string[]) => {
     setAssigneeFilter(values[0] ?? ALL_ASSIGNEE_FILTER);
@@ -290,7 +328,8 @@ export function TasksWorkspace({
         </Row>
         <Row gap={2}>
           {/* Read-only viewers can't create tasks (the server rejects the
-              write); hide the action rather than surface a doomed button. */}
+              write); hide the action rather than surface a doomed button.
+              All-projects mode has no single write target — Create stays off. */}
           {canEdit && (
             <Button size="sm" icon={Plus} onClick={() => setCreateOpen(true)}>
               {t('actions.create')}
@@ -335,25 +374,27 @@ export function TasksWorkspace({
         </TaskBoardProvider>
       )}
 
+      {!allProjects && (
+        <TaskModal
+          organizationId={organizationId}
+          projectId={typedProjectId}
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          defaultStatus="todo"
+          // A template create lands the user inside the new task, where the
+          // subject panel names the next step (upload input files / Start).
+          onOpenTask={(id) => setOpenTaskId(id, typedProjectId)}
+        />
+      )}
       <TaskModal
         organizationId={organizationId}
-        projectId={typedProjectId}
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        defaultStatus="todo"
-        // A template create lands the user inside the new task, where the
-        // subject panel names the next step (upload input files / Start).
-        onOpenTask={(id) => setOpenTaskId(id)}
-      />
-      <TaskModal
-        organizationId={organizationId}
-        projectId={typedProjectId}
+        projectId={openTaskProjectId}
         taskId={openTaskId}
         open={openTaskId !== null}
         onOpenChange={(open) => {
           if (!open) setOpenTaskId(null);
         }}
-        onOpenTask={(id) => setOpenTaskId(id)}
+        onOpenTask={(id) => setOpenTaskId(id, openTaskProjectId)}
       />
     </ContentArea>
   );

@@ -33,6 +33,8 @@ export type TaskRow = TaskDoc & {
    * `collectFolderFacts`) — absent on surfaces that don't stamp them. */
   folderExists?: boolean;
   hasFiles?: boolean;
+  /** Stamped by the all-projects board so cards show `KEY-123` per task. */
+  projectKey?: string;
 };
 
 export function TaskCard({
@@ -54,7 +56,8 @@ export function TaskCard({
   canEdit?: boolean;
 }) {
   const { t } = useT('tasks');
-  const identifier = formatTaskIdentifier(projectKey, task.number);
+  const resolvedProjectKey = task.projectKey ?? projectKey;
+  const identifier = formatTaskIdentifier(resolvedProjectKey, task.number);
   const assignTask = useAssignTask();
   const updateTask = useUpdateTask();
   const editable = canEdit && task.archivedAt == null;
@@ -83,7 +86,10 @@ export function TaskCard({
   // parent's title, then a generic label, when the id/parent isn't resolvable.
   const parent = task.parentTaskId ? getTask(task.parentTaskId) : undefined;
   const parentIdentifier = parent
-    ? formatTaskIdentifier(projectKey, parent.number)
+    ? formatTaskIdentifier(
+        parent.projectKey ?? resolvedProjectKey,
+        parent.number,
+      )
     : null;
   const parentLabel = parentIdentifier
     ? t('detail.partOf', { task: parentIdentifier })

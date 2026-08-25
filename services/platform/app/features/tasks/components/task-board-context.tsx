@@ -8,7 +8,12 @@ import {
 } from '../lib/dependencies';
 import type { TaskDoc } from '../lib/display';
 
-type TaskRow = TaskDoc;
+/** Board row — TaskDoc plus optional stamps from list queries. */
+type TaskRow = TaskDoc & {
+  projectKey?: string;
+  folderExists?: boolean;
+  hasFiles?: boolean;
+};
 
 /** A task's pending review-gate approval, as the ops indicators expose it. */
 export interface PendingReviewRef {

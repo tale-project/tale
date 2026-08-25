@@ -45,6 +45,37 @@ export function useTasksByProject(
   };
 }
 
+/** All-projects board: every task in projects the caller can read. */
+export function useTasksAcrossProjects(options?: {
+  includeArchived?: boolean;
+  status?: TaskStatusFilter;
+  statuses?: TaskStatusFilter[];
+  assigneeId?: string;
+  /** When false the query is skipped (single-project mode owns the board). */
+  enabled?: boolean;
+}) {
+  const organizationId = useOrganizationId();
+  const enabled = options?.enabled !== false;
+  const { data, isLoading } = useConvexQuery(
+    api.tasks.queries.listTasksForAccessibleProjects,
+    enabled && organizationId
+      ? {
+          organizationId,
+          includeArchived: options?.includeArchived,
+          status: options?.status,
+          statuses: options?.statuses,
+          assigneeId: options?.assigneeId,
+        }
+      : 'skip',
+  );
+  return {
+    tasks: data?.tasks ?? [],
+    truncated: data?.truncated ?? false,
+    canEdit: data?.canEdit ?? false,
+    isLoading,
+  };
+}
+
 export function useTask(taskId: Id<'tasks'> | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
@@ -134,6 +165,19 @@ export function useTaskOpsIndicators(projectId: Id<'projects'> | undefined) {
     runningTaskIds: data?.runningTaskIds ?? [],
     // Full pending-review refs (taskId + the reviewer waited on) — the board
     // chip naming and the needs-my-review facet both read `requestedFor`.
+    pendingReviews: data?.pendingReviews ?? [],
+  };
+}
+
+/** All-projects sibling of {@link useTaskOpsIndicators}. */
+export function useTaskOpsIndicatorsAcrossProjects(enabled = true) {
+  const organizationId = useOrganizationId();
+  const { data } = useConvexQuery(
+    api.tasks.queries.getTaskOpsIndicatorsForAccessibleProjects,
+    enabled && organizationId ? { organizationId } : 'skip',
+  );
+  return {
+    runningTaskIds: data?.runningTaskIds ?? [],
     pendingReviews: data?.pendingReviews ?? [],
   };
 }

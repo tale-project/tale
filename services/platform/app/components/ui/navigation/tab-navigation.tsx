@@ -47,6 +47,11 @@ export interface TabNavigationItem {
    * outright over path matching.
    */
   isActive?: boolean;
+  /**
+   * When true the tab stays visible but is not navigable — used to teach that
+   * a mode (e.g. Tasks "All projects") only applies to the active surface.
+   */
+  disabled?: boolean;
   /** Optional trailing element rendered after the label (e.g. status badge) */
   trailing?: ReactNode;
   /**
@@ -122,7 +127,7 @@ export function TabNavigation({
   // (not to `scrollRef`) — see the indicator's JSX comment for why.
   const navRef = useRef<HTMLElement | null>(null);
   const indicatorRef = useRef<HTMLDivElement | null>(null);
-  const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  const itemRefs = useRef<(HTMLElement | null)[]>([]);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
   // Track if we should animate (only after initial render)
   const [shouldAnimate, setShouldAnimate] = useState(false);
@@ -444,7 +449,9 @@ export function TabNavigation({
           type: 'item' as const,
           label: item.label,
           selected: isPathActive(item),
+          disabled: item.disabled,
           onClick: () => {
+            if (item.disabled) return;
             void navigate({ to: path, search: item.search ?? hrefSearch });
           },
         };
@@ -496,26 +503,16 @@ export function TabNavigation({
             const isItemDirty =
               dirtyKeys !== undefined &&
               (item.dirtyKeys?.some((k) => dirtyKeys.has(k)) ?? false);
-
-            return (
-              <Link
-                // Search-param tab strips share one pathname across items, so
-                // the href alone is not unique — the label disambiguates.
-                key={`${item.href}|${item.label}`}
-                ref={(el) => {
-                  itemRefs.current[index] = el;
-                }}
-                to={path}
-                search={item.search ?? hrefSearch}
-                preload={prefetch ? 'render' : false}
-                aria-current={isActive ? 'page' : undefined}
-                className={cn(
-                  'relative flex h-full shrink-0 items-center justify-center gap-1.5 rounded-sm py-1 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:outline-none',
-                  isActive
-                    ? 'text-foreground'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
+            const tabClassName = cn(
+              'relative flex h-full shrink-0 items-center justify-center gap-1.5 rounded-sm py-1 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:outline-none',
+              item.disabled
+                ? 'text-muted-foreground/50 cursor-not-allowed'
+                : isActive
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+            );
+            const tabBody = (
+              <>
                 {isItemDirty && (
                   <>
                     <span
@@ -534,6 +531,39 @@ export function TabNavigation({
                 )}
                 {item.label}
                 {item.trailing}
+              </>
+            );
+
+            if (item.disabled) {
+              return (
+                <span
+                  key={`${item.href}|${item.label}`}
+                  ref={(el) => {
+                    itemRefs.current[index] = el;
+                  }}
+                  aria-disabled="true"
+                  className={tabClassName}
+                >
+                  {tabBody}
+                </span>
+              );
+            }
+
+            return (
+              <Link
+                // Search-param tab strips share one pathname across items, so
+                // the href alone is not unique — the label disambiguates.
+                key={`${item.href}|${item.label}`}
+                ref={(el) => {
+                  itemRefs.current[index] = el;
+                }}
+                to={path}
+                search={item.search ?? hrefSearch}
+                preload={prefetch ? 'render' : false}
+                aria-current={isActive ? 'page' : undefined}
+                className={tabClassName}
+              >
+                {tabBody}
               </Link>
             );
           })}

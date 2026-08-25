@@ -23,11 +23,14 @@ import { UnauthorizedError } from '../lib/rls/errors';
 import { assertActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { sessionOpTimelinePartValidator } from '../sandbox/sessions_schema';
-import { canClaimTask, checkProjectAccess } from './access';
+import { canClaimTask, checkProjectAccess, hasProjectAccess } from './access';
 import { taskLabelDto } from './helpers';
 import { readTaskDiscussionMessages } from './internal_queries';
 import { listTasksByProjectPaginated as listTasksByProjectPaginatedHelper } from './list_tasks_paginated';
-import { collectPendingReviewsByTask } from './pending_reviews';
+import {
+  collectPendingReviewsByTask,
+  collectPendingReviewsForProjects,
+} from './pending_reviews';
 import {
   boardViewFiltersValidator,
   boardViewScopeValidator,
@@ -273,6 +276,10 @@ export const taskRowValidator = v.object({
   // reads.
   folderExists: v.optional(v.boolean()),
   hasFiles: v.optional(v.boolean()),
+  // Stamped by the all-projects board so cards can show `KEY-123` without a
+  // second project lookup. Absent on single-project list reads (the shell
+  // already knows the key).
+  projectKey: v.optional(v.string()),
 });
 
 /**
@@ -556,6 +563,134 @@ export const listTasksByProject = query({
       truncated,
       canEdit,
     };
+  },
+});
+
+/**
+ * The caller's readable projects in an org, as an id set + optional key map.
+ * Same access path as `listProjects` (`hasProjectAccess`); archived projects
+ * are excluded so the all-projects board matches the switcher's live set.
+ */
+async function collectAccessibleProjectMeta(
+  ctx: QueryCtx,
+  organizationId: string,
+  auth: { role: string; teamIds: string[] },
+): Promise<{
+  projectIds: Set<string>;
+  projectKeys: Map<string, string | undefined>;
+}> {
+  const projectIds = new Set<string>();
+  const projectKeys = new Map<string, string | undefined>();
+  for await (const row of ctx.db
+    .query('projects')
+    .withIndex('by_organization_archived', (q) =>
+      q.eq('organizationId', organizationId).eq('archivedAt', undefined),
+    )) {
+    if (!hasProjectAccess(row, auth.teamIds, auth.role)) continue;
+    const id = String(row._id);
+    projectIds.add(id);
+    projectKeys.set(id, row.key);
+  }
+  return { projectIds, projectKeys };
+}
+
+/**
+ * Org-wide task board for every project the caller can read. Sibling of
+ * {@link listTasksByProject} used when the Tasks switcher is on "All projects".
+ * Walks `by_org_updatedAt` newest-first so the {@link TASK_BOARD_CAP} prefers
+ * recently touched work; filters to the caller's accessible project set
+ * (unlike Apps-hub `listTasksByOrg`, which is membership-only). Always returns
+ * `canEdit: false` — the aggregate view has no single write target.
+ */
+export const listTasksForAccessibleProjects = query({
+  args: {
+    organizationId: v.string(),
+    includeArchived: v.optional(v.boolean()),
+    status: v.optional(taskStatusValidator),
+    statuses: v.optional(v.array(taskStatusValidator)),
+    assigneeId: v.optional(v.string()),
+  },
+  returns: v.object({
+    tasks: v.array(taskRowValidator),
+    truncated: v.boolean(),
+    canEdit: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    // getAuthContext resolves org membership (and throws UNAUTHENTICATED /
+    // not-a-member); the organizationId arg IS the caller's active org from
+    // the client, matching every other board read.
+    const auth = await getAuthContext(ctx, args.organizationId);
+    const { projectIds, projectKeys } = await collectAccessibleProjectMeta(
+      ctx,
+      args.organizationId,
+      auth,
+    );
+    if (projectIds.size === 0) {
+      return { tasks: [], truncated: false, canEdit: false };
+    }
+
+    const rows: Doc<'tasks'>[] = [];
+    let truncated = false;
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_org_updatedAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc')) {
+      if (!projectIds.has(String(task.projectId))) continue;
+      if (!args.includeArchived && task.archivedAt) continue;
+      if (args.status && task.status !== args.status) continue;
+      if (args.statuses && !args.statuses.includes(task.status)) continue;
+      if (args.assigneeId && task.assigneeId !== args.assigneeId) continue;
+      rows.push(task);
+      if (rows.length >= TASK_BOARD_CAP) {
+        truncated = true;
+        break;
+      }
+    }
+
+    rows.sort((a, b) =>
+      a.status === b.status
+        ? a.rank.localeCompare(b.rank)
+        : a.status.localeCompare(b.status),
+    );
+
+    // Folder facts are per-project — group the page, stamp, then merge.
+    const byProject = new Map<Id<'projects'>, Doc<'tasks'>[]>();
+    for (const task of rows) {
+      const group = byProject.get(task.projectId);
+      if (group) group.push(task);
+      else byProject.set(task.projectId, [task]);
+    }
+    const folderExists = new Set<string>();
+    const foldersWithFiles = new Set<string>();
+    for (const [projectId, projectRows] of byProject) {
+      const facts = await collectFolderFacts(
+        ctx,
+        args.organizationId,
+        projectId,
+        projectRows,
+      );
+      for (const id of facts.existingFolders) folderExists.add(id);
+      for (const id of facts.foldersWithFiles) foldersWithFiles.add(id);
+    }
+
+    const labelCache = new Map<Id<'taskLabels'>, Doc<'taskLabels'> | null>();
+    const tasks = await Promise.all(
+      rows.map(async (task) => {
+        const resolved = await withResolvedLabels(ctx, task, labelCache);
+        const key = projectKeys.get(String(task.projectId));
+        return Object.assign(resolved, {
+          folderExists:
+            task.externalId === undefined || folderExists.has(task.externalId),
+          hasFiles:
+            task.externalId !== undefined &&
+            foldersWithFiles.has(task.externalId),
+          ...(key !== undefined ? { projectKey: key } : {}),
+        });
+      }),
+    );
+    return { tasks, truncated, canEdit: false };
   },
 });
 
@@ -997,6 +1132,19 @@ const TASK_OPS_INDICATOR_CAP = 50;
  * at the head of the by-project ordering. */
 const TASK_OPS_RUN_SCAN_CAP = 100;
 
+const taskOpsIndicatorsReturnValidator = v.object({
+  runningTaskIds: v.array(v.id('tasks')),
+  pendingReviews: v.array(
+    v.object({
+      taskId: v.id('tasks'),
+      approvalId: v.id('approvals'),
+      // The named reviewer the request waits on — powers the indicator's
+      // "Waiting on {name}" and the "Needs my review" facet.
+      requestedFor: v.optional(v.string()),
+    }),
+  ),
+});
+
 /**
  * Live agent-work indicators for an open board: which tasks have a RUNNING
  * agent run, and which have a PENDING review-gate approval. One reactive
@@ -1005,18 +1153,7 @@ const TASK_OPS_RUN_SCAN_CAP = 100;
  */
 export const getTaskOpsIndicators = query({
   args: { projectId: v.id('projects'), organizationId: v.string() },
-  returns: v.object({
-    runningTaskIds: v.array(v.id('tasks')),
-    pendingReviews: v.array(
-      v.object({
-        taskId: v.id('tasks'),
-        approvalId: v.id('approvals'),
-        // The named reviewer the request waits on — powers the indicator's
-        // "Waiting on {name}" and the "Needs my review" facet.
-        requestedFor: v.optional(v.string()),
-      }),
-    ),
-  }),
+  returns: taskOpsIndicatorsReturnValidator,
   handler: async (ctx, args) => {
     const { project } = await loadAccessibleProject(
       ctx,
@@ -1077,6 +1214,66 @@ export const getTaskOpsIndicators = query({
       ctx,
       project.organizationId,
       args.projectId,
+    );
+    const pendingReviews = [...pendingByTask].map(([taskId, review]) =>
+      Object.assign(
+        {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- task_review approvals store String(taskId) as resourceId
+          taskId: taskId as Id<'tasks'>,
+          approvalId: review.approvalId,
+        },
+        review.requestedFor !== undefined
+          ? { requestedFor: review.requestedFor }
+          : {},
+      ),
+    );
+
+    return { runningTaskIds, pendingReviews };
+  },
+});
+
+/**
+ * All-projects sibling of {@link getTaskOpsIndicators}: running agent turns
+ * and pending reviews across every project the caller can read. Agent runs
+ * use `by_org_status` (then filter by accessible project via the task row);
+ * pending reviews reuse the org pending scan filtered to those projects.
+ * Automation-run working indicators are omitted here — they need a per-project
+ * walk that does not scale to the aggregate board.
+ */
+export const getTaskOpsIndicatorsForAccessibleProjects = query({
+  args: { organizationId: v.string() },
+  returns: taskOpsIndicatorsReturnValidator,
+  handler: async (ctx, args) => {
+    const auth = await getAuthContext(ctx, args.organizationId);
+    const { projectIds } = await collectAccessibleProjectMeta(
+      ctx,
+      args.organizationId,
+      auth,
+    );
+    if (projectIds.size === 0) {
+      return { runningTaskIds: [], pendingReviews: [] };
+    }
+
+    const runningTaskIds: Id<'tasks'>[] = [];
+    const seenRunning = new Set<Id<'tasks'>>();
+    for await (const run of ctx.db
+      .query('taskAgentRuns')
+      .withIndex('by_org_status', (q) =>
+        q.eq('organizationId', args.organizationId).eq('status', 'running'),
+      )) {
+      const task = await ctx.db.get(run.taskId);
+      if (!task || !projectIds.has(String(task.projectId))) continue;
+      if (!seenRunning.has(run.taskId)) {
+        runningTaskIds.push(run.taskId);
+        seenRunning.add(run.taskId);
+      }
+      if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) break;
+    }
+
+    const pendingByTask = await collectPendingReviewsForProjects(
+      ctx,
+      args.organizationId,
+      projectIds,
     );
     const pendingReviews = [...pendingByTask].map(([taskId, review]) =>
       Object.assign(
