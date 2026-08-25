@@ -22,6 +22,7 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { assertActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { EDITOR_ROLES } from '../projects/access';
 import { sessionOpTimelinePartValidator } from '../sandbox/sessions_schema';
 import { canClaimTask, checkProjectAccess, hasProjectAccess } from './access';
 import { taskLabelDto } from './helpers';
@@ -599,8 +600,12 @@ async function collectAccessibleProjectMeta(
  * {@link listTasksByProject} used when the Tasks switcher is on "All projects".
  * Walks `by_org_updatedAt` newest-first so the {@link TASK_BOARD_CAP} prefers
  * recently touched work; filters to the caller's accessible project set
- * (unlike Apps-hub `listTasksByOrg`, which is membership-only). Always returns
- * `canEdit: false` — the aggregate view has no single write target.
+ * (unlike Apps-hub `listTasksByOrg`, which is membership-only).
+ *
+ * `canEdit` follows the caller's org role ({@link EDITOR_ROLES}) — project
+ * write access is role-uniform once a project is readable, so drag / pickers
+ * match single-project boards. Create stays off in the UI: the aggregate has
+ * no single write target for a new task.
  */
 export const listTasksForAccessibleProjects = query({
   args: {
@@ -620,13 +625,14 @@ export const listTasksForAccessibleProjects = query({
     // not-a-member); the organizationId arg IS the caller's active org from
     // the client, matching every other board read.
     const auth = await getAuthContext(ctx, args.organizationId);
+    const canEdit = EDITOR_ROLES.has(auth.role);
     const { projectIds, projectKeys } = await collectAccessibleProjectMeta(
       ctx,
       args.organizationId,
       auth,
     );
     if (projectIds.size === 0) {
-      return { tasks: [], truncated: false, canEdit: false };
+      return { tasks: [], truncated: false, canEdit };
     }
 
     const rows: Doc<'tasks'>[] = [];
@@ -690,7 +696,7 @@ export const listTasksForAccessibleProjects = query({
         });
       }),
     );
-    return { tasks, truncated, canEdit: false };
+    return { tasks, truncated, canEdit };
   },
 });
 

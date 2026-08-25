@@ -329,8 +329,9 @@ export function TasksWorkspace({
         <Row gap={2}>
           {/* Read-only viewers can't create tasks (the server rejects the
               write); hide the action rather than surface a doomed button.
-              All-projects mode has no single write target — Create stays off. */}
-          {canEdit && (
+              All-projects mode has no single write target — Create stays off
+              even when canEdit is true (drag / pickers still work). */}
+          {canEdit && !allProjects && (
             <Button size="sm" icon={Plus} onClick={() => setCreateOpen(true)}>
               {t('actions.create')}
             </Button>
@@ -391,6 +392,7 @@ export function TasksWorkspace({
         projectId={openTaskProjectId}
         taskId={openTaskId}
         open={openTaskId !== null}
+        showProjectLink={allProjects}
         onOpenChange={(open) => {
           if (!open) setOpenTaskId(null);
         }}
