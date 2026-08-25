@@ -1,3 +1,4 @@
+import { isMessageRef, parseMessageRef } from '../../lib/knowledge/message-ref';
 import {
   knowledgeScopeAllows,
   type KnowledgeAccessScope,
@@ -30,6 +31,10 @@ export interface FilterRetrievableRagFileIdsArgs {
  * stamp: the caller must currently be able to read the conversation the mail
  * arrived on, so reassigning the mail moves its attachments with it.
  *
+ * An email MESSAGE (`msg:` ref) is the one class that is not a blob at all, so
+ * it is decided before the blob lookup. Its rule is the attachment's rule:
+ * the caller must currently be able to read the conversation it arrived on.
+ *
  * A thread-bound chat upload (`threadId` set, no `documentId`) is its own
  * access class — the 0.3 model (`verify_thread_scoped_access`): retrievable
  * ONLY when the caller's access lists that thread. It is private to its
@@ -55,6 +60,55 @@ export async function filterRetrievableRagFileIds(
     const ref = String(fileId);
     if (seen.has(ref)) continue;
     seen.add(ref);
+
+    // An email MESSAGE. Decided before the blob lookup because a message has
+    // no `fileMetadata` row at all: without this branch the lookup below
+    // returns null and the ref is denied outright, which is why this ships
+    // before anything writes one.
+    //
+    // Same rule as the attachment branch — the conversation's CURRENT
+    // assignment, so a reassignment moves the message with the mail — and the
+    // SAME caller resolution, so a message hit and an attachment hit in one
+    // result set resolve the caller once.
+    // Keyed on the PREFIX, not on a successful parse: a malformed `msg:` ref
+    // must be denied here, never fall through to the blob path below, where
+    // `parseBlobRef` would coerce it into a Convex storage id.
+    if (isMessageRef(ref)) {
+      const messageId = parseMessageRef(ref);
+      if (messageId === null) continue;
+      // A scope that excludes conversations is honoured here too, not only in
+      // the SQL pre-filter — the pre-filter is the half that fails open.
+      if (args.access !== undefined && !args.access.includeConversationScoped) {
+        continue;
+      }
+      // The folder filter is a Document Hub concept; a folder-scoped search
+      // never returns messages, exactly as it never returns attachments.
+      if (args.folder !== undefined && args.folder !== '') continue;
+      // `normalizeId` refuses an id that is not a `conversationMessages` id,
+      // so a malformed ref reads as a miss rather than reaching `get`.
+      const id = ctx.db.normalizeId('conversationMessages', messageId);
+      if (id === null) continue;
+      const message = await ctx.db.get(id);
+      if (message === null || message.organizationId !== args.organizationId) {
+        continue;
+      }
+      const conversation = await ctx.db.get(message.conversationId);
+      if (
+        conversation === null ||
+        conversation.organizationId !== args.organizationId
+      ) {
+        continue;
+      }
+      const caller = await conversationCaller();
+      if (caller === null) continue;
+      const allowed = await conversationAssignmentAllows(conversation, {
+        isAdmin: caller.isAdmin,
+        userId: caller.userId,
+        hasTeam: (teamId) => caller.teamIds.has(teamId),
+      });
+      if (allowed) retrievable.push(ref);
+      continue;
+    }
 
     const metadata = await ctx.db
       .query('fileMetadata')
