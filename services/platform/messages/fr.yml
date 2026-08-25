@@ -4439,7 +4439,8 @@ notificationPreferences:
       lockedHint: Toujours actif — c'est un signal de sécurité.
     escalation:
       label: Escalades d'agent
-      description: Quand un agent escalade une tâche vers un humain.
+      description: Quand un agent te pose une question ou escalade une tâche
+        vers un humain.
     automationAlerts:
       label: Alertes d'automatisation
       description: Échecs, avertissements de budget et runtimes hors ligne.
@@ -6486,6 +6487,9 @@ inbox:
     ouvre ta boîte de réception pour répondre."
   agentEscalation: Escalade d'agent
   agentEscalationBody: '{agent} a escaladé : {reason}'
+  agentQuestionAsked: L'agent attend ta réponse
+  agentQuestionAskedBody: '{name} attend ta réponse sur « {title} » : {question}'
+  agentQuestionAskedNoTaskBody: '{name} attend ta réponse : {question}'
   email:
     cta: Ouvrir dans Tale
     footer: Tu reçois cet e-mail parce que tu as activé les notifications dans Tale.
@@ -6786,6 +6790,7 @@ tasks:
       reste inchangé."
   agentRuns:
     working: L'agent travaille…
+    needsAnswer: En attente de ta réponse
     totalCost: '{amount} au total'
     status:
       running: En cours

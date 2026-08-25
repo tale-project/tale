@@ -30,6 +30,9 @@ interface TaskBoardContextValue {
   getTask: (taskId: string) => TaskRow | undefined;
   /** True while an agent run on the task is live (working pulse). */
   isAgentWorking: (taskId: string) => boolean;
+  /** True while the task's live run is parked on an unanswered `ask_human`
+   * question — the card swaps the working pulse for the needs-answer chip. */
+  isAgentAsking: (taskId: string) => boolean;
   /** True when the task waits at the review gate: it holds a pending
    * review approval, or sits at `in_review` with a designated reviewer
    * (pre-mint rows, workflow-lane parks). */
@@ -43,6 +46,7 @@ const EMPTY: TaskBoardContextValue = {
   isBlocked: () => false,
   getTask: () => undefined,
   isAgentWorking: () => false,
+  isAgentAsking: () => false,
   needsReview: () => false,
   reviewRequestedFor: () => undefined,
 };
@@ -61,6 +65,7 @@ export function TaskBoardProvider({
   tasks,
   dependencyEdges,
   runningTaskIds,
+  askingTaskIds,
   pendingReviews,
   children,
 }: {
@@ -68,6 +73,9 @@ export function TaskBoardProvider({
   dependencyEdges: readonly DependencyEdge[];
   /** Tasks with a live agent run (from `getTaskOpsIndicators`). */
   runningTaskIds?: readonly string[];
+  /** Tasks whose live run waits on an unanswered agent question (from
+   * `getTaskOpsIndicators`; subset of `runningTaskIds`). */
+  askingTaskIds?: readonly string[];
   /** Pending review-gate approvals (from `getTaskOpsIndicators`). */
   pendingReviews?: readonly PendingReviewRef[];
   children: ReactNode;
@@ -77,6 +85,7 @@ export function TaskBoardProvider({
     for (const task of tasks) byId.set(task._id, task);
     const blocked = computeBlockedTaskIds(tasks, dependencyEdges);
     const working = new Set(runningTaskIds ?? []);
+    const asking = new Set(askingTaskIds ?? []);
     const pendingByTask = new Map<string, PendingReviewRef>();
     for (const review of pendingReviews ?? []) {
       pendingByTask.set(review.taskId, review);
@@ -94,6 +103,7 @@ export function TaskBoardProvider({
       isBlocked: (taskId) => blocked.has(taskId),
       getTask: (taskId) => byId.get(taskId),
       isAgentWorking: (taskId) => working.has(taskId),
+      isAgentAsking: (taskId) => asking.has(taskId),
       needsReview: awaitsReview,
       reviewRequestedFor: (taskId) => {
         const pending = pendingByTask.get(taskId);
@@ -102,7 +112,7 @@ export function TaskBoardProvider({
         return task?.status === 'in_review' ? task.reviewerUserId : undefined;
       },
     };
-  }, [tasks, dependencyEdges, runningTaskIds, pendingReviews]);
+  }, [tasks, dependencyEdges, runningTaskIds, askingTaskIds, pendingReviews]);
 
   return (
     <TaskBoardContext.Provider value={value}>

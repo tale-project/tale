@@ -112,6 +112,9 @@ export function TasksWorkspace({
   const runningTaskIds = allProjects
     ? acrossOps.runningTaskIds
     : projectOps.runningTaskIds;
+  const askingTaskIds = allProjects
+    ? acrossOps.askingTaskIds
+    : projectOps.askingTaskIds;
   const pendingReviews = allProjects
     ? acrossOps.pendingReviews
     : projectOps.pendingReviews;
@@ -347,6 +350,7 @@ export function TasksWorkspace({
           tasks={tasks}
           dependencyEdges={edges}
           runningTaskIds={runningTaskIds}
+          askingTaskIds={askingTaskIds}
           pendingReviews={pendingReviews.map((review) => ({
             taskId: String(review.taskId),
             requestedFor: review.requestedFor,

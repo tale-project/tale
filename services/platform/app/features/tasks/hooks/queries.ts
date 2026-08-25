@@ -163,6 +163,9 @@ export function useTaskOpsIndicators(projectId: Id<'projects'> | undefined) {
   );
   return {
     runningTaskIds: data?.runningTaskIds ?? [],
+    // Live runs parked on an unanswered agent question — the board shows the
+    // needs-answer chip instead of the working pulse for these.
+    askingTaskIds: data?.askingTaskIds ?? [],
     // Full pending-review refs (taskId + the reviewer waited on) — the board
     // chip naming and the needs-my-review facet both read `requestedFor`.
     pendingReviews: data?.pendingReviews ?? [],
@@ -178,6 +181,9 @@ export function useTaskOpsIndicatorsAcrossProjects(enabled = true) {
   );
   return {
     runningTaskIds: data?.runningTaskIds ?? [],
+    // Always empty today: the aggregate query omits automation-run indicators
+    // (see getTaskOpsIndicatorsForAccessibleProjects), the ask set with them.
+    askingTaskIds: data?.askingTaskIds ?? [],
     pendingReviews: data?.pendingReviews ?? [],
   };
 }

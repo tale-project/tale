@@ -26,6 +26,10 @@ import {
   mutation,
   query,
 } from '../_generated/server';
+import {
+  dismissAgentQuestionNotifications,
+  notifyAgentQuestionAsked,
+} from '../collab/notify_agent_asks';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { readCheckpoints } from './checkpoints';
@@ -68,6 +72,79 @@ function taskIdOfRun(
   const raw = input.task.id;
   if (typeof raw !== 'string' || raw === '') return undefined;
   return db.normalizeId('tasks', raw) ?? undefined;
+}
+
+/** How the automation names itself on the bell — the version's presentation
+ * name when the pack ships one, else the slug (canvas-authored automations
+ * read the slug as a title everywhere else too). */
+async function automationLabelForRun(
+  db: QueryCtx['db'],
+  run: Doc<'automationRuns'>,
+): Promise<string> {
+  const version = await db
+    .query('automations')
+    .withIndex('by_org_name_version', (q) =>
+      q
+        .eq('organizationId', run.organizationId)
+        .eq('name', run.name)
+        .eq('version', run.version),
+    )
+    .first();
+  const presentation: unknown = version?.presentation;
+  if (isRecord(presentation) && typeof presentation.name === 'string') {
+    const name = presentation.name.trim();
+    if (name !== '') return name;
+  }
+  return run.name;
+}
+
+/** Best-effort ask fan-out (`collab/notify_agent_asks.ts`) — a notification
+ * problem must never fail the ask itself, so the tool call still parks the
+ * turn and the card still renders. Already-written rows simply stand. */
+async function notifyAskBestEffort(
+  ctx: Parameters<typeof notifyAgentQuestionAsked>[0],
+  run: Doc<'automationRuns'>,
+  args: {
+    askId: Id<'automationHumanAsks'>;
+    question: string;
+    taskId: Id<'tasks'> | undefined;
+  },
+): Promise<void> {
+  try {
+    const task =
+      args.taskId !== undefined ? await ctx.db.get(args.taskId) : null;
+    await notifyAgentQuestionAsked(ctx, {
+      organizationId: run.organizationId,
+      askId: args.askId,
+      runId: run._id,
+      question: args.question,
+      automationLabel: await automationLabelForRun(ctx.db, run),
+      task,
+      ...(run.projectId !== undefined ? { projectId: run.projectId } : {}),
+    });
+  } catch (err) {
+    console.warn(
+      '[human-asks] ask notification fan-out failed',
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
+/** Best-effort twin of {@link notifyAskBestEffort} for the terminal states:
+ * the ask stopped being answerable, so the bell rows stop asking. */
+async function dismissAskNotificationsBestEffort(
+  ctx: Parameters<typeof dismissAgentQuestionNotifications>[0],
+  organizationId: string,
+  askId: Id<'automationHumanAsks'>,
+): Promise<void> {
+  try {
+    await dismissAgentQuestionNotifications(ctx, { organizationId, askId });
+  } catch (err) {
+    console.warn(
+      '[human-asks] ask notification dismissal failed',
+      err instanceof Error ? err.message : err,
+    );
+  }
 }
 
 async function pendingAskForExec(
@@ -157,6 +234,13 @@ export const createAskForExec = internalMutation({
         question: merged,
         questions: undefined,
       });
+      // The merged text is the current truth — the collapse dimension rewrites
+      // each recipient's unread row in place (no second bell item).
+      await notifyAskBestEffort(ctx, run, {
+        askId: existing._id,
+        question: merged,
+        taskId: existing.taskId,
+      });
       return {
         askId: existing._id,
         ...(existing.taskId !== undefined ? { taskId: existing.taskId } : {}),
@@ -179,6 +263,7 @@ export const createAskForExec = internalMutation({
       ...(taskId !== undefined ? { taskId } : {}),
       createdAt: Date.now(),
     });
+    await notifyAskBestEffort(ctx, run, { askId, question, taskId });
     return {
       askId,
       ...(taskId !== undefined ? { taskId } : {}),
@@ -239,6 +324,7 @@ export const closeAsk = internalMutation({
     const ask = await ctx.db.get(args.askId);
     if (ask === null || ask.status !== 'pending') return null;
     await ctx.db.patch(args.askId, { status: args.status });
+    await dismissAskNotificationsBestEffort(ctx, ask.organizationId, ask._id);
     return null;
   },
 });
@@ -278,6 +364,11 @@ export const answerAsk = mutation({
       answeredBy: authUser.userId,
       answeredAt: Date.now(),
     });
+    await dismissAskNotificationsBestEffort(
+      ctx,
+      args.organizationId,
+      args.askId,
+    );
     await ctx.scheduler.runAfter(
       0,
       internal.automations.agent_host.resumeWorkflowAgentTurnWithAnswer,

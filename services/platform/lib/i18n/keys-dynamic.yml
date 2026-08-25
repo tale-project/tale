@@ -98,6 +98,9 @@ entries:
   # so the rest of the namespace stays orphan-guarded.
   - 'inbox.agentEscalation'
   - 'inbox.agentEscalationBody'
+  - 'inbox.agentQuestionAsked'
+  - 'inbox.agentQuestionAskedBody'
+  - 'inbox.agentQuestionAskedNoTaskBody'
   - 'inbox.conversationAssigned'
   - 'inbox.conversationAssignedBody'
   - 'inbox.conversationAssignedByBody'

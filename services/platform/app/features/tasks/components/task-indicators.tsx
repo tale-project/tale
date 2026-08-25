@@ -1,6 +1,13 @@
 'use client';
 
-import { Ban, Bot, CalendarClock, Eye, MessageSquare } from 'lucide-react';
+import {
+  Ban,
+  Bot,
+  CalendarClock,
+  Eye,
+  MessageCircleQuestion,
+  MessageSquare,
+} from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useFormatDate } from '@/app/hooks/use-format-date';
@@ -154,6 +161,41 @@ export function AgentWorkingIndicator({
         aria-label={t('agentRuns.working')}
       >
         <Bot className="size-3.5 shrink-0 animate-pulse" aria-hidden="true" />
+      </span>
+    </Tooltip>
+  );
+}
+
+/**
+ * Amber "the agent needs your answer" glyph — the task's live automation run
+ * is parked on an unanswered `ask_human` question (`getTaskOpsIndicators`).
+ * Deliberately distinct from the working pulse: a run waiting on a person
+ * must read as the viewer's move, not as the agent still grinding. Same
+ * glyph as the answer card the task dialog opens onto (`RunAskCard`).
+ */
+export function AgentNeedsAnswerIndicator({
+  asking,
+  className,
+}: {
+  asking: boolean;
+  className?: string;
+}) {
+  const { t } = useT('tasks');
+  if (!asking) return null;
+  const label = t('agentRuns.needsAnswer');
+  return (
+    <Tooltip content={label}>
+      <span
+        className={cn(
+          'inline-flex items-center text-amber-600 dark:text-amber-400',
+          className,
+        )}
+        aria-label={label}
+      >
+        <MessageCircleQuestion
+          className="size-3.5 shrink-0"
+          aria-hidden="true"
+        />
       </span>
     </Tooltip>
   );

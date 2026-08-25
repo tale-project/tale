@@ -1134,6 +1134,11 @@ const TASK_OPS_RUN_SCAN_CAP = 100;
 
 const taskOpsIndicatorsReturnValidator = v.object({
   runningTaskIds: v.array(v.id('tasks')),
+  /** Tasks whose live automation run is parked on an unanswered `ask_human`
+   * question — the board renders "waiting for your answer" instead of the
+   * working pulse. Always a subset of `runningTaskIds`. Empty on the
+   * all-projects board, which omits automation-run indicators entirely. */
+  askingTaskIds: v.array(v.id('tasks')),
   pendingReviews: v.array(
     v.object({
       taskId: v.id('tasks'),
@@ -1179,6 +1184,7 @@ export const getTaskOpsIndicators = query({
     // on the board, not only inside the run page. The scan walks the
     // project's newest runs only: live ones sit at the head, and the bound
     // window keeps a long history from costing anything.
+    const askingTaskIds: Id<'tasks'>[] = [];
     let scanned = 0;
     for await (const run of ctx.db
       .query('automationRuns')
@@ -1205,6 +1211,19 @@ export const getTaskOpsIndicators = query({
       if (!taskId || seenRunning.has(taskId)) continue;
       runningTaskIds.push(taskId);
       seenRunning.add(taskId);
+      // A live run parked on an unanswered question is the VIEWER's move, not
+      // the agent's — one indexed point-read per live run (rare) tells the
+      // two apart. Expiry is stamped lazily, so mirror the read-time check
+      // `getPendingAskForRun` applies.
+      const pendingAsk = await ctx.db
+        .query('automationHumanAsks')
+        .withIndex('by_run_status', (q) =>
+          q.eq('runId', run._id).eq('status', 'pending'),
+        )
+        .first();
+      if (pendingAsk && Date.now() <= pendingAsk.expiresAt) {
+        askingTaskIds.push(taskId);
+      }
     }
 
     // Pending reviews are rare org-wide, so the org-level pending scan
@@ -1228,7 +1247,7 @@ export const getTaskOpsIndicators = query({
       ),
     );
 
-    return { runningTaskIds, pendingReviews };
+    return { runningTaskIds, askingTaskIds, pendingReviews };
   },
 });
 
@@ -1237,7 +1256,8 @@ export const getTaskOpsIndicators = query({
  * and pending reviews across every project the caller can read. Agent runs
  * use `by_org_status` (then filter by accessible project via the task row);
  * pending reviews reuse the org pending scan filtered to those projects.
- * Automation-run working indicators are omitted here — they need a per-project
+ * Automation-run working indicators — and with them the needs-answer set
+ * (`askingTaskIds`, always empty here) — are omitted: they need a per-project
  * walk that does not scale to the aggregate board.
  */
 export const getTaskOpsIndicatorsForAccessibleProjects = query({
@@ -1251,7 +1271,7 @@ export const getTaskOpsIndicatorsForAccessibleProjects = query({
       auth,
     );
     if (projectIds.size === 0) {
-      return { runningTaskIds: [], pendingReviews: [] };
+      return { runningTaskIds: [], askingTaskIds: [], pendingReviews: [] };
     }
 
     const runningTaskIds: Id<'tasks'>[] = [];
@@ -1288,7 +1308,7 @@ export const getTaskOpsIndicatorsForAccessibleProjects = query({
       ),
     );
 
-    return { runningTaskIds, pendingReviews };
+    return { runningTaskIds, askingTaskIds: [], pendingReviews };
   },
 });
 
