@@ -4245,6 +4245,11 @@ notifications:
     are signed, but no signing key is configured to verify them: {reason}. Set
     TALE_AUDIT_SIGNING_KEY to restore tamper-evidence — this is a configuration
     gap, not detected tampering."
+  websiteScanPaused: 'Website scans paused: {domain}'
+  websiteScanPausedDetails: "Scans of {domain} were paused after {failures}
+    consecutive attempts couldn't reach this organization's knowledge database.
+    Check the connection under Settings → Data residency, then resume scanning
+    from the Websites page."
   dsarScheduled: Erasure request scheduled
   dsarScheduledBody: An erasure request was filed for a member of this
     organization. It runs in {coolingOffHours} hours — open the receipt to
@@ -7062,6 +7067,11 @@ websites:
     description: Description
     created: Created
     unknown: Unknown
+    scanPausedNotice: Scanning is paused after repeated failures to reach the
+      knowledge database. Fix the connection under Settings → Data residency,
+      then resume scanning.
+  scanPausedBadge: Paused
+  resumeScanning: Resume scanning
   viewPages: View pages
   indexed: Indexed
   indexedTooltip: '{percentage} % - {crawled} of {total} pages'
