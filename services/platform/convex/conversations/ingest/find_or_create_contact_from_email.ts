@@ -34,7 +34,7 @@ export async function findOrCreateContactFromEmail(
       organizationId,
       email: contactEmail,
       name: contactName,
-      source: 'manual_import',
+      source: 'conversation',
       metadata: {
         createdFrom: direction === 'inbound' ? 'email_sync' : 'sent_email_sync',
         firstEmailDate: email.date,

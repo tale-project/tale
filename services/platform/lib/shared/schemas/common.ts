@@ -4,6 +4,7 @@ const dataSourceLiterals = [
   'manual_import',
   'file_upload',
   'api_import',
+  'conversation',
   'shopify',
   'woocommerce',
   'magento',

@@ -1572,6 +1572,8 @@ tables:
           - type: literal
             value: api_import
           - type: literal
+            value: conversation
+          - type: literal
             value: shopify
           - type: literal
             value: woocommerce
