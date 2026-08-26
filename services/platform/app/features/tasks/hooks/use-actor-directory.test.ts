@@ -131,4 +131,11 @@ describe('useActorDirectory — members + project-agent instances', () => {
       'timeline.systemActor',
     );
   });
+
+  it('resolves assignee ids without a type for activity timeline rows', () => {
+    const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(result.current.resolveAssigneeId('user-1')).toBe('Alex Doe');
+    expect(result.current.resolveAssigneeId('pa_2')).toBe('Docs Writer');
+    expect(result.current.resolveAssigneeId('unknown-id')).toBe('unknown-id');
+  });
 });
