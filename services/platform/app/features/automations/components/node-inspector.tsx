@@ -265,9 +265,11 @@ export function NodeInspector({
   useDeselectOnEscape(selectedNodeId !== undefined, onDeselect);
 
   useEffect(() => {
-    sectionRef.current.scrollTop = 0;
+    const section = sectionRef.current;
+    if (section === null) return;
+    section.scrollTop = 0;
     if (selectedNodeId !== undefined) {
-      sectionRef.current?.focus({ preventScroll: true });
+      section.focus({ preventScroll: true });
     }
   }, [selectedNodeId]);
 

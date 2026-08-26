@@ -1001,6 +1001,7 @@ import type * as websites_match_website_search from "../websites/match_website_s
 import type * as websites_mutations from "../websites/mutations.js";
 import type * as websites_queries from "../websites/queries.js";
 import type * as websites_rest_api from "../websites/rest_api.js";
+import type * as websites_scan_scheduling from "../websites/scan_scheduling.js";
 import type * as websites_search_websites from "../websites/search_websites.js";
 import type * as websites_types from "../websites/types.js";
 import type * as websites_update_website from "../websites/update_website.js";
@@ -2006,6 +2007,7 @@ declare const fullApi: ApiFromModules<{
   "websites/mutations": typeof websites_mutations;
   "websites/queries": typeof websites_queries;
   "websites/rest_api": typeof websites_rest_api;
+  "websites/scan_scheduling": typeof websites_scan_scheduling;
   "websites/search_websites": typeof websites_search_websites;
   "websites/types": typeof websites_types;
   "websites/update_website": typeof websites_update_website;
