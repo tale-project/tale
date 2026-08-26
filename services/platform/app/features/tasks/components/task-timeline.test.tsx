@@ -1,27 +1,28 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
+import type { TaskActivityRow } from '../utils/task-timeline';
 import { TaskTimeline } from './task-timeline';
 
-// #2609: a run-admission refusal never creates a `taskAgentRuns` row, so it is
-// recorded as a `taskActivity` row (`action: 'agent_run.refused'`, `toValue`
-// the machine `refusedReason`) instead. The timeline must render it with a
-// human-readable label, not the raw activity/reason codes.
+// Typed as the row the timeline actually consumes, so a fixture can carry any
+// real `actorType` and the shape cannot drift from `TaskActivityRow`.
+const timelineMocks: { activity: TaskActivityRow[] } = {
+  activity: [
+    {
+      _id: 'activity_1' as Id<'taskActivity'>,
+      actorType: 'agent',
+      actorId: 'issue-triager',
+      action: 'agent_run.refused',
+      toValue: 'agent_disabled',
+      createdAt: Date.now(),
+    },
+  ],
+};
+
 vi.mock('../hooks/queries', () => ({
-  useTaskActivity: () => ({
-    activity: [
-      {
-        _id: 'activity_1',
-        actorType: 'agent',
-        actorId: 'issue-triager',
-        action: 'agent_run.refused',
-        toValue: 'agent_disabled',
-        createdAt: Date.now(),
-      },
-    ],
-  }),
+  useTaskActivity: () => ({ activity: timelineMocks.activity }),
   useTaskAgentRuns: () => ({ runs: [] }),
 }));
 
@@ -33,6 +34,13 @@ vi.mock('../hooks/use-actor-directory', () => ({
       name: id === 'issue-triager' ? 'Issue Triager' : id,
       isAgent: type === 'agent',
     }),
+    resolveAssigneeId: (id: string) =>
+      (
+        ({
+          'user-old': 'Alex Doe',
+          'user-new': 'Kim Lee',
+        }) as Record<string, string>
+      )[id] ?? id,
     resolveActorPreview: () => null,
     resolveAgentRunPreview: () => null,
     resolveWorkflowRunPreview: () => null,
@@ -52,6 +60,7 @@ vi.mock('@/lib/i18n/client', () => ({
       const labels: Record<string, string> = {
         'detail.activity': 'Activity',
         'activity.agentRunRefused': 'Run refused',
+        'activity.assigneeChanged': 'Assignee changed',
         'agentRuns.refused.agent_disabled':
           'agent is not installed or is disabled',
       };
@@ -78,5 +87,37 @@ describe('TaskTimeline — admission refusal activity (#2609)', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/agent_run\.refused/)).not.toBeInTheDocument();
     expect(screen.queryByText(/agent_disabled/)).not.toBeInTheDocument();
+  });
+});
+
+describe('TaskTimeline — assignee change activity', () => {
+  beforeEach(() => {
+    timelineMocks.activity = [
+      {
+        _id: 'activity_2' as Id<'taskActivity'>,
+        actorType: 'user',
+        actorId: 'user-actor',
+        action: 'assignee.changed',
+        fromValue: 'user-old',
+        toValue: 'user-new',
+        createdAt: Date.now(),
+      },
+    ];
+  });
+
+  it('renders assignee names instead of raw ids', () => {
+    render(
+      <TaskTimeline
+        taskId={'task_1' as Id<'tasks'>}
+        organizationId="org_1"
+        projectId={'project_1' as Id<'projects'>}
+      />,
+    );
+
+    expect(
+      screen.getByText(/assignee changed: Alex Doe → Kim Lee/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/user-old/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/user-new/)).not.toBeInTheDocument();
   });
 });

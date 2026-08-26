@@ -49,6 +49,7 @@ export function TaskTimeline({
   const { runs } = useTaskAgentRuns(taskId);
   const {
     resolveActor,
+    resolveAssigneeId,
     resolveActorPreview,
     resolveAgentRunPreview,
     resolveWorkflowRunPreview,
@@ -171,20 +172,26 @@ export function TaskTimeline({
             )
               ? (preview?.name ?? t('timeline.unresolvedWorkflow'))
               : actor.name;
-            const from =
-              entry.fromValue && isTaskStatus(entry.fromValue)
-                ? t(`status.${entry.fromValue}`)
-                : entry.fromValue;
-            const refusalLabelKey =
-              entry.action === 'agent_run.refused' && entry.toValue
-                ? TASK_RUN_REFUSAL_LABEL_KEY[entry.toValue]
-                : undefined;
-            const to =
-              entry.toValue && isTaskStatus(entry.toValue)
-                ? t(`status.${entry.toValue}`)
-                : refusalLabelKey
-                  ? t(refusalLabelKey)
-                  : entry.toValue;
+            const formatActivityValue = (
+              value: string | undefined,
+            ): string | undefined => {
+              if (!value) return undefined;
+              if (entry.action === 'assignee.changed') {
+                return resolveAssigneeId(value);
+              }
+              if (isTaskStatus(value)) {
+                return t(`status.${value}`);
+              }
+              if (
+                entry.action === 'agent_run.refused' &&
+                TASK_RUN_REFUSAL_LABEL_KEY[value]
+              ) {
+                return t(TASK_RUN_REFUSAL_LABEL_KEY[value]);
+              }
+              return value;
+            };
+            const from = formatActivityValue(entry.fromValue);
+            const to = formatActivityValue(entry.toValue);
             const detail = from && to ? `${from} → ${to}` : (to ?? from);
 
             return (

@@ -153,6 +153,20 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     return map;
   }, [agentList]);
 
+  const resolveAssigneeId = useMemo(
+    () =>
+      (id: string): string => {
+        const member = memberMap.get(id);
+        if (member) return member.name;
+        const agent = agentMap.get(id) ?? agentCatalog.get(id);
+        if (agent) return agent.name;
+        const appName = appNames.get(id);
+        if (appName) return appName;
+        return id;
+      },
+    [memberMap, agentMap, agentCatalog, appNames],
+  );
+
   const resolveActor = useMemo(
     () =>
       (type: TaskCreatorType, id: string): ResolvedActor => {
@@ -252,6 +266,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
 
   return {
     resolveActor,
+    resolveAssigneeId,
     resolveActorPreview,
     resolveAgentRunPreview,
     resolveWorkflowRunPreview,
