@@ -56,6 +56,7 @@ export function EditableDescription({
   const { t: tCommon } = useT('common');
   const [draft, setDraft] = useState(value);
   const [editing, setEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   useEffect(() => setDraft(value), [value]);
 
   // Explicit commit instead of save-on-blur: a blur-save would fire on any
@@ -67,6 +68,8 @@ export function EditableDescription({
       setEditing(false);
       return;
     }
+    if (isSaving) return;
+    setIsSaving(true);
     try {
       await onSave(draft.trim());
       setEditing(false);
@@ -74,6 +77,8 @@ export function EditableDescription({
       // The caller reports the failure; the editor stays open so the typed
       // draft survives it rather than collapsing back to the stale prose.
       console.warn('[tasks] description save failed', error);
+    } finally {
+      setIsSaving(false);
     }
   };
   const discard = () => {
@@ -162,7 +167,7 @@ export function EditableDescription({
           // consumes both first while it is open).
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
-            void save();
+            if (!isSaving) void save();
           } else if (e.key === 'Escape') {
             e.preventDefault();
             discard();
@@ -177,10 +182,14 @@ export function EditableDescription({
         baseline={value}
       />
       <Row gap={2} align="stretch">
-        <Button disabled={!isDirty} onClick={() => void save()}>
+        <Button
+          disabled={!isDirty || isSaving}
+          isLoading={isSaving}
+          onClick={() => void save()}
+        >
           {tCommon('actions.save')}
         </Button>
-        <Button variant="secondary" onClick={discard}>
+        <Button variant="secondary" onClick={discard} disabled={isSaving}>
           {isDirty ? tCommon('actions.discard') : tCommon('actions.cancel')}
         </Button>
       </Row>

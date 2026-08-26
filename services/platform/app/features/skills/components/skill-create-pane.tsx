@@ -118,7 +118,11 @@ export function SkillCreatePane({
         <Button variant="secondary" onClick={onCancel}>
           {tCommon('actions.cancel')}
         </Button>
-        <Button disabled={!canSubmit} onClick={() => void submit()}>
+        <Button
+          disabled={!canSubmit}
+          isLoading={saveSkill.isPending}
+          onClick={() => void submit()}
+        >
           {saveSkill.isPending
             ? t('createDialog.creating')
             : t('createDialog.submit')}

@@ -1105,7 +1105,7 @@ function EditTaskBody({
 
   const addSubtask = async () => {
     const subTitle = subtaskTitle.trim();
-    if (!subTitle) return;
+    if (!subTitle || createTask.isPending) return;
     try {
       await createTask.mutateAsync({
         organizationId: task.organizationId,
@@ -1456,7 +1456,7 @@ function EditTaskBody({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
-                          void addSubtask();
+                          if (!createTask.isPending) void addSubtask();
                         }
                       }}
                       placeholder={t('detail.addSubtask')}
@@ -1466,7 +1466,10 @@ function EditTaskBody({
                     <Button
                       icon={Plus}
                       variant="secondary"
-                      disabled={subtaskTitle.trim().length === 0}
+                      disabled={
+                        subtaskTitle.trim().length === 0 || createTask.isPending
+                      }
+                      isLoading={createTask.isPending}
                       onClick={() => void addSubtask()}
                     >
                       {t('actions.add')}
