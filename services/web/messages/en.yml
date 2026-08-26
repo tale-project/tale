@@ -122,6 +122,9 @@ nav:
     changelog:
       label: Changelog
       description: What shipped, newest first.
+    about:
+      label: About us
+      description: The Swiss company behind Tale.
   aboutUs: About us
   contactUs: Contact us
   requestDemo: Request a demo
@@ -905,6 +908,32 @@ about:
       title: Beyond software
       body: We also supply AI hardware to rent, lease, or buy, and run AI
         trainings for teams adopting agents.
+  work:
+    heading: How we work with companies
+    description: Tale is the platform — but adopting AI inside a regulated
+      business is more than software. We work alongside teams on the data, the
+      controls, and the goals that decide whether it delivers.
+    dataQuality:
+      title: Data worth pointing agents at
+      body: Agents inherit the quality of what they read. We start at the
+        foundation — structure, ownership, provenance — so retrieval cites your
+        reality instead of approximating it.
+    regulated:
+      title: At home in regulated environments
+      body: 'Where audits, residency, and accountability set the limits, the
+        deployment is the design: self-hosted or hosted in Switzerland or the
+        EU, every action logged, human approval where it counts — GDPR-compliant
+        and certified ISO 27001 & SOC 2 Type II.'
+    edge:
+      title: An edge that stays yours
+      body: Advantage compounds where the data and the workflows live. Running
+        AI on your own stack keeps it inside your company instead of handing it
+        to a competitor's platform or to an AI lab.
+    tailored:
+      title: Solutions shaped to your goals
+      body: No two organizations adopt AI the same way. We build the agents,
+        automations, knowledge, and hardware around what you are trying to
+        achieve — and leave out what you don't need.
   values:
     heading: What we stand for
     privacy:

@@ -120,6 +120,9 @@ nav:
     changelog:
       label: Changelog
       description: Ce qui a été livré, du plus récent.
+    about:
+      label: À propos
+      description: L’entreprise suisse derrière Tale.
   aboutUs: À propos
   contactUs: Nous contacter
   requestDemo: Demander une démo
@@ -934,6 +937,35 @@ about:
       title: Au-delà du logiciel
       body: Nous fournissons aussi du hardware IA à louer, leaser ou acheter,
         et donnons des formations IA aux équipes qui adoptent les agents.
+  work:
+    heading: Comment nous travaillons avec les entreprises
+    description: Tale est la plateforme — mais adopter l’IA dans une entreprise
+      régulée demande plus qu’un logiciel. Nous travaillons avec les équipes sur
+      les données, les contrôles et les objectifs qui décident si elle tient ses
+      promesses.
+    dataQuality:
+      title: Des données dignes de tes agents
+      body: Les agents héritent de la qualité de ce qu’ils lisent. Nous
+        commençons par les fondations — structure, responsabilités, provenance —
+        pour que la recherche cite ta réalité au lieu de l’approcher.
+    regulated:
+      title: À l’aise dans les environnements régulés
+      body: 'Là où les audits, la résidence des données et la responsabilité
+        fixent les limites, le déploiement fait le design : auto-hébergé ou
+        hébergé en Suisse ou dans l’UE, chaque action journalisée, une
+        approbation humaine là où elle compte — conforme au RGPD et certifié ISO
+        27001 & SOC 2 Type II.'
+    edge:
+      title: Une avance qui te reste
+      body: L’avance se construit là où vivent les données et les processus.
+        Faire tourner l’IA sur ton propre stack la garde dans ton entreprise, au
+        lieu de la confier à la plateforme d’un concurrent ou à un laboratoire
+        d’IA.
+    tailored:
+      title: Des solutions taillées sur tes objectifs
+      body: Aucune organisation n’adopte l’IA de la même façon. Nous construisons
+        les agents, les automatisations, les connaissances et le matériel autour
+        de ce que tu veux atteindre — et laissons de côté le reste.
   values:
     heading: Ce que nous défendons
     privacy:
