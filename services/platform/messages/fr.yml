@@ -1972,11 +1972,18 @@ dialogs:
     existingUserNotice: Cet utilisateur possédait déjà un compte, aucun nouvel
       identifiant n'a été créé. Il peut se connecter avec son mot de passe
       existant.
-  searchChat:
-    title: Rechercher une discussion
-    placeholder: Rechercher une discussion
-    loading: Chargement des discussions...
+  search:
+    title: Recherche
+    placeholder: Rechercher des projets, tâches, chats, documents et contacts
+    loading: Recherche en cours...
     noResults: Aucun résultat
+    empty: Commence à taper pour rechercher
+    emptyHint: Recherche des projets, tâches, chats, documents et contacts dans cette organisation
+    groupProjects: Projets
+    groupChat: Discussions
+    groupTasks: Tâches
+    groupDocuments: Documents
+    groupContacts: Contacts
   thisMember: ce membre
   confirmRemoveMember: Retirer {name} de l'équipe ? Cette personne perdra l'accès à cette organisation et à toutes les ressources associées.
   toSend: pour envoyer
@@ -4393,6 +4400,8 @@ navigation:
   sidebar:
     landmark: Barre latérale du tableau de bord
     title: Menu
+    search: Rechercher
+    searchGlobal: Tout rechercher
 notificationPreferences:
   title: Notifications
   description: Choisis les événements qui apparaissent dans ta cloche. Les
@@ -6676,6 +6685,7 @@ tasks:
     add: Ajouter
     archive: Archiver
     restore: Restaurer
+  searchPlaceholder: Rechercher des tâches
   views:
     board: Tableau
     list: Liste

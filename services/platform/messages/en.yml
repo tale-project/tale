@@ -1893,11 +1893,18 @@ dialogs:
     existingUserNotice:
       This user already had an account, so no new credentials were
       created. They can log in with their existing password.
-  searchChat:
-    title: Search chat
-    placeholder: Search chat
-    loading: Loading chats...
+  search:
+    title: Search
+    placeholder: Search projects, tasks, chats, documents, and contacts
+    loading: Searching...
     noResults: No results
+    empty: Start typing to search
+    emptyHint: Search projects, tasks, chats, documents, and contacts across this organization
+    groupProjects: Projects
+    groupChat: Chats
+    groupTasks: Tasks
+    groupDocuments: Documents
+    groupContacts: Contacts
   thisMember: this member
   confirmRemoveMember: Remove {name} from the team? They'll lose access to this organization and all associated resources.
   toSend: to send
@@ -2222,8 +2229,7 @@ documents:
     title: Import from Google Drive
     selectDescription: Choose files or folders to import
     notConnected: Connect Google Drive
-    notConnectedDescription:
-      To upload files, you'll need to grant access to your Google Drive account.
+    notConnectedDescription: To upload files, you'll need to grant access to your Google Drive account.
     connect: Connect Google Drive
     reconnect: Reconnect Google Drive
     disconnect: Disconnect Google Drive
@@ -4170,6 +4176,8 @@ navigation:
   sidebar:
     landmark: Dashboard sidebar
     title: Menu
+    search: Search
+    searchGlobal: Search everything
 notificationPreferences:
   title: Notifications
   description: Choose which events appear in your bell inbox. Review requests
@@ -6636,6 +6644,7 @@ tasks:
     add: Add
     archive: Archive
     restore: Restore
+  searchPlaceholder: Search tasks
   views:
     board: Board
     list: List

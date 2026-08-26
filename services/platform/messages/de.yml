@@ -1957,11 +1957,18 @@ dialogs:
     existingUserNotice: Dieser Benutzer hatte bereits ein Konto, es wurden keine
       neuen Zugangsdaten erstellt. Er kann sich mit seinem bestehenden Passwort
       anmelden.
-  searchChat:
-    title: Chat durchsuchen
-    placeholder: Chat durchsuchen
-    loading: Chats werden geladen...
+  search:
+    title: Suche
+    placeholder: Projekte, Tasks, Chats, Dokumente und Kontakte durchsuchen
+    loading: Suche läuft...
     noResults: Keine Ergebnisse
+    empty: Tippe, um zu suchen
+    emptyHint: Durchsucht Projekte, Tasks, Chats, Dokumente und Kontakte in dieser Organisation
+    groupProjects: Projekte
+    groupChat: Chats
+    groupTasks: Tasks
+    groupDocuments: Dokumente
+    groupContacts: Kontakte
   thisMember: dieses Mitglied
   confirmRemoveMember: '{name} aus dem Team entfernen? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.'
   toSend: zum Senden
@@ -4316,6 +4323,8 @@ navigation:
   sidebar:
     landmark: Dashboard-Seitenleiste
     title: Menü
+    search: Suchen
+    searchGlobal: Alles durchsuchen
 notificationPreferences:
   title: Benachrichtigungen
   description: Wähle, welche Ereignisse in deiner Glocke erscheinen.
@@ -6558,6 +6567,7 @@ tasks:
     add: Hinzufügen
     archive: Archivieren
     restore: Wiederherstellen
+  searchPlaceholder: Tasks durchsuchen
   views:
     board: Board
     list: Liste
