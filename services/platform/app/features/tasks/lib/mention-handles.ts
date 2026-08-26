@@ -72,3 +72,41 @@ export function agentHandleVariants(agent: MentionableAgent): string[] {
 export function agentInsertHandle(agent: MentionableAgent): string | null {
   return agentHandleVariants(agent)[0] ?? null;
 }
+
+export interface MentionableAutomation {
+  /** The automation's store name (slug) — the stable addressing form. */
+  slug: string;
+  /** Display name in the reader's locale. */
+  name: string;
+}
+
+/** All candidate handles for a deployed automation, lowercased, the server
+ *  derivation order (`convex/tasks/directory.ts::automationHandles`): store
+ *  name → dotted display name → squashed display name. */
+export function automationHandleVariants(
+  automation: MentionableAutomation,
+): string[] {
+  const name = automation.name.trim().toLowerCase();
+  const candidates = [
+    automation.slug,
+    name.replace(/\s+/g, '.'),
+    name.replace(/\s+/g, ''),
+  ];
+  const variants: string[] = [];
+  for (const candidate of candidates) {
+    if (candidate && MENTION_TOKEN_RE.test(candidate)) {
+      const lowered = candidate.toLowerCase();
+      if (!variants.includes(lowered)) variants.push(lowered);
+    }
+  }
+  return variants;
+}
+
+/** The handle the composer inserts for an automation: the store name — it is
+ *  already readable (`vat-return-desk`) and, unlike the localized display
+ *  name, identical for every teammate reading the comment back. */
+export function automationInsertHandle(
+  automation: MentionableAutomation,
+): string | null {
+  return automationHandleVariants(automation)[0] ?? null;
+}

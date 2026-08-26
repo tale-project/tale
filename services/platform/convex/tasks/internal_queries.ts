@@ -35,7 +35,7 @@ export interface TaskDiscussionMessage {
   body: string;
   createdAt: number;
   editedAt?: number;
-  mentions?: Array<{ type: 'user' | 'agent'; id: string }>;
+  mentions?: Array<{ type: 'user' | 'agent' | 'automation'; id: string }>;
   /** Write-time locale snapshot when the workflow posted `bodyI18n`. */
   bodyByLocale?: { en: string; de: string; fr: string };
 }

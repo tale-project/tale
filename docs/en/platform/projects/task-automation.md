@@ -35,7 +35,9 @@ The board names the gate: cards waiting at _In review_ carry a **Waiting on {nam
 
 ## Mentions
 
-**@-mention an agent** in a task comment and it reads the mentioning text and acts. Typing `@` opens an autocomplete over members and the project's agents; the composer previews whether each mentioned agent will actually respond (automation off, breaker paused, not mentionable in this project). A mention of the task's **assignee** is treated as feedback on its assigned work: a running agent picks the comment up mid-run, an idle one starts a rework run that carries the comment verbatim and picks its previous conversation up where it left off.
+**@-mention an agent** in a task comment and it reads the mentioning text and acts. Typing `@` opens an autocomplete over members, the project's agents, and the automations operating this board; the composer previews whether each mentioned agent will actually respond (automation off, breaker paused, not mentionable in this project). A mention of the task's **assignee** is treated as feedback on its assigned work: a running agent picks the comment up mid-run, an idle one starts a rework run that carries the comment verbatim and picks its previous conversation up where it left off.
+
+Automation-owned tasks follow the same rule: a plain comment is just a comment, and **@-mentioning the owning automation** runs its workflow again, which reads your comment — with the rest of the timeline since its last delivery — as feedback. Mentioning any other automation starts nothing; a task runs only the workflow it belongs to, and a task with a live run keeps it. The subject panel's **Request changes** composes exactly this mention for you, so the timeline shows the same @-comment whether you typed it or clicked the button.
 
 ## Guardrails
 

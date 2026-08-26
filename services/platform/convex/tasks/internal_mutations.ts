@@ -47,11 +47,11 @@ import {
   TASK_COMMENT_MAX,
   TASK_TITLE_MAX,
   taskCountBucket,
+  taskWorkflowSubjectInput,
   TERMINAL_STATUSES,
   truncateImportedTitle,
   workflowActivityContext,
 } from './helpers';
-import { parseIssueNumber, parseRepoRef } from './issue_ref';
 import {
   extractMentions,
   parseMentionTokens,
@@ -1871,8 +1871,6 @@ export const scheduleTaskWorkflowStart = internalMutation({
       );
       return null;
     }
-    const issueNumber = parseIssueNumber(task.externalId);
-    const repoRef = parseRepoRef(task.externalId);
     await ctx.scheduler.runAfter(
       0,
       internal.automations.mutations.startTaskWorkflowRun,
@@ -1884,27 +1882,7 @@ export const scheduleTaskWorkflowStart = internalMutation({
         startedBy: `${args.startedVia ?? 'user'}:${args.userId}`,
         // The same subject shape the task-board Start builds — the workflow
         // templates read `input.task.*`.
-        input: {
-          task: {
-            id: String(args.taskId),
-            title: task.title,
-            status: task.status,
-            projectId: String(task.projectId),
-            ...(task.externalSystem !== undefined
-              ? { externalSystem: task.externalSystem }
-              : {}),
-            ...(task.externalId !== undefined
-              ? { externalId: task.externalId }
-              : {}),
-            ...(task.externalUrl !== undefined
-              ? { externalUrl: task.externalUrl }
-              : {}),
-            ...(issueNumber !== null ? { issueNumber } : {}),
-            ...(repoRef !== null
-              ? { repo: `${repoRef.owner}/${repoRef.repo}` }
-              : {}),
-          },
-        },
+        input: taskWorkflowSubjectInput(task),
       },
     );
     return null;

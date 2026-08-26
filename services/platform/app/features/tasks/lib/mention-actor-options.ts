@@ -1,14 +1,23 @@
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { useAssignableActors } from '../hooks/use-actor-directory';
-import { agentInsertHandle, memberInsertHandle } from './mention-handles';
+import {
+  useTaskContractAutomations,
+  taskSubjectEntries,
+} from '../hooks/use-task-subject-contract';
+import {
+  agentInsertHandle,
+  automationInsertHandle,
+  memberInsertHandle,
+} from './mention-handles';
 
 export const MAX_MENTION_OPTIONS = 8;
 
 export interface MentionActorOption {
-  type: 'user' | 'agent';
+  type: 'user' | 'agent' | 'automation';
   id: string;
   name: string;
   email?: string;
@@ -19,11 +28,13 @@ export interface MentionActorOption {
 
 /**
  * Mentionable actors for a project, in picker order: org members first, then
- * agents — the same population the server resolves mentions against
- * (`convex/tasks/directory.ts`). Agent scoping follows the project agent
- * gates: the default `agentMode: 'all'` exposes every org agent
- * (recommended ones first); `'restricted'` limits the list to the project's
- * `allowedAgentSlugs`.
+ * agents, then the automations operating this board — the same population the
+ * server resolves mentions against (`convex/tasks/directory.ts`). Agent
+ * scoping follows the project agent gates: the default `agentMode: 'all'`
+ * exposes every org agent (recommended ones first); `'restricted'` limits the
+ * list to the project's `allowedAgentSlugs`. Automations are the deployed
+ * subject-contract ones the assignee picker offers — @-ing a task's OWNING
+ * automation puts it to work, exactly like @-ing an agent instance.
  *
  * Used by the Tasks `MentionTextarea` as its `@`-mention source, aligned
  * with the server's actor resolution.
@@ -34,6 +45,8 @@ export function useMentionActorOptions(
 ): MentionActorOption[] {
   const { assignableMembers, assignableAgents, currentUserId } =
     useAssignableActors(organizationId, projectId);
+  const automations = useTaskContractAutomations(organizationId, projectId);
+  const { locale } = useLocale();
 
   return useMemo(() => {
     const options: MentionActorOption[] = [];
@@ -62,8 +75,24 @@ export function useMentionActorOptions(
         handle,
       });
     }
+    for (const entry of taskSubjectEntries(automations, locale)) {
+      // Insert the store name — stable addressing the server always resolves,
+      // identical for every reader whatever their locale.
+      const handle = automationInsertHandle({
+        slug: entry.automationSlug,
+        name: entry.displayName,
+      });
+      if (handle) {
+        options.push({
+          type: 'automation',
+          id: entry.automationSlug,
+          name: entry.displayName,
+          handle,
+        });
+      }
+    }
     return options;
-  }, [assignableMembers, assignableAgents, currentUserId]);
+  }, [assignableMembers, assignableAgents, automations, currentUserId, locale]);
 }
 
 export function filterMentionActorOptions(

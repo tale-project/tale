@@ -6838,7 +6838,7 @@ tasks:
     budgetPaused: '{slug} ne répondra pas — budget mensuel épuisé'
     agentNotLive: "{slug} ne répondra pas — l'agent n'est pas installé ou est désactivé"
   mentionPicker:
-    title: Mentionner un membre ou un agent
+    title: Mentionner un membre, un agent ou une automatisation
     empty: Aucun résultat
   metrics:
     title: Métriques du projet

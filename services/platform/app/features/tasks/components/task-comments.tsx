@@ -44,7 +44,7 @@ interface TaskComment {
   body: string;
   createdAt: number;
   editedAt?: number;
-  mentions?: Array<{ type: 'user' | 'agent'; id: string }>;
+  mentions?: Array<{ type: 'user' | 'agent' | 'automation'; id: string }>;
   bodyByLocale?: CommentBodyByLocale;
 }
 

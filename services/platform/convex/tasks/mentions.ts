@@ -13,11 +13,12 @@
 
 const MENTION_RE = /(?:^|\s)@([a-zA-Z0-9._/-]+)/g;
 
-export type MentionActorType = 'user' | 'agent';
+export type MentionActorType = 'user' | 'agent' | 'automation';
 
 export interface MentionDirectoryEntry {
   type: MentionActorType;
-  /** Stable id used as `assigneeId`/`subscriberId` — a userId or agent slug. */
+  /** Stable id used as `assigneeId`/`subscriberId` — a userId, an agent slug
+   *  or instance id, or an automation's store name. */
   id: string;
   /** The `@token` handle(s) that resolve to this entry, lowercased. */
   handles: string[];

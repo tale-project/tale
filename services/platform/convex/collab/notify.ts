@@ -489,7 +489,7 @@ export async function notifyChatMentions(
     organizationId: string;
     threadId: string;
     threadTitle: string;
-    mentions: Array<{ type: 'user' | 'agent'; id: string }>;
+    mentions: Array<{ type: 'user' | 'agent' | 'automation'; id: string }>;
     actorType: ActorType;
     actorId: string;
     projectId?: Id<'projects'>;
@@ -529,7 +529,7 @@ export async function notifyTaskMentions(
   ctx: MutationCtx,
   args: {
     task: Doc<'tasks'>;
-    mentions: Array<{ type: 'user' | 'agent'; id: string }>;
+    mentions: Array<{ type: 'user' | 'agent' | 'automation'; id: string }>;
     actorType: ActorType;
     actorId: string;
   },
@@ -572,7 +572,7 @@ export async function notifyTaskComment(
     // (string) since task comments live in the message store; `resourceId`
     // already stores it via `String()`, and `resourceType:'comment'` is unchanged.
     commentId: string;
-    mentions: Array<{ type: 'user' | 'agent'; id: string }>;
+    mentions: Array<{ type: 'user' | 'agent' | 'automation'; id: string }>;
     actorType: ActorType;
     actorId: string;
     /**

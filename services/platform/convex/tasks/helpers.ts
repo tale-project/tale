@@ -11,6 +11,7 @@ import {
 } from '../../lib/shared/task-label-colors';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
+import { parseIssueNumber, parseRepoRef } from './issue_ref';
 import { initialRank, rankBetween } from './rank';
 
 export const TERMINAL_STATUSES = new Set(['done', 'cancelled']);
@@ -349,6 +350,50 @@ export async function hasOpenChildren(
     }
   }
   return false;
+}
+
+/** The task fields a workflow-run subject is built from. */
+export type TaskWorkflowSubjectFields = Pick<
+  Doc<'tasks'>,
+  | '_id'
+  | 'title'
+  | 'status'
+  | 'projectId'
+  | 'externalSystem'
+  | 'externalId'
+  | 'externalUrl'
+>;
+
+/**
+ * The `input.task` subject a task-workflow run receives — ONE builder for
+ * every start door (task-board Start, create→run schedule, REST, the comment
+ * `@automation` trigger), so the shape the workflow templates read
+ * (`input.task.*`) cannot drift between them. The issue number and
+ * `owner/repo` ref are derived from the task's `externalId`
+ * ("owner/repo#N"); both are null-elided for non-issue tasks.
+ */
+export function taskWorkflowSubjectInput(task: TaskWorkflowSubjectFields): {
+  task: Record<string, unknown>;
+} {
+  const issueNumber = parseIssueNumber(task.externalId);
+  const repoRef = parseRepoRef(task.externalId);
+  return {
+    task: {
+      id: String(task._id),
+      title: task.title,
+      status: task.status,
+      projectId: String(task.projectId),
+      ...(task.externalSystem !== undefined
+        ? { externalSystem: task.externalSystem }
+        : {}),
+      ...(task.externalId !== undefined ? { externalId: task.externalId } : {}),
+      ...(task.externalUrl !== undefined
+        ? { externalUrl: task.externalUrl }
+        : {}),
+      ...(issueNumber !== null ? { issueNumber } : {}),
+      ...(repoRef !== null ? { repo: `${repoRef.owner}/${repoRef.repo}` } : {}),
+    },
+  };
 }
 
 export type TaskActivityAttribution = {
