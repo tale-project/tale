@@ -594,3 +594,66 @@ describe('ask notifications (project-visibility fan-out)', () => {
     expect(after.askingTaskIds).toHaveLength(0);
   });
 });
+
+describe('listAnsweredAsksForNode', () => {
+  it('returns only this node’s answered asks, oldest first — the retry carryover', async () => {
+    const t = convexTest(schema, modules);
+    const { runId, sessionId } = await seedParkedRun(t);
+    const askRow = (
+      overrides: Partial<{
+        nodeId: string;
+        status: 'pending' | 'answered' | 'expired';
+        question: string;
+        answer: string;
+        createdAt: number;
+      }> = {},
+    ) => ({
+      organizationId: ORG,
+      runId,
+      nodeId: overrides.nodeId ?? NODE,
+      sessionId,
+      execId: EXEC,
+      question: overrides.question ?? 'Q?',
+      status: overrides.status ?? ('answered' as const),
+      ...(overrides.status === 'pending'
+        ? {}
+        : { answer: overrides.answer ?? 'A.' }),
+      expiresAt: 9_999_999,
+      createdAt: overrides.createdAt ?? 0,
+    });
+    await t.run(async (ctx) => {
+      // Two answered rounds on the node — ask order IS row-creation order in
+      // production (`createAskForExec` inserts as the agent asks), and the
+      // index walk returns creation order, so round one must come back first.
+      // Plus one still pending and one answered on ANOTHER node: both out.
+      await ctx.db.insert(
+        'automationHumanAsks',
+        askRow({ question: 'Round one?', answer: 'First.', createdAt: 10 }),
+      );
+      await ctx.db.insert(
+        'automationHumanAsks',
+        askRow({ question: 'Round two?', answer: 'Second.', createdAt: 20 }),
+      );
+      await ctx.db.insert(
+        'automationHumanAsks',
+        askRow({ status: 'pending', question: 'Still open?' }),
+      );
+      await ctx.db.insert(
+        'automationHumanAsks',
+        askRow({
+          nodeId: 'revise_setup_from_feedback',
+          question: 'Other node?',
+        }),
+      );
+    });
+
+    const carryover = await t.query(
+      internal.automations.human_asks.listAnsweredAsksForNode,
+      { organizationId: ORG, runId, nodeId: NODE },
+    );
+    expect(carryover).toEqual([
+      { question: 'Round one?', answer: 'First.' },
+      { question: 'Round two?', answer: 'Second.' },
+    ]);
+  });
+});

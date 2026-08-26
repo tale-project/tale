@@ -79,6 +79,7 @@ import {
   normalizeToolGrants,
   secretsGuidance,
 } from '../sandbox/tool_names';
+import { promptWithAnsweredAsks } from './ask_answer_carryover';
 import type { AgentTurnFile, AgentTurnResult } from './checkpoints';
 
 // The turn's wall-clock deadline is the shared work-turn knob
@@ -1175,12 +1176,25 @@ export const startWorkflowAgentTurn = internalAction({
         secrets: args.request.secrets ?? [],
       });
 
+      // A kick is a FRESH conversation — on an auto-retry it replaces a dead
+      // turn whose conversation may already have collected operator answers
+      // (the answered-ask resume that died before progressing). Fold those
+      // answers into the prompt so the retry never asks them again; a first
+      // kick has none and the prompt stays as authored.
+      const answeredAsks = await ctx.runQuery(
+        internal.automations.human_asks.listAnsweredAsksForNode,
+        {
+          organizationId: args.organizationId,
+          runId: args.runId,
+          nodeId: args.nodeId,
+        },
+      );
       const exec = buildExternalTurnExec({
         harness: args.harness,
         gatewayModel: args.gatewayModel,
         serving: auth.serving,
         instructions,
-        prompt: args.request.prompt,
+        prompt: promptWithAnsweredAsks(args.request.prompt, answeredAsks),
         execId: args.execId,
         // Always mounted: `ask_human` rides the bridge, so every automation
         // turn gets the shim even when the node declares no connectors.
