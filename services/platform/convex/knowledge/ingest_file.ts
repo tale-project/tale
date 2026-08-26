@@ -49,6 +49,7 @@ import { readOrgEmbeddingConfig } from './connection';
 import { pinDimensions } from './dimensions';
 import { EmbeddingNotConfigured, embedderForOrg } from './embedding';
 import { indexDocument } from './indexing';
+import { parsePiiConfig } from './pii_gate';
 import {
   getKnowledgePoolForOrg,
   PRIVATE_KNOWLEDGE_SCHEMA,
@@ -221,6 +222,16 @@ export async function indexFileBlob(
     // Resolve the org's embedding model and corpus pool. Both refuse loudly
     // (no model configured, BYO database unreachable, vector width mismatch)
     // — each refusal names the fix, so it lands on the row verbatim.
+    // The organization's PII policy, resolved once for this file. A missing or
+    // unparseable policy reads as "no policy" and indexes exactly as before —
+    // a governance typo must not take an organization's corpus offline.
+    const piiConfig = parsePiiConfig(
+      await ctx.runQuery(
+        internal.governance.internal_queries.getPiiConfigInternal,
+        { organizationId: args.organizationId },
+      ),
+    );
+
     const config = await readOrgEmbeddingConfig(orgSlug);
     const embedder = await embedderForOrg(ctx, {
       organizationId: args.organizationId,
@@ -273,6 +284,7 @@ export async function indexFileBlob(
         fileId,
         filename: args.fileName,
         text,
+        piiConfig,
         ...(scanBytes !== undefined ? { bytes: scanBytes } : {}),
         embedder,
         folderPath: args.folderPath ?? null,
@@ -301,6 +313,18 @@ export async function indexFileBlob(
           ragError:
             result.refusal ??
             'The file appears to contain a credential and was not indexed.',
+        });
+        return;
+      }
+      if (result.skipped === 'pii-blocked') {
+        // The organization's own policy refused it. The message names the
+        // pattern categories, never the matched text, so the row is safe to
+        // show and to log. The file itself is untouched and still lists.
+        await writeStatus(ctx, storageId, {
+          ragStatus: 'failed',
+          ragError:
+            result.refusal ??
+            "Not indexed: the organization's PII policy refused this file.",
         });
         return;
       }

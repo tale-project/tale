@@ -17,6 +17,9 @@ vi.mock('../_generated/api', () => ({
         getConversationBindingForBlob: 'getConversationBindingForBlob',
       },
     },
+    governance: {
+      internal_queries: { getPiiConfigInternal: 'getPiiConfigInternal' },
+    },
   },
 }));
 
