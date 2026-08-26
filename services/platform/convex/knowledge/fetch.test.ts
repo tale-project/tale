@@ -112,6 +112,9 @@ describe('fetchDocumentByFileId', () => {
       folderPath: '/hr',
       modifiedAt: modified.getTime(),
       text: 'AB',
+      // Surfaced so a caller can tell whether this text arrived by email and
+      // must be wrapped as untrusted. Null for a hub document.
+      conversationId: null,
     });
     // Both statements are org-scoped, and the chunk read addresses the
     // document's own id, never the caller-supplied file id.
