@@ -28,6 +28,9 @@ vi.mock('convex/values', async (importOriginal) => {
       literal: stub,
       array: stub,
       null: stub,
+      // Indexing dispatch declares the pool's completion shape, whose
+      // `returnValue` is `v.any()`.
+      any: stub,
     },
   };
 });
