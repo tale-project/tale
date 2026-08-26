@@ -48,7 +48,7 @@ export function ProjectRowActions({
       const newProjectId = await duplicateProject({ projectId });
       toast({ title: t('rowActions.duplicateSuccess'), variant: 'success' });
       void navigate({
-        to: '/dashboard/$id/projects/$projectId',
+        to: '/dashboard/$id/projects/$projectId/tasks',
         params: {
           id: organizationId,
           projectId: String(newProjectId),

@@ -19,7 +19,7 @@ Le projet est le conteneur dans lequel vivent les autres pièces. Ouvre **Projet
 - **Description** — une phrase sur l'objet du projet
 - **Membres** — laisse en privé pour l'instant ; tu pourras ajouter des coéquipiers après que le premier chat marche
 
-Enregistre. Le projet apparaît dans la sidebar ; un clic ouvre une vue de projet vide avec des onglets pour Connaissances, Threads, Agents et Instructions.
+Enregistre. Le projet apparaît dans la sidebar ; un clic ouvre le tableau **Tâches**, avec des onglets pour Général, Chats, Connaissances et Agents.
 
 ## Étape 2 — Charger les fichiers une seule fois
 

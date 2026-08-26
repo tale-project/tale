@@ -63,10 +63,10 @@ export function buildPersonalNotificationUrl(args: {
     return `${base}/dashboard/${args.organizationId}/projects/${projectId}/tasks?task=${args.taskId}`;
   }
   // Legacy discussion-mention rows (threadId + projectId): their route is
-  // gone, so the email lands on the project overview — parity with
+  // gone, so the email lands on the project's Tasks board — parity with
   // `personalNotificationTarget`.
   if (typeof threadId === 'string' && typeof projectId === 'string') {
-    return `${base}/dashboard/${args.organizationId}/projects/${projectId}`;
+    return `${base}/dashboard/${args.organizationId}/projects/${projectId}/tasks`;
   }
   return null;
 }

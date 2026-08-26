@@ -58,7 +58,7 @@ describe('buildPersonalNotificationUrl', () => {
         },
         siteUrl: 'https://app.example.com',
       }),
-    ).toBe('https://app.example.com/dashboard/org_1/projects/proj_xyz');
+    ).toBe('https://app.example.com/dashboard/org_1/projects/proj_xyz/tasks');
   });
 
   it('returns null when projectId is missing', () => {

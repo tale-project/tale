@@ -19,7 +19,7 @@ Das Projekt ist der Behälter, in dem die restlichen Teile leben. Öffne **Proje
 - **Beschreibung** — ein Satz, wofür das Projekt da ist
 - **Mitglieder** — vorerst privat lassen; du kannst Teammitglieder ergänzen, sobald der erste Chat funktioniert
 
-Speichern. Das Projekt erscheint in der Sidebar; ein Klick öffnet eine leere Projekt-Ansicht mit Tabs für Wissen, Threads, Agenten und Instruktionen.
+Speichern. Das Projekt erscheint in der Sidebar; ein Klick öffnet das **Aufgaben**-Board, mit Tabs für Allgemein, Chats, Wissen und Agenten.
 
 ## Schritt 2 — Die Dateien einmalig hochladen
 

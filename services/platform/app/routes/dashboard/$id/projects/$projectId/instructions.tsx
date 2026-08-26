@@ -8,7 +8,7 @@ export const Route = createFileRoute(
 )({
   loader: ({ params }) => {
     throw redirect({
-      to: '/dashboard/$id/projects/$projectId',
+      to: '/dashboard/$id/projects/$projectId/overview',
       params: { id: params.id, projectId: params.projectId },
     });
   },

@@ -31,8 +31,8 @@ export function isProjectTasksPath(
 /**
  * Breadcrumb leaf for a project detail page: the current project name opens a
  * searchable switcher of sibling projects so the operator can jump between them
- * without returning to the Projects list. Portable tabs (files, tasks, …) stay
- * put; bound-view / nested-automation paths reset to the overview.
+ * without returning to the Projects list. Portable tabs (files, tasks,
+ * overview, …) stay put; bound-view / nested-automation paths reset to Tasks.
  *
  * On Tasks paths the menu also offers "All projects" — an aggregate board that
  * disables the non-Tasks project tabs while active (`?projects=all`).

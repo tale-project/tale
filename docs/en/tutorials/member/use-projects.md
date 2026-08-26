@@ -19,7 +19,7 @@ The project is the container the rest of the pieces live in. Open **Projects > N
 - **Description** — one sentence on what the project is for
 - **Members** — leave it private for now; you can add teammates after the first chat works
 
-Save. The project appears in the sidebar; clicking it opens an empty project view with tabs for Knowledge, Threads, Agents, and Instructions.
+Save. The project appears in the sidebar; clicking it opens the **Tasks** board, with tabs for General, Chats, Knowledge, and Agents.
 
 ## Step 2 — Upload the files once
 

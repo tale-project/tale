@@ -116,7 +116,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       // Skip navigation when the click came from a row-action menu trigger
       // (event bubbles up otherwise; the menu is in the same row).
       void navigate({
-        to: '/dashboard/$id/projects/$projectId',
+        to: '/dashboard/$id/projects/$projectId/tasks',
         params: { id: organizationId, projectId: String(row.original._id) },
       });
     },
@@ -128,7 +128,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       // Warm the detail route (runs its loader → getProject) on hover so the
       // click lands on already-fetched data.
       preloadRoute({
-        to: '/dashboard/$id/projects/$projectId',
+        to: '/dashboard/$id/projects/$projectId/tasks',
         params: { id: organizationId, projectId: String(row.original._id) },
       });
     },

@@ -132,8 +132,9 @@ test('project settings: rename + instructions persist across reloads', async ({
       timeout: TIMEOUT.PERSIST,
     });
 
-    // Rename (settings folded into Overview): edit → save → reload → assert.
-    await page.goto(base);
+    // Rename (settings folded into General): edit → save → reload → assert.
+    // The bare project URL now forwards to Tasks, so target General directly.
+    await page.goto(`${base}/overview`);
     // Target the input by role: the identity fields are settings field rows,
     // whose wrapper div is named by the same label text, so getByLabel could
     // resolve to the div instead of the control.

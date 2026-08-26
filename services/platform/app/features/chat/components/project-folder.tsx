@@ -90,7 +90,7 @@ export function ProjectFolder({
   // and the general page spells out what each action cascades to.
   const handleOpenDangerZone = () => {
     void navigate({
-      to: '/dashboard/$id/projects/$projectId',
+      to: '/dashboard/$id/projects/$projectId/overview',
       params: { id: organizationId, projectId: project.id },
       hash: 'project-danger',
     });

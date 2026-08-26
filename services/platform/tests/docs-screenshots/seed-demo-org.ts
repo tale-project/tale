@@ -255,7 +255,7 @@ async function ensureProjectDescription(
   orgId: string,
   projectId: string,
 ): Promise<void> {
-  await page.goto(`/dashboard/${orgId}/projects/${projectId}`);
+  await page.goto(`/dashboard/${orgId}/projects/${projectId}/overview`);
   const description = page.getByRole('textbox', {
     name: t('projects.settings.description'),
   });

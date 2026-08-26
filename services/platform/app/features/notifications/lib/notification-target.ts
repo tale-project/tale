@@ -51,9 +51,9 @@ export type NotificationTarget =
     }
   // --- Fallbacks (#2377): every notification navigates somewhere sensible so
   // no row is a silently dead, cursor-default line. ---
-  // Project overview — a personal row that names a project but no specific task.
+  // Project Tasks — a personal row that names a project but no specific task.
   | {
-      to: '/dashboard/$id/projects/$projectId';
+      to: '/dashboard/$id/projects/$projectId/tasks';
       params: { id: string; projectId: string };
     }
   // Automations — landing for a generic system/automation org alert with
@@ -167,7 +167,7 @@ export function personalNotificationTarget(args: {
   }
   if (projectId) {
     return {
-      to: '/dashboard/$id/projects/$projectId',
+      to: '/dashboard/$id/projects/$projectId/tasks',
       params: { id, projectId },
     };
   }

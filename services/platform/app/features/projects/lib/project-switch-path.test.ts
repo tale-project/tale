@@ -24,9 +24,17 @@ describe('projectSwitchPathname', () => {
         to,
       ),
     ).toBe(`/dashboard/${org}/projects/${to}/tasks/board`);
+    expect(
+      projectSwitchPathname(
+        `/dashboard/${org}/projects/${from}/overview`,
+        org,
+        from,
+        to,
+      ),
+    ).toBe(`/dashboard/${org}/projects/${to}/overview`);
   });
 
-  it('resets bound views and nested automation details to the overview', () => {
+  it('resets bound views and nested automation details to Tasks', () => {
     expect(
       projectSwitchPathname(
         `/dashboard/${org}/projects/${from}/views/doc__verify/inbox`,
@@ -34,7 +42,7 @@ describe('projectSwitchPathname', () => {
         from,
         to,
       ),
-    ).toBe(`/dashboard/${org}/projects/${to}`);
+    ).toBe(`/dashboard/${org}/projects/${to}/tasks`);
     expect(
       projectSwitchPathname(
         `/dashboard/${org}/projects/${from}/automations/doc__verify`,
@@ -42,10 +50,10 @@ describe('projectSwitchPathname', () => {
         from,
         to,
       ),
-    ).toBe(`/dashboard/${org}/projects/${to}`);
+    ).toBe(`/dashboard/${org}/projects/${to}/tasks`);
   });
 
-  it('stays on the overview when already there', () => {
+  it('lands on Tasks when switching from the bare project URL', () => {
     expect(
       projectSwitchPathname(
         `/dashboard/${org}/projects/${from}`,
@@ -53,6 +61,6 @@ describe('projectSwitchPathname', () => {
         from,
         to,
       ),
-    ).toBe(`/dashboard/${org}/projects/${to}`);
+    ).toBe(`/dashboard/${org}/projects/${to}/tasks`);
   });
 });
