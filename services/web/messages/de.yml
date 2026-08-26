@@ -15,6 +15,11 @@ seo:
     description: Sprich mit dem Tale-Team über selbst gehostete KI für deine
       Organisation — Plattform, Preise, Hardware oder eine geführte Demo.
       Antwort innerhalb eines Werktags.
+  about:
+    title: Wer steht hinter Tale? — Über die Ruler GmbH
+    description: Hinter Tale steht die Ruler GmbH, ein Schweizer Unternehmen aus
+      Spiez, gegründet 2020 — herstellerneutral, ISO 27001 & SOC 2 Type II
+      zertifiziert und vollständig Open Source unter MIT.
   requestDemo:
     title: Demo anfragen
     description: 'Buch eine geführte Tale-Demo: selbst gehostete KI-Agents,
@@ -112,6 +117,7 @@ nav:
     changelog:
       label: Changelog
       description: Was neu ist, neueste zuerst.
+  aboutUs: Über uns
   contactUs: Kontakt aufnehmen
   requestDemo: Demo anfragen
   getStarted: Loslegen
@@ -849,6 +855,91 @@ forms:
     title: Danke — wir haben es erhalten
     description: Wir melden uns innerhalb eines Werktags.
     sendAnother: Weitere Nachricht senden
+about:
+  hero:
+    eyebrow: Über uns
+    title: Wer steht hinter Tale?
+    description: Hinter Tale steht die Ruler GmbH, ein Schweizer Unternehmen aus
+      Spiez — unabhängig, herstellerneutral und zertifiziert nach ISO 27001 &
+      SOC 2 Type II. Wir bauen den Orchestrator für KI-Agents offen und unter
+      MIT-Lizenz — für Organisationen, die ihre Daten bei sich behalten.
+    ctaContact: Kontakt aufnehmen
+    ctaGithub: Code ansehen
+  facts:
+    founded:
+      label: Gegründet
+      value: '2020'
+    location:
+      label: Sitz
+      value: Spiez, Schweiz
+    certified:
+      label: Zertifiziert
+      value: ISO 27001 & SOC 2 Type II
+    license:
+      label: Lizenz
+      value: MIT — vollständig Open Source
+  story:
+    heading: Unsere Geschichte
+    p1: Die Ruler GmbH wurde 2020 von Yannick Monney in Spiez im Kanton Bern
+      gegründet. Von Anfang an in der Schweiz ansässig und herstellerneutral —
+      ohne Bindung an einen Cloud- oder Modellanbieter.
+    p2: Wir bauen Tale für datensensible Organisationen — Teams, die KI-Agents
+      über ihren gesamten Stack arbeiten lassen wollen, ohne ihre Daten aus der
+      Hand zu geben. Diese Überzeugung hat einen Namen.
+    tagline: Deine Infrastruktur. Deine Daten. Deine Regeln.
+    p3: Heute verbindet Tale die Agents und CLIs, die Teams bereits nutzen —
+      Claude Code, Codex, Hermes, OpenClaw und mehr —, bündelt ihr Wissen in
+      einer regelbaren Wissensdatenbank und führt Automationen mit menschlicher
+      Freigabe aus.
+  product:
+    heading: Was wir bauen
+    description: Tale ist der Orchestrator für KI-Agents — eine selbst
+      gehostete Plattform, die jeden Agent und alles, was er tut, unter deine
+      Kontrolle stellt.
+    orchestrator:
+      title: Ein Orchestrator für jeden Agent
+      body: Tale verbindet die Agents und CLIs, die deine Teams bereits nutzen
+        — Claude Code, Codex, Hermes und OpenClaw — und delegiert Arbeit von
+        einem Ort aus.
+    openSource:
+      title: Open Source, ohne Sternchen
+      body: Der gesamte Code ist öffentlich auf GitHub, unter MIT-Lizenz. Die
+        kostenlose Community-Edition hat denselben Funktionsumfang; Enterprise
+        ergänzt Support und Services für CHF 12 (EUR 14) pro User/Monat.
+    deployment:
+      title: Deine Infrastruktur oder unsere
+      body: Hoste Tale auf eigener Hardware oder nutze eine verwaltete Cloud in
+        der Schweiz oder der EU. Egal wo Tale läuft — Kundendaten trainieren
+        keine Modelle.
+    beyond:
+      title: Mehr als Software
+      body: Wir liefern auch AI-Hardware zum Mieten, Leasen oder Kaufen und
+        bieten KI-Trainings für Teams an, die Agents einführen.
+  values:
+    heading: Wofür wir stehen
+    privacy:
+      title: Deine Daten bleiben deine
+      body: Gebaut für datensensible Organisationen — standardmäßig selbst
+        gehostet, Datenhaltung in der Schweiz oder der EU, DSGVO-konform, und
+        Kundendaten trainieren keine Modelle.
+    neutrality:
+      title: Unabhängig & herstellerneutral
+      body: In der Schweiz ansässig und herstellerneutral — ohne Bindung an
+        einen Cloud- oder Modellanbieter, damit dein Deployment nur dir
+        verpflichtet ist.
+    transparency:
+      title: Transparent von Grund auf
+      body: Eine öffentliche Codebasis unter MIT-Lizenz und ein Unternehmen,
+        das du im Schweizer Handelsregister nachschlagen kannst. Was wir
+        ausliefern, kannst du lesen.
+    control:
+      title: Menschen behalten die Kontrolle
+      body: Automationen laufen mit menschlicher Freigabe, und Tale regelt jede
+        Aktion — zertifiziert nach ISO 27001 & SOC 2 Type II.
+  cta:
+    title: Sprich mit dem Team
+    description: Fragen zu Tale, zum Deployment oder zur Zusammenarbeit mit der
+      Ruler GmbH? Buch eine Demo oder schreib uns über das Kontaktformular.
 featureShared:
   ctaPrimary: Demo anfragen
   ctaSecondary: Kontakt
