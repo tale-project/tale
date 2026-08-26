@@ -1208,7 +1208,8 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      disabled={!canEdit}
+                      disabled={!canEdit || disableScim.isPending}
+                      isLoading={disableScim.isPending}
                       onClick={() => disableScim.mutate({ organizationId })}
                     >
                       {t('enterpriseSso.scim.disable')}

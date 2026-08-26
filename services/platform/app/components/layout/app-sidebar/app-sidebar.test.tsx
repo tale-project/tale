@@ -14,6 +14,12 @@ vi.mock('./sidebar-context', () => ({
     isSearchOpen: false,
     setSearchOpen: vi.fn(),
   }),
+  useOptionalSidebar: () => ({
+    isMobileSheetOpen: false,
+    setMobileSheetOpen: vi.fn(),
+    isSearchOpen: false,
+    setSearchOpen: vi.fn(),
+  }),
 }));
 
 type MockLinkProps = React.ComponentProps<'a'> & {

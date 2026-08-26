@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * The ⌘K palette's chat source: the caller's conversations, matched by title
- * or recent message text through `api.chat.search.searchChats`.
+ * The chat search source: the caller's conversations, matched by title or recent
+ * message text through `api.chat.search.searchChats`. Used by the chat-scoped
+ * palette and the global ⌘K palette.
  *
  * Shaped like the docs source (`createDocsSearchSource`): the factory is
  * memoised at the call site so the hook-shaped source keeps one identity —

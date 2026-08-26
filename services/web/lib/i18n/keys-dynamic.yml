@@ -10,6 +10,7 @@
 entries:
   # Header nav labels are looked up via `t(item.key)` over a `NAV_ITEMS` table,
   # so the scanner cannot statically tie each key back to a call site.
+  - 'nav.aboutUs'
   - 'nav.contactUs'
   - 'nav.requestDemo'
   - 'nav.getStarted'

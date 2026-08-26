@@ -5,6 +5,11 @@ import { TaskComments } from './task-comments';
 
 const localeState = { locale: 'en' };
 
+const mutationState = vi.hoisted(() => ({
+  addPending: false,
+  addMutateAsync: vi.fn(),
+}));
+
 vi.mock('@tale/ui/i18n/locale-provider', () => ({
   useLocale: () => localeState,
 }));
@@ -59,8 +64,11 @@ vi.mock('../hooks/queries', () => ({
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useAddTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useEditTaskComment: () => ({ mutateAsync: vi.fn() }),
+  useAddTaskComment: () => ({
+    mutateAsync: mutationState.addMutateAsync,
+    isPending: mutationState.addPending,
+  }),
+  useEditTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteTaskComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
@@ -260,5 +268,25 @@ describe('TaskComments composer hint', () => {
     expect(container.querySelector('textarea')).not.toHaveAttribute(
       'aria-describedby',
     );
+  });
+});
+
+describe('TaskComments submit loading', () => {
+  it('disables the comment button while a new comment is posting', () => {
+    mutationState.addPending = true;
+    localeState.locale = 'en';
+    render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'actions.comment' }),
+    ).toBeDisabled();
+    mutationState.addPending = false;
   });
 });

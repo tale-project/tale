@@ -278,7 +278,7 @@ export function AgentSecretsField({
         <ConfirmDialog
           open={pendingDelete !== undefined}
           onOpenChange={(open) => {
-            if (!open) setPendingDelete(undefined);
+            if (!open && !busy) setPendingDelete(undefined);
           }}
           title={t('agents.secrets.deleteTitle')}
           description={t('agents.secrets.deleteConfirm', {
@@ -286,6 +286,7 @@ export function AgentSecretsField({
           })}
           confirmText={t('agents.secrets.deleteConfirmButton')}
           variant="destructive"
+          isLoading={busy}
           onConfirm={() => void onDelete()}
         />
       </Stack>

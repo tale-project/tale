@@ -2,6 +2,7 @@
 
 import { Stack } from '@tale/ui/layout';
 import { Link, useLocation } from '@tanstack/react-router';
+import { Search } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 import { Sheet } from '@/app/components/ui/overlays/sheet';
@@ -10,6 +11,7 @@ import {
   useNavigationItems,
   type NavItem,
 } from '@/app/hooks/use-navigation-items';
+import { useSearchShortcut } from '@/app/hooks/use-search-shortcut';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -87,12 +89,41 @@ function MobileNavLink({
   );
 }
 
+function MobileSearchRow({ onOpen }: { onOpen: () => void }) {
+  const { t: tNav } = useT('navigation');
+  const shortcut = useSearchShortcut();
+
+  return (
+    <div className="px-2 pt-2">
+      <button
+        type="button"
+        onClick={onOpen}
+        className={cn(
+          'text-muted-foreground hover:bg-muted/60 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors',
+          'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+        )}
+        aria-keyshortcuts={shortcut}
+      >
+        <Search className="size-5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate">
+          {tNav('sidebar.searchGlobal')}
+        </span>
+        <kbd className="border-border bg-muted text-muted-foreground hidden rounded border px-1.5 py-0.5 font-mono text-[10px] sm:inline">
+          {shortcut}
+        </kbd>
+      </button>
+    </div>
+  );
+}
+
 function MobileNavigationList({
   organizationId,
   onNavigate,
+  onOpenSearch,
 }: {
   organizationId: string;
   onNavigate: () => void;
+  onOpenSearch: () => void;
 }) {
   const { t: tCommon } = useT('common');
   const { primary, pinned } = useNavigationItems(organizationId);
@@ -100,6 +131,7 @@ function MobileNavigationList({
 
   return (
     <nav aria-label={tCommon('aria.mainNavigation')}>
+      <MobileSearchRow onOpen={onOpenSearch} />
       <ul role="list" className="flex flex-col gap-1 px-2 py-2">
         {items.map((item) => (
           <MobileNavLink key={item.href} item={item} onNavigate={onNavigate} />
@@ -122,11 +154,15 @@ export interface MobileSidebarSheetProps {
 export function MobileSidebarSheet({
   organizationId,
 }: MobileSidebarSheetProps) {
-  const { isMobileSheetOpen, setMobileSheetOpen } = useSidebar();
+  const { isMobileSheetOpen, setMobileSheetOpen, setSearchOpen } = useSidebar();
   const { t: tNav } = useT('navigation');
   const handleNavigate = useCallback(() => {
     setMobileSheetOpen(false);
   }, [setMobileSheetOpen]);
+  const handleOpenSearch = useCallback(() => {
+    setMobileSheetOpen(false);
+    setSearchOpen(true);
+  }, [setMobileSheetOpen, setSearchOpen]);
 
   return (
     <Sheet
@@ -141,6 +177,7 @@ export function MobileSidebarSheet({
         <MobileNavigationList
           organizationId={organizationId}
           onNavigate={handleNavigate}
+          onOpenSearch={handleOpenSearch}
         />
       </Stack>
     </Sheet>

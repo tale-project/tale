@@ -44,9 +44,16 @@ export function KanbanBoard({
   const { confirmCancel, dialog } = useRunCancelConfirm();
   const dnd = useTaskBoardDnd(tasks, { confirmCancel });
   const { isAgentWorking } = useTaskBoardContext();
+  // Single-project boards scope contracts to that project; mixed boards load
+  // org + project-bound automations so drop hints still name the right verb.
+  const choreographyProjectId = useMemo(() => {
+    const first = tasks[0]?.projectId;
+    if (first === undefined) return undefined;
+    return tasks.every((task) => task.projectId === first) ? first : undefined;
+  }, [tasks]);
   const automations = useTaskContractAutomations(
     tasks[0]?.organizationId ?? '',
-    tasks[0]?.projectId,
+    choreographyProjectId,
   );
   // The board keeps every task as a card (grouped by status); this map only
   // feeds the per-card subtask-progress ring.

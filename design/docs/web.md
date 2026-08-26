@@ -181,6 +181,7 @@ Motion rules:
 | Platform hub    | `/platform`                                                  | Hero (+ demo) → product tour (6 DemoShell rows) → module grid → CTA                                                                                                    |
 | Pricing / forms | `/pricing`, `/hardware-pricing`, `/contact`, `/request-demo` | Existing mechanics frozen; wrap with related cards + CTA / FormCard chrome                                                                                             |
 | Changelog       | `/changelog`                                                 | Release list from GitHub manifest                                                                                                                                      |
+| Company         | `/about`                                                     | Hero (display heading + CTA pair) → facts panel → story/mission (+ legal-entity address) → product panel → values (`FeatureCapability`) → CTA                          |
 
 New routes register in `lib/seo/route-paths.ts` **and** `lib/seo/marketing-routes.ts` (bijection test), plus paired `app/routes/` + `app/routes/$lang/` files and en/de/fr messages in the same change.
 

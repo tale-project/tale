@@ -71,8 +71,9 @@ describe('site content contracts', () => {
     expect(GET_STARTED_HREF).toBe(GET_STARTED_URL);
   });
 
-  it('pins footer company CTAs: Contact us + Request a demo', () => {
+  it('pins footer company CTAs: About us + Contact us + Request a demo', () => {
     expect(FOOTER_COMPANY_CTAS.map((c) => c.labelKey)).toEqual([
+      'aboutUs',
       'contactUs',
       'requestDemo',
     ]);

@@ -80,10 +80,17 @@ export function useTaskBoardDnd(
   const moveTask = useMoveTask();
   // Cross-column drags on automation-owned tasks route through the owning
   // workflow's choreography (drag to In progress = start, drag out = cancel)
-  // instead of a bare status write. Rows all belong to one org + project.
+  // instead of a bare status write. A single-project board scopes the
+  // contract catalog to that project; the all-projects board loads org +
+  // project-bound automations (no projectId) so ownership still resolves.
+  const choreographyProjectId = useMemo(() => {
+    const first = tasks[0]?.projectId;
+    if (first === undefined) return undefined;
+    return tasks.every((task) => task.projectId === first) ? first : undefined;
+  }, [tasks]);
   const choreograph = useTaskStatusChoreography(
     tasks[0]?.organizationId ?? '',
-    tasks[0]?.projectId,
+    choreographyProjectId,
     options,
   );
   const [activeId, setActiveId] = useState<string | null>(null);

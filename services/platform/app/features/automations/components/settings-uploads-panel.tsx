@@ -95,7 +95,8 @@ export function SettingsUploadsPanel({
   // list would duplicate a chain that already exists server-side.
   const loading = documentsLoading || foldersLoading;
   const { mutateAsync: createFolder } = useCreateFolder();
-  const { mutateAsync: deleteDocument } = useDeleteDocument();
+  const { mutateAsync: deleteDocument, isPending: isDeletingDocument } =
+    useDeleteDocument();
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
@@ -509,7 +510,7 @@ export function SettingsUploadsPanel({
   };
 
   const handleDelete = async () => {
-    if (confirmDelete === null) return;
+    if (confirmDelete === null || isDeletingDocument) return;
     try {
       await deleteDocument({ documentId: confirmDelete.id });
     } catch (error) {
@@ -745,7 +746,7 @@ export function SettingsUploadsPanel({
       <ConfirmDialog
         open={confirmDelete !== null}
         onOpenChange={(open) => {
-          if (!open) setConfirmDelete(null);
+          if (!open && !isDeletingDocument) setConfirmDelete(null);
         }}
         title={t('settings.uploads.removeTitle')}
         description={t('settings.uploads.removeDescription', {
@@ -753,6 +754,7 @@ export function SettingsUploadsPanel({
         })}
         confirmText={t('settings.uploads.removeConfirm')}
         variant="destructive"
+        isLoading={isDeletingDocument}
         onConfirm={() => void handleDelete()}
       />
     </Stack>

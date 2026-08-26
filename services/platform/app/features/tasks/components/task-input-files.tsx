@@ -95,7 +95,8 @@ export function TaskInputFilesCard({
   const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
     api.documents.mutations.createDocumentFromUpload,
   );
-  const { mutateAsync: deleteDocument } = useDeleteDocument();
+  const { mutateAsync: deleteDocument, isPending: isDeletingDocument } =
+    useDeleteDocument();
   const [uploading, setUploading] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(
@@ -118,7 +119,7 @@ export function TaskInputFilesCard({
   const listed = showAll ? files : files.slice(0, MAX_LISTED);
 
   const handleDelete = async () => {
-    if (confirmDelete === null) return;
+    if (confirmDelete === null || isDeletingDocument) return;
     try {
       await deleteDocument({ documentId: confirmDelete.id });
     } catch (error) {
@@ -283,7 +284,7 @@ export function TaskInputFilesCard({
       <ConfirmDialog
         open={confirmDelete !== null}
         onOpenChange={(open) => {
-          if (!open) setConfirmDelete(null);
+          if (!open && !isDeletingDocument) setConfirmDelete(null);
         }}
         title={t('inputFiles.removeTitle')}
         description={t('inputFiles.removeDescription', {
@@ -291,6 +292,7 @@ export function TaskInputFilesCard({
         })}
         confirmText={t('inputFiles.removeConfirm')}
         variant="destructive"
+        isLoading={isDeletingDocument}
         onConfirm={() => void handleDelete()}
       />
     </Stack>

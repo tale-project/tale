@@ -13,6 +13,7 @@ const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 /** Every English marketing path that must render without console errors. */
 const MARKETING_PATHS = [
   '/',
+  '/about',
   '/pricing',
   '/contact',
   '/hardware-pricing',

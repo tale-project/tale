@@ -64,7 +64,9 @@ interface ContractAutomationEntry {
 /**
  * The DEPLOYED automations visible from one project's task board: the
  * project's own plus the organization-level ones — a contract can operate
- * tasks from either surface.
+ * tasks from either surface. When `projectId` is absent (all-projects board),
+ * org-level listing includes project-bound automations so cross-project
+ * choreography still resolves ownership.
  */
 export function useTaskContractAutomations(
   organizationId: string,
@@ -74,7 +76,14 @@ export function useTaskContractAutomations(
   // than fire a member-gated query for no organization.
   const orgQuery = useConvexQuery(
     api.automations.queries.listAutomations,
-    organizationId === '' ? 'skip' : { organizationId },
+    organizationId === ''
+      ? 'skip'
+      : {
+          organizationId,
+          // All-projects (no single projectId): include every project-bound
+          // automation so drag choreography can resolve owners across the set.
+          ...(projectId === undefined ? { includeProjectBound: true } : {}),
+        },
   );
   const projectQuery = useConvexQuery(
     api.automations.queries.listAutomations,
