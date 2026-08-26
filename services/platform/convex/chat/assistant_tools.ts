@@ -59,7 +59,10 @@ import { SafeFetchError, isPrivateIp, safeFetch } from '../lib/http/safe_fetch';
 import type { AgentReadSubject } from '../lib/rls/helpers/agent_read_access';
 import { detectListingIntent } from '../lib/search';
 import { toId } from '../lib/type_cast_helpers';
-import { wrapUntrusted } from '../lib/untrusted_content';
+import {
+  sanitizeUntrustedField,
+  wrapUntrusted,
+} from '../lib/untrusted_content';
 
 /** Who the tools run for. The user is re-checked per dispatch. */
 export interface ChatToolContext {
@@ -279,7 +282,8 @@ function contactResultEntry(contact: {
 }): SearchResultEntry {
   return {
     kind: 'contact',
-    title: contact.name ?? 'Unnamed contact',
+    // A correspondent picks their own display name.
+    title: sanitizeUntrustedField(contact.name ?? 'Unnamed contact'),
     data: {
       ...(contact.email ? { email: contact.email } : {}),
       ...(contact.phone ? { phone: contact.phone } : {}),
@@ -353,7 +357,8 @@ function conversationResultEntry(conversation: {
 }): SearchResultEntry {
   return {
     kind: 'conversation',
-    title: conversation.subject ?? 'Conversation',
+    // The subject line is written by the correspondent.
+    title: sanitizeUntrustedField(conversation.subject ?? 'Conversation'),
     data: {
       ...(conversation.status ? { status: conversation.status } : {}),
       ...(conversation.channel ? { channel: conversation.channel } : {}),
@@ -826,12 +831,24 @@ export function createChatToolExecutor(
               projectId: hit.source.projectId,
               archivedProjectIds: archivedForDocs,
             });
+            // A hit that arrived by email is attacker-controlled: anyone who
+            // can email the organization chose its text, and #3014 puts the
+            // mail's subject and correspondent INSIDE the chunk, so the whole
+            // passage is wrapped rather than any one field stripped. The title
+            // is short attacker text and is sanitized wherever it came from.
+            const fromMail = hit.source.conversationId != null;
+            const snippet = clip(hit.text, SNIPPET_CHARS);
             results.push({
               kind: hit.corpus === 'documents' ? 'document' : 'web-page',
-              title: hit.source.title ?? hit.source.ref,
+              title: sanitizeUntrustedField(hit.source.title ?? hit.source.ref),
               ref: hit.source.ref,
               ...(hit.source.url ? { url: hit.source.url } : {}),
-              snippet: clip(hit.text, SNIPPET_CHARS),
+              snippet: fromMail
+                ? wrapUntrusted(snippet, {
+                    tool: 'rag_search',
+                    operation: 'email',
+                  })
+                : snippet,
               ...(hit.offset !== undefined ? { offset: hit.offset } : {}),
               score: Math.round(score * 1000) / 1000,
               ...(flags.projectArchived ? { data: flags } : {}),
@@ -1544,7 +1561,8 @@ export function createChatToolExecutor(
       const hasMore = found.truncated;
       const results = rows.map((attachment): SearchResultEntry => ({
         kind: 'mail-attachment',
-        title: attachment.fileName,
+        // Chosen by whoever sent the mail.
+        title: sanitizeUntrustedField(attachment.fileName),
         // The corpus ref, so a listed attachment can be read with rag_fetch
         // instead of searched for by name.
         ref: attachment.ref,
@@ -1943,6 +1961,12 @@ export function createChatToolExecutor(
       return result;
     }
 
+    // Anything that arrived by email is attacker-controlled — its contents,
+    // and the subject and correspondent #3014 bakes into the chunk — so it
+    // reads wrapped, exactly like a video-link document. The corpus already
+    // knows which refs those are.
+    const fromMail = fromCorpus?.conversationId != null;
+
     // A document that arrived through a video link is third-party content;
     // it reads wrapped, like every other untrusted source.
     let untrustedSourceUrl: string | undefined;
@@ -1966,7 +1990,9 @@ export function createChatToolExecutor(
       status: 'ok',
       kind: 'document',
       ref,
-      ...(filename !== null ? { filename } : {}),
+      ...(filename !== null
+        ? { filename: sanitizeUntrustedField(filename) }
+        : {}),
       totalChars: paged.totalChars,
       offset,
       ...(paged.nextOffset !== undefined
@@ -1978,7 +2004,12 @@ export function createChatToolExecutor(
               tool: 'rag_fetch',
               url: untrustedSourceUrl,
             })
-          : paged.content,
+          : fromMail
+            ? wrapUntrusted(paged.content, {
+                tool: 'rag_fetch',
+                operation: 'email',
+              })
+            : paged.content,
     };
   };
 

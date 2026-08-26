@@ -65,6 +65,13 @@ export interface FetchedDocument {
   readonly folderPath: string | null;
   readonly modifiedAt: number | null;
   readonly text: string;
+  /**
+   * The conversation an emailed attachment arrived on; null for everything
+   * else. Already read here to decide the scope branch — surfaced so a caller
+   * can tell that this text is attacker-controlled and must be wrapped as
+   * untrusted before a model reads it.
+   */
+  readonly conversationId: string | null;
 }
 
 /** A crawled page loaded whole from the corpus. */
@@ -207,6 +214,7 @@ export async function fetchDocumentByFileId(
       folderPath: document.folder_path,
       modifiedAt: document.modified_at ? document.modified_at.getTime() : null,
       text,
+      conversationId: document.conversation_id ?? null,
     };
   } catch (err) {
     if (corpusMissing(err)) return null;
