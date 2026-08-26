@@ -3,17 +3,47 @@
 // → `linkDocumentToFile` (whose "legacy second-chance" branch used to re-queue
 // any never-indexed row the moment a document linked it — the trap that made
 // the per-call hint leak into the org's knowledge corpus). What matters here is
-// the REAL scheduling outcome, so assertions read the `_scheduled_functions`
-// system table rather than mocking the dispatch layer.
+// whether indexing was actually requested, so assertions read the enqueues on
+// the indexing workpool. (They read the `_scheduled_functions` system table
+// until indexing moved onto a workpool, whose internal scheduling does not
+// appear there.)
 
 import rateLimiterComponent from '@convex-dev/rate-limiter/test';
 import { convexTest, type TestConvex } from 'convex-test';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { getFunctionName } from 'convex/server';
+import {
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+  beforeEach,
+} from 'vitest';
 
 import { api, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import betterAuthSchema from '../betterAuth/schema';
 import schema from '../schema';
+
+// Indexing is enqueued onto a workpool, and a component's internal scheduling
+// is NOT visible in the app's `_scheduled_functions` — verified empirically.
+// So the pools are mocked and the enqueues observed directly, which asserts the
+// same thing the scheduler probe used to: indexing was requested, or was not.
+const ragEnqueues = vi.hoisted(() => [] as unknown[][]);
+vi.mock('../file_metadata/rag_pools', () => {
+  const pool = {
+    enqueueAction: (...args: unknown[]) => {
+      ragEnqueues.push(args);
+      return Promise.resolve('work_test');
+    },
+  };
+  return {
+    ragInteractivePool: pool,
+    ragBackgroundPool: pool,
+    ragPoolFor: () => pool,
+  };
+});
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'documents';
 function toConvexRootKey(globKey: string): string {
@@ -96,17 +126,12 @@ async function fileRow(
 
 /** Every RAG-indexing job ever written to the scheduler (rows persist after
  * execution, so this is drain-proof). */
-async function ragIndexingJobs(t: T): Promise<string[]> {
-  return t.run(async (ctx) => {
-    const fns = await ctx.db.system.query('_scheduled_functions').collect();
-    return fns
-      .map((fn) => fn.name)
-      .filter(
-        (name) =>
-          name.includes('uploadFileToRag') ||
-          name.includes('uploadDocumentToRag'),
-      );
-  });
+async function ragIndexingJobs(_t: T): Promise<string[]> {
+  // One entry per enqueued indexing job. The pool call carries the action as
+  // its second argument; its name is what the scheduler probe used to read.
+  return ragEnqueues.map((call) =>
+    getFunctionName(call[1] as Parameters<typeof getFunctionName>[0]),
+  );
 }
 
 async function upload(
@@ -126,6 +151,10 @@ async function upload(
     });
   return result.documentId;
 }
+
+beforeEach(() => {
+  ragEnqueues.length = 0;
+});
 
 describe('createDocumentFromUpload with skipRagIndexing (full flow)', () => {
   it('persists the opt-out, keeps ragStatus unset and schedules NO RAG indexing — link included', async () => {

@@ -2,18 +2,47 @@
 // backend: the internal create-project twin shares the session core
 // (duplicate/blank externalItemId, editor gate), folders get-or-create is
 // scope-safe, and the bind flow writes a project file whose RAG opt-out
-// DEFAULTS the door to "never index" — asserted against the REAL scheduler
-// (`_scheduled_functions`), the same drain-proof style as
-// documents/create_document_from_upload_rag_skip.test.ts.
+// DEFAULTS the door to "never index" — asserted against the indexing workpool,
+// the same style as documents/create_document_from_upload_rag_skip.test.ts.
+// (It read the real `_scheduled_functions` until indexing moved onto a
+// workpool; a component's internal scheduling is not visible there.)
 
 import rateLimiterComponent from '@convex-dev/rate-limiter/test';
 import { convexTest, type TestConvex } from 'convex-test';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { getFunctionName } from 'convex/server';
+import {
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+  beforeEach,
+} from 'vitest';
 
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import betterAuthSchema from '../betterAuth/schema';
 import schema from '../schema';
+
+// Indexing is enqueued onto a workpool, and a component's internal scheduling
+// is NOT visible in the app's `_scheduled_functions` — verified empirically.
+// So the pools are mocked and the enqueues observed directly, which asserts the
+// same thing the scheduler probe used to: indexing was requested, or was not.
+const ragEnqueues = vi.hoisted(() => [] as unknown[][]);
+vi.mock('../file_metadata/rag_pools', () => {
+  const pool = {
+    enqueueAction: (...args: unknown[]) => {
+      ragEnqueues.push(args);
+      return Promise.resolve('work_test');
+    },
+  };
+  return {
+    ragInteractivePool: pool,
+    ragBackgroundPool: pool,
+    ragPoolFor: () => pool,
+  };
+});
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'projects';
 function toConvexRootKey(globKey: string): string {
@@ -173,17 +202,12 @@ async function bindFile(
 
 /** Every RAG-indexing job ever written to the scheduler (rows persist after
  * execution, so this is drain-proof). */
-async function ragIndexingJobs(t: T): Promise<string[]> {
-  return t.run(async (ctx) => {
-    const fns = await ctx.db.system.query('_scheduled_functions').collect();
-    return fns
-      .map((fn) => fn.name)
-      .filter(
-        (name) =>
-          name.includes('uploadFileToRag') ||
-          name.includes('uploadDocumentToRag'),
-      );
-  });
+async function ragIndexingJobs(_t: T): Promise<string[]> {
+  // One entry per enqueued indexing job. The pool call carries the action as
+  // its second argument; its name is what the scheduler probe used to read.
+  return ragEnqueues.map((call) =>
+    getFunctionName(call[1] as Parameters<typeof getFunctionName>[0]),
+  );
 }
 
 function codeOf(error: unknown): string | undefined {
@@ -210,6 +234,10 @@ async function expectCode(p: Promise<unknown>, code: string): Promise<void> {
   );
   expect(codeOf(error)).toBe(code);
 }
+
+beforeEach(() => {
+  ragEnqueues.length = 0;
+});
 
 describe('createProjectForUser (shared core with the session createProject)', () => {
   it('creates with a derived key and answers the REST projection', async () => {

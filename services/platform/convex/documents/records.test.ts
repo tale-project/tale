@@ -16,6 +16,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import betterAuthSchema from '../betterAuth/schema';
+import { registerRagPools } from '../file_metadata/rag_pools.testkit';
 import schema from '../schema';
 import {
   DOCUMENT_RECORD_AUDIT_ACTIONS,
@@ -74,6 +75,7 @@ afterEach(async () => {
 
 function makeT(): T {
   const t = convexTest(schema, modules);
+  registerRagPools(t);
   // The WebDAV PUT path registers fileMetadata, which rides the rate-limiter
   // component, and the generic approval resolution resolves the approver's
   // display name through Better Auth — register both (empty is fine);

@@ -14,6 +14,7 @@ import { migration as m0_4_1_02 } from '../versions/v0_4_1/02_task_labels_to_cat
 import { migration as m0_4_1_03 } from '../versions/v0_4_1/03_backfill_project_rollup_counts/migration';
 import { migration as m0_4_1_05 } from '../versions/v0_4_1/05_backfill_mail_attachment_received_at/migration';
 import { migration as m0_4_1_06 } from '../versions/v0_4_1/06_backfill_conversation_contact_source/migration';
+import { migration as m0_4_1_07 } from '../versions/v0_4_1/07_enqueue_pending_rag_indexing/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
 export const ALL_META: readonly MigrationMeta[] = [
@@ -89,6 +90,18 @@ export const ALL_META: readonly MigrationMeta[] = [
     destructive: false,
     snapshot: 'none',
   },
+  {
+    id: "0.4.1/07_enqueue_pending_rag_indexing",
+    semver: "0.4.1",
+    numericId: 7,
+    slug: "enqueue_pending_rag_indexing",
+    title: "Enqueue indexing rows that predate the workpools",
+    description: "up enqueues every fileMetadata row still marked queued onto the indexing workpool its provenance selects, so rows written before the pools existed are picked up instead of waiting forever; down is a no-op because enqueueing is not a data change and the pool discards its own completed work.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(
@@ -109,6 +122,7 @@ export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   "0.4.1/03_backfill_project_rollup_counts": composeDb(requireMeta("0.4.1/03_backfill_project_rollup_counts"), m0_4_1_03),
   "0.4.1/05_backfill_mail_attachment_received_at": composeDb(requireMeta("0.4.1/05_backfill_mail_attachment_received_at"), m0_4_1_05),
   "0.4.1/06_backfill_conversation_contact_source": composeDb(requireMeta("0.4.1/06_backfill_conversation_contact_source"), m0_4_1_06),
+  "0.4.1/07_enqueue_pending_rag_indexing": composeDb(requireMeta("0.4.1/07_enqueue_pending_rag_indexing"), m0_4_1_07),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */

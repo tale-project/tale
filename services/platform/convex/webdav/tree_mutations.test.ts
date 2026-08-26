@@ -2,6 +2,7 @@ import { convexTest } from 'convex-test';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { internal } from '../_generated/api';
+import { registerRagPools } from '../file_metadata/rag_pools.testkit';
 import schema from '../schema';
 
 // ingestPutBlob → saveFileMetadata gates an opportunistic retention-cleanup
@@ -62,6 +63,7 @@ async function expectCode(p: Promise<unknown>, code: string): Promise<void> {
 describe('webdav tree_mutations.mkcol (convex-test)', () => {
   it('creates a top-level collection, then 405s on a repeat (already exists)', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { folderId } = await mkcol(t, [], 'docs');
     expect(folderId).toBeTruthy();
     await expectCode(mkcol(t, [], 'docs'), 'METHOD_NOT_ALLOWED');
@@ -69,6 +71,7 @@ describe('webdav tree_mutations.mkcol (convex-test)', () => {
 
   it('405s when a DOCUMENT of the same name already exists (P2.1 collision)', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     await t.run(async (ctx) => {
       await ctx.db.insert('documents', {
         organizationId: ORG,
@@ -82,6 +85,7 @@ describe('webdav tree_mutations.mkcol (convex-test)', () => {
 
   it('409s past MAX_FOLDER_DEPTH (P2.5 depth cap)', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     // parentSegments.length + 1 > 20 → rejected before any DB lookup.
     await expectCode(
       mkcol(
@@ -95,6 +99,7 @@ describe('webdav tree_mutations.mkcol (convex-test)', () => {
 
   it('409s when the parent collection does not exist', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     await expectCode(mkcol(t, ['missing'], 'child'), 'CONFLICT');
   });
 });
@@ -102,6 +107,7 @@ describe('webdav tree_mutations.mkcol (convex-test)', () => {
 describe('webdav tree_mutations legal-hold gate (convex-test)', () => {
   it('softDeleteDocument refuses under an active org hold (P1.2) and leaves the doc active', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const docId = await t.run(async (ctx) => {
       await ctx.db.insert('legalHolds', {
         organizationId: ORG,
@@ -131,6 +137,7 @@ describe('webdav tree_mutations legal-hold gate (convex-test)', () => {
 
   it('softDeleteDocument succeeds with no hold', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const docId = await t.run(async (ctx) =>
       ctx.db.insert('documents', {
         organizationId: ORG,
@@ -150,6 +157,7 @@ describe('webdav tree_mutations legal-hold gate (convex-test)', () => {
 describe('webdav tree_mutations.moveResource folder reparent (convex-test)', () => {
   it('recomputes descendant folderPath and detaches connector-sourced docs (P2.3)', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { folderId: srcId } = await mkcol(t, [], 'src');
     await mkcol(t, [], 'dst');
     const docId = await t.run(async (ctx) =>
@@ -222,6 +230,7 @@ describe('webdav tree_mutations.ingestPutBlob content-type derivation (convex-te
 
   it('rewrites octet-stream to application/pdf for a .pdf upload', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { result, mimeType, contentType } = await ingest(
       t,
       'report.pdf',
@@ -234,6 +243,7 @@ describe('webdav tree_mutations.ingestPutBlob content-type derivation (convex-te
 
   it('rewrites octet-stream to the Office MIME for a .pptx upload', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { mimeType, contentType } = await ingest(
       t,
       'deck.pptx',
@@ -245,12 +255,14 @@ describe('webdav tree_mutations.ingestPutBlob content-type derivation (convex-te
 
   it('preserves a correct client-supplied Content-Type', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { mimeType } = await ingest(t, 'photo.png', 'image/png');
     expect(mimeType).toBe('image/png');
   });
 
   it('labels a markdown file (.md) as text/markdown instead of octet-stream', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { mimeType, contentType } = await ingest(
       t,
       'practice.md',
@@ -262,6 +274,7 @@ describe('webdav tree_mutations.ingestPutBlob content-type derivation (convex-te
 
   it('leaves an unknown binary extension as octet-stream', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { mimeType } = await ingest(
       t,
       'firmware.bin',
@@ -272,6 +285,7 @@ describe('webdav tree_mutations.ingestPutBlob content-type derivation (convex-te
 
   it('a second PUT to the same path overwrites in place (created:false)', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const first = await ingest(t, 'dup.txt', 'text/plain');
     expect(first.result.created).toBe(true);
     const second = await ingest(t, 'dup.txt', 'text/plain');
@@ -291,6 +305,7 @@ describe('webdav tree_mutations.ingestPutBlob content-type derivation (convex-te
 describe('webdav tree_mutations.copyResource (convex-test)', () => {
   it('copies a document into a new row sharing the storage id; source stays active', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { srcDocId, storageId } = await t.run(async (ctx) => {
       const sid = await ctx.storage.store(new Blob(['x']));
       const id = await ctx.db.insert('documents', {
@@ -327,6 +342,7 @@ describe('webdav tree_mutations.copyResource (convex-test)', () => {
 
   it('copies a folder recursively, duplicating child documents', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { folderId: srcId } = await mkcol(t, [], 'src');
     await t.run(async (ctx) =>
       ctx.db.insert('documents', {
@@ -359,6 +375,7 @@ describe('webdav tree_mutations.copyResource (convex-test)', () => {
 
   it('refuses to copy onto an existing destination without Overwrite (DEST_EXISTS)', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const srcId = await t.run(async (ctx) =>
       ctx.db.insert('documents', {
         organizationId: ORG,
@@ -414,6 +431,7 @@ describe('webdav tree_mutations project-scope gate (convex-test)', () => {
 
   it('a PUT colliding with a project file creates an independent hub doc and leaves the project blob untouched', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { docId, storageId } = await seedProjectDoc(t, 'spec.pdf');
 
     const putStorageId = await t.run(async (ctx) =>
@@ -447,6 +465,7 @@ describe('webdav tree_mutations project-scope gate (convex-test)', () => {
 
   it('softDeleteDocument refuses a project doc as NOT_FOUND and leaves it active', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { docId } = await seedProjectDoc(t, 'spec.pdf');
 
     await expectCode(
@@ -462,6 +481,7 @@ describe('webdav tree_mutations project-scope gate (convex-test)', () => {
 
   it('moveResource refuses a project doc source as NOT_FOUND and leaves the row unchanged', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { docId } = await seedProjectDoc(t, 'spec.pdf');
 
     await expectCode(
@@ -482,6 +502,7 @@ describe('webdav tree_mutations project-scope gate (convex-test)', () => {
 
   it('copyResource refuses a project doc source as NOT_FOUND', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { docId } = await seedProjectDoc(t, 'spec.pdf');
 
     await expectCode(
@@ -504,6 +525,7 @@ describe('webdav tree_mutations project-scope gate (convex-test)', () => {
 
   it('a MOVE whose destination name collides with a project file never trashes the project doc', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { docId } = await seedProjectDoc(t, 'spec.pdf');
     const hubId = await t.run(async (ctx) =>
       ctx.db.insert('documents', {
@@ -534,6 +556,7 @@ describe('webdav tree_mutations project-scope gate (convex-test)', () => {
 
   it('MKCOL is not blocked by an invisible project doc of the same name', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     await seedProjectDoc(t, 'reports');
     const { folderId } = await mkcol(t, [], 'reports');
     expect(folderId).toBeTruthy();
@@ -565,6 +588,7 @@ describe('webdav tree_mutations project-folder gate (convex-test)', () => {
 
   it('MKCOL colliding with a project folder creates an independent hub folder', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { folderId: projectFolderId } = await seedProjectFolder(t, 'reports');
     const { folderId } = await mkcol(t, [], 'reports');
     expect(folderId).toBeTruthy();
@@ -578,6 +602,7 @@ describe('webdav tree_mutations project-folder gate (convex-test)', () => {
 
   it('a PUT path never traverses a project folder — the invisible parent 409s', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { folderId: projectFolderId } = await seedProjectFolder(t, 'reports');
     const storageId = await t.run(async (ctx) =>
       ctx.storage.store(new Blob(['hub bytes'], { type: 'text/plain' })),
@@ -611,6 +636,7 @@ describe('webdav tree_mutations project-folder gate (convex-test)', () => {
 
   it('deleteFolderCascade refuses a project folder id as NOT_FOUND', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { folderId } = await seedProjectFolder(t, 'reports');
     await expectCode(
       t.mutation(internal.webdav.tree_mutations.deleteFolderCascade, {
@@ -625,6 +651,7 @@ describe('webdav tree_mutations project-folder gate (convex-test)', () => {
 
   it('moveResource refuses a project folder src as NOT_FOUND', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { folderId } = await seedProjectFolder(t, 'reports');
     await expectCode(
       t.mutation(internal.webdav.tree_mutations.moveResource, {
@@ -644,6 +671,7 @@ describe('webdav tree_mutations project-folder gate (convex-test)', () => {
 
   it('copyResource refuses a project folder src as NOT_FOUND', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { folderId } = await seedProjectFolder(t, 'reports');
     await expectCode(
       t.mutation(internal.webdav.tree_mutations.copyResource, {
@@ -665,6 +693,7 @@ describe('webdav tree_mutations project-folder gate (convex-test)', () => {
 
   it('a MOVE destination colliding with a project folder is not a collision', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { folderId: projectFolderId } = await seedProjectFolder(t, 'reports');
     const { folderId: hubId } = await mkcol(t, [], 'drafts');
     // Overwrite:false — an invisible project folder must not DEST_EXISTS.
@@ -691,6 +720,7 @@ describe('webdav tree_mutations project-folder gate (convex-test)', () => {
 describe('webdav tree_mutations.deleteFolderCascade (convex-test)', () => {
   it('trashes every descendant document and removes the folder rows', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { folderId: parent } = await mkcol(t, [], 'parent');
     const { folderId: child } = await mkcol(t, ['parent'], 'child');
     const docId = await t.run(async (ctx) =>
@@ -717,6 +747,7 @@ describe('webdav tree_mutations.deleteFolderCascade (convex-test)', () => {
 
   it('refuses the cascade under an org legal hold, leaving the subtree intact', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const { folderId: parent } = await mkcol(t, [], 'held');
     const docId = await t.run(async (ctx) => {
       await ctx.db.insert('legalHolds', {
@@ -751,6 +782,7 @@ describe('webdav tree_mutations.deleteFolderCascade (convex-test)', () => {
 describe('webdav tree_mutations — per-org blob seam (s3: refs, #2737)', () => {
   it('ingestPutBlob accepts an s3: ref: fileId is the ref, no Convex sha256', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const s3Ref = `s3:${ORG}/uuid-webdav-1`;
     const result = await t.mutation(
       internal.webdav.tree_mutations.ingestPutBlob,
@@ -781,6 +813,7 @@ describe('webdav tree_mutations — per-org blob seam (s3: refs, #2737)', () => 
 
   it('deleteWebdavBlob schedules the S3 delete action for an s3: ref', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     await t.mutation(internal.webdav.tree_mutations.deleteWebdavBlob, {
       storageId: `s3:${ORG}/orphan-1`,
       organizationId: ORG,
@@ -798,6 +831,7 @@ describe('webdav tree_mutations — per-org blob seam (s3: refs, #2737)', () => 
 
   it('deleteWebdavBlob deletes a Convex _storage ref inline (no schedule)', async () => {
     const t = convexTest(schema, modules);
+    registerRagPools(t);
     const id = await t.run(async (ctx) =>
       ctx.storage.store(new Blob(['y'], { type: 'text/plain' })),
     );

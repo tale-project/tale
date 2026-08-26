@@ -707,6 +707,7 @@ import type * as migrations_versions_v0_4_1_03_backfill_project_rollup_counts_mi
 import type * as migrations_versions_v0_4_1_04_backfill_corpus_document_scope_migration from "../migrations/versions/v0_4_1/04_backfill_corpus_document_scope/migration.js";
 import type * as migrations_versions_v0_4_1_05_backfill_mail_attachment_received_at_migration from "../migrations/versions/v0_4_1/05_backfill_mail_attachment_received_at/migration.js";
 import type * as migrations_versions_v0_4_1_06_backfill_conversation_contact_source_migration from "../migrations/versions/v0_4_1/06_backfill_conversation_contact_source/migration.js";
+import type * as migrations_versions_v0_4_1_07_enqueue_pending_rag_indexing_migration from "../migrations/versions/v0_4_1/07_enqueue_pending_rag_indexing/migration.js";
 import type * as node_only_documents_internal_actions from "../node_only/documents/internal_actions.js";
 import type * as node_only_knowledge_search_action from "../node_only/knowledge/search_action.js";
 import type * as node_only_sandbox_browser_view from "../node_only/sandbox/browser_view.js";
@@ -1718,6 +1719,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_4_1/04_backfill_corpus_document_scope/migration": typeof migrations_versions_v0_4_1_04_backfill_corpus_document_scope_migration;
   "migrations/versions/v0_4_1/05_backfill_mail_attachment_received_at/migration": typeof migrations_versions_v0_4_1_05_backfill_mail_attachment_received_at_migration;
   "migrations/versions/v0_4_1/06_backfill_conversation_contact_source/migration": typeof migrations_versions_v0_4_1_06_backfill_conversation_contact_source_migration;
+  "migrations/versions/v0_4_1/07_enqueue_pending_rag_indexing/migration": typeof migrations_versions_v0_4_1_07_enqueue_pending_rag_indexing_migration;
   "node_only/documents/internal_actions": typeof node_only_documents_internal_actions;
   "node_only/knowledge/search_action": typeof node_only_knowledge_search_action;
   "node_only/sandbox/browser_view": typeof node_only_sandbox_browser_view;
@@ -2059,4 +2061,6 @@ export declare const components: {
   agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
   actionCache: import("@convex-dev/action-cache/_generated/component.js").ComponentApi<"actionCache">;
+  ragInteractivePool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"ragInteractivePool">;
+  ragBackgroundPool: import("@convex-dev/workpool/_generated/component.js").ComponentApi<"ragBackgroundPool">;
 };

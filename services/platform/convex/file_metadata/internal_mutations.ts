@@ -19,7 +19,7 @@ import {
   convexStorageId,
   isS3Ref,
 } from '../lib/storage/blob_ref';
-import { maybeDispatchRagIndexing, promoteQueuedRagJobs } from './rag_dispatch';
+import { maybeDispatchRagIndexing } from './rag_dispatch';
 import { sourceFromProvider } from './source_from_provider';
 
 /**
@@ -465,7 +465,6 @@ export const updateFileRagStatus = internalMutation({
             ragIndexedAt: undefined,
             ...(metadata.ragParked ? { ragParked: undefined } : {}),
           });
-          await promoteQueuedRagJobs(ctx);
           return;
         }
       }
@@ -536,13 +535,6 @@ export const updateFileRagStatus = internalMutation({
       ...(isTerminal && metadata.ragParked ? { ragParked: undefined } : {}),
       ...(args.ocrApplied != null && { ocrApplied: args.ocrApplied }),
     });
-
-    // A terminal transition frees an indexing slot — fairly promote parked jobs
-    // (oldest-first across orgs, still per-org-capped) so the shared global
-    // budget drains as jobs finish.
-    if (isTerminal) {
-      await promoteQueuedRagJobs(ctx);
-    }
 
     // Sync ocrApplied to linked document so the list view can show it
     if (args.ocrApplied != null && metadata.documentId) {
