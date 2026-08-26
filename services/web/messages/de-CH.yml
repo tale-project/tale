@@ -14,6 +14,12 @@ home:
         bevorzugten Anbieter nutzen und gleichzeitig von besseren Preisen,
         höherer Verfügbarkeit und nutzungsbasierter Abrechnung profitieren
         können.
+about:
+  values:
+    privacy:
+      body: Gebaut für datensensible Organisationen — standardmässig selbst
+        gehostet, Datenhaltung in der Schweiz oder der EU, DSGVO-konform, und
+        Kundendaten trainieren keine Modelle.
 pricing:
   extras:
     cloudProviders:

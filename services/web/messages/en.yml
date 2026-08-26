@@ -16,6 +16,11 @@ seo:
       Talk to the Tale team about self-hosted AI for your organization —
       platform, pricing, hardware, or a guided demo. Replies land within one
       business day.
+  about:
+    title: Who is behind Tale? — About Ruler GmbH
+    description: Tale is built by Ruler GmbH, a Swiss company in Spiez founded
+      in 2020 — vendor-neutral, ISO 27001 & SOC 2 Type II certified, and fully
+      open source under MIT.
   requestDemo:
     title: Request a demo
     description:
@@ -117,6 +122,7 @@ nav:
     changelog:
       label: Changelog
       description: What shipped, newest first.
+  aboutUs: About us
   contactUs: Contact us
   requestDemo: Request a demo
   getStarted: Get started
@@ -839,6 +845,89 @@ forms:
     title: Thanks — we got it
     description: We'll be in touch within one business day.
     sendAnother: Send another
+about:
+  hero:
+    eyebrow: About us
+    title: Who is behind Tale?
+    description: Tale is built by Ruler GmbH, a Swiss company based in Spiez —
+      independent, vendor-neutral, and certified ISO 27001 & SOC 2 Type II. We
+      build the orchestrator for AI agents in the open, MIT-licensed, for
+      organizations that keep their data close.
+    ctaContact: Contact us
+    ctaGithub: View the code
+  facts:
+    founded:
+      label: Founded
+      value: '2020'
+    location:
+      label: Based in
+      value: Spiez, Switzerland
+    certified:
+      label: Certified
+      value: ISO 27001 & SOC 2 Type II
+    license:
+      label: License
+      value: MIT — fully open source
+  story:
+    heading: Our story
+    p1: Ruler GmbH was founded in Spiez, in the Canton of Bern, in 2020 by
+      Yannick Monney. From day one the company has been Swiss-based and
+      vendor-neutral — no ties to a cloud or model provider.
+    p2: We build Tale for data-sensitive organizations — teams that want AI
+      agents working across their stack without handing their data to someone
+      else's platform. That conviction has a name.
+    tagline: Your Infrastructure. Your Data. Your Rules.
+    p3: Today Tale connects the agents and CLIs teams already use — Claude
+      Code, Codex, Hermes, OpenClaw, and more — pools what they learn into one
+      governed knowledge base, and runs automations with a human in the
+      approval loop.
+  product:
+    heading: What we build
+    description: Tale is the orchestrator for AI agents — one self-hosted
+      platform that puts every agent, and everything it does, under your
+      control.
+    orchestrator:
+      title: One orchestrator for every agent
+      body: Tale connects the agents and CLIs your teams already use — Claude
+        Code, Codex, Hermes, and OpenClaw — and delegates work across them from
+        one place.
+    openSource:
+      title: Open source, no asterisks
+      body: The entire codebase is public on GitHub under the MIT license. The
+        free Community edition ships identical features; Enterprise adds
+        support and services at CHF 12 (EUR 14) per user/month.
+    deployment:
+      title: Your infrastructure or ours
+      body: Self-host on your own hardware, or use a managed cloud in
+        Switzerland or the EU. Wherever Tale runs, no customer data is used to
+        train models.
+    beyond:
+      title: Beyond software
+      body: We also supply AI hardware to rent, lease, or buy, and run AI
+        trainings for teams adopting agents.
+  values:
+    heading: What we stand for
+    privacy:
+      title: Data stays yours
+      body: Built for data-sensitive organizations — self-hosted by default,
+        residency in Switzerland or the EU, GDPR-compliant, and no customer
+        data used for model training.
+    neutrality:
+      title: Independent & vendor-neutral
+      body: Swiss-based and vendor-neutral — no ties to a cloud or model
+        provider, so your deployment answers only to you.
+    transparency:
+      title: Transparent by default
+      body: An MIT-licensed public codebase and a company you can look up in
+        the Swiss commercial register. What we ship is what you can read.
+    control:
+      title: Humans stay in charge
+      body: Automations run with human approval, and every action stays
+        governed — ISO 27001 & SOC 2 Type II certified.
+  cta:
+    title: Talk to the team
+    description: Questions about Tale, deployment, or working with Ruler GmbH?
+      Book a demo or reach us through the contact form.
 featureShared:
   ctaPrimary: Request a demo
   ctaSecondary: Contact us

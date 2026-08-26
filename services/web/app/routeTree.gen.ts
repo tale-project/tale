@@ -14,6 +14,7 @@ import { Route as PricingRouteImport } from './routes/pricing';
 import { Route as HardwarePricingRouteImport } from './routes/hardware-pricing';
 import { Route as ContactRouteImport } from './routes/contact';
 import { Route as ChangelogRouteImport } from './routes/changelog';
+import { Route as AboutRouteImport } from './routes/about';
 import { Route as LangRouteImport } from './routes/$lang';
 import { Route as IndexRouteImport } from './routes/index';
 import { Route as PlatformIndexRouteImport } from './routes/platform/index';
@@ -30,6 +31,7 @@ import { Route as LangPricingRouteImport } from './routes/$lang/pricing';
 import { Route as LangHardwarePricingRouteImport } from './routes/$lang/hardware-pricing';
 import { Route as LangContactRouteImport } from './routes/$lang/contact';
 import { Route as LangChangelogRouteImport } from './routes/$lang/changelog';
+import { Route as LangAboutRouteImport } from './routes/$lang/about';
 import { Route as LangPlatformIndexRouteImport } from './routes/$lang/platform/index';
 import { Route as LangPlatformProjectsRouteImport } from './routes/$lang/platform/projects';
 import { Route as LangPlatformKnowledgeRouteImport } from './routes/$lang/platform/knowledge';
@@ -62,6 +64,11 @@ const ContactRoute = ContactRouteImport.update({
 const ChangelogRoute = ChangelogRouteImport.update({
   id: '/changelog',
   path: '/changelog',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any);
 const LangRoute = LangRouteImport.update({
@@ -144,6 +151,11 @@ const LangChangelogRoute = LangChangelogRouteImport.update({
   path: '/changelog',
   getParentRoute: () => LangRoute,
 } as any);
+const LangAboutRoute = LangAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => LangRoute,
+} as any);
 const LangPlatformIndexRoute = LangPlatformIndexRouteImport.update({
   id: '/platform/',
   path: '/platform/',
@@ -188,11 +200,13 @@ const LangLegalSlugRoute = LangLegalSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
   '/$lang': typeof LangRouteWithChildren;
+  '/about': typeof AboutRoute;
   '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
@@ -218,11 +232,13 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
+  '/about': typeof AboutRoute;
   '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
@@ -250,11 +266,13 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
   '/$lang': typeof LangRouteWithChildren;
+  '/about': typeof AboutRoute;
   '/changelog': typeof ChangelogRoute;
   '/contact': typeof ContactRoute;
   '/hardware-pricing': typeof HardwarePricingRoute;
   '/pricing': typeof PricingRoute;
   '/request-demo': typeof RequestDemoRoute;
+  '/$lang/about': typeof LangAboutRoute;
   '/$lang/changelog': typeof LangChangelogRoute;
   '/$lang/contact': typeof LangContactRoute;
   '/$lang/hardware-pricing': typeof LangHardwarePricingRoute;
@@ -283,11 +301,13 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$lang'
+    | '/about'
     | '/changelog'
     | '/contact'
     | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
+    | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
     | '/$lang/hardware-pricing'
@@ -313,11 +333,13 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
+    | '/about'
     | '/changelog'
     | '/contact'
     | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
+    | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
     | '/$lang/hardware-pricing'
@@ -344,11 +366,13 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$lang'
+    | '/about'
     | '/changelog'
     | '/contact'
     | '/hardware-pricing'
     | '/pricing'
     | '/request-demo'
+    | '/$lang/about'
     | '/$lang/changelog'
     | '/$lang/contact'
     | '/$lang/hardware-pricing'
@@ -376,6 +400,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   LangRoute: typeof LangRouteWithChildren;
+  AboutRoute: typeof AboutRoute;
   ChangelogRoute: typeof ChangelogRoute;
   ContactRoute: typeof ContactRoute;
   HardwarePricingRoute: typeof HardwarePricingRoute;
@@ -426,6 +451,13 @@ declare module '@tanstack/react-router' {
       path: '/changelog';
       fullPath: '/changelog';
       preLoaderRoute: typeof ChangelogRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/about': {
+      id: '/about';
+      path: '/about';
+      fullPath: '/about';
+      preLoaderRoute: typeof AboutRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/$lang': {
@@ -540,6 +572,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangChangelogRouteImport;
       parentRoute: typeof LangRoute;
     };
+    '/$lang/about': {
+      id: '/$lang/about';
+      path: '/about';
+      fullPath: '/$lang/about';
+      preLoaderRoute: typeof LangAboutRouteImport;
+      parentRoute: typeof LangRoute;
+    };
     '/$lang/platform/': {
       id: '/$lang/platform/';
       path: '/platform';
@@ -600,6 +639,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface LangRouteChildren {
+  LangAboutRoute: typeof LangAboutRoute;
   LangChangelogRoute: typeof LangChangelogRoute;
   LangContactRoute: typeof LangContactRoute;
   LangHardwarePricingRoute: typeof LangHardwarePricingRoute;
@@ -617,6 +657,7 @@ interface LangRouteChildren {
 }
 
 const LangRouteChildren: LangRouteChildren = {
+  LangAboutRoute: LangAboutRoute,
   LangChangelogRoute: LangChangelogRoute,
   LangContactRoute: LangContactRoute,
   LangHardwarePricingRoute: LangHardwarePricingRoute,
@@ -638,6 +679,7 @@ const LangRouteWithChildren = LangRoute._addFileChildren(LangRouteChildren);
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LangRoute: LangRouteWithChildren,
+  AboutRoute: AboutRoute,
   ChangelogRoute: ChangelogRoute,
   ContactRoute: ContactRoute,
   HardwarePricingRoute: HardwarePricingRoute,

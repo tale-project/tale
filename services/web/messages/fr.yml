@@ -6,7 +6,7 @@ seo:
       délègue le travail et gouverne chaque action — auto-hébergé, certifié ISO
       27001 & SOC 2 Type II.
   pricing:
-    title: Combien coûte Tale ? — Community & Enterprise
+    title: Combien coûte Tale ? — Community & Enterprise
     description:
       'Tale Enterprise : CHF 12 (EUR 14) par utilisateur/mois, deux mois
       offerts en annuel. Community est gratuite en auto-hébergement sous MIT.'
@@ -16,19 +16,24 @@ seo:
       Parle à l’équipe Tale de l’IA auto-hébergée pour ton organisation —
       plateforme, tarifs, matériel ou une démo guidée. Réponse sous un jour
       ouvrable.
+  about:
+    title: Qui est derrière Tale ? — À propos de Ruler GmbH
+    description: Tale est construit par Ruler GmbH, une entreprise suisse de
+      Spiez fondée en 2020 — neutre vis-à-vis des fournisseurs, certifiée ISO
+      27001 & SOC 2 Type II et entièrement open source sous MIT.
   requestDemo:
     title: Demander une démo
     description: 'Réserve une démo guidée de Tale : agents IA auto-hébergés,
       automatisations et gouvernance en action. Pour les organisations sensibles
       aux données, en Suisse et dans l’UE.'
   hardwarePricing:
-    title: Combien coûte le hardware AI Tale ?
+    title: Combien coûte le hardware AI Tale ?
     description:
       Hardware d’inférence silencieux, du nœud unique au rack — location,
       leasing ou achat. Déployé sur site avec maintenance à distance, ou hébergé
       en centres de données sécurisés.
   platform:
-    title: Comment fonctionne la plateforme Tale ?
+    title: Comment fonctionne la plateforme Tale ?
     description:
       Tale connecte les agents, regroupe les connaissances, exécute les
       automations et gouverne chaque action — auto-hébergé pour les équipes
@@ -65,7 +70,7 @@ seo:
       tableau de tâches dans un espace de travail partagé — assigne une tâche à
       un agent et relis le résultat avant qu’il parte.
   changelog:
-    title: Quoi de neuf dans Tale ? — Changelog
+    title: Quoi de neuf dans Tale ? — Changelog
     description:
       Les notes de version de Tale, de la plus récente à la plus ancienne
       — publiées depuis GitHub Releases.
@@ -115,6 +120,7 @@ nav:
     changelog:
       label: Changelog
       description: Ce qui a été livré, du plus récent.
+  aboutUs: À propos
   contactUs: Nous contacter
   requestDemo: Demander une démo
   getStarted: Démarrer
@@ -480,7 +486,7 @@ home:
     stillQuestions: Encore des questions ?
     contactTeam: Contacter l’équipe
     whatIsTale:
-      q: Qu’est-ce que Tale ?
+      q: Qu’est-ce que Tale ?
       a: 'Tale est une plateforme open source et auto-hébergée qui orchestre les
         agents IA : elle connecte les agents et CLI que ton équipe utilise déjà,
         met leurs connaissances en commun dans une base gouvernée et exécute des
@@ -556,7 +562,7 @@ complianceTrust:
     mit: Sous licence MIT
     openSource: Open source
 pricing:
-  title: Combien coûte Tale ?
+  title: Combien coûte Tale ?
   description: Tale Enterprise coûte CHF 12 (EUR 14) par utilisateur/mois, avec
     deux mois offerts en facturation annuelle. L’édition Community sous licence
     MIT est gratuite en auto-hébergement.
@@ -676,7 +682,7 @@ pricing:
     linkLabel: contrat de service
     suffix: .
 hardwarePricing:
-  title: Combien coûte le hardware AI Tale ?
+  title: Combien coûte le hardware AI Tale ?
   description:
     Hardware d’inférence silencieux, du nœud unique au rack — location,
     leasing ou achat. Déployé sur site avec maintenance à distance, ou hébergé
@@ -865,6 +871,96 @@ forms:
     title: Merci — bien reçu
     description: Nous revenons vers toi sous un jour ouvré.
     sendAnother: Envoyer un autre message
+about:
+  hero:
+    eyebrow: À propos
+    title: Qui est derrière Tale ?
+    description: Derrière Tale, il y a Ruler GmbH, une entreprise suisse basée
+      à Spiez — indépendante, neutre vis-à-vis des fournisseurs et certifiée
+      ISO 27001 & SOC 2 Type II. Nous construisons l’orchestrateur pour agents
+      IA en open source, sous licence MIT, pour les organisations qui gardent
+      leurs données chez elles.
+    ctaContact: Nous contacter
+    ctaGithub: Voir le code
+  facts:
+    founded:
+      label: Fondée
+      value: '2020'
+    location:
+      label: Siège
+      value: Spiez, Suisse
+    certified:
+      label: Certifiée
+      value: ISO 27001 & SOC 2 Type II
+    license:
+      label: Licence
+      value: MIT — entièrement open source
+  story:
+    heading: Notre histoire
+    p1: Ruler GmbH a été fondée en 2020 à Spiez, dans le canton de Berne, par
+      Yannick Monney. Depuis le premier jour, l’entreprise est basée en Suisse
+      et neutre vis-à-vis des fournisseurs — sans lien avec un fournisseur de
+      cloud ou de modèles.
+    p2: Nous construisons Tale pour les organisations sensibles aux données —
+      des équipes qui veulent des agents IA au travail sur tout leur stack,
+      sans confier leurs données à la plateforme de quelqu’un d’autre. Cette
+      conviction porte un nom.
+    tagline: Ton infrastructure. Tes données. Tes règles.
+    p3: Aujourd’hui, Tale connecte les agents et CLI que les équipes utilisent
+      déjà — Claude Code, Codex, Hermes, OpenClaw et d’autres —, met leurs
+      connaissances en commun dans une base gouvernée et exécute des
+      automatisations avec approbation humaine.
+  product:
+    heading: Ce que nous construisons
+    description: Tale est l’orchestrateur pour agents IA — une plateforme
+      auto-hébergée qui place chaque agent, et tout ce qu’il fait, sous ton
+      contrôle.
+    orchestrator:
+      title: Un orchestrateur pour chaque agent
+      body: Tale connecte les agents et CLI que tes équipes utilisent déjà —
+        Claude Code, Codex, Hermes et OpenClaw — et leur délègue le travail
+        depuis un seul endroit.
+    openSource:
+      title: Open source, sans astérisque
+      body: Tout le code est public sur GitHub, sous licence MIT. La version
+        Community gratuite embarque les mêmes fonctionnalités ; Enterprise
+        ajoute support et services pour CHF 12 (EUR 14) par utilisateur/mois.
+    deployment:
+      title: Ton infrastructure ou la nôtre
+      body: Héberge Tale sur ton propre matériel, ou utilise un cloud géré en
+        Suisse ou dans l’UE. Où que Tale tourne, aucune donnée client ne sert à
+        entraîner des modèles.
+    beyond:
+      title: Au-delà du logiciel
+      body: Nous fournissons aussi du hardware IA à louer, leaser ou acheter,
+        et donnons des formations IA aux équipes qui adoptent les agents.
+  values:
+    heading: Ce que nous défendons
+    privacy:
+      title: Tes données restent les tiennes
+      body: Construit pour les organisations sensibles aux données —
+        auto-hébergé par défaut, résidence des données en Suisse ou dans l’UE,
+        conforme au RGPD, et aucune donnée client ne sert à entraîner des
+        modèles.
+    neutrality:
+      title: Indépendant et neutre
+      body: Basé en Suisse et neutre vis-à-vis des fournisseurs — sans lien
+        avec un fournisseur de cloud ou de modèles, pour que ton déploiement ne
+        réponde qu’à toi.
+    transparency:
+      title: Transparent par défaut
+      body: Une base de code publique sous licence MIT et une entreprise que tu
+        peux vérifier au registre du commerce suisse. Ce que nous livrons, tu
+        peux le lire.
+    control:
+      title: L’humain garde la main
+      body: Les automatisations tournent avec approbation humaine et chaque
+        action reste gouvernée — certifié ISO 27001 & SOC 2 Type II.
+  cta:
+    title: Parle à l’équipe
+    description: Des questions sur Tale, le déploiement ou une collaboration
+      avec Ruler GmbH ? Réserve une démo ou écris-nous via le formulaire de
+      contact.
 featureShared:
   ctaPrimary: Demander une démo
   ctaSecondary: Nous contacter
@@ -1638,7 +1734,7 @@ platformGovernance:
       agent5: Agent Exceptions
       model5: Claude Opus
 platformHub:
-  title: Comment fonctionne la plateforme Tale ?
+  title: Comment fonctionne la plateforme Tale ?
   description: 'Tale est l’orchestrateur pour agents IA : un seul endroit où tes
     agents partagent leurs connaissances, exécutent des automatisations et
     répondent aux mêmes approbations — auto-hébergé, à tes conditions.'
@@ -2220,7 +2316,7 @@ pricingPage:
           ou achat — vois les tarifs matériel.
 changelogPage:
   eyebrow: Changelog
-  title: Quoi de neuf dans Tale ?
+  title: Quoi de neuf dans Tale ?
   description:
     Les notes de version de Tale, de la plus récente à la plus ancienne
     — publiées depuis GitHub Releases.
