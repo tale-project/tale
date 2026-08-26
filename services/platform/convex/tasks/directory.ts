@@ -2,8 +2,9 @@
  * Mention/assignee directory for tasks.
  *
  * Builds the set of `@`-mentionable actors for a project: organization members
- * (humans) and the agents the project exposes. Used by the task mutations to
- * resolve `@token` mentions to `{type,id}` refs (see `tasks/mentions.ts`).
+ * (humans), the agents the project exposes, and the deployed automations
+ * visible from it. Used by the task mutations to resolve `@token` mentions to
+ * `{type,id}` refs (see `tasks/mentions.ts`).
  *
  * Agent scoping follows the project agent gates (`task_ops.ts`):
  * `agentMode: 'restricted'` limits mentionable agents to the project's
@@ -16,6 +17,7 @@
 
 import type { Doc } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
+import { bindingsOf, versionRow } from '../automations/store';
 import { listByOrganizationHandler } from '../members/queries';
 import { getProjectAccessibleUserIds } from '../projects/accessible_members';
 import type { MentionDirectoryEntry } from './mentions';
@@ -93,6 +95,54 @@ export async function buildMentionDirectory(
     entries.push({ type: 'agent', id: slug, handles: [slug.toLowerCase()] });
   }
 
+  // DEPLOYED automations visible from this project (bound to it, or
+  // org-level) resolve by store name and by display name — '@vat-return-desk',
+  // '@swiss.vat.return.desk'. Mentioning a task's OWNING automation is the
+  // comment-side run trigger (`triggerMentionedTaskAutomation`), exactly as
+  // @-ing an agent instance is for the agent lane; on any other surface the
+  // mention is presentational. Pushed after the legacy slugs (an automation
+  // shadows a retired same-named slug) but before the instances below (a
+  // project's own agent instance stays the strongest claim on a handle).
+  try {
+    const deployments = await ctx.db
+      .query('automationDeployments')
+      .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
+      .collect();
+    for (const deployment of deployments) {
+      const bindings = await bindingsOf(
+        ctx,
+        args.organizationId,
+        deployment.name,
+      );
+      if (
+        bindings.length > 0 &&
+        !bindings.some((binding) => binding.projectId === args.project._id)
+      ) {
+        continue;
+      }
+      const version = await versionRow(
+        ctx,
+        args.organizationId,
+        deployment.name,
+        deployment.version,
+      );
+      if (!version) continue;
+      entries.push({
+        type: 'automation',
+        id: deployment.name,
+        handles: automationHandles(
+          deployment.name,
+          presentationName(version.presentation),
+        ),
+      });
+    }
+  } catch (error) {
+    console.warn(
+      '[tasks] buildMentionDirectory: automation listing failed',
+      error,
+    );
+  }
+
   // The project's agent INSTANCES resolve by display name — '@alice',
   // '@pr.reviewer'. Pushed LAST so an instance handle shadows a same-named
   // legacy slug in the resolver's handle map, and a mention reaches the
@@ -119,6 +169,36 @@ export async function buildMentionDirectory(
     entries,
     permissiveAgents: (args.project.agentMode ?? 'all') !== 'restricted',
   };
+}
+
+/** The base (English) display name out of an automation version's untyped
+ * `presentation` blob, if it carries one. Handles are locale-independent, so
+ * only the base name feeds them — per-locale names stay a render concern. */
+function presentationName(presentation: unknown): string | undefined {
+  if (
+    presentation !== null &&
+    typeof presentation === 'object' &&
+    'name' in presentation &&
+    typeof presentation.name === 'string' &&
+    presentation.name.trim() !== ''
+  ) {
+    return presentation.name;
+  }
+  return undefined;
+}
+
+/** Derive candidate `@handle`s for a deployed automation: the store name
+ * (the stable addressing form the composer inserts) plus the display-name
+ * variants (dot-joined and squashed, matching the member/instance
+ * convention) so a hand-typed `@swiss.vat.return.desk` resolves too. */
+function automationHandles(name: string, displayName?: string): string[] {
+  const handles = new Set<string>([name.toLowerCase()]);
+  const normalized = (displayName ?? '').trim().toLowerCase();
+  if (normalized !== '') {
+    handles.add(normalized.replace(/\s+/g, '.'));
+    handles.add(normalized.replace(/\s+/g, ''));
+  }
+  return [...handles];
 }
 
 /** Derive candidate `@handle`s for a project agent instance: the display

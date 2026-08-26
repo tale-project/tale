@@ -58,6 +58,20 @@ export const taskActorTypeValidator = v.union(
 );
 
 /**
+ * What an `@mention` can resolve TO — a superset of the author types above:
+ * besides a human or an agent, a comment can mention an AUTOMATION (by store
+ * name), which is how the task surface asks the owning automation to run
+ * (`triggerMentionedTaskAutomation`). Automations never AUTHOR comments under
+ * this type — workflow comments post as `agent` — so authorship keeps the
+ * narrower validator.
+ */
+export const taskMentionTypeValidator = v.union(
+  v.literal('user'),
+  v.literal('agent'),
+  v.literal('automation'),
+);
+
+/**
  * The WORKER a task belongs to — exactly one of three classes: a human
  * (`user`), an AI agent (`agent`), or an automation (`app` — `assigneeId`
  * then holds the automation's store name, and the board's status verbs run
@@ -305,7 +319,7 @@ export const taskDiscussionMessageMetaTable = defineTable({
   mentions: v.optional(
     v.array(
       v.object({
-        type: taskActorTypeValidator,
+        type: taskMentionTypeValidator,
         id: v.string(),
       }),
     ),
@@ -340,7 +354,7 @@ export interface CommentEventComment {
   body: string;
   projectId: string;
   taskId: string;
-  mentions: Array<{ type: 'user' | 'agent'; id: string }>;
+  mentions: Array<{ type: 'user' | 'agent' | 'automation'; id: string }>;
 }
 
 /** Optional workflow attribution on a task-activity row (workflow-engine writes). */

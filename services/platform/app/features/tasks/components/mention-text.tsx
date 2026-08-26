@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils/cn';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import {
   agentHandleVariants,
+  automationHandleVariants,
   memberHandleVariants,
 } from '../lib/mention-handles';
 
@@ -28,7 +29,7 @@ const MENTION_SPLIT_RE = /(^|\s)@([a-zA-Z0-9._/-]+)/g;
 
 interface ResolvedHandle {
   name: string;
-  isAgent: boolean;
+  kind: 'user' | 'agent' | 'automation';
 }
 
 /**
@@ -52,24 +53,33 @@ export function MentionizedText({
   projectId?: string;
 }) {
   const { t } = useT('tasks');
-  const { members, agents } = useActorDirectory(organizationId, projectId);
+  const { members, agents, automations } = useActorDirectory(
+    organizationId,
+    projectId,
+  );
 
-  // Members first, agents after — on a handle collision the agent wins,
-  // matching the server's directory build order.
+  // Members first, then automations, agents last — on a handle collision the
+  // later entry wins, matching the server's directory build order (agent
+  // instances keep the strongest claim).
   const handleToActor = useMemo(() => {
     const map = new Map<string, ResolvedHandle>();
     for (const member of members) {
       for (const variant of memberHandleVariants(member)) {
-        map.set(variant, { name: member.name, isAgent: false });
+        map.set(variant, { name: member.name, kind: 'user' });
+      }
+    }
+    for (const automation of automations) {
+      for (const variant of automationHandleVariants(automation)) {
+        map.set(variant, { name: automation.name, kind: 'automation' });
       }
     }
     for (const agent of agents) {
       for (const variant of agentHandleVariants(agent)) {
-        map.set(variant, { name: agent.name, isAgent: true });
+        map.set(variant, { name: agent.name, kind: 'agent' });
       }
     }
     return map;
-  }, [members, agents]);
+  }, [members, agents, automations]);
 
   const nodes = useMemo(() => {
     const parts: React.ReactNode[] = [];
@@ -87,7 +97,11 @@ export function MentionizedText({
           key={`${mentionStart}-${token}`}
           className="bg-primary/10 text-primary rounded-md box-decoration-clone px-1 py-0.5 text-[0.9em] leading-none font-medium"
           title={
-            actor.isAgent ? `@${token} · ${t('assignee.agents')}` : `@${token}`
+            actor.kind === 'agent'
+              ? `@${token} · ${t('assignee.agents')}`
+              : actor.kind === 'automation'
+                ? `@${token} · ${t('assignee.automations')}`
+                : `@${token}`
           }
         >
           @{actor.name}

@@ -6720,7 +6720,7 @@ tasks:
     budgetPaused: '{slug} antwortet nicht — Monatsbudget aufgebraucht'
     agentNotLive: '{slug} antwortet nicht — Agent ist nicht installiert oder deaktiviert'
   mentionPicker:
-    title: Mitglied oder Agent erwähnen
+    title: Mitglied, Agent oder Automatisierung erwähnen
     empty: Keine Treffer
   metrics:
     title: Projekt-Metriken

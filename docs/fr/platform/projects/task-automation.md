@@ -35,7 +35,9 @@ Le tableau nomme l’attente : les cartes garées sur _En revue_ portent une puc
 
 ## Mentions
 
-**Mentionne un agent avec @** dans un commentaire de tâche : il lit le texte qui le mentionne et agit. Taper `@` ouvre une autocomplétion sur les membres et les agents du projet ; le composeur montre à l’avance si chaque agent mentionné répondra vraiment (automatisation coupée, disjoncteur déclenché, non mentionnable dans ce projet). Une mention de l’**assigné** vaut feedback sur son travail : un agent en cours d’exécution reprend le commentaire en vol, un agent au repos lance une exécution de reprise qui reçoit le commentaire tel quel et poursuit la conversation précédente là où elle s’était arrêtée.
+**Mentionne un agent avec @** dans un commentaire de tâche : il lit le texte qui le mentionne et agit. Taper `@` ouvre une autocomplétion sur les membres, les agents du projet et les automatisations qui opèrent ce tableau ; le composeur montre à l’avance si chaque agent mentionné répondra vraiment (automatisation coupée, disjoncteur déclenché, non mentionnable dans ce projet). Une mention de l’**assigné** vaut feedback sur son travail : un agent en cours d’exécution reprend le commentaire en vol, un agent au repos lance une exécution de reprise qui reçoit le commentaire tel quel et poursuit la conversation précédente là où elle s’était arrêtée.
+
+Les tâches qui appartiennent à une automatisation suivent la même règle : un commentaire ordinaire reste un commentaire ; **mentionne l’automatisation propriétaire avec @** et son workflow repart, en lisant ton commentaire — avec le reste de la timeline depuis sa dernière livraison — comme feedback. Mentionner une autre automatisation ne lance rien : une tâche n’exécute que le workflow auquel elle appartient, et une tâche avec une exécution en cours la garde. **Demander des modifications** sur le panneau sujet compose exactement cette mention pour toi — la timeline montre le même commentaire @, que tu l’aies tapé ou cliqué.
 
 ## Garde-fous
 

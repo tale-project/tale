@@ -228,7 +228,11 @@ export function MentionTextarea({
                     onMouseEnter={() => setHighlight(index)}
                   >
                     <AssigneeAvatar
-                      assigneeType={option.type}
+                      // The avatar speaks the task worker vocabulary, where
+                      // an automation is `app`.
+                      assigneeType={
+                        option.type === 'automation' ? 'app' : option.type
+                      }
                       assigneeId={option.id}
                       name={option.name}
                     />
@@ -248,6 +252,8 @@ export function MentionTextarea({
                         @{option.handle}
                         {option.type === 'agent' &&
                           ` · ${t('assignee.agents')}`}
+                        {option.type === 'automation' &&
+                          ` · ${t('assignee.automations')}`}
                       </Text>
                     </span>
                   </li>

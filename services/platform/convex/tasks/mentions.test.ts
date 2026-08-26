@@ -13,6 +13,11 @@ const directory: MentionDirectoryEntry[] = [
   { type: 'user', id: 'user-alice', handles: ['alice', 'alice.smith'] },
   { type: 'user', id: 'user-bob', handles: ['bob'] },
   { type: 'agent', id: 'researcher', handles: ['researcher'] },
+  {
+    type: 'automation',
+    id: 'vat-return-desk',
+    handles: ['vat-return-desk', 'swiss.vat.return.desk'],
+  },
 ];
 
 describe('parseMentionTokens', () => {
@@ -113,6 +118,16 @@ describe('resolveMentions (permissiveAgents)', () => {
       { type: 'user', id: 'user-alice' },
       { type: 'agent', id: 'unknown' },
     ]);
+  });
+
+  it('automation handles win over the permissive agent fallback', () => {
+    expect(
+      resolveMentions(
+        ['vat-return-desk', 'swiss.vat.return.desk'],
+        directory,
+        true,
+      ),
+    ).toEqual([{ type: 'automation', id: 'vat-return-desk' }]);
   });
 
   it('stays strict when permissiveAgents is off', () => {

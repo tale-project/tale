@@ -35,7 +35,9 @@ Das Board benennt die Wartestelle: Karten auf _In Prüfung_ tragen einen Chip **
 
 ## Erwähnungen
 
-**Erwähne einen Agenten mit @** in einem Aufgaben-Kommentar, und er liest den erwähnenden Text und handelt. Ein `@` öffnet eine Autovervollständigung über Mitglieder und die Agenten des Projekts; der Composer zeigt vorab, ob jeder erwähnte Agent wirklich reagiert (Automatisierung aus, Sicherung ausgelöst, im Projekt nicht erwähnbar). Eine Erwähnung des **Zuständigen** gilt als Feedback zu seiner Arbeit: Ein laufender Agent nimmt den Kommentar mitten im Lauf auf, ein untätiger startet einen Überarbeitungslauf, der den Kommentar wortwörtlich mitbekommt und das vorige Gespräch dort fortsetzt, wo es aufgehört hat.
+**Erwähne einen Agenten mit @** in einem Aufgaben-Kommentar, und er liest den erwähnenden Text und handelt. Ein `@` öffnet eine Autovervollständigung über Mitglieder, die Agenten des Projekts und die Automatisierungen dieses Boards; der Composer zeigt vorab, ob jeder erwähnte Agent wirklich reagiert (Automatisierung aus, Sicherung ausgelöst, im Projekt nicht erwähnbar). Eine Erwähnung des **Zuständigen** gilt als Feedback zu seiner Arbeit: Ein laufender Agent nimmt den Kommentar mitten im Lauf auf, ein untätiger startet einen Überarbeitungslauf, der den Kommentar wortwörtlich mitbekommt und das vorige Gespräch dort fortsetzt, wo es aufgehört hat.
+
+Aufgaben, die einer Automatisierung gehören, folgen derselben Regel: Ein einfacher Kommentar bleibt ein Kommentar; erwähnst du die **besitzende Automatisierung mit @**, läuft ihr Workflow erneut und liest deinen Kommentar — samt der übrigen Timeline seit der letzten Lieferung — als Feedback. Die Erwähnung einer anderen Automatisierung startet nichts: Eine Aufgabe führt nur den Workflow aus, dem sie gehört, und eine Aufgabe mit laufendem Lauf behält ihn. **Änderungen anfordern** im Subjekt-Panel setzt genau diese Erwähnung für dich zusammen — die Timeline zeigt denselben @-Kommentar, ob du ihn getippt oder den Button geklickt hast.
 
 ## Leitplanken
 

@@ -4,7 +4,8 @@ import { api, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { type ActionCtx, action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
-import { parseIssueNumber, parseRepoRef } from './issue_ref';
+import { taskWorkflowSubjectInput } from './helpers';
+import { parseRepoRef } from './issue_ref';
 
 /**
  * Start a workflow ON an existing task, subject-linked so any UI showing the
@@ -40,11 +41,6 @@ export async function startWorkflowForTask(
     startedVia?: 'user' | 'api-key';
   },
 ): Promise<{ runId: string; alreadyRunning: boolean } | null> {
-  const issueNumber = parseIssueNumber(args.task.externalId);
-  // owner/repo from the same "owner/repo#N" ref, so a workflow can address the
-  // upstream issue (e.g. the desk pre-check's get_issue) without re-parsing;
-  // null for a non-issue/malformed ref, which the workflow guards on.
-  const repoRef = parseRepoRef(args.task.externalId);
   try {
     // The workflow slug names a DEPLOYED automation of this organization; the
     // run carries the task as its input — the same contract the retired
@@ -61,27 +57,7 @@ export async function startWorkflowForTask(
         // modal's live-run lookup and the project run log key on.
         projectId: args.task.projectId,
         startedBy: `${args.startedVia ?? 'user'}:${args.startedByUserId}`,
-        input: {
-          task: {
-            id: String(args.task._id),
-            title: args.task.title,
-            status: args.task.status,
-            projectId: String(args.task.projectId),
-            ...(args.task.externalSystem !== undefined
-              ? { externalSystem: args.task.externalSystem }
-              : {}),
-            ...(args.task.externalId !== undefined
-              ? { externalId: args.task.externalId }
-              : {}),
-            ...(args.task.externalUrl !== undefined
-              ? { externalUrl: args.task.externalUrl }
-              : {}),
-            ...(issueNumber !== null ? { issueNumber } : {}),
-            ...(repoRef !== null
-              ? { repo: `${repoRef.owner}/${repoRef.repo}` }
-              : {}),
-          },
-        },
+        input: taskWorkflowSubjectInput(args.task),
       },
     );
     if (started === null) {

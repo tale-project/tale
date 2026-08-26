@@ -317,44 +317,39 @@ export function TaskSubjectPanel({
   };
 
   /**
-   * Request changes is ONE gesture: the feedback is written as the task's
-   * comment and the rerun starts after it lands. The workflow re-reads the
-   * task's comments on its next pass, so the order is the whole point — a
-   * rerun kicked before the comment exists would read no feedback and repeat
-   * itself, which is exactly the trap of asking the reviewer to remember to
-   * comment first.
+   * Request changes is ONE gesture, and that gesture is an `@`-mention: the
+   * feedback posts as a task comment addressed to the owning automation
+   * (`@<slug> …`), and the comment's mention trigger starts the rerun — the
+   * same lane a hand-typed `@` in the composer uses, so the timeline itself
+   * teaches the pattern. Plain comments stay inert; only the mention runs.
+   * The rerun starts after the comment lands (same transaction), so the
+   * workflow's next pass always reads this feedback.
    */
   const requestChanges = async () => {
     const body = feedback.trim();
     if (body === '') return;
     setBusy(true);
     try {
-      await addComment.mutateAsync({ taskId: task._id, body });
-      const result = await startRun.mutateAsync({
-        organizationId,
+      const result = await addComment.mutateAsync({
         taskId: task._id,
-        workflowSlug: automationSlug,
+        body: `@${automationSlug} ${body}`,
       });
       // The comment landed either way, so the box always closes and empties:
       // leaving the text in a still-open dialog invites a second Send back,
       // which would file the same feedback twice.
       setChangesOpen(false);
       setFeedback('');
-      if (result.started) {
+      if (result.automationTriggered) {
         toast({
           title: t('subject.requestChangesSent', { name: displayName }),
           variant: 'success',
         });
       } else {
-        // Say what did NOT happen — the feedback is recorded, nothing is running.
-        toast({
-          title:
-            result.reason === 'already_running'
-              ? t('run.alreadyRunning', { name: displayName })
-              : t('run.notStarted', { name: displayName }),
-          variant:
-            result.reason === 'already_running' ? undefined : 'destructive',
-        });
+        // Say what did NOT happen — the feedback is recorded, nothing new is
+        // running. The one quiet-refusal cause this gesture can actually hit
+        // is a run already operating the task (the panel hides Request
+        // changes otherwise), so phrase it as that.
+        toast({ title: t('run.alreadyRunning', { name: displayName }) });
       }
     } catch (error) {
       console.error('[tasks] request-changes failed', error);

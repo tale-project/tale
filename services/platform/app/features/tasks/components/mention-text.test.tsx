@@ -13,6 +13,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
   useActorDirectory: () => ({
     members: [{ id: 'u1', name: 'Ada', email: 'ada@example.com' }],
     agents: [{ id: 'rs774n7chzm7tbf9p5fhsq2xr58br0nb', name: 'PR Reviewer' }],
+    automations: [{ slug: 'vat-return-desk', name: 'Swiss VAT return desk' }],
   }),
 }));
 
@@ -58,5 +59,17 @@ describe('MentionText — markdown', () => {
 
     expect(screen.getAllByText('@PR Reviewer')).toHaveLength(2);
     expect(screen.queryByText(/@pr\.reviewer/)).not.toBeInTheDocument();
+  });
+
+  it('resolves an automation by store name AND by display-name handle', () => {
+    render(
+      <MentionText
+        body="@vat-return-desk redo — @swiss.vat.return.desk agreed"
+        organizationId="org_1"
+      />,
+    );
+
+    expect(screen.getAllByText('@Swiss VAT return desk')).toHaveLength(2);
+    expect(screen.queryByText(/@vat-return-desk/)).not.toBeInTheDocument();
   });
 });

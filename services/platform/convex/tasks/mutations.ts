@@ -14,6 +14,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { parseTaskSubjectContract } from '../../lib/shared/schemas/task_contract';
 import { defaultTaskLabelColor } from '../../lib/shared/task-label-colors';
 import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
@@ -26,6 +27,7 @@ import { assertAgentAssigneeLive } from '../agents/installations';
 import { recordTaskAgentRunLedgerEntry } from '../audit_logs/agent_run_ledger';
 import { createAuditLog } from '../audit_logs/helpers';
 import { findLiveAutomationRunForTask } from '../automations/queries';
+import { versionRow } from '../automations/store';
 import { getUserById } from '../betterAuth/trusted_headers/get_user_by_id';
 import {
   autoSubscribe,
@@ -86,6 +88,7 @@ import {
   TASK_COMMENT_MAX,
   TASK_DESCRIPTION_MAX,
   TASK_TITLE_MAX,
+  taskWorkflowSubjectInput,
   TERMINAL_STATUSES,
 } from './helpers';
 import { postTaskDiscussionMessage } from './internal_mutations';
@@ -1216,6 +1219,7 @@ async function applyUserTaskComment(
   messageId: string;
   threadId: string;
   unresolvedMentionTokens: string[];
+  automationTriggered: boolean;
 }> {
   const { task, project, auth } = args;
   // Commenting is a READ-level action on the unified task_discussion surface:
@@ -1334,13 +1338,24 @@ async function applyUserTaskComment(
     feedback: body,
   });
 
+  // @-ing the task's OWNING automation is the app-lane counterpart: the
+  // workflow reruns and reads this comment (with the rest of the timeline)
+  // as its feedback. A plain comment — or any other automation's handle —
+  // never starts anything.
+  const automationTriggered = await triggerMentionedTaskAutomation(ctx, {
+    task,
+    project,
+    auth,
+    mentions,
+  });
+
   const { unresolvedMentionTokens } = await resolveSurfaceMentions(ctx, {
     organizationId: task.organizationId,
     body,
     projectId: task.projectId,
   });
 
-  return { messageId, threadId, unresolvedMentionTokens };
+  return { messageId, threadId, unresolvedMentionTokens, automationTriggered };
 }
 
 export const addTaskComment = mutation({
@@ -1350,11 +1365,15 @@ export const addTaskComment = mutation({
   },
   // Returns the new message id AND the (lazily-created) discussion thread id —
   // the frontend bootstrap needs the threadId to resolve a previously-threadless
-  // task without a read-after-write ordering hole.
+  // task without a read-after-write ordering hole. `automationTriggered` says
+  // whether an @-mention of the task's owning automation scheduled a workflow
+  // start (the Request-changes gesture phrases its toast from it); optional in
+  // the wire shape so a stale client bundle keeps validating.
   returns: v.object({
     messageId: v.string(),
     threadId: v.string(),
     unresolvedMentionTokens: v.array(v.string()),
+    automationTriggered: v.optional(v.boolean()),
   }),
   handler: async (
     ctx,
@@ -1363,6 +1382,7 @@ export const addTaskComment = mutation({
     messageId: string;
     threadId: string;
     unresolvedMentionTokens: string[];
+    automationTriggered: boolean;
   }> => {
     const task = await loadTaskOrThrow(ctx, args.taskId);
     const project = await loadProjectOrThrow(ctx, task.projectId);
@@ -1568,6 +1588,116 @@ async function triggerMentionedProjectAgent(
       `[tasks] mention trigger for agent ${String(instance._id)} refused: ${kicked.reason ?? 'unknown'}`,
     );
   }
+}
+
+/**
+ * Does the named automation OWN this task? The server-side mirror of the
+ * client's `resolveTaskOwnership` cascade: the assignee decides first (an
+ * `app` assignee must match; an agent or human assignee means no automation
+ * owns the task), then — for unassigned rows only — the creation stamp, then
+ * the task's `externalSystem` against the automation's own deployed contract.
+ * That last fallback is STRICTER than the client's unique-namespace guess:
+ * the mention names the automation explicitly, so only that automation's
+ * declared namespace is consulted.
+ */
+async function isOwningTaskAutomation(
+  ctx: MutationCtx,
+  task: Doc<'tasks'>,
+  name: string,
+): Promise<boolean> {
+  if (task.assigneeType === 'app') return task.assigneeId === name;
+  if (task.assigneeType !== undefined) return false;
+  if (task.createdByType === 'app') return task.createdBy === name;
+  if (task.externalSystem === undefined || task.externalSystem === '') {
+    return false;
+  }
+  const deployment = await ctx.db
+    .query('automationDeployments')
+    .withIndex('by_org_name', (q) =>
+      q.eq('organizationId', task.organizationId).eq('name', name),
+    )
+    .unique();
+  if (!deployment) return false;
+  const version = await versionRow(
+    ctx,
+    task.organizationId,
+    name,
+    deployment.version,
+  );
+  const contract =
+    version === null ? null : parseTaskSubjectContract(version.taskContract);
+  return contract?.externalSystem === task.externalSystem;
+}
+
+/**
+ * The comment-@mention work trigger for AUTOMATION-owned tasks — the exact
+ * counterpart of {@link triggerMentionedProjectAgent} on the app lane: a
+ * plain comment on an automation's task is just a comment; @-ing the OWNING
+ * automation starts its task workflow, which re-reads the timeline (this
+ * comment included) as its feedback. Mentioning any OTHER automation never
+ * starts anything — a task runs only the workflow it belongs to.
+ *
+ * Refusals are deliberately quiet, mirroring the agent lane: the comment has
+ * already posted, and a task with a live engine (either lane) keeps it — the
+ * scheduled start's own duplicate guard backstops the pre-check. Gated on
+ * WRITE access: commenting is read-level, but running a workflow is an edit,
+ * so a read-only member's @ stays a plain mention.
+ *
+ * Returns whether a start was scheduled — the Request-changes gesture posts
+ * exactly such a mention and reads this to phrase its toast.
+ */
+async function triggerMentionedTaskAutomation(
+  ctx: MutationCtx,
+  args: {
+    task: Doc<'tasks'>;
+    project: Doc<'projects'>;
+    auth: AuthContext;
+    mentions: ResolvedMention[];
+  },
+): Promise<boolean> {
+  const { task, project, auth } = args;
+  const mentioned = args.mentions.find(
+    (mention) => mention.type === 'automation',
+  );
+  if (mentioned === undefined) return false;
+  if (
+    !checkProjectAccess(project, auth.teamIds, auth.role).canEdit ||
+    task.archivedAt !== undefined
+  ) {
+    return false;
+  }
+  if (!(await isOwningTaskAutomation(ctx, task, mentioned.id))) {
+    console.warn(
+      `[tasks] automation mention "${mentioned.id}" ignored: it does not own task ${String(task._id)}`,
+    );
+    return false;
+  }
+  // One engine per task, across BOTH lanes — same invariant as the agent
+  // trigger. The workflow itself tells commenters that mid-run comments are
+  // not read; a mention during a live run is that case, not a second start.
+  if ((await liveTaskAgentRun(ctx, task._id)) !== null) return false;
+  if (
+    (await findLiveAutomationRunForTask(ctx, {
+      organizationId: task.organizationId,
+      projectId: task.projectId,
+      taskId: task._id,
+    })) !== null
+  ) {
+    return false;
+  }
+  await ctx.scheduler.runAfter(
+    0,
+    internal.automations.mutations.startTaskWorkflowRun,
+    {
+      organizationId: task.organizationId,
+      name: mentioned.id,
+      taskId: String(task._id),
+      projectId: task.projectId,
+      startedBy: `user:${auth.userId}`,
+      input: taskWorkflowSubjectInput(task),
+    },
+  );
+  return true;
 }
 
 // ---------------------------------------------------------------------------

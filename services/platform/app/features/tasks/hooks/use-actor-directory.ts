@@ -89,6 +89,12 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       ),
     [automations, locale],
   );
+  // The same population as a slug→display list, for the mention surfaces
+  // (`@vat-return-desk` renders as the automation's name, mirroring agents).
+  const automationList = useMemo(
+    () => [...appNames.entries()].map(([slug, name]) => ({ slug, name })),
+    [appNames],
+  );
 
   const previewLabels = useMemo(
     () => ({
@@ -251,6 +257,8 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     resolveWorkflowRunPreview,
     members: memberList,
     agents: agentList,
+    /** Deployed automations visible from this context, slug + display name. */
+    automations: automationList,
     /** True while the project's agent list is still being fetched — an empty
      * `agents` is only "this project HAS no agents" once this settles. */
     agentsLoading,

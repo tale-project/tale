@@ -36,6 +36,7 @@ import {
   boardViewScopeValidator,
   boardViewTypeValidator,
   taskActorTypeValidator,
+  taskMentionTypeValidator,
   taskAssigneeTypeValidator,
   taskAttachmentValidator,
   taskCreatorTypeValidator,
@@ -444,7 +445,7 @@ const taskDiscussionMessageValidator = v.object({
   createdAt: v.number(),
   editedAt: v.optional(v.number()),
   mentions: v.optional(
-    v.array(v.object({ type: taskActorTypeValidator, id: v.string() })),
+    v.array(v.object({ type: taskMentionTypeValidator, id: v.string() })),
   ),
   bodyByLocale: v.optional(
     v.object({
