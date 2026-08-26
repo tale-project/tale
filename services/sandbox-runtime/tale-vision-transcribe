@@ -38,7 +38,10 @@ const MEDIA_TYPES = {
 
 const DEFAULT_PROMPT =
   'Read this image and extract its text and any structured fields verbatim. ' +
-  'Preserve numbers, dates, and identifiers exactly. Reply with the extracted content only.';
+  'Preserve numbers, dates, and identifiers exactly. ' +
+  'If the image contains no readable text, describe what it shows instead — ' +
+  'colors, layout, and subjects. Reply with the extracted content (or the ' +
+  'description) only, never with an empty message.';
 
 async function callVision(imagePath, prompt) {
   if (!GATEWAY_URL || !GATEWAY_TOKEN || !VISION_MODEL) {
