@@ -30,7 +30,7 @@ export function useDeselectOnEscape(
   onDeselect: (() => void) | undefined,
 ): void {
   useEffect(() => {
-    if (!enabled || onDeselect === undefined) return;
+    if (!enabled || onDeselect === undefined) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (event.defaultPrevented) return;

@@ -40,7 +40,6 @@ import type { Id } from '@/convex/_generated/dataModel';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayDescription } from '@/lib/shared/schemas/automation_presentation';
-import { cn } from '@/lib/utils/cn';
 
 import { mergeNodeTypes } from '../hooks/backend';
 import {
@@ -417,9 +416,10 @@ export function AutomationDetail({
             type: 'item' as const,
             label: t('versions.versionLabel', { version: entry.version }),
             selected: entry.version === lookingVersion,
-            ...(entry.version === meta?.deployedVersion
-              ? { trailing: t('versions.deployed') }
-              : {}),
+            trailing:
+              entry.version === meta?.deployedVersion
+                ? t('versions.deployed')
+                : undefined,
             onClick: () => {
               if (entry.version !== lookingVersion) {
                 requestVersionSwitch(entry.version);

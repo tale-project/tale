@@ -691,7 +691,6 @@ automations:
     empty: No versions saved yet.
     versionLabel: v{version}
     deployed: Live
-    deploy: Deploy
     deployRefused: This version was not deployed
     testsPassed: Tests passed
     testsFailed: Tests failed

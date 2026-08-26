@@ -730,7 +730,6 @@ automations:
     empty: Aucune version n’a encore été enregistrée.
     versionLabel: v{version}
     deployed: En service
-    deploy: Mettre en service
     deployRefused: Cette version n’a pas été mise en service
     testsPassed: Tests réussis
     testsFailed: Tests en échec

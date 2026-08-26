@@ -724,7 +724,6 @@ automations:
     empty: Es wurde noch keine Version gespeichert.
     versionLabel: v{version}
     deployed: Live
-    deploy: Live schalten
     deployRefused: Diese Version wurde nicht live geschaltet
     testsPassed: Tests bestanden
     testsFailed: Tests fehlgeschlagen
