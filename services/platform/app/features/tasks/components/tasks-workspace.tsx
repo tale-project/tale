@@ -10,6 +10,9 @@ import { ContentArea } from '@/app/components/layout/content-area';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useDebounce } from '@/app/hooks/use-debounce';
+import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
@@ -71,6 +74,9 @@ export function TasksWorkspace({
   const { t } = useT('tasks');
   const typedProjectId = asProjectId(projectId);
   const [includeArchived, setIncludeArchived] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const trimmedSearchQuery = debouncedSearchQuery.trim();
   const [assigneeFilter, setAssigneeFilter] = useState(ALL_ASSIGNEE_FILTER);
   const [priorityFilter, setPriorityFilter] =
     useState<TaskPriorityFilter>(ALL_PRIORITY_FILTER);
@@ -128,7 +134,21 @@ export function TasksWorkspace({
       ),
     [pendingReviews],
   );
-  const tasks = useMemo(
+  const searchHits = useConvexQuery(
+    api.tasks.search.searchTasks,
+    trimmedSearchQuery.length > 0
+      ? {
+          organizationId,
+          query: trimmedSearchQuery,
+          ...(allProjects ? {} : { projectId: typedProjectId }),
+        }
+      : 'skip',
+  );
+  const searchMatchedIds = useMemo(() => {
+    if (trimmedSearchQuery.length === 0 || !searchHits.data) return null;
+    return new Set(searchHits.data.map((hit) => hit.taskId));
+  }, [searchHits.data, trimmedSearchQuery]);
+  const facetFilteredTasks = useMemo(
     () =>
       filterTasksByFacets(loadedTasks, {
         assignee: assigneeFilter,
@@ -146,6 +166,10 @@ export function TasksWorkspace({
       reviewRequestedFor,
     ],
   );
+  const tasks = useMemo(() => {
+    if (!searchMatchedIds) return facetFilteredTasks;
+    return facetFilteredTasks.filter((task) => searchMatchedIds.has(task._id));
+  }, [facetFilteredTasks, searchMatchedIds]);
   const { project } = useProject(typedProjectId);
   const projectKey = allProjects ? null : (project?.key ?? null);
 
@@ -204,13 +228,15 @@ export function TasksWorkspace({
     setPriorityFilter(ALL_PRIORITY_FILTER);
     setIncludeArchived(false);
     setNeedsMyReviewFilter(false);
+    setSearchQuery('');
   }, []);
 
   const hasActiveFilters =
     assigneeFilter !== ALL_ASSIGNEE_FILTER ||
     priorityFilter !== ALL_PRIORITY_FILTER ||
     includeArchived ||
-    needsMyReviewFilter;
+    needsMyReviewFilter ||
+    searchQuery.trim().length > 0;
 
   const taskFilterConfigs = useMemo(
     () => [
@@ -320,6 +346,11 @@ export function TasksWorkspace({
             ]}
           />
           <DataTableFilters
+            search={{
+              value: searchQuery,
+              onChange: setSearchQuery,
+              placeholder: t('searchPlaceholder'),
+            }}
             filters={taskFilterConfigs}
             onClearAll={handleClearFilters}
             // Editors always get the widening archived filter, so the button

@@ -9,6 +9,7 @@ import { SidebarFooter } from './sidebar-footer';
 import { SidebarHeader } from './sidebar-header';
 import { SidebarNav } from './sidebar-nav';
 import { SidebarSearchCommand } from './sidebar-search-command';
+import { SidebarSearchTrigger } from './sidebar-search-trigger';
 
 export interface AppSidebarProps {
   organizationId: string;
@@ -37,6 +38,9 @@ export function AppSidebar({ organizationId }: AppSidebarProps) {
         <Stack gap={0} className="h-full w-full overflow-hidden px-2">
           <div className="shrink-0 pt-3 pb-4">
             <SidebarHeader organizationId={organizationId} />
+          </div>
+          <div className="flex shrink-0 justify-center pb-2">
+            <SidebarSearchTrigger />
           </div>
           {/* The nav region flexes and scrolls (scrollbar hidden — the rail
               is too narrow for one) so a short viewport never clips tiles;

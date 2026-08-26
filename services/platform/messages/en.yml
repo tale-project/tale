@@ -1899,6 +1899,18 @@ dialogs:
     placeholder: Search chat
     loading: Loading chats...
     noResults: No results
+  search:
+    title: Search
+    placeholder: Search projects, tasks, chats, documents, and contacts
+    loading: Searching...
+    noResults: No results
+    empty: Start typing to search
+    emptyHint: Search projects, tasks, chats, documents, and contacts across this organization
+    groupProjects: Projects
+    groupChat: Chats
+    groupTasks: Tasks
+    groupDocuments: Documents
+    groupContacts: Contacts
   thisMember: this member
   confirmRemoveMember: Remove {name} from the team? They'll lose access to this organization and all associated resources.
   toSend: to send
@@ -4171,6 +4183,8 @@ navigation:
   sidebar:
     landmark: Dashboard sidebar
     title: Menu
+    search: Search
+    searchGlobal: Search everything
 notificationPreferences:
   title: Notifications
   description: Choose which events appear in your bell inbox. Review requests
@@ -6636,6 +6650,7 @@ tasks:
     add: Add
     archive: Archive
     restore: Restore
+  searchPlaceholder: Search tasks
   views:
     board: Board
     list: List
