@@ -26,16 +26,22 @@
  * inside a turn. A match older than the cap is invisible — a real limit, stated
  * rather than hidden.
  *
- * Contact names are searched without a `get` per row: one bounded contacts
- * search resolves the term to a set of contact ids first, and a conversation
- * matches on its subject OR on being with one of those contacts. Message bodies
- * are NOT searched yet; `conversationMessages` does carry
- * `by_organizationId_and_deliveredAt`, so a bounded body leg is possible later
- * without a schema change.
+ * Three legs, each resolved without a `get` per row. Contact names and message
+ * bodies are each one bounded pre-pass that turns the term into a set of ids;
+ * a conversation then matches on its subject, on being with one of those
+ * contacts, or on one of its messages containing the term.
+ *
+ * The body leg reads text the caller may not be allowed to see, which is safe
+ * only because it returns conversation ids and nothing else — every id still
+ * faces `conversationAssignmentAllows` in the walk below.
+ *
+ * All of it is keyword matching. A question phrased by meaning rather than by
+ * words in the mail will not match, and neither will anything past either cap.
  */
 
 import { v } from 'convex/values';
 
+import { htmlToText } from '../../lib/knowledge/html-to-text';
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery, type QueryCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
@@ -54,6 +60,67 @@ const SCAN_CAP = 300;
 /** Matched contacts to resolve before scanning. Bounds the id set the
  *  conversation walk tests against. */
 const CONTACT_MATCH_CAP = 25;
+
+/**
+ * How many recent MESSAGES one search may examine for a body match. Separate
+ * from {@link SCAN_CAP} because messages outnumber conversations several times
+ * over, and this walk pays an HTML strip per row rather than an assignment
+ * decision. A match older than this is invisible — a real limit, reported
+ * rather than hidden.
+ */
+const MESSAGE_SCAN_CAP = 400;
+
+/** Conversations whose bodies matched. Bounds the id set the conversation walk
+ *  tests against, the same way {@link CONTACT_MATCH_CAP} does. */
+const BODY_MATCH_CAP = 50;
+
+/**
+ * The conversations whose MESSAGE BODIES match the term.
+ *
+ * One bounded pre-pass rather than a per-conversation scan: `by_org_deliveredAt`
+ * walks every organization's messages newest-first, so the whole leg costs one
+ * capped walk instead of one per candidate conversation.
+ *
+ * This reads bodies the caller may not be allowed to see, and that is safe
+ * because it returns conversation IDS ONLY. Every id still faces
+ * `conversationAssignmentAllows` in the main walk, so an unreadable
+ * conversation's body match is collected and then discarded — no text and no
+ * existence signal crosses the boundary.
+ *
+ * Bodies arrive as whatever the sender's mail client produced, so HTML is
+ * stripped before matching — otherwise a search for "table" hits every
+ * `<table>`. `htmlToText` is the existing stripper; the cheap `<` test keeps a
+ * plain-text body from paying for it.
+ */
+async function matchingConversationIdsByBody(
+  ctx: QueryCtx,
+  args: { organizationId: string; term: string },
+): Promise<{ ids: Set<string>; truncated: boolean }> {
+  const ids = new Set<string>();
+  const lower = args.term.toLowerCase();
+  let scanned = 0;
+  let truncated = false;
+  for await (const message of ctx.db
+    .query('conversationMessages')
+    .withIndex('by_organizationId_and_deliveredAt', (q) =>
+      q.eq('organizationId', args.organizationId),
+    )
+    .order('desc')) {
+    if (scanned >= MESSAGE_SCAN_CAP) {
+      truncated = true;
+      break;
+    }
+    scanned += 1;
+    const body = message.content;
+    if (body === '') continue;
+    const text = body.includes('<') ? htmlToText(body) : body;
+    if (text.toLowerCase().includes(lower)) {
+      ids.add(String(message.conversationId));
+      if (ids.size >= BODY_MATCH_CAP) break;
+    }
+  }
+  return { ids, truncated };
+}
 
 /** The contact ids whose name matches the term, so a conversation can be found
  *  by who it is with and not only by its subject. */
@@ -138,10 +205,19 @@ export const searchConversationsForChat = internalQuery({
             organizationId: args.organizationId,
             term,
           });
+    const body =
+      listing || term === ''
+        ? { ids: new Set<string>(), truncated: false }
+        : await matchingConversationIdsByBody(ctx, {
+            organizationId: args.organizationId,
+            term,
+          });
 
     const out: Array<Doc<'conversations'>> = [];
     let scanned = 0;
-    let truncated = false;
+    // A cut-short body walk makes the whole answer partial, not just that leg —
+    // a caller told "no matches" would otherwise read it as complete.
+    let truncated = body.truncated;
     for await (const conversation of ctx.db
       .query('conversations')
       .withIndex('by_org_lastMessageAt', (q) =>
@@ -178,7 +254,8 @@ export const searchConversationsForChat = internalQuery({
         const byContact =
           conversation.contactId !== undefined &&
           contactIds.has(String(conversation.contactId));
-        if (!bySubject && !byContact) continue;
+        const byBody = body.ids.has(String(conversation._id));
+        if (!bySubject && !byContact && !byBody) continue;
       }
 
       // The scope decision comes AFTER the text match so an unreadable row

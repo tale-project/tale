@@ -317,3 +317,131 @@ describe('searchConversationsForChat — explicit list mode', () => {
     expect(result.conversations).toEqual([]);
   });
 });
+
+describe('searchConversationsForChat — the message-body leg', () => {
+  let t: T;
+
+  beforeEach(async () => {
+    t = convexTest(schema, modules);
+    await seedWorld(t);
+  });
+
+  /**
+   * A conversation whose SUBJECT cannot match the term, so any hit proves the
+   * body leg found it. Returns the conversation id.
+   */
+  async function seedWithBody(
+    body: string,
+    assignment: Record<string, unknown> = {},
+  ): Promise<string> {
+    return t.run(async (ctx) => {
+      const conversationId = await ctx.db.insert('conversations', {
+        organizationId: ORG,
+        subject: 'Nothing matching here',
+        status: 'open',
+        lastMessageAt: 500,
+        ...assignment,
+      });
+      await ctx.db.insert('conversationMessages', {
+        organizationId: ORG,
+        conversationId,
+        channel: 'email',
+        direction: 'inbound',
+        deliveryState: 'delivered',
+        content: body,
+        deliveredAt: 500,
+      });
+      return String(conversationId);
+    });
+  }
+
+  async function search(userId: string, term: string) {
+    return t.query(
+      internal.conversations.search_for_chat.searchConversationsForChat,
+      { organizationId: ORG, userId, term, limit: 10 },
+    );
+  }
+
+  it('finds a conversation by a word only its message body contains', async () => {
+    await seedWithBody('The chassis serial is XJ-4417.', {
+      assigneeUserId: OWNER_USER,
+    });
+    const found = await search(OWNER_USER, 'XJ-4417');
+    expect(found.conversations.map((c) => c.subject)).toContain(
+      'Nothing matching here',
+    );
+  });
+
+  it('still refuses a body match the caller may not read', async () => {
+    // The body walk sees every message in the organization, so this is the
+    // case that matters: matching is not reading.
+    await seedWithBody('The chassis serial is XJ-4417.', {
+      assigneeUserId: OWNER_USER,
+    });
+    const found = await search(PLAIN_MEMBER, 'XJ-4417');
+    expect(found.conversations).toEqual([]);
+  });
+
+  it('matches through HTML rather than against its markup', async () => {
+    await seedWithBody(
+      '<div><p>The chassis serial is <b>XJ-4417</b>.</p></div>',
+      { assigneeUserId: OWNER_USER },
+    );
+    const found = await search(OWNER_USER, 'XJ-4417');
+    expect(found.conversations).toHaveLength(1);
+  });
+
+  it('does not match a word that exists only in the markup', async () => {
+    // Without stripping, a search for "div" would hit every HTML mail.
+    await seedWithBody('<div><p>Nothing useful.</p></div>', {
+      assigneeUserId: OWNER_USER,
+    });
+    const found = await search(OWNER_USER, 'div');
+    expect(found.conversations).toEqual([]);
+  });
+
+  it('reports truncation from the body walk, not just the conversation walk', async () => {
+    // 401 messages against a 400 cap. A caller told "no matches" must be able
+    // to tell that from "no matches in what I looked at".
+    await t.run(async (ctx) => {
+      const conversationId = await ctx.db.insert('conversations', {
+        organizationId: ORG,
+        subject: 'Nothing matching here',
+        status: 'open',
+        lastMessageAt: 1,
+        assigneeUserId: OWNER_USER,
+      });
+      for (let i = 0; i < 401; i += 1) {
+        await ctx.db.insert('conversationMessages', {
+          organizationId: ORG,
+          conversationId,
+          channel: 'email',
+          direction: 'inbound',
+          deliveryState: 'delivered',
+          content: `filler ${i}`,
+          deliveredAt: 1000 + i,
+        });
+      }
+    });
+    const found = await search(OWNER_USER, 'nonexistent-term');
+    expect(found.truncated).toBe(true);
+  });
+
+  it('skips the body walk entirely for a listing', async () => {
+    // A listing has no term, so there is nothing to match and no reason to
+    // pay for the walk.
+    await seedWithBody('irrelevant', { assigneeUserId: OWNER_USER });
+    const found = await t.query(
+      internal.conversations.search_for_chat.searchConversationsForChat,
+      {
+        organizationId: ORG,
+        userId: OWNER_USER,
+        term: '',
+        list: true,
+        limit: 10,
+      },
+    );
+    expect(found.truncated).toBe(false);
+    expect(found.conversations.length).toBeGreaterThan(0);
+  });
+});
