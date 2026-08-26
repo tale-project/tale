@@ -128,7 +128,7 @@ export function TaskComments({
   };
 
   const isAdding = addComment.isPending;
-  const isEditing = editComment.isPending;
+  const isEditPending = editComment.isPending;
 
   const submitNew = async () => {
     const body = draft.trim();
@@ -144,7 +144,7 @@ export function TaskComments({
 
   const submitEdit = async (messageId: string) => {
     const body = editDraft.trim();
-    if (!body || isEditing) return;
+    if (!body || isEditPending) return;
     try {
       await editComment.mutateAsync({ messageId, body });
       setEditingId(null);
@@ -171,7 +171,7 @@ export function TaskComments({
     const preview = isPreviewableTaskActor(c.authorType, c.authorId)
       ? resolveActorPreview(c.authorType, c.authorId)
       : null;
-    const isEditing = editingId === c.messageId;
+    const isEditingThisComment = editingId === c.messageId;
     const displayBody = pickCommentBody(c.body, c.bodyByLocale, locale);
     return (
       <Row gap={2} align="start" className="group/comment">
@@ -195,7 +195,7 @@ export function TaskComments({
             )}
           </div>
 
-          {isEditing ? (
+          {isEditingThisComment ? (
             <Stack gap={2} className="mt-1">
               <MentionTextarea
                 id={`edit-comment-${c.messageId}`}
@@ -205,14 +205,14 @@ export function TaskComments({
                 value={editDraft}
                 onValueChange={setEditDraft}
                 onKeyDown={onModEnter(() => {
-                  if (!isEditing) void submitEdit(c.messageId);
+                  if (!isEditPending) void submitEdit(c.messageId);
                 })}
                 autoFocus
               />
               <Row gap={2} align="stretch">
                 <Button
-                  disabled={editDraft.trim().length === 0 || isEditing}
-                  isLoading={isEditing}
+                  disabled={editDraft.trim().length === 0 || isEditPending}
+                  isLoading={isEditPending}
                   onClick={() => void submitEdit(c.messageId)}
                 >
                   {tCommon('actions.save')}
@@ -231,7 +231,7 @@ export function TaskComments({
             />
           )}
 
-          {!isEditing && canComment && (
+          {!isEditingThisComment && canComment && (
             <Row
               gap={3}
               className="mt-1 text-xs opacity-0 transition-opacity group-focus-within/comment:opacity-100 group-hover/comment:opacity-100"
