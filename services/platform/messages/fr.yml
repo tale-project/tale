@@ -1048,7 +1048,6 @@ chat:
     voiceOutputStop: Arrêter la sortie vocale
     voiceOutputStopped: Arrêté
     voiceOutputThreadSaveFailed: Impossible d'enregistrer le paramètre vocal pour ce chat
-  searchChat: Rechercher dans le chat
   showHistory: Afficher l'historique
   hideHistory: Masquer l'historique
   newProject: Nouveau projet
@@ -1234,6 +1233,15 @@ chat:
     toast:
       moveFailed: Échec du déplacement du chat
       renameFailed: Échec du renommage du chat
+  searchPalette:
+    title: Rechercher dans les chats
+    placeholder: Rechercher dans les chats
+    loading: Chargement des chats…
+    noResults: Aucun résultat
+    empty: Commence à taper pour rechercher
+    emptyHint: Recherche par titre, message ou participant
+    searchEverywhere: Tout rechercher
+    searchEverywhereHint: Projets, tâches, chats, documents et contacts dans cette organisation
   aria:
     messageHistory: Historique des messages
     chatRegion: Chat

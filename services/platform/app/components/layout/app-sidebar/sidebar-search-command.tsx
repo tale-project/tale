@@ -54,12 +54,13 @@ export interface SidebarSearchCommandProps {
 
 /**
  * Global search palette (⌘K / sidebar): projects, tasks, chats, documents,
- * and contacts across the org.
+ * and contacts across the org. Chat's thread-list uses
+ * {@link ChatSearchCommand} for a chats-only palette.
  */
 export function SidebarSearchCommand({
   organizationId,
 }: SidebarSearchCommandProps) {
-  const { isSearchOpen, setSearchOpen } = useSidebar();
+  const { isSearchOpen, setSearchOpen, setChatSearchOpen } = useSidebar();
   const navigate = useNavigate();
   const location = useLocation();
   const isMac = useIsMac();
@@ -188,12 +189,13 @@ export function SidebarSearchCommand({
       if (isMod && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         e.stopPropagation();
+        setChatSearchOpen(false);
         setSearchOpen((open) => !open);
       }
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isMac, setSearchOpen]);
+  }, [isMac, setChatSearchOpen, setSearchOpen]);
 
   return (
     <SearchCommand

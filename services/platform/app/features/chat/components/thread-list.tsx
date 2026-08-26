@@ -26,17 +26,16 @@ import {
   FolderPlus,
   MessageCirclePlus,
   MessageSquareDashed,
-  Search,
 } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 
-import { useOptionalSidebar } from '@/app/components/layout/app-sidebar/sidebar-context';
 import {
   ChatRowsSkeleton,
   ProjectRowsSkeleton,
 } from '@/app/components/layout/chat-history-skeleton';
 import { SubPanelSectionHeader } from '@/app/components/layout/sub-panel-list';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { ChatSearchTrigger } from '@/app/features/chat/components/chat-search-trigger';
 import { ProjectCreateDialog } from '@/app/features/projects/components/project-create-dialog';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
@@ -82,7 +81,6 @@ export const ThreadList = memo(function ThreadList({
   draftProjectId,
 }: ThreadListProps) {
   const { t } = useT('chat');
-  const sidebar = useOptionalSidebar();
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [collapsedProjects, setCollapsedProjects] = usePersistedState<
     Record<string, boolean>
@@ -183,28 +181,11 @@ export const ThreadList = memo(function ThreadList({
     </Tooltip>
   );
 
-  // The CHATS header's actions: search (the shared ⌘K palette — there is no
-  // second search implementation; absent when no sidebar surface exists to
-  // open) and, to its right, starting a fresh conversation.
+  // The CHATS header's actions: search (the shared ⌘K palette) and, to its
+  // right, starting a fresh conversation.
   const chatHeaderActions = (
     <div className="flex shrink-0 items-center justify-end">
-      {sidebar && (
-        <Tooltip
-          content={t('searchChat')}
-          side="right"
-          contentClassName="py-1.5"
-        >
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => sidebar.setSearchOpen(true)}
-            aria-label={t('searchChat')}
-            className="text-muted-foreground -my-1 size-7 shrink-0"
-          >
-            <Search className="size-4" />
-          </Button>
-        </Tooltip>
-      )}
+      <ChatSearchTrigger />
       <Tooltip content={t('newChat')} side="right" contentClassName="py-1.5">
         <Button
           size="icon"

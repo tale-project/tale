@@ -2,6 +2,7 @@
 
 import { Stack } from '@tale/ui/layout';
 
+import { ChatSearchCommand } from '@/app/features/chat/components/chat-search-command';
 import { useT } from '@/lib/i18n/client';
 
 import { MobileSidebarSheet } from './mobile-sidebar-sheet';
@@ -53,6 +54,7 @@ export function AppSidebar({ organizationId }: AppSidebarProps) {
       </aside>
       <MobileSidebarSheet organizationId={organizationId} />
       <SidebarSearchCommand organizationId={organizationId} />
+      <ChatSearchCommand organizationId={organizationId} />
     </>
   );
 }

@@ -1039,7 +1039,6 @@ chat:
     voiceOutputStop: Sprachausgabe stoppen
     voiceOutputStopped: Gestoppt
     voiceOutputThreadSaveFailed: Sprach-Einstellung für diesen Chat konnte nicht gespeichert werden
-  searchChat: Chat durchsuchen
   showHistory: Verlauf anzeigen
   hideHistory: Verlauf ausblenden
   newProject: Neues Projekt
@@ -1226,6 +1225,15 @@ chat:
     toast:
       moveFailed: Chat konnte nicht verschoben werden
       renameFailed: Chat konnte nicht umbenannt werden
+  searchPalette:
+    title: Chats durchsuchen
+    placeholder: Chats durchsuchen
+    loading: Chats werden geladen...
+    noResults: Keine Ergebnisse
+    empty: Tippe, um zu suchen
+    emptyHint: Suche nach Titel, Nachricht oder Teilnehmer
+    searchEverywhere: Alles durchsuchen
+    searchEverywhereHint: Projekte, Tasks, Chats, Dokumente und Kontakte in dieser Organisation
   aria:
     messageHistory: Nachrichtenverlauf
     chatRegion: Chat
