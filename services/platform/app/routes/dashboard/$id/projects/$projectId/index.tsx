@@ -1,18 +1,16 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { ProjectOverview } from '@/app/features/projects/components/project-overview';
-import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-
+/**
+ * Bare `/projects/$projectId` is an alias, not a page: list rows, create
+ * success, search hits, and notification fallbacks land here and forward to
+ * Tasks (the project's default working surface). General stays at `/overview`.
+ */
 export const Route = createFileRoute('/dashboard/$id/projects/$projectId/')({
-  component: ProjectOverviewPage,
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: '/dashboard/$id/projects/$projectId/tasks',
+      params,
+      replace: true,
+    });
+  },
 });
-
-function ProjectOverviewPage() {
-  const { id: organizationId, projectId } = Route.useParams();
-  return (
-    <ProjectOverview
-      organizationId={organizationId}
-      projectId={asProjectId(projectId)}
-    />
-  );
-}

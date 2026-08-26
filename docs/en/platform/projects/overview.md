@@ -19,7 +19,7 @@ Prefer to watch first? Episode 6 walks a live project in two and a half minutes 
 
 ## The parts of a project
 
-Every project opens on the same tab strip: **General** (name, description, sharing, and recent chats), **Chats** (your chats in the project plus the ones shared with it), **Tasks** (the board), **Knowledge** (the project's files, in a folder tree), and **Agents** (the project's own task agents) — plus **Automations** once one is bound to the project, and **Environment** for project administrators. Apps installed into the project add their own tabs after these.
+Every project opens on **Tasks** (the board), then the same tab strip: **General** (name, description, sharing, and recent chats), **Chats** (your chats in the project plus the ones shared with it), **Knowledge** (the project's files, in a folder tree), and **Agents** (the project's own task agents) — plus **Automations** once one is bound to the project, and **Environment** for project administrators. Apps installed into the project add their own tabs after these.
 
 ## Pages in this section
 

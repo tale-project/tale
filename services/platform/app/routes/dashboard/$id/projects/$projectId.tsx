@@ -142,18 +142,6 @@ function ProjectDetailLayout() {
   const tabs = useMemo<TabNavigationItem[]>(
     () => [
       {
-        label: t('navigation.overview'),
-        href: `/dashboard/${organizationId}/projects/${projectId}`,
-        matchMode: 'exact',
-        disabled: allProjectsMode,
-      },
-      {
-        label: t('navigation.threads'),
-        href: `/dashboard/${organizationId}/projects/${projectId}/threads`,
-        matchMode: 'exact',
-        disabled: allProjectsMode,
-      },
-      {
         label: tTasks('title'),
         href: `/dashboard/${organizationId}/projects/${projectId}/tasks`,
         matchMode: 'exact',
@@ -169,6 +157,18 @@ function ProjectDetailLayout() {
             : [`/dashboard/${organizationId}/projects/${projectId}/metrics`]),
         ],
         search: allProjectsMode ? { projects: 'all' } : undefined,
+      },
+      {
+        label: t('navigation.overview'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/overview`,
+        matchMode: 'exact',
+        disabled: allProjectsMode,
+      },
+      {
+        label: t('navigation.threads'),
+        href: `/dashboard/${organizationId}/projects/${projectId}/threads`,
+        matchMode: 'exact',
+        disabled: allProjectsMode,
       },
       {
         label: t('navigation.files'),

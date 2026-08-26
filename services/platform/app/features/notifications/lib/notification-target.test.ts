@@ -48,7 +48,7 @@ describe('personalNotificationTarget', () => {
       },
     });
     expect(target).toEqual({
-      to: '/dashboard/$id/projects/$projectId',
+      to: '/dashboard/$id/projects/$projectId/tasks',
       params: { id: ORG, projectId: 'proj_xyz' },
     });
   });
@@ -139,7 +139,7 @@ describe('personalNotificationTarget', () => {
         params: { projectId: 'proj_xyz' },
       }),
     ).toEqual({
-      to: '/dashboard/$id/projects/$projectId',
+      to: '/dashboard/$id/projects/$projectId/tasks',
       params: { id: ORG, projectId: 'proj_xyz' },
     });
   });

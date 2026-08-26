@@ -19,7 +19,7 @@ Tu préfères regarder d’abord ? L’épisode 6 parcourt un vrai projet en deu
 
 ## Les pièces d’un projet
 
-Chaque projet s’ouvre sur la même barre d’onglets : **Général** (nom, description, partage et chats récents), **Chats** (tes chats dans le projet plus ceux qui lui sont partagés), **Tâches** (le tableau), **Connaissances** (les fichiers du projet, dans une arborescence de dossiers) et **Agents** (les agents du projet) — plus **Automatisations** dès qu’une est liée au projet, et **Environnement** pour les admins du projet. Les apps installées dans le projet ajoutent leurs propres onglets à la suite.
+Chaque projet s’ouvre sur **Tâches** (le tableau), puis la même barre d’onglets : **Général** (nom, description, partage et chats récents), **Chats** (tes chats dans le projet plus ceux qui lui sont partagés), **Connaissances** (les fichiers du projet, dans une arborescence de dossiers) et **Agents** (les agents du projet) — plus **Automatisations** dès qu’une est liée au projet, et **Environnement** pour les admins du projet. Les apps installées dans le projet ajoutent leurs propres onglets à la suite.
 
 ## Pages dans cette section
 

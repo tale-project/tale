@@ -5,7 +5,7 @@ description: Ein Projekt bündelt Chats, Dateien, Anweisungen und Aufgaben in ei
 
 Ein Projekt ist die Einheit, zu der Tale greift, wenn ein Arbeitsvorhaben dieselben Dateien, dieselben Anweisungen und dieselben Arbeitsflächen über viele Chats und viele Personen hinweg braucht. Diese Seite gibt dir das mentale Modell — lies sie, bevor du dein erstes Projekt erstellst, und komm zurück, wenn du entscheidest, ob ein wachsender Chat in eines befördert werden soll.
 
-<Frame caption="Der Tab Allgemein — Identität, Freigabe und die Statistik-Leiste sind die Eingangstür des Projekts.">
+<Frame caption="Der Tab Allgemein — Identität, Freigabe und die Statistik-Leiste des Projekts.">
 
 ![Der Tab Allgemein des Projekts Website-Relaunch mit den Feldern für Name und Beschreibung, dem Freigabe-Bereich, in dem Organisationsweit als verantwortliches Team steht, und einer Statistik-Leiste, die zwei Dateien, keine Chats und Organisationsweit zeigt.](/images/platform/project-general-tab.webp)
 

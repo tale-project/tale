@@ -170,7 +170,9 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/projects',
     prepare: async (page, ctx) => {
-      await page.goto(projectRoute(ctx), { waitUntil: 'domcontentloaded' });
+      await page.goto(projectRoute(ctx, '/overview'), {
+        waitUntil: 'domcontentloaded',
+      });
     },
     readyWhen: (page) =>
       page.getByText(`${DEMO_PROJECT_FILES.length} files`).first(),

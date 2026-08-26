@@ -129,7 +129,7 @@ export function ProjectCreateDialog({
       onOpenChange(false);
       if (navigateOnCreate) {
         void navigate({
-          to: '/dashboard/$id/projects/$projectId',
+          to: '/dashboard/$id/projects/$projectId/tasks',
           params: { id: organizationId, projectId: String(projectId) },
         });
       }
