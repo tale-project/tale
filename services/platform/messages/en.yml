@@ -6604,6 +6604,7 @@ tasks:
     priority: Priority
     labels: Labels
     status: Status
+    project: Project
     unassigned: Unassigned
     author: Author
     created: Created

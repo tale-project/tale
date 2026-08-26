@@ -444,13 +444,28 @@ describe('listTasksForAccessibleProjects', () => {
       .query(api.tasks.queries.listTasksForAccessibleProjects, {
         organizationId: ORG,
       });
-    expect(result.canEdit).toBe(false);
+    expect(result.canEdit).toBe(true);
     expect(result.tasks).toHaveLength(2);
     expect(
       result.tasks
         .map((task) => task.projectKey)
         .sort((a, b) => String(a).localeCompare(String(b))),
     ).toEqual(['AAA', 'BBB']);
+  });
+
+  it('reports canEdit false for a read-only member on the aggregate board', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'user_member', 'member');
+    const project = await seedProject(t, 'Open');
+    await seedTask(t, project);
+
+    const result = await t
+      .withIdentity({ subject: 'user_member' })
+      .query(api.tasks.queries.listTasksForAccessibleProjects, {
+        organizationId: ORG,
+      });
+    expect(result.canEdit).toBe(false);
+    expect(result.tasks).toHaveLength(1);
   });
 
   it('excludes tasks in team-private projects the caller cannot read', async () => {

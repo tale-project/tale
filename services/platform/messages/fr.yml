@@ -6644,6 +6644,7 @@ tasks:
     priority: Priorité
     labels: Étiquettes
     status: Statut
+    project: Projet
     unassigned: Non assigné
     author: Auteur
     created: Créé le

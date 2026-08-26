@@ -12,6 +12,7 @@ import {
   ResponsiveDialogTitle,
 } from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
+import { Link } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
 import {
   Archive,
@@ -144,6 +145,7 @@ export function TaskModal({
   taskId,
   defaultStatus,
   onOpenTask,
+  showProjectLink = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -155,6 +157,8 @@ export function TaskModal({
   defaultStatus?: TaskStatus;
   /** Navigate to another task (subtasks / dependency links). */
   onOpenTask?: (taskId: Id<'tasks'>) => void;
+  /** All-projects board: show a link to the task's project in the detail. */
+  showProjectLink?: boolean;
 }) {
   const { t } = useT('tasks');
   return (
@@ -179,6 +183,7 @@ export function TaskModal({
             taskId={taskId}
             onOpenTask={onOpenTask}
             onClose={() => onOpenChange(false)}
+            showProjectLink={showProjectLink}
           />
         ) : (
           <CreateTaskBody
@@ -960,10 +965,12 @@ function EditTaskBody({
   taskId,
   onOpenTask,
   onClose,
+  showProjectLink = false,
 }: {
   taskId: Id<'tasks'>;
   onOpenTask?: (taskId: Id<'tasks'>) => void;
   onClose: () => void;
+  showProjectLink?: boolean;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -1509,6 +1516,26 @@ function EditTaskBody({
                     />
                   )}
                 </Row>
+              )}
+              {showProjectLink && project !== null && (
+                <PropertyField label={t('fields.project')}>
+                  <Link
+                    to="/dashboard/$id/projects/$projectId/tasks/board"
+                    params={{
+                      id: task.organizationId,
+                      projectId: task.projectId,
+                    }}
+                    search={(prev) => {
+                      const next = { ...prev };
+                      delete next.projects;
+                      next.task = task._id;
+                      return next;
+                    }}
+                    className="text-foreground hover:text-foreground/80 focus-visible:ring-ring min-w-0 truncate rounded-sm text-sm focus-visible:ring-2 focus-visible:outline-none"
+                  >
+                    {project.name}
+                  </Link>
+                </PropertyField>
               )}
               <PropertyField label={t('fields.status')}>
                 <StatusPicker

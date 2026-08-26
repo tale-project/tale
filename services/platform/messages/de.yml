@@ -6526,6 +6526,7 @@ tasks:
     priority: Priorität
     labels: Labels
     status: Status
+    project: Projekt
     unassigned: Nicht zugewiesen
     author: Autor
     created: Erstellt
