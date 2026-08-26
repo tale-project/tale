@@ -79,6 +79,10 @@ import {
   normalizeToolGrants,
   secretsGuidance,
 } from '../sandbox/tool_names';
+import {
+  answerResumePrompt,
+  promptWithAnsweredAsks,
+} from './ask_answer_carryover';
 import type { AgentTurnFile, AgentTurnResult } from './checkpoints';
 
 // The turn's wall-clock deadline is the shared work-turn knob
@@ -1175,12 +1179,25 @@ export const startWorkflowAgentTurn = internalAction({
         secrets: args.request.secrets ?? [],
       });
 
+      // A kick is a FRESH conversation — on an auto-retry it replaces a dead
+      // turn whose conversation may already have collected operator answers
+      // (the answered-ask resume that died before progressing). Fold those
+      // answers into the prompt so the retry never asks them again; a first
+      // kick has none and the prompt stays as authored.
+      const answeredAsks = await ctx.runQuery(
+        internal.automations.human_asks.listAnsweredAsksForNode,
+        {
+          organizationId: args.organizationId,
+          runId: args.runId,
+          nodeId: args.nodeId,
+        },
+      );
       const exec = buildExternalTurnExec({
         harness: args.harness,
         gatewayModel: args.gatewayModel,
         serving: auth.serving,
         instructions,
-        prompt: args.request.prompt,
+        prompt: promptWithAnsweredAsks(args.request.prompt, answeredAsks),
         execId: args.execId,
         // Always mounted: `ask_human` rides the bridge, so every automation
         // turn gets the shim even when the node declares no connectors.
@@ -1553,13 +1570,29 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         ...secretsGuidance(request.secrets ?? []),
         "Write every file you produce to /agent/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');
-      const prompt = [
-        'The operator answered your question:',
-        '',
-        ask.answer,
-        '',
-        'Continue the task from where you left off, applying this answer. Ask again only if a genuinely NEW operator-only decision comes up.',
-      ].join('\n');
+      // No conversation handle means the delivery is a FRESH conversation:
+      // an answer-only message would arrive without the assignment it
+      // answers, so the fallback rebuilds the full node prompt with every
+      // answered round folded in (this ask included — it is `answered`
+      // already). With a handle, the answer alone is the next message.
+      const answeredAsks =
+        ask.agentSessionId === undefined
+          ? await ctx.runQuery(
+              internal.automations.human_asks.listAnsweredAsksForNode,
+              {
+                organizationId: args.organizationId,
+                // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the ask row carries the durable run id
+                runId: askRunId as never,
+                nodeId: ask.nodeId,
+              },
+            )
+          : [];
+      const prompt = answerResumePrompt({
+        nodePrompt: request.prompt,
+        answer: ask.answer,
+        hasConversation: ask.agentSessionId !== undefined,
+        answeredAsks,
+      });
       const extraEnv = await resolveTurnEquipmentEnv(ctx, {
         organizationId: args.organizationId,
         sessionId,
@@ -1584,10 +1617,11 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       });
       if (ask.agentSessionId === undefined) {
         // The asking turn ended without a resume handle (a harness that never
-        // reported one). The answer still reaches the agent — as a fresh
-        // conversation over the same workspace — so warn rather than fail.
+        // reported one, or a ring that dropped the announcement). The agent
+        // starts fresh over the preserved workspace, carrying the node prompt
+        // and every answered round — warn for the trace, don't fail.
         console.warn(
-          '[agent-host] answered-ask resume without a harness session handle — starting fresh over the preserved workspace',
+          '[agent-host] answered-ask resume without a harness session handle — starting fresh over the preserved workspace with the node prompt and answered asks carried in',
         );
       }
 
@@ -1644,6 +1678,7 @@ function readStringArray(value: unknown): string[] | undefined {
 function readWorkflowAgentRequest(input: Record<string, unknown>): {
   model: string;
   modelProvider?: string;
+  prompt: string;
   system?: string;
   connectors?: string[];
   tools?: string[];
@@ -1657,6 +1692,9 @@ function readWorkflowAgentRequest(input: Record<string, unknown>): {
     ...(typeof input.modelProvider === 'string'
       ? { modelProvider: input.modelProvider }
       : {}),
+    // The node prompt rides the cursor input from kick time; the no-handle
+    // answer delivery restores it as the fresh conversation's assignment.
+    prompt: typeof input.prompt === 'string' ? input.prompt : '',
     ...(typeof input.system === 'string' ? { system: input.system } : {}),
     ...(connectors !== undefined ? { connectors } : {}),
     ...(tools !== undefined ? { tools } : {}),
@@ -1811,10 +1849,15 @@ async function continueOrSettle(
     }),
   );
   if (pendingAsk !== null && !errored) {
+    // Prefer the end-of-turn stamp, but fall back to the window's wide
+    // extraction (`turn-started` OR `turn-ended`, task-lane parity) — a
+    // handle missed here forces the answer delivery onto the fresh-
+    // conversation fallback instead of resuming the asking conversation.
+    const askAgentSessionId = ended?.sessionId ?? window.agentSessionId;
     await ctx.runMutation(internal.automations.human_asks.recordAskParked, {
       askId: pendingAsk._id,
-      ...(ended?.sessionId !== undefined
-        ? { agentSessionId: ended.sessionId }
+      ...(askAgentSessionId !== undefined
+        ? { agentSessionId: askAgentSessionId }
         : {}),
     });
     // The stepper's generic time-limit cut must not fire while the turn

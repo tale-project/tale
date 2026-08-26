@@ -53,6 +53,7 @@ import type * as audit_logs_verify_integrity from "../audit_logs/verify_integrit
 import type * as auth from "../auth.js";
 import type * as automations_agent_host from "../automations/agent_host.js";
 import type * as automations_agent_retry from "../automations/agent_retry.js";
+import type * as automations_ask_answer_carryover from "../automations/ask_answer_carryover.js";
 import type * as automations_bound_run_payload from "../automations/bound_run_payload.js";
 import type * as automations_catalog from "../automations/catalog.js";
 import type * as automations_checkpoints from "../automations/checkpoints.js";
@@ -1059,6 +1060,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   "automations/agent_host": typeof automations_agent_host;
   "automations/agent_retry": typeof automations_agent_retry;
+  "automations/ask_answer_carryover": typeof automations_ask_answer_carryover;
   "automations/bound_run_payload": typeof automations_bound_run_payload;
   "automations/catalog": typeof automations_catalog;
   "automations/checkpoints": typeof automations_checkpoints;

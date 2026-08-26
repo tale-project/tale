@@ -312,6 +312,36 @@ export const getAskForResume = internalQuery({
   },
 });
 
+/** Answered asks of one node, oldest first — the carryover a re-kicked turn
+ * folds into its prompt (`agent_host.startWorkflowAgentTurn`), so a fresh
+ * conversation keeps the operator decisions its dead predecessor already
+ * collected instead of asking them again. */
+export const listAnsweredAsksForNode = internalQuery({
+  args: {
+    organizationId: v.string(),
+    runId: v.id('automationRuns'),
+    nodeId: v.string(),
+  },
+  returns: v.array(v.object({ question: v.string(), answer: v.string() })),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ question: string; answer: string }[]> => {
+    const answered: { question: string; answer: string }[] = [];
+    for await (const ask of ctx.db
+      .query('automationHumanAsks')
+      .withIndex('by_run_status', (q) =>
+        q.eq('runId', args.runId).eq('status', 'answered'),
+      )) {
+      if (ask.organizationId !== args.organizationId) continue;
+      if (ask.nodeId !== args.nodeId) continue;
+      if (ask.answer === undefined) continue;
+      answered.push({ question: ask.question, answer: ask.answer });
+    }
+    return answered;
+  },
+});
+
 /** Terminal states the host stamps: `expired` when nobody answered in time,
  * `cancelled` when the turn ended in a crash or the run was cut. */
 export const closeAsk = internalMutation({
