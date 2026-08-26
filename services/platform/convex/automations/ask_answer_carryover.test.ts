@@ -8,7 +8,10 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { promptWithAnsweredAsks } from './ask_answer_carryover';
+import {
+  answerResumePrompt,
+  promptWithAnsweredAsks,
+} from './ask_answer_carryover';
 
 const PROMPT = 'Repair the client setup for period 2026Q2.';
 
@@ -42,5 +45,39 @@ describe('promptWithAnsweredAsks', () => {
     expect(merged.indexOf('First answer.')).toBeLessThan(
       merged.indexOf('Second answer.'),
     );
+  });
+});
+
+describe('answerResumePrompt', () => {
+  const ANSWERED = [
+    { question: 'Deduct in Q2?', answer: 'Yes — booked 01.04.2026.' },
+  ];
+
+  it('with a conversation handle, the answer alone is the next message', () => {
+    const prompt = answerResumePrompt({
+      nodePrompt: PROMPT,
+      answer: 'Yes — booked 01.04.2026.',
+      hasConversation: true,
+      answeredAsks: ANSWERED,
+    });
+    expect(prompt).toContain('The operator answered your question:');
+    expect(prompt).toContain('Yes — booked 01.04.2026.');
+    // The resumed conversation already holds the assignment — never repeat it.
+    expect(prompt).not.toContain(PROMPT);
+  });
+
+  it('without a handle, the fresh conversation gets the node prompt plus every answered round', () => {
+    const prompt = answerResumePrompt({
+      nodePrompt: PROMPT,
+      answer: 'Yes — booked 01.04.2026.',
+      hasConversation: false,
+      answeredAsks: ANSWERED,
+    });
+    // The regression: an answer-only message left the fresh turn without its
+    // assignment — the node prompt must lead, the answers must follow.
+    expect(prompt.startsWith(PROMPT)).toBe(true);
+    expect(prompt).toContain('Deduct in Q2?');
+    expect(prompt).toContain('Yes — booked 01.04.2026.');
+    expect(prompt).not.toContain('Continue the task from where you left off');
   });
 });

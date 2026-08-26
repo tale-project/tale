@@ -46,3 +46,34 @@ export function promptWithAnsweredAsks(
   );
   return [prompt, '', CARRYOVER_HEADER, '', blocks.join('\n\n')].join('\n');
 }
+
+/**
+ * The first message of the turn that delivers an operator's answer.
+ *
+ * With a harness conversation handle the turn RESUMES the asking
+ * conversation, so the answer alone is the message — the conversation
+ * already holds the task and the question. Without a handle (the asking
+ * turn never reported one, or the ring dropped the announcement) the
+ * delivery is a FRESH conversation over the preserved workspace: an
+ * answer-only message would leave the agent without its assignment, so the
+ * fallback restores the full node prompt and folds in every answered round
+ * — the ask being delivered included, it is already `answered` when the
+ * resume runs.
+ */
+export function answerResumePrompt(args: {
+  nodePrompt: string;
+  answer: string;
+  hasConversation: boolean;
+  answeredAsks: readonly AnsweredAskCarryover[];
+}): string {
+  if (args.hasConversation) {
+    return [
+      'The operator answered your question:',
+      '',
+      args.answer,
+      '',
+      'Continue the task from where you left off, applying this answer. Ask again only if a genuinely NEW operator-only decision comes up.',
+    ].join('\n');
+  }
+  return promptWithAnsweredAsks(args.nodePrompt, args.answeredAsks);
+}
