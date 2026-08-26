@@ -41,8 +41,10 @@ import { planIngest, sliceToStore } from '../../lib/knowledge/ingest-plan';
 import { logger } from '../../lib/knowledge/logger';
 import { scanForSecrets } from '../../lib/knowledge/secret-scan';
 import { PRIVATE_KNOWLEDGE_SCHEMA as SCHEMA } from '../../lib/knowledge/types';
+import type { PiiConfig } from '../../lib/shared/schemas/pii';
 import { assertVectorWidth } from './dimensions';
 import type { Embedder } from './embedding';
+import { applyPiiPolicyForIndexing } from './pii_gate';
 
 /** Chunks committed per slice. Small enough that a slice fits comfortably in
  * one invocation's budget, large enough that the per-slice overhead is noise. */
@@ -60,6 +62,12 @@ export interface IndexDocumentArgs {
    * Omitted when the caller has already scanned them. */
   readonly bytes?: Uint8Array;
   readonly embedder: Embedder;
+  /**
+   * The organization's PII policy, already parsed. Absent or disabled indexes
+   * exactly as before. Passed in rather than read here because this module has
+   * no Convex ctx — the caller resolves it once per file.
+   */
+  readonly piiConfig?: PiiConfig | null;
   readonly folderPath?: string | null;
   /**
    * Document scope, from the Convex document row (`teamTags`/`projectId` —
@@ -109,7 +117,7 @@ export interface IndexDocumentResult {
    * which resumes after the committed prefix. */
   readonly partial: boolean;
   /** Set when nothing was done, and why. */
-  readonly skipped?: 'unchanged' | 'secret-detected' | 'empty';
+  readonly skipped?: 'unchanged' | 'secret-detected' | 'empty' | 'pii-blocked';
   /** Present when the upload was refused, in words for the person who made it. */
   readonly refusal?: string;
 }
@@ -138,7 +146,24 @@ export async function indexDocument(
     }
   }
 
-  const chunks = chunkDocument(args.text, {
+  // The organization's own PII policy, applied before anything is chunked or
+  // embedded — so a masked identifier never reaches the vectors, and a blocked
+  // document never reaches the index at all.
+  const decision = applyPiiPolicyForIndexing(args.text, args.piiConfig ?? null);
+  if (decision.kind === 'refuse') {
+    const reason = `Indexing refused by the organization's PII policy (${decision.categoryIds.join(', ')}).`;
+    await markFailed(args.sql, args.orgSlug, args.fileId, reason);
+    return {
+      fileId: args.fileId,
+      chunksWritten: 0,
+      chunksTotal: 0,
+      partial: false,
+      skipped: 'pii-blocked',
+      refusal: reason,
+    };
+  }
+
+  const chunks = chunkDocument(decision.text, {
     title: args.title ?? args.filename,
   });
   if (chunks.length === 0) {
@@ -151,7 +176,11 @@ export async function indexDocument(
     };
   }
 
-  const contentHash = computeContentHash(args.text);
+  // Hashed AFTER the policy, not before. The hash is the content's identity:
+  // skip-if-unchanged and the duplicate-clone lookup both key on it. Hashing
+  // the raw text would make a policy change invisible — the same file would
+  // read as unchanged and keep its old, less-masked chunks forever.
+  const contentHash = computeContentHash(decision.text);
   const stored = await readStoredState(args.sql, args.orgSlug, args.fileId);
   const duplicate = await findDuplicate(
     args.sql,
