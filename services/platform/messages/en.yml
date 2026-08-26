@@ -1004,7 +1004,6 @@ chat:
     voiceOutputStop: Stop voice output
     voiceOutputStopped: Stopped
     voiceOutputThreadSaveFailed: Couldn't save voice setting for this conversation
-  searchChat: Search chat
   showHistory: Show chats
   hideHistory: Hide chats
   newProject: New project
@@ -1189,6 +1188,15 @@ chat:
     toast:
       moveFailed: Failed to move chat
       renameFailed: Failed to rename chat
+  searchPalette:
+    title: Search chats
+    placeholder: Search chats
+    loading: Loading chats...
+    noResults: No results
+    empty: Start typing to search
+    emptyHint: Search by title, message, or participant
+    searchEverywhere: Search everything
+    searchEverywhereHint: Projects, tasks, chats, documents, and contacts across this organization
   aria:
     messageHistory: Message history
     chatRegion: Chat

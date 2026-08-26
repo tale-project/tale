@@ -14,9 +14,12 @@ interface SidebarContextValue {
   /** Mobile unified drawer (nav + chat history). Session-only. */
   isMobileSheetOpen: boolean;
   setMobileSheetOpen: Dispatch<SetStateAction<boolean>>;
-  /** Global chat-search palette (SearchCommand). Session-only. */
+  /** Global search palette (chats + tasks). Session-only. ⌘K / Ctrl+K. */
   isSearchOpen: boolean;
   setSearchOpen: Dispatch<SetStateAction<boolean>>;
+  /** Chat-scoped search palette (chats only). Session-only. */
+  isChatSearchOpen: boolean;
+  setChatSearchOpen: Dispatch<SetStateAction<boolean>>;
 }
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
@@ -54,6 +57,7 @@ interface SidebarProviderProps {
 export function SidebarProvider({ children }: SidebarProviderProps) {
   const [isMobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [isSearchOpen, setSearchOpen] = useState(false);
+  const [isChatSearchOpen, setChatSearchOpen] = useState(false);
 
   const value = useMemo(
     () => ({
@@ -61,8 +65,10 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
       setMobileSheetOpen,
       isSearchOpen,
       setSearchOpen,
+      isChatSearchOpen,
+      setChatSearchOpen,
     }),
-    [isMobileSheetOpen, isSearchOpen],
+    [isMobileSheetOpen, isSearchOpen, isChatSearchOpen],
   );
 
   return (
