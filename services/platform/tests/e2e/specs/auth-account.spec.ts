@@ -305,11 +305,15 @@ test.describe('organization switching', () => {
       new RegExp(`/dashboard/${orgA}/projects/[A-Za-z0-9]{16,}`),
       { timeout: TIMEOUT.NAV },
     );
-    // Create lands on the project detail page, which no longer renders its own
-    // name heading (the breadcrumb's level-1 heading wraps the name in the
-    // project-switcher button, so its accessible name is LONGER than the bare
-    // project name). The Project section's Name field holding the typed name
-    // is the stable proof the project exists and is visible in org A.
+    // Create lands on the project's Tasks tab, which no longer renders the
+    // project's own name heading (the breadcrumb's level-1 heading wraps the
+    // name in the project-switcher button, so its accessible name is LONGER
+    // than the bare project name). General holds the Name field, and that
+    // field carrying the typed name is the stable proof the project exists
+    // and is visible in org A.
+    const projectId = /\/projects\/([A-Za-z0-9]{16,})/.exec(page.url())?.[1];
+    expect(projectId, 'a project id should appear in the URL').toBeTruthy();
+    await page.goto(`/dashboard/${orgA}/projects/${projectId}/overview`);
     await expect(
       page.getByRole('textbox', {
         name: t('projects.settings.name'),
