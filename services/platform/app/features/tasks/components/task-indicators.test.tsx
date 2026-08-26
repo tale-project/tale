@@ -28,21 +28,23 @@ describe('NeedsReviewIndicator', () => {
     ).toBeInTheDocument();
   });
 
-  it('names the reviewer the task waits on', () => {
+  it('shows a count when the reviewer is known (name lives in the tooltip)', () => {
     render(<NeedsReviewIndicator needsReview reviewerName="Alex" />);
     const chip = screen.getByLabelText('tasks.review.waitingOn');
     expect(chip).toBeInTheDocument();
-    expect(screen.getByText('Alex')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.queryByText('Alex')).not.toBeInTheDocument();
   });
 
-  it('says You when the viewer is the reviewer', () => {
+  it('shows a count when the viewer is the reviewer', () => {
     render(
       <NeedsReviewIndicator needsReview reviewerName="Alex" reviewerIsMe />,
     );
     expect(
       screen.getByLabelText('tasks.review.waitingOnYou'),
     ).toBeInTheDocument();
-    expect(screen.getByText('tasks.assignee.you')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.queryByText('Alex')).not.toBeInTheDocument();
+    expect(screen.queryByText('tasks.assignee.you')).not.toBeInTheDocument();
   });
 });
