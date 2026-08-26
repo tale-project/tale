@@ -34,7 +34,7 @@ describe('SidebarSearchTrigger', () => {
 
     await user.click(
       screen.getByRole('button', {
-        name: enMessages.navigation.sidebar.searchGlobal,
+        name: enMessages.navigation.sidebar.search,
       }),
     );
     expect(setSearchOpen).toHaveBeenCalledWith(true);

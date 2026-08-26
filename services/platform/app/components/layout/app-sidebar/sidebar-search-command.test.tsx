@@ -42,9 +42,11 @@ vi.mock('@/app/features/chat/data/chat-backend', () => ({
   useChatQuery: () => ({ status: 'ready', data: [] }),
 }));
 
+const MEMBER_ABILITY = defineAbilityFor('member');
+
 function renderPalette() {
   return render(
-    <AbilityContext.Provider value={defineAbilityFor('member')}>
+    <AbilityContext.Provider value={MEMBER_ABILITY}>
       <SidebarProvider>
         <SidebarSearchCommand organizationId="org-1" />
       </SidebarProvider>

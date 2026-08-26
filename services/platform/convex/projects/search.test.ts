@@ -2,7 +2,6 @@ import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
 import { api } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'projects';

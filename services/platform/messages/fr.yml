@@ -1973,11 +1973,6 @@ dialogs:
     existingUserNotice: Cet utilisateur possédait déjà un compte, aucun nouvel
       identifiant n'a été créé. Il peut se connecter avec son mot de passe
       existant.
-  searchChat:
-    title: Rechercher une discussion
-    placeholder: Rechercher une discussion
-    loading: Chargement des discussions...
-    noResults: Aucun résultat
   search:
     title: Recherche
     placeholder: Rechercher des projets, tâches, chats, documents et contacts

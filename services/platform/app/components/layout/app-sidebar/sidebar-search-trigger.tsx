@@ -26,6 +26,7 @@ export function SidebarSearchTrigger({ className }: SidebarSearchTriggerProps) {
   if (!sidebar) return null;
 
   const label = tNav('sidebar.searchGlobal');
+  const ariaLabel = tNav('sidebar.search');
 
   const tooltip = (
     <>
@@ -40,7 +41,7 @@ export function SidebarSearchTrigger({ className }: SidebarSearchTriggerProps) {
         type="button"
         variant="ghost"
         onClick={() => sidebar.setSearchOpen(true)}
-        aria-label={label}
+        aria-label={ariaLabel}
         aria-keyshortcuts={shortcut}
         className={
           className ??

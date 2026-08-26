@@ -1958,11 +1958,6 @@ dialogs:
     existingUserNotice: Dieser Benutzer hatte bereits ein Konto, es wurden keine
       neuen Zugangsdaten erstellt. Er kann sich mit seinem bestehenden Passwort
       anmelden.
-  searchChat:
-    title: Chat durchsuchen
-    placeholder: Chat durchsuchen
-    loading: Chats werden geladen...
-    noResults: Keine Ergebnisse
   search:
     title: Suche
     placeholder: Projekte, Tasks, Chats, Dokumente und Kontakte durchsuchen
