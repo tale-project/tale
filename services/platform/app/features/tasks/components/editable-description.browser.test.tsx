@@ -32,7 +32,7 @@ vi.mock('./mention-trigger-chips', () => ({
   MentionTriggerChips: () => null,
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
-  useActorDirectory: () => ({ members: [], agents: [] }),
+  useActorDirectory: () => ({ members: [], agents: [], automations: [] }),
 }));
 vi.mock('@/app/features/shared/markdown/markdown-renderer', () => ({
   markdownWrapperStyles: '',
