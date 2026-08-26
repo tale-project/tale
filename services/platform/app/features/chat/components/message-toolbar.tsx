@@ -81,6 +81,7 @@ export function MessageToolbar({
   const [infoOpen, setInfoOpen] = useState(false);
   const [commentOpen, setCommentOpen] = useState(false);
   const [comment, setComment] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
   // undefined = follow the server map; null = optimistically removed.
   const [localRating, setLocalRating] = useState<
     FeedbackRating | null | undefined
@@ -127,11 +128,21 @@ export function MessageToolbar({
     setCommentOpen(true);
   };
 
-  const submitComment = () => {
-    if (threadId !== undefined && comment.trim().length > 0) {
-      void feedback.submit(threadId, message.id, 'negative', comment.trim());
+  const submitComment = async () => {
+    if (
+      submittingComment ||
+      threadId === undefined ||
+      comment.trim().length === 0
+    ) {
+      return;
     }
-    setCommentOpen(false);
+    setSubmittingComment(true);
+    try {
+      await feedback.submit(threadId, message.id, 'negative', comment.trim());
+      setCommentOpen(false);
+    } finally {
+      setSubmittingComment(false);
+    }
   };
 
   return (
@@ -288,14 +299,20 @@ export function MessageToolbar({
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                submitComment();
+                if (!submittingComment) void submitComment();
               }
               if (event.key === 'Escape') setCommentOpen(false);
             }}
             className="border-border bg-muted/40 focus-visible:ring-ring min-h-[60px] w-full resize-none rounded-lg border px-3 py-2 text-sm focus-visible:ring-1 focus-visible:outline-none"
           />
           <Row gap={2}>
-            <Button size="sm" onClick={submitComment} className="h-7">
+            <Button
+              size="sm"
+              onClick={() => void submitComment()}
+              disabled={comment.trim().length === 0 || submittingComment}
+              isLoading={submittingComment}
+              className="h-7"
+            >
               {t('feedback.submitComment')}
             </Button>
             <Button

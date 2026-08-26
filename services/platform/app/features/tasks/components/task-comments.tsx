@@ -127,9 +127,12 @@ export function TaskComments({
     toast({ title: tCommon('errors.generic'), variant: 'destructive' });
   };
 
+  const isAdding = addComment.isPending;
+  const isEditing = editComment.isPending;
+
   const submitNew = async () => {
     const body = draft.trim();
-    if (!body) return;
+    if (!body || isAdding) return;
     try {
       const result = await addComment.mutateAsync({ taskId, body });
       toastUnresolvedMentions(result.unresolvedMentionTokens, toast, tCommon);
@@ -141,7 +144,7 @@ export function TaskComments({
 
   const submitEdit = async (messageId: string) => {
     const body = editDraft.trim();
-    if (!body) return;
+    if (!body || isEditing) return;
     try {
       await editComment.mutateAsync({ messageId, body });
       setEditingId(null);
@@ -201,12 +204,15 @@ export function TaskComments({
                 rows={2}
                 value={editDraft}
                 onValueChange={setEditDraft}
-                onKeyDown={onModEnter(() => void submitEdit(c.messageId))}
+                onKeyDown={onModEnter(() => {
+                  if (!isEditing) void submitEdit(c.messageId);
+                })}
                 autoFocus
               />
               <Row gap={2} align="stretch">
                 <Button
-                  disabled={editDraft.trim().length === 0}
+                  disabled={editDraft.trim().length === 0 || isEditing}
+                  isLoading={isEditing}
                   onClick={() => void submitEdit(c.messageId)}
                 >
                   {tCommon('actions.save')}
@@ -267,7 +273,9 @@ export function TaskComments({
         rows={2}
         value={draft}
         onValueChange={setDraft}
-        onKeyDown={onModEnter(() => void submitNew())}
+        onKeyDown={onModEnter(() => {
+          if (!isAdding) void submitNew();
+        })}
         placeholder={t('actions.comment')}
         aria-describedby={composerHint ? 'new-comment-hint' : undefined}
       />
@@ -283,7 +291,8 @@ export function TaskComments({
       />
       <Row gap={0} align="stretch" justify="end">
         <Button
-          disabled={draft.trim().length === 0}
+          disabled={draft.trim().length === 0 || isAdding}
+          isLoading={isAdding}
           onClick={() => void submitNew()}
         >
           {t('actions.comment')}

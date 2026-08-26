@@ -247,9 +247,12 @@ export function SkillDetailPane({
 
       <DeleteDialog
         open={deleteOpen}
-        onOpenChange={setDeleteOpen}
+        onOpenChange={(open) => {
+          if (!deleteSkill.isPending) setDeleteOpen(open);
+        }}
         title={t('deleteSkill')}
         description={t('deleteConfirmation', { slug })}
+        isDeleting={deleteSkill.isPending}
         onDelete={() => void remove()}
       />
     </div>
