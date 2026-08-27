@@ -27,6 +27,7 @@ const PRODUCT_KEYS = [
   'deployment',
   'beyond',
 ] as const;
+const WORK_KEYS = ['dataQuality', 'regulated', 'edge', 'tailored'] as const;
 const VALUE_KEYS = [
   'privacy',
   'neutrality',
@@ -183,6 +184,33 @@ export function AboutPage() {
                   <MarketingCard
                     title={t(`product.${key}.title`)}
                     description={t(`product.${key}.body`)}
+                    className="h-full"
+                  />
+                </li>
+              ))}
+            </ul>
+          </MarketingPanel>
+        </MarketingStack>
+      </PageSection>
+
+      <PageSection surface="soft" pad="lg" border="b">
+        <MarketingStack max="xl" gap="xl" align="stretch">
+          <SectionHeading
+            size="section"
+            align="start"
+            title={t('work.heading')}
+            description={t('work.description')}
+          />
+          <MarketingPanel>
+            <ul
+              role="list"
+              className="bg-border-base grid gap-px sm:grid-cols-2"
+            >
+              {WORK_KEYS.map((key) => (
+                <li key={key} className="bg-surface-site-raised">
+                  <MarketingCard
+                    title={t(`work.${key}.title`)}
+                    description={t(`work.${key}.body`)}
                     className="h-full"
                   />
                 </li>
