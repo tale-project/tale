@@ -8,6 +8,13 @@ import {
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  autoSubscribe,
+  dismissReviewRequestNotifications,
+  notifyTaskReviewRequested,
+  notifyTaskReviewResolved,
+  taskSubscriberUserIds,
+} from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
 import { type ProjectAuthContext } from '../projects/service.ts';
 import { kickAgentRun } from './agent-runs.ts';
@@ -218,8 +225,35 @@ export async function requestTaskReview(
           || ${tx.json(toJson({ supersededBy: approvalId }))}
       WHERE id = ${stale.id}
     `;
+    await dismissReviewRequestNotifications(tx, {
+      organizationId: task.organizationId,
+      approvalId: stale.id,
+    });
   }
-  // Reviewer bell rides the collab-notifications port.
+  if (reviewer !== undefined) {
+    // The designated reviewer follows the task from here on — they own the
+    // gate, so they need its progress, not just the request moment.
+    await autoSubscribe(tx, {
+      organizationId: task.organizationId,
+      taskId: task.id,
+      subscriberType: 'user',
+      subscriberId: reviewer,
+      reason: 'reviewer',
+    });
+    await notifyTaskReviewRequested(tx, {
+      organizationId: task.organizationId,
+      task: { id: task.id, projectId: task.projectId, title: task.title },
+      reviewerUserId: reviewer,
+      approvalId,
+      submitter:
+        trigger.kind === 'human'
+          ? { kind: 'user', userId: trigger.actorId }
+          : {
+              kind: 'agent',
+              ...(driverName !== undefined ? { name: driverName } : {}),
+            },
+    });
+  }
   return { approvalId, minted: true };
 }
 
@@ -334,6 +368,10 @@ export async function closePendingTaskReviewOnStatusLeave(
             || ${tx.json(toJson({ response }))}
         WHERE id = ${approval.id}
       `;
+      await dismissReviewRequestNotifications(tx, {
+        organizationId: task.organizationId,
+        approvalId: approval.id,
+      });
       const runKey = approvalRunId(approval);
       await createAuditLog(tx, {
         organizationId: task.organizationId,
@@ -367,6 +405,10 @@ export async function closePendingTaskReviewOnStatusLeave(
           || ${tx.json(toJson({ withdrawn: true }))}
       WHERE id = ${approval.id}
     `;
+    await dismissReviewRequestNotifications(tx, {
+      organizationId: task.organizationId,
+      approvalId: approval.id,
+    });
   }
 }
 
@@ -493,6 +535,17 @@ export async function respondToTaskReview(
           || ${tx.json(toJson({ response }))}
       WHERE id = ${approval.id}
     `;
+    await dismissReviewRequestNotifications(tx, {
+      organizationId: approval.organizationId,
+      approvalId: approval.id,
+    });
+    await notifyTaskReviewResolved(tx, {
+      organizationId: approval.organizationId,
+      task: { id: task.id, projectId: task.projectId, title: task.title },
+      decision: args.decision,
+      decidedByUserId: args.auth.userId,
+      recipientUserIds: await taskSubscriberUserIds(tx, task.id),
+    });
     await recordActivity(tx, {
       task,
       actorType: 'user',

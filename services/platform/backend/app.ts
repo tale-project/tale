@@ -10,6 +10,7 @@ import { createAutomationRoutes } from './domains/automations/routes.ts';
 import { createWebhookRoutes } from './domains/automations/triggers.ts';
 import { createBrandingRoutes } from './domains/branding/routes.ts';
 import { createChatRoutes } from './domains/chat/routes.ts';
+import { createCollabRoutes } from './domains/collab/routes.ts';
 import { createContactRoutes } from './domains/contacts/routes.ts';
 import { createDocumentRoutes } from './domains/documents/routes.ts';
 import { createFeedbackRoutes } from './domains/feedback/routes.ts';
@@ -61,6 +62,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/branding', createBrandingRoutes(deps));
   app.route('/api/app/automations', createAutomationRoutes(deps));
   app.route('/api/app/chat', createChatRoutes(deps));
+  app.route('/api/app/collab', createCollabRoutes(deps));
   app.route('/api/app/contacts', createContactRoutes(deps));
   app.route('/api/app/documents', createDocumentRoutes(deps));
   app.route('/api/app/files', createFileRoutes(deps));

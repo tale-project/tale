@@ -6589,6 +6589,42 @@ async function checkReviewArc(
       refusedBody.data.error === 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
     `status=${refusedRes.status} error=${refusedBody.success ? refusedBody.data.error : 'ERR'}`,
   );
+
+  // The reviewer BELLS: each mint writes ONE request bell to the resolved
+  // reviewer (the replayed mint stacks nothing); respond and withdraw mark
+  // it read; the reviewer got auto-subscribed at the first mint.
+  const bells = await sql<
+    { resourceId: string; read: boolean; type: string }[]
+  >`
+    SELECT resource_id AS "resourceId", read, type
+    FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND type = 'task_review_requested' AND task_id = ${taskId}
+    ORDER BY seq
+  `;
+  const firstBell = bells.find((bell) => bell.resourceId === minted[0]?.id);
+  const roundTwoBell = bells.find(
+    (bell) => bell.resourceId === roundTwo[0]?.id,
+  );
+  const withdrawnBell = bells.find(
+    (bell) => bell.resourceId === gated[0]?.id || !bell.read,
+  );
+  const subscribed = await sql<{ reason: string }[]>`
+    SELECT reason FROM app.task_subscriptions
+    WHERE task_id = ${taskId} AND subscriber_type = 'user'
+      AND subscriber_id = ${userId}
+  `;
+  record(
+    'review bells: one per mint, dismissed on respond/withdraw, reviewer subscribed',
+    bells.length === 4 &&
+      firstBell?.read === true &&
+      roundTwoBell?.read === true &&
+      // The policy-gated round's bell was dismissed by nothing — its refusal
+      // left the approval pending, so its bell stays unread.
+      withdrawnBell !== undefined &&
+      subscribed[0]?.reason === 'reviewer',
+    `bells=${bells.length} (want 4 — one per mint), first=${firstBell?.read} (want read), round2=${roundTwoBell?.read} (want read), subscribed=${subscribed[0]?.reason}`,
+  );
 }
 
 /**
