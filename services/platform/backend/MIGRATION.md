@@ -46,7 +46,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | Org scaffold/seeding (builtin config catalog) | done | inc 05; `org.scaffold` + `org.cleanup_files` jobs reuse `scaffoldOrgFromCatalog`/`removeOrgSubtree` unchanged |
 | RLS/membership helpers (queryWithRLS analogue) | done | inc 05; `auth/membership.ts` direct SQL (mirror apparatus dead) + `authorizeRls` role matrix |
 | Rate limiting (63 rules) | done | inc 05; `lib/rate-limit.ts` PG token bucket + fixed window, atomic UPSERTs, full 0.4 rule catalog as data (shards dropped); call sites wire up as domains land; stale-row GC with crons infra |
-| File storage router (per-org S3/MinIO + `_storage` replacement) | pending | presigned lanes; sandbox stage tokens |
+| File storage router (per-org S3/MinIO + `_storage` replacement) | done | inc 08; S3-ONLY (Convex `_storage` dies): per-org BYO connection → deployment default (`default` tree's object-storage/connection.json; compose ships MinIO + seeded connection at cutover) → fail-closed. aws4fetch mechanics reused from 0.4 unchanged. Sandbox stage tokens with the sandbox domain |
 | Frontend data layer (hint hook + auth client + api client) | pending | keep TanStack Query; wrapper-hook swap |
 | Crons (~20) + watchdog jobs | pending | pg-boss `schedule()` (cron per queue); per-job idempotency |
 | Proxy routes → backend-api | pending | cutover step |
@@ -84,8 +84,8 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | enterprise_sso | pending | |
 | events | pending | |
 | feedback | pending | |
-| file_metadata | pending | RAG dispatch pools → per-queue workers |
-| files | pending | storage router |
+| file_metadata | in-progress | inc 08: `app.file_metadata` ledger (all pipeline columns shipped nullable) + core reads; RAG dispatch pools → per-queue workers, transcription, OCR with knowledge/tts |
+| files | in-progress | inc 08: upload handshake (server-minted keys, HEAD-verified register), presigned serve, org-scoped delete (uploader/admin); sandbox blob HTTP + rejected-upload lanes with sandbox/documents |
 | folders | pending | |
 | google_drive | pending | |
 | governance | pending | erasure cascades; retention |
@@ -100,7 +100,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | migrations | dropped(Convex-specific framework) | 0.5 uses backend/db/migrations |
 | node_only | pending | sandbox spawner client et al |
 | notifications | in-progress | inc 04–05: org-audience bell at the 0.4 shape (reads join table replaces readBy; security = admin-only; dedupe) + lockout producer; Slack/email dispatch lanes (event_catalog, notify_slack, email_notification, actionable emails) land with connectors/conversations |
-| object_storage | pending | |
+| object_storage | in-progress | inc 08: resolution + presign lanes live (0.4 BYO configs work verbatim); admin save/test-connection surface pending; convex→s3 backfill DROPPED (no convex storage in 0.5) |
 | onedrive | pending | |
 | organizations | in-progress | inc 05: getOrganization/hasAny/recordOrgSwitch/resolveUserOrganization/prepare-deletion (+scaffold & cleanup jobs); reseed_all_orgs + provisioning-status/repair actions + slug-scoped file-surface guards pending; legal-hold guard with governance |
 | products | pending | |

@@ -1,0 +1,198 @@
+import type { Sql, TransactionSql } from 'postgres';
+
+import {
+  encodeS3Ref,
+  parseBlobRef,
+} from '../../../convex/lib/storage/blob_ref.ts';
+import { s3KeyBelongsToOrg } from '../../../convex/lib/storage/blob_ref.ts';
+import {
+  buildObjectKey,
+  resolveObjectStore,
+  s3DeleteObject,
+  s3HeadObject,
+  s3PresignGetUrl,
+  s3PresignPutUrl,
+} from '../../lib/object-store.ts';
+import { resolveOrgSlug } from '../../lib/org-config.ts';
+
+/**
+ * Files domain core — the upload/serve/delete lanes over the S3-only object
+ * store, plus the `app.file_metadata` ledger. The RAG dispatch, OCR and
+ * transcription pipelines land with knowledge/tts (ledger); their columns
+ * already exist on the table.
+ *
+ * Upload is a two-step handshake: `createUploadHandoff` presigns a PUT to a
+ * server-minted key (the client never names keys), the client uploads, then
+ * `registerUpload` verifies the blob really landed (HEAD: exists + size) and
+ * writes the metadata row — an unverified key can never become a row.
+ */
+
+export class FileError extends Error {
+  readonly code: string;
+  readonly status: 400 | 403 | 404 | 503;
+
+  constructor(
+    code: string,
+    message: string,
+    status: 400 | 403 | 404 | 503 = 400,
+  ) {
+    super(message);
+    this.name = 'FileError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
+const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
+
+export interface UploadHandoff {
+  /** The blob reference (`s3:<key>`) the client binds with after the PUT. */
+  storageRef: string;
+  /** Presigned PUT URL, valid for 15 minutes. */
+  uploadUrl: string;
+}
+
+async function requireOrgStore(sql: Sql, organizationId: string) {
+  const orgSlug = await resolveOrgSlug(sql, organizationId);
+  if (!orgSlug) {
+    throw new FileError('ORG_NOT_FOUND', 'Organization not found', 404);
+  }
+  try {
+    return { orgSlug, store: await resolveObjectStore(orgSlug) };
+  } catch {
+    throw new FileError(
+      'OBJECT_STORE_UNCONFIGURED',
+      'No object storage configured for this deployment',
+      503,
+    );
+  }
+}
+
+export async function createUploadHandoff(
+  sql: Sql,
+  scope: { organizationId: string },
+  args: { contentType: string; size: number },
+): Promise<UploadHandoff> {
+  if (args.size <= 0 || args.size > MAX_UPLOAD_BYTES) {
+    throw new FileError('FILE_SIZE_INVALID', 'Invalid file size');
+  }
+  const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
+  const key = buildObjectKey(store, orgSlug);
+  const uploadUrl = await s3PresignPutUrl(store, key, {
+    contentType: args.contentType,
+  });
+  return { storageRef: encodeS3Ref(key), uploadUrl };
+}
+
+function requireOrgScopedKey(ref: string, orgSlug: string): string {
+  const parsed = parseBlobRef(ref);
+  if (parsed.backend !== 's3' || !s3KeyBelongsToOrg(parsed.key, orgSlug)) {
+    throw new FileError('BLOB_REF_INVALID', 'Invalid blob reference', 403);
+  }
+  return parsed.key;
+}
+
+export interface RegisterUploadArgs {
+  storageRef: string;
+  fileName: string;
+  contentType: string;
+  threadId?: string;
+  source?: string;
+}
+
+/** Verify the blob landed, then write the metadata row (size from HEAD). */
+export async function registerUpload(
+  sql: Sql,
+  tx: TransactionSql,
+  scope: { organizationId: string; userId: string },
+  args: RegisterUploadArgs,
+): Promise<{ fileId: string; size: number }> {
+  const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
+  const key = requireOrgScopedKey(args.storageRef, orgSlug);
+  const head = await s3HeadObject(store, key);
+  if (!head) {
+    throw new FileError('BLOB_NOT_FOUND', 'Blob was not uploaded', 404);
+  }
+  const inserted = await tx<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, source,
+      uploaded_by, thread_id, created_at_ms
+    ) VALUES (
+      ${scope.organizationId}, ${args.storageRef}, ${args.fileName},
+      ${args.contentType}, ${head.size}, ${args.source ?? null},
+      ${scope.userId}, ${args.threadId ?? null}, ${Date.now()}
+    )
+    RETURNING id
+  `;
+  const fileId = inserted[0]?.id;
+  if (!fileId) {
+    throw new FileError('FILE_REGISTER_FAILED', 'Insert failed');
+  }
+  return { fileId, size: head.size };
+}
+
+export interface FileMetadataRow {
+  id: string;
+  organizationId: string;
+  storageRef: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  uploadedBy: string | null;
+  threadId: string | null;
+  createdAt: number;
+}
+
+export async function getFileMetadata(
+  sql: Sql,
+  organizationId: string,
+  fileId: string,
+): Promise<FileMetadataRow | null> {
+  const rows = await sql<FileMetadataRow[]>`
+    SELECT id, org_id AS "organizationId", storage_ref AS "storageRef",
+           file_name AS "fileName", content_type AS "contentType",
+           size::float8 AS size, uploaded_by AS "uploadedBy",
+           thread_id AS "threadId", created_at_ms::float8 AS "createdAt"
+    FROM app.file_metadata
+    WHERE id = ${fileId} AND org_id = ${organizationId}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+/** Presigned GET for a blob ref the caller's org owns. */
+export async function getFileUrl(
+  sql: Sql,
+  scope: { organizationId: string },
+  storageRef: string,
+): Promise<string> {
+  const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
+  const key = requireOrgScopedKey(storageRef, orgSlug);
+  return s3PresignGetUrl(store, key);
+}
+
+/**
+ * Delete a blob + its metadata row. Callers gate WHO may delete (uploader /
+ * owning-domain cascade); this enforces only org scoping.
+ */
+export async function deleteFile(
+  sql: Sql,
+  tx: TransactionSql,
+  scope: { organizationId: string },
+  fileId: string,
+): Promise<void> {
+  const meta = await getFileMetadata(tx, scope.organizationId, fileId);
+  if (!meta) {
+    return;
+  }
+  const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
+  const key = requireOrgScopedKey(meta.storageRef, orgSlug);
+  await tx`DELETE FROM app.file_metadata WHERE id = ${fileId}`;
+  // Blob delete is best-effort AFTER the row delete commits its intent; an
+  // orphaned blob is reclaimable by a sweep, a dangling row is user-visible.
+  try {
+    await s3DeleteObject(store, key);
+  } catch (error) {
+    console.warn(`[files] blob delete failed for ${key}:`, error);
+  }
+}

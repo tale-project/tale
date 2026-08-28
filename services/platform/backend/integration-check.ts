@@ -17,7 +17,7 @@
  * Better Auth tables, and app tables, and writes test rows.
  */
 
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -879,6 +879,145 @@ async function checkTasks(
 }
 
 /**
+ * Files vertical against a REAL S3-compatible store (MinIO): seed the
+ * deployment-default connection into the config tree, create the bucket,
+ * then run handoff → presigned PUT → register (HEAD-verified) → presigned
+ * GET round-trip → delete. Gated on ITEST_S3_ENDPOINT — recorded as skipped
+ * (visibly, never silently) when no store is provided.
+ */
+async function checkFiles(
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const endpoint = process.env.ITEST_S3_ENDPOINT;
+  if (!endpoint) {
+    record(
+      'files upload/serve/delete (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
+    );
+    return;
+  }
+  const accessKeyId = process.env.ITEST_S3_ACCESS_KEY ?? 'minioadmin';
+  const secretAccessKey = process.env.ITEST_S3_SECRET_KEY ?? 'minioadmin';
+  const bucket = 'itest-blobs';
+
+  // Deployment-default connection under the `default` config tree.
+  const configRoot = process.env.TALE_CONFIG_DIR;
+  if (!configRoot) {
+    record('files upload/serve/delete', false, 'TALE_CONFIG_DIR unset');
+    return;
+  }
+  const dir = path.join(configRoot, 'default', 'object-storage');
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    path.join(dir, 'connection.json'),
+    JSON.stringify({
+      region: 'us-east-1',
+      endpoint,
+      forcePathStyle: true,
+      bucket,
+    }),
+  );
+  await writeFile(
+    path.join(dir, 'connection.secrets.json'),
+    JSON.stringify({ accessKeyId, secretAccessKey }),
+  );
+
+  // Create the bucket with a signed request (idempotent-ish: 409 = exists).
+  const { AwsClient } = await import('aws4fetch');
+  const aws = new AwsClient({
+    accessKeyId,
+    secretAccessKey,
+    region: 'us-east-1',
+    service: 's3',
+  });
+  const createBucket = await aws.fetch(`${endpoint}/${bucket}`, {
+    method: 'PUT',
+  });
+  if (!createBucket.ok && createBucket.status !== 409) {
+    record(
+      'files upload/serve/delete',
+      false,
+      `bucket create failed: ${createBucket.status}`,
+    );
+    return;
+  }
+
+  const { cookie, orgId } = ctx;
+  const send = (
+    method: 'POST' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  const payload = `itest file body ${Date.now()}`;
+  const handoff = z
+    .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+    .safeParse(
+      await (
+        await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+          contentType: 'text/plain',
+          size: payload.length,
+        })
+      ).json(),
+    );
+  if (!handoff.success) {
+    record('files upload/serve/delete', false, 'handoff failed');
+    return;
+  }
+  const put = await fetch(handoff.data.uploadUrl, {
+    method: 'PUT',
+    headers: { 'content-type': 'text/plain' },
+    body: payload,
+  });
+  const registered = z
+    .object({ fileId: z.string(), size: z.number() })
+    .safeParse(
+      await (
+        await send('POST', `/api/app/files/register?orgId=${orgId}`, {
+          storageRef: handoff.data.storageRef,
+          fileName: 'itest.txt',
+          contentType: 'text/plain',
+        })
+      ).json(),
+    );
+  const fileId = registered.success ? registered.data.fileId : '';
+  const urlRes = z.object({ url: z.string().url() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/files/${fileId}/url?orgId=${orgId}`, {
+        headers: { cookie },
+      })
+    ).json(),
+  );
+  const roundTrip = urlRes.success
+    ? await (await fetch(urlRes.data.url)).text()
+    : '';
+  const deleted = await send(
+    'DELETE',
+    `/api/app/files/${fileId}?orgId=${orgId}`,
+  );
+  const blobGone = urlRes.success
+    ? (await fetch(urlRes.data.url)).status === 404
+    : false;
+  record(
+    'files upload/serve/delete',
+    put.ok &&
+      registered.success &&
+      registered.data.size === payload.length &&
+      roundTrip === payload &&
+      deleted.ok &&
+      blobGone,
+    `put → ${put.status}, size=${registered.success ? registered.data.size : 'ERR'}, roundtrip=${roundTrip === payload}, delete → ${deleted.status}, blobGone=${blobGone}`,
+  );
+}
+
+/**
  * Login throttle + audit chain, end to end through the real auth hooks:
  * repeated wrong passwords cross the lockout threshold (429 from the
  * before-hook), the lock expires on schedule (default first backoff = 1s),
@@ -1092,6 +1231,7 @@ async function main(): Promise<void> {
     );
     await checkProjects(baseUrl, authCtx);
     await checkTasks(baseUrl, authCtx);
+    await checkFiles(baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,
