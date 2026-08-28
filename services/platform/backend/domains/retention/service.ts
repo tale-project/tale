@@ -349,7 +349,7 @@ async function deleteBlobBestEffort(
 
 /** Hard-delete one document: corpus entry (keyed by the file REF), blobs,
  * file rows, dependent knowledge-entry chains, then the row. */
-async function purgeDocument(
+export async function purgeDocument(
   sql: Sql,
   orgSlug: string | null,
   doc: { id: string; fileRef: string | null; organizationId: string },
@@ -460,7 +460,7 @@ async function sweepDocuments(
 /** Purge one CHAT thread and its lineage: messages, generations, feedback,
  * sidecars, deferred sends (FK), then the thread rows. Task-discussion and
  * other non-chat threads never enter (the caller filters by chat_type). */
-async function purgeThreadLineage(
+export async function purgeThreadLineage(
   sql: Sql,
   organizationId: string,
   rootThreadId: string,

@@ -4543,16 +4543,22 @@ async function checkLoginThrottleAndAuditChain(
   const actions = new Set<string>();
   for (const row of rows) {
     actions.add(row.action);
-    const recomputed = await computeAuditHash(
-      previousHash,
-      rowToHashInput(row),
-    );
-    if (
-      recomputed !== row.integrityHash ||
-      (row.previousHash ?? '') !== previousHash
-    ) {
+    if ((row.previousHash ?? '') !== previousHash) {
       chainOk = false;
       break;
+    }
+    // A PII-scrubbed row (GDPR Art 17) keeps its stored hashes but its
+    // BODY no longer matches the recompute — the flag marks the divergence
+    // as intentional; linkage above still binds it into the chain.
+    if (row.piiScrubbed !== true) {
+      const recomputed = await computeAuditHash(
+        previousHash,
+        rowToHashInput(row),
+      );
+      if (recomputed !== row.integrityHash) {
+        chainOk = false;
+        break;
+      }
     }
     previousHash = row.integrityHash;
   }
@@ -6786,6 +6792,233 @@ async function checkRetention(
 }
 
 /**
+ * GDPR erasure: self-erasure refused, the cascade erases the subject's
+ * rows table by table after the cooling-off window, the subject's audit
+ * trail is SCRUBBED in place (rows kept, PII blanked, chain still
+ * verifies), a pending request cancels inside the window, and a custodian
+ * hold blocks with a durable receipt until released + retried.
+ */
+async function checkErasure(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const governanceDir = path.join(configRoot, orgSlug, 'governance');
+  await mkdir(governanceDir, { recursive: true });
+  await writeFile(
+    path.join(governanceDir, 'dsar-governance.yml'),
+    'coolingOffHours: 0\n',
+  );
+  const orgConfig = await import('./lib/org-config.ts');
+  orgConfig.clearOrgConfigCaches();
+
+  const seedMember = async (suffix: string): Promise<string> => {
+    const subjectId = `erasure-${suffix}`;
+    await sql`
+      INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                          "updatedAt")
+      VALUES (${subjectId}, ${`Subject ${suffix}`},
+              ${`${subjectId}@example.com`}, true, ${new Date()},
+              ${new Date()})
+      ON CONFLICT ("id") DO NOTHING
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (${`m-${subjectId}`}, ${orgId}, ${subjectId}, 'member',
+              ${new Date()})
+      ON CONFLICT ("id") DO NOTHING
+    `;
+    await sql`
+      INSERT INTO app.user_preferences (org_id, user_id, updated_at)
+      VALUES (${orgId}, ${subjectId}, ${Date.now()})
+      ON CONFLICT DO NOTHING
+    `;
+    return subjectId;
+  };
+
+  const subject = await seedMember('one');
+  const now = Date.now();
+  const threadRows = await sql<{ id: string }[]>`
+    INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${orgId}, ${subject}, 'Subject chat', 'chat', ${now}, ${now})
+    RETURNING id
+  `;
+  const subjectThread = threadRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.thread_metadata (
+      thread_id, org_id, user_id, chat_type, status, created_at_ms
+    ) VALUES (${subjectThread}, ${orgId}, ${subject}, 'chat', 'active', ${now})
+  `;
+  await sql`
+    INSERT INTO app.messages (
+      thread_id, org_id, "order", step_order, role, text, status,
+      created_at_ms
+    ) VALUES (${subjectThread}, ${orgId}, 0, 0, 'user', 'subject words',
+              'complete', ${now})
+  `;
+  await sql`
+    INSERT INTO app.user_notifications (
+      user_id, org_id, type, title_key, body_key, resource_type,
+      resource_id, actor_type, read, created_at_ms
+    ) VALUES (${subject}, ${orgId}, 'task_commented', 'x', 'y', 'task',
+              'er-1', 'system', false, ${now})
+  `;
+  await sql`
+    INSERT INTO app.memories (org_id, user_id, content, status,
+                              created_at_ms)
+    VALUES (${orgId}, ${subject}, 'subject fact', 'approved', ${now})
+  `;
+
+  const selfRefused = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: userId,
+    reason: 'self test',
+    reasonCode: 'consent_withdrawn',
+  });
+  const filed = z
+    .object({ requestId: z.string(), status: z.string() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/erasure?orgId=${orgId}`, {
+          targetUserId: subject,
+          reason: 'Departing employee',
+          reasonCode: 'contract_termination',
+        })
+      ).json(),
+    );
+  const requestId = filed.success ? filed.data.requestId : '';
+  let receiptStatus = '';
+  for (let i = 0; i < 50; i++) {
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.gdpr_erasure_requests WHERE id = ${requestId}
+    `;
+    receiptStatus = rows[0]?.status ?? '';
+    if (receiptStatus === 'done' || receiptStatus === 'partial') break;
+    await sleep(300);
+  }
+  const threadGone = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.threads
+    WHERE id = ${subjectThread}
+  `;
+  const leftovers = await sql<{ count: string }[]>`
+    SELECT (
+      (SELECT count(*) FROM app.user_preferences
+       WHERE org_id = ${orgId} AND user_id = ${subject})
+      + (SELECT count(*) FROM app.user_notifications
+         WHERE org_id = ${orgId} AND user_id = ${subject})
+      + (SELECT count(*) FROM app.memories
+         WHERE org_id = ${orgId} AND user_id = ${subject})
+    )::text AS count
+  `;
+  const scrubbed = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'user'
+      AND resource_id = ${subject} AND pii_scrubbed = true
+  `;
+
+  // Cancel lane: a fresh subject inside a real cooling window.
+  await writeFile(
+    path.join(governanceDir, 'dsar-governance.yml'),
+    'coolingOffHours: 1\n',
+  );
+  orgConfig.clearOrgConfigCaches();
+  const subjectTwo = await seedMember('two');
+  const filedTwo = z
+    .object({ requestId: z.string() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/erasure?orgId=${orgId}`, {
+          targetUserId: subjectTwo,
+          reason: 'Second thoughts',
+          reasonCode: 'consent_withdrawn',
+        })
+      ).json(),
+    );
+  const cancelled = z
+    .object({ ok: z.boolean() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/erasure/${filedTwo.success ? filedTwo.data.requestId : ''}/cancel?orgId=${orgId}`,
+          { reason: 'Withdrawn by the subject' },
+        )
+      ).json(),
+    );
+  const twoIntact = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_preferences
+    WHERE org_id = ${orgId} AND user_id = ${subjectTwo}
+  `;
+
+  // Hold-blocked lane: the receipt is durable, retry runs after release.
+  const subjectThree = await seedMember('three');
+  await sql`
+    INSERT INTO app.legal_holds (
+      org_id, target_type, target_id, target_label, reason, placed_by,
+      placed_at_ms
+    ) VALUES (${orgId}, 'userMembership', ${subjectThree}, 'itest',
+              'erasure block probe', 'itest', ${Date.now()})
+  `;
+  const filedThree = z
+    .object({ requestId: z.string(), status: z.string() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/erasure?orgId=${orgId}`, {
+          targetUserId: subjectThree,
+          reason: 'Blocked probe',
+          reasonCode: 'objection',
+        })
+      ).json(),
+    );
+  await sql`
+    UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
+    WHERE org_id = ${orgId} AND target_id = ${subjectThree}
+  `;
+  await post(
+    `/api/app/erasure/${filedThree.success ? filedThree.data.requestId : ''}/retry?orgId=${orgId}`,
+  );
+  let threeStatus = '';
+  for (let i = 0; i < 50; i++) {
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.gdpr_erasure_requests
+      WHERE id = ${filedThree.success ? filedThree.data.requestId : ''}
+    `;
+    threeStatus = rows[0]?.status ?? '';
+    if (threeStatus === 'done') break;
+    await sleep(300);
+  }
+  record(
+    'erasure: cascade + audit scrub, cancel window, hold-blocked receipt',
+    selfRefused.status === 403 &&
+      filed.success &&
+      receiptStatus === 'done' &&
+      threadGone[0]?.count === '0' &&
+      leftovers[0]?.count === '0' &&
+      Number(scrubbed[0]?.count ?? '0') >= 1 &&
+      filedTwo.success &&
+      cancelled.success &&
+      cancelled.data.ok &&
+      twoIntact[0]?.count === '1' &&
+      filedThree.success &&
+      filedThree.data.status === 'blocked' &&
+      threeStatus === 'done',
+    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${filedThree.success ? filedThree.data.status : 'ERR'} (want blocked), retried=${threeStatus}`,
+  );
+}
+
+/**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
  * with no resume; a settled predecessor with a stamped handle on the live
@@ -7728,6 +7961,7 @@ async function main(): Promise<void> {
     await checkChangelogAndAccounts(sql, baseUrl, authCtx);
     await checkLegalHolds(sql, baseUrl, authCtx);
     await checkRetention(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkErasure(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChatMemoriesDeferredAuto(
       sql,
       baseUrl,

@@ -138,6 +138,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         console.log(`[automations] liveness sweep re-poked ${swept} runs`);
       }
     },
+    'governance.process_erasure': async (payload) => {
+      const input = z.object({ requestId: z.string().min(1) }).parse(payload);
+      const { processErasure } = await import('../domains/erasure/service.ts');
+      await processErasure(deps.sql, input.requestId);
+    },
     'governance.retention_cleanup': async () => {
       const { runRetentionCleanup } =
         await import('../domains/retention/service.ts');
