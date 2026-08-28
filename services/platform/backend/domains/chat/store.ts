@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import type { TurnStore, UsageLedger } from '../../../lib/chat/turn.ts';
 import { toJson } from '../../db/sql.ts';
+import { incrementUsageLedger } from '../governance/service.ts';
 
 /**
  * The Postgres-backed ports the turn pipeline writes through — the 0.5 twin
@@ -201,10 +202,12 @@ export function createPgTurnStore(sql: Sql): TurnStore {
   };
 }
 
-/** The usage ledger over app.usage_events. */
+/** The usage ledger: the fine-grained event row plus the governance
+ * period-bucket aggregates (both best-effort together — one write). */
 export function createPgUsageLedger(sql: Sql): UsageLedger {
   return {
     async record(entry) {
+      const now = Date.now();
       await sql`
         INSERT INTO app.usage_events (
           org_id, user_id, agent_slug, model, provider, input_tokens,
@@ -212,9 +215,25 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
         ) VALUES (
           ${entry.organizationId}, ${entry.userId}, ${entry.agentSlug ?? null},
           ${entry.model}, ${entry.provider}, ${entry.inputTokens},
-          ${entry.outputTokens}, ${entry.totalTokens}, ${Date.now()}
+          ${entry.outputTokens}, ${entry.totalTokens}, ${now}
         )
       `;
+      await incrementUsageLedger(sql, {
+        organizationId: entry.organizationId,
+        userId: entry.userId,
+        inputTokens: entry.inputTokens,
+        outputTokens: entry.outputTokens,
+        // Cost estimation joins the catalog at analytics time; the turn
+        // records tokens (the 0.4 ledger stamped a per-turn estimate the
+        // resolved pricing computed — that seam returns with usage pages).
+        costEstimateCents: 0,
+        timestamp: now,
+        ...(entry.agentSlug !== undefined
+          ? { agentSlug: entry.agentSlug }
+          : {}),
+        model: entry.model,
+        provider: entry.provider,
+      });
     },
   };
 }

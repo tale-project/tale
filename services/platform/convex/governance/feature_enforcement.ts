@@ -7,7 +7,7 @@ import type {
 import type { DataModel } from '../_generated/dataModel';
 import { readPolicyConfig } from './helpers';
 
-interface ResolvedFeatureFlags {
+export interface ResolvedFeatureFlags {
   webSearch: boolean;
   codeExecution: boolean;
   fileUpload: boolean;
@@ -68,12 +68,28 @@ export async function resolveFeatureFlags(
     organizationId,
     'feature_flags',
   );
+  return evaluateFeatureFlags(config, { userId, teamIds, role });
+}
 
+/**
+ * The PURE half of {@link resolveFeatureFlags} — rule selection over an
+ * already-loaded policy. Exported so a host with its own policy source (the
+ * 0.5 backend reads policy FILES) applies exactly the same semantics.
+ */
+export function evaluateFeatureFlags(
+  config: FeatureFlagsConfig | null,
+  who: { userId: string; teamIds: string[]; role?: string | undefined },
+): ResolvedFeatureFlags {
   if (!config || !config.enabled || config.rules.length === 0) {
     return { ...DEFAULTS };
   }
 
-  const rule = findApplicableRule(config.rules, userId, teamIds, role);
+  const rule = findApplicableRule(
+    config.rules,
+    who.userId,
+    who.teamIds,
+    who.role,
+  );
   if (!rule) {
     return { ...DEFAULTS };
   }

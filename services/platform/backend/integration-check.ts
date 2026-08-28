@@ -2622,6 +2622,124 @@ async function checkAutomations(
 }
 
 /**
+ * Governance enforcement: the model-access policy FILE blocks a model at
+ * the chat turn boundary with the 0.4 evaluator's own wording, feature
+ * flags cap the context window, and the usage ledger aggregates the turns
+ * already run into period buckets.
+ */
+async function checkGovernance(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const governance = await import('./domains/governance/service.ts');
+  const orgConfig = await import('./lib/org-config.ts');
+
+  // The chat turns and tool dispatches already run accumulated buckets.
+  const buckets = await governance.readUsageBuckets(sql, {
+    organizationId: orgId,
+    userId,
+  });
+  const chatBucket = buckets.find(
+    (bucket) => bucket.model === 'itest-chat' && bucket.granularity === 'daily',
+  );
+  const connectorBuckets = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.usage_ledger
+    WHERE org_id = ${orgId} AND connector_name = 'chat-tools'
+  `;
+
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const governanceDir = path.join(configRoot, orgSlug, 'governance');
+  await mkdir(governanceDir, { recursive: true });
+
+  // Allowlist WITHOUT itest-chat: the next send must refuse with the
+  // policy evaluator's wording, before any wire is touched.
+  await writeFile(
+    path.join(governanceDir, 'model-access.yml'),
+    [
+      'enabled: true',
+      'mode: allowlist',
+      'rules:',
+      '  - scope: default',
+      '    allowedModels:',
+      '      - some-other-model',
+    ].join('\n'),
+  );
+  await writeFile(
+    path.join(governanceDir, 'feature-flags.yml'),
+    [
+      'enabled: true',
+      'rules:',
+      '  - scope: default',
+      '    maxContextTokens: 9000',
+    ].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+
+  const threadRes = z.object({ id: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/chat/threads?orgId=${orgId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ title: 'Governance probe' }),
+      })
+    ).json(),
+  );
+  const threadId = threadRes.success ? threadRes.data.id : '';
+  const refused = z
+    .object({ status: z.string(), reason: z.string().optional() })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/chat/threads/${threadId}/messages?orgId=${orgId}`,
+          {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              cookie,
+              origin: base,
+            },
+            body: JSON.stringify({
+              text: 'hello',
+              modelId: 'itest-chat',
+              providerSlug: 'itestchat',
+            }),
+          },
+        )
+      ).json(),
+    );
+  const cap = await governance.getContextCapForUser(sql, {
+    organizationId: orgId,
+    userId,
+  });
+
+  // Lift the policy: access opens again (proven cheaply at the service).
+  const { unlink } = await import('node:fs/promises');
+  await unlink(path.join(governanceDir, 'model-access.yml'));
+  orgConfig.clearOrgConfigCaches();
+  const reopened = await governance.checkModelAccessForUser(sql, {
+    organizationId: orgId,
+    userId,
+    modelId: 'itest-chat',
+  });
+
+  record(
+    'governance enforcement (model access + caps + usage buckets)',
+    chatBucket !== undefined &&
+      chatBucket.totalTokens > 0 &&
+      Number(connectorBuckets[0]?.count ?? '0') >= 1 &&
+      refused.success &&
+      refused.data.status === 'refused' &&
+      (refused.data.reason ?? '').includes('not available for your account') &&
+      cap === 9000 &&
+      reopened.allowed,
+    `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'}, connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), reopened=${reopened.allowed}`,
+  );
+}
+
+/**
  * The REST machine door: a Better Auth API key minted through the session
  * surface authenticates `/api/v1` (org resolved from membership), the thin
  * adapters answer over the same domain services, and a run started through
@@ -3546,6 +3664,7 @@ async function main(): Promise<void> {
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkRestDoor(sql, baseUrl, authCtx);
+    await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSandboxSessions(sql, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(

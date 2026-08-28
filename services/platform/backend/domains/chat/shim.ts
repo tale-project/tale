@@ -3,6 +3,11 @@ import type { Sql } from 'postgres';
 import { findOrganizationMember } from '../../auth/membership.ts';
 import type { ShimHandlers } from '../../lib/convex-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  checkModelAccessForUser,
+  getContextCapForUser,
+  recordConnectorUsage,
+} from '../governance/service.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
   getProjectAuthContext,
@@ -229,15 +234,29 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
   return {
     ...knowledgeShimHandlers(sql),
 
-    // ----------------------------------------------- governance (not ported)
-    // Model access allows and context stays un-capped until the governance
-    // domain lands; connector-usage metering no-ops the same way. Each of
-    // these is a named row in MIGRATION.md, not a silent divergence.
-    'governance/queries:checkModelAccessInternal': async () => ({
-      allowed: true,
-    }),
-    'governance/queries:getContextCapInternal': async () => null,
-    'governance/internal_mutations:recordConnectorUsage': async () => null,
+    // ------------------------------------------------ governance (enforced)
+    // The REAL policy verdicts over the org's governance files — the same
+    // pure evaluators 0.4 runs, hosted on the 0.5 policy reader.
+    'governance/queries:checkModelAccessInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        userId: string;
+        modelId: string;
+      };
+      return checkModelAccessForUser(sql, args);
+    },
+    'governance/queries:getContextCapInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
+      const args = raw as { organizationId: string; userId: string };
+      return getContextCapForUser(sql, args);
+    },
+    'governance/internal_mutations:recordConnectorUsage': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
+      const args = raw as Parameters<typeof recordConnectorUsage>[1];
+      await recordConnectorUsage(sql, args);
+      return null;
+    },
 
     // -------------------------------------------------------------- lineage
     // Branches are not ported: every thread is its own lineage of one.

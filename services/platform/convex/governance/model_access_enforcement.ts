@@ -137,16 +137,29 @@ export async function checkModelAccess(
     organizationId,
     'model_access',
   );
+  return evaluateModelAccess(config, { userId, teamIds, userRole }, modelId);
+}
 
+/**
+ * The PURE half of {@link checkModelAccess} — the rule resolution and the
+ * allow/block verdict over an already-loaded policy. Exported so a host
+ * with its own policy source (the 0.5 backend reads policy FILES) applies
+ * exactly the same semantics.
+ */
+export function evaluateModelAccess(
+  config: ModelAccessConfig | null,
+  who: { userId: string; teamIds: string[]; userRole?: string | undefined },
+  modelId: string,
+): ModelAccessCheckResult {
   if (!config || !config.enabled || config.rules.length === 0) {
     return { allowed: true };
   }
 
   const resolved = resolveAllowedAndBlockedModels(
     config,
-    userId,
-    teamIds,
-    userRole,
+    who.userId,
+    who.teamIds,
+    who.userRole,
   );
 
   if (!resolved) {
