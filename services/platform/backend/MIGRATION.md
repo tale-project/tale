@@ -58,7 +58,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | Domain | Status | Notes |
 | --- | --- | --- |
 | accounts | pending | credential probe ported with users; OAuth account queries remain |
-| agents | pending | |
+| agents | in-progress | inc 18: the file layer REUSED verbatim (`file_actions.ts` handler bodies hoisted into exported plain functions — the internalActions now wrap them; yaml definitions + history trail + visibility/owner/verify-before-write untouched) behind `/api/app/agents` (list/read/resolve-for-turn/save/delete/history/restore; `isOrgAdmin` = the same `orgSettings` ability derivation). `assertAgentAssigneeLive` twin already lives in tasks' assignee validation over app.project_agents. PENDING: REST v1 surface (machine door), turn-resolver call sites (sandbox/task-agent lanes) |
 | agent_secrets | pending | |
 | approvals | pending | |
 | audit_logs | done | inc 05; chain head per org, `FOR UPDATE` append (rule 5), inline prior-row self-check, list route; export CSV + integrity-verify tooling + retention/pii-scrub with governance |

@@ -1457,6 +1457,122 @@ async function checkSmallDomains(
 }
 
 /**
+ * Agents: the REUSED 0.4 file layer (org config tree yaml + history trail)
+ * behind the 0.5 routes — save (verify-before-write), list, read, resolve
+ * for a turn, history + additive restore, delete, and the slug gate.
+ */
+async function checkAgents(
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const call = (
+    method: 'GET' | 'PUT' | 'POST' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  const agentDoc = z
+    .object({
+      agent: z.looseObject({
+        slug: z.string(),
+        displayName: z.string(),
+        visibility: z.string(),
+        canEdit: z.boolean(),
+        instructions: z.string().optional(),
+      }),
+    })
+    .loose();
+
+  const created = agentDoc.safeParse(
+    await (
+      await call('PUT', `/api/app/agents/helper?orgId=${orgId}`, {
+        displayName: 'Helper',
+        instructions: 'Be helpful, v1.',
+        visibility: 'org',
+      })
+    ).json(),
+  );
+  const listed = z
+    .object({ agents: z.array(z.looseObject({ slug: z.string() })) })
+    .loose()
+    .safeParse(
+      await (await call('GET', `/api/app/agents?orgId=${orgId}`)).json(),
+    );
+  const badSlug = await call(
+    'PUT',
+    `/api/app/agents/${encodeURIComponent('Bad Slug!')}?orgId=${orgId}`,
+    { displayName: 'Nope' },
+  );
+
+  // Second save supersedes v1 into the history trail.
+  await call('PUT', `/api/app/agents/helper?orgId=${orgId}`, {
+    displayName: 'Helper',
+    instructions: 'Be helpful, v2.',
+  });
+  const history = z
+    .object({
+      entries: z.array(z.object({ entry: z.string(), savedAt: z.number() })),
+    })
+    .safeParse(
+      await (
+        await call('GET', `/api/app/agents/helper/history?orgId=${orgId}`)
+      ).json(),
+    );
+  const firstEntry = history.success ? history.data.entries[0]?.entry : '';
+  const restored = agentDoc.safeParse(
+    await (
+      await call('POST', `/api/app/agents/helper/restore?orgId=${orgId}`, {
+        entry: firstEntry,
+      })
+    ).json(),
+  );
+  const resolved = z
+    .object({ agent: z.looseObject({ instructions: z.string().optional() }) })
+    .loose()
+    .safeParse(
+      await (
+        await call(
+          'GET',
+          `/api/app/agents/helper/resolved?locale=en&orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  const deleted = z
+    .object({ deleted: z.boolean() })
+    .safeParse(
+      await (
+        await call('DELETE', `/api/app/agents/helper?orgId=${orgId}`)
+      ).json(),
+    );
+  const readAfter = await call('GET', `/api/app/agents/helper?orgId=${orgId}`);
+
+  record(
+    'agents file layer (save/list/history/restore/resolve/delete)',
+    created.success &&
+      created.data.agent.canEdit &&
+      created.data.agent.visibility === 'org' &&
+      listed.success &&
+      listed.data.agents.some((agent) => agent.slug === 'helper') &&
+      badSlug.status === 400 &&
+      history.success &&
+      history.data.entries.length >= 1 &&
+      restored.success &&
+      restored.data.agent.instructions === 'Be helpful, v1.' &&
+      resolved.success &&
+      deleted.success &&
+      deleted.data.deleted &&
+      readAfter.status === 404,
+    `created=${created.success}, listed=${listed.success ? listed.data.agents.length : 'ERR'}, badSlug → ${badSlug.status} (want 400), history=${history.success ? history.data.entries.length : 'ERR'}, restoredV1=${restored.success && restored.data.agent.instructions === 'Be helpful, v1.'}, delete=${deleted.success && deleted.data.deleted}, readAfter → ${readAfter.status} (want 404)`,
+  );
+}
+
+/**
  * Provider credentials: encrypted round-trip through the REUSED 0.4
  * resolver over PG rows (api-key decrypt + env gate + default swap), with
  * the wire surface returning only masked metadata.
@@ -2373,6 +2489,7 @@ async function main(): Promise<void> {
     await checkFiles(baseUrl, authCtx);
     await checkDocuments(baseUrl, authCtx);
     await checkSmallDomains(baseUrl, authCtx);
+    await checkAgents(baseUrl, authCtx);
     await checkProviderCredentials(sql, baseUrl, authCtx);
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
