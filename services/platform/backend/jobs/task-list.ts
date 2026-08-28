@@ -4,7 +4,11 @@ import { z } from 'zod';
 import { stepRunImpl } from '../../convex/automations/stepper.ts';
 import { removeOrgSubtree } from '../../convex/organizations/scaffold.ts';
 import { automationShimHandlers } from '../domains/automations/shim.ts';
-import { pollParkedRun } from '../domains/automations/store.ts';
+import {
+  pollParkedRun,
+  sweepOverdueRuns,
+} from '../domains/automations/store.ts';
+import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
 import { indexUploadedFile } from '../domains/knowledge/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { createCtxShim } from '../lib/convex-shim.ts';
@@ -99,6 +103,20 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runId is the row id; the Convex Id type is a branded string
         input as unknown as Parameters<typeof stepRunImpl>[1],
       );
+    },
+    'automation.trigger_scan': async () => {
+      const result = await scanScheduledTriggers(deps.sql);
+      if (result.fired > 0) {
+        console.log(
+          `[automations] trigger scan fired ${result.fired}/${result.examined}`,
+        );
+      }
+    },
+    'automation.liveness': async () => {
+      const swept = await sweepOverdueRuns(deps.sql);
+      if (swept > 0) {
+        console.log(`[automations] liveness sweep re-poked ${swept} runs`);
+      }
     },
     'automation.poll': async (payload) => {
       const input = z

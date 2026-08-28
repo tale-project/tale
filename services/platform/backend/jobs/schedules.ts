@@ -20,6 +20,10 @@ const SCHEDULES: CronSchedule[] = [
   // loginAttempts carry a 30-day retention (GDPR minimization); the hourly
   // block counters age out after 90 days. Daily sweep.
   { name: 'maintenance.login_attempts_ttl', cron: '40 3 * * *' },
+  // Automation schedule triggers fire at minute resolution; the liveness
+  // sweep is the only wake source for a run whose scheduled resume was lost.
+  { name: 'automation.trigger_scan', cron: '* * * * *' },
+  { name: 'automation.liveness', cron: '* * * * *' },
 ];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {

@@ -1,7 +1,9 @@
-import { createHash, randomBytes } from 'node:crypto';
-
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  hashWebhookToken,
+  mintWebhookToken,
+} from '../../../convex/automations/webhook_token.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -361,8 +363,8 @@ export async function setTrigger(
       args.trigger.kind === 'webhook' &&
       (tokenHash === null || args.trigger.rotateToken === true)
     ) {
-      token = randomBytes(24).toString('base64url');
-      tokenHash = createHash('sha256').update(token).digest('hex');
+      token = mintWebhookToken();
+      tokenHash = await hashWebhookToken(token);
     }
     if (args.trigger.kind !== 'webhook') tokenHash = null;
     const enabled = args.trigger.enabled ?? true;
@@ -532,19 +534,30 @@ async function enqueuePoll(
   });
 }
 
+export interface BeginRunArgs {
+  organizationId: string;
+  name: string;
+  input: unknown;
+  mode: 'mock' | 'live';
+  startedBy: string;
+  version?: number;
+  projectId?: string;
+}
+
 export async function beginRun(
   sql: Sql,
-  args: {
-    organizationId: string;
-    name: string;
-    input: unknown;
-    mode: 'mock' | 'live';
-    startedBy: string;
-    version?: number;
-    projectId?: string;
-  },
+  args: BeginRunArgs,
 ): Promise<{ runId: string; version: number } | null> {
-  return sql.begin(async (tx) => {
+  return sql.begin((tx) => beginRunInTx(tx, args));
+}
+
+/** The run insert + first-step enqueue INSIDE a caller's transaction — how
+ * an event emitted by a producing write starts runs atomically with it. */
+export async function beginRunInTx(
+  tx: TransactionSql,
+  args: BeginRunArgs,
+): Promise<{ runId: string; version: number } | null> {
+  {
     const version =
       args.version ??
       (await deployedVersion(tx, args.organizationId, args.name));
@@ -592,7 +605,7 @@ export async function beginRun(
     if (!runId) throw new Error('run insert failed');
     await enqueueStep(tx, args.organizationId, runId, 0);
     return { runId, version };
-  });
+  }
 }
 
 export async function cancelRun(

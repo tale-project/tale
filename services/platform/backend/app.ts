@@ -6,6 +6,7 @@ import { requireSession, type AuthEnv } from './auth/session.ts';
 import { createAgentRoutes } from './domains/agents/routes.ts';
 import { createAuditLogRoutes } from './domains/audit_logs/routes.ts';
 import { createAutomationRoutes } from './domains/automations/routes.ts';
+import { createWebhookRoutes } from './domains/automations/triggers.ts';
 import { createChatRoutes } from './domains/chat/routes.ts';
 import { createContactRoutes } from './domains/contacts/routes.ts';
 import { createDocumentRoutes } from './domains/documents/routes.ts';
@@ -42,6 +43,8 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // In-sandbox workspace-tool dispatch (session-token bearer auth, not a
   // browser session) — the container-facing machine door.
   app.route('/api/tools', createToolDispatchRoutes({ sql: deps.sql }));
+  // Automation webhook triggers — the token in the path is the credential.
+  app.route('/api/automations/webhook', createWebhookRoutes({ sql: deps.sql }));
   // Internal app API (the surface the web app consumes); one sub-app per
   // ported domain.
   app.route('/api/app/agents', createAgentRoutes(deps));

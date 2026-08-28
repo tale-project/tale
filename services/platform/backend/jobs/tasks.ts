@@ -30,6 +30,10 @@ export interface TaskPayloads {
     seq: number;
     pollMs: number;
   };
+  /** Per-minute scan firing due schedule triggers (cron). */
+  'automation.trigger_scan': Record<string, never>;
+  /** Per-minute liveness sweep re-poking overdue runs (cron). */
+  'automation.liveness': Record<string, never>;
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -79,4 +83,6 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     expireInSeconds: 1800,
   },
   'automation.poll': { retryLimit: 3, retryDelay: 2, expireInSeconds: 120 },
+  'automation.trigger_scan': { retryLimit: 1, expireInSeconds: 120 },
+  'automation.liveness': { retryLimit: 1, expireInSeconds: 120 },
 };

@@ -1,13 +1,14 @@
 import type { TransactionSql } from 'postgres';
 
+import { dispatchAutomationEvent } from '../automations/triggers.ts';
+
 /**
  * Platform events — the single seam through which entity domains announce
- * "something happened". Ported from `convex/events/emit.ts` at its current
- * contract: dispatch is a deliberate NO-OP until the automations domain
- * lands its fan-out (per-org subscription lookup + run scheduling + the
- * workflow.completed self-trigger guard); emitting stays non-fatal and
- * cheap, so producing domains call this seam today and the rebuild swaps in
- * the real dispatch behind it.
+ * "something happened". Dispatch fans out to the org's enabled `event`
+ * automation triggers INSIDE the producing transaction (run insert + step
+ * job enqueue commit atomically with the write that raised the event);
+ * emitting stays non-fatal — a dispatch fault is logged, never allowed to
+ * fail the producing write.
  *
  * The event-type union is part of the platform contract (subscription rows
  * and automation packs reference these exact strings) — extend deliberately,
@@ -45,23 +46,27 @@ export interface EmitEventArgs {
   eventData?: Record<string, unknown>;
 }
 
-let droppedEventCount = 0;
-
 /**
  * Emit a platform event inside the producing transaction. Fire-and-forget by
- * contract: the write commits regardless of what (if anything) consumes it.
+ * contract: the write commits regardless of what (if anything) consumes it —
+ * a dispatch fault is logged and swallowed, because an event consumer must
+ * never be able to fail its producer.
  */
 export async function emitEvent(
-  _tx: TransactionSql,
+  tx: TransactionSql,
   args: EmitEventArgs,
 ): Promise<void> {
-  // TODO(automations): replace with the subscription fan-out (enqueue run
-  // jobs in this same transaction).
-  droppedEventCount += 1;
-  if (droppedEventCount <= 5 || droppedEventCount % 100 === 0) {
-    console.debug(
-      `[events] dropped ${args.eventType} for org ${args.organizationId} (automation dispatch not yet rebuilt; #${droppedEventCount})`,
+  try {
+    await dispatchAutomationEvent(tx, {
+      organizationId: args.organizationId,
+      event: args.eventType,
+      ...(args.eventData !== undefined ? { payload: args.eventData } : {}),
+      origin: 'platform',
+    });
+  } catch (error) {
+    console.error(
+      `[events] automation dispatch failed for ${args.eventType} (org ${args.organizationId}):`,
+      error,
     );
   }
-  return Promise.resolve();
 }

@@ -2493,6 +2493,80 @@ async function checkAutomations(
       ).json(),
     );
 
+    // Webhook DELIVERY: the rotated token starts a live run; garbage 404s.
+    const hookRes = await fetch(
+      `${base}/api/automations/webhook/${rotated.success ? rotated.data.token : ''}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ hello: 'vendor' }),
+      },
+    );
+    const hookRun = z
+      .object({ runId: z.string() })
+      .safeParse(await hookRes.json());
+    const hookSettled = await waitFor(async () => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status FROM app.automation_runs
+        WHERE id = ${hookRun.success ? hookRun.data.runId : ''}
+      `;
+      return rows[0]?.status === 'success';
+    }, 30_000);
+    const hookBadToken = await fetch(
+      `${base}/api/automations/webhook/not-a-real-token`,
+      { method: 'POST', body: '{}' },
+    );
+
+    // Schedule DELIVERY: retarget the trigger to a minute cron, backdate its
+    // fire stamp, and let the scan (the per-minute job's body) fire it.
+    await post(`/api/app/automations/ops/greet/trigger?orgId=${orgId}`, {
+      kind: 'schedule',
+      cron: '* * * * *',
+      timezone: 'UTC',
+    });
+    await sql`
+      UPDATE app.automation_triggers
+      SET last_fired_at_ms = ${Date.now() - 120_000}
+      WHERE org_id = ${orgId} AND name = 'ops/greet'
+    `;
+    const triggersModule = await import('./domains/automations/triggers.ts');
+    const scan = await triggersModule.scanScheduledTriggers(sql);
+    const scheduleStamp = await sql<{ last: number | null }[]>`
+      SELECT last_fired_at_ms::float8 AS last FROM app.automation_triggers
+      WHERE org_id = ${orgId} AND name = 'ops/greet'
+    `;
+
+    // Event DELIVERY through the REAL producer: retarget to contact.created,
+    // create a contact via the API, and the emit seam starts the run inside
+    // the producing transaction.
+    await post(`/api/app/automations/ops/greet/trigger?orgId=${orgId}`, {
+      kind: 'event',
+      event: 'contact.created',
+    });
+    const runsBefore = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automation_runs
+      WHERE org_id = ${orgId} AND started_by LIKE 'trigger:%'
+    `;
+    const probeContact = await post(`/api/app/contacts?orgId=${orgId}`, {
+      name: 'Event Probe',
+      email: 'event-probe@example.com',
+      source: 'manual_import',
+    });
+    if (!probeContact.ok) {
+      console.warn(
+        `[itest] event-probe contact create → ${probeContact.status}`,
+      );
+    }
+    const eventFired = await waitFor(async () => {
+      const rows = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM app.automation_runs
+        WHERE org_id = ${orgId} AND started_by LIKE 'trigger:%'
+      `;
+      return (
+        Number(rows[0]?.count ?? '0') > Number(runsBefore[0]?.count ?? '0')
+      );
+    }, 15_000);
+
     // Delete → tombstone; saving again clears it.
     await fetch(`${base}/api/app/automations/ops/greet?orgId=${orgId}`, {
       method: 'DELETE',
@@ -2531,8 +2605,14 @@ async function checkAutomations(
         rotated.success &&
         rotated.data.token !== minted.data.token &&
         tombstoned[0]?.count === '1' &&
-        cleared[0]?.count === '0',
-      `save=${saved.success}, deploy=${deployed.status}, gate → ${gate.status} (want 409), run=${runView.success ? runView.data.run.status : 'ERR'} output=${runView.success ? JSON.stringify(runView.data.run.output) : 'ERR'} (want "LGTM-42"), audit=${auditRows[0]?.count}, sweep=${swept}/settled=${orphanSettled}, webhook(mint=${minted.success}, keep=${JSON.stringify(rebound) === '{}'}, rotate=${rotated.success && rotated.data.token !== (minted.success ? minted.data.token : '')}), tombstone=${tombstoned[0]?.count}→${cleared[0]?.count}`,
+        cleared[0]?.count === '0' &&
+        hookRes.status === 202 &&
+        hookSettled &&
+        hookBadToken.status === 404 &&
+        scan.fired >= 1 &&
+        (scheduleStamp[0]?.last ?? 0) > Date.now() - 90_000 &&
+        eventFired,
+      `save=${saved.success}, deploy=${deployed.status}, gate → ${gate.status} (want 409), run=${runView.success ? runView.data.run.status : 'ERR'} output=${runView.success ? JSON.stringify(runView.data.run.output) : 'ERR'} (want "LGTM-42"), audit=${auditRows[0]?.count}, sweep=${swept}/settled=${orphanSettled}, webhook(mint=${minted.success}, keep=${JSON.stringify(rebound) === '{}'}, rotate=${rotated.success && rotated.data.token !== (minted.success ? minted.data.token : '')}, fire → ${hookRes.status}/settled=${hookSettled}, bad → ${hookBadToken.status}), schedule(fired=${scan.fired}), event(fired=${eventFired}), tombstone=${tombstoned[0]?.count}→${cleared[0]?.count}`,
     );
   } finally {
     await new Promise<void>((resolve) => {
