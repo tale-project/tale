@@ -532,6 +532,7 @@ export interface SessionTokenRow {
   organizationId: string;
   sessionId: string;
   scope: SessionTokenScope;
+  llmGatewayKeyId: string | null;
   expiresAt: number;
   revokedAt: number | null;
 }
@@ -543,6 +544,7 @@ export async function getSessionTokenByHash(
 ): Promise<SessionTokenRow | null> {
   const rows = await sql<SessionTokenRow[]>`
     SELECT org_id AS "organizationId", session_id AS "sessionId", scope,
+           llm_gateway_key_id AS "llmGatewayKeyId",
            expires_at_ms::float8 AS "expiresAt",
            revoked_at_ms::float8 AS "revokedAt"
     FROM app.sandbox_session_tokens

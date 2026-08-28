@@ -248,6 +248,48 @@ function isWorkspaceReadTool(tool: string): tool is WorkspaceReadTool {
  * has already authenticated the session token and checked the grant set; this
  * action owns tool-name validation and the org-scoped read as the turn's user.
  */
+/** The dispatch as a PLAIN exported function — the internalAction below
+ * wraps it, and the 0.5 backend's `/api/tools/execute` door calls it on the
+ * ctx shim (same pattern as `chat/turn_action.executeTurn`). */
+export async function dispatchWorkspaceToolImpl(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    userId?: string;
+    mintedKeyId?: string;
+    tool: string;
+    callArgs: unknown;
+  },
+): Promise<ToolResult> {
+  const result = await runWorkspaceTool(ctx, args);
+  // Forensic trail: who/what/when/outcome + a sorted param-KEY fingerprint
+  // (never values). RAG tools additionally record the distinct knowledge
+  // refs the call served — the run's read-set for the provenance ledger.
+  // Auditability is a bridge requirement; a logging failure must not fail
+  // the call, so it's best-effort.
+  const knowledgeRefs = knowledgeRefsOf(args.tool, result);
+  await ctx
+    .runMutation(internal.sandbox.session_mutations.recordToolCall, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      tool: args.tool,
+      userId: args.userId,
+      outcome: result.status,
+      paramsFingerprint: isRecord(args.callArgs)
+        ? Object.keys(args.callArgs).sort().join(',')
+        : '',
+      ...(knowledgeRefs !== undefined ? { knowledgeRefs } : {}),
+      ...(args.mintedKeyId !== undefined
+        ? { mintedKeyId: args.mintedKeyId }
+        : {}),
+    })
+    .catch((err: unknown) =>
+      console.warn('[workspace-tools] audit write failed:', err),
+    );
+  return result;
+}
+
 export const dispatchWorkspaceTool = internalAction({
   args: {
     organizationId: v.string(),
@@ -264,34 +306,8 @@ export const dispatchWorkspaceTool = internalAction({
     callArgs: v.any(),
   },
   returns: v.any(),
-  handler: async (ctx, args): Promise<ToolResult> => {
-    const result = await runWorkspaceTool(ctx, args);
-    // Forensic trail: who/what/when/outcome + a sorted param-KEY fingerprint
-    // (never values). RAG tools additionally record the distinct knowledge
-    // refs the call served — the run's read-set for the provenance ledger.
-    // Auditability is a bridge requirement; a logging failure must not fail
-    // the call, so it's best-effort.
-    const knowledgeRefs = knowledgeRefsOf(args.tool, result);
-    await ctx
-      .runMutation(internal.sandbox.session_mutations.recordToolCall, {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        tool: args.tool,
-        userId: args.userId,
-        outcome: result.status,
-        paramsFingerprint: isRecord(args.callArgs)
-          ? Object.keys(args.callArgs).sort().join(',')
-          : '',
-        ...(knowledgeRefs !== undefined ? { knowledgeRefs } : {}),
-        ...(args.mintedKeyId !== undefined
-          ? { mintedKeyId: args.mintedKeyId }
-          : {}),
-      })
-      .catch((err: unknown) =>
-        console.warn('[workspace-tools] audit write failed:', err),
-      );
-    return result;
-  },
+  handler: async (ctx, args): Promise<ToolResult> =>
+    dispatchWorkspaceToolImpl(ctx, args),
 });
 
 /**
@@ -981,22 +997,25 @@ async function runAskHuman(
  * relays. Grants come from the session token row (never the request), so the
  * listing is exactly what the turn was provisioned with.
  */
+export function workspaceToolStatusImpl(grants: readonly string[]): unknown {
+  if (grants.length === 0) {
+    return {
+      tools: [],
+      note: 'No workspace tools are granted to this agent.',
+    };
+  }
+  return {
+    tools: grants.map((name) => ({
+      name,
+      description: TOOL_DESCRIPTIONS[name] ?? 'A platform workspace tool.',
+      readOnly: !WRITE_TOOL_SET.has(name),
+    })),
+  };
+}
+
 export const workspaceToolStatus = internalAction({
   args: { grants: v.array(v.string()) },
   returns: v.any(),
-  handler: (_ctx, args) => {
-    if (args.grants.length === 0) {
-      return Promise.resolve({
-        tools: [],
-        note: 'No workspace tools are granted to this agent.',
-      });
-    }
-    return Promise.resolve({
-      tools: args.grants.map((name) => ({
-        name,
-        description: TOOL_DESCRIPTIONS[name] ?? 'A platform workspace tool.',
-        readOnly: !WRITE_TOOL_SET.has(name),
-      })),
-    });
-  },
+  handler: (_ctx, args) =>
+    Promise.resolve(workspaceToolStatusImpl(args.grants)),
 });

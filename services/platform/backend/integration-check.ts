@@ -2692,6 +2692,136 @@ async function checkSandboxSpawner(
         live.get('itest-spawn-adopt')?.pinned === false,
       `signatures ok=${badSignatures === 0}, create=${first.created}/active=${rowAfterCreate?.status === 'active'}, reuse=${!reused.created}, heal=${healed.created}, adopt=${adopted.created}, busy=${busy} (ticket=${ticketRows[0]?.status}), admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), containerGone=${live.get('itest-spawn-1') === undefined}`,
     );
+
+    // --- the in-sandbox workspace-tool door (the REUSED bridge on the shim).
+    const post = (route: string, body?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    const projectRes = z.object({ projectId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, {
+          name: 'Sandbox Tools Project',
+        })
+      ).json(),
+    );
+    const toolProjectId = projectRes.success ? projectRes.data.projectId : '';
+    const agentRes = z.object({ agentId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/projects/${toolProjectId}/agents?orgId=${orgId}`, {
+          name: 'Tool Bot',
+          harness: 'claude-code',
+          model: 'anthropic/claude-fable-5',
+          skills: [],
+          connectors: [],
+        })
+      ).json(),
+    );
+    const toolAgentId = agentRes.success ? agentRes.data.agentId : '';
+    // Free the project budget of every session earlier scenarios left live.
+    for (const leftover of [
+      'itest-sb-1',
+      'itest-sb-2',
+      'itest-sb-3',
+      'itest-sb-4',
+      'itest-spawn-adopt',
+    ]) {
+      await sessions.markSessionDestroyed(sql, {
+        organizationId: orgId,
+        sessionId: leftover,
+      });
+    }
+    await service.provisionSession(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-spawn-tools',
+      profile: 'agent',
+      ownerType: 'project_agent',
+      ownerId: toolAgentId,
+      createdBy: userId,
+    });
+    const { createHash: hashFn } = await import('node:crypto');
+    const vk = 'itest-vk-tools-1';
+    await sessions.insertSessionToken(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-spawn-tools',
+      tokenHash: hashFn('sha256').update(vk).digest('hex'),
+      llmGatewayKeyId: 'vk-id-1',
+      scope: {
+        agentKind: 'claude-code',
+        allowedModels: [],
+        connectorGrants: [],
+        budgetCents: 100,
+        toolGrants: ['product_find', 'document_find'],
+      },
+      ttlMs: 60_000,
+    });
+    const dispatch = (body: unknown, token = vk): Promise<Response> =>
+      fetch(`${base}/api/tools/execute`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+    const statusListing = z
+      .object({ tools: z.array(z.object({ name: z.string() })) })
+      .loose()
+      .safeParse(
+        await (
+          await fetch(`${base}/api/tools/status`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              authorization: `Bearer ${vk}`,
+            },
+            body: '{}',
+          })
+        ).json(),
+      );
+    const productFind = z
+      .object({ status: z.string() })
+      .loose()
+      .safeParse(
+        await (
+          await dispatch({ tool: 'product_find', args: { name: 'Widget' } })
+        ).json(),
+      );
+    const productRaw = JSON.stringify(productFind.success ? productFind : {});
+    const ungranted = z
+      .object({ status: z.string() })
+      .loose()
+      .safeParse(
+        await (await dispatch({ tool: 'contact_find', args: {} })).json(),
+      );
+    const badToken = await dispatch(
+      { tool: 'product_find', args: {} },
+      'wrong-token',
+    );
+    const ledger = await sql<{ tool: string; outcome: string }[]>`
+      SELECT tool, outcome FROM app.sandbox_tool_calls
+      WHERE session_id = 'itest-spawn-tools'
+      ORDER BY created_at_ms
+    `;
+    record(
+      'workspace-tool door (session-token auth + reused bridge)',
+      statusListing.success &&
+        statusListing.data.tools.map((t) => t.name).join(',') ===
+          'product_find,document_find' &&
+        productFind.success &&
+        productFind.data.status === 'ok' &&
+        productRaw.includes('Widget') &&
+        ungranted.success &&
+        ungranted.data.status === 'unavailable' &&
+        badToken.status === 401 &&
+        ledger.some(
+          (row) => row.tool === 'product_find' && row.outcome === 'ok',
+        ),
+      `status=${statusListing.success ? statusListing.data.tools.length : 'ERR'} tools, product_find=${productFind.success ? productFind.data.status : 'ERR'} (hit=${productRaw.includes('Widget')}), ungranted=${ungranted.success ? ungranted.data.status : 'ERR'}, badToken → ${badToken.status} (want 401), ledger=${ledger.map((r) => `${r.tool}:${r.outcome}`).join('/')}`,
+    );
   } finally {
     delete process.env.SANDBOX_URL;
     delete process.env.SANDBOX_TOKEN;

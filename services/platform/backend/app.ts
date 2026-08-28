@@ -18,6 +18,7 @@ import { createOrganizationRoutes } from './domains/organizations/routes.ts';
 import { createProductRoutes } from './domains/products/routes.ts';
 import { createProjectRoutes } from './domains/projects/routes.ts';
 import { createProviderCredentialRoutes } from './domains/provider_credentials/routes.ts';
+import { createToolDispatchRoutes } from './domains/sandbox/dispatch-routes.ts';
 import { createSandboxRoutes } from './domains/sandbox/routes.ts';
 import { createSupportCaseRoutes } from './domains/support_cases/routes.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
@@ -37,6 +38,9 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // organization plugin endpoints, api-key/two-factor/passkey, …).
   app.on(['GET', 'POST'], '/api/auth/*', (c) => deps.auth.handler(c.req.raw));
   app.get('/events', requireSession(deps.auth), createEventsHandler(deps.sql));
+  // In-sandbox workspace-tool dispatch (session-token bearer auth, not a
+  // browser session) — the container-facing machine door.
+  app.route('/api/tools', createToolDispatchRoutes({ sql: deps.sql }));
   // Internal app API (the surface the web app consumes); one sub-app per
   // ported domain.
   app.route('/api/app/agents', createAgentRoutes(deps));
