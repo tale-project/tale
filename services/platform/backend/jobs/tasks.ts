@@ -82,6 +82,11 @@ export interface TaskPayloads {
       size: number;
     }>;
   };
+  /** Stuck-pending TTS watchdog: identity-gated failed flip so a crashed
+   * synthesis can't strand the player on a forever-pending chunk. */
+  'tts.watchdog_chunk': { chunkId: string; attemptCreatedAt: number };
+  /** Rate-gated lazy sweep of one thread's expired TTS chunks (+ blobs). */
+  'tts.cleanup': { threadId: string };
   /** One actionable notification's email, debounce-delayed. The handler
    * re-reads the row and sends only when it is still unread AND the payload
    * epoch is current — a rewrite bumped the epoch (its own newer job carries
@@ -182,6 +187,8 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // Best-effort at-most-once: the bell row is the durable record; a lost or
   // failed email is never retried into a duplicate.
   'notification.email': { retryLimit: 0, expireInSeconds: 300 },
+  'tts.watchdog_chunk': { retryLimit: 1, expireInSeconds: 120 },
+  'tts.cleanup': { retryLimit: 0, expireInSeconds: 300 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
   'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
   'governance.process_erasure': { retryLimit: 1, expireInSeconds: 1_800 },

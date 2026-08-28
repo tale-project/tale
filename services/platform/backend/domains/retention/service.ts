@@ -23,6 +23,7 @@ import {
 } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { loadActiveHolds, type ActiveHolds } from '../legal_holds/service.ts';
+import { cascadeDeleteThreadTtsChunks } from '../tts/service.ts';
 
 /**
  * The retention framework — the 0.5 twin of
@@ -476,6 +477,10 @@ export async function purgeThreadLineage(
       WHERE org_id = ${organizationId} AND thread_id IN ${tx(ids)}
     `;
     await tx`DELETE FROM app.generations WHERE thread_id IN ${tx(ids)}`;
+    // Voice artifacts die with the conversation (chunk rows + audio blobs).
+    for (const threadId of ids) {
+      await cascadeDeleteThreadTtsChunks(tx, organizationId, threadId);
+    }
     await tx`DELETE FROM app.messages WHERE thread_id IN ${tx(ids)}`;
     await tx`DELETE FROM app.thread_metadata WHERE thread_id IN ${tx(ids)}`;
     await tx`DELETE FROM app.threads WHERE id IN ${tx(ids)}`;

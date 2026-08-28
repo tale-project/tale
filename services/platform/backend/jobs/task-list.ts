@@ -239,6 +239,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         .parse(payload);
       await runApiTurn(deps.sql, input);
     },
+    'tts.watchdog_chunk': async (payload) => {
+      const input = z
+        .object({ chunkId: z.string().min(1), attemptCreatedAt: z.number() })
+        .parse(payload);
+      const { runTtsWatchdog } = await import('../domains/tts/service.ts');
+      await runTtsWatchdog(deps.sql, input);
+    },
+    'tts.cleanup': async (payload) => {
+      const input = z.object({ threadId: z.string().min(1) }).parse(payload);
+      const { runTtsCleanup } = await import('../domains/tts/service.ts');
+      await runTtsCleanup(deps.sql, input);
+    },
     'notification.email': async (payload) => {
       const input = z
         .object({

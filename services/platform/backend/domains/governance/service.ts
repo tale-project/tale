@@ -195,6 +195,8 @@ export interface UsageLedgerEntryInput {
   connectorName?: string;
   connectorOperation?: string;
   connectorCallCount?: number;
+  /** TTS lane: synthesized characters, accumulated on the bucket. */
+  characterCount?: number;
 }
 
 const ALL_PERIODS = ['daily', 'weekly', 'monthly'] as const;
@@ -213,7 +215,7 @@ export async function incrementUsageLedger(
         org_id, user_id, team_id, period_key, granularity, agent_slug, model,
         provider, api_key_id, connector_name, connector_operation,
         input_tokens, output_tokens, total_tokens, cost_estimate_cents,
-        request_count, connector_call_count, updated_at_ms
+        request_count, connector_call_count, character_count, updated_at_ms
       ) VALUES (
         ${entry.organizationId}, ${entry.userId}, ${entry.teamId ?? null},
         ${periodKey}, ${period}, ${entry.agentSlug ?? null},
@@ -222,7 +224,7 @@ export async function incrementUsageLedger(
         ${entry.connectorOperation ?? null},
         ${entry.inputTokens}, ${entry.outputTokens}, ${totalTokens},
         ${entry.costEstimateCents}, 1, ${entry.connectorCallCount ?? 0},
-        ${now}
+        ${entry.characterCount ?? null}, ${now}
       )
       ON CONFLICT (
         org_id, user_id, period_key,
@@ -241,6 +243,9 @@ export async function incrementUsageLedger(
         connector_call_count =
           app.usage_ledger.connector_call_count
             + EXCLUDED.connector_call_count,
+        character_count =
+          coalesce(app.usage_ledger.character_count, 0)
+            + coalesce(EXCLUDED.character_count, 0),
         provider = coalesce(app.usage_ledger.provider, EXCLUDED.provider),
         updated_at_ms = ${now}
     `;

@@ -45,6 +45,7 @@ import { createTrustedHeadersRoutes } from './domains/sso/trusted-headers.ts';
 import { createSupportCaseRoutes } from './domains/support_cases/routes.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createTeamRoutes } from './domains/teams/routes.ts';
+import { createTtsRoutes } from './domains/tts/routes.ts';
 import { createUserPreferenceRoutes } from './domains/user_preferences/routes.ts';
 import { createUserRoutes } from './domains/users/routes.ts';
 import {
@@ -110,6 +111,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/contacts', createContactRoutes(deps));
   app.route('/api/app/approvals', createApprovalRoutes(deps));
   app.route('/api/control', createControlRoutes(deps));
+  app.route('/api/app/tts', createTtsRoutes(deps));
   // WebDAV (/dav/<orgSlug>/…): HTTP Basic app-password auth lives inside the
   // reused dispatch; the raw request URL carries the /dav prefix the parser
   // expects, so the mount path only scopes routing.

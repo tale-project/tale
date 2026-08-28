@@ -6543,6 +6543,335 @@ async function checkWebdav(
 }
 
 /**
+ * TTS on PG: the reserve → provider call → settle choreography against a
+ * fake /audio/speech endpoint (the SHIPPED openai static catalog supplies
+ * the text-to-speech model; the credential's endpointUrl re-points the
+ * call), the idempotent cache hit, the authenticated audio serve, the
+ * TTS_SLUG ledger row with character counts, the failure/retry overwrite,
+ * the voice-mode cascade (default → preference → thread override → org
+ * kill switch), and the guard rails.
+ */
+async function checkTts(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'tts (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — audio needs a blob store',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+
+  let ttsCalls = 0;
+  let failNext = false;
+  const AUDIO = Buffer.alloc(1024, 0xab);
+  const ttsServer = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      if (!(req.url ?? '').endsWith('/audio/speech')) {
+        res.statusCode = 404;
+        res.end('{}');
+        return;
+      }
+      ttsCalls += 1;
+      if (failNext) {
+        failNext = false;
+        res.statusCode = 500;
+        res.end('{"error":"itest boom"}');
+        return;
+      }
+      const parsed = z
+        .looseObject({
+          model: z.string(),
+          input: z.string(),
+          voice: z.string(),
+          response_format: z.string(),
+        })
+        .safeParse(JSON.parse(body || '{}'));
+      if (!parsed.success) {
+        res.statusCode = 400;
+        res.end('{"error":"bad request"}');
+        return;
+      }
+      res.setHeader('content-type', 'audio/mpeg');
+      res.end(AUDIO);
+    });
+  });
+  await new Promise<void>((resolve) => {
+    ttsServer.listen(0, '127.0.0.1', resolve);
+  });
+  const ttsAddress = ttsServer.address();
+  const ttsPort =
+    ttsAddress !== null && typeof ttsAddress === 'object' ? ttsAddress.port : 0;
+  const ttsBase = `http://127.0.0.1:${ttsPort}/v1`;
+
+  try {
+    const send = (route: string, body?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    // The org's openai credential re-pointed at the fake (static catalog
+    // ships gpt-4o-mini-tts with voice + format facts). Earlier checks
+    // already minted an openai credential (the embeddings fixture), so this
+    // one must be PROMOTED — the resolver reads the default row.
+    const ttsCred = z.object({ credentialId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/provider-credentials?orgId=${orgId}`, {
+          providerSlug: 'openai',
+          authMethod: 'api-key',
+          name: 'TTS key',
+          secret: 'sk-itest-tts',
+          // The admin surface enforces https endpoints; the harness swaps
+          // in the local fake's http origin below, straight in SQL.
+          endpointUrl: 'https://tts.door.test/v1',
+        })
+      ).json(),
+    );
+    const ttsCredId = ttsCred.success ? ttsCred.data.credentialId : '';
+    await sql`
+      UPDATE app.provider_credentials SET endpoint_url = ${ttsBase}
+      WHERE id = ${ttsCredId}
+    `;
+    await send(`/api/app/provider-credentials/${ttsCredId}?orgId=${orgId}`, {
+      isDefault: true,
+    });
+    const created = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Voice thread',
+        })
+      ).json(),
+    );
+    const threadId = created.success ? created.data.id : '';
+
+    const capability = z
+      .looseObject({
+        available: z.boolean(),
+        modelId: z.string().optional(),
+        voice: z.string().optional(),
+      })
+      .safeParse(
+        await (await send(`/api/app/tts/capability?orgId=${orgId}`)).json(),
+      );
+
+    const text = 'Hello voice world.';
+    const synth = z
+      .object({ status: z.string() })
+      .loose()
+      .safeParse(
+        await (
+          await send(`/api/app/tts/synthesize?orgId=${orgId}`, {
+            messageId: 'itest-tts-msg',
+            threadId,
+            index: 0,
+            text,
+            locale: 'en',
+          })
+        ).json(),
+      );
+    const callsAfterFirst = ttsCalls;
+    const again = z
+      .object({ status: z.string() })
+      .loose()
+      .safeParse(
+        await (
+          await send(`/api/app/tts/synthesize?orgId=${orgId}`, {
+            messageId: 'itest-tts-msg',
+            threadId,
+            index: 0,
+            text,
+            locale: 'en',
+          })
+        ).json(),
+      );
+    const callsAfterSecond = ttsCalls;
+
+    const chunks = z
+      .object({
+        chunks: z.array(
+          z.looseObject({
+            chunkId: z.string(),
+            status: z.string(),
+            voice: z.string().optional(),
+            format: z.string().optional(),
+          }),
+        ),
+      })
+      .safeParse(
+        await (
+          await send(
+            `/api/app/tts/messages/itest-tts-msg/chunks?orgId=${orgId}&threadId=${threadId}`,
+          )
+        ).json(),
+      );
+    const chunk0 = chunks.success ? chunks.data.chunks[0] : undefined;
+
+    const audio = await fetch(
+      `${base}/api/app/tts/audio/${chunk0?.chunkId ?? 'missing'}?orgId=${orgId}`,
+      { headers: { cookie, origin: base } },
+    );
+    const audioBytes = audio.ok
+      ? new Uint8Array(await audio.arrayBuffer())
+      : new Uint8Array();
+
+    const ledger = await sql<{ characterCount: number | null; cost: number }[]>`
+      SELECT character_count::float8 AS "characterCount",
+             cost_estimate_cents AS cost
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = '__tts__'
+        AND granularity = 'daily' AND model = 'gpt-4o-mini-tts'
+      LIMIT 1
+    `;
+
+    // Failure lane → failed row with a stable code; retry overwrites.
+    failNext = true;
+    const failed = z
+      .object({ status: z.string(), errorCode: z.string().optional() })
+      .loose()
+      .safeParse(
+        await (
+          await send(`/api/app/tts/synthesize?orgId=${orgId}`, {
+            messageId: 'itest-tts-msg',
+            threadId,
+            index: 1,
+            text: 'Second chunk.',
+            locale: 'en',
+          })
+        ).json(),
+      );
+    const retried = z
+      .object({ status: z.string() })
+      .loose()
+      .safeParse(
+        await (
+          await send(`/api/app/tts/synthesize?orgId=${orgId}`, {
+            messageId: 'itest-tts-msg',
+            threadId,
+            index: 1,
+            text: 'Second chunk.',
+            locale: 'en',
+          })
+        ).json(),
+      );
+
+    // Voice-mode cascade.
+    const modeDefault = z
+      .looseObject({ enabled: z.boolean(), source: z.string() })
+      .safeParse(
+        await (await send(`/api/app/tts/voice-mode?orgId=${orgId}`)).json(),
+      );
+    await send(`/api/app/tts/voice-output?orgId=${orgId}`, { enabled: true });
+    const modePref = z
+      .looseObject({ enabled: z.boolean(), source: z.string() })
+      .safeParse(
+        await (await send(`/api/app/tts/voice-mode?orgId=${orgId}`)).json(),
+      );
+    await send(
+      `/api/app/tts/threads/${threadId}/voice-override?orgId=${orgId}`,
+      { override: false },
+    );
+    const modeThread = z
+      .looseObject({ enabled: z.boolean(), source: z.string() })
+      .safeParse(
+        await (
+          await send(
+            `/api/app/tts/voice-mode?orgId=${orgId}&threadId=${threadId}`,
+          )
+        ).json(),
+      );
+    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+    const governanceDir = path.join(configRoot, orgSlug, 'governance');
+    await mkdir(governanceDir, { recursive: true });
+    const voiceFile = path.join(governanceDir, 'voice-output.yml');
+    await writeFile(voiceFile, 'enabled: false\n');
+    const { clearOrgConfigCaches } = await import('./lib/org-config.ts');
+    clearOrgConfigCaches();
+    const modeVeto = z
+      .looseObject({ enabled: z.boolean(), source: z.string() })
+      .safeParse(
+        await (await send(`/api/app/tts/voice-mode?orgId=${orgId}`)).json(),
+      );
+    const { unlink } = await import('node:fs/promises');
+    await unlink(voiceFile);
+    clearOrgConfigCaches();
+
+    // Guards: out-of-range index, foreign thread.
+    const badIndex = await send(`/api/app/tts/synthesize?orgId=${orgId}`, {
+      messageId: 'itest-tts-msg',
+      threadId,
+      index: 9_999,
+      text: 'nope',
+      locale: 'en',
+    });
+    const foreignThread = await send(`/api/app/tts/synthesize?orgId=${orgId}`, {
+      messageId: 'itest-tts-msg-2',
+      threadId: 'no-such-thread',
+      index: 0,
+      text: 'nope',
+      locale: 'en',
+    });
+
+    record(
+      'tts on pg (reserve/synthesize/serve, ledger, voice-mode cascade)',
+      capability.success &&
+        capability.data.available &&
+        capability.data.modelId === 'gpt-4o-mini-tts' &&
+        capability.data.voice === 'alloy' &&
+        synth.success &&
+        synth.data.status === 'ready' &&
+        callsAfterFirst === 1 &&
+        again.success &&
+        again.data.status === 'ready' &&
+        callsAfterSecond === 1 &&
+        chunks.success &&
+        chunks.data.chunks.length >= 1 &&
+        chunk0?.status === 'ready' &&
+        chunk0.voice === 'alloy' &&
+        chunk0.format === 'mp3' &&
+        audio.status === 200 &&
+        (audio.headers.get('content-type') ?? '').includes('audio/mpeg') &&
+        audioBytes.length === 1024 &&
+        ledger[0] !== undefined &&
+        ledger[0].characterCount === text.length &&
+        failed.success &&
+        failed.data.status === 'failed' &&
+        failed.data.errorCode === 'PROVIDER_5XX' &&
+        retried.success &&
+        retried.data.status === 'ready' &&
+        modeDefault.success &&
+        !modeDefault.data.enabled &&
+        modeDefault.data.source === 'default' &&
+        modePref.success &&
+        modePref.data.enabled &&
+        modePref.data.source === 'preferences' &&
+        modeThread.success &&
+        !modeThread.data.enabled &&
+        modeThread.data.source === 'thread' &&
+        modeVeto.success &&
+        !modeVeto.data.enabled &&
+        modeVeto.data.source === 'org_policy' &&
+        badIndex.status === 400 &&
+        foreignThread.status === 403,
+      `cap=${capability.success ? `${capability.data.available}/${capability.data.modelId}/${capability.data.voice}` : 'ERR'}, synth=${synth.success ? synth.data.status : 'ERR'} calls=${callsAfterFirst} (want 1) cacheHit=${again.success ? again.data.status : 'ERR'}/calls=${callsAfterSecond} (want 1), chunks=${chunks.success ? chunks.data.chunks.length : 'ERR'} c0=${chunk0?.status}/${chunk0?.voice}/${chunk0?.format}, audio=${audio.status}:${audioBytes.length}B type=${audio.headers.get('content-type')}, ledger chars=${ledger[0]?.characterCount} (want ${text.length}) cost=${ledger[0]?.cost}, fail=${failed.success ? `${failed.data.status}/${failed.data.errorCode}` : 'ERR'} retry=${retried.success ? retried.data.status : 'ERR'}, mode=${modeDefault.success ? modeDefault.data.source : 'ERR'}→${modePref.success ? `${modePref.data.enabled}/${modePref.data.source}` : 'ERR'}→${modeThread.success ? `${modeThread.data.enabled}/${modeThread.data.source}` : 'ERR'}→veto=${modeVeto.success ? `${modeVeto.data.enabled}/${modeVeto.data.source}` : 'ERR'}, badIndex=${badIndex.status} (want 400) foreign=${foreignThread.status} (want 403)`,
+    );
+  } finally {
+    ttsServer.close();
+  }
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -11855,6 +12184,7 @@ async function main(): Promise<void> {
     await checkProviderCredentials(sql, baseUrl, authCtx);
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkTts(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAgentSecrets(sql, baseUrl, authCtx);

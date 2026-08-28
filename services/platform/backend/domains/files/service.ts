@@ -222,6 +222,36 @@ export async function deleteFile(
 }
 
 /**
+ * Best-effort delete of org blobs by ref (`s3:<key>`), the shared reclaim
+ * helper for lanes that hold refs outside `app.file_metadata` (tts audio,
+ * webdav orphan compensation). A delete failure logs and moves on — an
+ * orphaned blob is reclaimable later, a thrown reclaim would fail the
+ * caller's real work.
+ */
+export async function deleteOrgBlobRefs(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  refs: readonly string[],
+): Promise<void> {
+  if (refs.length === 0) return;
+  try {
+    const orgSlug = await resolveOrgSlug(db, organizationId);
+    if (!orgSlug) return;
+    const store = await resolveObjectStore(orgSlug);
+    for (const ref of refs) {
+      const key = ref.startsWith('s3:') ? ref.slice(3) : ref;
+      try {
+        await s3DeleteObject(store, key);
+      } catch (error) {
+        console.warn(`[files] blob delete failed for ${key}:`, error);
+      }
+    }
+  } catch (error) {
+    console.warn('[files] blob reclaim skipped (store unresolved):', error);
+  }
+}
+
+/**
  * Store RAW BYTES into the org's store and answer the blob ref — the mail-
  * attachments write lane (the 0.4 `storeOrgBlob` contract): the bytes are
  * already in hand, so there is no presign/verify handshake.
