@@ -49,8 +49,24 @@ export function requireOrgMember<E extends OrgEnv>(
         orgId,
         c.get('sessionBundle').user.id,
       );
+      // Trusted-headers mode: the reverse proxy is the role authority — the
+      // member row keeps a placeholder and the SESSION carries the real role
+      // (the 0.4 JWT-claim override, applied at read time).
+      const sessionRecord: Record<string, unknown> =
+        c.get('sessionBundle').session;
+      const trustedRaw = Reflect.get(sessionRecord, 'trustedRole');
+      const trustedRole =
+        process.env.TRUSTED_HEADERS_ENABLED === 'true' &&
+        typeof trustedRaw === 'string'
+          ? trustedRaw.toLowerCase().trim()
+          : undefined;
       c.set('orgId', orgId);
-      c.set('orgMember', member);
+      c.set(
+        'orgMember',
+        trustedRole !== undefined && trustedRole !== ''
+          ? { ...member, role: trustedRole }
+          : member,
+      );
     } catch (error) {
       if (error instanceof MembershipError) {
         return c.json({ error: error.message }, membershipStatus(error));

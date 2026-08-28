@@ -4134,6 +4134,118 @@ async function checkScim(
 }
 
 /**
+ * Trusted-headers auth — the reverse-proxy hand-off door: identity headers
+ * → user + placeholder membership provisioned, session minted with the
+ * header-borne role/teams stamped on the SESSION row, cookie accepted by
+ * Better Auth, and the org middleware applying the session role override
+ * at read time (proxy says admin ⇒ admin surface opens; proxy says member
+ * ⇒ it refuses — same user, same member row).
+ */
+async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
+  process.env.TRUSTED_HEADERS_ENABLED = 'true';
+  try {
+    const authWith = async (
+      role: string,
+      cookie?: string,
+    ): Promise<{ cookie: string; status: number }> => {
+      const res = await fetch(`${base}/api/trusted-headers/authenticate`, {
+        headers: {
+          'Remote-Email': 'proxy.user@door.test',
+          'Remote-Name': 'Proxy User',
+          'Remote-Role': role,
+          'Remote-Teams': 't-fin:Finance, t-ops:Operations',
+          ...(cookie !== undefined ? { cookie } : {}),
+        },
+      });
+      const setCookie = res.headers.get('set-cookie') ?? '';
+      return {
+        cookie: setCookie.split(';')[0] ?? '',
+        status: res.status,
+      };
+    };
+
+    const disabledProbe = await (async () => {
+      process.env.TRUSTED_HEADERS_ENABLED = 'false';
+      const res = await fetch(`${base}/api/trusted-headers/authenticate`, {
+        headers: { 'Remote-Email': 'proxy.user@door.test' },
+      });
+      const text = await res.text();
+      process.env.TRUSTED_HEADERS_ENABLED = 'true';
+      return text.includes('not enabled');
+    })();
+
+    const first = await authWith('member');
+    // The proxy-minted cookie satisfies Better Auth itself.
+    const session1 = z
+      .looseObject({
+        user: z.looseObject({ email: z.string() }).optional().nullable(),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/auth/get-session`, {
+            headers: { cookie: first.cookie, origin: base },
+          })
+        ).json(),
+      );
+    const rows = await sql<
+      {
+        role: string;
+        trustedRole: string | null;
+        trustedTeams: string | null;
+      }[]
+    >`
+      SELECT m."role", s."trustedRole", s."trustedTeams"
+      FROM "user" u
+      JOIN "member" m ON m."userId" = u."id"
+      JOIN "session" s ON s."userId" = u."id"
+      WHERE u."email" = 'proxy.user@door.test'
+    `;
+    // The provisioned user joined the first admin org (or founded a fresh
+    // one) — assert on the org the membership actually landed in.
+    const memberOrg = await sql<{ organizationId: string }[]>`
+      SELECT m."organizationId" FROM "member" m
+      JOIN "user" u ON u."id" = m."userId"
+      WHERE u."email" = 'proxy.user@door.test' LIMIT 1
+    `;
+    const landedOrg = memberOrg[0]?.organizationId ?? '';
+    const refused = await fetch(`${base}/api/app/scim?orgId=${landedOrg}`, {
+      headers: { cookie: first.cookie, origin: base },
+    });
+
+    // Re-auth as proxy-role ADMIN: the SAME session is reused (token equal),
+    // its trustedRole updated, and the admin surface opens.
+    const second = await authWith('admin', first.cookie);
+    const allowed = await fetch(`${base}/api/app/scim?orgId=${landedOrg}`, {
+      headers: { cookie: second.cookie, origin: base },
+    });
+    const sessionsAfter = await sql<{ trustedRole: string | null }[]>`
+      SELECT s."trustedRole" FROM "session" s
+      JOIN "user" u ON u."id" = s."userId"
+      WHERE u."email" = 'proxy.user@door.test'
+    `;
+
+    record(
+      'trusted-headers auth (proxy hand-off + session role override)',
+      disabledProbe &&
+        first.status === 200 &&
+        first.cookie.includes('better-auth.session_token=') &&
+        session1.success &&
+        session1.data.user?.email === 'proxy.user@door.test' &&
+        rows[0]?.trustedRole === 'member' &&
+        (rows[0]?.trustedTeams ?? '').includes('Finance') &&
+        refused.status === 403 &&
+        second.cookie === first.cookie &&
+        allowed.status === 200 &&
+        sessionsAfter.length === 1 &&
+        sessionsAfter[0]?.trustedRole === 'admin',
+      `disabledGate=${disabledProbe}, auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${(rows[0]?.trustedTeams ?? '').includes('Finance')}, member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
+    );
+  } finally {
+    delete process.env.TRUSTED_HEADERS_ENABLED;
+  }
+}
+
+/**
  * The task-agent TURN, end to end on the REUSED 0.4 host: kick → session
  * ensure (fake spawner) → gateway VK mint (fake bifrost) → exec streaming a
  * canned claude-code stream-json turn → harvest (fake workspace file → real
@@ -9292,6 +9404,7 @@ async function main(): Promise<void> {
     await checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSsoLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
     await checkScim(sql, baseUrl, authCtx);
+    await checkTrustedHeaders(sql, baseUrl);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

@@ -36,6 +36,7 @@ import {
 } from './domains/scim/routes.ts';
 import { createSkillRoutes } from './domains/skills/routes.ts';
 import { createSsoRoutes } from './domains/sso/routes.ts';
+import { createTrustedHeadersRoutes } from './domains/sso/trusted-headers.ts';
 import { createSupportCaseRoutes } from './domains/support_cases/routes.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createTeamRoutes } from './domains/teams/routes.ts';
@@ -75,6 +76,11 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   const scimRoutes = createScimRoutes({ sql: deps.sql });
   app.route('/scim/v2', scimRoutes);
   app.route('/http_api/scim/v2', scimRoutes);
+
+  // Trusted-headers hand-off (reverse-proxy auth) — same alias story.
+  const trustedRoutes = createTrustedHeadersRoutes({ sql: deps.sql });
+  app.route('/api/trusted-headers', trustedRoutes);
+  app.route('/http_api/api/trusted-headers', trustedRoutes);
   // The REST machine door (Bearer API key).
   app.route('/api/v1', createRestV1Routes(deps));
   // Internal app API (the surface the web app consumes); one sub-app per

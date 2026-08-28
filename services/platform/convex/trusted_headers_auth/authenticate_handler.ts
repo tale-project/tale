@@ -33,7 +33,7 @@ function getHeaderName(envVar: string, fallback: string): string {
   return process.env[envVar] || fallback;
 }
 
-interface TrustedTeamEntry {
+export interface TrustedTeamEntry {
   id: string;
   name: string;
 }
@@ -41,8 +41,9 @@ interface TrustedTeamEntry {
 /**
  * Parse the teams header value into structured entries.
  * Expected format: "id1:Name One, id2:Name Two"
+ * Exported for the 0.5 runtime's twin route.
  */
-function parseTeamsHeader(value: string): TrustedTeamEntry[] | null {
+export function parseTeamsHeader(value: string): TrustedTeamEntry[] | null {
   if (!value.trim()) return null;
 
   const entries: TrustedTeamEntry[] = [];
