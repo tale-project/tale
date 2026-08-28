@@ -2449,6 +2449,259 @@ async function checkSandboxSessions(
 }
 
 /**
+ * Sandbox spawner dispatch: the REUSED session client (HMAC signing, drain
+ * semantics) against a fake spawner that VERIFIES every signature, plus the
+ * provisioning choreography (reuse-in-place, phantom heal, orphan adopt,
+ * host-busy re-park) and the admin management surface.
+ */
+async function checkSandboxSpawner(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { createServer } = await import('node:http');
+  const { createHash, createHmac } = await import('node:crypto');
+
+  const SPAWNER_TOKEN = 'itest-spawner-token';
+  const live = new Map<string, { pinned: boolean }>();
+  let badSignatures = 0;
+  const busyOnce = new Set<string>();
+  const spawner = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const url = req.url ?? '';
+      const method = req.method ?? 'GET';
+      // Verify the platform's HMAC (the spawner auth contract).
+      const bodyHash = createHash('sha256').update(body).digest('hex');
+      const signedString = `${method}\n${url}\n${String(req.headers['x-tale-sandbox-timestamp'] ?? '')}\n${String(req.headers['x-tale-sandbox-nonce'] ?? '')}\n${bodyHash}`;
+      const expected = createHmac('sha256', SPAWNER_TOKEN)
+        .update(signedString)
+        .digest('hex');
+      if (req.headers['x-tale-sandbox-signature'] !== expected) {
+        badSignatures += 1;
+        res.statusCode = 401;
+        res.end('{"error":"bad signature"}');
+        return;
+      }
+      res.setHeader('content-type', 'application/json');
+      const sessionInfo = (sessionId: string): unknown => ({
+        session: {
+          sessionId,
+          organizationId: orgId,
+          profile: 'agent',
+          state: 'ready',
+          backend: 'itest',
+          createdAtMs: Date.now(),
+          lastActivityAtMs: Date.now(),
+          expiresAtMs: Date.now() + 3_600_000,
+          idleTimeoutMs: 600_000,
+        },
+      });
+      if (method === 'POST' && url === '/v1/sessions') {
+        const parsed = z
+          .object({ sessionId: z.string() })
+          .loose()
+          .safeParse(JSON.parse(body || '{}'));
+        const sessionId = parsed.success ? parsed.data.sessionId : '';
+        if (busyOnce.has(sessionId)) {
+          busyOnce.delete(sessionId);
+          res.statusCode = 429;
+          res.setHeader('retry-after', '1');
+          res.end('{"error":"session_quota"}');
+          return;
+        }
+        if (live.has(sessionId)) {
+          res.statusCode = 409;
+          res.end('{"error":"duplicate"}');
+          return;
+        }
+        live.set(sessionId, { pinned: false });
+        res.end(JSON.stringify(sessionInfo(sessionId)));
+        return;
+      }
+      const idMatch = /^\/v1\/sessions\/([^/]+)(\/pin)?$/.exec(url);
+      const sessionId =
+        idMatch?.[1] !== undefined ? decodeURIComponent(idMatch[1]) : '';
+      if (method === 'GET' && idMatch && idMatch[2] === undefined) {
+        if (!live.has(sessionId)) {
+          res.statusCode = 404;
+          res.end('{"error":"not found"}');
+          return;
+        }
+        res.end(JSON.stringify(sessionInfo(sessionId)));
+        return;
+      }
+      if (method === 'DELETE' && idMatch) {
+        live.delete(sessionId);
+        res.end('{"destroyed":true}');
+        return;
+      }
+      if (method === 'PATCH' && idMatch && idMatch[2] === '/pin') {
+        const parsed = z
+          .object({ pinned: z.boolean() })
+          .safeParse(JSON.parse(body || '{}'));
+        const entry = live.get(sessionId);
+        if (entry && parsed.success) entry.pinned = parsed.data.pinned;
+        res.end(
+          JSON.stringify({ pinned: parsed.success && parsed.data.pinned }),
+        );
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    spawner.listen(0, '127.0.0.1', resolve);
+  });
+  const address = spawner.address();
+  const port =
+    address !== null && typeof address === 'object' ? address.port : 0;
+  process.env.SANDBOX_URL = `http://127.0.0.1:${port}`;
+  process.env.SANDBOX_TOKEN = SPAWNER_TOKEN;
+
+  try {
+    const service = await import('./domains/sandbox/service.ts');
+    const sessions = await import('./domains/sandbox/sessions.ts');
+    const code = (error: unknown): string =>
+      error !== null && typeof error === 'object' && 'name' in error
+        ? String(error.name)
+        : String(error);
+
+    const first = await service.provisionSession(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-spawn-1',
+      profile: 'agent',
+      ownerType: 'workflow_run',
+      ownerId: 'wf-20',
+      createdBy: userId,
+    });
+    const rowAfterCreate = await sessions.getSessionBySessionId(
+      sql,
+      orgId,
+      'itest-spawn-1',
+    );
+    const reused = await service.provisionSession(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-spawn-1',
+      profile: 'agent',
+      ownerType: 'workflow_run',
+      ownerId: 'wf-20',
+      createdBy: userId,
+    });
+
+    // Phantom heal: container vanishes spawner-side; re-provision recreates.
+    live.delete('itest-spawn-1');
+    const healed = await service.provisionSession(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-spawn-1',
+      profile: 'agent',
+      ownerType: 'workflow_run',
+      ownerId: 'wf-20',
+      createdBy: userId,
+    });
+
+    // Orphan adopt: the spawner holds a container the platform lost track of.
+    live.set('itest-spawn-adopt', { pinned: false });
+    const adopted = await service.provisionSession(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-spawn-adopt',
+      profile: 'agent',
+      ownerType: 'workflow_run',
+      ownerId: 'wf-21',
+      createdBy: userId,
+    });
+    const adoptedRow = await sessions.getSessionBySessionId(
+      sql,
+      orgId,
+      'itest-spawn-adopt',
+    );
+
+    // Host-capacity busy: the FIFO ticket goes back to waiting for the retry.
+    busyOnce.add('itest-spawn-busy');
+    const busy = await service
+      .provisionSession(sql, {
+        organizationId: orgId,
+        sessionId: 'itest-spawn-busy',
+        profile: 'agent',
+        ownerType: 'workflow_run',
+        ownerId: 'wf-22',
+        createdBy: userId,
+        ticket: { source: 'workflow' },
+      })
+      .then(() => 'ok')
+      .catch(code);
+    const ticketRows = await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_admission_tickets
+      WHERE owner_type = 'workflow_run' AND owner_id = 'wf-22'
+    `;
+
+    // Admin surface over HTTP: list + pin + destroy.
+    const listed = z
+      .object({
+        sessions: z.array(
+          z.looseObject({ sessionId: z.string(), status: z.string() }),
+        ),
+      })
+      .loose()
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/sandbox/sessions?orgId=${orgId}`, {
+            headers: { cookie },
+          })
+        ).json(),
+      );
+    const pinRes = await fetch(
+      `${base}/api/app/sandbox/sessions/itest-spawn-1/pin?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ pinned: true }),
+      },
+    );
+    const destroyRes = await fetch(
+      `${base}/api/app/sandbox/sessions/itest-spawn-1/destroy?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+      },
+    );
+
+    record(
+      'sandbox spawner dispatch (reused HMAC client + provisioning)',
+      badSignatures === 0 &&
+        first.created &&
+        rowAfterCreate?.status === 'active' &&
+        !reused.created &&
+        healed.created &&
+        adopted.created &&
+        adoptedRow?.status === 'active' &&
+        busy === 'SpawnerBusyError' &&
+        ticketRows[0]?.status === 'waiting' &&
+        listed.success &&
+        listed.data.sessions.some(
+          (row) => row.sessionId === 'itest-spawn-1' && row.status === 'active',
+        ) &&
+        pinRes.ok &&
+        destroyRes.ok &&
+        live.get('itest-spawn-1') === undefined &&
+        live.get('itest-spawn-adopt')?.pinned === false,
+      `signatures ok=${badSignatures === 0}, create=${first.created}/active=${rowAfterCreate?.status === 'active'}, reuse=${!reused.created}, heal=${healed.created}, adopt=${adopted.created}, busy=${busy} (ticket=${ticketRows[0]?.status}), admin(list=${listed.success ? listed.data.sessions.length : 'ERR'}, pin=${pinRes.status}, destroy=${destroyRes.status}), containerGone=${live.get('itest-spawn-1') === undefined}`,
+    );
+  } finally {
+    delete process.env.SANDBOX_URL;
+    delete process.env.SANDBOX_TOKEN;
+    await new Promise<void>((resolve) => {
+      spawner.close(() => resolve());
+    });
+  }
+}
+
+/**
  * Login throttle + audit chain, end to end through the real auth hooks:
  * repeated wrong passwords cross the lockout threshold (429 from the
  * before-hook), the lock expires on schedule (default first backoff = 1s),
@@ -2683,6 +2936,7 @@ async function main(): Promise<void> {
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSandboxSessions(sql, authCtx);
+    await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,

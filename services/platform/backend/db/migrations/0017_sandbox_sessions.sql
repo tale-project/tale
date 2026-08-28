@@ -6,8 +6,10 @@
 CREATE TABLE app.sandbox_sessions (
   id text PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id text NOT NULL,
-  -- Spawner-side session id (container/Pod name seed).
-  session_id text NOT NULL UNIQUE,
+  -- Spawner-side session id (container/Pod name seed). NOT unique: a healed
+  -- phantom (row destroyed, deterministic id re-provisioned) creates a new
+  -- incarnation under the same id — reads take the latest row.
+  session_id text NOT NULL,
   profile jsonb,
   status text NOT NULL CHECK (status IN (
     'creating', 'active', 'degraded', 'stopped', 'destroyed', 'expired',
@@ -34,6 +36,8 @@ CREATE INDEX sandbox_sessions_org_status
 CREATE INDEX sandbox_sessions_owner
   ON app.sandbox_sessions (owner_type, owner_id);
 CREATE INDEX sandbox_sessions_status ON app.sandbox_sessions (status);
+CREATE INDEX sandbox_sessions_session_id
+  ON app.sandbox_sessions (session_id, created_at_ms DESC);
 
 CREATE TABLE app.sandbox_session_tokens (
   id text PRIMARY KEY DEFAULT gen_random_uuid(),

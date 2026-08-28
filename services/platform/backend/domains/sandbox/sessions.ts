@@ -268,7 +268,13 @@ export async function reserveSessionSlot(
         agent_kind, created_at_ms, expires_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.sessionId},
-        ${args.profile === undefined ? null : tx.json(toJson(args.profile))},
+        ${
+          // The profile may be a BARE string ('agent'): encode explicitly —
+          // the pool serializer passes strings through as already-JSON.
+          args.profile === undefined
+            ? null
+            : tx.json(toJson(JSON.stringify(args.profile)))
+        },
         'creating', ${args.ownerType}, ${args.ownerId}, ${args.createdBy},
         ${args.agentKind ?? null}, ${now}, ${now + ttlMs}
       )
@@ -285,9 +291,12 @@ export async function getSessionBySessionId(
   organizationId: string,
   sessionId: string,
 ): Promise<SessionRow | null> {
+  // Latest incarnation: a healed phantom re-provisions the same
+  // deterministic id, so several rows can share it — newest wins.
   const rows = await sql<SessionRow[]>`
     SELECT ${sql.unsafe(SESSION_COLUMNS)} FROM app.sandbox_sessions
     WHERE session_id = ${sessionId} AND org_id = ${organizationId}
+    ORDER BY created_at_ms DESC
     LIMIT 1
   `;
   return rows[0] ?? null;
@@ -317,7 +326,7 @@ export async function setSessionStatus(
       status = ${args.status},
       last_activity_at_ms = ${now},
       destroyed_at_ms = CASE WHEN ${args.status} = 'destroyed'
-        THEN ${now} ELSE destroyed_at_ms END
+        THEN ${now}::bigint ELSE destroyed_at_ms END
     WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
       AND status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
     RETURNING id
@@ -335,9 +344,10 @@ export async function setSessionPinned(
   const rows = await sql<{ id: string }[]>`
     UPDATE app.sandbox_sessions SET
       pinned = ${args.pinned},
-      pinned_at_ms = CASE WHEN ${args.pinned} THEN ${now} ELSE NULL END,
-      expires_at_ms = CASE WHEN ${args.pinned} THEN ${farFuture}
-        ELSE ${now + SANDBOX_SESSION_MAX_LIFETIME_MS} END
+      pinned_at_ms = CASE WHEN ${args.pinned}
+        THEN ${now}::bigint ELSE NULL END,
+      expires_at_ms = CASE WHEN ${args.pinned} THEN ${farFuture}::bigint
+        ELSE ${now + SANDBOX_SESSION_MAX_LIFETIME_MS}::bigint END
     WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
       AND status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
     RETURNING id
