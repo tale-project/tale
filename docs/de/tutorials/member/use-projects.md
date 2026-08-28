@@ -13,7 +13,7 @@ Bestätige zwei Dinge. Deine Rolle ist mindestens Member — das Anlegen von Pro
 
 ## Schritt 1 — Das Projekt erstellen
 
-Das Projekt ist der Behälter, in dem die restlichen Teile leben. Öffne **Projekte > Neues Projekt** und setze:
+Das Projekt ist der Behälter, in dem die restlichen Teile leben. Öffne **Projekte > Projekt erstellen** und setze:
 
 - **Name** — `Acme-Account` (oder was die Arbeitssache benennt)
 - **Beschreibung** — ein Satz, wofür das Projekt da ist

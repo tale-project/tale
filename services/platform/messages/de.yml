@@ -7080,7 +7080,7 @@ projects:
     threads: Chats
     agents: Agenten
   list:
-    createButton: Neues Projekt
+    createButton: Projekt erstellen
     emptyTitle: Noch keine Projekte
     emptyDescription: Lege ein Projekt an, um Dateien, Anweisungen und Chats mit
       deinem Team zu teilen.

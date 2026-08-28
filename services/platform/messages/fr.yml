@@ -7199,7 +7199,7 @@ projects:
     threads: Chats
     agents: Agents
   list:
-    createButton: Nouveau projet
+    createButton: Créer un projet
     emptyTitle: Aucun projet pour l'instant
     emptyDescription:
       Crée un projet pour partager fichiers, instructions et chats
