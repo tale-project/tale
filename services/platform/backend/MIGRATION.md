@@ -33,7 +33,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | Piece | Status | Notes |
 | --- | --- | --- |
 | Runtime/image (Node in platform image, TALE_ROLE api/worker) | done | inc 02; compose profile `backend` |
-| Node loader (0.4 pure-module reuse) | done | inc 05 (+14: bare-specifier `.js` retry for CJS deep paths; `lib/convex-shim.ts` re-points a reused module's runQuery/runMutation at SQL by function name — fail-loud on un-shimmed calls); `node-loader.mjs` resolve hook + `--experimental-transform-types`: the backend imports runtime-clean 0.4 modules (extensionless specifiers) unchanged — port-by-reference instead of fork-copying; those modules move under backend/ at cutover |
+| Node loader (0.4 pure-module reuse) | done | inc 05 (+14: bare-specifier `.js` retry for CJS deep paths; `lib/convex-shim.ts` re-points a reused module's runQuery/runMutation at SQL by function name — fail-loud on un-shimmed calls); `node-loader.mjs` resolve hook + `--experimental-transform-types`: the backend imports runtime-clean 0.4 modules (extensionless specifiers) unchanged — port-by-reference instead of fork-copying; those modules move under backend/ at cutover. inc 16: `convex/lib/helpers/id_shape.ts` id class widened to mixed case (Better Auth pg ids reach reused 0.4 callers; 0.4-safe — a mixed-case miss just reaches the adapter and nulls) |
 | App DB + boot migrator | done | inc 03; `tale_app`, advisory lock, `app_migrations` |
 | Serializable tx wrapper | done | inc 01; `@tale/shared/db/serializable` |
 | Transactional enqueue (pg-boss 12) | done | inc 01 on Graphile; swapped to pg-boss in inc 05 (Larry's call): `send({db})` in-tx, LISTEN/NOTIFY wake (p50≈10ms), singletonKey dedupe, per-queue retry policy + DLQ available. postgres.js json serializer overridden to node-postgres semantics (strings pass through) — double-encode trap |
@@ -68,7 +68,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | branding | pending | |
 | browser_sessions | pending | |
 | changelog | pending | |
-| chat | pending | Tier-1 SSE lane for streaming |
+| chat | in-progress | inc 16: `executeTurn` REUSED verbatim (model resolution from org providers, attachment gate, budgeted history, context assembly, guardrail seams, tool rounds, streaming decode) with its store/usage ports swapped for PG (`app.generations` per-thread streaming row, throttled writes + NOTIFY, `app.usage_events`) and every ctx.run* dispatched via `chatShimHandlers`; the 0.4 three-tool executor (rag_search/rag_fetch/web_fetch) runs unchanged on the same shim (entity legs answered by SQL over ported domains; knowledge_entries/websites/conversations/mail/video legs are honest empties until those domains land); routes: threads create/list, history, send (caller awaits the turn — the 0.4 action contract, at-most-once), per-thread SSE progress lane (poll at the 250ms write throttle), mid-stream cancel. Governance seams allow-all/no-op until governance ports (checkModelAccess, context cap, recordConnectorUsage, per-subject read matrix). PENDING: Auto routing (resolveChatModel), branches/regenerate lineage, arena, memories, voice, deferred sends, queue steering, title generation, sandbox execution mode, project-shared thread reads, thread trash/rename |
 | chat_filter_events | pending | |
 | cloud_import | pending | |
 | collab | pending | |
@@ -105,7 +105,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | organizations | in-progress | inc 05: getOrganization/hasAny/recordOrgSwitch/resolveUserOrganization/prepare-deletion (+scaffold & cleanup jobs); reseed_all_orgs + provisioning-status/repair actions + slug-scoped file-surface guards pending; legal-hold guard with governance |
 | products | in-progress | inc 13: catalog CRUD, case-insensitive per-org name uniqueness (expression index replaces the 0.4 full-table probe), translations upsert, filterable keyset list; REST/connector ingest lanes with the machine door |
 | projects | in-progress | inc 06: core CRUD/settings/lifecycle/agents/search/overview + access matrix (reused) + audit actions (reused); per-org key/externalItemId unique via partial indexes; PENDING: doc/thread attach + delete-cascade walks (documents/chat), overdue rollup + label seed (tasks), bound-automations guard, REST v1 + upload intents (machine door), secrets prune (agent_secrets), rollup repair job (crons) |
-| provider_credentials | in-progress | inc 14: the RESOLUTION path (api-key decrypt / env gate / broker pool) reuses the 0.4 module verbatim via the ctx shim over app.provider_credentials; admin CRUD (masked reads, default swap via partial unique index); rotation/failover call sites wire up with gateway/chat |
+| provider_credentials | in-progress | inc 14: the RESOLUTION path (api-key decrypt / env gate / broker pool) reuses the 0.4 module verbatim via the ctx shim over app.provider_credentials; admin CRUD (masked reads, default swap via partial unique index); inc 16 wires the chat direct wire through the same resolver (`resolveDirectWire` reused); rotation/failover call sites wire up with gateway |
 | provisioning | pending | |
 | sandbox | pending | sessions/slots/admission; INV 14–16 |
 | scim | pending | |
@@ -115,7 +115,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | tasks | in-progress | inc 07 (Tier A): board core — CRUD/status choreography (human semantics, subtask close-guard)/assignee validation/claim/LexoRank moves (rank module reused)/labels catalog/dependencies (DAG-guarded)/board views/activity timeline/project rollup transitions/hard delete. Tier B with its infra: discussion comments+mentions (thread store), agent runs+review arc+status verbs that kick runs (INV 5–7, 20, 22), notify/event fan-outs, attachments/outputs blobs (storage router), REST surface, date notifications (crons), bulk ops, ops indicators. inc 11 adds: discussion comments on the message store (add/edit/delete, lockstep meta, comment counts, activity + audit) — mention directory/fan-outs with collab/agents/automations |
 | team_members | pending | |
 | testing | dropped(convex-test harness) | replaced by vitest+throwaway PG |
-| threads | in-progress | inc 11: the store (app.threads/messages, (order, step_order) turn model, jsonb parts + derived text) + thread_metadata sidecar table; chat engine (streaming lane, generation lifecycle) with the chat domain |
+| threads | in-progress | inc 11: the store (app.threads/messages, (order, step_order) turn model, jsonb parts + derived text) + thread_metadata sidecar table. inc 16 adds: chat message columns (model/provider_slug/reasoning/blocked_reason/truncation), thread+metadata create/list routes, generation lifecycle on thread_metadata; branches/share-links/lifecycle (trash/archive) remain |
 | trusted_headers_auth | pending | |
 | tts | pending | |
 | two_factor | pending | plugin live (inc 05); org enforcement hooks + verify-endpoint lockout + grace windows remain |

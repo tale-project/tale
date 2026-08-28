@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 import type { Auth } from './auth/auth.ts';
 import { requireSession, type AuthEnv } from './auth/session.ts';
 import { createAuditLogRoutes } from './domains/audit_logs/routes.ts';
+import { createChatRoutes } from './domains/chat/routes.ts';
 import { createContactRoutes } from './domains/contacts/routes.ts';
 import { createDocumentRoutes } from './domains/documents/routes.ts';
 import { createFeedbackRoutes } from './domains/feedback/routes.ts';
@@ -37,6 +38,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // Internal app API (the surface the web app consumes); one sub-app per
   // ported domain.
   app.route('/api/app/audit-logs', createAuditLogRoutes(deps));
+  app.route('/api/app/chat', createChatRoutes(deps));
   app.route('/api/app/contacts', createContactRoutes(deps));
   app.route('/api/app/documents', createDocumentRoutes(deps));
   app.route('/api/app/files', createFileRoutes(deps));

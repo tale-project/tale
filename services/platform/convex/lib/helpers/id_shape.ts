@@ -12,16 +12,19 @@
  * permanent error spam instead of a clean "not found".
  *
  * Two shapes are accepted:
- * - Production Convex document ids: lowercase base-32, roughly 32 characters.
+ * - Document ids: alphanumeric, roughly 32 characters. Convex ids are
+ *   lowercase base-32; the 0.5 Postgres deployment mints MIXED-CASE Better
+ *   Auth ids through the same reused callers, so the class is case-blind.
  *   The length band is deliberately generous so a future id-length change
- *   cannot reject real ids, while still excluding every realistic sentinel,
- *   slug (dashes), or email (`@`, dots).
+ *   cannot reject real ids, while still excluding every realistic sentinel
+ *   (too short), slug (dashes), or email (`@`, dots).
  * - `convex-test` synthetic ids: `<digits>;<tableName>` (e.g.
  *   `10000;organization`). These are real document ids in the in-process
  *   test backend and must reach `db.get` the same way production ids do.
  */
 export function looksLikeConvexDocumentId(value: string): boolean {
   return (
-    /^[0-9a-z]{20,64}$/.test(value) || /^\d+;[a-zA-Z][a-zA-Z0-9_]*$/.test(value)
+    /^[0-9a-zA-Z]{20,64}$/.test(value) ||
+    /^\d+;[a-zA-Z][a-zA-Z0-9_]*$/.test(value)
   );
 }

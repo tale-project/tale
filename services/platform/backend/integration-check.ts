@@ -1602,42 +1602,8 @@ async function checkKnowledge(
       body += String(chunk);
     });
     req.on('end', () => {
-      const parsed = z
-        .object({
-          input: z.union([z.string(), z.array(z.string())]),
-          encoding_format: z.string().optional(),
-        })
-        .safeParse(JSON.parse(body || '{}'));
-      const inputs = parsed.success
-        ? Array.isArray(parsed.data.input)
-          ? parsed.data.input
-          : [parsed.data.input]
-        : [''];
-      const wantsBase64 =
-        parsed.success && parsed.data.encoding_format === 'base64';
-      const data = inputs.map((text, index) => {
-        const vector = Array.from({ length: 8 }, (_, i) => {
-          let acc = 0;
-          for (let j = i; j < text.length; j += 8) {
-            acc += text.charCodeAt(j) % 97;
-          }
-          return (acc % 1000) / 1000 + 0.001;
-        });
-        // The OpenAI SDK requests base64 by default and decodes Float32 bytes.
-        const embedding = wantsBase64
-          ? Buffer.from(new Float32Array(vector).buffer).toString('base64')
-          : vector;
-        return { object: 'embedding', embedding, index };
-      });
       res.setHeader('content-type', 'application/json');
-      res.end(
-        JSON.stringify({
-          object: 'list',
-          data,
-          model: 'itest-embed',
-          usage: { prompt_tokens: 1, total_tokens: 1 },
-        }),
-      );
+      res.end(fakeEmbeddingsPayload(body));
     });
   });
   await new Promise<void>((resolve) => {
@@ -1758,6 +1724,421 @@ async function checkKnowledge(
   } finally {
     await new Promise<void>((resolve) => {
       embedServer.close(() => resolve());
+    });
+  }
+}
+
+/** OpenAI-shaped embeddings response for a raw request body — deterministic
+ * 8-dim vectors from character statistics; base64 Float32 when asked (the
+ * OpenAI SDK's default decode path). */
+function fakeEmbeddingsPayload(rawBody: string): string {
+  const parsed = z
+    .object({
+      input: z.union([z.string(), z.array(z.string())]),
+      encoding_format: z.string().optional(),
+    })
+    .safeParse(JSON.parse(rawBody || '{}'));
+  const inputs = parsed.success
+    ? Array.isArray(parsed.data.input)
+      ? parsed.data.input
+      : [parsed.data.input]
+    : [''];
+  const wantsBase64 =
+    parsed.success && parsed.data.encoding_format === 'base64';
+  const data = inputs.map((text, index) => {
+    const vector = Array.from({ length: 8 }, (_, i) => {
+      let acc = 0;
+      for (let j = i; j < text.length; j += 8) {
+        acc += text.charCodeAt(j) % 97;
+      }
+      return (acc % 1000) / 1000 + 0.001;
+    });
+    const embedding = wantsBase64
+      ? Buffer.from(new Float32Array(vector).buffer).toString('base64')
+      : vector;
+    return { object: 'embedding', embedding, index };
+  });
+  return JSON.stringify({
+    object: 'list',
+    data,
+    model: 'itest-embed',
+    usage: { prompt_tokens: 1, total_tokens: 1 },
+  });
+}
+
+/**
+ * Chat vertical: the REUSED 0.4 `executeTurn` + tool executor over PG,
+ * against a fake OpenAI-compatible provider (models endpoint + streaming
+ * chat completions + embeddings). Proves: model resolution from an org
+ * custom provider, the credential wire, the streaming store (generations
+ * row + throttled writes), a REAL tool round (`rag_search` → the corpus the
+ * knowledge check indexed), usage ledgering, the SSE progress lane, and
+ * mid-stream cancel through the store's cancel flag.
+ */
+async function checkChat(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'chat turn engine (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — chat vertical rides the knowledge fixture',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+
+  const SLOW_MARKER = 'COUNT SLOWLY';
+  const FINAL_ANSWER = 'The ledger mentions verdigris pigments.';
+  const SLOW_CHUNKS = 40;
+
+  const sse = (payload: unknown): string =>
+    `data: ${JSON.stringify(payload)}\n\n`;
+  const aiServer = createServer((req, res) => {
+    const url = req.url ?? '';
+    if (req.method === 'GET' && url.endsWith('/models')) {
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          object: 'list',
+          data: [
+            {
+              id: 'itest-chat',
+              object: 'model',
+              context_length: 32_768,
+              max_output_tokens: 512,
+            },
+          ],
+        }),
+      );
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      if (url.endsWith('/embeddings')) {
+        res.setHeader('content-type', 'application/json');
+        res.end(fakeEmbeddingsPayload(body));
+        return;
+      }
+      if (!url.endsWith('/chat/completions')) {
+        res.statusCode = 404;
+        res.end('{}');
+        return;
+      }
+      const parsed = z
+        .object({
+          messages: z.array(
+            z.looseObject({ role: z.string(), content: z.unknown() }),
+          ),
+          tools: z.array(z.unknown()).optional(),
+        })
+        .loose()
+        .safeParse(JSON.parse(body || '{}'));
+      const messages = parsed.success ? parsed.data.messages : [];
+      const hasToolResult = messages.some((m) => m.role === 'tool');
+      const transcript = JSON.stringify(messages);
+      res.setHeader('content-type', 'text/event-stream');
+      const finish = (finishReason: string): void => {
+        res.write(
+          sse({
+            choices: [{ index: 0, delta: {}, finish_reason: finishReason }],
+            usage: {
+              prompt_tokens: 20,
+              completion_tokens: 10,
+              total_tokens: 30,
+            },
+          }),
+        );
+        res.write('data: [DONE]\n\n');
+        res.end();
+      };
+      if (
+        parsed.success &&
+        parsed.data.tools !== undefined &&
+        !hasToolResult &&
+        !transcript.includes(SLOW_MARKER)
+      ) {
+        // Round 1: ask for the knowledge tool.
+        res.write(
+          sse({
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'call_itest_1',
+                      type: 'function',
+                      function: { name: 'rag_search', arguments: '' },
+                    },
+                  ],
+                },
+                finish_reason: null,
+              },
+            ],
+          }),
+        );
+        res.write(
+          sse({
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      function: {
+                        arguments:
+                          '{"action":"search","query":"verdigris zeppelin ledger"}',
+                      },
+                    },
+                  ],
+                },
+                finish_reason: null,
+              },
+            ],
+          }),
+        );
+        finish('tool_calls');
+        return;
+      }
+      if (transcript.includes(SLOW_MARKER)) {
+        // A slow drip the cancel test can interrupt mid-stream.
+        let sent = 0;
+        const timer = setInterval(() => {
+          sent += 1;
+          res.write(
+            sse({
+              choices: [
+                {
+                  index: 0,
+                  delta: { content: `tick${sent} ` },
+                  finish_reason: null,
+                },
+              ],
+            }),
+          );
+          if (sent >= SLOW_CHUNKS) {
+            clearInterval(timer);
+            finish('stop');
+          }
+        }, 100);
+        res.on('close', () => {
+          clearInterval(timer);
+        });
+        return;
+      }
+      // Round 2 (after the tool result): the final answer.
+      for (const word of FINAL_ANSWER.split(' ')) {
+        res.write(
+          sse({
+            choices: [
+              { index: 0, delta: { content: `${word} ` }, finish_reason: null },
+            ],
+          }),
+        );
+      }
+      finish('stop');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    aiServer.listen(0, '127.0.0.1', resolve);
+  });
+  const aiAddress = aiServer.address();
+  const aiPort =
+    aiAddress !== null && typeof aiAddress === 'object' ? aiAddress.port : 0;
+  const aiBase = `http://127.0.0.1:${aiPort}/v1`;
+
+  try {
+    // The org's chat provider: a custom provider file + an api-key
+    // credential, exactly the operator flow. Private host opt-in mirrors
+    // the self-hosted-endpoint deployment posture.
+    process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+    const providersDir = path.join(configRoot, orgSlug, 'providers');
+    await mkdir(providersDir, { recursive: true });
+    await writeFile(
+      path.join(providersDir, 'itestchat.yml'),
+      [
+        'name: itestchat',
+        'displayName: Itest Chat',
+        'apiFormat: openai',
+        `baseUrl: ${aiBase}`,
+        'catalog:',
+        '  source: models-endpoint',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    // Re-point the org's embedding config at this server (same model and
+    // dimensions as the knowledge fixture — only the port differs), so the
+    // tool round's query embedding resolves after that fixture closed.
+    await writeFile(
+      path.join(configRoot, orgSlug, 'knowledge', 'embedding.json'),
+      JSON.stringify({
+        providerSlug: 'openai',
+        model: 'itest-embed',
+        dimensions: 8,
+        baseUrl: aiBase,
+      }),
+    );
+
+    const send = (route: string, body?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    await send(`/api/app/provider-credentials?orgId=${orgId}`, {
+      providerSlug: 'itestchat',
+      authMethod: 'api-key',
+      name: 'Chat key',
+      secret: 'sk-itest-chat-key',
+    });
+
+    const created = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Itest chat',
+        })
+      ).json(),
+    );
+    const threadId = created.success ? created.data.id : '';
+
+    // Turn 1 — a real tool round: model asks for rag_search, the executor
+    // answers from the corpus the knowledge check indexed, model concludes.
+    const outcome = z
+      .object({ status: z.string(), reason: z.string().optional() })
+      .safeParse(
+        await (
+          await send(
+            `/api/app/chat/threads/${threadId}/messages?orgId=${orgId}`,
+            {
+              text: 'What does the quarterly review cover?',
+              modelId: 'itest-chat',
+              providerSlug: 'itestchat',
+            },
+          )
+        ).json(),
+      );
+
+    const history = z
+      .object({
+        messages: z.array(
+          z.looseObject({
+            role: z.string(),
+            parts: z.unknown(),
+            sequence: z.number(),
+            model: z.string().optional(),
+          }),
+        ),
+      })
+      .loose()
+      .safeParse(
+        await (
+          await fetch(
+            `${base}/api/app/chat/threads/${threadId}/messages?orgId=${orgId}`,
+            { headers: { cookie } },
+          )
+        ).json(),
+      );
+    const assistantRow = history.success
+      ? history.data.messages.findLast((m) => m.role === 'assistant')
+      : undefined;
+    const assistantRaw = JSON.stringify(assistantRow ?? {});
+    const usageRows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.usage_events
+      WHERE org_id = ${orgId} AND model = 'itest-chat'
+    `;
+    const settledGen = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.generations
+      WHERE thread_id = ${threadId}
+    `;
+    record(
+      'chat turn (0.4 executeTurn over PG + real tool round)',
+      outcome.success &&
+        outcome.data.status === 'completed' &&
+        history.success &&
+        history.data.messages.length >= 2 &&
+        assistantRaw.includes('rag_search') &&
+        assistantRaw.includes('verdigris') &&
+        assistantRaw.includes(FINAL_ANSWER.split(' ')[0] ?? '') &&
+        Number(usageRows[0]?.count ?? '0') >= 1 &&
+        settledGen[0]?.count === '0',
+      `outcome=${outcome.success ? outcome.data.status : 'ERR'}${outcome.success && outcome.data.reason !== undefined ? ` (${outcome.data.reason})` : ''}, messages=${history.success ? history.data.messages.length : 'ERR'}, toolRound=${assistantRaw.includes('rag_search') && assistantRaw.includes('verdigris')}, usageRows=${usageRows[0]?.count}, genSettled=${settledGen[0]?.count === '0'}`,
+    );
+
+    // Turn 2 — SSE progress + mid-stream cancel: subscribe the stream lane,
+    // start a slow turn, cancel after the first progress event, and verify
+    // the turn settles early with a prefix of the drip.
+    const streamController = new AbortController();
+    const streamRes = await fetch(
+      `${base}/api/app/chat/threads/${threadId}/stream?orgId=${orgId}`,
+      { headers: { cookie }, signal: streamController.signal },
+    );
+    const reader = streamRes.body?.getReader();
+    const sawProgress = (async (): Promise<boolean> => {
+      if (!reader) return false;
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return false;
+        buffer += decoder.decode(value, { stream: true });
+        if (buffer.includes('event: progress') && buffer.includes('tick')) {
+          return true;
+        }
+      }
+    })();
+
+    const slowSend = send(
+      `/api/app/chat/threads/${threadId}/messages?orgId=${orgId}`,
+      {
+        text: `${SLOW_MARKER} please`,
+        modelId: 'itest-chat',
+        providerSlug: 'itestchat',
+      },
+    );
+    const progressed = await Promise.race([
+      sawProgress,
+      sleep(15_000).then(() => false),
+    ]);
+    const cancelRes = await send(
+      `/api/app/chat/threads/${threadId}/cancel?orgId=${orgId}`,
+    );
+    const slowOutcome = await slowSend;
+    streamController.abort();
+    const finalRows = await sql<{ text: string | null; status: string }[]>`
+      SELECT text, status FROM app.messages
+      WHERE thread_id = ${threadId} AND role = 'assistant'
+      ORDER BY "order" DESC LIMIT 1
+    `;
+    const finalText = finalRows[0]?.text ?? '';
+    const genGone = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.generations
+      WHERE thread_id = ${threadId}
+    `;
+    record(
+      'chat SSE progress + mid-stream cancel',
+      progressed &&
+        cancelRes.ok &&
+        slowOutcome.ok &&
+        finalText.includes('tick1') &&
+        !finalText.includes(`tick${SLOW_CHUNKS}`) &&
+        genGone[0]?.count === '0',
+      `progressSeen=${progressed}, cancel=${cancelRes.status}, settledLen=${finalText.length} (cancelled before tick${SLOW_CHUNKS}=${!finalText.includes(`tick${SLOW_CHUNKS}`)}), genGone=${genGone[0]?.count === '0'}`,
+    );
+  } finally {
+    await new Promise<void>((resolve) => {
+      aiServer.close(() => resolve());
     });
   }
 }
@@ -1994,6 +2375,7 @@ async function main(): Promise<void> {
     await checkSmallDomains(baseUrl, authCtx);
     await checkProviderCredentials(sql, baseUrl, authCtx);
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,

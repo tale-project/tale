@@ -11,6 +11,15 @@ describe('looksLikeConvexDocumentId', () => {
     expect(looksLikeConvexDocumentId('kd72m0v4d3sa8gh2plq9x1c5znb0e4tf')).toBe(
       true,
     );
+    // 0.5 Better Auth (Postgres) ids are MIXED-CASE alphanumerics; the same
+    // reused callers pass them through this guard, so the class is
+    // case-blind (a mixed-case miss just reaches the adapter and nulls).
+    expect(looksLikeConvexDocumentId('Tmz6Qql0PHQdbLvGS7zFEgok4zitji7H')).toBe(
+      true,
+    );
+    expect(looksLikeConvexDocumentId('ABCDEFGHIJKLMNOPQRSTUVWXYZ012345')).toBe(
+      true,
+    );
   });
 
   it('accepts convex-test synthetic document ids', () => {
@@ -27,9 +36,6 @@ describe('looksLikeConvexDocumentId', () => {
     expect(looksLikeConvexDocumentId('')).toBe(false);
     expect(looksLikeConvexDocumentId('larry-test')).toBe(false);
     expect(looksLikeConvexDocumentId('user@example.com')).toBe(false);
-    expect(looksLikeConvexDocumentId('ABCDEFGHIJKLMNOPQRSTUVWXYZ012345')).toBe(
-      false,
-    );
     // Short alphanumeric fixtures used in mocked unit tests — not document ids.
     expect(looksLikeConvexDocumentId('org1')).toBe(false);
     expect(looksLikeConvexDocumentId('org_abc')).toBe(false);

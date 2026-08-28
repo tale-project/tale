@@ -30,7 +30,7 @@ import {
 import { parseBlobRef } from '../../../convex/lib/storage/blob_ref.ts';
 import { s3GetObjectBytes } from '../../../convex/lib/storage/object_store.ts';
 import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+import { createCtxShim, type ShimHandlers } from '../../lib/convex-shim.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
@@ -160,8 +160,13 @@ async function filterRetrievableRagFileIds(
   return retrievable;
 }
 
-function knowledgeShim(sql: Sql) {
-  return createCtxShim({
+/**
+ * The handler map the reused 0.4 knowledge modules dispatch through —
+ * exported so the chat lane's wider shim can spread it (the chat tools
+ * call `searchKnowledge`/`fetchDocumentByFileId` on the SAME ctx).
+ */
+export function knowledgeShimHandlers(sql: Sql): ShimHandlers {
+  return {
     ...credentialShimHandlers(sql),
     [ADAPTER_FIND_ONE]: async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: adapter.findOne's argument shape
@@ -196,7 +201,11 @@ function knowledgeShim(sql: Sql) {
       };
       return filterRetrievableRagFileIds(sql, args);
     },
-  });
+  };
+}
+
+function knowledgeShim(sql: Sql) {
+  return createCtxShim(knowledgeShimHandlers(sql));
 }
 
 export class KnowledgeError extends Error {
