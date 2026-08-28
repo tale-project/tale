@@ -4440,6 +4440,259 @@ async function checkConnectorCredentials(
 }
 
 /**
+ * Conversations core — the shared Inbox over PG: ingest-side create +
+ * message append (unread bump, lastMessageAt monotonic), the REUSED
+ * assignment-privacy predicate (unassigned = admin-triage only; member
+ * sees it only once assigned / team-queued), assignment notifications,
+ * bulk status verbs with the 0.4 metadata stamps, read-marker, and the
+ * cascade delete.
+ */
+async function checkConversations(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const api = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/conversations${route}?orgId=${orgId}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+  const {
+    createConversation,
+    addMessageToConversation,
+    listConversationsPage,
+  } = await import('./domains/conversations/service.ts');
+
+  // Seed: a contact + an inbound email conversation (the ingest shape).
+  const contactRows = await sql<{ id: string }[]>`
+    INSERT INTO app.contacts (org_id, name, email, source, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Inbox Customer', 'customer@inbox.test', 'api_import',
+            ${Date.now()}, ${Date.now()})
+    RETURNING id
+  `;
+  const contactId = contactRows[0]?.id ?? '';
+  const conversationId = await sql.begin((tx) =>
+    createConversation(tx, {
+      organizationId: orgId,
+      contactId,
+      subject: 'Order 42',
+      channel: 'email',
+      direction: 'inbound',
+      connectorName: 'imap-smtp',
+      externalMessageId: '<order-42@inbox.test>',
+    }),
+  );
+  const t1 = Date.now() - 60_000;
+  await sql.begin((tx) =>
+    addMessageToConversation(tx, {
+      conversationId,
+      organizationId: orgId,
+      sender: 'customer@inbox.test',
+      content: 'Where is my order?',
+      isCustomer: true,
+      externalMessageId: '<order-42@inbox.test>',
+      sentAt: t1,
+      connectorName: 'imap-smtp',
+    }),
+  );
+
+  // Admin sees the unassigned row, unread, with contact + preview.
+  const listed = z
+    .object({
+      page: z.array(
+        z.looseObject({
+          id: z.string(),
+          unread: z.boolean(),
+          lastMessagePreview: z.string().nullable(),
+          contact: z.looseObject({ email: z.string() }).nullable(),
+        }),
+      ),
+    })
+    .loose()
+    .safeParse(await (await api('')).json());
+  const row = listed.success
+    ? listed.data.page.find((r) => r.id === conversationId)
+    : undefined;
+  const counts = z
+    .object({
+      byStatus: z.record(z.string(), z.number()),
+      unread: z.number(),
+    })
+    .safeParse(await (await api('/counts')).json());
+
+  // A plain member does NOT see the unassigned row (reused predicate).
+  const memberUsers = await sql<{ id: string }[]>`
+    INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES (gen_random_uuid(), 'inbox.member@door.test', 'Inbox Member',
+            true, ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const memberId = memberUsers[0]?.id ?? '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member', ${new Date()})
+  `;
+  const memberView = {
+    organizationId: orgId,
+    userId: memberId,
+    role: 'member',
+  };
+  const beforeAssign = await listConversationsPage(sql, memberView, {
+    cursor: null,
+    limit: 50,
+  });
+  const hiddenBefore = !beforeAssign.page.some((r) => r.id === conversationId);
+
+  // Admin assigns it to the member → visible + notified.
+  const assignRes = await api(`/${conversationId}/assign`, {
+    body: { assigneeUserId: memberId },
+  });
+  const afterAssign = await listConversationsPage(sql, memberView, {
+    cursor: null,
+    limit: 50,
+  });
+  const visibleAfter = afterAssign.page.some((r) => r.id === conversationId);
+  const assignBell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${memberId}
+      AND type = 'conversation_assigned'
+  `;
+
+  // Team queueing: a fresh team + a second member on it.
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (gen_random_uuid(), 'Inbox Squad', ${orgId}, ${new Date()},
+            ${new Date()})
+    RETURNING "id"
+  `;
+  const teamId = teamRows[0]?.id ?? '';
+  const teammateRows = await sql<{ id: string }[]>`
+    INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES (gen_random_uuid(), 'inbox.teammate@door.test', 'Inbox Teammate',
+            true, ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const teammateId = teammateRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${teammateId}, 'member',
+            ${new Date()})
+  `;
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (gen_random_uuid(), ${teamId}, ${teammateId}, ${new Date()})
+  `;
+  await api(`/${conversationId}/assign-team`, {
+    body: { assigneeTeamId: teamId },
+  });
+  const teammateView = {
+    organizationId: orgId,
+    userId: teammateId,
+    role: 'member',
+  };
+  const teammateSees = (
+    await listConversationsPage(sql, teammateView, { cursor: null, limit: 50 })
+  ).page.some((r) => r.id === conversationId);
+  const teamBell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${teammateId}
+      AND type = 'conversation_assigned'
+  `;
+
+  // Internal note never bumps unread; read clears the marker.
+  await api(`/${conversationId}/messages`, {
+    body: { content: 'Internal note: shipping today.' },
+  });
+  const detail = z
+    .object({
+      conversation: z.looseObject({
+        metadata: z.record(z.string(), z.unknown()).nullable(),
+      }),
+      messages: z.array(z.looseObject({ direction: z.string() })),
+    })
+    .safeParse(await (await api(`/${conversationId}`)).json());
+  const unreadStillOne =
+    detail.success &&
+    detail.data.conversation.metadata?.unread_count === 1 &&
+    detail.data.messages.length === 2 &&
+    detail.data.messages[0]?.direction === 'inbound';
+  await api(`/${conversationId}/read`, { body: {} });
+  const afterRead = z
+    .object({
+      conversation: z.looseObject({
+        metadata: z.record(z.string(), z.unknown()).nullable(),
+      }),
+    })
+    .loose()
+    .safeParse(await (await api(`/${conversationId}`)).json());
+
+  // Bulk close stamps resolved_by; reopen flips back.
+  const closed = z
+    .object({ successCount: z.number(), failedCount: z.number() })
+    .loose()
+    .safeParse(
+      await (
+        await api('/bulk/close', {
+          body: { conversationIds: [conversationId] },
+        })
+      ).json(),
+    );
+  const closedRow = await sql<
+    { status: string | null; resolvedBy: string | null }[]
+  >`
+    SELECT status, metadata->>'resolved_by' AS "resolvedBy"
+    FROM app.conversations WHERE id = ${conversationId}
+  `;
+  await api('/bulk/reopen', { body: { conversationIds: [conversationId] } });
+
+  // Delete cascades the messages.
+  const deleted = await api(`/${conversationId}`, { method: 'DELETE' });
+  const remnants = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.conversation_messages
+    WHERE conversation_id = ${conversationId}
+  `;
+
+  record(
+    'conversations core (inbox + assignment privacy over PG)',
+    listed.success &&
+      row !== undefined &&
+      row.unread &&
+      row.lastMessagePreview === 'Where is my order?' &&
+      row.contact?.email === 'customer@inbox.test' &&
+      counts.success &&
+      (counts.data.byStatus.open ?? 0) >= 1 &&
+      counts.data.unread >= 1 &&
+      hiddenBefore &&
+      assignRes.status === 200 &&
+      visibleAfter &&
+      assignBell[0]?.count === '1' &&
+      teammateSees &&
+      teamBell[0]?.count === '1' &&
+      unreadStillOne &&
+      afterRead.success &&
+      afterRead.data.conversation.metadata?.unread_count === 0 &&
+      closed.success &&
+      closed.data.successCount === 1 &&
+      closedRow[0]?.status === 'closed' &&
+      closedRow[0]?.resolvedBy !== null &&
+      deleted.status === 204 &&
+      remnants[0]?.count === '0',
+    `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, del=${deleted.status} remnants=${remnants[0]?.count}`,
+  );
+}
+
+/**
  * The task-agent TURN, end to end on the REUSED 0.4 host: kick → session
  * ensure (fake spawner) → gateway VK mint (fake bifrost) → exec streaming a
  * canned claude-code stream-json turn → harvest (fake workspace file → real
@@ -9600,6 +9853,7 @@ async function main(): Promise<void> {
     await checkScim(sql, baseUrl, authCtx);
     await checkTrustedHeaders(sql, baseUrl);
     await checkConnectorCredentials(sql, baseUrl, authCtx);
+    await checkConversations(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

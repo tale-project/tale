@@ -954,3 +954,98 @@ export async function dismissAgentQuestionNotifications(
   `;
   return rows.length;
 }
+
+// -------------------------------------------------- conversation emitters
+
+/** Cap on a per-team assignment fan-out (the 0.4 bound). */
+const MAX_TEAM_ASSIGN_RECIPIENTS = 500;
+
+interface ConversationNotifyFields {
+  id: string;
+  organizationId: string;
+  subject: string | null;
+  status: string | null;
+}
+
+/** An admin handed the conversation to a member (0.4 semantics: never the
+ * self-assigner; body impersonal unless the actor has a display name). */
+export async function notifyConversationAssigned(
+  db: Db,
+  args: {
+    conversation: ConversationNotifyFields;
+    assigneeUserId: string | null;
+    actorType: NotificationActorType;
+    actorId: string;
+  },
+): Promise<void> {
+  if (!args.assigneeUserId) return;
+  if (args.actorType === 'user' && args.actorId === args.assigneeUserId) {
+    return;
+  }
+  const actorName = await resolveActorName(db, args.actorType, args.actorId);
+  await notifyUser(db, {
+    userId: args.assigneeUserId,
+    organizationId: args.conversation.organizationId,
+    type: 'conversation_assigned',
+    titleKey: 'conversationAssigned',
+    bodyKey: actorName
+      ? 'conversationAssignedByBody'
+      : 'conversationAssignedBody',
+    params: {
+      subject: args.conversation.subject ?? '',
+      conversationId: args.conversation.id,
+      conversationStatus: args.conversation.status ?? 'open',
+      ...(actorName ? { actor: actorName } : {}),
+    },
+    resourceType: 'conversation',
+    resourceId: args.conversation.id,
+    actorType: args.actorType,
+    ...(args.actorId ? { actorId: args.actorId } : {}),
+  });
+}
+
+/** An admin queued the conversation to a team — fan out to its members
+ * (actor excluded, de-duped, bounded), reusing the `conversation_assigned`
+ * type with the team-specific body keys. */
+export async function notifyConversationAssignedTeam(
+  db: Db,
+  args: {
+    conversation: ConversationNotifyFields;
+    teamId: string;
+    actorUserId: string | null;
+  },
+): Promise<void> {
+  const actorName = args.actorUserId
+    ? await resolveActorName(db, 'user', args.actorUserId)
+    : null;
+  const members = await db<{ userId: string }[]>`
+    SELECT DISTINCT "userId" FROM "teamMember"
+    WHERE "teamId" = ${args.teamId}
+    LIMIT ${MAX_TEAM_ASSIGN_RECIPIENTS + 1}
+  `;
+  let notified = 0;
+  for (const member of members) {
+    if (args.actorUserId && member.userId === args.actorUserId) continue;
+    if (notified >= MAX_TEAM_ASSIGN_RECIPIENTS) break;
+    notified++;
+    await notifyUser(db, {
+      userId: member.userId,
+      organizationId: args.conversation.organizationId,
+      type: 'conversation_assigned',
+      titleKey: 'conversationTeamAssigned',
+      bodyKey: actorName
+        ? 'conversationTeamAssignedByBody'
+        : 'conversationTeamAssignedBody',
+      params: {
+        subject: args.conversation.subject ?? '',
+        conversationId: args.conversation.id,
+        conversationStatus: args.conversation.status ?? 'open',
+        ...(actorName ? { actor: actorName } : {}),
+      },
+      resourceType: 'conversation',
+      resourceId: args.conversation.id,
+      actorType: args.actorUserId ? 'user' : 'system',
+      ...(args.actorUserId ? { actorId: args.actorUserId } : {}),
+    });
+  }
+}
