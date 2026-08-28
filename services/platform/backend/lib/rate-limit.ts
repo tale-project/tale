@@ -391,12 +391,12 @@ export async function limitRate(
       ON CONFLICT (name, key) DO UPDATE SET
         value = LEAST(
           ${rule.capacity}::double precision,
-          rl.value + (${now} - rl.ts) * ${ratePerMs}
+          rl.value + (${now} - rl.ts) * ${ratePerMs}::float8
         ) - ${count},
         ts = ${now}
       WHERE LEAST(
           ${rule.capacity}::double precision,
-          rl.value + (${now} - rl.ts) * ${ratePerMs}
+          rl.value + (${now} - rl.ts) * ${ratePerMs}::float8
         ) >= ${count}
       RETURNING value::text
     `;

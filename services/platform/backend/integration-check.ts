@@ -595,6 +595,134 @@ async function checkIdentityDomains(
 }
 
 /**
+ * Projects vertical: create → read/overview → settings → agents CRUD →
+ * pin/archive/restore → search → delete, through the HTTP surface (access
+ * gates + audit writes + rate charges included).
+ */
+async function checkProjects(
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const api = `${base}/api/app/projects`;
+  const get = async (route: string): Promise<unknown> =>
+    (await fetch(`${api}${route}`, { headers: { cookie } })).json();
+  const send = (
+    method: 'POST' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${api}${route}`, {
+      method,
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  const created = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send('POST', `?orgId=${orgId}`, {
+        name: 'Integration Project',
+        description: 'itest',
+        externalItemId: 'itest-ext-1',
+      })
+    ).json(),
+  );
+  const projectId = created.success ? created.data.projectId : '';
+  const dupExternal = await send('POST', `?orgId=${orgId}`, {
+    name: 'Second Project',
+    externalItemId: 'itest-ext-1',
+  });
+  const fetched = z
+    .object({
+      project: z.object({
+        name: z.string(),
+        key: z.string().nullable(),
+        openTaskCount: z.number(),
+      }),
+    })
+    .safeParse(await get(`/${projectId}?orgId=${orgId}`));
+  record(
+    'project create + read + external-id uniqueness',
+    created.success &&
+      fetched.success &&
+      fetched.data.project.name === 'Integration Project' &&
+      (fetched.data.project.key?.length ?? 0) >= 2 &&
+      dupExternal.status === 400,
+    `id=${projectId || 'ERR'}, key=${fetched.success ? fetched.data.project.key : 'ERR'}, dupExternal → ${dupExternal.status} (want 400)`,
+  );
+
+  const agentCreated = z.object({ agentId: z.string() }).safeParse(
+    await (
+      await send('POST', `/${projectId}/agents?orgId=${orgId}`, {
+        name: 'Research Bot',
+        harness: 'claude-code',
+        model: 'anthropic/claude-fable-5',
+        skills: ['web-research'],
+        connectors: [],
+      })
+    ).json(),
+  );
+  const agents = z
+    .object({
+      agents: z.array(z.object({ id: z.string(), name: z.string() })),
+    })
+    .safeParse(await get(`/${projectId}/agents?orgId=${orgId}`));
+  const overview = z
+    .object({
+      projects: z.array(
+        z.object({ id: z.string(), projectAgentCount: z.number() }),
+      ),
+    })
+    .safeParse(await get(`/overview?orgId=${orgId}`));
+  const overviewRow = overview.success
+    ? overview.data.projects.find((p) => p.id === projectId)
+    : undefined;
+  record(
+    'project agent create + rollup',
+    agentCreated.success &&
+      agents.success &&
+      agents.data.agents.length === 1 &&
+      overviewRow?.projectAgentCount === 1,
+    `agents=${agents.success ? agents.data.agents.length : 'ERR'}, rollup=${overviewRow?.projectAgentCount ?? 'ERR'}`,
+  );
+
+  const archived = await send('POST', `/${projectId}/archive?orgId=${orgId}`);
+  const listAfterArchive = z
+    .object({ projects: z.array(z.object({ id: z.string() })) })
+    .safeParse(await get(`?orgId=${orgId}`));
+  const restored = await send('POST', `/${projectId}/restore?orgId=${orgId}`);
+  const searched = z
+    .object({ projects: z.array(z.object({ id: z.string() })) })
+    .safeParse(await get(`/search?orgId=${orgId}&q=Integration`));
+  record(
+    'project archive/restore + search',
+    archived.ok &&
+      listAfterArchive.success &&
+      !listAfterArchive.data.projects.some((p) => p.id === projectId) &&
+      restored.ok &&
+      searched.success &&
+      searched.data.projects.some((p) => p.id === projectId),
+    `archive → ${archived.status}, hidden=${listAfterArchive.success ? !listAfterArchive.data.projects.some((p) => p.id === projectId) : 'ERR'}, search hits=${searched.success ? searched.data.projects.length : 'ERR'}`,
+  );
+
+  const badDelete = await send('DELETE', `/${projectId}?orgId=${orgId}`, {
+    mode: 'cascade',
+    confirmPhrase: 'wrong name',
+  });
+  const deleted = await send('DELETE', `/${projectId}?orgId=${orgId}`, {
+    mode: 'detach',
+  });
+  const gone = await fetch(`${api}/${projectId}?orgId=${orgId}`, {
+    headers: { cookie },
+  });
+  record(
+    'project delete (confirm gate + detach)',
+    badDelete.status === 400 && deleted.ok && gone.status === 404,
+    `cascade w/ wrong phrase → ${badDelete.status} (want 400), detach → ${deleted.status}, read-after → ${gone.status} (want 404)`,
+  );
+}
+
+/**
  * Login throttle + audit chain, end to end through the real auth hooks:
  * repeated wrong passwords cross the lockout threshold (429 from the
  * before-hook), the lock expires on schedule (default first backoff = 1s),
@@ -806,6 +934,7 @@ async function main(): Promise<void> {
       authCtx,
       `itest-${orgSuffix}@example.com`,
     );
+    await checkProjects(baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,

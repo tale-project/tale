@@ -104,7 +104,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | onedrive | pending | |
 | organizations | in-progress | inc 05: getOrganization/hasAny/recordOrgSwitch/resolveUserOrganization/prepare-deletion (+scaffold & cleanup jobs); reseed_all_orgs + provisioning-status/repair actions + slug-scoped file-surface guards pending; legal-hold guard with governance |
 | products | pending | |
-| projects | pending | rollup counters + repair job |
+| projects | in-progress | inc 06: core CRUD/settings/lifecycle/agents/search/overview + access matrix (reused) + audit actions (reused); per-org key/externalItemId unique via partial indexes; PENDING: doc/thread attach + delete-cascade walks (documents/chat), overdue rollup + label seed (tasks), bound-automations guard, REST v1 + upload intents (machine door), secrets prune (agent_secrets), rollup repair job (crons) |
 | provider_credentials | pending | |
 | provisioning | pending | |
 | sandbox | pending | sessions/slots/admission; INV 14–16 |

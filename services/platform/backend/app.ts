@@ -7,6 +7,7 @@ import { createAuditLogRoutes } from './domains/audit_logs/routes.ts';
 import { createMemberRoutes } from './domains/members/routes.ts';
 import { createNotificationRoutes } from './domains/notifications/routes.ts';
 import { createOrganizationRoutes } from './domains/organizations/routes.ts';
+import { createProjectRoutes } from './domains/projects/routes.ts';
 import { createUserPreferenceRoutes } from './domains/user_preferences/routes.ts';
 import { createUserRoutes } from './domains/users/routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
@@ -29,6 +30,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/members', createMemberRoutes(deps));
   app.route('/api/app/notifications', createNotificationRoutes(deps));
   app.route('/api/app/organizations', createOrganizationRoutes(deps));
+  app.route('/api/app/projects', createProjectRoutes(deps));
   app.route('/api/app/user-preferences', createUserPreferenceRoutes(deps));
   app.route('/api/app/users', createUserRoutes(deps));
   return app;
