@@ -298,7 +298,7 @@ async function deleteOneDocument(
   };
 }
 
-async function deleteKnowledgeDocument(
+export async function deleteKnowledgeDocument(
   args: DeleteDocumentArgs,
 ): Promise<DeleteDocumentResult> {
   const url = await resolveKnowledgeUrlForOrg(args.orgSlug);

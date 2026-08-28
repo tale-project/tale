@@ -4535,7 +4535,10 @@ async function checkLoginThrottleAndAuditChain(
     WHERE org_id = ${orgId}
     ORDER BY ts ASC
   `;
-  let previousHash = '';
+  // Anchor on the first REMAINING row's stored previous_hash: retention
+  // deletes the chain's oldest PREFIX, so genesis ('') only holds until the
+  // first sweep — each surviving row still links to its predecessor's hash.
+  let previousHash = rows[0]?.previousHash ?? '';
   let chainOk = rows.length > 0;
   const actions = new Set<string>();
   for (const row of rows) {
@@ -6557,7 +6560,16 @@ async function checkRetention(
   await writeFile(
     path.join(governanceDir, 'retention-policy.yml'),
     [
-      'documentsRetentionDays: 3650',
+      'documentsEnabled: true',
+      'documentsRetentionDays: 7',
+      'chatHistoryEnabled: true',
+      'chatHistoryRetentionDays: 7',
+      'agentRunsEnabled: true',
+      'agentRunsRetentionDays: 7',
+      'auditLogEnabled: true',
+      'auditLogRetentionDays: 365',
+      'userTempEnabled: true',
+      'userTempRetentionHours: 1',
       'usageLedgerEnabled: true',
       // Below the 30-day floor — the clamp must raise it.
       'usageLedgerRetentionDays: 1',
@@ -6614,6 +6626,79 @@ async function checkRetention(
        'system', true, ${now})
   `;
 
+  // Phase-2 seeds: an ancient document, an ancient chat thread (with a
+  // message), an ancient settled agent run, ancient audit rows (the chain's
+  // oldest prefix), and a stale loose temp upload.
+  const ancientDoc = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (
+      org_id, title, file_ref, mime_type, source_provider, team_tags,
+      created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, 'ancient.md', 's3:itest/ancient-doc', 'text/markdown',
+      'upload', ${[]}::text[], ${userId}, ${ancient}, ${ancient}
+    ) RETURNING id
+  `;
+  const oldThreadRows = await sql<{ id: string }[]>`
+    INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${orgId}, ${userId}, 'Ancient chat', 'chat', ${ancient},
+            ${ancient})
+    RETURNING id
+  `;
+  const oldThreadId = oldThreadRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.thread_metadata (
+      thread_id, org_id, user_id, chat_type, status, created_at_ms
+    ) VALUES (${oldThreadId}, ${orgId}, ${userId}, 'chat', 'active',
+              ${ancient})
+  `;
+  await sql`
+    INSERT INTO app.messages (
+      thread_id, org_id, "order", step_order, role, text, status,
+      created_at_ms
+    ) VALUES (${oldThreadId}, ${orgId}, 0, 0, 'user', 'old words',
+              'complete', ${ancient})
+  `;
+  const projectRow = await sql<{ id: string }[]>`
+    SELECT id FROM app.projects WHERE org_id = ${orgId} LIMIT 1
+  `;
+  const taskRow = await sql<{ id: string }[]>`
+    SELECT id FROM app.tasks WHERE org_id = ${orgId} LIMIT 1
+  `;
+  if (projectRow[0] && taskRow[0]) {
+    await sql`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, started_at_ms, settled_at_ms,
+        deadline_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectRow[0].id}, ${taskRow[0].id}, 'rt-agent',
+        'rt-ancient-exec', 'rt-sess', 'settled', 'claude-code', 'm',
+        ${userId}, ${ancient}, ${ancient}, ${ancient}, ${ancient}
+      )
+    `;
+  }
+  await sql`
+    INSERT INTO app.audit_logs (
+      org_id, actor_id, actor_type, action, category, resource_type,
+      resource_id, status, ts, integrity_hash, previous_hash
+    ) VALUES
+      (${orgId}, 'rt-ancient', 'system', 'itest.ancient', 'data', 'probe',
+       'rt-a1', 'success', ${now - 400 * 24 * 3_600_000}, 'fake-a1', ''),
+      (${orgId}, 'rt-ancient', 'system', 'itest.ancient', 'data', 'probe',
+       'rt-a2', 'success', ${now - 400 * 24 * 3_600_000 + 1}, 'fake-a2',
+       'fake-a1')
+  `;
+  const staleTemp = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, source,
+      uploaded_by, created_at_ms
+    ) VALUES (
+      ${orgId}, 's3:itest/stale-temp', 'tmp.bin', 'application/octet-stream',
+      8, 'user', ${userId}, ${now - 2 * 3_600_000}
+    ) RETURNING id
+  `;
+
   const { runRetentionCleanup } =
     await import('./domains/retention/service.ts');
   // An org hold freezes the whole run.
@@ -6663,6 +6748,40 @@ async function checkRetention(
       bellsLeft.length === 1 &&
       bellsLeft[0]?.resourceId === 'rt-new',
     `applied=${applied.success}, frozen=${frozen[0]?.count} (want 1), ledger=${ledgerLeft.map((row) => row.periodKey).join(',')} (want itest-old), feedback=${feedbackLeft.map((row) => row.messageId).join(',')}, bells=${bellsLeft.map((row) => row.resourceId).join(',')}`,
+  );
+
+  const docGone = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.documents
+    WHERE id = ${ancientDoc[0]?.id ?? ''}
+  `;
+  const threadGone = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.threads WHERE id = ${oldThreadId}
+  `;
+  const msgGone = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.messages
+    WHERE thread_id = ${oldThreadId}
+  `;
+  const runGone = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.project_agent_runs
+    WHERE exec_id = 'rt-ancient-exec'
+  `;
+  const auditGone = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND actor_id = 'rt-ancient'
+  `;
+  const tempGone = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.file_metadata
+    WHERE id = ${staleTemp[0]?.id ?? ''}
+  `;
+  record(
+    'retention phase-2: documents, chat lineage, runs, audit prefix, temp',
+    docGone[0]?.count === '0' &&
+      threadGone[0]?.count === '0' &&
+      msgGone[0]?.count === '0' &&
+      runGone[0]?.count === '0' &&
+      auditGone[0]?.count === '0' &&
+      tempGone[0]?.count === '0',
+    `doc=${docGone[0]?.count} thread=${threadGone[0]?.count} msgs=${msgGone[0]?.count} run=${runGone[0]?.count} audit=${auditGone[0]?.count} temp=${tempGone[0]?.count} (all want 0)`,
   );
 }
 
