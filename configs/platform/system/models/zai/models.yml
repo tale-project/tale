@@ -3,6 +3,9 @@
 # vendor publishes no usable public listing endpoint). Pricing is
 # cents per million tokens where the source published it. Pricing
 # refreshed and glm-5.3 / glm-4.6v added from the 2026-08-26 listing.
+# glm-5.3-flash added from the vendor docs + listing on 2026-08-28;
+# prices are the vendor's list rates, not the launch promo running
+# until 2026-09-09.
 - id: glm-5.3
   provider: zai
   tags:
@@ -16,6 +19,20 @@
   pricing:
     inputCentsPerMillion: 140
     outputCentsPerMillion: 440
+- id: glm-5.3-flash
+  provider: zai
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1048576
+  maxOutputTokens: 131072
+  pricing:
+    inputCentsPerMillion: 15
+    outputCentsPerMillion: 50
 - id: glm-5.2
   provider: zai
   tags:
