@@ -1356,6 +1356,50 @@ async function checkSmallDomains(
     `items=${stats.success ? stats.data.items.length : 'ERR'} (want 1 after toggle), stats=${stats.success ? JSON.stringify(stats.data.stats) : 'ERR'}`,
   );
 
+  // Products: unique-name conflict + translation upsert.
+  const product = z.object({ productId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/products?orgId=${orgId}`, {
+        name: 'Widget Pro',
+        price: 99.5,
+        currency: 'EUR',
+        status: 'active',
+      })
+    ).json(),
+  );
+  const productId = product.success ? product.data.productId : '';
+  const dupName = await send('POST', `/api/app/products?orgId=${orgId}`, {
+    name: '  widget pro ',
+  });
+  await send(
+    'POST',
+    `/api/app/products/${productId}/translations?orgId=${orgId}`,
+    {
+      language: 'de',
+      name: 'Widget Profi',
+    },
+  );
+  const productRead = z
+    .object({
+      product: z.object({
+        name: z.string(),
+        translations: z
+          .array(
+            z.object({ language: z.string(), name: z.string().optional() }),
+          )
+          .nullable(),
+      }),
+    })
+    .safeParse(await get(`/api/app/products/${productId}?orgId=${orgId}`));
+  record(
+    'products unique name + translation upsert',
+    product.success &&
+      dupName.status === 400 &&
+      productRead.success &&
+      productRead.data.product.translations?.[0]?.name === 'Widget Profi',
+    `dup → ${dupName.status} (want 400), de=${productRead.success ? productRead.data.product.translations?.[0]?.name : 'ERR'}`,
+  );
+
   // Support case lifecycle.
   const supportCase = z.object({ caseId: z.string() }).safeParse(
     await (

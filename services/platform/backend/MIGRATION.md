@@ -103,7 +103,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | object_storage | in-progress | inc 08: resolution + presign lanes live (0.4 BYO configs work verbatim); admin save/test-connection surface pending; convex→s3 backfill DROPPED (no convex storage in 0.5) |
 | onedrive | pending | |
 | organizations | in-progress | inc 05: getOrganization/hasAny/recordOrgSwitch/resolveUserOrganization/prepare-deletion (+scaffold & cleanup jobs); reseed_all_orgs + provisioning-status/repair actions + slug-scoped file-surface guards pending; legal-hold guard with governance |
-| products | pending | |
+| products | in-progress | inc 13: catalog CRUD, case-insensitive per-org name uniqueness (expression index replaces the 0.4 full-table probe), translations upsert, filterable keyset list; REST/connector ingest lanes with the machine door |
 | projects | in-progress | inc 06: core CRUD/settings/lifecycle/agents/search/overview + access matrix (reused) + audit actions (reused); per-org key/externalItemId unique via partial indexes; PENDING: doc/thread attach + delete-cascade walks (documents/chat), overdue rollup + label seed (tasks), bound-automations guard, REST v1 + upload intents (machine door), secrets prune (agent_secrets), rollup repair job (crons) |
 | provider_credentials | pending | |
 | provisioning | pending | |
