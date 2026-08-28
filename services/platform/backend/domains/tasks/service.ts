@@ -123,7 +123,7 @@ export interface TaskRow {
   archivedAt: number | null;
 }
 
-const TASK_COLUMNS = `
+export const TASK_COLUMNS = `
   id, org_id AS "organizationId", project_id AS "projectId", title,
   description, attachments, outputs, number, status, priority,
   label_ids AS "labelIds", assignee_type AS "assigneeType",
@@ -475,7 +475,7 @@ export async function applyTaskCountTransition(
 }
 
 /** Claim the next per-project task number in the same transaction. */
-async function nextTaskNumber(
+export async function nextTaskNumber(
   tx: TransactionSql,
   projectId: string,
 ): Promise<number> {

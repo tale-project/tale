@@ -75,7 +75,9 @@ export async function addTaskComment(
 ): Promise<{ messageId: string; threadId: string }> {
   const task = await loadTaskOrThrow(tx, args.taskId);
   const project = await loadProjectOrThrow(tx, task.projectId);
-  assertTaskWritable(project, auth);
+  // Commenting is READ-level (0.4 `addTaskComment*`): anyone who can see
+  // the task may join its discussion; edit/delete stay write-gated below.
+  assertTaskReadable(project, auth);
   const body = args.body.trim();
   if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
     throw new TaskError('TASK_COMMENT_INVALID', 'Invalid comment body');

@@ -395,3 +395,45 @@ async function assertFolderMutableReadOnly(
     throw new FolderError('FOLDER_NOT_FOUND', 'Folder not found', 404);
   }
 }
+
+/**
+ * GET-OR-CREATE a project folder — the REST door's idempotent prepare step:
+ * an exact-name match under the same parent answers the existing folder
+ * (`created: false`); otherwise the folder is created through the same
+ * validated `createFolder` the session surface uses.
+ */
+export async function getOrCreateProjectFolder(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: { projectId: string; name: string; parentId?: string },
+): Promise<{ folderId: string; name: string; created: boolean }> {
+  const name = validateFolderName(args.name);
+  await assertProjectFolderWrite(tx, auth, args.projectId);
+  if (args.parentId !== undefined) {
+    const parent = await loadFolderOrThrow(tx, args.parentId);
+    if (
+      parent.organizationId !== auth.organizationId ||
+      parent.projectId !== args.projectId
+    ) {
+      throw new FolderError('FOLDER_NOT_FOUND', 'Folder not found', 404);
+    }
+  }
+  const existing = await tx<{ id: string; name: string }[]>`
+    SELECT id, name FROM app.folders
+    WHERE org_id = ${auth.organizationId}
+      AND project_id = ${args.projectId}
+      AND parent_id IS NOT DISTINCT FROM ${args.parentId ?? null}
+      AND name = ${name}
+    LIMIT 1
+  `;
+  const found = existing[0];
+  if (found !== undefined) {
+    return { folderId: found.id, name: found.name, created: false };
+  }
+  const folderId = await createFolder(tx, auth, {
+    name,
+    projectId: args.projectId,
+    ...(args.parentId !== undefined ? { parentId: args.parentId } : {}),
+  });
+  return { folderId, name, created: true };
+}

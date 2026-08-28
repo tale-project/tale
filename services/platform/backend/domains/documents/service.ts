@@ -283,6 +283,11 @@ export async function updateDocument(
     title?: string;
     folderId?: string | null;
     teamId?: string | null;
+    content?: string | null;
+    metadata?: Record<string, unknown> | null;
+    mimeType?: string | null;
+    extension?: string | null;
+    sourceProvider?: string | null;
   },
 ): Promise<void> {
   const doc = await loadDocumentOrThrow(tx, args.documentId);
@@ -325,7 +330,13 @@ export async function updateDocument(
   await tx`
     UPDATE app.documents SET
       title = ${title}, folder_id = ${folderId}, team_id = ${teamId},
-      team_tags = ${teamTags}, updated_at_ms = ${Date.now()}
+      team_tags = ${teamTags},
+      content = ${args.content !== undefined ? args.content : tx.unsafe('content')},
+      metadata = ${args.metadata !== undefined ? (args.metadata === null ? null : tx.json(toJson(args.metadata))) : tx.unsafe('metadata')},
+      mime_type = ${args.mimeType !== undefined ? args.mimeType : tx.unsafe('mime_type')},
+      extension = ${args.extension !== undefined ? args.extension : tx.unsafe('extension')},
+      source_provider = ${args.sourceProvider !== undefined ? args.sourceProvider : tx.unsafe('source_provider')},
+      updated_at_ms = ${Date.now()}
     WHERE id = ${args.documentId}
   `;
   await emitHintInTx(tx, {
@@ -565,4 +576,172 @@ export async function searchDocumentsForMention(
   return rows
     .filter((doc) => hasKnowledgeHubDocumentAccess(doc, auth.teamIds))
     .slice(0, Math.min(limit, 50));
+}
+
+// ---------------------------------------------------------------------------
+// REST hub surface (the /api/v1/documents door)
+// ---------------------------------------------------------------------------
+
+export interface CreateHubDocumentArgs {
+  title: string;
+  content?: string;
+  fileId?: string;
+  mimeType?: string;
+  extension?: string;
+  sourceProvider?: string;
+  metadata?: Record<string, unknown>;
+  teamId?: string;
+  folderId?: string;
+}
+
+/**
+ * Create a Knowledge-Hub document (never project-scoped — that lane is
+ * `createDocumentFromUpload`). The 0.4 REST `createDocument` semantics:
+ * a hub folder must be org/team scoped (a project folder reads as absent),
+ * and a backing blob links its `file_metadata` row and queues RAG indexing —
+ * a content-only document is NOT indexed by this door (0.4 parity).
+ */
+export async function createHubDocument(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: CreateHubDocumentArgs,
+): Promise<string> {
+  const title = args.title.trim();
+  if (title.length === 0 || title.length > 512) {
+    throw new DocumentError('DOCUMENT_TITLE_INVALID', 'Invalid title');
+  }
+  if (args.folderId !== undefined) {
+    const folder = await loadFolderOrThrow(tx, args.folderId);
+    if (
+      folder.organizationId !== auth.organizationId ||
+      folder.projectId !== null
+    ) {
+      throw new DocumentError('FOLDER_NOT_FOUND', 'Folder not found', 404);
+    }
+  }
+  const file =
+    args.fileId !== undefined
+      ? await getFileMetadata(tx, auth.organizationId, args.fileId)
+      : null;
+  if (args.fileId !== undefined && file === null) {
+    throw new DocumentError('FILE_NOT_FOUND', 'Upload not found', 404);
+  }
+  const now = Date.now();
+  const extension = args.extension ?? extractExtension(title);
+  const inserted = await tx<{ id: string }[]>`
+    INSERT INTO app.documents (
+      org_id, title, content, file_ref, mime_type, extension,
+      source_provider, team_id, team_tags, created_by, folder_id, metadata,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${auth.organizationId}, ${title}, ${args.content ?? null},
+      ${file?.storageRef ?? null},
+      ${args.mimeType ?? file?.contentType ?? null}, ${extension ?? null},
+      ${args.sourceProvider ?? 'api_import'}, ${args.teamId ?? null},
+      ${args.teamId !== undefined ? [args.teamId] : []}, ${auth.userId},
+      ${args.folderId ?? null},
+      ${args.metadata === undefined ? null : tx.json(toJson(args.metadata))},
+      ${now}, ${now}
+    )
+    RETURNING id
+  `;
+  const documentId = inserted[0]?.id;
+  if (!documentId) {
+    throw new DocumentError('DOCUMENT_CREATE_FAILED', 'Insert failed');
+  }
+  if (file !== null) {
+    await tx`
+      UPDATE app.file_metadata SET document_id = ${documentId}
+      WHERE id = ${file.id}
+    `;
+    await markRagQueued(tx, file.id);
+    await addJobInTx(tx, 'rag.index_file', { fileId: file.id });
+  }
+  await createAuditLog(tx, {
+    organizationId: auth.organizationId,
+    actorId: auth.userId,
+    ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
+    actorType: 'api',
+    action: 'document.created',
+    category: 'data',
+    resourceType: 'document',
+    resourceId: documentId,
+    resourceName: title,
+    metadata: { sourceProvider: args.sourceProvider ?? 'api_import' },
+    status: 'success',
+  });
+  await emitHintInTx(tx, {
+    orgId: auth.organizationId,
+    entity: 'document',
+    entityId: documentId,
+  });
+  return documentId;
+}
+
+export interface HubDocumentsPage {
+  page: DocumentRow[];
+  isDone: boolean;
+  continueCursor: string;
+}
+
+/**
+ * Hub documents, newest first, cursor-paginated — the REST listing. The
+ * cursor is `<createdAt>:<id>` of the last row; team visibility filters
+ * POST-page (like the in-app listing), so a page may run short of `limit`.
+ */
+export async function listHubDocumentsPage(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  options: {
+    sourceProvider?: string;
+    folderId?: string;
+    cursor: string | null;
+    limit: number;
+  },
+): Promise<HubDocumentsPage> {
+  const limit = Math.max(1, Math.min(options.limit, 100));
+  let cursorCreatedAt: number | null = null;
+  let cursorId: string | null = null;
+  if (options.cursor !== null && options.cursor !== '') {
+    const split = options.cursor.indexOf(':');
+    const createdAt = Number(options.cursor.slice(0, split));
+    if (split > 0 && Number.isFinite(createdAt)) {
+      cursorCreatedAt = createdAt;
+      cursorId = options.cursor.slice(split + 1);
+    }
+  }
+  const rows = await sql<DocumentRow[]>`
+    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
+    WHERE org_id = ${auth.organizationId}
+      AND project_id IS NULL
+      AND lifecycle_status IS DISTINCT FROM 'trashed'
+      AND (${options.sourceProvider ?? null}::text IS NULL
+        OR source_provider = ${options.sourceProvider ?? null})
+      AND (${options.folderId ?? null}::text IS NULL
+        OR folder_id = ${options.folderId ?? null})
+      AND (${cursorCreatedAt}::bigint IS NULL
+        OR created_at_ms < ${cursorCreatedAt}
+        OR (created_at_ms = ${cursorCreatedAt} AND id < ${cursorId}))
+    ORDER BY created_at_ms DESC, id DESC
+    LIMIT ${limit + 1}
+  `;
+  const raw = rows.slice(0, limit);
+  const last = raw[raw.length - 1];
+  const isDone = rows.length <= limit;
+  return {
+    page: raw.filter((doc) => hasKnowledgeHubDocumentAccess(doc, auth.teamIds)),
+    isDone,
+    continueCursor: isDone || !last ? '' : `${last.createdAt}:${last.id}`,
+  };
+}
+
+/** The columns REST serves beyond the standard projection. */
+export async function readDocumentRestExtras(
+  sql: Sql,
+  documentId: string,
+): Promise<{ content: string | null; record: unknown } | null> {
+  const rows = await sql<{ content: string | null; record: unknown }[]>`
+    SELECT content, record FROM app.documents WHERE id = ${documentId} LIMIT 1
+  `;
+  return rows[0] ?? null;
 }

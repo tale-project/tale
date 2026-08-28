@@ -50,6 +50,17 @@ export interface TaskPayloads {
   /** One readiness-poll step of a parked send — self-chaining until the
    * media settle and the thread idles, then claims and runs the turn. */
   'chat.deferred_send_poll': { deferredSendId: string };
+  /** One REST-accepted chat turn (`POST /api/v1/threads/{id}/messages`
+   * answered 202) — re-gates and drives the direct turn detached. */
+  'chat.api_turn': {
+    organizationId: string;
+    userId: string;
+    threadId: string;
+    userText: string;
+    modelId: string;
+    providerSlug?: string;
+    locale?: string;
+  };
   /** Auto-retry arm for a retryably-failed task-agent run: the handler
    * re-derives every guard (task still in_progress and agent-assigned, the
    * failed run still newest, the consecutive-failure budget) and kicks. */
@@ -136,6 +147,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   'chat.generate_title': { retryLimit: 0, expireInSeconds: 60 },
   'chat.deferred_send_poll': { retryLimit: 0, expireInSeconds: 3_600 },
+  // At-most-once LLM spend, like the other turn lanes: a crash surfaces via
+  // the generation watchdog + the appended error row, never a silent rerun.
+  'chat.api_turn': { retryLimit: 0, expireInSeconds: 3_600 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
   'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
   'governance.process_erasure': { retryLimit: 1, expireInSeconds: 1_800 },

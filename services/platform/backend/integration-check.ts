@@ -2879,7 +2879,8 @@ async function checkRestDoor(
     .loose()
     .safeParse(await (await v1('/agents')).json());
 
-  // Save + run an automation entirely through the door.
+  // Author via the SESSION surface (REST has no save/deploy — 0.4 parity),
+  // then run + inspect entirely through the door's spec routes.
   const doorDoc = {
     version: 1,
     name: 'ops/door',
@@ -2893,14 +2894,56 @@ async function checkRestDoor(
     ],
     output: '{{ nodes.shape.output.doubled }}',
   };
-  await v1('/automations/ops/door/save', { body: { document: doorDoc } });
-  const doorStart = z.object({ runId: z.string() }).safeParse(
+  const appSend = (route: string, body: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify(body),
+    });
+  await appSend(`/api/app/automations/ops/door/save?orgId=${ctx.orgId}`, {
+    document: doorDoc,
+  });
+  await appSend(`/api/app/automations/ops/door/deploy?orgId=${ctx.orgId}`, {
+    version: 1,
+  });
+
+  const doorRead = z
+    .looseObject({ name: z.string(), deployedVersion: z.number().optional() })
+    .safeParse(await (await v1('/automations/ops/door')).json());
+  const doorListed = z
+    .object({ automations: z.array(z.looseObject({ name: z.string() })) })
+    .loose()
+    .safeParse(await (await v1('/automations')).json());
+
+  // Trigger lifecycle: webhook PUT mints the token exactly once; the read
+  // answers only hasToken; DELETE unbinds.
+  const triggerPut = z.looseObject({ token: z.string().optional() }).safeParse(
     await (
-      await v1('/automations/ops/door/start', {
-        body: { input: { n: 21 }, version: 1 },
+      await v1('/automations/ops/door/triggers', {
+        method: 'PUT',
+        body: { kind: 'webhook' },
       })
     ).json(),
   );
+  const triggerRead = z
+    .object({
+      triggers: z.array(z.looseObject({ hasToken: z.boolean().optional() })),
+    })
+    .loose()
+    .safeParse(await (await v1('/automations/ops/door/triggers')).json());
+  const triggerDeleted = await v1('/automations/ops/door/triggers', {
+    method: 'DELETE',
+  });
+
+  const doorStart = z
+    .looseObject({ runId: z.string(), version: z.number() })
+    .safeParse(
+      await (
+        await v1('/automations/ops/door/runs', {
+          body: { input: { n: 21 }, mode: 'live', version: 1 },
+        })
+      ).json(),
+    );
   const doorRunId = doorStart.success ? doorStart.data.runId : '';
   const doorSettled = await waitFor(async () => {
     const body = z
@@ -2911,6 +2954,10 @@ async function checkRestDoor(
   const doorRun = z
     .looseObject({ output: z.unknown() })
     .safeParse(await (await v1(`/runs/${doorRunId}`)).json());
+  const runsListed = z
+    .object({ runs: z.array(z.looseObject({ id: z.string() })) })
+    .loose()
+    .safeParse(await (await v1('/automations/ops/door/runs')).json());
 
   const badKey = await fetch(`${base}/api/v1/contacts`, {
     headers: { authorization: 'Bearer not-a-key' },
@@ -2926,13 +2973,713 @@ async function checkRestDoor(
       productRead.success &&
       productRead.data.name === 'Door Widget' &&
       agents.success &&
+      doorRead.success &&
+      doorRead.data.deployedVersion === 1 &&
+      doorListed.success &&
+      doorListed.data.automations.some((a) => a.name === 'ops/door') &&
+      triggerPut.success &&
+      typeof triggerPut.data.token === 'string' &&
+      triggerRead.success &&
+      triggerRead.data.triggers[0]?.hasToken === true &&
+      triggerDeleted.status === 204 &&
       doorStart.success &&
       doorSettled &&
       doorRun.success &&
       doorRun.data.output === 42 &&
+      runsListed.success &&
+      runsListed.data.runs.length >= 1 &&
       badKey.status === 401 &&
       noKey.status === 401,
-    `key=${minted.success}, contacts=${contacts.success ? contacts.data.page.length : 'ERR'}, product=${productRead.success ? productRead.data.name : 'ERR'}, agents=${agents.success}, door run=${doorSettled} output=${doorRun.success ? JSON.stringify(doorRun.data.output) : 'ERR'} (want 42), badKey → ${badKey.status}, noKey → ${noKey.status} (want 401/401)`,
+    `key=${minted.success}, contacts=${contacts.success ? contacts.data.page.length : 'ERR'}, product=${productRead.success ? productRead.data.name : 'ERR'}, agents=${agents.success}, autom read=${doorRead.success ? (doorRead.data.deployedVersion ?? 'nodeploy') : 'ERR'}, trigger mint/read/del=${triggerPut.success && typeof triggerPut.data.token === 'string'}/${triggerRead.success ? triggerRead.data.triggers[0]?.hasToken : 'ERR'}/${triggerDeleted.status}, door run=${doorSettled} output=${doorRun.success ? JSON.stringify(doorRun.data.output) : 'ERR'} (want 42), badKey → ${badKey.status}, noKey → ${noKey.status} (want 401/401)`,
+  );
+}
+
+/**
+ * The REST machine JOURNEY — the external-worker story end to end on the
+ * spec routes: find-or-create a project by external key, prepare a folder
+ * (idempotent), mint an upload handoff, PUT the bytes to MinIO, bind the
+ * blob as a project file (single-use intent), read the listing and the
+ * content redirect back, bind an automation to the project, materialize an
+ * external issue as a task (idempotent re-pick), comment, and start the
+ * deployed workflow on it.
+ */
+async function checkRestMachineJourney(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'REST machine journey (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — the upload lane needs blob storage',
+    );
+    return;
+  }
+  const minted = z.looseObject({ key: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/api-key/create`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: ctx.cookie,
+          origin: base,
+        },
+        body: JSON.stringify({ name: 'itest-journey' }),
+      })
+    ).json(),
+  );
+  const apiKey = minted.success ? minted.data.key : '';
+  const v1 = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/v1${route}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      redirect: 'manual',
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+
+  // Project by external key: absent → create → found.
+  const missing = z
+    .object({ projects: z.array(z.unknown()) })
+    .safeParse(
+      await (await v1('/projects?externalItemId=door-journey-1')).json(),
+    );
+  const createdProject = z
+    .object({ project: z.looseObject({ id: z.string() }) })
+    .safeParse(
+      await (
+        await v1('/projects', {
+          body: { name: 'Door Journey', externalItemId: 'door-journey-1' },
+        })
+      ).json(),
+    );
+  const projectId = createdProject.success
+    ? createdProject.data.project.id
+    : '';
+  const found = z
+    .object({ projects: z.array(z.looseObject({ id: z.string() })) })
+    .safeParse(
+      await (await v1('/projects?externalItemId=door-journey-1')).json(),
+    );
+
+  // Folder get-or-create: 201 then 200 with the SAME id.
+  const folderFirst = await v1(`/projects/${projectId}/folders`, {
+    body: { name: 'Inbox' },
+  });
+  const folderFirstBody = z
+    .object({
+      folder: z.object({ id: z.string(), name: z.string() }),
+      created: z.boolean(),
+    })
+    .safeParse(await folderFirst.json());
+  const folderAgain = await v1(`/projects/${projectId}/folders`, {
+    body: { name: 'Inbox' },
+  });
+  const folderAgainBody = z
+    .object({ folder: z.object({ id: z.string() }), created: z.boolean() })
+    .safeParse(await folderAgain.json());
+  const folderId = folderFirstBody.success
+    ? folderFirstBody.data.folder.id
+    : '';
+  const folderListed = z
+    .object({ folders: z.array(z.looseObject({ id: z.string() })) })
+    .safeParse(await (await v1(`/projects/${projectId}/folders`)).json());
+
+  // Upload handshake: mint → PUT bytes → bind (single-use).
+  const LEDGER_BYTES = 'date;amount\n2026-08-01;42.00\n';
+  const handoff = z
+    .object({
+      uploadId: z.string(),
+      url: z.string(),
+      method: z.string(),
+      s3Ref: z.string(),
+      expiresAt: z.number(),
+    })
+    .safeParse(
+      await (
+        await v1(`/projects/${projectId}/uploads`, {
+          body: { fileName: 'ledger.csv', contentType: 'text/csv' },
+        })
+      ).json(),
+    );
+  let putOk = false;
+  if (handoff.success) {
+    const putRes = await fetch(handoff.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/csv' },
+      body: LEDGER_BYTES,
+    });
+    putOk = putRes.ok;
+  }
+  const bind = handoff.success
+    ? await v1(`/projects/${projectId}/files`, {
+        body: {
+          uploadId: handoff.data.uploadId,
+          fileId: handoff.data.s3Ref,
+          folderId,
+          fileName: 'ledger.csv',
+          contentType: 'text/csv',
+        },
+      })
+    : null;
+  const bindBody = z
+    .object({ file: z.looseObject({ id: z.string() }) })
+    .safeParse(bind === null ? {} : await bind.json());
+  const documentId = bindBody.success ? bindBody.data.file.id : '';
+  // The intent is single-use: a second bind of the same handshake refuses.
+  const rebind = handoff.success
+    ? await v1(`/projects/${projectId}/files`, {
+        body: {
+          uploadId: handoff.data.uploadId,
+          fileId: handoff.data.s3Ref,
+          folderId,
+          fileName: 'ledger.csv',
+        },
+      })
+    : null;
+
+  const filesListed = z
+    .object({ files: z.array(z.looseObject({ id: z.string() })) })
+    .safeParse(
+      await (
+        await v1(`/projects/${projectId}/files?folderId=${folderId}`)
+      ).json(),
+    );
+  const contentRes = await v1(
+    `/projects/${projectId}/files/${documentId}/content`,
+  );
+  let contentBytes = '';
+  const location = contentRes.headers.get('location');
+  if (contentRes.status === 302 && location !== null) {
+    contentBytes = await (await fetch(location)).text();
+  }
+
+  // Bind the door automation to the project (idempotent add).
+  const bindFirst = await v1('/automations/ops/door/projects', {
+    body: { projectId },
+  });
+  const bindFirstBody = z
+    .object({ added: z.boolean() })
+    .loose()
+    .safeParse(await bindFirst.json());
+  const bindAgainBody = z
+    .object({ added: z.boolean() })
+    .loose()
+    .safeParse(
+      await (
+        await v1('/automations/ops/door/projects', { body: { projectId } })
+      ).json(),
+    );
+
+  // External-ref task intake: create → idempotent re-pick → projection.
+  const taskFirst = await v1('/tasks', {
+    body: {
+      projectId,
+      externalSystem: 'github',
+      externalId: 'journey-issue-7',
+      title: 'Prepare the ledger review',
+      labels: ['ops'],
+      externalUrl: 'https://example.test/issues/7',
+    },
+  });
+  const taskFirstBody = z
+    .object({
+      task: z.object({ id: z.string(), created: z.boolean() }),
+    })
+    .safeParse(await taskFirst.json());
+  const taskId = taskFirstBody.success ? taskFirstBody.data.task.id : '';
+  const taskAgainBody = z
+    .object({ task: z.object({ id: z.string(), created: z.boolean() }) })
+    .safeParse(
+      await (
+        await v1('/tasks', {
+          body: {
+            projectId,
+            externalSystem: 'github',
+            externalId: 'journey-issue-7',
+            title: 'Prepare the ledger review (renamed)',
+          },
+        })
+      ).json(),
+    );
+  const taskRead = z
+    .object({
+      task: z.looseObject({
+        id: z.string(),
+        status: z.string(),
+        labels: z.array(z.string()),
+        externalSystem: z.string().optional(),
+      }),
+    })
+    .safeParse(await (await v1(`/tasks/${taskId}`)).json());
+
+  // Comment lane: post as the key's user, read it back.
+  const commentPosted = z
+    .object({ comment: z.object({ id: z.string() }) })
+    .safeParse(
+      await (
+        await v1(`/tasks/${taskId}/comments`, {
+          body: { body: 'Prepared figures are attached.' },
+        })
+      ).json(),
+    );
+  const commentsRead = z
+    .object({
+      comments: z.array(
+        z.looseObject({ authorType: z.string(), body: z.string() }),
+      ),
+    })
+    .safeParse(await (await v1(`/tasks/${taskId}/comments`)).json());
+
+  // Start the deployed workflow ON the task; the run carries the task as
+  // its subject input and is attributed to the task's project.
+  const started = z
+    .object({
+      started: z.boolean(),
+      executionId: z.string().nullable().optional(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await v1(`/tasks/${taskId}/start`, {
+          body: { workflowSlug: 'ops/door' },
+        })
+      ).json(),
+    );
+  const runId =
+    started.success && typeof started.data.executionId === 'string'
+      ? started.data.executionId
+      : '';
+  const runRows = await sql<
+    { taskId: string | null; projectId: string | null }[]
+  >`
+    SELECT input->'task'->>'id' AS "taskId", project_id AS "projectId"
+    FROM app.automation_runs WHERE id = ${runId || '00000000-0000-0000-0000-000000000000'}
+  `;
+
+  record(
+    'REST machine journey (projects → files → tasks → start)',
+    minted.success &&
+      missing.success &&
+      missing.data.projects.length === 0 &&
+      createdProject.success &&
+      found.success &&
+      found.data.projects[0]?.id === projectId &&
+      folderFirst.status === 201 &&
+      folderFirstBody.success &&
+      folderFirstBody.data.created &&
+      folderAgain.status === 200 &&
+      folderAgainBody.success &&
+      !folderAgainBody.data.created &&
+      folderAgainBody.data.folder.id === folderId &&
+      folderListed.success &&
+      folderListed.data.folders.some((f) => f.id === folderId) &&
+      handoff.success &&
+      putOk &&
+      bind?.status === 201 &&
+      bindBody.success &&
+      rebind?.status === 409 &&
+      filesListed.success &&
+      filesListed.data.files.some((f) => f.id === documentId) &&
+      contentRes.status === 302 &&
+      contentBytes === LEDGER_BYTES &&
+      bindFirst.status === 201 &&
+      bindFirstBody.success &&
+      bindFirstBody.data.added &&
+      bindAgainBody.success &&
+      !bindAgainBody.data.added &&
+      taskFirst.status === 201 &&
+      taskFirstBody.success &&
+      taskFirstBody.data.task.created &&
+      taskAgainBody.success &&
+      !taskAgainBody.data.task.created &&
+      taskAgainBody.data.task.id === taskId &&
+      taskRead.success &&
+      taskRead.data.task.status === 'backlog' &&
+      taskRead.data.task.labels.includes('ops') &&
+      taskRead.data.task.externalSystem === 'github' &&
+      commentPosted.success &&
+      commentsRead.success &&
+      commentsRead.data.comments.some((row) =>
+        row.body.includes('Prepared figures'),
+      ) &&
+      started.success &&
+      started.data.started &&
+      runRows[0]?.taskId === taskId &&
+      runRows[0]?.projectId === projectId,
+    `project=${createdProject.success} lookup=${found.success && found.data.projects[0]?.id === projectId}, folder=${folderFirst.status}/${folderAgain.status} idem=${folderAgainBody.success && folderAgainBody.data.folder.id === folderId}, upload put=${putOk} bind=${bind?.status} rebind=${rebind?.status} (want 201/409), files=${filesListed.success ? filesListed.data.files.length : 'ERR'}, content=${contentRes.status} bytes=${contentBytes === LEDGER_BYTES}, autom bind=${bindFirst.status}/${bindAgainBody.success ? bindAgainBody.data.added : 'ERR'}, task=${taskFirst.status} repick=${taskAgainBody.success ? taskAgainBody.data.task.created : 'ERR'}, read=${taskRead.success ? `${taskRead.data.task.status}+${taskRead.data.task.labels.join('|')}` : 'ERR'}, comments=${commentsRead.success ? commentsRead.data.comments.length : 'ERR'}, start=${started.success ? started.data.started : 'ERR'} runBoundToTask=${runRows[0]?.taskId === taskId}`,
+  );
+}
+
+/**
+ * The REST resource families beyond the door basics: contacts bulk import
+ * (per-item duplicate accounting), the Knowledge-Hub document CRUD +
+ * retry-indexing honesty, the knowledge-entry version chain over the wire
+ * (PATCH answers the NEW id), the skills file layer, the REST chat lane
+ * (202-accept → detached turn → poll → reply), and org-wide knowledge
+ * search on a live embedding endpoint.
+ */
+async function checkRestResources(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { createServer } = await import('node:http');
+  const minted = z.looseObject({ key: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/api-key/create`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: ctx.cookie,
+          origin: base,
+        },
+        body: JSON.stringify({ name: 'itest-resources' }),
+      })
+    ).json(),
+  );
+  const apiKey = minted.success ? minted.data.key : '';
+  const v1 = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/v1${route}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+
+  // ---- contacts bulk: 2 land, the duplicate email is accounted ----------
+  const bulk = z
+    .object({
+      success: z.number(),
+      failed: z.number(),
+      errors: z.array(z.looseObject({ errorCode: z.string() })),
+    })
+    .safeParse(
+      await (
+        await v1('/contacts/bulk', {
+          body: {
+            contacts: [
+              { name: 'Alpha', email: 'alpha@door.test' },
+              { name: 'Beta', email: 'beta@door.test', externalId: 77 },
+              { name: 'Alpha Again', email: 'alpha@door.test' },
+            ],
+          },
+        })
+      ).json(),
+    );
+
+  // ---- documents: content lifecycle + retry honesty ----------------------
+  const docCreated = z.object({ id: z.string() }).safeParse(
+    await (
+      await v1('/documents', {
+        body: { title: 'Hub Note.md', content: 'alpha content' },
+      })
+    ).json(),
+  );
+  const docId = docCreated.success ? docCreated.data.id : '';
+  const docPatch = await v1(`/documents/${docId}`, {
+    method: 'PATCH',
+    body: { content: 'beta content' },
+  });
+  const docRead = z
+    .looseObject({ title: z.string(), content: z.string().nullable() })
+    .safeParse(await (await v1(`/documents/${docId}`)).json());
+  const docListed = z
+    .object({ page: z.array(z.looseObject({ id: z.string() })) })
+    .loose()
+    .safeParse(await (await v1('/documents?limit=50')).json());
+  const retry = z
+    .object({ status: z.string() })
+    .safeParse(
+      await (
+        await v1(`/documents/${docId}/retry-indexing`, { body: {} })
+      ).json(),
+    );
+  const docDeleted = await v1(`/documents/${docId}`, { method: 'DELETE' });
+  const docGone = await v1(`/documents/${docId}`);
+
+  // ---- knowledge entries: the version chain over the wire ---------------
+  const entryCreated = z.object({ id: z.string() }).safeParse(
+    await (
+      await v1('/knowledge-entries', {
+        body: { topic: 'REST Door Topic', content: 'version one' },
+      })
+    ).json(),
+  );
+  const entryId = entryCreated.success ? entryCreated.data.id : '';
+  const entryDup = await v1('/knowledge-entries', {
+    body: { topic: 'REST Door Topic', content: 'clashes' },
+  });
+  const entryPatched = z.object({ id: z.string() }).safeParse(
+    await (
+      await v1(`/knowledge-entries/${entryId}`, {
+        method: 'PATCH',
+        body: { topic: 'REST Door Topic', content: 'version two' },
+      })
+    ).json(),
+  );
+  const newEntryId = entryPatched.success ? entryPatched.data.id : '';
+  const oldEntry = z
+    .looseObject({ status: z.string() })
+    .safeParse(await (await v1(`/knowledge-entries/${entryId}`)).json());
+  const entryList = z
+    .object({ page: z.array(z.looseObject({ id: z.string() })) })
+    .loose()
+    .safeParse(await (await v1('/knowledge-entries')).json());
+  const entryDeleted = await v1(`/knowledge-entries/${newEntryId}`, {
+    method: 'DELETE',
+  });
+
+  // ---- skills: the file layer over the wire ------------------------------
+  const skillSaved = z.looseObject({ slug: z.string().optional() }).safeParse(
+    await (
+      await v1('/skills/rest-door-skill', {
+        method: 'PUT',
+        body: {
+          description: 'Door-check skill',
+          body: '# Door skill\n\nUse the door.',
+        },
+      })
+    ).json(),
+  );
+  const skillRead = await v1('/skills/rest-door-skill');
+  const skillReadBody = z.looseObject({}).safeParse(await skillRead.json());
+  const skillsListed = z
+    .object({ skills: z.array(z.looseObject({ slug: z.string() })) })
+    .loose()
+    .safeParse(await (await v1('/skills')).json());
+  const skillDeleted = await v1('/skills/rest-door-skill', {
+    method: 'DELETE',
+  });
+  const skillGone = await v1('/skills/rest-door-skill');
+
+  // ---- the REST chat lane: its own tiny provider + detached turn ---------
+  const REPLY = 'The door chat answers.';
+  const sse = (payload: unknown): string =>
+    `data: ${JSON.stringify(payload)}\n\n`;
+  const aiServer = createServer((req, res) => {
+    let bodyRaw = '';
+    req.on('data', (chunk: unknown) => {
+      bodyRaw += String(chunk);
+    });
+    req.on('end', () => {
+      const url = req.url ?? '';
+      if (url.includes('/models')) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            object: 'list',
+            data: [
+              {
+                id: 'rest-chat',
+                object: 'model',
+                context_length: 32_768,
+                max_output_tokens: 512,
+              },
+            ],
+          }),
+        );
+        return;
+      }
+      if (url.includes('/embeddings')) {
+        // The OpenAI SDK asks for base64 vectors — the shared fake payload
+        // helper answers whichever encoding the request named.
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(fakeEmbeddingsPayload(bodyRaw));
+        return;
+      }
+      // The turn host streams: answer SSE deltas like a real endpoint.
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write(
+        sse({
+          choices: [
+            { index: 0, delta: { content: REPLY }, finish_reason: null },
+          ],
+        }),
+      );
+      res.write(
+        sse({
+          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 5, completion_tokens: 5, total_tokens: 10 },
+        }),
+      );
+      res.write('data: [DONE]\n\n');
+      res.end();
+    });
+  });
+  await new Promise<void>((resolve) => {
+    aiServer.listen(0, '127.0.0.1', resolve);
+  });
+  const aiAddress = aiServer.address();
+  const aiPort =
+    aiAddress !== null && typeof aiAddress === 'object' ? aiAddress.port : 0;
+  const aiBase = `http://127.0.0.1:${aiPort}/v1`;
+
+  let chatOk = false;
+  let chatDetail = '';
+  let searchOk = false;
+  let searchDetail = '';
+  try {
+    process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+    const providersDir = path.join(configRoot, orgSlug, 'providers');
+    await mkdir(providersDir, { recursive: true });
+    await writeFile(
+      path.join(providersDir, 'restchat.yml'),
+      [
+        'name: restchat',
+        'displayName: Rest Chat',
+        'apiFormat: openai',
+        `baseUrl: ${aiBase}`,
+        'catalog:',
+        '  source: models-endpoint',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    await fetch(`${base}/api/app/provider-credentials?orgId=${ctx.orgId}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: ctx.cookie,
+        origin: base,
+      },
+      body: JSON.stringify({
+        providerSlug: 'restchat',
+        authMethod: 'api-key',
+        name: 'Rest chat key',
+        secret: 'sk-rest-chat-key',
+      }),
+    });
+
+    const threadCreated = z
+      .object({ id: z.string() })
+      .safeParse(
+        await (await v1('/threads', { body: { title: 'REST chat' } })).json(),
+      );
+    const threadId = threadCreated.success ? threadCreated.data.id : '';
+    const accepted = z
+      .looseObject({ status: z.string(), poll: z.string() })
+      .safeParse(
+        await (
+          await v1(`/threads/${threadId}/messages`, {
+            body: { content: 'Say the line.', model: 'rest-chat' },
+          })
+        ).json(),
+      );
+    // "No generation row" means idle, so polling the generation endpoint
+    // can win the race against the detached job — wait for the REPLY row.
+    const messagesSchema = z
+      .object({
+        page: z.array(z.looseObject({ role: z.string(), parts: z.unknown() })),
+      })
+      .loose();
+    let assistantRaw = '';
+    const replied = await waitFor(async () => {
+      const messages = messagesSchema.safeParse(
+        await (await v1(`/threads/${threadId}/messages`)).json(),
+      );
+      if (!messages.success) return false;
+      assistantRaw = JSON.stringify(
+        messages.data.page.filter((m) => m.role === 'assistant'),
+      );
+      return assistantRaw.includes('door chat answers');
+    }, 30_000);
+    const idle =
+      replied &&
+      z
+        .object({ status: z.string() })
+        .safeParse(await (await v1(`/threads/${threadId}/generation`)).json())
+        .data?.status === 'idle';
+    const threadListed = z
+      .object({ page: z.array(z.looseObject({ id: z.string() })) })
+      .loose()
+      .safeParse(await (await v1('/threads')).json());
+    chatOk =
+      threadCreated.success &&
+      accepted.success &&
+      accepted.data.status === 'accepted' &&
+      idle &&
+      replied &&
+      threadListed.success &&
+      threadListed.data.page.some((t) => t.id === threadId);
+    chatDetail = `thread=${threadCreated.success}, accepted=${accepted.success ? accepted.data.status : 'ERR'}, idle=${idle}, reply=${replied}, listed=${threadListed.success && threadListed.data.page.some((t) => t.id === threadId)}`;
+
+    // ---- knowledge search: re-point the embedder, org-wide query --------
+    await writeFile(
+      path.join(configRoot, orgSlug, 'knowledge', 'embedding.json'),
+      JSON.stringify({
+        providerSlug: 'restchat',
+        model: 'rest-chat-embed',
+        dimensions: 8,
+        baseUrl: aiBase,
+      }),
+    );
+    const searchRes = await v1('/knowledge/search', {
+      body: { query: 'quarterly review', limit: 5 },
+    });
+    const searchText = await searchRes.text();
+    let searchJsonOk = false;
+    try {
+      JSON.parse(searchText);
+      searchJsonOk = true;
+    } catch (error) {
+      console.warn('[itest] search body was not JSON:', error);
+    }
+    searchOk = searchRes.status === 200 && searchJsonOk;
+    searchDetail = `status=${searchRes.status} body=${searchText.slice(0, 120)}`;
+  } finally {
+    aiServer.close();
+  }
+
+  record(
+    'REST resources (bulk, documents, entries, skills, chat, search)',
+    minted.success &&
+      bulk.success &&
+      bulk.data.success === 2 &&
+      bulk.data.failed === 1 &&
+      bulk.data.errors[0]?.errorCode === 'duplicate_email' &&
+      docCreated.success &&
+      docPatch.status === 204 &&
+      docRead.success &&
+      docRead.data.content === 'beta content' &&
+      docListed.success &&
+      docListed.data.page.some((d) => d.id === docId) &&
+      retry.success &&
+      retry.data.status === 'skipped' &&
+      docDeleted.status === 204 &&
+      docGone.status === 404 &&
+      entryCreated.success &&
+      entryDup.status === 409 &&
+      entryPatched.success &&
+      newEntryId !== entryId &&
+      oldEntry.success &&
+      oldEntry.data.status === 'superseded' &&
+      entryList.success &&
+      entryList.data.page.some((e) => e.id === newEntryId) &&
+      !entryList.data.page.some((e) => e.id === entryId) &&
+      entryDeleted.status === 204 &&
+      skillSaved.success &&
+      skillRead.status === 200 &&
+      skillReadBody.success &&
+      skillsListed.success &&
+      skillDeleted.status === 204 &&
+      skillGone.status === 404 &&
+      chatOk &&
+      searchOk,
+    `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 duplicate_email), docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}/${docRead.success ? docRead.data.content : 'ERR'}/retry=${retry.success ? retry.data.status : 'ERR'}/del=${docDeleted.status}→${docGone.status}, entry chain=${entryCreated.success}/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/old=${oldEntry.success ? oldEntry.data.status : 'ERR'}/del=${entryDeleted.status}, skill=${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
   );
 }
 
@@ -8088,6 +8835,8 @@ async function main(): Promise<void> {
     );
     await checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkRestDoor(sql, baseUrl, authCtx);
+    await checkRestMachineJourney(sql, baseUrl, authCtx);
+    await checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

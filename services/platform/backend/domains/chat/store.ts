@@ -290,3 +290,27 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
     },
   };
 }
+
+/**
+ * Record a turn that died before producing anything — the REST turn job's
+ * failure lane: the caller must SEE why their accepted message never got a
+ * reply, so the error lands as an assistant row in the conversation.
+ */
+export async function appendAssistantErrorMessage(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    threadId: string;
+    model?: string;
+    error: string;
+  },
+): Promise<void> {
+  await appendMessageRow(sql, {
+    organizationId: args.organizationId,
+    threadId: args.threadId,
+    role: 'assistant',
+    parts: [],
+    ...(args.model !== undefined ? { model: args.model } : {}),
+    error: args.error,
+  });
+}

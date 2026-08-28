@@ -19,6 +19,7 @@ import {
   sweepOverdueRuns,
 } from '../domains/automations/store.ts';
 import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
+import { runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
 import { indexUploadedFile } from '../domains/knowledge/service.ts';
@@ -194,6 +195,20 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         shim as unknown as Parameters<typeof generateThreadTitleImpl>[0],
         input,
       );
+    },
+    'chat.api_turn': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          userId: z.string().min(1),
+          threadId: z.string().min(1),
+          userText: z.string().min(1),
+          modelId: z.string().min(1),
+          providerSlug: z.string().min(1).optional(),
+          locale: z.string().min(1).optional(),
+        })
+        .parse(payload);
+      await runApiTurn(deps.sql, input);
     },
     'chat.deferred_send_poll': async (payload) => {
       const input = z

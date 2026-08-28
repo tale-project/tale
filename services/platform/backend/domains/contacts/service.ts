@@ -339,3 +339,103 @@ export async function listContacts(
         : null,
   };
 }
+
+// ---------------------------------------------------------------- bulk
+
+export interface BulkCreateContactItem extends Omit<
+  ContactInput,
+  'email' | 'source' | 'externalId'
+> {
+  email: string;
+  /** Defaults to 'api_import' — the REST door's provenance. */
+  source?: ContactSource;
+  externalId?: string | number;
+}
+
+export interface BulkCreateResult {
+  success: number;
+  failed: number;
+  errors: {
+    index: number;
+    error: string;
+    errorCode: string;
+    contact: BulkCreateContactItem;
+  }[];
+}
+
+/**
+ * Bulk import — per-item duplicate checks (email, externalId) with
+ * continue-on-error accounting, the 0.4 `bulkCreateContacts` semantics:
+ * items run sequentially OUTSIDE one transaction so a refused item never
+ * aborts the rest, and (0.4 parity) rows land without per-contact audit
+ * rows — the importing call is the audited act, not each row.
+ */
+export async function bulkCreateContacts(
+  sql: Sql,
+  scope: ContactScope,
+  contacts: BulkCreateContactItem[],
+): Promise<BulkCreateResult> {
+  assertContactAccess(scope, 'write');
+  const result: BulkCreateResult = { success: 0, failed: 0, errors: [] };
+  for (const [index, contact] of contacts.entries()) {
+    try {
+      const email = contact.email?.toLowerCase().trim() || undefined;
+      if (email !== undefined) {
+        const existing = await sql<{ id: string }[]>`
+          SELECT id FROM app.contacts
+          WHERE org_id = ${scope.organizationId} AND email = ${email} LIMIT 1
+        `;
+        if (existing.length > 0) {
+          throw new ContactError(
+            'duplicate_email',
+            `Contact with email ${email} already exists`,
+          );
+        }
+      }
+      const externalId =
+        contact.externalId === undefined || contact.externalId === ''
+          ? undefined
+          : String(contact.externalId);
+      if (externalId !== undefined) {
+        const existing = await sql<{ id: string }[]>`
+          SELECT id FROM app.contacts
+          WHERE org_id = ${scope.organizationId}
+            AND external_id = ${externalId}
+          LIMIT 1
+        `;
+        if (existing.length > 0) {
+          throw new ContactError(
+            'duplicate_external_id',
+            `Contact with external ID ${externalId} already exists`,
+          );
+        }
+      }
+      const now = Date.now();
+      await sql`
+        INSERT INTO app.contacts (
+          org_id, name, email, phone, external_id, source, locale, address,
+          tags, metadata, notes, created_at_ms, updated_at_ms
+        ) VALUES (
+          ${scope.organizationId}, ${contact.name?.trim() ?? null},
+          ${email ?? null}, ${contact.phone ?? null},
+          ${externalId ?? null}, ${contact.source ?? 'api_import'},
+          ${contact.locale ?? null},
+          ${contact.address === undefined ? null : sql.json(toJson(contact.address))},
+          ${contact.tags ?? []},
+          ${contact.metadata === undefined ? null : sql.json(toJson(contact.metadata))},
+          ${contact.notes ?? null}, ${now}, ${now}
+        )
+      `;
+      result.success += 1;
+    } catch (error) {
+      result.failed += 1;
+      result.errors.push({
+        index,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        errorCode: error instanceof ContactError ? error.code : 'unknown',
+        contact,
+      });
+    }
+  }
+  return result;
+}

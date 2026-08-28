@@ -1523,3 +1523,17 @@ export async function listAccessibleUserIds(
   `;
   return { orgWide: false, userIds: rows.map((row) => row.userId) };
 }
+
+/** Lookup by the caller-owned natural key — the REST door's find lane. */
+export async function getProjectByExternalItemId(
+  sql: Sql,
+  organizationId: string,
+  externalItemId: string,
+): Promise<ProjectRow | null> {
+  const rows = await sql<ProjectRow[]>`
+    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    WHERE org_id = ${organizationId} AND external_item_id = ${externalItemId}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}

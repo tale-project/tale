@@ -123,14 +123,16 @@ export async function versionRow(
   name: string,
   version: number | undefined,
 ): Promise<VersionRow | null> {
-  if (version === undefined) return null;
+  // Omitted version = the LATEST saved one (the 0.4 `versionRow` contract);
+  // in-tx callers always resolve a concrete version first.
   const rows = await sql<VersionRow[]>`
     SELECT name, version, document, message, tests_passed AS "testsPassed",
            task_contract AS "taskContract", settings, presentation,
            created_by AS "createdBy", created_at_ms::float8 AS "createdAt"
     FROM app.automations
     WHERE org_id = ${organizationId} AND name = ${name}
-      AND version = ${version}
+      AND (${version ?? null}::int IS NULL OR version = ${version ?? null})
+    ORDER BY version DESC
     LIMIT 1
   `;
   return rows[0] ?? null;
@@ -420,6 +422,7 @@ export async function listTriggers(
     cron: string | null;
     timezone: string | null;
     event: string | null;
+    hasToken: boolean;
     enabled: boolean;
     lastFiredAt: number | null;
   }>
@@ -431,11 +434,14 @@ export async function listTriggers(
       cron: string | null;
       timezone: string | null;
       event: string | null;
+      hasToken: boolean;
       enabled: boolean;
       lastFiredAt: number | null;
     }[]
   >`
-    SELECT name, kind, cron, timezone, event, enabled,
+    SELECT name, kind, cron, timezone, event,
+           (token_hash IS NOT NULL AND token_hash <> '') AS "hasToken",
+           enabled,
            last_fired_at_ms::float8 AS "lastFiredAt"
     FROM app.automation_triggers
     WHERE org_id = ${organizationId}

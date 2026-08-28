@@ -84,6 +84,24 @@ export async function createUploadHandoff(
   return { storageRef: encodeS3Ref(key), uploadUrl };
 }
 
+/**
+ * REST-door presign: the caller declares no size (unlike the session lane) —
+ * the bind step HEADs the landed object, so the ceiling is enforced at
+ * registration instead. Only the content type shapes the PUT.
+ */
+export async function createRestUploadHandoff(
+  sql: Sql,
+  scope: { organizationId: string },
+  args: { contentType?: string },
+): Promise<UploadHandoff> {
+  const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
+  const key = buildObjectKey(store, orgSlug);
+  const uploadUrl = await s3PresignPutUrl(store, key, {
+    contentType: args.contentType ?? 'application/octet-stream',
+  });
+  return { storageRef: encodeS3Ref(key), uploadUrl };
+}
+
 function requireOrgScopedKey(ref: string, orgSlug: string): string {
   const parsed = parseBlobRef(ref);
   if (parsed.backend !== 's3' || !s3KeyBelongsToOrg(parsed.key, orgSlug)) {
@@ -112,6 +130,11 @@ export async function registerUpload(
   const head = await s3HeadObject(store, key);
   if (!head) {
     throw new FileError('BLOB_NOT_FOUND', 'Blob was not uploaded', 404);
+  }
+  // The REST presign lane carries no size, so the ceiling is enforced on the
+  // landed object; the session lane gates at presign too (double is fine).
+  if (head.size > MAX_UPLOAD_BYTES) {
+    throw new FileError('FILE_SIZE_INVALID', 'Uploaded object is too large');
   }
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.file_metadata (
