@@ -5,6 +5,7 @@ import {
   s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
+  s3PutObject,
   type S3ObjectStore,
 } from '../../convex/lib/storage/object_store.ts';
 import { readOrgObjectStorageConnection } from '../../convex/object_storage/file_utils.ts';
@@ -69,5 +70,6 @@ export {
   s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
+  s3PutObject,
   type S3ObjectStore,
 };

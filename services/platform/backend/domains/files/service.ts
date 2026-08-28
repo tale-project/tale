@@ -12,6 +12,7 @@ import {
   s3HeadObject,
   s3PresignGetUrl,
   s3PresignPutUrl,
+  s3PutObject,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 
@@ -218,4 +219,64 @@ export async function deleteFile(
   } catch (error) {
     console.warn(`[files] blob delete failed for ${key}:`, error);
   }
+}
+
+/**
+ * Store RAW BYTES into the org's store and answer the blob ref — the mail-
+ * attachments write lane (the 0.4 `storeOrgBlob` contract): the bytes are
+ * already in hand, so there is no presign/verify handshake.
+ */
+export async function putOrgBlobBytes(
+  sql: Sql,
+  organizationId: string,
+  args: { bytes: Uint8Array; contentType: string },
+): Promise<string> {
+  if (args.bytes.byteLength === 0 || args.bytes.byteLength > MAX_UPLOAD_BYTES) {
+    throw new FileError('FILE_SIZE_INVALID', 'Invalid blob size');
+  }
+  const { orgSlug, store } = await requireOrgStore(sql, organizationId);
+  const key = buildObjectKey(store, orgSlug);
+  await s3PutObject(store, key, args.bytes, args.contentType);
+  return encodeS3Ref(key);
+}
+
+/**
+ * Metadata row for bytes already stored via {@link putOrgBlobBytes} — size
+ * is known, so no HEAD round-trip. Idempotent on the blob ref: a re-ingest
+ * of the same attachment answers the existing row.
+ */
+export async function registerUploadedBytes(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    storageRef: string;
+    fileName: string;
+    contentType: string;
+    size: number;
+    source?: string;
+    uploadedBy?: string;
+    skipRagIndexing?: boolean;
+  },
+): Promise<{ fileId: string }> {
+  const existing = await sql<{ id: string }[]>`
+    SELECT id FROM app.file_metadata
+    WHERE org_id = ${args.organizationId} AND storage_ref = ${args.storageRef}
+    LIMIT 1
+  `;
+  if (existing[0]) return { fileId: existing[0].id };
+  const inserted = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, source,
+      uploaded_by, skip_rag_indexing, created_at_ms
+    ) VALUES (
+      ${args.organizationId}, ${args.storageRef}, ${args.fileName},
+      ${args.contentType}, ${args.size}, ${args.source ?? null},
+      ${args.uploadedBy ?? null}, ${args.skipRagIndexing === true},
+      ${Date.now()}
+    )
+    RETURNING id
+  `;
+  const fileId = inserted[0]?.id;
+  if (!fileId) throw new FileError('FILE_REGISTER_FAILED', 'Insert failed');
+  return { fileId };
 }

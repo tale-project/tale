@@ -4693,6 +4693,282 @@ async function checkConversations(
 }
 
 /**
+ * The connector door + the mailbox sync/ingest lane — the REUSED 0.4
+ * dispatcher, imap-smtp natives, and sync/ingest modules end to end on a
+ * fake IMAP/SMTP transport: list → fetch → ingest (contact find-or-create,
+ * Message-ID idempotency, In-Reply-To threading), per-credential watermark
+ * advance, the outbound send through the same door (system caller audited),
+ * and the approvals gate parking a user-caller live write until a human
+ * approves — the retried call then runs and consumes the record.
+ */
+async function checkMailboxSyncLane(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { runConnectorAction, setMailTransportForTesting } =
+    await import('./domains/connectors/service.ts');
+
+  // --- the fake transport (phased inbox) -----------------------------------
+  let phase: 1 | 2 = 1;
+  const smtpSends: Array<{ to: string; subject: string }> = [];
+  interface FakeBody {
+    uid: string;
+    messageId: string;
+    from: { address: string; name?: string }[];
+    to: { address: string }[];
+    cc: never[];
+    subject: string;
+    date: string;
+    text: string;
+    headers: Record<string, string>;
+  }
+  const bodies: Record<string, FakeBody> = {
+    '101': {
+      uid: '101',
+      messageId: '<m101@ext.test>',
+      from: [{ address: 'alice@ext.test', name: 'Alice Ext' }],
+      to: [{ address: 'inbox@door.test' }],
+      cc: [],
+      subject: 'Hello there',
+      date: new Date(Date.now() - 3_600_000).toISOString(),
+      text: 'First mail from Alice.',
+      headers: { 'message-id': '<m101@ext.test>' },
+    },
+    '102': {
+      uid: '102',
+      messageId: '<m102@ext.test>',
+      from: [{ address: 'bob@ext.test', name: 'Bob Ext' }],
+      to: [{ address: 'inbox@door.test' }],
+      cc: [],
+      subject: 'A question',
+      date: new Date(Date.now() - 3_000_000).toISOString(),
+      text: 'Question from Bob.',
+      headers: { 'message-id': '<m102@ext.test>' },
+    },
+    '103': {
+      uid: '103',
+      messageId: '<m103@ext.test>',
+      from: [{ address: 'alice@ext.test', name: 'Alice Ext' }],
+      to: [{ address: 'inbox@door.test' }],
+      cc: [],
+      subject: 'Re: Hello there',
+      date: new Date(Date.now() + 60_000).toISOString(),
+      text: 'A follow-up from Alice.',
+      headers: {
+        'message-id': '<m103@ext.test>',
+        'in-reply-to': '<m101@ext.test>',
+        references: '<m101@ext.test>',
+      },
+    },
+  };
+  const summaryOf = (uid: string) => {
+    const body = bodies[uid];
+    return {
+      uid,
+      from: 'x@ext.test',
+      subject: body?.subject ?? '',
+      sentAt: new Date(body?.date ?? new Date().toISOString()).getTime(),
+    };
+  };
+  setMailTransportForTesting({
+    openImap: async () => ({
+      listMessages: async (query: { mailbox: { kind: string } }) => {
+        if (query.mailbox.kind !== 'inbox') return [];
+        return phase === 1
+          ? [summaryOf('101'), summaryOf('102')]
+          : [summaryOf('103')];
+      },
+      getMessage: async (uid: string) => {
+        return bodies[uid] ?? null;
+      },
+      close: async () => {},
+    }),
+    openSmtp: async () => ({
+      send: async (message: { to: string; subject: string }) => {
+        smtpSends.push({ to: message.to, subject: message.subject });
+        return { messageId: `<smtp-${smtpSends.length}@door.test>` };
+      },
+      close: async () => {},
+    }),
+  });
+
+  try {
+    const system = { kind: 'system' as const, reason: 'itest mailbox sync' };
+    const sync = async () =>
+      runConnectorAction(sql, {
+        organizationId: orgId,
+        connector: 'conversation',
+        action: 'sync_mailbox',
+        input: { connectorSlug: 'imap-smtp', includeSent: false },
+        mode: 'live',
+        caller: system,
+      });
+
+    const first = await sync();
+    const firstOut = z
+      .object({
+        inbound: z.looseObject({
+          processedCount: z.number(),
+          skippedCount: z.number(),
+        }),
+        listed: z.number(),
+      })
+      .loose()
+      .safeParse(first.status === 'ok' ? first.output : {});
+    const conversationsAfterFirst = await sql<
+      { id: string; subject: string | null; contactEmail: string | null }[]
+    >`
+      SELECT c.id, c.subject, ct.email AS "contactEmail"
+      FROM app.conversations c
+      LEFT JOIN app.contacts ct ON ct.id = c.contact_id
+      WHERE c.org_id = ${orgId} AND c.connector_name = 'imap-smtp'
+      ORDER BY c.created_at_ms ASC
+    `;
+    const watermark = await sql<{ inbound: number | null }[]>`
+      SELECT mail_sync_inbound_since_ms::float8 AS inbound
+      FROM app.connector_credentials
+      WHERE org_id = ${orgId} AND connector_slug = 'imap-smtp'
+        AND status = 'active'
+      LIMIT 1
+    `;
+
+    // Idempotency: the same window again UPDATES in place (the 0.4
+    // semantics count an already-ingested message as processed) — the row
+    // counts must not move.
+    const again = await sync();
+    const againOut = z
+      .object({ inbound: z.looseObject({ processedCount: z.number() }) })
+      .loose()
+      .safeParse(again.status === 'ok' ? again.output : {});
+    const countAfterRepeat = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.conversations
+      WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
+    `;
+    const messagesAfterRepeat = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.conversation_messages
+      WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
+        AND direction = 'inbound'
+    `;
+
+    // Threading: Alice's reply lands in HER existing conversation.
+    phase = 2;
+    await sync();
+    const aliceThread = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.conversation_messages m
+      JOIN app.conversations c ON c.id = m.conversation_id
+      JOIN app.contacts ct ON ct.id = c.contact_id
+      WHERE c.org_id = ${orgId} AND ct.email = 'alice@ext.test'
+    `;
+    const conversationsFinal = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.conversations
+      WHERE org_id = ${orgId} AND connector_name = 'imap-smtp'
+    `;
+
+    // Outbound send through the same door (system caller: runs + audited).
+    const sent = await runConnectorAction(sql, {
+      organizationId: orgId,
+      connector: 'imap-smtp',
+      action: 'send',
+      input: {
+        to: 'alice@ext.test',
+        subject: 'Re: Hello there',
+        text: 'We are on it.',
+      },
+      mode: 'live',
+      caller: { kind: 'system', reason: 'itest reply' },
+    });
+    const sendAudit = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'connector.imap-smtp.send'
+        AND category = 'connector'
+    `;
+    const smtpAfterSystemSend = smtpSends.length;
+
+    // The approvals gate: a USER-caller live write parks pending…
+    const gated = await runConnectorAction(sql, {
+      organizationId: orgId,
+      connector: 'imap-smtp',
+      action: 'send',
+      input: {
+        to: 'bob@ext.test',
+        subject: 'Gated send',
+        text: 'Needs a human.',
+      },
+      mode: 'live',
+      caller: { kind: 'user', userId: 'itest-user' },
+      idempotencyKey: 'itest-gated-send-1',
+    });
+    const approvalRows = await sql<{ id: string; status: string }[]>`
+      SELECT id, status FROM app.approvals
+      WHERE org_id = ${orgId} AND resource_type = 'connector_operation'
+        AND resource_id = 'itest-gated-send-1'
+    `;
+    // …a human approves (row → executing), and the SAME operation retried
+    // runs and consumes the record.
+    if (approvalRows[0]) {
+      await sql`
+        UPDATE app.approvals SET status = 'executing'
+        WHERE id = ${approvalRows[0].id}
+      `;
+    }
+    const retried = await runConnectorAction(sql, {
+      organizationId: orgId,
+      connector: 'imap-smtp',
+      action: 'send',
+      input: {
+        to: 'bob@ext.test',
+        subject: 'Gated send',
+        text: 'Needs a human.',
+      },
+      mode: 'live',
+      caller: { kind: 'user', userId: 'itest-user' },
+      idempotencyKey: 'itest-gated-send-1',
+    });
+    const approvalAfter = await sql<{ status: string }[]>`
+      SELECT status FROM app.approvals
+      WHERE org_id = ${orgId} AND resource_type = 'connector_operation'
+        AND resource_id = 'itest-gated-send-1'
+    `;
+
+    record(
+      'connector door + mailbox sync lane (reused 0.4 dispatcher/ingest)',
+      first.status === 'ok' &&
+        firstOut.success &&
+        firstOut.data.inbound.processedCount === 2 &&
+        firstOut.data.listed === 2 &&
+        conversationsAfterFirst.length === 2 &&
+        conversationsAfterFirst.some(
+          (row) => row.contactEmail === 'alice@ext.test',
+        ) &&
+        conversationsAfterFirst.some(
+          (row) => row.contactEmail === 'bob@ext.test',
+        ) &&
+        (watermark[0]?.inbound ?? 0) > 0 &&
+        again.status === 'ok' &&
+        againOut.success &&
+        againOut.data.inbound.processedCount === 2 &&
+        countAfterRepeat[0]?.count === '2' &&
+        messagesAfterRepeat[0]?.count === '2' &&
+        aliceThread[0]?.count === '2' &&
+        conversationsFinal[0]?.count === '2' &&
+        sent.status === 'ok' &&
+        smtpAfterSystemSend === 1 &&
+        smtpSends[0]?.to === 'alice@ext.test' &&
+        Number(sendAudit[0]?.count ?? '0') >= 1 &&
+        gated.status === 'approval-required' &&
+        approvalRows[0]?.status === 'pending' &&
+        retried.status === 'ok' &&
+        smtpSends.length === 2 &&
+        approvalAfter[0]?.status === 'completed',
+      `sync1=${first.status}/${firstOut.success ? `${firstOut.data.inbound.processedCount} listed=${firstOut.data.listed}` : 'ERR'} conv=${conversationsAfterFirst.length} contacts=${conversationsAfterFirst.map((r) => r.contactEmail).join('|')}, watermark=${(watermark[0]?.inbound ?? 0) > 0}, repeat=${againOut.success ? againOut.data.inbound.processedCount : 'ERR'} conv=${countAfterRepeat[0]?.count} msgs=${messagesAfterRepeat[0]?.count} (want 2/2), aliceThread=${aliceThread[0]?.count} (want 2) totalConv=${conversationsFinal[0]?.count} (want 2), send=${sent.status} smtp=${smtpAfterSystemSend} audit=${sendAudit[0]?.count}, gate=${gated.status}/${approvalRows[0]?.status}→retry=${retried.status}/${approvalAfter[0]?.status} smtpAfter=${smtpSends.length}`,
+    );
+  } finally {
+    setMailTransportForTesting(undefined);
+  }
+}
+
+/**
  * The task-agent TURN, end to end on the REUSED 0.4 host: kick → session
  * ensure (fake spawner) → gateway VK mint (fake bifrost) → exec streaming a
  * canned claude-code stream-json turn → harvest (fake workspace file → real
@@ -9854,6 +10130,7 @@ async function main(): Promise<void> {
     await checkTrustedHeaders(sql, baseUrl);
     await checkConnectorCredentials(sql, baseUrl, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
+    await checkMailboxSyncLane(sql, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

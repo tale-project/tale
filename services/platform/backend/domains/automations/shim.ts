@@ -1,12 +1,16 @@
+import { ConvexError } from 'convex/values';
 import type { Sql } from 'postgres';
 
+import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/convex-shim.ts';
+import { evaluateApprovalGate } from '../approvals/gate.ts';
 import {
   dismissAgentQuestionNotifications,
   notifyAgentQuestionAsked,
 } from '../collab/service.ts';
+import { runConnectorAction } from '../connectors/service.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import {
   claimRun,
@@ -133,15 +137,29 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
 
     'approvals/gate:evaluateApprovalGate': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper's gate passes exactly this shape
-      const args = raw as { platformInternal?: boolean; connector: string };
-      if (args.platformInternal === true) {
-        return { decision: 'allow' };
+      const args = raw as Parameters<typeof evaluateApprovalGate>[1];
+      return evaluateApprovalGate(sql, args);
+    },
+
+    'connectors/execute_action:runConnectorAction': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper assembles exactly the door's arg shape
+      const args = raw as Parameters<typeof runConnectorAction>[1];
+      try {
+        return await runConnectorAction(sql, args);
+      } catch (error) {
+        // The 0.4 wire carried coded refusals as ConvexError data; the
+        // stepper branches on `code` — keep that contract.
+        if (error instanceof ConnectorError) {
+          throw new ConvexError({
+            code: error.code,
+            message: error.message,
+            connector: error.connector ?? args.connector,
+            action: error.action ?? args.action,
+            ...(error.hint !== undefined ? { hint: error.hint } : {}),
+          });
+        }
+        throw error;
       }
-      // Outbound live writes wait for the approvals domain; connector nodes
-      // fail earlier (the executor is un-shimmed), so this is a backstop.
-      throw new Error(
-        `[automations] outbound approval for "${args.connector}" needs the approvals domain (not ported yet)`,
-      );
     },
 
     // ------------------------------------------- the agent node's run seams
