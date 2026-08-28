@@ -80,6 +80,22 @@ export function createUserRoutes(deps: {
     return c.json({ user: await getCurrentUser(deps.sql, userId) });
   });
 
+  // Which auth accounts back this user (the settings page's "change
+  // password" and Microsoft-link affordances) — the 0.5 twin of
+  // `accounts/queries`.
+  app.get('/accounts', async (c) => {
+    const userId = c.get('sessionBundle').user.id;
+    const rows = await deps.sql<{ providerId: string }[]>`
+      SELECT "providerId" FROM "account" WHERE "userId" = ${userId}
+    `;
+    const providers = new Set(rows.map((row) => row.providerId));
+    return c.json({
+      hasCredentialAccount: providers.has('credential'),
+      hasMicrosoftAccount:
+        providers.has('microsoft') || providers.has('entra-id'),
+    });
+  });
+
   app.get('/password-expiry', async (c) => {
     const userId = c.get('sessionBundle').user.id;
     return c.json(await computePasswordExpiry(deps.sql, userId));

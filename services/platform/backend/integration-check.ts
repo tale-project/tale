@@ -6277,6 +6277,72 @@ async function checkCollabEmitters(
 }
 
 /**
+ * The small tail: the accounts probe (which auth backings the user has),
+ * the changelog orchestration on an injected fetcher (paging honors `from`,
+ * page-2 failures degrade to a partial), and the route's auth gate.
+ */
+async function checkChangelogAndAccounts(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string },
+): Promise<void> {
+  const { cookie } = ctx;
+  const accounts = z
+    .object({
+      hasCredentialAccount: z.boolean(),
+      hasMicrosoftAccount: z.boolean(),
+    })
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/users/accounts`, { headers: { cookie } })
+      ).json(),
+    );
+  const unauthenticated = await fetch(`${base}/api/app/changelog/releases`);
+
+  const { listReleases } = await import('./domains/changelog/service.ts');
+  const release = (version: string) => ({
+    tag: `v${version}`,
+    version,
+    name: `Release ${version}`,
+    body: null,
+    htmlUrl: `https://github.com/tale-project/tale/releases/tag/v${version}`,
+    publishedAt: null,
+  });
+  const pages: Record<number, ReturnType<typeof release>[]> = {
+    1: [release('0.9.2'), release('0.9.1')],
+    2: [release('0.9.0'), release('0.8.9')],
+    3: [release('0.8.8')],
+  };
+  const paged = await listReleases({
+    from: '0.8.9',
+    fetcher: (page) => Promise.resolve(pages[page] ?? []),
+  });
+  const single = await listReleases({
+    fetcher: (page) => Promise.resolve(pages[page] ?? []),
+  });
+  let partial: Awaited<ReturnType<typeof listReleases>> = [];
+  partial = await listReleases({
+    from: '0.0.1',
+    fetcher: (page) =>
+      page === 1
+        ? Promise.resolve([release('1.0.1'), release('1.0.0')])
+        : Promise.reject(new Error('page down')),
+  });
+  record(
+    'accounts probe + changelog paging (from-bounded, partial-tolerant)',
+    accounts.success &&
+      accounts.data.hasCredentialAccount &&
+      !accounts.data.hasMicrosoftAccount &&
+      unauthenticated.status === 401 &&
+      paged.length === 4 &&
+      paged.at(-1)?.version === '0.8.9' &&
+      single.length === 2 &&
+      partial.length === 2,
+    `accounts=${accounts.success ? `${accounts.data.hasCredentialAccount}/${accounts.data.hasMicrosoftAccount}` : 'ERR'}, unauth=${unauthenticated.status}, paged=${paged.length} (want 4), single=${single.length} (want 2), partial=${partial.length} (want 2)`,
+  );
+}
+
+/**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
  * with no resume; a settled predecessor with a stamped handle on the live
@@ -7216,6 +7282,7 @@ async function main(): Promise<void> {
     await checkAgentSecrets(sql, baseUrl, authCtx);
     await checkKnowledgeEntries(sql, baseUrl, authCtx);
     await checkCollabEmitters(sql, baseUrl, authCtx);
+    await checkChangelogAndAccounts(sql, baseUrl, authCtx);
     await checkChatMemoriesDeferredAuto(
       sql,
       baseUrl,

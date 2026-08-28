@@ -146,7 +146,15 @@ function parseReleasesHtml(html: string): ParsedRelease[] {
 export const fetchReleasesPageUncached = internalAction({
   args: { page: v.number() },
   returns: v.array(releaseShape),
-  handler: async (_ctx, { page }) => {
+  handler: async (_ctx, { page }) => fetchReleasesPageImpl(page),
+});
+
+/** The page fetch as a PLAIN exported function — the internalAction above
+ * wraps it, and the 0.5 backend calls it behind its own TTL cache. */
+export async function fetchReleasesPageImpl(
+  page: number,
+): Promise<ParsedRelease[]> {
+  {
     const url =
       page === 1 ? RELEASES_PAGE_URL : `${RELEASES_PAGE_URL}?page=${page}`;
 
@@ -178,5 +186,5 @@ export const fetchReleasesPageUncached = internalAction({
 
     const html = await response.text();
     return parseReleasesHtml(html);
-  },
-});
+  }
+}
