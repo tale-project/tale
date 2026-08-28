@@ -1,7 +1,8 @@
-import { describe, it, vi } from 'vitest';
+import { Plus } from 'lucide-react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import { MemberTable } from './member-table';
 
@@ -68,5 +69,18 @@ describe('MemberTable', () => {
       );
       await checkAccessibility(container, axeOptions);
     });
+  });
+
+  it('renders the add action as the standard toolbar button', async () => {
+    const onClick = vi.fn();
+    const { user } = render(
+      <MemberTable
+        members={[makeMember()]}
+        addAction={{ label: 'Add member', icon: Plus, onClick }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Add member' }));
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });

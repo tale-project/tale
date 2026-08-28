@@ -4,14 +4,17 @@ import { Stack, HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
-import { useMemo, useCallback, useState, type ReactNode } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 
 import { TableTimestampCell } from '@/app/components/ui/data-display/table-date-cell';
 import {
   ACTIONS_COLUMN_SIZE,
   createSelectColumn,
 } from '@/app/components/ui/data-table/column-builders';
-import { DataTable } from '@/app/components/ui/data-table/data-table';
+import {
+  DataTable,
+  type DataTableAddAction,
+} from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
@@ -44,9 +47,9 @@ interface MemberTableProps {
   memberContext?: MemberContext | null;
   isLoading?: boolean;
   approxRowCount?: number;
-  /** The primary action (Add member) — rendered in the table toolbar so the
-   *  page reads exactly like the Teams table. */
-  actionMenu?: ReactNode;
+  /** The primary action (Add member) — DataTable renders it at the standard
+   *  size and placement, so the page reads exactly like the Teams table. */
+  addAction?: DataTableAddAction;
 }
 
 export function MemberTable({
@@ -54,7 +57,7 @@ export function MemberTable({
   memberContext,
   isLoading,
   approxRowCount,
-  actionMenu,
+  addAction,
 }: MemberTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tSettings } = useT('settings');
@@ -184,7 +187,7 @@ export function MemberTable({
       columns={columns}
       isLoading={isLoading}
       approxRowCount={approxRowCount}
-      actionMenu={actionMenu}
+      addAction={addAction}
       // Mirror the single-row Delete gating (`member-row-actions.tsx`): the
       // current user's own row and the owner row are not selectable for
       // bulk-remove. Self-removal is a self-lockout + irreversible
