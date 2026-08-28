@@ -10,11 +10,13 @@ import {
   checkOrganizationRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
+import { deactivateSyncConfigsForPath } from '../onedrive/service.ts';
 import {
   getProjectAuthContext,
   ProjectError,
   type ProjectAuthContext,
 } from '../projects/service.ts';
+import { buildHubFolderPath } from './paths.ts';
 import {
   createFolder,
   deleteFolder,
@@ -151,9 +153,24 @@ export function createFolderRoutes(deps: {
         'folder:mutate',
         auth.organizationId,
       );
-      await transactSerializable(deps.sql, (tx) =>
-        deleteFolder(tx, auth, c.req.param('folderId')),
-      );
+      await transactSerializable(deps.sql, async (tx) => {
+        // Deleting a synced hub folder means "stop syncing it" — resolve the
+        // path BEFORE the row goes, deactivate configs in the same tx, or
+        // the next sync run would recreate the folder just removed.
+        const folderPath = await buildHubFolderPath(
+          tx,
+          auth.organizationId,
+          c.req.param('folderId'),
+        );
+        await deleteFolder(tx, auth, c.req.param('folderId'));
+        if (folderPath !== null) {
+          await deactivateSyncConfigsForPath(
+            tx,
+            auth.organizationId,
+            folderPath,
+          );
+        }
+      });
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);

@@ -359,8 +359,11 @@ export async function processErasure(
   });
 
   await pass('documents', async () => {
-    const docs = await sql<{ id: string; fileRef: string | null }[]>`
-      SELECT id, file_ref AS "fileRef" FROM app.documents
+    const docs = await sql<
+      { id: string; fileRef: string | null; historyFiles: string[] }[]
+    >`
+      SELECT id, file_ref AS "fileRef", history_files AS "historyFiles"
+      FROM app.documents
       WHERE org_id = ${organizationId} AND created_by = ${targetUserId}
     `;
     const { resolveOrgSlug } = await import('../../lib/org-config.ts');
@@ -370,6 +373,7 @@ export async function processErasure(
         id: doc.id,
         fileRef: doc.fileRef,
         organizationId,
+        historyFiles: doc.historyFiles,
       });
     }
     return docs.length;

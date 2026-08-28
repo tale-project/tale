@@ -7038,6 +7038,606 @@ async function checkCloudImport(
 }
 
 /**
+ * OneDrive Knowledge sync — the reused 0.4 import pipeline over pg deps and
+ * the pg-boss sync engine, against a FAKE Microsoft Graph via global-fetch
+ * interception (the reused Graph modules hardcode their hosts; the backend
+ * runs in-process, so the patch covers routes and worker alike). Journey:
+ * browse with the cloud grant → "Sync import" of a folder (nested path) and
+ * a single file (configs + documents + folder chain + RAG dispatch) → idle
+ * re-sync skips on content hash → source drift updates in place (history
+ * grows, corpus purge attempted) and prunes the departed file (empty
+ * subfolder reaped, sync root kept) → a legal hold parks the prune until
+ * release → a single-file 404 removes the mirror and deactivates → trash
+ * stops a directly-selected sync → token order (grant revoked → login
+ * account, expiry → refresh writeback) → scan enqueue + the cancel door
+ * (which an in-flight run's final stamp must never resurrect).
+ */
+async function checkOneDriveSync(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const onedrive = await import('./domains/onedrive/service.ts');
+  const cloud = await import('./domains/cloud_import/service.ts');
+
+  const savedEnv = {
+    tenant: process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID,
+    client: process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
+    secret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET,
+  };
+  process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID = 'itest-tenant';
+  process.env.AUTH_MICROSOFT_ENTRA_ID_ID = 'itest-ms-client';
+  process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET = 'itest-ms-secret';
+
+  // ---- fake Microsoft Graph over an in-memory drive ----------------------
+  interface DriveNode {
+    id: string;
+    name: string;
+    parent?: string;
+    content?: string;
+    hash?: string;
+    mime?: string;
+    folder?: boolean;
+  }
+  const drive = new Map<string, DriveNode>();
+  const seed = (node: DriveNode): void => void drive.set(node.id, node);
+  seed({ id: 'folder-reports', name: 'ODReports', folder: true });
+  seed({
+    id: 'folder-2026',
+    name: 'FY2026',
+    parent: 'folder-reports',
+    folder: true,
+  });
+  seed({
+    id: 'f-q1',
+    name: 'q1.txt',
+    parent: 'folder-reports',
+    content: 'q1 v1',
+    hash: 'h-q1-v1',
+    mime: 'text/plain',
+  });
+  seed({
+    id: 'f-sum',
+    name: 'summary.txt',
+    parent: 'folder-2026',
+    content: 'sum v1',
+    hash: 'h-sum-v1',
+    mime: 'text/plain',
+  });
+  seed({
+    id: 'f-notes',
+    name: 'notes.md',
+    content: 'notes v1',
+    hash: 'h-notes-v1',
+    mime: 'text/markdown',
+  });
+  seed({
+    id: 'f-memo',
+    name: 'memo.md',
+    content: 'memo v1',
+    hash: 'h-memo-v1',
+    mime: 'text/markdown',
+  });
+
+  const graphAuth: string[] = [];
+  let refreshCalls = 0;
+  const jsonResponse = (body: unknown, status = 200): Response =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+  const childrenOf = (id: string): DriveNode[] =>
+    [...drive.values()].filter((node) => node.parent === id);
+  const graphHandler = (url: URL, init?: RequestInit): Response => {
+    graphAuth.push(new Headers(init?.headers).get('authorization') ?? '');
+    const match =
+      /^\/v1\.0\/me\/drive\/items\/([^/]+?)(\/children|\/content)?$/.exec(
+        url.pathname,
+      );
+    const itemId = match?.[1];
+    const leaf = match?.[2];
+    if (itemId === undefined) {
+      return jsonResponse({ error: 'itest: unmapped graph path' }, 500);
+    }
+    const node = drive.get(itemId);
+    if (!node) return jsonResponse({ error: { code: 'itemNotFound' } }, 404);
+    if (leaf === '/children') {
+      return jsonResponse({
+        value: childrenOf(node.id).map((child) =>
+          child.folder === true
+            ? { id: child.id, name: child.name, size: 0, folder: {} }
+            : {
+                id: child.id,
+                name: child.name,
+                size: (child.content ?? '').length,
+                file: { mimeType: child.mime },
+              },
+        ),
+      });
+    }
+    if (leaf === '/content') {
+      const content = node.content ?? '';
+      return new Response(content, {
+        status: 200,
+        headers: {
+          'content-type': node.mime ?? 'application/octet-stream',
+          'content-length': String(content.length),
+        },
+      });
+    }
+    return jsonResponse({
+      id: node.id,
+      name: node.name,
+      size: (node.content ?? '').length,
+      file: { mimeType: node.mime, hashes: { quickXorHash: node.hash } },
+    });
+  };
+  const realFetch = globalThis.fetch;
+  const fakeFetchImpl = async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ): Promise<Response> => {
+    const raw =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+    const url = new URL(raw);
+    if (url.hostname === 'graph.microsoft.com') return graphHandler(url, init);
+    if (url.hostname === 'login.microsoftonline.com') {
+      refreshCalls++;
+      return jsonResponse({
+        access_token: 'graph-refreshed-token',
+        expires_in: 3600,
+        refresh_token: 'rt-2',
+      });
+    }
+    return realFetch(input, init);
+  };
+  // Node's undici fetch lacks Bun's `preconnect` static (bun-types makes it
+  // part of `typeof fetch`); the patched fetch never uses it, so a no-op
+  // satisfies the type without touching the (absent) original.
+  globalThis.fetch = Object.assign(fakeFetchImpl, {
+    preconnect: (): void => {},
+  });
+
+  try {
+    // Cloud-import grant = the preferred token source (inc 64's substrate).
+    await cloud.storeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'onedrive',
+      accessToken: 'graph-grant-token',
+      refreshToken: 'grant-refresh',
+      expiresAt: Date.now() + 3_600_000,
+      scopes: ['Files.Read'],
+    });
+
+    const post = (route: string, body: unknown): Promise<Response> =>
+      fetch(`${base}/api/app/onedrive${route}?orgId=${orgId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify(body),
+      });
+    const importResultSchema = z.object({
+      success: z.boolean(),
+      successCount: z.number(),
+      skippedCount: z.number(),
+      failedCount: z.number(),
+      results: z.array(
+        z.object({
+          fileId: z.string(),
+          status: z.string(),
+          documentId: z.string().optional(),
+        }),
+      ),
+    });
+    interface SyncDocRow {
+      id: string;
+      fileRef: string | null;
+      folderPath: string | null;
+      contentHash: string | null;
+      historyFiles: string[];
+      lifecycleStatus: string | null;
+      syncConfigId: string | null;
+    }
+    const docsByExternalId = async (
+      externalId: string,
+    ): Promise<SyncDocRow[]> =>
+      sql<SyncDocRow[]>`
+        SELECT id, file_ref AS "fileRef", folder_path AS "folderPath",
+               content_hash AS "contentHash", history_files AS "historyFiles",
+               lifecycle_status AS "lifecycleStatus",
+               metadata->>'syncConfigId' AS "syncConfigId"
+        FROM app.documents
+        WHERE org_id = ${orgId} AND external_item_id = ${externalId}
+      `;
+    interface ConfigRow {
+      id: string;
+      status: string;
+      itemType: string;
+      lastSyncStatus: string | null;
+    }
+    const configByItem = async (itemId: string): Promise<ConfigRow | null> => {
+      const rows = await sql<ConfigRow[]>`
+        SELECT id, status, item_type AS "itemType",
+               last_sync_status AS "lastSyncStatus"
+        FROM app.onedrive_sync_configs
+        WHERE org_id = ${orgId} AND item_id = ${itemId}
+        LIMIT 1
+      `;
+      return rows[0] ?? null;
+    };
+    // The shared org's embedding config points at an earlier check's
+    // now-closed fake server — flag this check's blobs skip-indexing right
+    // after each write, so already-enqueued `rag.index_file` jobs no-op on
+    // their row re-read instead of retrying a dead endpoint for minutes
+    // (which perturbs later checks' rag timing).
+    const muteRagJobs = async (): Promise<void> => {
+      await sql`
+        UPDATE app.file_metadata SET skip_rag_indexing = true
+        WHERE org_id = ${orgId} AND document_id IN (
+          SELECT id FROM app.documents
+          WHERE org_id = ${orgId} AND source_provider = 'onedrive'
+        )
+      `;
+    };
+    const runConfig = async (configId: string): Promise<void> => {
+      await onedrive.runOneDriveSyncConfigJob(sql, {
+        organizationId: orgId,
+        configId,
+      });
+      await muteRagJobs();
+    };
+
+    // 1. Browse + "Sync import" of a folder selection and a single file.
+    const browse = await post('/list-files', { folderId: 'folder-reports' });
+    const browseBody = z
+      .object({ success: z.boolean(), items: z.array(z.unknown()).optional() })
+      .safeParse(await browse.json());
+    const browseOk =
+      browse.status === 200 &&
+      browseBody.success &&
+      browseBody.data.success &&
+      (browseBody.data.items?.length ?? 0) === 2;
+
+    const importResponse = await post('/import', {
+      importType: 'sync',
+      items: [
+        {
+          id: 'f-q1',
+          name: 'q1.txt',
+          size: 5,
+          relativePath: 'ODReports/q1.txt',
+          selectedParentId: 'folder-reports',
+          selectedParentName: 'ODReports',
+          selectedParentPath: 'ODReports',
+        },
+        {
+          id: 'f-sum',
+          name: 'summary.txt',
+          size: 6,
+          relativePath: 'ODReports/FY2026/summary.txt',
+          selectedParentId: 'folder-reports',
+          selectedParentName: 'ODReports',
+          selectedParentPath: 'ODReports',
+        },
+        {
+          id: 'f-notes',
+          name: 'notes.md',
+          size: 8,
+          relativePath: 'notes.md',
+          isDirectlySelected: true,
+        },
+      ],
+    });
+    const imported = importResultSchema.safeParse(await importResponse.json());
+    await muteRagJobs();
+    const folderConfig = await configByItem('folder-reports');
+    const notesConfig = await configByItem('f-notes');
+    const q1AfterImport = await docsByExternalId('f-q1');
+    const sumAfterImport = await docsByExternalId('f-sum');
+    const notesAfterImport = await docsByExternalId('f-notes');
+    const hubFolders = await sql<{ name: string }[]>`
+      SELECT name FROM app.folders
+      WHERE org_id = ${orgId} AND project_id IS NULL
+        AND name IN ('ODReports', 'FY2026')
+    `;
+    const ragDispatched = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.file_metadata
+      WHERE org_id = ${orgId} AND rag_status IS NOT NULL
+        AND document_id IN (
+          SELECT id FROM app.documents
+          WHERE org_id = ${orgId} AND source_provider = 'onedrive'
+        )
+    `;
+    record(
+      'onedrive sync import (grant token, reused pipeline, substrate)',
+      browseOk &&
+        imported.success &&
+        imported.data.success &&
+        imported.data.successCount === 3 &&
+        folderConfig?.status === 'active' &&
+        folderConfig.itemType === 'folder' &&
+        notesConfig?.status === 'active' &&
+        notesConfig.itemType === 'file' &&
+        q1AfterImport[0]?.folderPath === 'ODReports' &&
+        q1AfterImport[0].syncConfigId === folderConfig.id &&
+        sumAfterImport[0]?.folderPath === 'ODReports/FY2026' &&
+        notesAfterImport[0]?.folderPath === null &&
+        hubFolders.length === 2 &&
+        Number(ragDispatched[0]?.count ?? '0') === 3 &&
+        graphAuth.includes('Bearer graph-grant-token'),
+      `browse=${browse.status}/${browseBody.success ? browseBody.data.items?.length : 'ERR'} (want 2 children), import=${imported.success ? `${imported.data.successCount}ok/${imported.data.failedCount}fail` : 'PARSE-ERR'}, configs=${folderConfig?.itemType}:${folderConfig?.status}+${notesConfig?.itemType}:${notesConfig?.status}, paths=${q1AfterImport[0]?.folderPath}|${sumAfterImport[0]?.folderPath}|${notesAfterImport[0]?.folderPath ?? 'root'}, cfgLink=${q1AfterImport[0]?.syncConfigId === folderConfig?.id}, folders=${hubFolders.length}/2 ragDispatched=${ragDispatched[0]?.count}/3 grantAuth=${graphAuth.includes('Bearer graph-grant-token')}`,
+    );
+
+    // 2. Idle re-sync: unchanged hashes skip, nothing is pruned or rewritten.
+    if (!folderConfig || !notesConfig) {
+      throw new Error('onedrive: sync configs missing, aborting check');
+    }
+    const q1RefBefore = q1AfterImport[0]?.fileRef ?? null;
+    await runConfig(folderConfig.id);
+    const folderAfterIdle = await configByItem('folder-reports');
+    const q1AfterIdle = await docsByExternalId('f-q1');
+    const oneDriveDocCount = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.documents
+      WHERE org_id = ${orgId} AND source_provider = 'onedrive'
+    `;
+    record(
+      'onedrive idle re-sync skips on content hash',
+      folderAfterIdle?.lastSyncStatus === 'success' &&
+        folderAfterIdle.status === 'active' &&
+        q1AfterIdle[0]?.fileRef === q1RefBefore &&
+        q1AfterIdle[0].historyFiles.length === 0 &&
+        Number(oneDriveDocCount[0]?.count ?? '0') === 3,
+      `status=${folderAfterIdle?.status}/${folderAfterIdle?.lastSyncStatus}, q1RefStable=${q1AfterIdle[0]?.fileRef === q1RefBefore} history=${q1AfterIdle[0]?.historyFiles.length}/0 docs=${oneDriveDocCount[0]?.count}/3`,
+    );
+
+    // 3. Source drift: an edited file updates IN PLACE (same row, history
+    //    grows, old corpus entry purged best-effort); a deleted file prunes
+    //    its mirror and reaps the emptied subfolder, keeping the sync root.
+    seed({
+      id: 'f-q1',
+      name: 'q1.txt',
+      parent: 'folder-reports',
+      content: 'q1 v2 — longer body',
+      hash: 'h-q1-v2',
+      mime: 'text/plain',
+    });
+    drive.delete('f-sum');
+    await runConfig(folderConfig.id);
+    const q1AfterDrift = await docsByExternalId('f-q1');
+    const sumAfterDrift = await docsByExternalId('f-sum');
+    const foldersAfterDrift = await sql<{ name: string }[]>`
+      SELECT name FROM app.folders
+      WHERE org_id = ${orgId} AND project_id IS NULL
+        AND name IN ('ODReports', 'FY2026')
+    `;
+    record(
+      'onedrive drift: in-place update + prune with folder reap',
+      q1AfterDrift[0]?.id === q1AfterImport[0]?.id &&
+        q1AfterDrift[0]?.contentHash === 'h-q1-v2' &&
+        q1AfterDrift[0]?.fileRef !== q1RefBefore &&
+        q1AfterDrift[0]?.historyFiles.length === 1 &&
+        q1AfterDrift[0]?.historyFiles[0] === q1RefBefore &&
+        sumAfterDrift.length === 0 &&
+        foldersAfterDrift.length === 1 &&
+        foldersAfterDrift[0]?.name === 'ODReports',
+      `q1 sameRow=${q1AfterDrift[0]?.id === q1AfterImport[0]?.id} hash=${q1AfterDrift[0]?.contentHash} history=${q1AfterDrift[0]?.historyFiles.length}/1(old ref kept=${q1AfterDrift[0]?.historyFiles[0] === q1RefBefore}), sumPruned=${sumAfterDrift.length === 0}, folders=${foldersAfterDrift.map((f) => f.name).join('+') || 'NONE'} (want ODReports only)`,
+    );
+
+    // 4. A legal hold parks the prune (warn + skip, sync still succeeds);
+    //    releasing the hold lets the next run prune.
+    seed({
+      id: 'f-tmp',
+      name: 'tmp.txt',
+      parent: 'folder-reports',
+      content: 'tmp v1',
+      hash: 'h-tmp-v1',
+      mime: 'text/plain',
+    });
+    await runConfig(folderConfig.id);
+    const tmpCreated = (await docsByExternalId('f-tmp')).length === 1;
+    await sql`
+      INSERT INTO app.legal_holds (
+        org_id, target_type, target_id, target_label, reason, placed_by,
+        placed_at_ms
+      ) VALUES (
+        ${orgId}, 'org', ${orgId}, 'itest-org', 'onedrive prune guard',
+        'itest', ${Date.now()}
+      )
+    `;
+    drive.delete('f-tmp');
+    await runConfig(folderConfig.id);
+    const tmpHeld = (await docsByExternalId('f-tmp')).length === 1;
+    const heldRunStatus = (await configByItem('folder-reports'))
+      ?.lastSyncStatus;
+    await sql`
+      UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
+      WHERE org_id = ${orgId} AND target_type = 'org'
+        AND released_at_ms IS NULL
+    `;
+    await runConfig(folderConfig.id);
+    const tmpAfterRelease = (await docsByExternalId('f-tmp')).length === 0;
+    record(
+      'onedrive prune respects legal holds (skip, then prune on release)',
+      tmpCreated && tmpHeld && heldRunStatus === 'success' && tmpAfterRelease,
+      `created=${tmpCreated}, heldSurvives=${tmpHeld} run=${heldRunStatus} (prune skipped, not failed), prunedAfterRelease=${tmpAfterRelease}`,
+    );
+
+    // 5. Single-file config: content change updates the ONE row in place; a
+    //    definitive 404 at the source removes the mirror and deactivates.
+    seed({
+      id: 'f-notes',
+      name: 'notes.md',
+      content: 'notes v2 body',
+      hash: 'h-notes-v2',
+      mime: 'text/markdown',
+    });
+    await runConfig(notesConfig.id);
+    const notesAfterEdit = await docsByExternalId('f-notes');
+    drive.delete('f-notes');
+    await runConfig(notesConfig.id);
+    const notesAfterGone = await docsByExternalId('f-notes');
+    const notesConfigAfter = await configByItem('f-notes');
+    record(
+      'onedrive single-file: in-place update, 404 removes mirror + deactivates',
+      notesAfterEdit.length === 1 &&
+        notesAfterEdit[0]?.id === notesAfterImport[0]?.id &&
+        notesAfterEdit[0]?.contentHash === 'h-notes-v2' &&
+        notesAfterGone.length === 0 &&
+        notesConfigAfter?.status === 'inactive' &&
+        notesConfigAfter.lastSyncStatus === 'source-deleted',
+      `edit sameRow=${notesAfterEdit[0]?.id === notesAfterImport[0]?.id} hash=${notesAfterEdit[0]?.contentHash}, afterGone rows=${notesAfterGone.length}/0 config=${notesConfigAfter?.status}/${notesConfigAfter?.lastSyncStatus}`,
+    );
+
+    // 6. Trashing a directly-selected synced document stops its config.
+    const memoImport = await post('/import', {
+      importType: 'sync',
+      items: [
+        {
+          id: 'f-memo',
+          name: 'memo.md',
+          size: 7,
+          relativePath: 'memo.md',
+          isDirectlySelected: true,
+        },
+      ],
+    });
+    const memoResult = importResultSchema.safeParse(await memoImport.json());
+    await muteRagJobs();
+    const memoDocId = memoResult.success
+      ? (memoResult.data.results[0]?.documentId ?? '')
+      : '';
+    const trash = await fetch(
+      `${base}/api/app/documents/${memoDocId}/trash?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({}),
+      },
+    );
+    const memoConfigAfterTrash = await configByItem('f-memo');
+    const memoDocRows = await docsByExternalId('f-memo');
+    record(
+      'onedrive trash stops a directly-selected single-file sync',
+      memoResult.success &&
+        memoResult.data.successCount === 1 &&
+        trash.status === 200 &&
+        memoDocRows[0]?.lifecycleStatus === 'trashed' &&
+        memoConfigAfterTrash?.status === 'inactive',
+      `import=${memoResult.success ? memoResult.data.successCount : 'ERR'}/1 trash=${trash.status} doc=${memoDocRows[0]?.lifecycleStatus} config=${memoConfigAfterTrash?.status} (want inactive)`,
+    );
+
+    // 7. Token order: grant revoked → the Better Auth login account serves;
+    //    an expired login token refreshes (fake vendor) and writes back.
+    await cloud.revokeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'onedrive',
+    });
+    await sql`
+      INSERT INTO "account" (
+        "id", "userId", "providerId", "accountId", "accessToken",
+        "refreshToken", "accessTokenExpiresAt", "createdAt", "updatedAt"
+      ) VALUES (
+        gen_random_uuid(), ${userId}, 'microsoft', 'ms-ext-1',
+        'graph-login-token', 'rt-1', ${new Date(Date.now() + 3_600_000)},
+        ${new Date()}, ${new Date()}
+      )
+    `;
+    await post('/list-files', { folderId: 'folder-reports' });
+    const loginAuthUsed = graphAuth.at(-1) === 'Bearer graph-login-token';
+    await sql`
+      UPDATE "account" SET "accessTokenExpiresAt" = ${new Date(Date.now() - 1000)}
+      WHERE "userId" = ${userId} AND "providerId" = 'microsoft'
+    `;
+    await post('/list-files', { folderId: 'folder-reports' });
+    const refreshedAuthUsed =
+      graphAuth.at(-1) === 'Bearer graph-refreshed-token';
+    const accountAfterRefresh = await sql<
+      { accessToken: string | null; refreshToken: string | null }[]
+    >`
+      SELECT "accessToken", "refreshToken" FROM "account"
+      WHERE "userId" = ${userId} AND "providerId" = 'microsoft'
+      LIMIT 1
+    `;
+    record(
+      'onedrive token order: grant first, login fallback, refresh writeback',
+      loginAuthUsed &&
+        refreshCalls === 1 &&
+        refreshedAuthUsed &&
+        accountAfterRefresh[0]?.accessToken === 'graph-refreshed-token' &&
+        accountAfterRefresh[0].refreshToken === 'rt-2',
+      `loginAuth=${loginAuthUsed}, refreshCalls=${refreshCalls}/1 refreshedAuth=${refreshedAuthUsed}, writeback=${accountAfterRefresh[0]?.accessToken}/${accountAfterRefresh[0]?.refreshToken} (want graph-refreshed-token/rt-2)`,
+    );
+
+    // 8. The scan enqueues one job per syncable config; cancel wins over an
+    //    in-flight run's final stamp (status write never leaves 'inactive').
+    const scanned = await onedrive.runOneDriveSyncScan(sql);
+    const scanDrained = await waitFor(async () => {
+      const rows = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'onedrive.sync_config'
+          AND state IN ('created', 'retry', 'active')
+      `;
+      return Number(rows[0]?.count ?? '0') === 0;
+    }, 15_000);
+    const cancel = await post(`/sync-configs/${folderConfig.id}/cancel`, {});
+    const cancelMissing = await post('/sync-configs/does-not-exist/cancel', {});
+    await onedrive.updateSyncConfigStatus(sql, {
+      configId: folderConfig.id,
+      status: 'active',
+      lastSyncStatus: 'success',
+    });
+    const cancelSticky = (await configByItem('folder-reports'))?.status;
+    record(
+      'onedrive scan + cancel door (cancel outlives a late run stamp)',
+      scanned === 1 &&
+        scanDrained &&
+        cancel.status === 200 &&
+        cancelMissing.status === 404 &&
+        cancelSticky === 'inactive',
+      `scan=${scanned}/1 (only the folder config is syncable) drained=${scanDrained}, cancel=${cancel.status} missing=${cancelMissing.status}, lateStampAfterCancel=${cancelSticky} (want inactive)`,
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    if (savedEnv.tenant === undefined) {
+      delete process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID;
+    } else {
+      process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID = savedEnv.tenant;
+    }
+    if (savedEnv.client === undefined) {
+      delete process.env.AUTH_MICROSOFT_ENTRA_ID_ID;
+    } else {
+      process.env.AUTH_MICROSOFT_ENTRA_ID_ID = savedEnv.client;
+    }
+    if (savedEnv.secret === undefined) {
+      delete process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET;
+    } else {
+      process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET = savedEnv.secret;
+    }
+    // The shared ctx serves later checks — remove this check's seeded
+    // Microsoft login account (the accounts probe asserts its absence) and
+    // the released hold row.
+    try {
+      await sql`
+        DELETE FROM "account"
+        WHERE "userId" = ${userId} AND "providerId" = 'microsoft'
+      `;
+      await sql`
+        DELETE FROM app.legal_holds
+        WHERE org_id = ${orgId} AND reason = 'onedrive prune guard'
+      `;
+    } catch (error) {
+      console.warn('[itest] onedrive cleanup failed:', error);
+    }
+  }
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -12352,6 +12952,7 @@ async function main(): Promise<void> {
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTts(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkCloudImport(sql, baseUrl, authCtx);
+    await checkOneDriveSync(sql, baseUrl, authCtx);
     await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAgentSecrets(sql, baseUrl, authCtx);

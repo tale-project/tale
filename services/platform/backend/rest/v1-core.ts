@@ -458,6 +458,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         id: doc.id,
         fileRef: doc.fileRef,
         organizationId: doc.organizationId,
+        historyFiles: doc.historyFiles,
       });
       return c.body(null, 204);
     } catch (error) {

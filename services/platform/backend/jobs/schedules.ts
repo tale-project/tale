@@ -31,6 +31,8 @@ const SCHEDULES: CronSchedule[] = [
   { name: 'watchdog.task_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.sandbox', cron: '*/5 * * * *' },
   { name: 'watchdog.chat_generations', cron: '*/2 * * * *' },
+  // OneDrive folder/file mirrors refresh on a 15-minute cadence.
+  { name: 'onedrive.sync_scan', cron: '*/15 * * * *' },
 ];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {

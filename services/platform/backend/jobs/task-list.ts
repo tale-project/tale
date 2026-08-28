@@ -23,6 +23,10 @@ import { runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
 import { indexUploadedFile } from '../domains/knowledge/service.ts';
+import {
+  runOneDriveSyncConfigJob,
+  runOneDriveSyncScan,
+} from '../domains/onedrive/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import { kickAgentRun } from '../domains/tasks/agent-runs.ts';
@@ -305,6 +309,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       if (cleared > 0) {
         console.log(`[watchdog] chat: cleared ${cleared} stale generations`);
       }
+    },
+    'onedrive.sync_scan': async () => {
+      await runOneDriveSyncScan(deps.sql);
+    },
+    'onedrive.sync_config': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          configId: z.string().min(1),
+        })
+        .parse(payload);
+      await runOneDriveSyncConfigJob(deps.sql, input);
     },
     'task.agent_turn': async (payload) => {
       const input = z

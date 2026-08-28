@@ -121,6 +121,11 @@ export interface TaskPayloads {
   /** 2-min direct-chat crash recovery: clear stale generation rows so a
    * hard-killed turn cannot wedge its thread's composer. */
   'watchdog.chat_generations': Record<string, never>;
+  /** 15-min OneDrive sync scan: one `onedrive.sync_config` job per syncable
+   * config (singletonKey per config dedupes a still-queued prior round). */
+  'onedrive.sync_scan': Record<string, never>;
+  /** Reconcile one OneDrive sync config (claim-fenced in the config row). */
+  'onedrive.sync_config': { organizationId: string; configId: string };
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -197,4 +202,8 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'watchdog.task_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.sandbox': { retryLimit: 1, expireInSeconds: 300 },
   'watchdog.chat_generations': { retryLimit: 1, expireInSeconds: 120 },
+  'onedrive.sync_scan': { retryLimit: 1, expireInSeconds: 300 },
+  // At-most-once per scan round: a lost run is re-enqueued by the next scan,
+  // and the config-row claim fence already blocks overlapping reconciles.
+  'onedrive.sync_config': { retryLimit: 0, expireInSeconds: 1800 },
 };

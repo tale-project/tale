@@ -10,6 +10,7 @@ import { getFileMetadata } from '../files/service.ts';
 import { loadFolderOrThrow } from '../folders/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
+import { stopSyncForTrashedDocument } from '../onedrive/service.ts';
 import {
   loadProjectOrThrow,
   type ProjectAuthContext,
@@ -49,6 +50,7 @@ export interface DocumentRow {
   sourceProvider: string | null;
   externalItemId: string | null;
   contentHash: string | null;
+  historyFiles: string[];
   teamId: string | null;
   teamTags: string[];
   projectId: string | null;
@@ -64,6 +66,7 @@ const DOCUMENT_COLUMNS = `
   id, org_id AS "organizationId", title, file_ref AS "fileRef",
   mime_type AS "mimeType", extension, source_provider AS "sourceProvider",
   external_item_id AS "externalItemId", content_hash AS "contentHash",
+  history_files AS "historyFiles",
   team_id AS "teamId", team_tags AS "teamTags", project_id AS "projectId",
   created_by AS "createdBy", folder_id AS "folderId", metadata,
   lifecycle_status AS "lifecycleStatus",
@@ -373,6 +376,15 @@ export async function setDocumentTrashed(
       status_changed_at_ms = ${Date.now()}, updated_at_ms = ${Date.now()}
     WHERE id = ${documentId}
   `;
+  if (trashed) {
+    // A directly-selected single-file OneDrive sync maps 1:1 to this
+    // document — trashing it means "stop syncing it", or the next scheduled
+    // run refreshes the mirror the user just removed. No-op otherwise.
+    await stopSyncForTrashedDocument(tx, {
+      organizationId: doc.organizationId,
+      metadata: doc.metadata,
+    });
+  }
   await createAuditLog(tx, {
     organizationId: auth.organizationId,
     actorId: auth.userId,

@@ -6,6 +6,11 @@ import {
   loadProjectOrThrow,
   type ProjectAuthContext,
 } from '../projects/service.ts';
+import {
+  FolderNameError,
+  MAX_FOLDER_DEPTH,
+  validateFolderName as validateHubFolderName,
+} from './paths.ts';
 
 /**
  * Folders — the Document Hub tree. Scope rule (one owner, mirrored from
@@ -19,8 +24,9 @@ import {
  * subtree (conservative — never destroys content).
  */
 
-export const MAX_FOLDER_DEPTH = 20;
-const FOLDER_NAME_MAX = 128;
+// Depth cap + name validation live in paths.ts (shared with the sync
+// engines' auto-vivification); re-exported here for the existing importers.
+export { MAX_FOLDER_DEPTH };
 
 export class FolderError extends Error {
   readonly code: string;
@@ -53,17 +59,14 @@ const FOLDER_COLUMNS = `
 `;
 
 function validateFolderName(name: string): string {
-  const trimmed = name.trim();
-  if (
-    trimmed.length === 0 ||
-    trimmed.length > FOLDER_NAME_MAX ||
-    trimmed.includes('/') ||
-    trimmed === '.' ||
-    trimmed === '..'
-  ) {
-    throw new FolderError('FOLDER_NAME_INVALID', 'Invalid folder name');
+  try {
+    return validateHubFolderName(name);
+  } catch (error) {
+    if (error instanceof FolderNameError) {
+      throw new FolderError('FOLDER_NAME_INVALID', 'Invalid folder name');
+    }
+    throw error;
   }
-  return trimmed;
 }
 
 export async function loadFolderOrThrow(

@@ -31,6 +31,7 @@ import { createKnowledgeEntryRoutes } from './domains/knowledge_entries/routes.t
 import { createLegalHoldRoutes } from './domains/legal_holds/routes.ts';
 import { createMemberRoutes } from './domains/members/routes.ts';
 import { createNotificationRoutes } from './domains/notifications/routes.ts';
+import { createOneDriveRoutes } from './domains/onedrive/routes.ts';
 import { createOrganizationRoutes } from './domains/organizations/routes.ts';
 import { createProductRoutes } from './domains/products/routes.ts';
 import { createProjectRoutes } from './domains/projects/routes.ts';
@@ -139,6 +140,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/knowledge-entries', createKnowledgeEntryRoutes(deps));
   app.route('/api/app/members', createMemberRoutes(deps));
   app.route('/api/app/notifications', createNotificationRoutes(deps));
+  app.route('/api/app/onedrive', createOneDriveRoutes(deps));
   app.route('/api/app/organizations', createOrganizationRoutes(deps));
   app.route('/api/app/products', createProductRoutes(deps));
   app.route('/api/app/projects', createProjectRoutes(deps));

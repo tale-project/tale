@@ -348,13 +348,27 @@ async function deleteBlobBestEffort(
   }
 }
 
-/** Hard-delete one document: corpus entry (keyed by the file REF), blobs,
- * file rows, dependent knowledge-entry chains, then the row. */
+/** Hard-delete one document: corpus entry (keyed by the file REF), blobs
+ * (current + `historyFiles` — replaced blobs a sync/replace appended, the
+ * 0.4 `eraseDocumentBlobs` contract), file rows, dependent knowledge-entry
+ * chains, then the row. */
 export async function purgeDocument(
   sql: Sql,
   orgSlug: string | null,
-  doc: { id: string; fileRef: string | null; organizationId: string },
+  doc: {
+    id: string;
+    fileRef: string | null;
+    organizationId: string;
+    historyFiles?: string[];
+  },
 ): Promise<void> {
+  if (orgSlug !== null) {
+    for (const ref of doc.historyFiles ?? []) {
+      if (ref !== doc.fileRef) {
+        await deleteBlobBestEffort(orgSlug, ref);
+      }
+    }
+  }
   if (doc.fileRef !== null && orgSlug !== null) {
     try {
       const result = await deleteKnowledgeDocument({
@@ -424,9 +438,15 @@ async function sweepDocuments(
   const passB =
     graceDays > 0
       ? await sql<
-          { id: string; fileRef: string | null; createdBy: string | null }[]
+          {
+            id: string;
+            fileRef: string | null;
+            createdBy: string | null;
+            historyFiles: string[];
+          }[]
         >`
-          SELECT id, file_ref AS "fileRef", created_by AS "createdBy"
+          SELECT id, file_ref AS "fileRef", created_by AS "createdBy",
+                 history_files AS "historyFiles"
           FROM app.documents
           WHERE org_id = ${org.organizationId}
             AND lifecycle_status IN ('trashed', 'expired')
@@ -434,9 +454,15 @@ async function sweepDocuments(
           LIMIT ${BATCH_LIMIT}
         `
       : await sql<
-          { id: string; fileRef: string | null; createdBy: string | null }[]
+          {
+            id: string;
+            fileRef: string | null;
+            createdBy: string | null;
+            historyFiles: string[];
+          }[]
         >`
-          SELECT id, file_ref AS "fileRef", created_by AS "createdBy"
+          SELECT id, file_ref AS "fileRef", created_by AS "createdBy",
+                 history_files AS "historyFiles"
           FROM app.documents
           WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
             AND created_at_ms < ${cutoff}
@@ -452,6 +478,7 @@ async function sweepDocuments(
       id: doc.id,
       fileRef: doc.fileRef,
       organizationId: org.organizationId,
+      historyFiles: doc.historyFiles,
     });
     processed += 1;
   }
