@@ -4246,6 +4246,200 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
 }
 
 /**
+ * Connector credentials — the sealed-secret store the connector lanes
+ * resolve through: create against the SHIPPED catalog (auth-method +
+ * config-field validation, imap From-address mirroring, defaults applied),
+ * masked listings, case-insensitive name uniqueness, default juggling
+ * (first-is-default, promote, delete-promotes-oldest-active), and the ONE
+ * decrypt seam handing an invocation its secrets/config/Basic header —
+ * with disabled rows refusing coded.
+ */
+async function checkConnectorCredentials(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const api = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/connector-credentials${route}?orgId=${orgId}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+
+  const created = z.object({ credentialId: z.string() }).safeParse(
+    await (
+      await api('', {
+        body: {
+          connectorSlug: 'imap-smtp',
+          authMethod: 'basic',
+          name: 'Main Mailbox',
+          secret: { username: 'inbox@door.test', password: 'imap-pass-1' },
+          config: {
+            imapHost: 'imap.door.test',
+            smtpHost: 'smtp.door.test',
+          },
+        },
+      })
+    ).json(),
+  );
+  const mainId = created.success ? created.data.credentialId : '';
+
+  const listed = z
+    .object({
+      credentials: z.array(
+        z.looseObject({
+          id: z.string(),
+          name: z.string(),
+          isDefault: z.boolean(),
+          maskedPreview: z.string().optional(),
+          config: z.record(z.string(), z.unknown()).optional(),
+        }),
+      ),
+    })
+    .safeParse(await (await api('')).json());
+  const mainRow = listed.success
+    ? listed.data.credentials.find((row) => row.id === mainId)
+    : undefined;
+  const listedRaw = JSON.stringify(listed.success ? listed.data : {});
+
+  // Second credential + the case-insensitive name clash.
+  const second = z.object({ credentialId: z.string() }).safeParse(
+    await (
+      await api('', {
+        body: {
+          connectorSlug: 'imap-smtp',
+          authMethod: 'basic',
+          name: 'Backup Mailbox',
+          secret: { username: 'backup@door.test', password: 'imap-pass-2' },
+          config: {
+            imapHost: 'imap2.door.test',
+            smtpHost: 'smtp2.door.test',
+          },
+        },
+      })
+    ).json(),
+  );
+  const secondId = second.success ? second.data.credentialId : '';
+  const clash = await api('', {
+    body: {
+      connectorSlug: 'imap-smtp',
+      authMethod: 'basic',
+      name: 'main mailbox',
+      secret: { username: 'x@door.test', password: 'p' },
+      config: { imapHost: 'x', smtpHost: 'y' },
+    },
+  });
+  const unknownConnector = await api('', {
+    body: {
+      connectorSlug: 'no-such-connector',
+      authMethod: 'basic',
+      name: 'X',
+      secret: { username: 'x', password: 'y' },
+    },
+  });
+  const wrongMethod = await api('', {
+    body: {
+      connectorSlug: 'imap-smtp',
+      authMethod: 'bearer',
+      name: 'X',
+      secret: { token: 'tok' },
+    },
+  });
+
+  // The decrypt seam: default resolution hands secrets + config + header.
+  const { resolveConnectorCredential } =
+    await import('./domains/connector_credentials/service.ts');
+  const resolved = await resolveConnectorCredential(sql, {
+    organizationId: orgId,
+    connectorSlug: 'imap-smtp',
+  });
+  const expectedBasic = `Basic ${Buffer.from('inbox@door.test:imap-pass-1').toString('base64')}`;
+  const byName = await resolveConnectorCredential(sql, {
+    organizationId: orgId,
+    connectorSlug: 'imap-smtp',
+    credentialRef: 'backup mailbox',
+  });
+
+  // Default juggling: promote the second, delete it, oldest active returns.
+  await api(`/${secondId}/set-default`, { body: {} });
+  const afterPromote = z
+    .object({
+      credentials: z.array(
+        z.looseObject({ id: z.string(), isDefault: z.boolean() }),
+      ),
+    })
+    .safeParse(await (await api('')).json());
+  const promoted =
+    afterPromote.success &&
+    afterPromote.data.credentials.find((r) => r.id === secondId)?.isDefault ===
+      true &&
+    afterPromote.data.credentials.find((r) => r.id === mainId)?.isDefault ===
+      false;
+  const deleted = await api(`/${secondId}`, { method: 'DELETE' });
+  const afterDelete = z
+    .object({
+      credentials: z.array(
+        z.looseObject({ id: z.string(), isDefault: z.boolean() }),
+      ),
+    })
+    .safeParse(await (await api('')).json());
+  const rePromoted =
+    afterDelete.success &&
+    afterDelete.data.credentials.find((r) => r.id === mainId)?.isDefault ===
+      true;
+
+  // Disable → the seam refuses coded.
+  await api(`/${mainId}`, { method: 'PATCH', body: { status: 'disabled' } });
+  let disabledCode = '';
+  try {
+    await resolveConnectorCredential(sql, {
+      organizationId: orgId,
+      connectorSlug: 'imap-smtp',
+      credentialRef: mainId,
+    });
+  } catch (error) {
+    disabledCode =
+      error instanceof Error && 'code' in error
+        ? String(Reflect.get(error, 'code'))
+        : '';
+  }
+  // Re-enable so later sweeps see an active row (and prove the flip back).
+  await api(`/${mainId}`, { method: 'PATCH', body: { status: 'active' } });
+
+  record(
+    'connector credentials (sealed store + resolve seam)',
+    created.success &&
+      listed.success &&
+      mainRow !== undefined &&
+      mainRow.isDefault &&
+      typeof mainRow.maskedPreview === 'string' &&
+      mainRow.config?.imapHost === 'imap.door.test' &&
+      mainRow.config?.imapPort === 993 &&
+      mainRow.config?.fromAddress === 'inbox@door.test' &&
+      !listedRaw.includes('imap-pass-1') &&
+      !listedRaw.includes('ciphertext') &&
+      second.success &&
+      clash.status === 409 &&
+      unknownConnector.status === 404 &&
+      wrongMethod.status === 400 &&
+      resolved.credentialId === mainId &&
+      resolved.secrets.password === 'imap-pass-1' &&
+      resolved.config.imapHost === 'imap.door.test' &&
+      resolved.authHeader === expectedBasic &&
+      byName.credentialId === secondId &&
+      promoted &&
+      deleted.status === 204 &&
+      rePromoted &&
+      disabledCode === 'CREDENTIAL_DISABLED',
+    `create=${created.success}, listed=${mainRow !== undefined} default=${mainRow?.isDefault} preview=${typeof mainRow?.maskedPreview === 'string'} cfg=${String(mainRow?.config?.imapHost)}/${String(mainRow?.config?.imapPort)}/from=${String(mainRow?.config?.fromAddress)} secretLeak=${listedRaw.includes('imap-pass-1')}, clash=${clash.status} unknown=${unknownConnector.status} wrongMethod=${wrongMethod.status} (want 409/404/400), resolve=${resolved.credentialId === mainId}/${resolved.secrets.password === 'imap-pass-1'}/basic=${resolved.authHeader === expectedBasic}, byName=${byName.credentialId === secondId}, promote=${promoted} del=${deleted.status} repromote=${rePromoted}, disabled=${disabledCode}`,
+  );
+}
+
+/**
  * The task-agent TURN, end to end on the REUSED 0.4 host: kick → session
  * ensure (fake spawner) → gateway VK mint (fake bifrost) → exec streaming a
  * canned claude-code stream-json turn → harvest (fake workspace file → real
@@ -9405,6 +9599,7 @@ async function main(): Promise<void> {
     await checkSsoLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
     await checkScim(sql, baseUrl, authCtx);
     await checkTrustedHeaders(sql, baseUrl);
+    await checkConnectorCredentials(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
