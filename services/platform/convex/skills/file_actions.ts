@@ -118,31 +118,37 @@ function assertUserViewer(viewer: SkillViewer): UserSkillViewer {
  * failed to load. Failures are logged with their absolute path (the operator
  * signal) and returned with the org-relative one.
  */
+export async function listSkillsForViewer(args: {
+  orgSlug: string;
+  viewer: SkillViewer;
+}): Promise<SkillListingView> {
+  const listing = await listOrgSkills(
+    createOrgSkillReader(args.orgSlug),
+    args.viewer,
+  );
+  for (const failure of listing.failures) {
+    console.error(
+      `[skills] ${args.orgSlug}: skipping unreadable skill — ${failure.message}`,
+    );
+  }
+  return {
+    skills: listing.skills.map((skill) => toSummary(skill, args.viewer)),
+    failures: listing.failures.map((failure) => ({
+      slug: failure.slug,
+      path: relativeSkillPath(failure.slug),
+      message: failure.message,
+    })),
+  };
+}
+
 export const listSkills = internalAction({
   args: {
     orgSlug: v.string(),
     viewer: skillViewerValidator,
   },
   returns: skillListingValidator,
-  handler: async (_ctx, args): Promise<SkillListingView> => {
-    const listing = await listOrgSkills(
-      createOrgSkillReader(args.orgSlug),
-      args.viewer,
-    );
-    for (const failure of listing.failures) {
-      console.error(
-        `[skills] ${args.orgSlug}: skipping unreadable skill — ${failure.message}`,
-      );
-    }
-    return {
-      skills: listing.skills.map((skill) => toSummary(skill, args.viewer)),
-      failures: listing.failures.map((failure) => ({
-        slug: failure.slug,
-        path: relativeSkillPath(failure.slug),
-        message: failure.message,
-      })),
-    };
-  },
+  handler: async (_ctx, args): Promise<SkillListingView> =>
+    listSkillsForViewer(args),
 });
 
 /**
@@ -150,6 +156,25 @@ export const listSkills = internalAction({
  * org has no such bundle. A bundle the viewer may not see reads as absent;
  * telling them it exists would already leak someone else's private skill.
  */
+export async function readSkillForViewer(args: {
+  orgSlug: string;
+  slug: string;
+  viewer: SkillViewer;
+}): Promise<SkillDocumentView | null> {
+  assertValidSlug(args.slug);
+  const skill = await loadVisibleSkill(args);
+  if (skill === null) return null;
+  const entries = await listSkillBundleFileEntries(args.orgSlug, args.slug);
+  return {
+    ...toSummary(skill, args.viewer),
+    body: skill.body,
+    files: (entries ?? []).map((entry) => ({
+      path: entry.path,
+      size: entry.size,
+    })),
+  };
+}
+
 export const readSkill = internalAction({
   args: {
     orgSlug: v.string(),
@@ -157,20 +182,8 @@ export const readSkill = internalAction({
     viewer: skillViewerValidator,
   },
   returns: v.union(v.null(), skillDocumentValidator),
-  handler: async (_ctx, args): Promise<SkillDocumentView | null> => {
-    assertValidSlug(args.slug);
-    const skill = await loadVisibleSkill(args);
-    if (skill === null) return null;
-    const entries = await listSkillBundleFileEntries(args.orgSlug, args.slug);
-    return {
-      ...toSummary(skill, args.viewer),
-      body: skill.body,
-      files: (entries ?? []).map((entry) => ({
-        path: entry.path,
-        size: entry.size,
-      })),
-    };
-  },
+  handler: async (_ctx, args): Promise<SkillDocumentView | null> =>
+    readSkillForViewer(args),
 });
 
 /**
@@ -187,20 +200,27 @@ export const readSkillBundle = internalAction({
     viewer: skillViewerValidator,
   },
   returns: v.union(v.null(), skillBundleValidator),
-  handler: async (_ctx, args): Promise<SkillBundleView | null> => {
-    assertValidSlug(args.slug);
-    const skill = await loadVisibleSkill(args);
-    if (skill === null) return null;
-    const files = await readSkillBundleFiles(args.orgSlug, args.slug);
-    if (files === null) return null;
-    return {
-      files: files.map((file) => ({
-        path: file.path,
-        contentBase64: file.contentBase64,
-      })),
-    };
-  },
+  handler: async (_ctx, args): Promise<SkillBundleView | null> =>
+    readSkillBundleForViewer(args),
 });
+
+export async function readSkillBundleForViewer(args: {
+  orgSlug: string;
+  slug: string;
+  viewer: SkillViewer;
+}): Promise<SkillBundleView | null> {
+  assertValidSlug(args.slug);
+  const skill = await loadVisibleSkill(args);
+  if (skill === null) return null;
+  const files = await readSkillBundleFiles(args.orgSlug, args.slug);
+  if (files === null) return null;
+  return {
+    files: files.map((file) => ({
+      path: file.path,
+      contentBase64: file.contentBase64,
+    })),
+  };
+}
 
 /**
  * One named file of one bundle, for the library's asset viewer. Gated
@@ -215,13 +235,21 @@ export const readSkillAsset = internalAction({
     viewer: skillViewerValidator,
   },
   returns: v.union(v.null(), skillBundleFileValidator),
-  handler: async (_ctx, args): Promise<SkillBundleFileView | null> => {
-    assertValidSlug(args.slug);
-    const skill = await loadVisibleSkill(args);
-    if (skill === null) return null;
-    return readSkillBundleAsset(args.orgSlug, args.slug, args.path);
-  },
+  handler: async (_ctx, args): Promise<SkillBundleFileView | null> =>
+    readSkillAssetForViewer(args),
 });
+
+export async function readSkillAssetForViewer(args: {
+  orgSlug: string;
+  slug: string;
+  path: string;
+  viewer: SkillViewer;
+}): Promise<SkillBundleFileView | null> {
+  assertValidSlug(args.slug);
+  const skill = await loadVisibleSkill(args);
+  if (skill === null) return null;
+  return readSkillBundleAsset(args.orgSlug, args.slug, args.path);
+}
 
 /**
  * Create or update a skill bundle.
@@ -239,15 +267,19 @@ export const readSkillAsset = internalAction({
  * are not checked against the org's teams here: the library only offers real
  * ones, and an id that matches no team simply never matches a viewer either.
  */
-export const saveSkill = internalAction({
-  args: {
-    orgSlug: v.string(),
-    slug: v.string(),
-    viewer: skillViewerValidator,
-    ...skillEditArgs,
-  },
-  returns: skillDocumentValidator,
-  handler: async (_ctx, args): Promise<SkillDocumentView> => {
+export interface SkillEditInput {
+  description: string;
+  body: string;
+  visibility?: SkillFrontmatter['visibility'];
+  teams?: string[];
+  icon?: string;
+  labels?: string[];
+}
+
+export async function saveSkillForViewer(
+  args: { orgSlug: string; slug: string; viewer: SkillViewer } & SkillEditInput,
+): Promise<SkillDocumentView> {
+  {
     assertValidSlug(args.slug);
     const viewer = assertUserViewer(args.viewer);
     const existing = await loadSkillOrThrow(args.orgSlug, args.slug);
@@ -326,7 +358,19 @@ export const saveSkill = internalAction({
         size: entry.size,
       })),
     };
+  }
+}
+
+export const saveSkill = internalAction({
+  args: {
+    orgSlug: v.string(),
+    slug: v.string(),
+    viewer: skillViewerValidator,
+    ...skillEditArgs,
   },
+  returns: skillDocumentValidator,
+  handler: async (_ctx, args): Promise<SkillDocumentView> =>
+    saveSkillForViewer(args),
 });
 
 /**
@@ -555,6 +599,24 @@ export const uploadSkillBundle = internalAction({
 });
 
 /** Delete a skill bundle and its history. Deleting an absent one is a no-op. */
+export async function deleteSkillForViewer(args: {
+  orgSlug: string;
+  slug: string;
+  viewer: SkillViewer;
+}): Promise<boolean> {
+  assertValidSlug(args.slug);
+  const viewer = assertUserViewer(args.viewer);
+  const existing = await loadSkillOrThrow(args.orgSlug, args.slug);
+  if (existing === null) return false;
+  if (!canEditSkill(existing.meta, viewer)) {
+    throw new ConvexError({
+      code: 'SKILL_FORBIDDEN',
+      message: `You cannot delete the skill "${args.slug}".`,
+    });
+  }
+  return removeSkillBundle(args.orgSlug, args.slug);
+}
+
 export const deleteSkill = internalAction({
   args: {
     orgSlug: v.string(),
@@ -562,19 +624,7 @@ export const deleteSkill = internalAction({
     viewer: skillViewerValidator,
   },
   returns: v.boolean(),
-  handler: async (_ctx, args): Promise<boolean> => {
-    assertValidSlug(args.slug);
-    const viewer = assertUserViewer(args.viewer);
-    const existing = await loadSkillOrThrow(args.orgSlug, args.slug);
-    if (existing === null) return false;
-    if (!canEditSkill(existing.meta, viewer)) {
-      throw new ConvexError({
-        code: 'SKILL_FORBIDDEN',
-        message: `You cannot delete the skill "${args.slug}".`,
-      });
-    }
-    return removeSkillBundle(args.orgSlug, args.slug);
-  },
+  handler: async (_ctx, args): Promise<boolean> => deleteSkillForViewer(args),
 });
 
 /**

@@ -1573,6 +1573,86 @@ async function checkAgents(
 }
 
 /**
+ * Skills: the REUSED 0.4 file layer (SKILL.md frontmatter + bundle files)
+ * behind the 0.5 routes — save (verify-before-write, org default), list,
+ * read (body + file entries), delete, and the slug/team gates.
+ */
+async function checkSkills(
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const call = (
+    method: 'GET' | 'PUT' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  const saved = z
+    .object({
+      skill: z.looseObject({
+        slug: z.string(),
+        visibility: z.string(),
+        body: z.string(),
+      }),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await call('PUT', `/api/app/skills/web-research?orgId=${orgId}`, {
+          description: 'Research the web methodically.',
+          body: '# Web research\n\nSearch, read, verify, cite.',
+        })
+      ).json(),
+    );
+  const listed = z
+    .object({ skills: z.array(z.looseObject({ slug: z.string() })) })
+    .loose()
+    .safeParse(
+      await (await call('GET', `/api/app/skills?orgId=${orgId}`)).json(),
+    );
+  const teamMissing = await call(
+    'PUT',
+    `/api/app/skills/team-skill?orgId=${orgId}`,
+    {
+      description: 'Team-scoped skill',
+      body: 'body',
+      visibility: 'team',
+    },
+  );
+  const deleted = z
+    .object({ deleted: z.boolean() })
+    .safeParse(
+      await (
+        await call('DELETE', `/api/app/skills/web-research?orgId=${orgId}`)
+      ).json(),
+    );
+  const readAfter = await call(
+    'GET',
+    `/api/app/skills/web-research?orgId=${orgId}`,
+  );
+
+  record(
+    'skills file layer (save/list/delete + gates)',
+    saved.success &&
+      saved.data.skill.visibility === 'org' &&
+      saved.data.skill.body.includes('Search, read') &&
+      listed.success &&
+      listed.data.skills.some((skill) => skill.slug === 'web-research') &&
+      teamMissing.status === 400 &&
+      deleted.success &&
+      deleted.data.deleted &&
+      readAfter.status === 404,
+    `saved=${saved.success} (visibility=${saved.success ? saved.data.skill.visibility : 'ERR'}), listed=${listed.success ? listed.data.skills.length : 'ERR'}, teamWithoutTeams → ${teamMissing.status} (want 400), delete=${deleted.success && deleted.data.deleted}, readAfter → ${readAfter.status} (want 404)`,
+  );
+}
+
+/**
  * Provider credentials: encrypted round-trip through the REUSED 0.4
  * resolver over PG rows (api-key decrypt + env gate + default swap), with
  * the wire surface returning only masked metadata.
@@ -3659,6 +3739,7 @@ async function main(): Promise<void> {
     await checkDocuments(baseUrl, authCtx);
     await checkSmallDomains(baseUrl, authCtx);
     await checkAgents(baseUrl, authCtx);
+    await checkSkills(baseUrl, authCtx);
     await checkProviderCredentials(sql, baseUrl, authCtx);
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

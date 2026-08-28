@@ -22,6 +22,7 @@ import { createProjectRoutes } from './domains/projects/routes.ts';
 import { createProviderCredentialRoutes } from './domains/provider_credentials/routes.ts';
 import { createToolDispatchRoutes } from './domains/sandbox/dispatch-routes.ts';
 import { createSandboxRoutes } from './domains/sandbox/routes.ts';
+import { createSkillRoutes } from './domains/skills/routes.ts';
 import { createSupportCaseRoutes } from './domains/support_cases/routes.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createUserPreferenceRoutes } from './domains/user_preferences/routes.ts';
@@ -70,6 +71,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     createProviderCredentialRoutes(deps),
   );
   app.route('/api/app/sandbox', createSandboxRoutes(deps));
+  app.route('/api/app/skills', createSkillRoutes(deps));
   app.route('/api/app/support-cases', createSupportCaseRoutes(deps));
   app.route('/api/app/tasks', createTaskRoutes(deps));
   app.route('/api/app/user-preferences', createUserPreferenceRoutes(deps));
