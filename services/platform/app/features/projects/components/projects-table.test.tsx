@@ -242,6 +242,17 @@ describe('ProjectsTable', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('offers exactly one create affordance, in the table toolbar', () => {
+    renderTable([]);
+
+    // The empty state carries copy only — the toolbar `addAction` is the one
+    // create button, the same shape every other list page uses.
+    expect(screen.getByText('projects.list.emptyTitle')).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: 'projects.list.createButton' }),
+    ).toHaveLength(1);
+  });
+
   it('has no accessibility violations', async () => {
     const { container } = renderTable([
       row({

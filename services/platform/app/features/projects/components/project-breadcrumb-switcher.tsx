@@ -2,16 +2,13 @@
 
 import { Badge } from '@tale/ui/badge';
 import { useLocation, useNavigate } from '@tanstack/react-router';
-import { ChevronDown, Layers } from 'lucide-react';
+import { Layers } from 'lucide-react';
 import { useMemo } from 'react';
 
-import {
-  SearchableSelect,
-  type SearchableSelectOption,
-} from '@/app/components/ui/forms/searchable-select';
+import { HeaderBreadcrumbSwitcher } from '@/app/components/layout/header-breadcrumb-switcher';
+import type { SearchableSelectOption } from '@/app/components/ui/forms/searchable-select';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
 
 import { useProjects } from '../hooks/queries';
 import { projectSwitchPathname } from '../lib/project-switch-path';
@@ -29,10 +26,11 @@ export function isProjectTasksPath(
 }
 
 /**
- * Breadcrumb leaf for a project detail page: the current project name opens a
- * searchable switcher of sibling projects so the operator can jump between them
- * without returning to the Projects list. Portable tabs (files, tasks,
- * overview, …) stay put; bound-view / nested-automation paths reset to Tasks.
+ * Breadcrumb leaf for a project detail page: the shared
+ * `HeaderBreadcrumbSwitcher` over the org's projects, so the operator can jump
+ * between them without returning to the Projects list. Portable tabs (files,
+ * tasks, overview, …) stay put; bound-view / nested-automation paths reset to
+ * Tasks.
  *
  * On Tasks paths the menu also offers "All projects" — an aggregate board that
  * disables the non-Tasks project tabs while active (`?projects=all`).
@@ -82,32 +80,21 @@ export function ProjectBreadcrumbSwitcher({
     ];
   }, [projects, onTasksPath, t]);
 
-  // Nothing to switch to yet (list still empty / loading) — keep the plain
-  // name so the h1 leaf stays readable without a dead chevron. All-projects
-  // still needs the switcher once at least one sibling exists (or alone when
-  // the option is the only entry).
-  if (options.length === 0) {
-    return <>{displayName}</>;
-  }
-
   const selectedValue = allProjectsActive
     ? ALL_PROJECTS_SWITCHER_VALUE
     : projectId;
 
   return (
-    <SearchableSelect
-      variant="switcher"
-      align="start"
-      contentClassName="min-w-64"
+    <HeaderBreadcrumbSwitcher
       value={selectedValue}
       options={options}
+      displayName={displayName}
       title={t('switcher.title')}
       searchPlaceholder={t('switcher.searchPlaceholder')}
       emptyText={t('switcher.empty')}
-      aria-label={t('switcher.ariaLabel', { name: displayName })}
+      ariaLabel={t('switcher.ariaLabel', { name: displayName })}
+      {...(allProjectsActive && { leadingIcon: Layers })}
       onValueChange={(nextId) => {
-        if (nextId === selectedValue) return;
-
         if (nextId === ALL_PROJECTS_SWITCHER_VALUE) {
           void navigate({
             to: location.pathname,
@@ -134,29 +121,6 @@ export function ProjectBreadcrumbSwitcher({
           },
         });
       }}
-      trigger={
-        <button
-          type="button"
-          aria-label={t('switcher.ariaLabel', { name: displayName })}
-          className={cn(
-            'inline-flex max-w-full min-w-0 items-center gap-1 rounded-sm',
-            'hover:text-muted-foreground transition-colors',
-            'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
-          )}
-        >
-          {allProjectsActive && (
-            <Layers
-              className="text-muted-foreground size-4 shrink-0"
-              aria-hidden="true"
-            />
-          )}
-          <span className="min-w-0 truncate">{displayName}</span>
-          <ChevronDown
-            className="text-muted-foreground size-4 shrink-0"
-            aria-hidden="true"
-          />
-        </button>
-      }
     />
   );
 }

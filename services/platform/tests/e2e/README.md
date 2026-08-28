@@ -39,6 +39,7 @@ CI shards the suite across four runners (`--shard=i/4`); each shard boots its ow
 | `projects.spec.ts`           | Create a project + task (board & list views), status picker, then delete (cascades its tasks)                      |
 | `projects-depth.spec.ts`     | Project settings/rename, secrets CRUD, task live-edit across board ↔ list (throwaway project per flow)             |
 | `project-files-desk.spec.ts` | Project-scoped automation desk: install → desk tab → project-scoped periods/jobs isolation                         |
+| `automations.spec.ts`        | Upload-package lane end to end: create menu → probe yml → draft row → breadcrumb switcher on the detail → delete   |
 | `settings.spec.ts`           | Account display-name round-trip; AI-providers page lists shipped connectors + offers the add-credential dialog     |
 | `settings-depth.spec.ts`     | Org rename, API key create/revoke, branding, personalization toggle, team CRUD (each restores or deletes)          |
 | `governance.spec.ts`         | Governance toggles/edits (flip → save → reload → assert persisted → restore); DSAR + legal-hold dialogs; logs tabs |

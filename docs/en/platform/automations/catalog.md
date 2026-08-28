@@ -15,9 +15,9 @@ This page covers where automations come from and what an uploaded package may co
 
 ## What the list shows
 
-Each row is one automation: its name, how many versions it has, and either the live version or **Not deployed**. Search filters the list. **New automation** sits in the table toolbar with the other list pages — **From a goal**, **Blank (trigger + agent)**, or **Upload package**. The row menu offers **Delete** without opening the editor. The org page lists organization-level automations; an automation that belongs to a project lives on that project's **Automations** tab instead — where an automation appears is decided once, by its first save, and never moves. Click a row to land on the automation's page and work with it as [The workflow editor](/platform/automations/editor) describes.
+Each row is one automation: its name, how many versions it has, and either the live version or **Not deployed**. Search filters the list. **Create automation** sits in the table toolbar with the other list pages — **From a goal**, **Blank (trigger + agent)**, or **Upload package**. The row menu offers **Delete** without opening the editor. The org page lists organization-level automations; an automation that belongs to a project lives on that project's **Automations** tab instead — where an automation appears is decided once, by its first save, and never moves. Click a row to land on the automation's page and work with it as [The workflow editor](/platform/automations/editor) describes.
 
-**New automation** offers two ways to start from scratch: **From a goal** hands your description to the builder, which authors the nodes for you; **Blank (trigger + agent)** scaffolds a one-agent automation you wire yourself — name it, pick the agent's model, and the rest (the prompt, the granted tools and secrets, the trigger) is yours to set on the canvas. The shipped packs need no install step at all: every organization is seeded with them at creation, ready to deploy.
+**Create automation** offers two ways to start from scratch: **From a goal** hands your description to the builder, which authors the nodes for you; **Blank (trigger + agent)** scaffolds a one-agent automation you wire yourself — name it, pick the agent's model, and the rest (the prompt, the granted tools and secrets, the trigger) is yours to set on the canvas. The shipped packs need no install step at all: every organization is seeded with them at creation, ready to deploy.
 
 ## Upload a package
 
@@ -34,7 +34,7 @@ review-invoices/
             └── checklist-rules.md
 ```
 
-To upload one, open **Automations**, pick **Upload package** from the **New automation** menu, and choose either form of the same pack:
+To upload one, open **Automations**, pick **Upload package** from the **Create automation** menu, and choose either form of the same pack:
 
 - **The files** — `workflow.yml`, plus `automation.yml` when the pack ships one. Right for a pack that is only its document.
 - **One `.zip` of the pack directory** — required when the pack carries skills, since only the zip can hold their folders. Markdown notes outside `skills/` — a README, a design record — are ignored, as are dotfiles and build leftovers (`__pycache__/`, `node_modules/`), so zip the directory as it is, straight after a test run; the zip stays under 20 MiB.

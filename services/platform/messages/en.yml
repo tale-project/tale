@@ -477,7 +477,13 @@ automations:
   title: Automations
   entityLabel: automations
   entityLabelOne: automation
+  switcher:
+    title: Switch automation
+    searchPlaceholder: Search automations
+    empty: No automations found
+    ariaLabel: 'Switch automation, current: {name}'
   list:
+    createButton: Create automation
     searchPlaceholder: Search automations
     columnName: Name
     columnProjects: Projects
@@ -520,7 +526,6 @@ automations:
     submitting: Creating…
     initialMessage: Initial version
   builder:
-    new: New automation
     title: New automation
     description: Describe what goal you want this automation to achieve.
     goalLabel: Goal
@@ -4755,7 +4760,6 @@ projects:
     createButton: Create project
     emptyTitle: No projects yet
     emptyDescription: Create one to share files, instructions, and chats
-    emptyCta: Create your first project
     searchPlaceholder: Search projects
     showArchived: Show archived
     columnName: Name

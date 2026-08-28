@@ -502,7 +502,13 @@ automations:
   title: Automatisierungen
   entityLabel: Automatisierungen
   entityLabelOne: Automatisierung
+  switcher:
+    title: Automatisierung wechseln
+    searchPlaceholder: Automatisierungen suchen
+    empty: Keine Automatisierungen gefunden
+    ariaLabel: 'Automatisierung wechseln, aktuell: {name}'
   list:
+    createButton: Automatisierung erstellen
     searchPlaceholder: Automatisierungen suchen
     columnName: Name
     columnProjects: Projekte
@@ -545,7 +551,6 @@ automations:
     submitting: Erstellt …
     initialMessage: Erste Version
   builder:
-    new: Neue Automatisierung
     title: Neue Automatisierung
     description: Beschreibe, welches Ziel diese Automatisierung erreichen soll.
     goalLabel: Ziel
@@ -7080,11 +7085,10 @@ projects:
     threads: Chats
     agents: Agenten
   list:
-    createButton: Neues Projekt
+    createButton: Projekt erstellen
     emptyTitle: Noch keine Projekte
     emptyDescription: Lege ein Projekt an, um Dateien, Anweisungen und Chats mit
       deinem Team zu teilen.
-    emptyCta: Erstes Projekt erstellen
     searchPlaceholder: Projekte suchen
     showArchived: Archivierte anzeigen
     columnName: Name

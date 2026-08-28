@@ -17,8 +17,15 @@ Colour comes from tokens, never hex (see [tokens.md](tokens.md)). Motion is smal
 - **Nav sidebar** — a slim left rail (~48px in the design) of Lucide icon targets; the active item is
   full-contrast, inactive muted; each shows a no-arrow tooltip to its right. Built from `@tale/ui`
   primitives, not a bespoke layout.
-- **Header** — per-section title row, **no bottom border** on standard screens (the content or a tab
-  divider carries the separation). Icon buttons are 32×32, 8px radius, hover fill.
+- **Header** — per-section title row (`h-13`, `text-base` semibold `h1`) that always ends in exactly
+  **one** `border-border` line: the tab strip's own `border-b` when a tab row follows (Knowledge,
+  Inbox, project detail), otherwise the header's own bottom border (`AdaptiveHeaderRoot showBorder` —
+  Projects, Automations, Settings). Icon buttons are 32×32, 8px radius, hover fill.
+- **Detail pages** — the header is a breadcrumb trail (`HeaderBreadcrumbs`: semantic `nav > ol`, the
+  leaf is the page's only `h1`). When the entity has siblings, the leaf is the shared
+  `HeaderBreadcrumbSwitcher` (name + chevron opening a titled, searchable list) — projects and
+  automations use the same primitive. Run/sub-pages keep a plain leaf and link the entity name back
+  up the trail.
 - **Right/secondary panels** (history sidebar, detail panels) slide in and **resize the main column**
   rather than overlay it; main content re-flows to the remaining width.
 - **Main column is centred and width-capped** — e.g. chat is 558px (new) / 768px (conversation). Don't

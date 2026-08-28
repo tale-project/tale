@@ -82,7 +82,7 @@ function navCases(organizationId: string): readonly NavCase[] {
       urlPattern: /\/automations(?:[/?#]|$)/,
       anchor: (page) =>
         page
-          .getByRole('heading', { name: t('automations.title'), level: 2 })
+          .getByRole('heading', { name: t('automations.title'), level: 1 })
           .filter({ visible: true })
           .first(),
     },

@@ -13,7 +13,7 @@ Confirme deux choses. Ton rôle est au moins Membre — la création de projet e
 
 ## Étape 1 — Créer le projet
 
-Le projet est le conteneur dans lequel vivent les autres pièces. Ouvre **Projets > Nouveau projet** et règle :
+Le projet est le conteneur dans lequel vivent les autres pièces. Ouvre **Projets > Créer un projet** et règle :
 
 - **Nom** — `Compte Acme` (ou ce qui nomme la chose à faire)
 - **Description** — une phrase sur l'objet du projet

@@ -182,7 +182,10 @@ interface AdaptiveHeaderRootProps {
   children: ReactNode;
   className?: string;
   /**
-   * Whether to show a border at the bottom of the header.
+   * Draws the section divider under the title row. Every section header ends
+   * in exactly one `border-border` line: a tab strip immediately below the
+   * row carries its own `border-b` (Knowledge, Inbox, project detail), so
+   * those headers omit this; every other header passes it.
    * @default false
    */
   showBorder?: boolean;

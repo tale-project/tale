@@ -1,7 +1,6 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
 import { ProgressBar } from '@tale/ui/progress-bar';
 import { useNavigate } from '@tanstack/react-router';
@@ -14,7 +13,6 @@ import {
   createSelectColumn,
 } from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
 import { BulkArchiveBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
@@ -361,28 +359,16 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         onRowSelectionChange={setRowSelection}
         onRowClick={handleRowClick}
         onRowMouseEnter={handleRowMouseEnter}
-        actionMenu={
-          <DataTableActionMenu
-            label={t('list.createButton')}
-            icon={Plus}
-            onClick={() => setCreateOpen(true)}
-          />
-        }
+        addAction={{
+          label: t('list.createButton'),
+          icon: Plus,
+          onClick: () => setCreateOpen(true),
+        }}
         emptyState={{
           icon: Folder,
           title: t('list.emptyTitle'),
           description: t('list.emptyDescription'),
           headingLevel: 2,
-          action: (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setCreateOpen(true)}
-            >
-              {t('list.emptyCta')}
-            </Button>
-          ),
         }}
         footer={
           <BulkArchiveBar

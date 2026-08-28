@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -13,7 +13,10 @@ const fixtures = vi.hoisted(() => ({
   presentation: undefined as unknown,
   isPending: false,
   onRun: false,
+  automations: [] as unknown[],
 }));
+
+const mockNavigate = vi.hoisted(() => vi.fn());
 
 interface MockLinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   to?: string;
@@ -49,6 +52,7 @@ vi.mock('@tanstack/react-router', () => ({
     if (from.includes('/runs/$runId')) return { params: {} };
     return undefined;
   },
+  useNavigate: () => mockNavigate,
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -61,9 +65,23 @@ vi.mock('../hooks/queries', () => ({
     },
     isPending: fixtures.isPending,
   }),
+  useAutomations: () => ({
+    data: fixtures.automations,
+    isPending: false,
+  }),
 }));
 
 describe('AutomationBreadcrumbs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fixtures.presentation = undefined;
+    fixtures.isPending = false;
+    fixtures.onRun = false;
+    // Empty listing → the leaf renders the plain name, so the cases that
+    // assert exact h1 names stay valid without knowing about the switcher.
+    fixtures.automations = [];
+  });
+
   it('links Automations back to the org list and heads with the pack name', () => {
     fixtures.presentation = {
       name: 'Chase overdue invoices',
@@ -187,6 +205,58 @@ describe('AutomationBreadcrumbs', () => {
     const back = screen.getByRole('link', { name: /back/i });
     expect(back).toHaveClass('md:hidden');
     expect(back).toHaveAttribute('href', '/dashboard/org-1/automations');
+  });
+
+  it('offers sibling automations from the name leaf', () => {
+    fixtures.presentation = { name: 'Chase overdue invoices' };
+    fixtures.automations = [
+      { name: 'billing/dunning', latest: 1, projectIds: [] },
+      { name: 'billing/reminders', latest: 1, projectIds: [] },
+    ];
+
+    render(
+      <AutomationBreadcrumbs
+        organizationId="org-1"
+        automationSlug="billing/dunning"
+      />,
+    );
+
+    // The leaf is the switcher trigger; the page h1's accessible name is the
+    // trigger's aria-label, which carries the display name.
+    expect(
+      screen.getByRole('button', {
+        name: 'Switch automation, current: Chase overdue invoices',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: /Chase overdue invoices/,
+      }),
+    ).toBeVisible();
+  });
+
+  it('keeps the run leaf plain — no switcher on a run page', () => {
+    fixtures.presentation = { name: 'Chase overdue invoices' };
+    fixtures.onRun = true;
+    fixtures.automations = [
+      { name: 'billing/dunning', latest: 1, projectIds: [] },
+      { name: 'billing/reminders', latest: 1, projectIds: [] },
+    ];
+
+    render(
+      <AutomationBreadcrumbs
+        organizationId="org-1"
+        automationSlug="billing/dunning"
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /switch automation/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Run' }),
+    ).toBeVisible();
   });
 
   it('passes an axe audit', async () => {

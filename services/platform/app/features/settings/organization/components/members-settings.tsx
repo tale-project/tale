@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@tale/ui/button';
 import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -50,13 +49,14 @@ export function MembersSettings({
         members={members || []}
         isLoading={isMembersLoading}
         approxRowCount={5}
-        actionMenu={
-          memberContext?.isAdmin ? (
-            <Button onClick={() => setIsAddMemberDialogOpen(true)}>
-              <Plus className="mr-2 size-4" />
-              {tSettings('organization.addMember')}
-            </Button>
-          ) : undefined
+        addAction={
+          memberContext?.isAdmin
+            ? {
+                label: tSettings('organization.addMember'),
+                icon: Plus,
+                onClick: () => setIsAddMemberDialogOpen(true),
+              }
+            : undefined
         }
         memberContext={
           memberContext
