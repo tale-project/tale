@@ -3939,6 +3939,201 @@ async function checkSsoLogin(
 }
 
 /**
+ * SCIM 2.0 provisioning, end to end on the REUSED 0.4 dispatcher bodies:
+ * admin mints the bearer token → the IdP pushes a User (create, filter,
+ * deactivate/restore via PATCH with role stash, hard DELETE per RFC 7644)
+ * and a Group (create with members, membership PATCH, rename PUT, DELETE)
+ * — all resolved to the tenant by the token hash row, audited as `scim`.
+ */
+async function checkScim(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const admin = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}/api/app/scim${route}?orgId=${orgId}`, {
+      method: body !== undefined ? 'POST' : 'GET',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  const before = z
+    .object({ enabled: z.boolean() })
+    .loose()
+    .safeParse(await (await admin('')).json());
+  const minted = z
+    .object({ token: z.string(), tokenPrefix: z.string() })
+    .safeParse(await (await admin('/regenerate-token', {})).json());
+  const token = minted.success ? minted.data.token : '';
+  const after = z
+    .object({ enabled: z.boolean(), tokenPrefix: z.string() })
+    .loose()
+    .safeParse(await (await admin('')).json());
+
+  const scim = (
+    route: string,
+    init: { method?: string; body?: unknown; token?: string } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/scim/v2${route}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: {
+        'content-type': 'application/scim+json',
+        authorization: `Bearer ${init.token ?? token}`,
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+
+  const discovery = await scim('/ServiceProviderConfig');
+  const badToken = await scim('/ServiceProviderConfig', {
+    token: 'scim_not_a_real_token',
+  });
+  const alias = await fetch(`${base}/http_api/scim/v2/ServiceProviderConfig`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+
+  // ---- Users --------------------------------------------------------------
+  const created = z
+    .looseObject({ id: z.string(), userName: z.string(), active: z.boolean() })
+    .safeParse(
+      await (
+        await scim('/Users', {
+          body: {
+            schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+            userName: 'scim.user@door.test',
+            name: { givenName: 'Scim', familyName: 'Person' },
+            externalId: 'idp-ext-9',
+            active: true,
+          },
+        })
+      ).json(),
+    );
+  const scimUserId = created.success ? created.data.id : '';
+  const filtered = z
+    .object({ totalResults: z.number(), Resources: z.array(z.unknown()) })
+    .loose()
+    .safeParse(
+      await (
+        await scim(
+          `/Users?filter=${encodeURIComponent('userName eq "scim.user@door.test"')}`,
+        )
+      ).json(),
+    );
+  const roleAfterCreate = await sql<{ role: string }[]>`
+    SELECT "role" FROM "member"
+    WHERE "organizationId" = ${orgId} AND "userId" = ${scimUserId || '-'}
+  `;
+
+  // Deactivate (IdP's usual de-provision signal): role → disabled, stash.
+  await scim(`/Users/${scimUserId}`, {
+    method: 'PATCH',
+    body: {
+      schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+      Operations: [{ op: 'replace', path: 'active', value: false }],
+    },
+  });
+  const deactivated = z
+    .looseObject({ active: z.boolean() })
+    .safeParse(await (await scim(`/Users/${scimUserId}`)).json());
+  const roleDisabled = await sql<{ role: string }[]>`
+    SELECT "role" FROM "member"
+    WHERE "organizationId" = ${orgId} AND "userId" = ${scimUserId || '-'}
+  `;
+  // Restore: back to the stashed prior role.
+  await scim(`/Users/${scimUserId}`, {
+    method: 'PATCH',
+    body: {
+      schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+      Operations: [{ op: 'Replace', value: { active: true } }],
+    },
+  });
+  const roleRestored = await sql<{ role: string }[]>`
+    SELECT "role" FROM "member"
+    WHERE "organizationId" = ${orgId} AND "userId" = ${scimUserId || '-'}
+  `;
+
+  // ---- Groups -------------------------------------------------------------
+  const group = z
+    .looseObject({ id: z.string(), displayName: z.string() })
+    .safeParse(
+      await (
+        await scim('/Groups', {
+          body: {
+            schemas: ['urn:ietf:params:scim:schemas:core:2.0:Group'],
+            displayName: 'Scim Squad',
+            members: [{ value: scimUserId }],
+          },
+        })
+      ).json(),
+    );
+  const groupId = group.success ? group.data.id : '';
+  await scim(`/Groups/${groupId}`, {
+    method: 'PATCH',
+    body: {
+      schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+      Operations: [
+        { op: 'remove', path: `members[value eq "${scimUserId}"]` },
+        { op: 'replace', path: 'displayName', value: 'Scim Crew' },
+      ],
+    },
+  });
+  const patchedGroup = z
+    .looseObject({
+      displayName: z.string(),
+      members: z.array(z.looseObject({ value: z.string() })),
+    })
+    .safeParse(await (await scim(`/Groups/${groupId}`)).json());
+  const groupDeleted = await scim(`/Groups/${groupId}`, { method: 'DELETE' });
+  const teamGone = await sql<{ id: string }[]>`
+    SELECT "id" FROM "team" WHERE "id" = ${groupId || '-'}
+  `;
+
+  // ---- hard DELETE (RFC 7644 §3.6) ---------------------------------------
+  const userDeleted = await scim(`/Users/${scimUserId}`, { method: 'DELETE' });
+  const userGone = await scim(`/Users/${scimUserId}`);
+  const scimAudits = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND actor_id = 'scim'
+      AND action IN ('scim_provision_user', 'scim_deactivate_user',
+                     'scim_activate_user', 'scim_provision_group',
+                     'scim_patch_group', 'scim_delete_group',
+                     'scim_deprovision_user')
+  `;
+
+  record(
+    'SCIM provisioning (token door + Users/Groups over PG)',
+    before.success &&
+      !before.data.enabled &&
+      minted.success &&
+      minted.data.token.startsWith('scim_') &&
+      after.success &&
+      after.data.enabled &&
+      discovery.status === 200 &&
+      badToken.status === 401 &&
+      alias.status === 200 &&
+      created.success &&
+      created.data.active &&
+      filtered.success &&
+      filtered.data.totalResults === 1 &&
+      roleAfterCreate[0]?.role === 'member' &&
+      deactivated.success &&
+      !deactivated.data.active &&
+      roleDisabled[0]?.role === 'disabled' &&
+      roleRestored[0]?.role === 'member' &&
+      group.success &&
+      patchedGroup.success &&
+      patchedGroup.data.displayName === 'Scim Crew' &&
+      patchedGroup.data.members.length === 0 &&
+      groupDeleted.status === 204 &&
+      teamGone.length === 0 &&
+      userDeleted.status === 204 &&
+      userGone.status === 404 &&
+      Number(scimAudits[0]?.count ?? '0') >= 7,
+    `admin=${before.success ? before.data.enabled : 'ERR'}→${after.success ? `${after.data.enabled}/${after.data.tokenPrefix}` : 'ERR'}, discovery=${discovery.status} bad=${badToken.status} alias=${alias.status} (want 200/401/200), user=${created.success}/${filtered.success ? filtered.data.totalResults : 'ERR'} role=${roleAfterCreate[0]?.role}→${roleDisabled[0]?.role}→${roleRestored[0]?.role} (want member→disabled→member), group=${group.success} patched=${patchedGroup.success ? `${patchedGroup.data.displayName}/${patchedGroup.data.members.length}` : 'ERR'} del=${groupDeleted.status} gone=${teamGone.length === 0}, userDel=${userDeleted.status}→${userGone.status} (want 204→404), audits=${scimAudits[0]?.count} (want ≥7)`,
+  );
+}
+
+/**
  * The task-agent TURN, end to end on the REUSED 0.4 host: kick → session
  * ensure (fake spawner) → gateway VK mint (fake bifrost) → exec streaming a
  * canned claude-code stream-json turn → harvest (fake workspace file → real
@@ -9096,6 +9291,7 @@ async function main(): Promise<void> {
     await checkRestMachineJourney(sql, baseUrl, authCtx);
     await checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSsoLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
+    await checkScim(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

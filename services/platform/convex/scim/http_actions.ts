@@ -41,7 +41,7 @@ import {
 const USERS_PREFIX = '/scim/v2/Users/';
 const GROUPS_PREFIX = '/scim/v2/Groups/';
 
-interface ScimRc {
+export interface ScimRc {
   ctx: ActionCtx;
   organizationId: string;
   defaultRole: PlatformRole;
@@ -312,13 +312,25 @@ async function deleteUser(rc: ScimRc, userId: string): Promise<Response> {
   return scimNoContent();
 }
 
-export const scimUsersHandler = withScimAuth(async (rc, req) => {
+/** The Users collection dispatcher body — exported for the 0.5 runtime,
+ * which authenticates with its own token store and calls in with a shimmed
+ * ctx. */
+export async function scimUsersImpl(
+  rc: ScimRc,
+  req: Request,
+): Promise<Response> {
   if (req.method === 'GET') return listUsers(rc, new URL(req.url));
   if (req.method === 'POST') return createUser(rc, req);
   return scimError(405, 'Method not allowed');
-});
+}
 
-export const scimUserResourceHandler = withScimAuth(async (rc, req) => {
+export const scimUsersHandler = withScimAuth(scimUsersImpl);
+
+/** One-User dispatcher body — exported for the 0.5 runtime. */
+export async function scimUserResourceImpl(
+  rc: ScimRc,
+  req: Request,
+): Promise<Response> {
   const { id } = extractPathParts(new URL(req.url), USERS_PREFIX);
   if (!id) return scimError(400, 'Missing user id');
   if (req.method === 'GET') return getUser(rc, id);
@@ -326,7 +338,9 @@ export const scimUserResourceHandler = withScimAuth(async (rc, req) => {
   if (req.method === 'PATCH') return patchUserResource(rc, req, id);
   if (req.method === 'DELETE') return deleteUser(rc, id);
   return scimError(405, 'Method not allowed');
-});
+}
+
+export const scimUserResourceHandler = withScimAuth(scimUserResourceImpl);
 
 // ---------------------------------------------------------------------------
 // Groups
@@ -473,13 +487,23 @@ async function deleteGroupResource(
   return scimNoContent();
 }
 
-export const scimGroupsHandler = withScimAuth(async (rc, req) => {
+/** The Groups collection dispatcher body — exported for the 0.5 runtime. */
+export async function scimGroupsImpl(
+  rc: ScimRc,
+  req: Request,
+): Promise<Response> {
   if (req.method === 'GET') return listGroups(rc, new URL(req.url));
   if (req.method === 'POST') return createGroup(rc, req);
   return scimError(405, 'Method not allowed');
-});
+}
 
-export const scimGroupResourceHandler = withScimAuth(async (rc, req) => {
+export const scimGroupsHandler = withScimAuth(scimGroupsImpl);
+
+/** One-Group dispatcher body — exported for the 0.5 runtime. */
+export async function scimGroupResourceImpl(
+  rc: ScimRc,
+  req: Request,
+): Promise<Response> {
   const { id } = extractPathParts(new URL(req.url), GROUPS_PREFIX);
   if (!id) return scimError(400, 'Missing group id');
   if (req.method === 'GET') return getGroup(rc, id);
@@ -487,4 +511,6 @@ export const scimGroupResourceHandler = withScimAuth(async (rc, req) => {
   if (req.method === 'PATCH') return patchGroupResource(rc, req, id);
   if (req.method === 'DELETE') return deleteGroupResource(rc, id);
   return scimError(405, 'Method not allowed');
-});
+}
+
+export const scimGroupResourceHandler = withScimAuth(scimGroupResourceImpl);

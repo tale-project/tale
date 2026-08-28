@@ -30,6 +30,10 @@ import { createProviderCredentialRoutes } from './domains/provider_credentials/r
 import { createRetentionRoutes } from './domains/retention/routes.ts';
 import { createToolDispatchRoutes } from './domains/sandbox/dispatch-routes.ts';
 import { createSandboxRoutes } from './domains/sandbox/routes.ts';
+import {
+  createScimAdminRoutes,
+  createScimRoutes,
+} from './domains/scim/routes.ts';
 import { createSkillRoutes } from './domains/skills/routes.ts';
 import { createSsoRoutes } from './domains/sso/routes.ts';
 import { createSupportCaseRoutes } from './domains/support_cases/routes.ts';
@@ -65,6 +69,12 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   const ssoRoutes = createSsoRoutes({ sql: deps.sql });
   app.route('/api/sso', ssoRoutes);
   app.route('/http_api/api/sso', ssoRoutes);
+
+  // SCIM 2.0 provisioning — bearer-token auth (the matched token row IS the
+  // tenant); same 0.4 proxy-era alias story as SSO.
+  const scimRoutes = createScimRoutes({ sql: deps.sql });
+  app.route('/scim/v2', scimRoutes);
+  app.route('/http_api/scim/v2', scimRoutes);
   // The REST machine door (Bearer API key).
   app.route('/api/v1', createRestV1Routes(deps));
   // Internal app API (the surface the web app consumes); one sub-app per
@@ -85,6 +95,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/feedback', createFeedbackRoutes(deps));
   app.route('/api/app/knowledge', createKnowledgeRoutes(deps));
   app.route('/api/app/legal-holds', createLegalHoldRoutes(deps));
+  app.route('/api/app/scim', createScimAdminRoutes(deps));
   app.route('/api/app/knowledge-entries', createKnowledgeEntryRoutes(deps));
   app.route('/api/app/members', createMemberRoutes(deps));
   app.route('/api/app/notifications', createNotificationRoutes(deps));
