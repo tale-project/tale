@@ -1019,6 +1019,193 @@ async function checkFiles(
 }
 
 /**
+ * Document Hub vertical (needs the S3 store from checkFiles): upload →
+ * document bind → hub visibility → folder tree (nesting, name clash,
+ * non-empty delete guard) → project attach/detach scope flips → trash.
+ */
+async function checkDocuments(
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'documents + folders (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — document lanes not exercised in this run',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const get = async (route: string): Promise<unknown> =>
+    (await fetch(`${base}${route}`, { headers: { cookie } })).json();
+  const send = (
+    method: 'POST' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  // Upload + register a blob to bind.
+  const handoff = z
+    .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+    .safeParse(
+      await (
+        await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+          contentType: 'text/plain',
+          size: 11,
+        })
+      ).json(),
+    );
+  if (!handoff.success) {
+    record('documents + folders', false, 'upload handoff failed');
+    return;
+  }
+  await fetch(handoff.data.uploadUrl, {
+    method: 'PUT',
+    headers: { 'content-type': 'text/plain' },
+    body: 'hello docs!',
+  });
+  const registered = z.object({ fileId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/files/register?orgId=${orgId}`, {
+        storageRef: handoff.data.storageRef,
+        fileName: 'notes.txt',
+        contentType: 'text/plain',
+      })
+    ).json(),
+  );
+  const created = z.object({ documentId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
+        fileId: registered.success ? registered.data.fileId : '',
+        fileName: 'notes.txt',
+      })
+    ).json(),
+  );
+  const documentId = created.success ? created.data.documentId : '';
+  const hubList = z
+    .object({ documents: z.array(z.object({ id: z.string() })) })
+    .safeParse(await get(`/api/app/documents?orgId=${orgId}`));
+  const docUrl = z
+    .object({ url: z.string().url() })
+    .safeParse(
+      await get(`/api/app/documents/${documentId}/url?orgId=${orgId}`),
+    );
+  const body = docUrl.success
+    ? await (await fetch(docUrl.data.url)).text()
+    : '';
+  record(
+    'document bind + hub visibility + serve',
+    created.success &&
+      hubList.success &&
+      hubList.data.documents.some((d) => d.id === documentId) &&
+      body === 'hello docs!',
+    `doc=${documentId || 'ERR'}, hub=${hubList.success ? hubList.data.documents.length : 'ERR'}, serve=${JSON.stringify(body)}`,
+  );
+
+  // Folder tree: create, nest, clash, move doc in, non-empty delete guard.
+  const rootFolder = z.object({ folderId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/folders?orgId=${orgId}`, {
+        name: 'Contracts',
+      })
+    ).json(),
+  );
+  const rootId = rootFolder.success ? rootFolder.data.folderId : '';
+  const clash = await send('POST', `/api/app/folders?orgId=${orgId}`, {
+    name: 'contracts',
+  });
+  const child = z.object({ folderId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/folders?orgId=${orgId}`, {
+        name: '2026',
+        parentId: rootId,
+      })
+    ).json(),
+  );
+  const moved = await send(
+    'POST',
+    `/api/app/documents/${documentId}?orgId=${orgId}`,
+    {
+      folderId: child.success ? child.data.folderId : '',
+    },
+  );
+  const nonEmptyDelete = await send(
+    'DELETE',
+    `/api/app/folders/${rootId}?orgId=${orgId}`,
+  );
+  const crumb = z
+    .object({ breadcrumb: z.array(z.object({ name: z.string() })) })
+    .safeParse(
+      await get(
+        `/api/app/folders/${child.success ? child.data.folderId : ''}/breadcrumb?orgId=${orgId}`,
+      ),
+    );
+  record(
+    'folder tree + clash + non-empty guard',
+    rootFolder.success &&
+      clash.status === 400 &&
+      child.success &&
+      moved.ok &&
+      nonEmptyDelete.status === 400 &&
+      crumb.success &&
+      crumb.data.breadcrumb.map((f) => f.name).join('/') === 'Contracts/2026',
+    `clash → ${clash.status} (want 400), move → ${moved.status}, non-empty delete → ${nonEmptyDelete.status} (want 400), crumb=${crumb.success ? crumb.data.breadcrumb.map((f) => f.name).join('/') : 'ERR'}`,
+  );
+
+  // Project attach flips the doc out of the hub; detach restores it.
+  const proj = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/projects?orgId=${orgId}`, {
+        name: 'Docs Project',
+      })
+    ).json(),
+  );
+  const projectId = proj.success ? proj.data.projectId : '';
+  const attach = await send(
+    'POST',
+    `/api/app/documents/${documentId}/attach-to-project?orgId=${orgId}`,
+    { projectId },
+  );
+  const hubAfterAttach = z
+    .object({ documents: z.array(z.object({ id: z.string() })) })
+    .safeParse(await get(`/api/app/documents?orgId=${orgId}`));
+  const projDocs = z
+    .object({ documents: z.array(z.object({ id: z.string() })) })
+    .safeParse(
+      await get(`/api/app/documents/by-project/${projectId}?orgId=${orgId}`),
+    );
+  const detach = await send(
+    'POST',
+    `/api/app/documents/${documentId}/detach-from-project?orgId=${orgId}`,
+  );
+  const trash = await send(
+    'POST',
+    `/api/app/documents/${documentId}/trash?orgId=${orgId}`,
+  );
+  const hubAfterTrash = z
+    .object({ documents: z.array(z.object({ id: z.string() })) })
+    .safeParse(await get(`/api/app/documents?orgId=${orgId}`));
+  record(
+    'document project attach/detach + trash',
+    attach.ok &&
+      hubAfterAttach.success &&
+      !hubAfterAttach.data.documents.some((d) => d.id === documentId) &&
+      projDocs.success &&
+      projDocs.data.documents.some((d) => d.id === documentId) &&
+      detach.ok &&
+      trash.ok &&
+      hubAfterTrash.success &&
+      !hubAfterTrash.data.documents.some((d) => d.id === documentId),
+    `attach → ${attach.status}, hubHidden=${hubAfterAttach.success ? !hubAfterAttach.data.documents.some((d) => d.id === documentId) : 'ERR'}, inProject=${projDocs.success ? projDocs.data.documents.some((d) => d.id === documentId) : 'ERR'}, trashHidden=${hubAfterTrash.success ? !hubAfterTrash.data.documents.some((d) => d.id === documentId) : 'ERR'}`,
+  );
+}
+
+/**
  * Login throttle + audit chain, end to end through the real auth hooks:
  * repeated wrong passwords cross the lockout threshold (429 from the
  * before-hook), the lock expires on schedule (default first backoff = 1s),
@@ -1234,6 +1421,7 @@ async function main(): Promise<void> {
     await checkProjects(baseUrl, authCtx);
     await checkTasks(baseUrl, authCtx);
     await checkFiles(baseUrl, authCtx);
+    await checkDocuments(baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,

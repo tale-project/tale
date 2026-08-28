@@ -80,13 +80,13 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | debug | pending | likely dropped |
 | deployment | pending | "Apply & restart" redesign (controller removed) |
 | discussions | pending | |
-| documents | pending | replacement-upload handshake redesign |
+| documents | in-progress | inc 10 (Tier A): create-from-upload bind, hub/project scoped reads (access module semantics mirrored), rename/move/team edits, trash/restore, project attach/detach (closes the projects gap), mention search, presigned serve. Tier B: controlled records (approvals), replacement uploads (redesign), generate-document lanes, sync configs, RAG dispatch (knowledge), WebDAV resolvers, hard delete + blob erasure (governance) |
 | enterprise_sso | pending | |
 | events | done | inc 09; the emit seam at its 0.4 contract (deliberate no-op dispatch until automations rebuild the fan-out); producers wired (task.created/status_changed, project.created) |
 | feedback | pending | |
 | file_metadata | in-progress | inc 08: `app.file_metadata` ledger (all pipeline columns shipped nullable) + core reads; RAG dispatch pools → per-queue workers, transcription, OCR with knowledge/tts |
 | files | in-progress | inc 08: upload handshake (server-minted keys, HEAD-verified register), presigned serve, org-scoped delete (uploader/admin); sandbox blob HTTP + rejected-upload lanes with sandbox/documents |
-| folders | pending | |
+| folders | in-progress | inc 10: tree CRUD (depth cap, sibling-name uniqueness, scope inheritance/conflict rules), breadcrumb, hub/project listings; delete refuses on any descendant document until the trash-cascade lands (conservative); legal-hold/record guards + sync-config deactivation with governance/sync domains |
 | google_drive | pending | |
 | governance | pending | erasure cascades; retention |
 | http_connectors | pending | |
