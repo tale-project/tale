@@ -138,6 +138,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         console.log(`[automations] liveness sweep re-poked ${swept} runs`);
       }
     },
+    'governance.retention_cleanup': async () => {
+      const { runRetentionCleanup } =
+        await import('../domains/retention/service.ts');
+      const results = await runRetentionCleanup(deps.sql);
+      const orgs = Object.keys(results).length;
+      if (orgs > 0) {
+        console.log(`[retention] swept ${orgs} orgs`);
+      }
+    },
     'governance.effect_hold_releases': async () => {
       const { effectApprovedReleases } =
         await import('../domains/legal_holds/service.ts');

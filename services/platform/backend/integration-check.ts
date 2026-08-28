@@ -6491,6 +6491,182 @@ async function checkLegalHolds(
 }
 
 /**
+ * The retention framework: Apply snapshots the file bounds; the cleanup
+ * clamps the org policy against them (a too-short stored value is raised
+ * to the floor), sweeps expired rows past retention+grace, spares fresh
+ * ones, and an org hold freezes the whole run.
+ */
+async function checkRetention(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const governanceDir = path.join(configRoot, orgSlug, 'governance');
+  await mkdir(governanceDir, { recursive: true });
+  // Every category must be declared (the env-tightening walk throws on a
+  // gap), and the compliance floors bind (auditLog ≥ 365, loginAttempt ≥ 90).
+  const bound = (min: number, unit = 'days') =>
+    [
+      `  min: ${min}`,
+      '  max: 3650',
+      `  default: ${Math.max(min, 30)}`,
+      `  unit: ${unit}`,
+    ].join('\n');
+  await writeFile(
+    path.join(governanceDir, 'retention.yml'),
+    [
+      'documents:',
+      bound(1),
+      'userTempHours:',
+      bound(1, 'hours'),
+      'agentTempHours:',
+      bound(1, 'hours'),
+      'chatHistory:',
+      bound(1),
+      'auditLog:',
+      bound(365),
+      'workflowLog:',
+      bound(1),
+      'usageLedger:',
+      bound(30),
+      'loginAttempt:',
+      bound(90),
+      'chatFilterEvents:',
+      bound(1),
+      'messageFeedback:',
+      bound(1),
+      'contacts:',
+      bound(1),
+      'externalConversations:',
+      bound(1),
+      'notifications:',
+      bound(1),
+      'agentRuns:',
+      bound(1),
+    ].join('\n'),
+  );
+  await writeFile(
+    path.join(governanceDir, 'retention-policy.yml'),
+    [
+      'documentsRetentionDays: 3650',
+      'usageLedgerEnabled: true',
+      // Below the 30-day floor — the clamp must raise it.
+      'usageLedgerRetentionDays: 1',
+      'messageFeedbackEnabled: true',
+      'messageFeedbackRetentionDays: 7',
+      'notificationsEnabled: true',
+      'notificationsRetentionDays: 7',
+      'deletionGraceDays: 0',
+    ].join('\n'),
+  );
+  const orgConfig = await import('./lib/org-config.ts');
+  orgConfig.clearOrgConfigCaches();
+
+  const applied = z
+    .object({
+      bounds: z
+        .object({ usageLedger: z.object({ min: z.number() }).loose() })
+        .loose(),
+    })
+    .safeParse(
+      await (
+        await post(`/api/app/retention/bounds/apply?orgId=${orgId}`)
+      ).json(),
+    );
+
+  const now = Date.now();
+  const old = now - 15 * 24 * 3_600_000; // 15 days: > 7d policy, < 30d floor
+  const ancient = now - 100 * 24 * 3_600_000;
+  await sql`
+    INSERT INTO app.usage_ledger (
+      org_id, user_id, period_key, granularity, input_tokens, output_tokens,
+      total_tokens, cost_estimate_cents, request_count, connector_call_count,
+      updated_at_ms
+    ) VALUES
+      (${orgId}, ${userId}, 'itest-old', 'daily', 1, 1, 2, 0, 1, 0, ${old}),
+      (${orgId}, ${userId}, 'itest-ancient', 'daily', 1, 1, 2, 0, 1, 0,
+       ${ancient})
+  `;
+  await sql`
+    INSERT INTO app.message_feedback (
+      org_id, thread_id, message_id, user_id, rating, created_at_ms
+    ) VALUES
+      (${orgId}, 'rt-th', 'rt-old', ${userId}, 'positive', ${old}),
+      (${orgId}, 'rt-th', 'rt-new', ${userId}, 'positive', ${now})
+  `;
+  await sql`
+    INSERT INTO app.user_notifications (
+      user_id, org_id, type, title_key, body_key, resource_type,
+      resource_id, actor_type, read, created_at_ms
+    ) VALUES
+      (${userId}, ${orgId}, 'task_commented', 'x', 'y', 'task', 'rt-old',
+       'system', true, ${old}),
+      (${userId}, ${orgId}, 'task_commented', 'x', 'y', 'task', 'rt-new',
+       'system', true, ${now})
+  `;
+
+  const { runRetentionCleanup } =
+    await import('./domains/retention/service.ts');
+  // An org hold freezes the whole run.
+  const holdRows = await sql<{ id: string }[]>`
+    INSERT INTO app.legal_holds (
+      org_id, target_type, target_id, target_label, reason, placed_by,
+      placed_at_ms
+    ) VALUES (
+      ${orgId}, 'org', ${orgId}, 'itest', 'retention freeze probe', 'itest',
+      ${Date.now()}
+    ) RETURNING id
+  `;
+  await runRetentionCleanup(sql);
+  const frozen = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.message_feedback
+    WHERE org_id = ${orgId} AND message_id = 'rt-old'
+  `;
+  await sql`
+    UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
+    WHERE id = ${holdRows[0]?.id ?? ''}
+  `;
+  await runRetentionCleanup(sql);
+
+  const ledgerLeft = await sql<{ periodKey: string }[]>`
+    SELECT period_key AS "periodKey" FROM app.usage_ledger
+    WHERE org_id = ${orgId} AND period_key LIKE 'itest-%'
+  `;
+  const feedbackLeft = await sql<{ messageId: string }[]>`
+    SELECT message_id AS "messageId" FROM app.message_feedback
+    WHERE org_id = ${orgId} AND thread_id = 'rt-th'
+  `;
+  const bellsLeft = await sql<{ resourceId: string }[]>`
+    SELECT resource_id AS "resourceId" FROM app.user_notifications
+    WHERE org_id = ${orgId} AND resource_id LIKE 'rt-%'
+  `;
+  record(
+    'retention: apply-clamped sweep spares floored + fresh rows, org hold freezes',
+    applied.success &&
+      applied.data.bounds.usageLedger.min === 30 &&
+      frozen[0]?.count === '1' &&
+      // The 15-day ledger row SURVIVES (policy 1d clamped up to the 30d
+      // floor); the 100-day one goes.
+      ledgerLeft.length === 1 &&
+      ledgerLeft[0]?.periodKey === 'itest-old' &&
+      feedbackLeft.length === 1 &&
+      feedbackLeft[0]?.messageId === 'rt-new' &&
+      bellsLeft.length === 1 &&
+      bellsLeft[0]?.resourceId === 'rt-new',
+    `applied=${applied.success}, frozen=${frozen[0]?.count} (want 1), ledger=${ledgerLeft.map((row) => row.periodKey).join(',')} (want itest-old), feedback=${feedbackLeft.map((row) => row.messageId).join(',')}, bells=${bellsLeft.map((row) => row.resourceId).join(',')}`,
+  );
+}
+
+/**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
  * with no resume; a settled predecessor with a stamped handle on the live
@@ -7432,6 +7608,7 @@ async function main(): Promise<void> {
     await checkCollabEmitters(sql, baseUrl, authCtx);
     await checkChangelogAndAccounts(sql, baseUrl, authCtx);
     await checkLegalHolds(sql, baseUrl, authCtx);
+    await checkRetention(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChatMemoriesDeferredAuto(
       sql,
       baseUrl,

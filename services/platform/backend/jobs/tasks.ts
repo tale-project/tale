@@ -63,6 +63,9 @@ export interface TaskPayloads {
    * resumes the SAME harness conversation with the answer as its next
    * message. Enqueued in the answer's transaction. */
   'automation.ask_resume': { organizationId: string; askId: string };
+  /** Daily central retention cleanup — every org with applied bounds and a
+   * valid clamped policy sweeps its expired rows. */
+  'governance.retention_cleanup': Record<string, never>;
   /** Daily: approved legal-hold releases past their cooldown take effect. */
   'governance.effect_hold_releases': Record<string, never>;
   /** 2-min backstops for the task-agent lane: deadline-fail overdue runs,
@@ -133,6 +136,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'chat.deferred_send_poll': { retryLimit: 0, expireInSeconds: 3_600 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
   'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
+  'governance.retention_cleanup': { retryLimit: 1, expireInSeconds: 1_500 },
   'governance.effect_hold_releases': { retryLimit: 1, expireInSeconds: 300 },
   'watchdog.task_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.sandbox': { retryLimit: 1, expireInSeconds: 300 },

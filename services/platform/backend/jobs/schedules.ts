@@ -26,6 +26,7 @@ const SCHEDULES: CronSchedule[] = [
   { name: 'automation.liveness', cron: '* * * * *' },
   // The agent-lane and sandbox backstops (each its own entry so a throw in
   // one sweep can never disable another — the 0.4 isolation rationale).
+  { name: 'governance.retention_cleanup', cron: '0 4 * * *' },
   { name: 'governance.effect_hold_releases', cron: '15 4 * * *' },
   { name: 'watchdog.task_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.sandbox', cron: '*/5 * * * *' },
