@@ -39,6 +39,7 @@ import {
   createScimRoutes,
 } from './domains/scim/routes.ts';
 import { createSkillRoutes } from './domains/skills/routes.ts';
+import { createSsoAdminRoutes } from './domains/sso/admin-routes.ts';
 import { createSsoRoutes } from './domains/sso/routes.ts';
 import { createTrustedHeadersRoutes } from './domains/sso/trusted-headers.ts';
 import { createSupportCaseRoutes } from './domains/support_cases/routes.ts';
@@ -73,6 +74,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // and re-registering every IdP at cutover is not an option.
   const ssoRoutes = createSsoRoutes({ sql: deps.sql });
   app.route('/api/sso', ssoRoutes);
+  app.route('/api/app/sso', createSsoAdminRoutes(deps));
   app.route('/http_api/api/sso', ssoRoutes);
 
   // SCIM 2.0 provisioning — bearer-token auth (the matched token row IS the

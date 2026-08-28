@@ -5819,6 +5819,224 @@ async function checkControlDrain(
 }
 
 /**
+ * The SSO admin config-write surface: the settings view over the file, the
+ * OIDC upsert (history snapshot + secrets sidecar, client secret
+ * reused-on-omit), the client-id reveal, offline IdP-metadata parsing, the
+ * SAML upsert, enable/disable, remove (files gone), and the security-audit
+ * trail. Runs AFTER the sign-in check — it rewrites the same org's
+ * connection files.
+ */
+async function checkSsoAdminSurface(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const api = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/sso${route}?orgId=${orgId}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+  const provisioning = {
+    autoProvisionRole: true,
+    defaultRole: 'member',
+    roleMappingRules: [
+      { source: 'group', pattern: 'platform-admins', targetRole: 'admin' },
+    ],
+    autoProvisionTeam: false,
+    excludeGroups: [],
+  };
+
+  // The sign-in check left a connection on file — the view reflects it.
+  const before = z
+    .looseObject({ configured: z.boolean(), enabled: z.boolean() })
+    .safeParse(await (await api('/config')).json());
+
+  // OIDC upsert writes the yml + secrets and snapshots history.
+  const upserted = await api('/config/oidc', {
+    method: 'PUT',
+    body: {
+      displayName: 'Door IdP (managed)',
+      providerId: 'generic-oidc',
+      issuer: 'https://idp.door.test',
+      clientId: 'door-client-2',
+      clientSecret: 'door-secret-2',
+      scopes: ['openid', 'email', 'profile'],
+      pkce: true,
+      ...provisioning,
+    },
+  });
+  const view = z
+    .looseObject({
+      configured: z.boolean(),
+      enabled: z.boolean(),
+      protocol: z.string().nullable(),
+      displayName: z.string().nullable(),
+    })
+    .safeParse(await (await api('/config')).json());
+  const viewRaw = JSON.stringify(view.success ? view.data : {});
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const ssoDir = path.join(configRoot, orgSlug, 'governance', 'sso');
+  const { readdir, readFile: readFsFile } = await import('node:fs/promises');
+  const historyEntries = await readdir(
+    path.join(ssoDir, '.history', 'connection'),
+  ).catch(() => []);
+  const secretsRaw = await readFsFile(
+    path.join(ssoDir, 'connection.secrets.json'),
+    'utf8',
+  ).catch(() => '');
+
+  // Reused-on-omit: an update without the secret keeps the stored one.
+  const rePut = await api('/config/oidc', {
+    method: 'PUT',
+    body: {
+      displayName: 'Door IdP (renamed)',
+      providerId: 'generic-oidc',
+      issuer: 'https://idp.door.test',
+      clientId: 'door-client-2',
+      scopes: ['openid', 'email'],
+      ...provisioning,
+    },
+  });
+  const secretsAfterOmit = await readFsFile(
+    path.join(ssoDir, 'connection.secrets.json'),
+    'utf8',
+  ).catch(() => '');
+  const clientIdReveal = z
+    .object({ clientId: z.string().nullable() })
+    .safeParse(await (await api('/config/client-id')).json());
+
+  // Offline IdP metadata parse (Redirect binding + signing cert win).
+  const metadataXml = [
+    '<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://idp.door.test/saml">',
+    '  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">',
+    '    <md:KeyDescriptor use="signing">',
+    '      <KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">',
+    '        <X509Data><X509Certificate>ITESTCERTBODY</X509Certificate></X509Data>',
+    '      </KeyInfo>',
+    '    </md:KeyDescriptor>',
+    '    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.door.test/saml/sso"/>',
+    '  </md:IDPSSODescriptor>',
+    '</md:EntityDescriptor>',
+  ].join('\n');
+  const parsedMeta = z
+    .object({
+      idpEntityId: z.string(),
+      idpSsoUrl: z.string(),
+      idpCertificate: z.string(),
+    })
+    .safeParse(
+      await (
+        await api('/config/parse-idp-metadata', { body: { xml: metadataXml } })
+      ).json(),
+    );
+  const badMeta = await api('/config/parse-idp-metadata', {
+    body: { xml: '<not-metadata/>' },
+  });
+
+  // SAML upsert flips the protocol; disable keeps the config.
+  const samlPut = await api('/config/saml', {
+    method: 'PUT',
+    body: {
+      displayName: 'Door SAML',
+      idpEntityId: 'https://idp.door.test/saml',
+      idpSsoUrl: 'https://idp.door.test/saml/sso',
+      idpCertificate:
+        '-----BEGIN CERTIFICATE-----\nITEST\n-----END CERTIFICATE-----',
+      ...provisioning,
+    },
+  });
+  await api('/config/enabled', { body: { enabled: false } });
+  const disabledView = z
+    .looseObject({
+      configured: z.boolean(),
+      enabled: z.boolean(),
+      protocol: z.string().nullable(),
+    })
+    .safeParse(await (await api('/config')).json());
+
+  // Remove: files gone, the view reads unconfigured.
+  const removed = await api('/config', { method: 'DELETE' });
+  const afterRemove = z
+    .looseObject({ configured: z.boolean() })
+    .safeParse(await (await api('/config')).json());
+  // The connection files and the history snapshots are gone; the empty
+  // `.history` parent may remain (`rm(dir, {force})` without recursive
+  // cannot remove a directory — the 0.4 best-effort posture).
+  const ymlGone = await readFsFile(
+    path.join(ssoDir, 'connection.yml'),
+    'utf8',
+  ).then(
+    () => false,
+    () => true,
+  );
+  const secretsGone = await readFsFile(
+    path.join(ssoDir, 'connection.secrets.json'),
+    'utf8',
+  ).then(
+    () => false,
+    () => true,
+  );
+  const historyGone = await readdir(
+    path.join(ssoDir, '.history', 'connection'),
+  ).then(
+    (entries) => entries.length === 0,
+    () => true,
+  );
+  const filesGone = ymlGone && secretsGone && historyGone;
+
+  const audits = await sql<{ action: string; count: string }[]>`
+    SELECT action, count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND category = 'security'
+      AND resource_type = 'sso'
+      AND action IN ('sso_configure', 'sso_disabled', 'sso_removed')
+    GROUP BY action
+  `;
+  const auditMap = new Map(audits.map((row) => [row.action, row.count]));
+
+  record(
+    'sso admin config surface (view/upsert/history/secrets/metadata/remove)',
+    before.success &&
+      before.data.configured &&
+      upserted.status === 200 &&
+      view.success &&
+      view.data.configured &&
+      view.data.protocol === 'oidc' &&
+      view.data.displayName === 'Door IdP (managed)' &&
+      !viewRaw.includes('door-secret-2') &&
+      historyEntries.length >= 1 &&
+      secretsRaw.includes('door-secret-2') &&
+      rePut.status === 200 &&
+      secretsAfterOmit.includes('door-secret-2') &&
+      clientIdReveal.success &&
+      clientIdReveal.data.clientId === 'door-client-2' &&
+      parsedMeta.success &&
+      parsedMeta.data.idpEntityId === 'https://idp.door.test/saml' &&
+      parsedMeta.data.idpSsoUrl === 'https://idp.door.test/saml/sso' &&
+      parsedMeta.data.idpCertificate.includes('BEGIN CERTIFICATE') &&
+      badMeta.status === 400 &&
+      samlPut.status === 200 &&
+      disabledView.success &&
+      disabledView.data.configured &&
+      !disabledView.data.enabled &&
+      disabledView.data.protocol === 'saml' &&
+      removed.status === 200 &&
+      afterRemove.success &&
+      !afterRemove.data.configured &&
+      filesGone &&
+      Number(auditMap.get('sso_configure') ?? '0') >= 3 &&
+      Number(auditMap.get('sso_disabled') ?? '0') >= 1 &&
+      Number(auditMap.get('sso_removed') ?? '0') >= 1,
+    `before=${before.success ? before.data.configured : 'ERR'}, oidcPut=${upserted.status} view=${view.success ? `${view.data.protocol}/${view.data.displayName}` : 'ERR'} secretLeak=${viewRaw.includes('door-secret-2')} history=${historyEntries.length} sidecar=${secretsRaw.includes('door-secret-2')}, omitKeeps=${rePut.status}/${secretsAfterOmit.includes('door-secret-2')} reveal=${clientIdReveal.success ? clientIdReveal.data.clientId : 'ERR'}, meta=${parsedMeta.success ? parsedMeta.data.idpSsoUrl : 'ERR'} bad=${badMeta.status} (want 400), saml=${samlPut.status} disabled=${disabledView.success ? `${disabledView.data.configured}/${disabledView.data.enabled}/${disabledView.data.protocol}` : 'ERR'}, remove=${removed.status} after=${afterRemove.success ? afterRemove.data.configured : 'ERR'} files gone=${ymlGone}/${secretsGone}/${historyGone}, audits cfg=${auditMap.get('sso_configure')} dis=${auditMap.get('sso_disabled')} rm=${auditMap.get('sso_removed')}`,
+  );
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -11154,6 +11372,7 @@ async function main(): Promise<void> {
     await checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSsoLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
     await checkScim(sql, baseUrl, authCtx);
+    await checkSsoAdminSurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTrustedHeaders(sql, baseUrl);
     await checkConnectorCredentials(sql, baseUrl, authCtx);
     await checkConversations(sql, baseUrl, authCtx);

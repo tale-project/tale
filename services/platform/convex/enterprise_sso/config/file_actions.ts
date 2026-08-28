@@ -26,9 +26,6 @@
  * client, never mirrored into the cache.
  */
 
-import { mkdir, rm } from 'node:fs/promises';
-import path from 'node:path';
-
 import { ConvexError, v } from 'convex/values';
 
 import {
@@ -37,40 +34,21 @@ import {
 } from '../../../lib/shared/schemas/enterprise_sso';
 import { internal } from '../../_generated/api';
 import { type ActionCtx, internalAction } from '../../_generated/server';
-import { readDomainConfigFile } from '../../lib/config_store/read_domain_file';
-import {
-  atomicWrite,
-  atomicWriteSecret,
-  errnoCode,
-  generateHistoryTimestamp,
-  pruneHistory,
-  readFileSafe,
-  removeFileSafe,
-} from '../../lib/file_io';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import { withoutGraphFileScopes } from '../entra_id/constants';
-import {
-  MAX_FILE_SIZE_BYTES,
-  parseSsoSecretsJson,
-  resolveSsoConnectionFilePath,
-  resolveSsoConnectionSecretsFilePath,
-  resolveSsoConnectionYamlFilePath,
-  resolveSsoDir,
-  resolveSsoHistoryDir,
-  serializeSsoConnectionYaml,
-  serializeSsoSecretsJson,
-  SSO_CONFIG_DOMAIN,
-  SSO_CONNECTION_KEY,
-  validateSsoConnectionData,
-} from '../file_utils';
+import { SSO_CONFIG_DOMAIN } from '../file_utils';
 import {
   attributeMappingValidator,
   platformRoleValidator,
   roleMappingRuleValidator,
   ssoProviderIdValidator,
 } from '../validators';
-
-const MAX_HISTORY_ENTRIES = 50;
+import {
+  persistFiles,
+  readExisting,
+  removeConnectionFiles,
+  type ExistingSsoFiles,
+} from './file_store';
 
 const provisioningArgs = {
   autoProvisionRole: v.boolean(),
@@ -85,32 +63,6 @@ const actorArgs = {
   actorEmail: v.optional(v.string()),
   actorRole: v.optional(v.string()),
 };
-
-interface Existing {
-  config: SsoConnectionFile | null;
-  secrets: SsoConnectionSecrets;
-}
-
-async function readExisting(orgSlug: string): Promise<Existing> {
-  // yml first, json fallback — a corrupt file throws (writes must not
-  // proceed as if no connection existed and clobber it).
-  const configResult = await readDomainConfigFile(
-    resolveSsoDir(orgSlug),
-    SSO_CONNECTION_KEY,
-    MAX_FILE_SIZE_BYTES,
-    validateSsoConnectionData,
-  );
-  if (!configResult.ok && configResult.error !== 'not_found') {
-    throw new Error(configResult.message);
-  }
-  const secretsRaw = await readFileSafe(
-    resolveSsoConnectionSecretsFilePath(orgSlug),
-  );
-  return {
-    config: configResult.ok ? configResult.data : null,
-    secrets: secretsRaw ? parseSsoSecretsJson(secretsRaw) : {},
-  };
-}
 
 /**
  * Re-derive the non-secret connection config into `configCache` for V8 readers
@@ -132,13 +84,7 @@ async function resyncCache(
   );
 }
 
-/**
- * Snapshot → atomic write of both files → cache sync. Writes the canonical
- * `connection.yml` and deletes the superseded `connection.json` only after
- * the write succeeded; the history snapshot keeps the current file's own
- * format under its own extension. The secrets sidecar stays `.secrets.json`
- * (see the file header).
- */
+/** File write via the shared store, then the configCache mirror for V8. */
 async function persist(
   ctx: ActionCtx,
   organizationId: string,
@@ -146,28 +92,7 @@ async function persist(
   config: SsoConnectionFile,
   secrets: SsoConnectionSecrets,
 ): Promise<void> {
-  const yamlPath = resolveSsoConnectionYamlFilePath(orgSlug);
-  const jsonPath = resolveSsoConnectionFilePath(orgSlug);
-  const currentYaml = await readFileSafe(yamlPath);
-  const current = currentYaml ?? (await readFileSafe(jsonPath));
-  if (current) {
-    const historyDir = resolveSsoHistoryDir(orgSlug);
-    await mkdir(historyDir, { recursive: true });
-    await atomicWrite(
-      path.join(
-        historyDir,
-        `${generateHistoryTimestamp()}.${currentYaml ? 'yml' : 'json'}`,
-      ),
-      current,
-    );
-    await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
-  }
-  await atomicWrite(yamlPath, serializeSsoConnectionYaml(config));
-  await removeFileSafe(jsonPath);
-  await atomicWriteSecret(
-    resolveSsoConnectionSecretsFilePath(orgSlug),
-    serializeSsoSecretsJson(secrets),
-  );
+  await persistFiles(orgSlug, config, secrets);
   await resyncCache(ctx, organizationId);
 }
 
@@ -235,7 +160,7 @@ export const writeOidcConnection = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const existing = await readExisting(orgSlug);
+    const existing: ExistingSsoFiles = await readExisting(orgSlug);
 
     const clientSecret = args.clientSecret ?? existing.secrets.clientSecret;
     if (!clientSecret) {
@@ -304,7 +229,7 @@ export const writeSamlConnection = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const existing = await readExisting(orgSlug);
+    const existing: ExistingSsoFiles = await readExisting(orgSlug);
 
     const spPrivateKey = args.spPrivateKey ?? existing.secrets.spPrivateKey;
 
@@ -341,7 +266,7 @@ export const writeProvisioning = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const existing = await readExisting(orgSlug);
+    const existing: ExistingSsoFiles = await readExisting(orgSlug);
     const base: SsoConnectionFile = existing.config ?? {
       enabled: false,
       displayName: 'Enterprise SSO',
@@ -363,7 +288,7 @@ export const setEnabled = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const existing = await readExisting(orgSlug);
+    const existing: ExistingSsoFiles = await readExisting(orgSlug);
     if (!existing.config) return null;
     const config: SsoConnectionFile = {
       ...existing.config,
@@ -381,17 +306,7 @@ export const removeConnection = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const ignoreMissing = (err: unknown) => {
-      if (errnoCode(err) !== 'ENOENT') throw err;
-    };
-    // Both formats: the canonical .yml plus any pre-conversion .json.
-    await rm(resolveSsoConnectionYamlFilePath(orgSlug)).catch(ignoreMissing);
-    await rm(resolveSsoConnectionFilePath(orgSlug)).catch(ignoreMissing);
-    await rm(resolveSsoConnectionSecretsFilePath(orgSlug)).catch(ignoreMissing);
-    await rm(resolveSsoHistoryDir(orgSlug), { recursive: true, force: true });
-    await rm(resolveSsoDir(orgSlug), { force: true }).catch(() => {
-      // Dir may be non-empty / shared; best-effort only.
-    });
+    await removeConnectionFiles(orgSlug);
     // Files are gone → the generic sync mirrors zero entries → cache row cleared.
     await resyncCache(ctx, args.organizationId);
     await audit(ctx, args, 'sso_removed');
@@ -422,7 +337,7 @@ export const revealClientId = internalAction({
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args): Promise<string | null> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const existing = await readExisting(orgSlug);
+    const existing: ExistingSsoFiles = await readExisting(orgSlug);
     return existing.secrets.clientId ?? null;
   },
 });

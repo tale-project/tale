@@ -163,6 +163,50 @@ export function parseSamlMetadataXml(xml: string): ParsedSamlMetadata {
  * `xml` is provided by the caller (the admin-gated public action validates
  * that). URL fetches go through `safeFetch` — SSRF guard + the same size cap.
  */
+export async function fetchAndParseIdpMetadataImpl(args: {
+  url?: string;
+  xml?: string;
+}): Promise<{
+  ok: boolean;
+  error?: string;
+  idpEntityId?: string;
+  idpSsoUrl?: string;
+  idpCertificate?: string;
+}> {
+  let xml = args.xml;
+  if (args.url !== undefined) {
+    try {
+      const response = await safeFetch(args.url, {
+        maxResponseBytes: MAX_SAML_METADATA_BYTES,
+        headers: { accept: 'application/samlmetadata+xml, text/xml, */*' },
+      });
+      if (response.status < 200 || response.status >= 300) {
+        return { ok: false, error: 'fetch_failed' };
+      }
+      xml = response.body;
+    } catch (error) {
+      console.warn('[sso] metadata fetch failed', error);
+      if (
+        error instanceof SafeFetchError &&
+        error.kind === 'response_too_large'
+      ) {
+        return { ok: false, error: 'too_large' };
+      }
+      return { ok: false, error: 'fetch_failed' };
+    }
+  }
+  if (xml === undefined) return { ok: false, error: 'invalid' };
+
+  const result = parseSamlMetadataXml(xml);
+  if (!result.ok) return { ok: false, error: result.error };
+  return {
+    ok: true,
+    idpEntityId: result.idpEntityId,
+    idpSsoUrl: result.idpSsoUrl,
+    idpCertificate: result.idpCertificate,
+  };
+}
+
 export const fetchAndParseIdpMetadata = internalAction({
   args: {
     url: v.optional(v.string()),
@@ -175,38 +219,5 @@ export const fetchAndParseIdpMetadata = internalAction({
     idpSsoUrl: v.optional(v.string()),
     idpCertificate: v.optional(v.string()),
   }),
-  handler: async (_ctx, args) => {
-    let xml = args.xml;
-    if (args.url !== undefined) {
-      try {
-        const response = await safeFetch(args.url, {
-          maxResponseBytes: MAX_SAML_METADATA_BYTES,
-          headers: { accept: 'application/samlmetadata+xml, text/xml, */*' },
-        });
-        if (response.status < 200 || response.status >= 300) {
-          return { ok: false, error: 'fetch_failed' };
-        }
-        xml = response.body;
-      } catch (error) {
-        console.warn('[sso] metadata fetch failed', error);
-        if (
-          error instanceof SafeFetchError &&
-          error.kind === 'response_too_large'
-        ) {
-          return { ok: false, error: 'too_large' };
-        }
-        return { ok: false, error: 'fetch_failed' };
-      }
-    }
-    if (xml === undefined) return { ok: false, error: 'invalid' };
-
-    const result = parseSamlMetadataXml(xml);
-    if (!result.ok) return { ok: false, error: result.error };
-    return {
-      ok: true,
-      idpEntityId: result.idpEntityId,
-      idpSsoUrl: result.idpSsoUrl,
-      idpCertificate: result.idpCertificate,
-    };
-  },
+  handler: async (_ctx, args) => fetchAndParseIdpMetadataImpl(args),
 });
