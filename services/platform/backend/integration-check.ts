@@ -5687,11 +5687,10 @@ async function checkControlDrain(
   ): Promise<Response> =>
     fetch(`${base}/api/control${route}`, {
       method: init.method ?? 'GET',
-      headers: {
-        ...(init.bearer !== undefined
+      headers:
+        init.bearer !== undefined
           ? { authorization: `Bearer ${init.bearer}` }
-          : {}),
-      },
+          : {},
     });
 
   // Door auth: no bearer / wrong bearer → 401; unset env → 404.
@@ -5801,7 +5800,7 @@ async function checkControlDrain(
       threadId !== '' &&
       began.success &&
       statusDraining.success &&
-      statusDraining.data.draining === true &&
+      statusDraining.data.draining &&
       refusedSend.status === 503 &&
       refusedBody.success &&
       refusedBody.data.status === 'refused' &&
@@ -5812,9 +5811,9 @@ async function checkControlDrain(
       withStale.data.inFlight === 0 &&
       ended.status === 200 &&
       statusEnded.success &&
-      statusEnded.data.draining === false &&
+      !statusEnded.data.draining &&
       statusExpired.success &&
-      statusExpired.data.draining === false,
+      !statusExpired.data.draining,
     `auth=${noBearer.status}/${wrongBearer.status}/gone=${doorGone.status} (want 401/401/404), begin=${began.success} draining=${statusDraining.success ? statusDraining.data.draining : 'ERR'}, send=${refusedSend.status} (want 503) body=${refusedBody.success ? refusedBody.data.status : 'ERR'} appended=${appended[0]?.count} (want 0), inFlight fresh=${withFresh.success ? withFresh.data.inFlight : 'ERR'}/stale=${withStale.success ? withStale.data.inFlight : 'ERR'} (want 1/0), end=${ended.status} → draining=${statusEnded.success ? statusEnded.data.draining : 'ERR'}, expired=${statusExpired.success ? statusExpired.data.draining : 'ERR'} (want false)`,
   );
 }
