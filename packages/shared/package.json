@@ -7,6 +7,7 @@
     "./config/base": "./src/config/base.ts",
     "./config/org-slug": "./src/config/org-slug.ts",
     "./db/retry": "./src/db/retry.ts",
+    "./db/serializable": "./src/db/serializable.ts",
     "./logging/logger": "./src/logging/logger.ts",
     "./logging/setup": "./src/logging/setup.ts",
     "./terminal": "./src/terminal/index.ts",
