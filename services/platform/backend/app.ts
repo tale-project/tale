@@ -12,6 +12,10 @@ import { createWebhookRoutes } from './domains/automations/triggers.ts';
 import { createBrandingRoutes } from './domains/branding/routes.ts';
 import { createChangelogRoutes } from './domains/changelog/routes.ts';
 import { createChatRoutes } from './domains/chat/routes.ts';
+import {
+  createCloudImportOauthRoutes,
+  createCloudImportRoutes,
+} from './domains/cloud_import/routes.ts';
 import { createCollabRoutes } from './domains/collab/routes.ts';
 import { createConnectorCredentialRoutes } from './domains/connector_credentials/routes.ts';
 import { createContactRoutes } from './domains/contacts/routes.ts';
@@ -112,6 +116,12 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/approvals', createApprovalRoutes(deps));
   app.route('/api/control', createControlRoutes(deps));
   app.route('/api/app/tts', createTtsRoutes(deps));
+  // Cloud-import OAuth: the wire path is registered with the vendors, so
+  // it keeps the 0.4 identity (+ the proxy-era alias, like SSO).
+  const cloudImportOauth = createCloudImportOauthRoutes(deps);
+  app.route('/api/cloud-import/oauth2', cloudImportOauth);
+  app.route('/http_api/api/cloud-import/oauth2', cloudImportOauth);
+  app.route('/api/app/cloud-import', createCloudImportRoutes(deps));
   // WebDAV (/dav/<orgSlug>/…): HTTP Basic app-password auth lives inside the
   // reused dispatch; the raw request URL carries the /dav prefix the parser
   // expects, so the mount path only scopes routing.

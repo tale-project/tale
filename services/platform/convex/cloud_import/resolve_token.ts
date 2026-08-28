@@ -16,86 +16,20 @@ import {
 } from '../connector_credentials/auth_injection';
 import { decryptSecret, encryptSecret } from '../lib/secret_box';
 import {
-  microsoftCloudImportOauthUrls,
   resolveCloudImportOauthApp,
   resolveMicrosoftCloudImportTenantId,
 } from './deployment_config';
-import { getCloudImportProviderEndpoints } from './providers';
 import { cloudImportProviderValidator } from './schema';
+import {
+  refreshGoogleAccessToken,
+  refreshMicrosoftAccessToken,
+} from './token_refresh';
 
 const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 export type ResolveCloudTokenResult =
   | { success: true; accessToken: string }
   | { success: false; error: string; needsReauth?: boolean };
-
-function parseOAuthTokenResponse(data: unknown): {
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt?: number;
-} | null {
-  if (!isRecord(data)) return null;
-  const accessToken = getString(data, 'access_token');
-  if (accessToken === undefined) return null;
-  const refreshToken = getString(data, 'refresh_token');
-  const expiresIn = getNumber(data, 'expires_in');
-  return {
-    accessToken,
-    ...(refreshToken !== undefined && { refreshToken }),
-    ...(expiresIn !== undefined && {
-      expiresAt: Date.now() + expiresIn * 1000,
-    }),
-  };
-}
-
-async function refreshMicrosoftAccessToken(args: {
-  refreshToken: string;
-  clientId: string;
-  clientSecret: string;
-  tenantId: string;
-}): Promise<{
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt?: number;
-} | null> {
-  const { tokenUrl } = microsoftCloudImportOauthUrls(args.tenantId);
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: args.clientId,
-      client_secret: args.clientSecret,
-      refresh_token: args.refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  });
-  if (!response.ok) return null;
-  return parseOAuthTokenResponse(await response.json());
-}
-
-async function refreshGoogleAccessToken(args: {
-  refreshToken: string;
-  clientId: string;
-  clientSecret: string;
-}): Promise<{
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt?: number;
-} | null> {
-  const { tokenUrl } = getCloudImportProviderEndpoints('google-drive');
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: args.clientId,
-      client_secret: args.clientSecret,
-      refresh_token: args.refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  });
-  if (!response.ok) return null;
-  return parseOAuthTokenResponse(await response.json());
-}
 
 export const resolveAccessToken = internalAction({
   args: {

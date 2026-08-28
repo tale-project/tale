@@ -6872,6 +6872,172 @@ async function checkTts(
 }
 
 /**
+ * Cloud-import grants: the OAuth start door (PKCE + hashed one-shot state,
+ * knowledgeWrite-gated), state consume semantics, and the sealed grant
+ * lifecycle — store → resolve (fresh), expiry without a refresh token →
+ * needs-reauth, revoke → refused. The live vendor exchange/refresh hits
+ * hardcoded Google/Microsoft hosts and stays out of the harness.
+ */
+async function checkCloudImport(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  process.env.CLOUD_IMPORT_GOOGLE_DRIVE_CLIENT_ID = 'itest-google-client';
+  process.env.CLOUD_IMPORT_GOOGLE_DRIVE_CLIENT_SECRET = 'itest-google-secret';
+  // The redirect_uri derives from SITE_URL; restore afterwards so other
+  // checks keep their unset-default behavior.
+  const savedSiteUrl = process.env.SITE_URL;
+  process.env.SITE_URL = base;
+  const {
+    consumePendingCloudAuthorization,
+    resolveCloudAccessToken,
+    storeCloudAuthorization,
+  } = await import('./domains/cloud_import/service.ts');
+  const { hashStateToken } =
+    await import('../convex/http_connectors/oauth_state.ts');
+
+  // Start: a signed-in member gets a 302 to the vendor with PKCE + state.
+  const start = await fetch(
+    `${base}/api/cloud-import/oauth2/start?provider=google-drive&organizationId=${orgId}`,
+    { headers: { cookie, origin: base }, redirect: 'manual' },
+  );
+  const location = start.headers.get('location') ?? '';
+  const authorizeUrl = location ? new URL(location) : null;
+  const state = authorizeUrl?.searchParams.get('state') ?? '';
+  const noSession = await fetch(
+    `${base}/api/cloud-import/oauth2/start?provider=google-drive&organizationId=${orgId}`,
+    { redirect: 'manual' },
+  );
+  const badProvider = await fetch(
+    `${base}/api/cloud-import/oauth2/start?provider=dropbox&organizationId=${orgId}`,
+    { headers: { cookie, origin: base }, redirect: 'manual' },
+  );
+
+  // The state row is one-shot: vendor-declined callback consumes it, and a
+  // replay reads as invalid_state.
+  const declined = await fetch(
+    `${base}/api/cloud-import/oauth2/callback?state=${encodeURIComponent(state)}&error=access_denied`,
+    { redirect: 'manual' },
+  );
+  const declinedBody = await declined.text();
+  const replay = await fetch(
+    `${base}/api/cloud-import/oauth2/callback?state=${encodeURIComponent(state)}&code=abc`,
+    { redirect: 'manual' },
+  );
+  const replayBody = await replay.text();
+  const consumed = await consumePendingCloudAuthorization(
+    sql,
+    await hashStateToken(state),
+  );
+
+  // Grant lifecycle, service-level (the vendor exchange is live-only).
+  await storeCloudAuthorization(sql, {
+    organizationId: orgId,
+    userId,
+    provider: 'google-drive',
+    accessToken: 'ya29.itest-token',
+    refreshToken: 'refresh-1',
+    expiresAt: Date.now() + 3_600_000,
+    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+    accountLabel: 'itest@door.test',
+  });
+  const fresh = await resolveCloudAccessToken(sql, {
+    organizationId: orgId,
+    userId,
+    provider: 'google-drive',
+  });
+  const listed = z
+    .object({
+      authorizations: z.array(
+        z.looseObject({
+          provider: z.string(),
+          status: z.string(),
+          accountLabel: z.string().nullable(),
+        }),
+      ),
+    })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/cloud-import/authorizations?orgId=${orgId}`,
+          { headers: { cookie, origin: base } },
+        )
+      ).json(),
+    );
+  const secretLeak = JSON.stringify(listed.success ? listed.data : {}).includes(
+    'ya29.itest-token',
+  );
+
+  // Expired WITHOUT a refresh token → needs-reauth marked, resolve refuses.
+  await storeCloudAuthorization(sql, {
+    organizationId: orgId,
+    userId,
+    provider: 'google-drive',
+    accessToken: 'ya29.expired',
+    expiresAt: Date.now() - 1_000,
+    scopes: [],
+  });
+  const expired = await resolveCloudAccessToken(sql, {
+    organizationId: orgId,
+    userId,
+    provider: 'google-drive',
+  });
+  const reauthRow = await sql<{ status: string }[]>`
+    SELECT status FROM app.user_cloud_authorizations
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND provider = 'google-drive'
+    LIMIT 1
+  `;
+
+  // Revoke drops the sealed payload and refuses future resolves.
+  const revoke = await fetch(
+    `${base}/api/app/cloud-import/authorizations/google-drive/revoke?orgId=${orgId}`,
+    { method: 'POST', headers: { cookie, origin: base } },
+  );
+  const afterRevoke = await resolveCloudAccessToken(sql, {
+    organizationId: orgId,
+    userId,
+    provider: 'google-drive',
+  });
+
+  if (savedSiteUrl === undefined) delete process.env.SITE_URL;
+  else process.env.SITE_URL = savedSiteUrl;
+
+  record(
+    'cloud-import grants (oauth start/state + sealed lifecycle)',
+    start.status === 302 &&
+      authorizeUrl !== null &&
+      authorizeUrl.hostname === 'accounts.google.com' &&
+      authorizeUrl.searchParams.get('client_id') === 'itest-google-client' &&
+      authorizeUrl.searchParams.get('code_challenge_method') === 'S256' &&
+      state.length > 20 &&
+      noSession.status === 401 &&
+      badProvider.status !== 302 &&
+      !declinedBody.includes('cloudImport') &&
+      // vendor_declined and (on replay) invalid_state both render 400
+      // error pages — the state row is one-shot.
+      declined.status === 400 &&
+      replay.status === 400 &&
+      replayBody.length > 0 &&
+      !consumed.ok &&
+      fresh.success &&
+      fresh.accessToken === 'ya29.itest-token' &&
+      listed.success &&
+      listed.data.authorizations[0]?.status === 'active' &&
+      listed.data.authorizations[0]?.accountLabel === 'itest@door.test' &&
+      !secretLeak &&
+      !expired.success &&
+      expired.needsReauth === true &&
+      reauthRow[0]?.status === 'needs-reauth' &&
+      revoke.status === 200 &&
+      !afterRevoke.success,
+    `start=${start.status} host=${authorizeUrl?.hostname} client=${authorizeUrl?.searchParams.get('client_id')} pkce=${authorizeUrl?.searchParams.get('code_challenge_method')} state=${state.length}ch, noSession=${noSession.status} (want 401) badProvider=${badProvider.status}, declined=${declined.status} replay=${replay.status} consumedAfter=${String(consumed.ok)} (want false), fresh=${fresh.success}:${fresh.success && fresh.accessToken === 'ya29.itest-token'} listed=${listed.success ? `${listed.data.authorizations[0]?.status}/${listed.data.authorizations[0]?.accountLabel}` : 'ERR'} leak=${secretLeak}, expired=${expired.success}/${!expired.success ? expired.needsReauth : ''} row=${reauthRow[0]?.status}, revoke=${revoke.status} after=${afterRevoke.success} (want false)`,
+  );
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -12185,6 +12351,7 @@ async function main(): Promise<void> {
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTts(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkCloudImport(sql, baseUrl, authCtx);
     await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAgentSecrets(sql, baseUrl, authCtx);
