@@ -7019,6 +7019,117 @@ async function checkErasure(
 }
 
 /**
+ * Two-factor enforcement: an enforced policy with zero grace flips the
+ * sign-in response to the enrolment-wall shape; a grace policy anchors the
+ * per-user clock once; the verify-endpoint lockout mirrors the password
+ * schedule and clears on success.
+ */
+async function checkTwoFactor(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+  email: string,
+): Promise<void> {
+  const { cookie, userId } = ctx;
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const governanceDir = path.join(configRoot, orgSlug, 'governance');
+  await mkdir(governanceDir, { recursive: true });
+  const orgConfig = await import('./lib/org-config.ts');
+  const signIn = (): Promise<Response> =>
+    fetch(`${base}/api/auth/sign-in/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({ email, password: 'itest-password-1' }),
+    });
+
+  await writeFile(
+    path.join(governanceDir, 'two-factor-policy.yml'),
+    ['enforced: true', 'gracePeriodDays: 0', 'exemptSsoUsers: true'].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+  const blockedRes = await signIn();
+  const blockedBody = z
+    .object({ enrollRequired: z.boolean().optional() })
+    .loose()
+    .safeParse(await blockedRes.json());
+
+  await writeFile(
+    path.join(governanceDir, 'two-factor-policy.yml'),
+    ['enforced: true', 'gracePeriodDays: 7', 'exemptSsoUsers: true'].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+  const graceRes = await signIn();
+  const graceBody = z
+    .object({
+      enrollRequired: z.boolean().optional(),
+      token: z.string().optional(),
+    })
+    .loose()
+    .safeParse(await graceRes.json());
+  const anchor1 = await sql<{ graceUntil: number }[]>`
+    SELECT grace_until_ms::float8 AS "graceUntil"
+    FROM app.two_factor_grace WHERE user_id = ${userId}
+  `;
+  await signIn();
+  const anchor2 = await sql<{ graceUntil: number }[]>`
+    SELECT grace_until_ms::float8 AS "graceUntil"
+    FROM app.two_factor_grace WHERE user_id = ${userId}
+  `;
+
+  // The verify lockout: five failures lock; the verify endpoint answers
+  // 429 while locked; success clears.
+  const { recordTwoFactorFailure, recordTwoFactorSuccess } =
+    await import('./domains/two_factor/service.ts');
+  let lockedUntil: number | null = null;
+  for (let i = 0; i < 6; i++) {
+    const outcome = await recordTwoFactorFailure(sql, {
+      userId,
+      method: 'totp',
+    });
+    lockedUntil = outcome.lockedUntil;
+  }
+  // The wire-level 429 needs the login-time 2FA cookie (a real TOTP
+  // enrollment) — E2E scope; here the STATE machinery is the assertion and
+  // the endpoint call proves the route exists (400 = reached, unenrolled).
+  const verifyWhileLocked = await fetch(
+    `${base}/api/auth/two-factor/verify-totp`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ code: '000000' }),
+    },
+  );
+  await recordTwoFactorSuccess(sql, userId);
+  const stateAfter = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.two_factor_attempts
+    WHERE user_id = ${userId}
+  `;
+
+  // Lift the policy so later sign-ins (the lockout check) stay normal.
+  await writeFile(
+    path.join(governanceDir, 'two-factor-policy.yml'),
+    'enforced: false\n',
+  );
+  orgConfig.clearOrgConfigCaches();
+  record(
+    'two-factor: zero-grace blocks to enrolment, grace anchors once, verify locks',
+    blockedRes.status === 200 &&
+      blockedBody.success &&
+      blockedBody.data.enrollRequired === true &&
+      graceRes.status === 200 &&
+      graceBody.success &&
+      graceBody.data.enrollRequired !== true &&
+      anchor1.length === 1 &&
+      anchor2[0]?.graceUntil === anchor1[0]?.graceUntil &&
+      lockedUntil !== null &&
+      (verifyWhileLocked.status === 429 || verifyWhileLocked.status === 400) &&
+      stateAfter[0]?.count === '0',
+    `blocked=${blockedRes.status}/${blockedBody.success ? blockedBody.data.enrollRequired : 'ERR'} (want true), grace=${graceBody.success ? graceBody.data.enrollRequired !== true : 'ERR'}, anchored=${anchor1.length === 1 && anchor2[0]?.graceUntil === anchor1[0]?.graceUntil}, locked=${lockedUntil !== null}, verify=${verifyWhileLocked.status}, cleared=${stateAfter[0]?.count}`,
+  );
+}
+
+/**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
  * with no resume; a settled predecessor with a stamped handle on the live
@@ -7962,6 +8073,13 @@ async function main(): Promise<void> {
     await checkLegalHolds(sql, baseUrl, authCtx);
     await checkRetention(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkErasure(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkTwoFactor(
+      sql,
+      baseUrl,
+      authCtx,
+      `itest-${orgSuffix}`,
+      `itest-${orgSuffix}@example.com`,
+    );
     await checkChatMemoriesDeferredAuto(
       sql,
       baseUrl,

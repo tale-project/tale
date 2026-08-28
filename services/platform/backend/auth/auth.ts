@@ -21,6 +21,13 @@ import {
   recordBlocked,
   recordFailure,
 } from '../domains/login_attempts/service.ts';
+import {
+  evaluateTwoFactorEnforcement,
+  getTwoFactorLockState,
+  recordTwoFactorFailure,
+  recordTwoFactorSuccess,
+  setGraceUntilIfAbsent,
+} from '../domains/two_factor/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../lib/org-config.ts';
 import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
@@ -118,6 +125,42 @@ export function createAuth(config: AuthConfig) {
   const isHttps = siteUrl.startsWith('https://');
   const sql = config.sql;
 
+  /** The 2FA verify endpoints the lockout counter guards. */
+  const TWO_FACTOR_VERIFY_PATHS = new Set([
+    '/two-factor/verify-totp',
+    '/two-factor/verify-backup-code',
+  ]);
+  /** Resolve the pending user for a verify call: an authenticated session,
+   * the just-issued session, or the 2FA verification cookie. */
+  // oxlint-disable-next-line typescript/no-explicit-any -- better-auth middleware generics are unstable across minors
+  const resolveTwoFactorUserId = async (mw: any): Promise<string | null> => {
+    try {
+      const existing = mw.context.session;
+      if (isRecord(existing) && isRecord(existing.user)) {
+        const id = existing.user.id;
+        if (typeof id === 'string') return id;
+      }
+      const fresh = mw.context.newSession;
+      if (isRecord(fresh) && isRecord(fresh.user)) {
+        const id = fresh.user.id;
+        if (typeof id === 'string') return id;
+      }
+      const cookieCfg = mw.context.createAuthCookie('two_factor');
+      const signed = await mw.getSignedCookie(
+        cookieCfg.name,
+        mw.context.secret,
+      );
+      if (!signed) return null;
+      const verification =
+        await mw.context.internalAdapter.findVerificationValue(signed);
+      if (!verification) return null;
+      return typeof verification.value === 'string' ? verification.value : null;
+    } catch (error) {
+      console.warn('[two-factor] user resolution failed:', error);
+      return null;
+    }
+  };
+
   return betterAuth({
     database: new pg.Pool({ connectionString: config.databaseUrl, max: 5 }),
     secret: config.secret,
@@ -179,6 +222,23 @@ export function createAuth(config: AuthConfig) {
       // Pre-flight gate: reject sign-ins over the per-IP flood limit OR
       // against a locked account, surfacing the MAX retry-after of the two.
       before: createAuthMiddleware(async (mw) => {
+        // 2FA verify lockout: a caller who knows the password must not
+        // brute-force the ~10^6 TOTP space — the counter mirrors the
+        // password lockout, keyed by the pending user's id.
+        if (TWO_FACTOR_VERIFY_PATHS.has(mw.path)) {
+          const userId = await resolveTwoFactorUserId(mw);
+          if (userId) {
+            const { lockedUntil } = await getTwoFactorLockState(sql, userId);
+            if (lockedUntil !== null && lockedUntil > Date.now()) {
+              await jitterDelay();
+              throw new APIError('TOO_MANY_REQUESTS', {
+                message: 'Invalid two-factor code',
+                retryAfter: Math.ceil((lockedUntil - Date.now()) / 1000),
+              });
+            }
+          }
+          return;
+        }
         if (mw.path !== SIGN_IN_EMAIL_PATH) {
           return;
         }
@@ -255,6 +315,66 @@ export function createAuth(config: AuthConfig) {
                   }),
             );
           }
+          // Org 2FA enforcement: an enforced policy either starts the grace
+          // clock (session kept — the enrolment wall needs it) or, past
+          // grace, tells the client to route to enrolment. The session is
+          // deliberately KEPT even when blocked: /two-factor/enable
+          // requires it (the 0.4 posture).
+          if (!(mw.context.returned instanceof APIError)) {
+            const sessionUser = isRecord(mw.context.newSession)
+              ? mw.context.newSession.user
+              : null;
+            const sessionUserId =
+              isRecord(sessionUser) && typeof sessionUser.id === 'string'
+                ? sessionUser.id
+                : null;
+            if (sessionUserId !== null) {
+              const enforcement = await evaluateTwoFactorEnforcement(
+                sql,
+                sessionUserId,
+              );
+              if (
+                enforcement.decision === 'grace' &&
+                enforcement.graceUntilToSet !== null
+              ) {
+                await setGraceUntilIfAbsent(
+                  sql,
+                  sessionUserId,
+                  enforcement.graceUntilToSet,
+                );
+              }
+              if (enforcement.decision === 'blocked') {
+                return mw.json({
+                  twoFactorRedirect: true,
+                  enrollRequired: true,
+                });
+              }
+            }
+          }
+        }
+
+        // 2FA verify accounting: a failed code bumps the lockout counter,
+        // a success clears it.
+        if (TWO_FACTOR_VERIFY_PATHS.has(mw.path)) {
+          const userId = await resolveTwoFactorUserId(mw);
+          if (userId) {
+            const returned = mw.context.returned;
+            const failed =
+              returned instanceof APIError ||
+              (!mw.context.newSession && !isRecord(returned));
+            if (failed) {
+              await recordTwoFactorFailure(sql, {
+                userId,
+                method: mw.path.endsWith('verify-backup-code')
+                  ? 'backup_code'
+                  : 'totp',
+                ...(ip !== undefined ? { ip } : {}),
+                ...(userAgent !== undefined ? { userAgent } : {}),
+              });
+            } else {
+              await recordTwoFactorSuccess(sql, userId);
+            }
+          }
         }
 
         // Persist the trailing plaintext chars of a freshly created API key
@@ -279,6 +399,7 @@ export function createAuth(config: AuthConfig) {
             }
           }
         }
+        return undefined;
       }),
     },
     plugins: [
