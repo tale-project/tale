@@ -712,3 +712,33 @@ export async function respondToTaskReview(
     return { taskCompleted, agentKicked, taskReopened };
   });
 }
+
+/** Bounded scan cap — mirrors the 0.4 board indicator cap. */
+export const PENDING_REVIEW_SCAN_CAP = 50;
+
+/**
+ * Pending review-gate approvals whose `metadata.projectId` is in the set —
+ * one bounded org-level read (pending reviews are rare org-wide) feeding
+ * the board's review chips and the "Needs my review" facet.
+ */
+export async function collectPendingReviewsForProjects(
+  sql: Sql,
+  organizationId: string,
+  projectIds: readonly string[],
+): Promise<
+  Array<{ taskId: string; approvalId: string; requestedFor: string | null }>
+> {
+  if (projectIds.length === 0) return [];
+  return sql<
+    { taskId: string; approvalId: string; requestedFor: string | null }[]
+  >`
+    SELECT resource_id AS "taskId", id AS "approvalId",
+           nullif(metadata ->> 'requestedFor', '') AS "requestedFor"
+    FROM app.approvals
+    WHERE org_id = ${organizationId} AND status = 'pending'
+      AND resource_type = 'task_review'
+      AND metadata ->> 'projectId' IN ${sql([...projectIds])}
+    ORDER BY seq DESC
+    LIMIT ${PENDING_REVIEW_SCAN_CAP}
+  `;
+}

@@ -3,6 +3,10 @@ import type { Sql } from 'postgres';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/convex-shim.ts';
+import {
+  dismissAgentQuestionNotifications,
+  notifyAgentQuestionAsked,
+} from '../collab/service.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import {
   claimRun,
@@ -477,6 +481,12 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
             question = ${merged}, questions = NULL
           WHERE id = ${existing[0].id}
         `;
+        await notifyAskBestEffort(sql, {
+          organizationId: args.organizationId,
+          askId: existing[0].id,
+          runId,
+          question: merged,
+        });
         return { askId: existing[0].id, question, folded: true };
       }
       const inserted = await sql<{ id: string }[]>`
@@ -492,7 +502,14 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         )
         RETURNING id
       `;
-      return { askId: inserted[0]?.id ?? '', question, folded: false };
+      const askId = inserted[0]?.id ?? '';
+      await notifyAskBestEffort(sql, {
+        organizationId: args.organizationId,
+        askId,
+        runId,
+        question,
+      });
+      return { askId, question, folded: false };
     },
 
     'automations/human_asks:getPendingAskForExec': async (raw) => {
@@ -531,10 +548,19 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         askId: string;
         status: 'expired' | 'cancelled' | 'answered';
       };
-      await sql`
+      const closed = await sql<{ orgId: string }[]>`
         UPDATE app.automation_human_asks SET status = ${args.status}
         WHERE id = ${args.askId} AND status = 'pending'
+        RETURNING org_id AS "orgId"
       `;
+      if (closed[0]) {
+        await dismissAgentQuestionNotifications(sql, {
+          organizationId: closed[0].orgId,
+          askId: args.askId,
+        }).catch((error: unknown) => {
+          console.warn('[asks] bell dismissal failed:', error);
+        });
+      }
       return null;
     },
 
@@ -683,6 +709,37 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       return null;
     },
   };
+}
+
+/** Bell fan-out for one ask — best-effort (a notify failure must never fail
+ * the ask itself); the audience is everyone who can see the run's project. */
+async function notifyAskBestEffort(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    askId: string;
+    runId: string;
+    question: string;
+  },
+): Promise<void> {
+  try {
+    const runs = await sql<{ name: string; projectId: string | null }[]>`
+      SELECT name, project_id AS "projectId" FROM app.automation_runs
+      WHERE id = ${args.runId} LIMIT 1
+    `;
+    const run = runs[0];
+    await notifyAgentQuestionAsked(sql, {
+      organizationId: args.organizationId,
+      askId: args.askId,
+      runId: args.runId,
+      question: args.question,
+      automationLabel: run?.name ?? 'automation',
+      task: null,
+      ...(run?.projectId != null ? { projectId: run.projectId } : {}),
+    });
+  } catch (error) {
+    console.warn('[asks] bell fan-out failed:', error);
+  }
 }
 
 /** The scheduler seam for the automation shims: the reused hosts' scheduled

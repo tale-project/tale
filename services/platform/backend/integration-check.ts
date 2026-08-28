@@ -4837,6 +4837,79 @@ async function checkAskAnswer(
       cp.data.executions.seq === 3,
     `miss=${miss.success ? miss.data.retargeted : 'ERR'} hit=${hit.success ? hit.data.retargeted : 'ERR'} exec=${cp.success ? cp.data.cursor.agent.execId : 'ERR'}`,
   );
+
+  // The ask BELLS: creating an ask through the tool door's handler fans out
+  // agent_escalation rows to the project audience (org admins here — the
+  // run has no project), a FOLD rewrites the unread row in place, and the
+  // answer dismisses it transactionally.
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, 'wf-ask-bell', 'active', 'workflow_run', ${runAId},
+      'itest:ask', ${now}, ${now + 3_600_000}
+    )
+  `;
+  const createAsk = shim['automations/human_asks:createAskForExec'];
+  const bellAsk = z
+    .object({ askId: z.string() })
+    .loose()
+    .safeParse(
+      await createAsk?.({
+        organizationId: orgId,
+        sessionId: 'wf-ask-bell',
+        question: 'Which ledger account applies?',
+      }),
+    );
+  const bellAskId = bellAsk.success ? bellAsk.data.askId : '';
+  const bellAfterCreate = await sql<
+    { read: boolean; params: Record<string, unknown> | null }[]
+  >`
+    SELECT read, params FROM app.user_notifications
+    WHERE org_id = ${orgId} AND type = 'agent_escalation'
+      AND params ->> 'askId' = ${bellAskId}
+  `;
+  await createAsk?.({
+    organizationId: orgId,
+    sessionId: 'wf-ask-bell',
+    question: 'And which VAT box?',
+  });
+  const bellAfterFold = await sql<
+    { read: boolean; params: Record<string, unknown> | null }[]
+  >`
+    SELECT read, params FROM app.user_notifications
+    WHERE org_id = ${orgId} AND type = 'agent_escalation'
+      AND params ->> 'askId' = ${bellAskId}
+  `;
+  await answerRoute(bellAskId, 'Account 4400, box 81.');
+  const bellAfterAnswer = await sql<{ read: boolean }[]>`
+    SELECT read FROM app.user_notifications
+    WHERE org_id = ${orgId} AND type = 'agent_escalation'
+      AND params ->> 'askId' = ${bellAskId}
+  `;
+  // The bell session must not linger — later capacity scenarios count the
+  // org's live workflow sessions.
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'destroyed'
+    WHERE session_id = 'wf-ask-bell'
+  `;
+  record(
+    'ask bells: fan-out on create, fold carries the merged question, answer dismisses',
+    bellAsk.success &&
+      bellAfterCreate.length === 1 &&
+      !(bellAfterCreate[0]?.read ?? true) &&
+      // A no-task ask has no collapse subject (the 0.4 posture): the fold
+      // writes its own row carrying the MERGED question.
+      bellAfterFold.some((row) =>
+        JSON.stringify(row.params?.question ?? '').includes(
+          'And which VAT box',
+        ),
+      ) &&
+      bellAfterAnswer.length >= 1 &&
+      bellAfterAnswer.every((row) => row.read),
+    `created=${bellAfterCreate.length}/${bellAfterCreate[0]?.read} (want 1/false), folded=${bellAfterFold.length}, answeredAllRead=${bellAfterAnswer.every((row) => row.read)}`,
+  );
 }
 
 /**
@@ -6759,6 +6832,26 @@ async function checkReviewArc(
     WHERE task_id = ${taskId} AND subscriber_type = 'user'
       AND subscriber_id = ${userId}
   `;
+  const facet = z
+    .object({
+      reviews: z.array(
+        z.object({ taskId: z.string(), approvalId: z.string() }).loose(),
+      ),
+    })
+    .safeParse(
+      await get(
+        `/api/app/tasks/pending-reviews?orgId=${orgId}&projectIds=${projectId}`,
+      ),
+    );
+  record(
+    'pending-reviews facet lists the open gate for the project',
+    facet.success &&
+      facet.data.reviews.some(
+        (row) => row.taskId === taskId && row.approvalId === gated[0]?.id,
+      ),
+    `facet=${facet.success ? facet.data.reviews.length : 'ERR'} rows, hasGated=${facet.success && facet.data.reviews.some((row) => row.approvalId === gated[0]?.id)}`,
+  );
+
   record(
     'review bells: one per mint, dismissed on respond/withdraw, reviewer subscribed',
     bells.length === 4 &&

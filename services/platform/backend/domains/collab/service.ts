@@ -800,3 +800,157 @@ export async function notifyTaskComment(
     });
   }
 }
+
+// ------------------------------------------------------- agent-ask bells
+
+/** Fan-out and scan bounds — the 0.4 caps. */
+const MAX_ASK_RECIPIENTS = 500;
+const QUESTION_EXCERPT_MAX = 160;
+
+export function questionExcerpt(question: string): string {
+  const flat = question.replace(/\s+/g, ' ').trim();
+  return flat.length <= QUESTION_EXCERPT_MAX
+    ? flat
+    : `${flat.slice(0, QUESTION_EXCERPT_MAX)}…`;
+}
+
+/** Every user who can SEE the project: admins/owners ∪ the project's team
+ * members; an org-wide project (no teams) means every non-disabled member.
+ * Falls back to org admins when no project is in scope. */
+async function askAudienceUserIds(
+  db: Db,
+  organizationId: string,
+  projectId: string | null,
+): Promise<string[]> {
+  if (projectId !== null) {
+    const projects = await db<
+      { teamId: string | null; sharedWithTeamIds: string[] }[]
+    >`
+      SELECT team_id AS "teamId",
+             shared_with_team_ids AS "sharedWithTeamIds"
+      FROM app.projects
+      WHERE id = ${projectId} AND org_id = ${organizationId}
+      LIMIT 1
+    `;
+    const project = projects[0];
+    if (project) {
+      const teamIds = [
+        ...new Set([
+          ...(project.teamId !== null ? [project.teamId] : []),
+          ...project.sharedWithTeamIds,
+        ]),
+      ];
+      if (teamIds.length === 0) {
+        const rows = await db<{ userId: string }[]>`
+          SELECT "userId" FROM "member"
+          WHERE "organizationId" = ${organizationId}
+            AND "role" <> 'disabled'
+          LIMIT ${MAX_ASK_RECIPIENTS}
+        `;
+        return rows.map((row) => row.userId);
+      }
+      const rows = await db<{ userId: string }[]>`
+        SELECT DISTINCT m."userId" FROM "member" m
+        WHERE m."organizationId" = ${organizationId}
+          AND m."role" <> 'disabled'
+          AND (m."role" IN ('owner', 'admin')
+               OR EXISTS (
+                 SELECT 1 FROM "teamMember" tm
+                 WHERE tm."userId" = m."userId"
+                   AND tm."teamId" IN ${db(teamIds)}
+               ))
+        LIMIT ${MAX_ASK_RECIPIENTS}
+      `;
+      return rows.map((row) => row.userId);
+    }
+  }
+  const rows = await db<{ userId: string }[]>`
+    SELECT "userId" FROM "member"
+    WHERE "organizationId" = ${organizationId}
+      AND "role" IN ('owner', 'admin')
+    LIMIT ${MAX_ASK_RECIPIENTS}
+  `;
+  return rows.map((row) => row.userId);
+}
+
+/**
+ * One actionable inbox row per person who can see the project: "the agent
+ * paused with a question". Called on ask creation AND on a fold (the merged
+ * question is the current truth — the `question` dimension rewrites the
+ * unread row in place). Returns the rows written/rewritten.
+ */
+export async function notifyAgentQuestionAsked(
+  db: Db,
+  args: {
+    organizationId: string;
+    askId: string;
+    runId: string;
+    question: string;
+    automationLabel: string;
+    task: { id: string; title: string; projectId: string } | null;
+    projectId?: string;
+  },
+): Promise<number> {
+  const projectId = args.task?.projectId ?? args.projectId ?? null;
+  const recipients = await askAudienceUserIds(
+    db,
+    args.organizationId,
+    projectId,
+  );
+  const params: Record<string, unknown> = {
+    name: args.automationLabel,
+    question: questionExcerpt(args.question),
+    askId: args.askId,
+    runId: args.runId,
+    ...(args.task
+      ? { title: args.task.title, projectId: args.task.projectId }
+      : projectId !== null
+        ? { projectId }
+        : {}),
+  };
+  let notified = 0;
+  for (const userId of [...new Set(recipients)].slice(0, MAX_ASK_RECIPIENTS)) {
+    if (
+      !(await isNotificationAllowed(
+        db,
+        userId,
+        args.organizationId,
+        'agent_escalation',
+      ))
+    ) {
+      continue;
+    }
+    await writeCoalescedNotification(db, {
+      userId,
+      organizationId: args.organizationId,
+      type: 'agent_escalation',
+      titleKey: 'agentQuestionAsked',
+      bodyKey: args.task
+        ? 'agentQuestionAskedBody'
+        : 'agentQuestionAskedNoTaskBody',
+      params,
+      resourceType: args.task ? 'task' : 'dashboard',
+      resourceId: args.task ? args.task.id : (projectId ?? args.organizationId),
+      ...(args.task ? { taskId: args.task.id } : {}),
+      actorType: 'agent',
+      actorId: args.automationLabel,
+    });
+    notified += 1;
+  }
+  return notified;
+}
+
+/** The ask is no longer pending — mark every recipient's unread ask row
+ * read (one SQL, keyed by the params askId; read rows stay as history). */
+export async function dismissAgentQuestionNotifications(
+  db: Db,
+  args: { organizationId: string; askId: string },
+): Promise<number> {
+  const rows = await db<{ id: string }[]>`
+    UPDATE app.user_notifications SET read = true, read_at_ms = ${Date.now()}
+    WHERE org_id = ${args.organizationId} AND type = 'agent_escalation'
+      AND read = false AND params ->> 'askId' = ${args.askId}
+    RETURNING id
+  `;
+  return rows.length;
+}

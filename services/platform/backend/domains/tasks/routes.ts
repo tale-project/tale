@@ -25,6 +25,7 @@ import {
   TASK_COMMENT_MAX,
 } from './comments.ts';
 import {
+  collectPendingReviewsForProjects,
   getPendingReviewForTask,
   respondToTaskReview,
   TaskReviewError,
@@ -327,6 +328,29 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         createTask(tx, auth, body.data),
       );
       return c.json({ taskId });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The board's review chips: pending review gates across the given
+  // projects (bounded org-level read).
+  app.get('/pending-reviews', async (c) => {
+    const raw = c.req.query('projectIds') ?? '';
+    const projectIds = raw
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+      .slice(0, 100);
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        reviews: await collectPendingReviewsForProjects(
+          deps.sql,
+          auth.organizationId,
+          projectIds,
+        ),
+      });
     } catch (error) {
       return handleError(c, error);
     }

@@ -7,6 +7,7 @@ import {
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { dismissAgentQuestionNotifications } from '../collab/service.ts';
 
 /**
  * The automation store over PG — versions (immutable, contiguous),
@@ -1118,6 +1119,11 @@ export async function answerAsk(
         answered_by = ${args.answeredBy}, answered_at_ms = ${Date.now()}
       WHERE id = ${args.askId}
     `;
+    // The bells stop ringing the moment the answer lands.
+    await dismissAgentQuestionNotifications(tx, {
+      organizationId: args.organizationId,
+      askId: args.askId,
+    });
     await addJobInTx(tx, 'automation.ask_resume', {
       organizationId: args.organizationId,
       askId: args.askId,
