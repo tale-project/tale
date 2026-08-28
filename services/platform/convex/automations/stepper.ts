@@ -1201,6 +1201,55 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
  * with no continuation except an actual crash, which the recovery sweep in
  * `triggers.ts` picks back up.
  */
+/** One stepper turn as a PLAIN exported function — the internalAction below
+ * wraps it, and the 0.5 backend's `automation.step` job runs it on the ctx
+ * shim (same pattern as `chat/turn_action.executeTurn`). */
+export async function stepRunImpl(
+  ctx: ActionCtx,
+  args: { organizationId: string; runId: Id<'automationRuns'> },
+): Promise<{ status: string }> {
+  // The engine's sandbox seam for untrusted JavaScript (templates, transform
+  // bodies). The bundled backend is deterministic and data-only; a deployment
+  // that installs a real sandbox backend keeps it.
+  if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
+
+  const claim = await ctx.runMutation(internal.automations.mutations.claimRun, {
+    organizationId: args.organizationId,
+    runId: args.runId,
+  });
+  if (!claim.claimed) return { status: claim.status };
+  const epoch = claim.epoch;
+
+  // Renew the liveness promise for as long as this walker is genuinely
+  // working — a node awaiting a slow local model for half an hour stays
+  // alive by heartbeat, and only a walker that actually died goes silent
+  // and gets its run re-poked by the sweep. A superseded walker stops
+  // beating; its state writes are refused by the same epoch fence.
+  let beating = true;
+  const heartbeat = setInterval(() => {
+    void ctx
+      .runMutation(internal.automations.mutations.heartbeatRun, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        epoch,
+      })
+      .then((result) => {
+        if (!result.alive && beating) {
+          beating = false;
+          clearInterval(heartbeat);
+        }
+      })
+      .catch((err) => console.warn('[automations] run heartbeat failed:', err));
+  }, RUN_HEARTBEAT_INTERVAL_MS);
+
+  try {
+    return await stepClaimedRun(ctx, args, epoch);
+  } finally {
+    beating = false;
+    clearInterval(heartbeat);
+  }
+}
+
 export const stepRun = internalAction({
   args: {
     organizationId: v.string(),
@@ -1210,50 +1259,8 @@ export const stepRun = internalAction({
   // The return type is written out because this action's own reference reaches
   // back here: it schedules itself through the mutations it calls, and TypeScript
   // needs one annotation to break the cycle.
-  handler: async (ctx, args): Promise<{ status: string }> => {
-    // The engine's sandbox seam for untrusted JavaScript (templates, transform
-    // bodies). The bundled backend is deterministic and data-only; a deployment
-    // that installs a real sandbox backend keeps it.
-    if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
-
-    const claim = await ctx.runMutation(
-      internal.automations.mutations.claimRun,
-      { organizationId: args.organizationId, runId: args.runId },
-    );
-    if (!claim.claimed) return { status: claim.status };
-    const epoch = claim.epoch;
-
-    // Renew the liveness promise for as long as this walker is genuinely
-    // working — a node awaiting a slow local model for half an hour stays
-    // alive by heartbeat, and only a walker that actually died goes silent
-    // and gets its run re-poked by the sweep. A superseded walker stops
-    // beating; its state writes are refused by the same epoch fence.
-    let beating = true;
-    const heartbeat = setInterval(() => {
-      void ctx
-        .runMutation(internal.automations.mutations.heartbeatRun, {
-          organizationId: args.organizationId,
-          runId: args.runId,
-          epoch,
-        })
-        .then((result) => {
-          if (!result.alive && beating) {
-            beating = false;
-            clearInterval(heartbeat);
-          }
-        })
-        .catch((err) =>
-          console.warn('[automations] run heartbeat failed:', err),
-        );
-    }, RUN_HEARTBEAT_INTERVAL_MS);
-
-    try {
-      return await stepClaimedRun(ctx, args, epoch);
-    } finally {
-      beating = false;
-      clearInterval(heartbeat);
-    }
-  },
+  handler: async (ctx, args): Promise<{ status: string }> =>
+    stepRunImpl(ctx, args),
 });
 
 /** The claimed turn's body — everything between a won claim and the row's

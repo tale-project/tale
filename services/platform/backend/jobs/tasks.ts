@@ -21,6 +21,15 @@ export interface TaskPayloads {
   'maintenance.login_attempts_ttl': Record<string, never>;
   /** Index one uploaded file into the org's RAG corpus. */
   'rag.index_file': { fileId: string };
+  /** One stepper turn of an automation run (claim-fenced, idempotent). */
+  'automation.step': { organizationId: string; runId: string };
+  /** One hop of a parked run's poll chain (chainSeq-fenced). */
+  'automation.poll': {
+    organizationId: string;
+    runId: string;
+    seq: number;
+    pollMs: number;
+  };
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -60,4 +69,14 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryBackoff: true,
     expireInSeconds: 900,
   },
+  // Stepper turns are claim-fenced and idempotent — a retried turn either
+  // wins a fresh claim or no-ops; a long node keeps the job active well
+  // past a nominal budget, so the expiry is generous.
+  'automation.step': {
+    retryLimit: 3,
+    retryDelay: 2,
+    retryBackoff: true,
+    expireInSeconds: 1800,
+  },
+  'automation.poll': { retryLimit: 3, retryDelay: 2, expireInSeconds: 120 },
 };

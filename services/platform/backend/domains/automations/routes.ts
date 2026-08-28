@@ -1,0 +1,334 @@
+import { Hono, type Context } from 'hono';
+import type { Sql } from 'postgres';
+import { z } from 'zod';
+
+import type { Auth } from '../../auth/auth.ts';
+import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
+import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
+import { requireSession } from '../../auth/session.ts';
+import {
+  AutomationError,
+  beginRun,
+  cancelRun,
+  deleteAutomationCascade,
+  deleteTrigger,
+  deploy,
+  getRun,
+  listAutomations,
+  listRuns,
+  listTriggers,
+  listVersions,
+  saveVersion,
+  setAutomationProjects,
+  setTrigger,
+  versionRow,
+  deployedVersion,
+} from './store.ts';
+
+/**
+ * /api/app/automations — the automation store surface: immutable versions,
+ * explicit deploys behind the tests gate, name-bound triggers/bindings, and
+ * the durable runs (start manual runs, watch them, cancel them). Authoring
+ * writes and live runs need the admin/developer role; mock runs and reads
+ * are member surfaces, mirroring the 0.4 gates.
+ */
+
+const saveSchema = z.object({
+  document: z.unknown(),
+  message: z.string().max(500).optional(),
+  testsPassed: z.boolean().optional(),
+  taskContract: z.unknown().optional(),
+  settings: z.unknown().optional(),
+  presentation: z.unknown().optional(),
+});
+
+const deploySchema = z.object({ version: z.number().int().min(1) });
+
+const triggerSchema = z.object({
+  kind: z.enum(['schedule', 'webhook', 'event']),
+  cron: z.string().max(200).optional(),
+  timezone: z.string().max(100).optional(),
+  event: z.string().max(200).optional(),
+  enabled: z.boolean().optional(),
+  rotateToken: z.boolean().optional(),
+});
+
+const projectsSchema = z.object({
+  projectIds: z.array(z.string().min(1)).max(100),
+});
+
+const startSchema = z.object({
+  input: z.unknown().optional(),
+  mode: z.enum(['mock', 'live']).optional(),
+  version: z.number().int().min(1).optional(),
+  projectId: z.string().optional(),
+});
+
+function handleError<E extends OrgEnv>(
+  c: Context<E>,
+  error: unknown,
+): Response {
+  if (error instanceof AutomationError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
+  }
+  throw error;
+}
+
+export function createAutomationRoutes(deps: {
+  sql: Sql;
+  auth: Auth;
+}): Hono<OrgEnv> {
+  const app = new Hono<OrgEnv>();
+  app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+
+  const requireAuthor = (c: Context<OrgEnv>): Response | null =>
+    isAdminOrDeveloperRole(c.get('orgMember').role)
+      ? null
+      : c.json({ error: 'admin or developer role required' }, 403);
+
+  app.get('/', async (c) => {
+    return c.json({
+      automations: await listAutomations(deps.sql, c.get('orgId')),
+    });
+  });
+
+  // The automation name is a '/'-separated path — it rides as a wildcard
+  // suffix on every per-automation route, split from the trailing verb.
+  const nameFrom = (c: Context<OrgEnv>, suffix: string): string => {
+    const rest = c.req.path.split('/api/app/automations/')[1] ?? '';
+    return decodeURIComponent(
+      suffix === '' ? rest : rest.slice(0, -(suffix.length + 1)),
+    );
+  };
+
+  app.post('/runs/:runId/cancel', async (c) => {
+    return c.json(
+      await cancelRun(deps.sql, c.get('orgId'), c.req.param('runId')),
+    );
+  });
+
+  app.get('/runs/:runId', async (c) => {
+    const run = await getRun(deps.sql, c.get('orgId'), c.req.param('runId'));
+    return run === null
+      ? c.json({ error: 'run not found' }, 404)
+      : c.json({ run });
+  });
+
+  app.get('/runs', async (c) => {
+    const name = c.req.query('name');
+    const limitRaw = Number(c.req.query('limit') ?? '50');
+    return c.json({
+      runs: await listRuns(deps.sql, c.get('orgId'), {
+        ...(name !== undefined ? { name } : {}),
+        ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
+      }),
+    });
+  });
+
+  app.post('/:name{.+}/save', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = saveSchema.safeParse(await c.req.json());
+    if (!body.success || body.data.document === undefined) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      return c.json(
+        await saveVersion(deps.sql, {
+          organizationId: c.get('orgId'),
+          name: nameFrom(c, 'save'),
+          document: body.data.document,
+          actor: c.get('sessionBundle').user.id,
+          ...(body.data.message !== undefined
+            ? { message: body.data.message }
+            : {}),
+          ...(body.data.testsPassed !== undefined
+            ? { testsPassed: body.data.testsPassed }
+            : {}),
+          ...(body.data.taskContract !== undefined
+            ? { taskContract: body.data.taskContract }
+            : {}),
+          ...(body.data.settings !== undefined
+            ? { settings: body.data.settings }
+            : {}),
+          ...(body.data.presentation !== undefined
+            ? { presentation: body.data.presentation }
+            : {}),
+        }),
+        201,
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:name{.+}/deploy', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = deploySchema.safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      return c.json(
+        await deploy(deps.sql, {
+          organizationId: c.get('orgId'),
+          name: nameFrom(c, 'deploy'),
+          version: body.data.version,
+          actor: c.get('sessionBundle').user.id,
+        }),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:name{.+}/trigger', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = triggerSchema.safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      return c.json(
+        await setTrigger(deps.sql, {
+          organizationId: c.get('orgId'),
+          name: nameFrom(c, 'trigger'),
+          trigger: body.data,
+          actor: c.get('sessionBundle').user.id,
+        }),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.delete('/:name{.+}/trigger', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    return c.json({
+      deleted: await deleteTrigger(
+        deps.sql,
+        c.get('orgId'),
+        nameFrom(c, 'trigger'),
+      ),
+    });
+  });
+
+  app.post('/:name{.+}/projects', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = projectsSchema.safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      await setAutomationProjects(deps.sql, {
+        organizationId: c.get('orgId'),
+        name: nameFrom(c, 'projects'),
+        projectIds: body.data.projectIds,
+        actor: c.get('sessionBundle').user.id,
+      });
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:name{.+}/start', async (c) => {
+    const body = startSchema.safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    const mode = body.data.mode ?? 'mock';
+    if (mode === 'live') {
+      const denied = requireAuthor(c);
+      if (denied) return denied;
+    }
+    try {
+      const started = await beginRun(deps.sql, {
+        organizationId: c.get('orgId'),
+        name: nameFrom(c, 'start'),
+        input: body.data.input ?? {},
+        mode,
+        startedBy: `user:${c.get('sessionBundle').user.id}`,
+        ...(body.data.version !== undefined
+          ? { version: body.data.version }
+          : {}),
+        ...(body.data.projectId !== undefined
+          ? { projectId: body.data.projectId }
+          : {}),
+      });
+      if (started === null) {
+        return c.json(
+          {
+            error: 'AUTOMATION_NOT_DEPLOYED',
+            message: 'No version to run — save a version and deploy it first.',
+          },
+          409,
+        );
+      }
+      return c.json(started, 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:name{.+}/versions', async (c) => {
+    return c.json({
+      versions: await listVersions(
+        deps.sql,
+        c.get('orgId'),
+        nameFrom(c, 'versions'),
+      ),
+    });
+  });
+
+  app.get('/:name{.+}/triggers', async (c) => {
+    return c.json({
+      triggers: await listTriggers(
+        deps.sql,
+        c.get('orgId'),
+        nameFrom(c, 'triggers'),
+      ),
+    });
+  });
+
+  app.delete('/:name{.+}', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    await deleteAutomationCascade(deps.sql, {
+      organizationId: c.get('orgId'),
+      name: nameFrom(c, ''),
+      actor: c.get('sessionBundle').user.id,
+    });
+    return c.json({ deleted: true });
+  });
+
+  app.get('/:name{.+}', async (c) => {
+    const name = nameFrom(c, '');
+    const orgId = c.get('orgId');
+    const deployed = await deployedVersion(deps.sql, orgId, name);
+    const latest = (await listVersions(deps.sql, orgId, name))[0];
+    if (!latest) {
+      return c.json({ error: 'automation not found' }, 404);
+    }
+    const version = await versionRow(
+      deps.sql,
+      orgId,
+      name,
+      deployed ?? latest.version,
+    );
+    return c.json({
+      name,
+      latestVersion: latest.version,
+      deployedVersion: deployed ?? null,
+      document: version?.document ?? null,
+      presentation: version?.presentation ?? null,
+      settings: version?.settings ?? null,
+    });
+  });
+
+  return app;
+}

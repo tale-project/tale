@@ -1,9 +1,13 @@
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { stepRunImpl } from '../../convex/automations/stepper.ts';
 import { removeOrgSubtree } from '../../convex/organizations/scaffold.ts';
+import { automationShimHandlers } from '../domains/automations/shim.ts';
+import { pollParkedRun } from '../domains/automations/store.ts';
 import { indexUploadedFile } from '../domains/knowledge/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
+import { createCtxShim } from '../lib/convex-shim.ts';
 
 /** One task handler; `payload` is a job row — external input, re-validate. */
 export type TaskHandler = (payload: unknown) => Promise<void>;
@@ -81,6 +85,31 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // Guarded two-phase rename-then-delete (slug validation, traversal +
       // symlink defenses) — reused from the 0.4 module unchanged.
       await removeOrgSubtree(configRoot, input.orgSlug);
+    },
+    'automation.step': async (payload) => {
+      const input = z
+        .object({ organizationId: z.string().min(1), runId: z.string().min(1) })
+        .parse(payload);
+      // The REUSED 0.4 stepper on the ctx shim. Claim-fenced and idempotent:
+      // a retried job either wins a fresh claim or no-ops.
+      const shim = createCtxShim(automationShimHandlers(deps.sql));
+      await stepRunImpl(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 stepper; every ctx facility it touches is covered by automationShimHandlers
+        shim as unknown as Parameters<typeof stepRunImpl>[0],
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runId is the row id; the Convex Id type is a branded string
+        input as unknown as Parameters<typeof stepRunImpl>[1],
+      );
+    },
+    'automation.poll': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          runId: z.string().min(1),
+          seq: z.number().int(),
+          pollMs: z.number().int().min(1),
+        })
+        .parse(payload);
+      await pollParkedRun(deps.sql, input);
     },
   };
 }

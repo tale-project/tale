@@ -2260,6 +2260,288 @@ async function checkChat(
 }
 
 /**
+ * Automations: the REUSED 0.4 durable stepper on PG + pg-boss — save
+ * (immutable versions) → deploy (tests gate) → start → the worker's
+ * `automation.step` job walks transform + llm nodes (checkpoints, epoch
+ * fence, terminal audit row), plus the liveness sweep re-poking a run whose
+ * scheduled resume was lost, webhook token mint/rotate, and tombstones.
+ */
+async function checkAutomations(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+
+  // Fake OpenAI-compatible provider for the llm node (non-streaming).
+  const llmServer = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      res.setHeader('content-type', 'application/json');
+      const url = req.url ?? '';
+      if (req.method === 'GET' && url.endsWith('/models')) {
+        res.end(
+          JSON.stringify({
+            object: 'list',
+            data: [
+              { id: 'itest-llm', object: 'model', context_length: 32_768 },
+            ],
+          }),
+        );
+        return;
+      }
+      if (url.endsWith('/chat/completions')) {
+        res.end(
+          JSON.stringify({
+            id: 'c1',
+            object: 'chat.completion',
+            choices: [
+              {
+                index: 0,
+                message: {
+                  role: 'assistant',
+                  content: '{"verdict":"LGTM-42"}',
+                },
+                finish_reason: 'stop',
+              },
+            ],
+            usage: {
+              prompt_tokens: 12,
+              completion_tokens: 6,
+              total_tokens: 18,
+            },
+          }),
+        );
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    llmServer.listen(0, '127.0.0.1', resolve);
+  });
+  const llmAddress = llmServer.address();
+  const llmPort =
+    llmAddress !== null && typeof llmAddress === 'object' ? llmAddress.port : 0;
+
+  try {
+    process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+    const providersDir = path.join(configRoot, orgSlug, 'providers');
+    await mkdir(providersDir, { recursive: true });
+    await writeFile(
+      path.join(providersDir, 'itestllm.yml'),
+      [
+        'name: itestllm',
+        'displayName: Itest LLM',
+        'apiFormat: openai',
+        `baseUrl: http://127.0.0.1:${llmPort}/v1`,
+        'catalog:',
+        '  source: models-endpoint',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    const post = (route: string, body?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    const get = async (route: string): Promise<unknown> =>
+      (await fetch(`${base}${route}`, { headers: { cookie } })).json();
+    await post(`/api/app/provider-credentials?orgId=${orgId}`, {
+      providerSlug: 'itestllm',
+      authMethod: 'api-key',
+      name: 'LLM key',
+      secret: 'sk-itest-llm',
+    });
+
+    const document = {
+      version: 1,
+      name: 'ops/greet',
+      nodes: [
+        {
+          id: 'shape',
+          type: 'transform',
+          input: { who: '{{ input.who }}' },
+          code: 'return { greeting: "hi " + input.who }',
+        },
+        {
+          id: 'review',
+          type: 'llm',
+          model: 'itest-llm',
+          prompt: 'Review this greeting: {{ nodes.shape.output.greeting }}',
+          outputSchema: {
+            type: 'object',
+            properties: { verdict: { type: 'string' } },
+            required: ['verdict'],
+          },
+        },
+      ],
+      output: '{{ nodes.review.output.verdict }}',
+    };
+    const saved = z.object({ name: z.string(), version: z.number() }).safeParse(
+      await (
+        await post(`/api/app/automations/ops/greet/save?orgId=${orgId}`, {
+          document,
+          message: 'first',
+        })
+      ).json(),
+    );
+    const deployed = await post(
+      `/api/app/automations/ops/greet/deploy?orgId=${orgId}`,
+      { version: 1 },
+    );
+    // Failing-tests versions must be refused by the deploy gate.
+    await post(`/api/app/automations/ops/greet/save?orgId=${orgId}`, {
+      document,
+      testsPassed: false,
+    });
+    const gate = await post(
+      `/api/app/automations/ops/greet/deploy?orgId=${orgId}`,
+      { version: 2 },
+    );
+
+    const started = z.object({ runId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/automations/ops/greet/start?orgId=${orgId}`, {
+          input: { who: 'ops' },
+          mode: 'live',
+        })
+      ).json(),
+    );
+    const runId = started.success ? started.data.runId : '';
+    const settled = await waitFor(async () => {
+      const body = z
+        .object({ run: z.looseObject({ status: z.string() }) })
+        .loose()
+        .safeParse(
+          await get(`/api/app/automations/runs/${runId}?orgId=${orgId}`),
+        );
+      return (
+        body.success &&
+        ['success', 'failed', 'cancelled'].includes(body.data.run.status)
+      );
+    }, 30_000);
+    const runView = z
+      .object({
+        run: z.looseObject({
+          status: z.string(),
+          output: z.unknown(),
+          trace: z.unknown(),
+          detail: z.string().nullable(),
+        }),
+      })
+      .loose()
+      .safeParse(
+        await get(`/api/app/automations/runs/${runId}?orgId=${orgId}`),
+      );
+    const runRaw = JSON.stringify(runView.success ? runView.data : {});
+    const auditRows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'automation.run.success'
+    `;
+
+    // Liveness: a queued run whose step job was LOST (inserted directly, no
+    // enqueue) is overdue — the sweep must re-poke it to completion.
+    const orphan = await sql<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, input, checkpoints,
+        wake_at_ms, claim_epoch, started_at_ms
+      ) VALUES (
+        ${orgId}, 'ops/greet', 1, 'queued', 'mock', 'itest:liveness',
+        ${sql.json('{"who":"sweep"}')}, ${sql.json('{"nodes":{},"executions":0}')},
+        ${Date.now() - 60_000}, 0, ${Date.now() - 60_000}
+      ) RETURNING id
+    `;
+    const automationsStore = await import('./domains/automations/store.ts');
+    const swept = await automationsStore.sweepOverdueRuns(sql);
+    const orphanSettled = await waitFor(async () => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status FROM app.automation_runs
+        WHERE id = ${orphan[0]?.id ?? ''}
+      `;
+      return rows[0]?.status === 'success';
+    }, 30_000);
+
+    // Webhook trigger: token minted once, kept on re-bind, rotated on ask.
+    const minted = z.object({ token: z.string() }).safeParse(
+      await (
+        await post(`/api/app/automations/ops/greet/trigger?orgId=${orgId}`, {
+          kind: 'webhook',
+        })
+      ).json(),
+    );
+    const rebound = await (
+      await post(`/api/app/automations/ops/greet/trigger?orgId=${orgId}`, {
+        kind: 'webhook',
+      })
+    ).json();
+    const rotated = z.object({ token: z.string() }).safeParse(
+      await (
+        await post(`/api/app/automations/ops/greet/trigger?orgId=${orgId}`, {
+          kind: 'webhook',
+          rotateToken: true,
+        })
+      ).json(),
+    );
+
+    // Delete → tombstone; saving again clears it.
+    await fetch(`${base}/api/app/automations/ops/greet?orgId=${orgId}`, {
+      method: 'DELETE',
+      headers: { cookie, origin: base },
+    });
+    const tombstoned = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automation_tombstones
+      WHERE org_id = ${orgId} AND name = 'ops/greet'
+    `;
+    await post(`/api/app/automations/ops/greet/save?orgId=${orgId}`, {
+      document,
+    });
+    const cleared = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automation_tombstones
+      WHERE org_id = ${orgId} AND name = 'ops/greet'
+    `;
+
+    record(
+      'automations durable stepper (0.4 engine over PG + pg-boss)',
+      saved.success &&
+        saved.data.version === 1 &&
+        deployed.ok &&
+        gate.status === 409 &&
+        started.success &&
+        settled &&
+        runView.success &&
+        runView.data.run.status === 'success' &&
+        runView.data.run.output === 'LGTM-42' &&
+        runRaw.includes('"shape"') &&
+        runRaw.includes('"review"') &&
+        Number(auditRows[0]?.count ?? '0') >= 1 &&
+        swept >= 1 &&
+        orphanSettled &&
+        minted.success &&
+        JSON.stringify(rebound) === '{}' &&
+        rotated.success &&
+        rotated.data.token !== minted.data.token &&
+        tombstoned[0]?.count === '1' &&
+        cleared[0]?.count === '0',
+      `save=${saved.success}, deploy=${deployed.status}, gate → ${gate.status} (want 409), run=${runView.success ? runView.data.run.status : 'ERR'} output=${runView.success ? JSON.stringify(runView.data.run.output) : 'ERR'} (want "LGTM-42"), audit=${auditRows[0]?.count}, sweep=${swept}/settled=${orphanSettled}, webhook(mint=${minted.success}, keep=${JSON.stringify(rebound) === '{}'}, rotate=${rotated.success && rotated.data.token !== (minted.success ? minted.data.token : '')}), tombstone=${tombstoned[0]?.count}→${cleared[0]?.count}`,
+    );
+  } finally {
+    await new Promise<void>((resolve) => {
+      llmServer.close(() => resolve());
+    });
+  }
+}
+
+/**
  * Sandbox session substrate: per-owner and per-budget caps, park-on-capacity
  * FIFO tickets (fairness + release-edge admission), hibernate/resume slot
  * accounting, hash-only token lifecycle, and durable op rows — all under the
@@ -3065,6 +3347,7 @@ async function main(): Promise<void> {
     await checkProviderCredentials(sql, baseUrl, authCtx);
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSandboxSessions(sql, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
