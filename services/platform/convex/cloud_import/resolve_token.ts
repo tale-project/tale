@@ -7,7 +7,6 @@
 
 import { v } from 'convex/values';
 
-import { getNumber, getString, isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
 import {
