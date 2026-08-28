@@ -5087,6 +5087,292 @@ async function checkAutoRetryAndKickPlan(
 }
 
 /**
+ * The Driver/Reviewer arc: the settle's park to `in_review` mints ONE
+ * review row (find-or-insert by runId — the replay never double-mints);
+ * request-changes records the feedback as a comment, re-kicks the agent
+ * driver, and hands the card back to In progress; a second round mints
+ * with a bumped round; approve completes the task AS THE RESPONDER; a
+ * non-human leave withdraws; the `review_policy` file blocks the run's own
+ * starter when independence is required.
+ */
+async function checkReviewArc(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const get = async (route: string): Promise<unknown> =>
+    (await fetch(`${base}${route}`, { headers: { cookie } })).json();
+  const project = z
+    .object({ projectId: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Review Arc' })
+      ).json(),
+    );
+  const projectId = project.success ? project.data.projectId : '';
+  const agent = z.object({ agentId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+        name: 'Review Bot',
+        harness: 'claude-code',
+        model: 'itest-model',
+        skills: [],
+        connectors: [],
+      })
+    ).json(),
+  );
+  const agentId = agent.success ? agent.data.agentId : '';
+  const task = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Reviewed work',
+      })
+    ).json(),
+  );
+  const taskId = task.success ? task.data.taskId : '';
+  await post(`/api/app/tasks/${taskId}/assign?orgId=${orgId}`, {
+    assigneeType: 'agent',
+    assigneeId: agentId,
+  });
+  // Hand-set in_progress (the route's status door would kick a live run and
+  // race these mint assertions with its retry cascade).
+  await sql`
+    UPDATE app.tasks SET status = 'in_progress' WHERE id = ${taskId}
+  `;
+  const seedRun = async (exec: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, started_at_ms, launched_at_ms,
+        settled_at_ms, deadline_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${taskId}, ${agentId}, ${exec},
+        ${`pa-${agentId}`}, 'settled', 'claude-code', 'itest-model',
+        ${userId}, ${Date.now()}, ${Date.now()}, ${Date.now()},
+        ${Date.now() + 3_600_000}, ${Date.now()}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const runA = await seedRun('exec-review-a');
+  const { agentTurnShimHandlers } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const shim = agentTurnShimHandlers(sql);
+  const statusDoor = shim['tasks/internal_mutations:agentUpdateTaskStatus'];
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: agentId,
+    taskId,
+    status: 'in_review',
+    review: { runId: runA },
+  });
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: agentId,
+    taskId,
+    status: 'in_review',
+    review: { runId: runA },
+  });
+  const minted = await sql<
+    { id: string; status: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT id, status, metadata FROM app.approvals
+    WHERE resource_type = 'task_review' AND resource_id = ${taskId}
+  `;
+  const pendingView = z
+    .object({
+      review: z
+        .object({ approvalId: z.string(), runId: z.string().nullable() })
+        .loose()
+        .nullable(),
+    })
+    .safeParse(await get(`/api/app/tasks/${taskId}/review?orgId=${orgId}`));
+  record(
+    'settle park mints ONE review row (replay finds it) and the sheet reads it',
+    minted.length === 1 &&
+      minted[0]?.status === 'pending' &&
+      minted[0].metadata?.runId === runA &&
+      minted[0].metadata.requestedFor === userId &&
+      minted[0].metadata.round === 0 &&
+      pendingView.success &&
+      pendingView.data.review?.approvalId === minted[0].id,
+    `rows=${minted.length} (want 1) run=${minted[0]?.metadata?.runId === runA} reviewer=${minted[0]?.metadata?.requestedFor === userId} view=${pendingView.success ? pendingView.data.review?.approvalId === minted[0]?.id : 'ERR'}`,
+  );
+
+  const changes = z
+    .object({
+      taskCompleted: z.boolean(),
+      agentKicked: z.boolean(),
+      taskReopened: z.boolean(),
+    })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/tasks/reviews/${minted[0]?.id ?? ''}/respond?orgId=${orgId}`,
+          { decision: 'request_changes', feedback: 'Tighten the summary.' },
+        )
+      ).json(),
+    );
+  const afterChanges = await sql<{ status: string; commentCount: number }[]>`
+    SELECT status, comment_count AS "commentCount" FROM app.tasks
+    WHERE id = ${taskId}
+  `;
+  const kickedRun = await sql<{ trigger: string; feedback: string | null }[]>`
+    SELECT trigger, feedback FROM app.project_agent_runs
+    WHERE task_id = ${taskId} AND trigger = 'mention'
+    ORDER BY seq DESC LIMIT 1
+  `;
+  record(
+    'request-changes: comment + mention re-kick with feedback + card back',
+    changes.success &&
+      !changes.data.taskCompleted &&
+      changes.data.agentKicked &&
+      changes.data.taskReopened &&
+      afterChanges[0]?.status === 'in_progress' &&
+      afterChanges[0].commentCount === 1 &&
+      kickedRun[0]?.feedback === 'Tighten the summary.',
+    `resp=${changes.success ? JSON.stringify(changes.data) : 'ERR'} task=${afterChanges[0]?.status}/${afterChanges[0]?.commentCount} kick=${kickedRun[0]?.trigger}/${kickedRun[0]?.feedback}`,
+  );
+
+  // Round 2: cancel the mention run's retry noise, park again, approve.
+  await sql`
+    UPDATE app.project_agent_runs SET
+      status = 'cancelled', settled_at_ms = ${Date.now()}
+    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+  `;
+  await sql`
+    UPDATE app.tasks SET status = 'in_progress' WHERE id = ${taskId}
+  `;
+  const runB = await seedRun('exec-review-b');
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: agentId,
+    taskId,
+    status: 'in_review',
+    review: { runId: runB },
+  });
+  const roundTwo = await sql<
+    { id: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT id, metadata FROM app.approvals
+    WHERE resource_type = 'task_review' AND resource_id = ${taskId}
+      AND status = 'pending'
+  `;
+  const approve = z
+    .object({ taskCompleted: z.boolean() })
+    .loose()
+    .safeParse(
+      await (
+        await post(
+          `/api/app/tasks/reviews/${roundTwo[0]?.id ?? ''}/respond?orgId=${orgId}`,
+          { decision: 'approve' },
+        )
+      ).json(),
+    );
+  const afterApprove = await sql<
+    { status: string; completedAt: number | null }[]
+  >`
+    SELECT status, completed_at_ms::float8 AS "completedAt" FROM app.tasks
+    WHERE id = ${taskId}
+  `;
+  record(
+    'round-2 mint + approve completes the task as the responder',
+    roundTwo.length === 1 &&
+      roundTwo[0]?.metadata?.round === 1 &&
+      approve.success &&
+      approve.data.taskCompleted &&
+      afterApprove[0]?.status === 'done' &&
+      afterApprove[0].completedAt !== null,
+    `round=${JSON.stringify(roundTwo[0]?.metadata?.round)} (want 1), approve=${approve.success ? approve.data.taskCompleted : 'ERR'}, task=${afterApprove[0]?.status}`,
+  );
+
+  // Withdraw lane: park round 3, then the agent leaves in_review itself.
+  await sql`
+    UPDATE app.tasks SET status = 'in_progress' WHERE id = ${taskId}
+  `;
+  const runC = await seedRun('exec-review-c');
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: agentId,
+    taskId,
+    status: 'in_review',
+    review: { runId: runC },
+  });
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: agentId,
+    taskId,
+    status: 'in_progress',
+  });
+  const withdrawn = await sql<
+    { status: string; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT status, metadata FROM app.approvals
+    WHERE resource_type = 'task_review' AND resource_id = ${taskId}
+      AND metadata ->> 'runId' = ${runC}
+  `;
+  record(
+    'a non-human leave from in_review withdraws the pending review',
+    withdrawn[0]?.status === 'rejected' &&
+      withdrawn[0].metadata?.withdrawn === true,
+    `row=${withdrawn[0]?.status}/${JSON.stringify(withdrawn[0]?.metadata?.withdrawn)}`,
+  );
+
+  // Policy lane: independence required ⇒ the run's starter cannot approve.
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const governanceDir = path.join(configRoot, orgSlug, 'governance');
+  await mkdir(governanceDir, { recursive: true });
+  await writeFile(
+    path.join(governanceDir, 'review-policy.yml'),
+    'requireIndependentReviewer: true\n',
+  );
+  const orgConfig = await import('./lib/org-config.ts');
+  orgConfig.clearOrgConfigCaches();
+  await sql`
+    UPDATE app.tasks SET status = 'in_progress' WHERE id = ${taskId}
+  `;
+  const runD = await seedRun('exec-review-d');
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: agentId,
+    taskId,
+    status: 'in_review',
+    review: { runId: runD },
+  });
+  const gated = await sql<{ id: string }[]>`
+    SELECT id FROM app.approvals
+    WHERE resource_type = 'task_review' AND resource_id = ${taskId}
+      AND metadata ->> 'runId' = ${runD}
+  `;
+  const refusedRes = await post(
+    `/api/app/tasks/reviews/${gated[0]?.id ?? ''}/respond?orgId=${orgId}`,
+    { decision: 'approve' },
+  );
+  const refusedBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await refusedRes.json());
+  await writeFile(path.join(governanceDir, 'review-policy.yml'), '{}\n');
+  orgConfig.clearOrgConfigCaches();
+  record(
+    'review policy: the run starter cannot approve when independence is required',
+    refusedRes.status === 403 &&
+      refusedBody.success &&
+      refusedBody.data.error === 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
+    `status=${refusedRes.status} error=${refusedBody.success ? refusedBody.data.error : 'ERR'}`,
+  );
+}
+
+/**
  * The watchdog sweeps on hand-stranded rows — the handler bodies invoked
  * directly (the scheduled lane is just a cron row over the same functions;
  * assertions are on ROW STATE so a cron firing mid-check changes nothing):
@@ -5438,6 +5724,7 @@ async function main(): Promise<void> {
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAskAnswer(sql, baseUrl, authCtx);
     await checkAutoRetryAndKickPlan(sql, baseUrl, authCtx);
+    await checkReviewArc(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSandboxSessions(sql, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkWatchdogs(sql, baseUrl, authCtx);

@@ -19,6 +19,10 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { kickAgentRun } from './agent-runs.ts';
+import {
+  closePendingTaskReviewOnStatusLeave,
+  requestTaskReview,
+} from './reviews.ts';
 
 /**
  * Tasks domain, Tier A — the task board core: CRUD, status choreography
@@ -429,7 +433,7 @@ export async function deleteTaskLabel(
 
 type TaskCountBucket = 'open' | 'done' | 'none';
 
-function taskCountBucket(state: {
+export function taskCountBucket(state: {
   status: string;
   archivedAt: number | null;
 }): TaskCountBucket {
@@ -446,7 +450,7 @@ function taskCountBucket(state: {
 }
 
 /** The ONE writer of projects.open/done task counts (bucket transition). */
-async function applyTaskCountTransition(
+export async function applyTaskCountTransition(
   tx: TransactionSql,
   projectId: string,
   before: TaskCountBucket,
@@ -483,7 +487,7 @@ async function nextTaskNumber(
 }
 
 /** Rank AFTER the current last row of (project, status) — append to column. */
-async function computeEndRank(
+export async function computeEndRank(
   tx: TransactionSql | Sql,
   projectId: string,
   status: string,
@@ -497,7 +501,7 @@ async function computeEndRank(
   return last === undefined ? initialRank() : rankBetween(last, undefined);
 }
 
-async function recordActivity(
+export async function recordActivity(
   tx: TransactionSql,
   args: {
     task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>;
@@ -858,7 +862,7 @@ export async function updateTask(
   );
 }
 
-async function hasOpenChildren(
+export async function hasOpenChildren(
   tx: TransactionSql,
   taskId: string,
 ): Promise<boolean> {
@@ -888,7 +892,18 @@ export async function updateTaskStatus(
   if (TERMINAL_STATUSES.has(status) && (await hasOpenChildren(tx, taskId))) {
     throw new TaskError('TASK_HAS_OPEN_SUBTASKS', 'Open subtasks remain');
   }
-  // TODO(review arc): closePendingTaskReviewOnStatusLeave + in_review request.
+  // Leaving `in_review` closes the review gate: Done records the approve
+  // (the org's `review_policy` still applies, so the picker cannot decide
+  // what the respond door would refuse); any other leave withdraws it.
+  await closePendingTaskReviewOnStatusLeave(tx, {
+    task,
+    toStatus: status,
+    actor: {
+      kind: 'user',
+      userId: auth.userId,
+      ...(auth.email !== undefined ? { email: auth.email } : {}),
+    },
+  });
 
   const now = Date.now();
   const rank = await computeEndRank(tx, task.projectId, status);
@@ -973,6 +988,14 @@ export async function updateTaskStatus(
       });
     }
   }
+  // Reaching `in_review` IS the request for review, whoever submitted —
+  // the gate belongs to the STATE, not to the agent lane.
+  if (status === 'in_review') {
+    await requestTaskReview(tx, {
+      task: { ...task, status: 'in_review' },
+      trigger: { kind: 'human', actorId: auth.userId },
+    });
+  }
   // TODO(collab): notify fan-out.
 }
 
@@ -990,18 +1013,39 @@ export async function agentUpdateTaskStatusTrusted(
     actorId: string;
     taskId: string;
     status: TaskStatus;
+    /** Present only on the settle park to `in_review`: mint the run's
+     * workflow-free review in the SAME transaction as the flip (find-or-
+     * insert by runId — the burned-claim replay never double-mints). */
+    review?: { runId: string };
   },
 ): Promise<{ ok: boolean; reason?: string }> {
   const task = await loadTaskOrThrow(tx, args.taskId);
   if (task.organizationId !== args.organizationId) {
     return { ok: false, reason: 'wrong organization' };
   }
+  const mintReview = async (): Promise<void> => {
+    if (args.review === undefined || args.status !== 'in_review') return;
+    const fresh = await loadTaskOrThrow(tx, args.taskId);
+    if (fresh.status !== 'in_review') return;
+    await requestTaskReview(tx, {
+      task: fresh,
+      trigger: { kind: 'agent_run', runId: args.review.runId },
+    });
+  };
   if (task.status === args.status) {
+    await mintReview();
     return { ok: true };
   }
   if (TERMINAL_STATUSES.has(args.status)) {
     return { ok: false, reason: 'agents never complete work' };
   }
+  // A non-human leave from `in_review` WITHDRAWS any pending review — no
+  // human decided, so nothing is recorded as approved.
+  await closePendingTaskReviewOnStatusLeave(tx, {
+    task,
+    toStatus: args.status,
+    actor: { kind: 'system', actorId: args.actorId },
+  });
   const now = Date.now();
   const rank = await computeEndRank(tx, task.projectId, args.status);
   await tx`
@@ -1024,6 +1068,7 @@ export async function agentUpdateTaskStatusTrusted(
     fromValue: task.status,
     toValue: args.status,
   });
+  await mintReview();
   return { ok: true };
 }
 
@@ -1188,6 +1233,18 @@ export async function moveTask(
   ) {
     throw new TaskError('TASK_HAS_OPEN_SUBTASKS', 'Open subtasks remain');
   }
+  if (statusChanges) {
+    // Same gate as updateTaskStatus — the drag is just another status door.
+    await closePendingTaskReviewOnStatusLeave(tx, {
+      task,
+      toStatus: args.status,
+      actor: {
+        kind: 'user',
+        userId: auth.userId,
+        ...(auth.email !== undefined ? { email: auth.email } : {}),
+      },
+    });
+  }
   const rank = rankBetween(args.beforeRank, args.afterRank);
   const now = Date.now();
   const completedAt = statusChanges
@@ -1224,6 +1281,12 @@ export async function moveTask(
         newState: { status: args.status },
       }),
     );
+    if (args.status === 'in_review') {
+      await requestTaskReview(tx, {
+        task: { ...task, status: 'in_review' },
+        trigger: { kind: 'human', actorId: auth.userId },
+      });
+    }
   }
 }
 

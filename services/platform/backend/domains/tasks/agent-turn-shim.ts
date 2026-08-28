@@ -277,6 +277,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         actorId: string;
         taskId: string;
         status: TaskStatus;
+        review?: { runId: string };
       };
       return transactSerializable(sql, (tx) =>
         agentUpdateTaskStatusTrusted(tx, args),

@@ -25,6 +25,11 @@ import {
   TASK_COMMENT_MAX,
 } from './comments.ts';
 import {
+  getPendingReviewForTask,
+  respondToTaskReview,
+  TaskReviewError,
+} from './reviews.ts';
+import {
   addTaskDependency,
   archiveTask,
   assignTask,
@@ -120,6 +125,9 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
+  if (error instanceof TaskReviewError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
+  }
   if (error instanceof TaskError || error instanceof ProjectError) {
     return c.json(
       {
@@ -476,6 +484,51 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         runId: c.req.param('runId'),
       });
       return c.json({ cancelled });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The task's open review gate (null when nothing waits on a reviewer).
+  app.get('/:taskId/review', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        review: await getPendingReviewForTask(
+          deps.sql,
+          auth.organizationId,
+          c.req.param('taskId'),
+        ),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // A reviewer decides: approve completes the task as the responder;
+  // request-changes records the feedback and hands the work back.
+  app.post('/reviews/:approvalId/respond', async (c) => {
+    const body = z
+      .object({
+        decision: z.enum(['approve', 'request_changes']),
+        feedback: z.string().max(20_000).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await respondToTaskReview(deps.sql, {
+          auth,
+          approvalId: c.req.param('approvalId'),
+          decision: body.data.decision,
+          ...(body.data.feedback !== undefined
+            ? { feedback: body.data.feedback }
+            : {}),
+        }),
+      );
     } catch (error) {
       return handleError(c, error);
     }
