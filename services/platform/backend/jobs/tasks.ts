@@ -39,6 +39,14 @@ export interface TaskPayloads {
   /** One workflow-agent turn for an automation run's agent node. The payload
    * is the reused host's full start-args shape (validated by the handler). */
   'automation.agent_turn': Record<string, unknown>;
+  /** Fire-and-forget AI naming of a thread from its first user message —
+   * best-effort with a hard budget; the fallback title wins on any miss. */
+  'chat.generate_title': {
+    organizationId: string;
+    threadId: string;
+    userId: string;
+    firstMessage: string;
+  };
   /** Auto-retry arm for a retryably-failed task-agent run: the handler
    * re-derives every guard (task still in_progress and agent-assigned, the
    * failed run still newest, the consecutive-failure budget) and kicks. */
@@ -116,6 +124,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // NEW run); a lost job is the watchdog's to re-kick, never pg-boss's.
   'task.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
+  'chat.generate_title': { retryLimit: 0, expireInSeconds: 60 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
   'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
   'watchdog.task_agents': { retryLimit: 1, expireInSeconds: 120 },

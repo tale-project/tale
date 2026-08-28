@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import type { TurnStore, UsageLedger } from '../../../lib/chat/turn.ts';
 import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 
 /**
@@ -64,10 +65,62 @@ async function appendMessageRow(
   if (!row) {
     throw new Error('message insert failed');
   }
+  // A turn just wrote to the thread; keep its list ordering fresh. An
+  // assistant row also stamps the unread watermark; activity on a hidden
+  // branch surfaces on its ROOT — the row the sidebar shows for the lineage.
+  const now = Date.now();
   await sql`
-    UPDATE app.threads SET updated_at_ms = ${Date.now()}
+    UPDATE app.threads SET updated_at_ms = ${now}
     WHERE id = ${message.threadId}
   `;
+  const meta = await sql<
+    { branchRootId: string | null; chatType: string; userId: string }[]
+  >`
+    SELECT branch_root_id AS "branchRootId", chat_type AS "chatType",
+           user_id AS "userId"
+    FROM app.thread_metadata WHERE thread_id = ${message.threadId}
+    LIMIT 1
+  `;
+  if (message.role === 'assistant') {
+    await sql`
+      UPDATE app.thread_metadata SET last_reply_at_ms = ${now}
+      WHERE thread_id = ${message.threadId}
+    `;
+  }
+  const rootId = meta[0]?.branchRootId ?? null;
+  if (rootId !== null) {
+    await sql`
+      UPDATE app.threads SET updated_at_ms = ${now} WHERE id = ${rootId}
+    `;
+    if (message.role === 'assistant') {
+      await sql`
+        UPDATE app.thread_metadata SET last_reply_at_ms = ${now}
+        WHERE thread_id = ${rootId}
+      `;
+    }
+  }
+  // The thread's first user message names the conversation: fire the AI
+  // title generation exactly once — for the opening user message of an
+  // untitled thread (a branch copy or an explicitly titled thread keeps
+  // what it has).
+  if (message.role === 'user' && row.order === 0 && meta[0] !== undefined) {
+    const firstMessage = (message.text ?? '').trim();
+    if (firstMessage.length > 0) {
+      const untitled = await sql<{ id: string }[]>`
+        SELECT id FROM app.threads
+        WHERE id = ${message.threadId} AND title IS NULL
+        LIMIT 1
+      `;
+      if (untitled.length > 0) {
+        await addJobInTx(sql, 'chat.generate_title', {
+          organizationId: message.organizationId,
+          threadId: message.threadId,
+          userId: meta[0].userId,
+          firstMessage,
+        });
+      }
+    }
+  }
   return { id: row.id, sequence: row.order };
 }
 

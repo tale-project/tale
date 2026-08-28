@@ -7,6 +7,30 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { runChatTurn } from './service.ts';
+import {
+  branchThread,
+  ChatThreadError,
+  createThread,
+  getSharedThread,
+  getThread,
+  getThreadShareStatus,
+  listArchivedThreads,
+  listThreads,
+  listThreadsForProject,
+  markThreadRead,
+  moveThreadToProject,
+  renameThread,
+  restoreThread,
+  searchChats,
+  setThreadArchived,
+  setThreadCapabilities,
+  setThreadPinned,
+  setThreadReasoningEffort,
+  setThreadSharedWithProject,
+  shareThread,
+  trashThread,
+  unshareThread,
+} from './threads.ts';
 
 /**
  * /api/app/chat — the signed-in chat surface: threads, history, one turn
@@ -19,9 +43,19 @@ import { runChatTurn } from './service.ts';
  * turns interleave on one thread.
  */
 
+const capabilitiesSchema = z.object({
+  skills: z.array(z.string().max(200)).max(50),
+  connectors: z.array(z.string().max(200)).max(50),
+});
+
 const createThreadSchema = z.object({
   title: z.string().max(200).optional(),
   projectId: z.string().max(128).optional(),
+  kind: z.string().max(50).optional(),
+  agentSlug: z.string().max(200).optional(),
+  harness: z.string().max(100).optional(),
+  capabilities: capabilitiesSchema.optional(),
+  reasoningEffort: z.enum(['low', 'medium', 'high', 'extra', 'max']).optional(),
 });
 
 const sendSchema = z.object({
@@ -93,10 +127,20 @@ async function ownedThread(
     FROM app.threads t
     JOIN app.thread_metadata tm ON tm.thread_id = t.id
     WHERE t.id = ${threadId} AND t.org_id = ${organizationId}
-      AND t.user_id = ${userId} AND tm.chat_type = 'chat'
+      AND t.user_id = ${userId} AND tm.status = 'active'
     LIMIT 1
   `;
   return rows[0] ?? null;
+}
+
+function handleThreadError<E extends OrgEnv>(
+  c: Context<E>,
+  error: unknown,
+): Response {
+  if (error instanceof ChatThreadError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
+  }
+  throw error;
 }
 
 async function listMessageViews(
@@ -169,58 +213,347 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       return c.json({ error: 'invalid body' }, 400);
     }
     const { organizationId, userId } = caller(c);
-    // A project link is access-checked at creation with the same gate the
-    // send path uses — a thread must never smuggle its owner into a project
-    // they cannot read. (Access = the project is in the caller's readable
-    // set; resolved via the projects service inside the shim's twin.)
-    if (body.data.projectId !== undefined) {
-      const readable = await deps.sql<{ id: string }[]>`
-        SELECT p.id FROM app.projects p
-        WHERE p.id = ${body.data.projectId} AND p.org_id = ${organizationId}
-        LIMIT 1
-      `;
-      if (readable.length === 0) {
-        return c.json({ error: 'project not found' }, 404);
-      }
+    try {
+      const threadId = await createThread(deps.sql, {
+        organizationId,
+        userId,
+        kind: body.data.kind ?? 'chat',
+        ...(body.data.title !== undefined ? { title: body.data.title } : {}),
+        ...(body.data.agentSlug !== undefined
+          ? { agentSlug: body.data.agentSlug }
+          : {}),
+        ...(body.data.harness !== undefined
+          ? { harness: body.data.harness }
+          : {}),
+        ...(body.data.capabilities !== undefined
+          ? { capabilities: body.data.capabilities }
+          : {}),
+        ...(body.data.projectId !== undefined
+          ? { projectId: body.data.projectId }
+          : {}),
+        ...(body.data.reasoningEffort !== undefined
+          ? { reasoningEffort: body.data.reasoningEffort }
+          : {}),
+      });
+      return c.json({ id: threadId }, 201);
+    } catch (error) {
+      return handleThreadError(c, error);
     }
-    const now = Date.now();
-    const threadId = await deps.sql.begin(async (tx) => {
-      const rows = await tx<{ id: string }[]>`
-        INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
-                                 updated_at_ms)
-        VALUES (${organizationId}, ${userId}, ${body.data.title ?? null},
-                'chat', ${now}, ${now})
-        RETURNING id
-      `;
-      const id = rows[0]?.id;
-      if (!id) throw new Error('thread insert failed');
-      await tx`
-        INSERT INTO app.thread_metadata (thread_id, org_id, user_id,
-                                         chat_type, status, project_id,
-                                         created_at_ms)
-        VALUES (${id}, ${organizationId}, ${userId}, 'chat', 'active',
-                ${body.data.projectId ?? null}, ${now})
-      `;
-      return id;
-    });
-    return c.json({ id: threadId }, 201);
   });
 
+  // The panel's list: pinned rows floated, newest activity first, each row
+  // tagged with whether a turn is generating.
   app.get('/threads', async (c) => {
     const { organizationId, userId } = caller(c);
-    const rows = await deps.sql<ThreadView[]>`
-      SELECT t.id, t.title, tm.project_id AS "projectId",
-             tm.generation_status AS "generationStatus",
-             t.created_at_ms::float8 AS "createdAt",
-             t.updated_at_ms::float8 AS "updatedAt"
-      FROM app.threads t
-      JOIN app.thread_metadata tm ON tm.thread_id = t.id
-      WHERE t.org_id = ${organizationId} AND t.user_id = ${userId}
-        AND tm.chat_type = 'chat' AND tm.status = 'active'
-      ORDER BY t.updated_at_ms DESC
-      LIMIT 200
-    `;
-    return c.json({ threads: rows });
+    return c.json({
+      threads: await listThreads(deps.sql, organizationId, userId),
+    });
+  });
+
+  app.get('/threads/archived', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const cursorRaw = c.req.query('cursor');
+    const limitRaw = c.req.query('limit');
+    return c.json(
+      await listArchivedThreads(deps.sql, organizationId, userId, {
+        ...(cursorRaw !== undefined ? { cursor: Number(cursorRaw) } : {}),
+        ...(limitRaw !== undefined ? { limit: Number(limitRaw) } : {}),
+      }),
+    );
+  });
+
+  app.get('/threads/search', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      results: await searchChats(
+        deps.sql,
+        organizationId,
+        userId,
+        c.req.query('q') ?? '',
+      ),
+    });
+  });
+
+  // Resolve a share token to its read-only snapshot. Token + org membership
+  // together authorize the read (the door already proved membership of
+  // THIS org; the thread must belong to it).
+  app.get('/threads/shared/:token', async (c) => {
+    const view = await getSharedThread(
+      deps.sql,
+      [c.get('orgId')],
+      c.req.param('token'),
+    );
+    return view === null ? c.json({ error: 'not found' }, 404) : c.json(view);
+  });
+
+  app.get('/threads/:threadId/summary', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const summary = await getThread(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+    );
+    return summary === null
+      ? c.json({ error: 'thread not found' }, 404)
+      : c.json({ thread: summary });
+  });
+
+  app.get('/threads/:threadId/share-status', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const status = await getThreadShareStatus(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+    );
+    return status === null
+      ? c.json({ error: 'thread not found' }, 404)
+      : c.json(status);
+  });
+
+  app.post('/threads/:threadId/capabilities', async (c) => {
+    const body = capabilitiesSchema.safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    try {
+      return c.json({
+        ok: await setThreadCapabilities(
+          deps.sql,
+          organizationId,
+          userId,
+          c.req.param('threadId'),
+          body.data,
+        ),
+      });
+    } catch (error) {
+      return handleThreadError(c, error);
+    }
+  });
+
+  app.post('/threads/:threadId/reasoning-effort', async (c) => {
+    const body = z
+      .object({
+        reasoningEffort: z
+          .enum(['low', 'medium', 'high', 'extra', 'max'])
+          .optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      ok: await setThreadReasoningEffort(
+        deps.sql,
+        organizationId,
+        userId,
+        c.req.param('threadId'),
+        body.data.reasoningEffort,
+      ),
+    });
+  });
+
+  app.post('/threads/:threadId/project', async (c) => {
+    const body = z
+      .object({ projectId: z.string().max(128).nullable() })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    try {
+      return c.json({
+        ok: await moveThreadToProject(
+          deps.sql,
+          organizationId,
+          userId,
+          c.req.param('threadId'),
+          body.data.projectId,
+        ),
+      });
+    } catch (error) {
+      return handleThreadError(c, error);
+    }
+  });
+
+  app.post('/threads/:threadId/rename', async (c) => {
+    const body = z
+      .object({ title: z.string().max(500) })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      ok: await renameThread(
+        deps.sql,
+        organizationId,
+        userId,
+        c.req.param('threadId'),
+        body.data.title,
+      ),
+    });
+  });
+
+  app.post('/threads/:threadId/pin', async (c) => {
+    const body = z
+      .object({ pinned: z.boolean() })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      ok: await setThreadPinned(
+        deps.sql,
+        organizationId,
+        userId,
+        c.req.param('threadId'),
+        body.data.pinned,
+      ),
+    });
+  });
+
+  app.post('/threads/:threadId/read', async (c) => {
+    const body = z
+      .object({ read: z.boolean().optional() })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    await markThreadRead(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+      body.data.read !== false,
+    );
+    return c.json({ ok: true });
+  });
+
+  app.post('/threads/:threadId/archive', async (c) => {
+    const body = z
+      .object({ archived: z.boolean() })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      ok: await setThreadArchived(
+        deps.sql,
+        {
+          organizationId,
+          userId,
+          email: c.get('sessionBundle').user.email,
+        },
+        c.req.param('threadId'),
+        body.data.archived,
+      ),
+    });
+  });
+
+  app.post('/threads/:threadId/share-project', async (c) => {
+    const body = z
+      .object({ shared: z.boolean() })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    try {
+      return c.json({
+        ok: await setThreadSharedWithProject(
+          deps.sql,
+          {
+            organizationId,
+            userId,
+            email: c.get('sessionBundle').user.email,
+          },
+          c.req.param('threadId'),
+          body.data.shared,
+        ),
+      });
+    } catch (error) {
+      return handleThreadError(c, error);
+    }
+  });
+
+  app.post('/threads/:threadId/share', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const share = await shareThread(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+    );
+    return share === null
+      ? c.json({ error: 'thread not found' }, 404)
+      : c.json(share);
+  });
+
+  app.post('/threads/:threadId/unshare', async (c) => {
+    const { organizationId, userId } = caller(c);
+    await unshareThread(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+    );
+    return c.json({ ok: true });
+  });
+
+  app.post('/threads/:threadId/branch', async (c) => {
+    const body = z
+      .object({
+        fromMessageId: z.string().min(1).max(128),
+        title: z.string().max(200).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    const branchId = await branchThread(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+      body.data.fromMessageId,
+      body.data.title,
+    );
+    return branchId === null
+      ? c.json({ error: 'thread or message not found' }, 404)
+      : c.json({ id: branchId }, 201);
+  });
+
+  app.post('/threads/:threadId/trash', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      ok: await trashThread(
+        deps.sql,
+        {
+          organizationId,
+          userId,
+          email: c.get('sessionBundle').user.email,
+        },
+        c.req.param('threadId'),
+      ),
+    });
+  });
+
+  app.post('/threads/:threadId/restore', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      ok: await restoreThread(
+        deps.sql,
+        {
+          organizationId,
+          userId,
+          email: c.get('sessionBundle').user.email,
+        },
+        c.req.param('threadId'),
+      ),
+    });
+  });
+
+  // The project page's Chats tab: mine + shared-with-project.
+  app.get('/project/:projectId/threads', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json(
+      await listThreadsForProject(
+        deps.sql,
+        organizationId,
+        userId,
+        c.req.param('projectId'),
+      ),
+    );
   });
 
   app.get('/threads/:threadId/messages', async (c) => {

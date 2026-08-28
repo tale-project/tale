@@ -197,7 +197,23 @@ export const generateThreadTitle = internalAction({
     firstMessage: v.string(),
   },
   returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
+  handler: async (ctx, args): Promise<null> =>
+    generateThreadTitleImpl(ctx, args),
+});
+
+/** The naming attempt as a PLAIN exported function — the internalAction
+ * above wraps it, and the 0.5 backend's `chat.generate_title` job runs it
+ * on the ctx shim (same pattern as the turn engine). */
+export async function generateThreadTitleImpl(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    threadId: string;
+    userId: string;
+    firstMessage: string;
+  },
+): Promise<null> {
+  {
     // Cleared once the race settles — a won race must not leave a
     // ten-second timer holding the action's environment open.
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -230,5 +246,5 @@ export const generateThreadTitle = internalAction({
       clearTimeout(timeout);
     }
     return null;
-  },
-});
+  }
+}

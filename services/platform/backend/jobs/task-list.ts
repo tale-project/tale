@@ -6,6 +6,7 @@ import {
   startWorkflowAgentTurnImpl,
 } from '../../convex/automations/agent_host.ts';
 import { stepRunImpl } from '../../convex/automations/stepper.ts';
+import { generateThreadTitleImpl } from '../../convex/chat/generate_title.ts';
 import { removeOrgSubtree } from '../../convex/organizations/scaffold.ts';
 import { startTaskAgentTurnImpl } from '../../convex/tasks/agent_run_host.ts';
 import { resolveAutoRetryBudget } from '../../convex/tasks/task_auto_retry.ts';
@@ -18,6 +19,7 @@ import {
   sweepOverdueRuns,
 } from '../domains/automations/store.ts';
 import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
+import { chatShimHandlers } from '../domains/chat/shim.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
 import { indexUploadedFile } from '../domains/knowledge/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
@@ -151,6 +153,25 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reaped ${result.reaped} tickets`,
         );
       }
+    },
+    'chat.generate_title': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          threadId: z.string().min(1),
+          userId: z.string().min(1),
+          firstMessage: z.string().min(1),
+        })
+        .parse(payload);
+      // The REUSED 0.4 naming attempt on the chat shim — one small model
+      // call raced against its timeout; any miss falls back to the derived
+      // title, and the write fills only an absent title.
+      const shim = createCtxShim(chatShimHandlers(deps.sql));
+      await generateThreadTitleImpl(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 action; every ctx facility it touches is covered by chatShimHandlers
+        shim as unknown as Parameters<typeof generateThreadTitleImpl>[0],
+        input,
+      );
     },
     'watchdog.chat_generations': async () => {
       const cleared = await runChatGenerationWatchdog(deps.sql);

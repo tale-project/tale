@@ -4840,6 +4840,339 @@ async function checkAskAnswer(
 }
 
 /**
+ * The chat thread surface: list ordering (pinned float), archive paging,
+ * rename/read-watermark metadata edits, project filing with the real access
+ * gate, share links as `sharedAt` snapshots (org-internal, stable token),
+ * branching at a message, trash/restore with the generating guard, the
+ * bounded palette search, and the AI-title lane (auto-enqueued by the first
+ * user message of an untitled thread; the fallback title lands when no
+ * model is reachable).
+ */
+async function checkChatThreadSurface(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = async (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const get = async (route: string): Promise<unknown> =>
+    (await fetch(`${base}${route}`, { headers: { cookie } })).json();
+  const mkThread = async (body: Record<string, unknown>): Promise<string> => {
+    const created = z
+      .object({ id: z.string() })
+      .safeParse(
+        await (await post(`/api/app/chat/threads?orgId=${orgId}`, body)).json(),
+      );
+    return created.success ? created.data.id : '';
+  };
+
+  const threadA = await mkThread({ title: 'Alpha planning' });
+  const threadB = await mkThread({});
+  const summaryList = z.object({
+    threads: z.array(
+      z
+        .object({
+          id: z.string(),
+          title: z.string().nullable(),
+          pinnedAt: z.number().nullable(),
+          archived: z.boolean(),
+        })
+        .loose(),
+    ),
+  });
+
+  await post(`/api/app/chat/threads/${threadB}/pin?orgId=${orgId}`, {
+    pinned: true,
+  });
+  await post(`/api/app/chat/threads/${threadB}/rename?orgId=${orgId}`, {
+    title: 'Renamed talk',
+  });
+  await post(`/api/app/chat/threads/${threadA}/archive?orgId=${orgId}`, {
+    archived: true,
+  });
+  const active = summaryList.safeParse(
+    await get(`/api/app/chat/threads?orgId=${orgId}`),
+  );
+  const archived = z
+    .object({
+      rows: z.array(z.object({ id: z.string() }).loose()),
+      nextCursor: z.number().nullable(),
+    })
+    .safeParse(await get(`/api/app/chat/threads/archived?orgId=${orgId}`));
+  const activeIds = active.success
+    ? active.data.threads.map((thread) => thread.id)
+    : [];
+  record(
+    'thread list: pin floats, rename lands, archive pages separately',
+    active.success &&
+      activeIds[0] === threadB &&
+      !activeIds.includes(threadA) &&
+      active.data.threads[0]?.title === 'Renamed talk' &&
+      archived.success &&
+      archived.data.rows.some((row) => row.id === threadA) &&
+      archived.data.nextCursor === null,
+    `first=${activeIds[0] === threadB} archivedHidden=${!activeIds.includes(threadA)} title=${active.success ? active.data.threads[0]?.title : 'ERR'} archivedRows=${archived.success ? archived.data.rows.length : 'ERR'}`,
+  );
+  await post(`/api/app/chat/threads/${threadA}/archive?orgId=${orgId}`, {
+    archived: false,
+  });
+
+  // Read watermark: back to unread stamps the reply watermark; read sets it.
+  await post(`/api/app/chat/threads/${threadB}/read?orgId=${orgId}`, {
+    read: false,
+  });
+  const unread = await sql<
+    { lastReadAt: number | null; lastReplyAt: number | null }[]
+  >`
+    SELECT last_read_at_ms::float8 AS "lastReadAt",
+           last_reply_at_ms::float8 AS "lastReplyAt"
+    FROM app.thread_metadata WHERE thread_id = ${threadB}
+  `;
+  await post(`/api/app/chat/threads/${threadB}/read?orgId=${orgId}`, {});
+  const readBack = await sql<{ lastReadAt: number | null }[]>`
+    SELECT last_read_at_ms::float8 AS "lastReadAt"
+    FROM app.thread_metadata WHERE thread_id = ${threadB}
+  `;
+  record(
+    'read watermark round-trips',
+    unread[0]?.lastReadAt === null &&
+      unread[0].lastReplyAt !== null &&
+      readBack[0]?.lastReadAt !== null,
+    `unread=${JSON.stringify(unread[0])} read=${readBack[0]?.lastReadAt !== null}`,
+  );
+
+  // Project filing: real gate (bogus project 404), then file + list tab.
+  const bogus = await post(
+    `/api/app/chat/threads/${threadB}/project?orgId=${orgId}`,
+    { projectId: 'nonexistent-project' },
+  );
+  const project = z
+    .object({ projectId: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Chat Tab' })
+      ).json(),
+    );
+  const projectId = project.success ? project.data.projectId : '';
+  await post(`/api/app/chat/threads/${threadB}/project?orgId=${orgId}`, {
+    projectId,
+  });
+  await post(`/api/app/chat/threads/${threadB}/share-project?orgId=${orgId}`, {
+    shared: true,
+  });
+  const tab = z
+    .object({
+      mine: z.array(z.object({ id: z.string() }).loose()),
+      shared: z.array(z.unknown()),
+    })
+    .safeParse(
+      await get(`/api/app/chat/project/${projectId}/threads?orgId=${orgId}`),
+    );
+  record(
+    'project filing: bogus project refused, tab lists the filed thread',
+    bogus.status === 404 &&
+      tab.success &&
+      tab.data.mine.some((row) => row.id === threadB),
+    `bogus=${bogus.status} mine=${tab.success ? tab.data.mine.length : 'ERR'}`,
+  );
+
+  // Share snapshot: two messages in, share, a later message stays out.
+  const { toJson } = await import('./db/sql.ts');
+  const now = Date.now();
+  await sql`
+    INSERT INTO app.messages (
+      thread_id, org_id, "order", step_order, role, text, parts, status,
+      created_at_ms
+    ) VALUES
+      (${threadB}, ${orgId}, 0, 0, 'user', 'hello world alpha',
+       ${sql.json(toJson([{ type: 'text', text: 'hello world alpha' }]))},
+       'complete', ${now - 5_000}),
+      (${threadB}, ${orgId}, 1, 0, 'assistant', 'result text beta',
+       ${sql.json(toJson([{ type: 'text', text: 'result text beta' }]))},
+       'complete', ${now - 4_000})
+  `;
+  const share = z
+    .object({ shareToken: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/chat/threads/${threadB}/share?orgId=${orgId}`)
+      ).json(),
+    );
+  const token = share.success ? share.data.shareToken : '';
+  await sql`
+    INSERT INTO app.messages (
+      thread_id, org_id, "order", step_order, role, text, parts, status,
+      created_at_ms
+    ) VALUES
+      (${threadB}, ${orgId}, 2, 0, 'user', 'after the share',
+       ${sql.json(toJson([{ type: 'text', text: 'after the share' }]))},
+       'complete', ${Date.now() + 60_000})
+  `;
+  const snapshot = z
+    .object({ messages: z.array(z.unknown()) })
+    .loose()
+    .safeParse(
+      await get(`/api/app/chat/threads/shared/${token}?orgId=${orgId}`),
+    );
+  await post(`/api/app/chat/threads/${threadB}/unshare?orgId=${orgId}`);
+  const dark = await fetch(
+    `${base}/api/app/chat/threads/shared/${token}?orgId=${orgId}`,
+    { headers: { cookie } },
+  );
+  const reshare = z
+    .object({ shareToken: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/chat/threads/${threadB}/share?orgId=${orgId}`)
+      ).json(),
+    );
+  record(
+    'share links: snapshot cut at sharedAt, unshare goes dark, token stable',
+    share.success &&
+      snapshot.success &&
+      snapshot.data.messages.length === 2 &&
+      dark.status === 404 &&
+      reshare.success &&
+      reshare.data.shareToken === token,
+    `snapshot=${snapshot.success ? snapshot.data.messages.length : 'ERR'} (want 2), dark=${dark.status}, stable=${reshare.success && reshare.data.shareToken === token}`,
+  );
+
+  // Branch at the first message: exactly one message crosses.
+  const forkSource = await sql<{ id: string }[]>`
+    SELECT id FROM app.messages
+    WHERE thread_id = ${threadB} AND "order" = 0 AND step_order = 0
+  `;
+  const branch = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/chat/threads/${threadB}/branch?orgId=${orgId}`, {
+        fromMessageId: forkSource[0]?.id ?? '',
+      })
+    ).json(),
+  );
+  const branchId = branch.success ? branch.data.id : '';
+  const branchCount = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.messages
+    WHERE thread_id = ${branchId}
+  `;
+  record(
+    'branching copies the history up to the fork only',
+    branch.success && branchCount[0]?.count === '1',
+    `copied=${branchCount[0]?.count} (want 1)`,
+  );
+
+  // Trash: refused while generating; then trash + restore round-trips.
+  await sql`
+    INSERT INTO app.generations (
+      thread_id, org_id, started_at_ms, heartbeat_at_ms, updated_at_ms
+    ) VALUES (${branchId}, ${orgId}, ${Date.now()}, ${Date.now()},
+              ${Date.now()})
+  `;
+  const trashLive = z
+    .object({ ok: z.boolean() })
+    .safeParse(
+      await (
+        await post(`/api/app/chat/threads/${branchId}/trash?orgId=${orgId}`)
+      ).json(),
+    );
+  await sql`DELETE FROM app.generations WHERE thread_id = ${branchId}`;
+  await post(`/api/app/chat/threads/${branchId}/trash?orgId=${orgId}`);
+  const trashedSummary = await fetch(
+    `${base}/api/app/chat/threads/${branchId}/summary?orgId=${orgId}`,
+    { headers: { cookie } },
+  );
+  await post(`/api/app/chat/threads/${branchId}/restore?orgId=${orgId}`);
+  const restoredSummary = await fetch(
+    `${base}/api/app/chat/threads/${branchId}/summary?orgId=${orgId}`,
+    { headers: { cookie } },
+  );
+  record(
+    'trash: generating refuses, trashed reads as gone, restore returns it',
+    trashLive.success &&
+      !trashLive.data.ok &&
+      trashedSummary.status === 404 &&
+      restoredSummary.status === 200,
+    `live=${trashLive.success ? trashLive.data.ok : 'ERR'} (want false), trashed=${trashedSummary.status}, restored=${restoredSummary.status}`,
+  );
+
+  // Palette search: message text, title, and a guaranteed miss.
+  const hitsSchema = z.object({
+    results: z.array(z.object({ threadId: z.string() }).loose()),
+  });
+  const byText = hitsSchema.safeParse(
+    await get(
+      `/api/app/chat/threads/search?orgId=${orgId}&q=${encodeURIComponent('hello alpha')}`,
+    ),
+  );
+  const byTitle = hitsSchema.safeParse(
+    await get(`/api/app/chat/threads/search?orgId=${orgId}&q=renamed`),
+  );
+  const miss = hitsSchema.safeParse(
+    await get(`/api/app/chat/threads/search?orgId=${orgId}&q=zzzznope`),
+  );
+  record(
+    'palette search matches message text and titles, bounded',
+    byText.success &&
+      byText.data.results.some((hit) => hit.threadId === threadB) &&
+      byTitle.success &&
+      byTitle.data.results.some((hit) => hit.threadId === threadB) &&
+      miss.success &&
+      miss.data.results.length === 0,
+    `text=${byText.success && byText.data.results.length} title=${byTitle.success && byTitle.data.results.length} miss=${miss.success ? miss.data.results.length : 'ERR'}`,
+  );
+
+  // The AI-title lane: the TurnStore's first-user-message append on an
+  // untitled thread enqueues the job; with no reachable model the fallback
+  // (the message's own words) lands via the guarded fill-only write.
+  const untitled = await mkThread({});
+  const { createPgTurnStore } = await import('./domains/chat/store.ts');
+  await createPgTurnStore(sql).appendMessage({
+    organizationId: orgId,
+    threadId: untitled,
+    role: 'user',
+    parts: [{ type: 'text', text: 'Quarterly VAT filing question' }],
+  });
+  let title: string | null = null;
+  for (let i = 0; i < 40; i++) {
+    const rows = await sql<{ title: string | null }[]>`
+      SELECT title FROM app.threads WHERE id = ${untitled}
+    `;
+    title = rows[0]?.title ?? null;
+    if (title !== null) break;
+    await sleep(250);
+  }
+  await post(`/api/app/chat/threads/${untitled}/rename?orgId=${orgId}`, {
+    title: 'Owner named it',
+  });
+  await setThreadTitleProbe(sql, orgId, untitled);
+  const renamed = await sql<{ title: string | null }[]>`
+    SELECT title FROM app.threads WHERE id = ${untitled}
+  `;
+  record(
+    'AI title lane: auto-enqueued, fallback lands, never clobbers a name',
+    title !== null &&
+      title.length > 0 &&
+      renamed[0]?.title === 'Owner named it',
+    `title=${JSON.stringify(title)} afterRename=${renamed[0]?.title}`,
+  );
+}
+
+/** Re-run the guarded fill-only write against a NAMED thread — it must be a
+ * no-op (the AI title never clobbers an owner's rename). */
+async function setThreadTitleProbe(
+  sql: Sql,
+  organizationId: string,
+  threadId: string,
+): Promise<void> {
+  const { setThreadTitleIfAbsent } = await import('./domains/chat/threads.ts');
+  await setThreadTitleIfAbsent(sql, organizationId, threadId, 'clobber probe');
+}
+
+/**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
  * with no resume; a settled predecessor with a stamped handle on the live
@@ -5716,6 +6049,7 @@ async function main(): Promise<void> {
     await checkProviderCredentials(sql, baseUrl, authCtx);
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkRestDoor(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

@@ -14,6 +14,7 @@ import {
   listProjects,
   type ProjectRow,
 } from '../projects/service.ts';
+import { setThreadTitleIfAbsent } from './threads.ts';
 
 /**
  * The handler map behind the reused 0.4 chat host (`executeTurn`) and tool
@@ -237,6 +238,33 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
     // ------------------------------------------------ governance (enforced)
     // The REAL policy verdicts over the org's governance files — the same
     // pure evaluators 0.4 runs, hosted on the 0.5 policy reader.
+    'user_preferences/queries:getChatModelInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
+      const args = raw as { userId: string; organizationId: string };
+      const rows = await sql<{ chatModelId: string | null }[]>`
+        SELECT chat_model_id AS "chatModelId" FROM app.user_preferences
+        WHERE user_id = ${args.userId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      return rows[0]?.chatModelId ?? null;
+    },
+
+    'chat/threads:setThreadTitleInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        threadId: string;
+        title: string;
+      };
+      await setThreadTitleIfAbsent(
+        sql,
+        args.organizationId,
+        args.threadId,
+        args.title,
+      );
+      return null;
+    },
+
     'governance/queries:checkModelAccessInternal': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
       const args = raw as {
