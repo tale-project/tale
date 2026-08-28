@@ -4755,7 +4755,6 @@ projects:
     createButton: Create project
     emptyTitle: No projects yet
     emptyDescription: Create one to share files, instructions, and chats
-    emptyCta: Create your first project
     searchPlaceholder: Search projects
     showArchived: Show archived
     columnName: Name

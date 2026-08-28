@@ -7084,7 +7084,6 @@ projects:
     emptyTitle: Noch keine Projekte
     emptyDescription: Lege ein Projekt an, um Dateien, Anweisungen und Chats mit
       deinem Team zu teilen.
-    emptyCta: Erstes Projekt erstellen
     searchPlaceholder: Projekte suchen
     showArchived: Archivierte anzeigen
     columnName: Name

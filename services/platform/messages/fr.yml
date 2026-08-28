@@ -7204,7 +7204,6 @@ projects:
     emptyDescription:
       Crée un projet pour partager fichiers, instructions et chats
       avec ton équipe.
-    emptyCta: Crée ton premier projet
     searchPlaceholder: Rechercher des projets
     showArchived: Afficher les archivés
     columnName: Nom
