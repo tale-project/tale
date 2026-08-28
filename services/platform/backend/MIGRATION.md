@@ -131,3 +131,17 @@ Ported route-by-route with their domains; the REST machine door (82 routes,
 `/api/v1/*`) and SCIM/SSO/webhook surfaces keep their exact request/response
 contracts (`services/platform/public/openapi.json` is the compatibility
 oracle).
+
+inc 22 opens the door: `backend/rest/v1.ts` — Bearer API key through the
+Better Auth apiKey plugin (the same `auth.api.getSession` surface, synthetic
+`x-api-key` header), org resolution via `resolveUserOrganization` honouring
+`X-Organization-Slug` (mandatory for multi-org keys on non-GET), per-IP
+`rest:api` rate limiting, coded domain-error mapping. First adapter wave:
+contacts (list/create/get/patch/delete), products (same), projects
+(list/create/get), tasks (create/get), documents (list/get), agents
+(list/get/put/delete via the reused file layer), automations
+(list/versions/triggers/save/deploy/start/runs) + `/runs/:id` (+cancel) —
+proven end-to-end in integration (a run saved AND executed through the
+door). REMAINING v1 routes ride their domains: knowledge search,
+knowledge-entries, skills, websites, threads/chat, MCP, uploads, bulk
+lanes — the openapi oracle is the parity checklist at cutover.

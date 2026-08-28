@@ -2622,6 +2622,123 @@ async function checkAutomations(
 }
 
 /**
+ * The REST machine door: a Better Auth API key minted through the session
+ * surface authenticates `/api/v1` (org resolved from membership), the thin
+ * adapters answer over the same domain services, and a run started through
+ * the door executes on the worker.
+ */
+async function checkRestDoor(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie } = ctx;
+  const minted = z.looseObject({ key: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/api-key/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ name: 'itest-door' }),
+      })
+    ).json(),
+  );
+  const apiKey = minted.success ? minted.data.key : '';
+  const v1 = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/v1${route}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+
+  const contacts = z
+    .object({ page: z.array(z.looseObject({ id: z.string() })) })
+    .loose()
+    .safeParse(await (await v1('/contacts')).json());
+  const productCreated = z
+    .object({ id: z.string() })
+    .safeParse(
+      await (
+        await v1('/products', { body: { name: 'Door Widget', price: 9.5 } })
+      ).json(),
+    );
+  const productRead = z
+    .looseObject({ name: z.string() })
+    .safeParse(
+      await (
+        await v1(
+          `/products/${productCreated.success ? productCreated.data.id : ''}`,
+        )
+      ).json(),
+    );
+  const agents = z
+    .object({ agents: z.array(z.unknown()) })
+    .loose()
+    .safeParse(await (await v1('/agents')).json());
+
+  // Save + run an automation entirely through the door.
+  const doorDoc = {
+    version: 1,
+    name: 'ops/door',
+    nodes: [
+      {
+        id: 'shape',
+        type: 'transform',
+        input: { n: '{{ input.n }}' },
+        code: 'return { doubled: input.n * 2 }',
+      },
+    ],
+    output: '{{ nodes.shape.output.doubled }}',
+  };
+  await v1('/automations/ops/door/save', { body: { document: doorDoc } });
+  const doorStart = z.object({ runId: z.string() }).safeParse(
+    await (
+      await v1('/automations/ops/door/start', {
+        body: { input: { n: 21 }, version: 1 },
+      })
+    ).json(),
+  );
+  const doorRunId = doorStart.success ? doorStart.data.runId : '';
+  const doorSettled = await waitFor(async () => {
+    const body = z
+      .looseObject({ status: z.string() })
+      .safeParse(await (await v1(`/runs/${doorRunId}`)).json());
+    return body.success && body.data.status === 'success';
+  }, 30_000);
+  const doorRun = z
+    .looseObject({ output: z.unknown() })
+    .safeParse(await (await v1(`/runs/${doorRunId}`)).json());
+
+  const badKey = await fetch(`${base}/api/v1/contacts`, {
+    headers: { authorization: 'Bearer not-a-key' },
+  });
+  const noKey = await fetch(`${base}/api/v1/contacts`);
+
+  record(
+    'REST machine door (/api/v1 on api-key auth)',
+    minted.success &&
+      contacts.success &&
+      contacts.data.page.length >= 1 &&
+      productCreated.success &&
+      productRead.success &&
+      productRead.data.name === 'Door Widget' &&
+      agents.success &&
+      doorStart.success &&
+      doorSettled &&
+      doorRun.success &&
+      doorRun.data.output === 42 &&
+      badKey.status === 401 &&
+      noKey.status === 401,
+    `key=${minted.success}, contacts=${contacts.success ? contacts.data.page.length : 'ERR'}, product=${productRead.success ? productRead.data.name : 'ERR'}, agents=${agents.success}, door run=${doorSettled} output=${doorRun.success ? JSON.stringify(doorRun.data.output) : 'ERR'} (want 42), badKey → ${badKey.status}, noKey → ${noKey.status} (want 401/401)`,
+  );
+}
+
+/**
  * Sandbox session substrate: per-owner and per-budget caps, park-on-capacity
  * FIFO tickets (fairness + release-edge admission), hibernate/resume slot
  * accounting, hash-only token lifecycle, and durable op rows — all under the
@@ -3428,6 +3545,7 @@ async function main(): Promise<void> {
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkRestDoor(sql, baseUrl, authCtx);
     await checkSandboxSessions(sql, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(

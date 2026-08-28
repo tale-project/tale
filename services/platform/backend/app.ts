@@ -27,6 +27,7 @@ import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createUserPreferenceRoutes } from './domains/user_preferences/routes.ts';
 import { createUserRoutes } from './domains/users/routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
+import { createRestV1Routes } from './rest/v1.ts';
 
 export interface AppDeps {
   sql: Sql;
@@ -45,6 +46,8 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/tools', createToolDispatchRoutes({ sql: deps.sql }));
   // Automation webhook triggers — the token in the path is the credential.
   app.route('/api/automations/webhook', createWebhookRoutes({ sql: deps.sql }));
+  // The REST machine door (Bearer API key).
+  app.route('/api/v1', createRestV1Routes(deps));
   // Internal app API (the surface the web app consumes); one sub-app per
   // ported domain.
   app.route('/api/app/agents', createAgentRoutes(deps));
