@@ -42,14 +42,17 @@ registerHooks({
         error !== null && typeof error === 'object' && 'code' in error
           ? error.code
           : undefined;
-      if (!RETRIABLE.has(code) || !isPathSpecifier(specifier)) {
+      if (!RETRIABLE.has(code)) {
         throw error;
       }
-      for (const candidate of [
-        `${specifier}.ts`,
-        `${specifier}.js`,
-        `${specifier}/index.ts`,
-      ]) {
+      // Bare-specifier deep paths (e.g. `validator/lib/isIBAN`) are CJS files
+      // published without an exports map; ESM needs the explicit `.js`.
+      const candidates = isPathSpecifier(specifier)
+        ? [`${specifier}.ts`, `${specifier}.js`, `${specifier}/index.ts`]
+        : specifier.includes('/')
+          ? [`${specifier}.js`]
+          : [];
+      for (const candidate of candidates) {
         try {
           return nextResolve(candidate, context);
         } catch (retryError) {

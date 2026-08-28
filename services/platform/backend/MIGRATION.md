@@ -33,7 +33,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | Piece | Status | Notes |
 | --- | --- | --- |
 | Runtime/image (Node in platform image, TALE_ROLE api/worker) | done | inc 02; compose profile `backend` |
-| Node loader (0.4 pure-module reuse) | done | inc 05; `node-loader.mjs` resolve hook + `--experimental-transform-types`: the backend imports runtime-clean 0.4 modules (extensionless specifiers) unchanged — port-by-reference instead of fork-copying; those modules move under backend/ at cutover |
+| Node loader (0.4 pure-module reuse) | done | inc 05 (+14: bare-specifier `.js` retry for CJS deep paths; `lib/convex-shim.ts` re-points a reused module's runQuery/runMutation at SQL by function name — fail-loud on un-shimmed calls); `node-loader.mjs` resolve hook + `--experimental-transform-types`: the backend imports runtime-clean 0.4 modules (extensionless specifiers) unchanged — port-by-reference instead of fork-copying; those modules move under backend/ at cutover |
 | App DB + boot migrator | done | inc 03; `tale_app`, advisory lock, `app_migrations` |
 | Serializable tx wrapper | done | inc 01; `@tale/shared/db/serializable` |
 | Transactional enqueue (pg-boss 12) | done | inc 01 on Graphile; swapped to pg-boss in inc 05 (Larry's call): `send({db})` in-tx, LISTEN/NOTIFY wake (p50≈10ms), singletonKey dedupe, per-queue retry policy + DLQ available. postgres.js json serializer overridden to node-postgres semantics (strings pass through) — double-encode trap |
@@ -105,7 +105,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | organizations | in-progress | inc 05: getOrganization/hasAny/recordOrgSwitch/resolveUserOrganization/prepare-deletion (+scaffold & cleanup jobs); reseed_all_orgs + provisioning-status/repair actions + slug-scoped file-surface guards pending; legal-hold guard with governance |
 | products | in-progress | inc 13: catalog CRUD, case-insensitive per-org name uniqueness (expression index replaces the 0.4 full-table probe), translations upsert, filterable keyset list; REST/connector ingest lanes with the machine door |
 | projects | in-progress | inc 06: core CRUD/settings/lifecycle/agents/search/overview + access matrix (reused) + audit actions (reused); per-org key/externalItemId unique via partial indexes; PENDING: doc/thread attach + delete-cascade walks (documents/chat), overdue rollup + label seed (tasks), bound-automations guard, REST v1 + upload intents (machine door), secrets prune (agent_secrets), rollup repair job (crons) |
-| provider_credentials | pending | |
+| provider_credentials | in-progress | inc 14: the RESOLUTION path (api-key decrypt / env gate / broker pool) reuses the 0.4 module verbatim via the ctx shim over app.provider_credentials; admin CRUD (masked reads, default swap via partial unique index); rotation/failover call sites wire up with gateway/chat |
 | provisioning | pending | |
 | sandbox | pending | sessions/slots/admission; INV 14–16 |
 | scim | pending | |

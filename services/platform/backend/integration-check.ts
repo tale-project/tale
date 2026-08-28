@@ -1457,6 +1457,123 @@ async function checkSmallDomains(
 }
 
 /**
+ * Provider credentials: encrypted round-trip through the REUSED 0.4
+ * resolver over PG rows (api-key decrypt + env gate + default swap), with
+ * the wire surface returning only masked metadata.
+ */
+async function checkProviderCredentials(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const send = (
+    method: 'POST' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  const created = z.object({ credentialId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/provider-credentials?orgId=${orgId}`, {
+        providerSlug: 'openai',
+        authMethod: 'api-key',
+        name: 'Primary key',
+        secret: 'sk-itest-super-secret-value',
+      })
+    ).json(),
+  );
+  const credentialId = created.success ? created.data.credentialId : '';
+  const listed = z
+    .object({
+      credentials: z.array(
+        z.object({
+          id: z.string(),
+          maskedPreview: z.string().nullable(),
+          isDefault: z.boolean(),
+        }),
+      ),
+    })
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/provider-credentials?orgId=${orgId}`, {
+          headers: { cookie },
+        })
+      ).json(),
+    );
+  const listedRow = listed.success ? listed.data.credentials[0] : undefined;
+  const listedRaw = JSON.stringify(listed.success ? listed.data : {});
+
+  // Resolve through the reused 0.4 resolver (direct service call — secrets
+  // never ride the HTTP surface).
+  const { resolveProviderCredential } =
+    await import('./domains/provider_credentials/service.ts');
+  const resolved = await resolveProviderCredential(sql, {
+    organizationId: orgId,
+    providerSlug: 'openai',
+  });
+  const apiKeyOk =
+    resolved.authMethod === 'api-key' &&
+    'secret' in resolved &&
+    resolved.secret === 'sk-itest-super-secret-value';
+
+  // Env method: gate enforced, value read from the deployment env.
+  process.env.TALE_PROVIDER_KEY_ITEST = 'env-secret-123';
+  const envCred = z.object({ credentialId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/provider-credentials?orgId=${orgId}`, {
+        providerSlug: 'openai',
+        authMethod: 'env',
+        name: 'Env key',
+        envName: 'TALE_PROVIDER_KEY_ITEST',
+      })
+    ).json(),
+  );
+  const badEnv = await send(
+    'POST',
+    `/api/app/provider-credentials?orgId=${orgId}`,
+    {
+      providerSlug: 'openai',
+      authMethod: 'env',
+      name: 'Bad env',
+      envName: 'HOME',
+    },
+  );
+  const swapped = await send(
+    'POST',
+    `/api/app/provider-credentials/${envCred.success ? envCred.data.credentialId : ''}?orgId=${orgId}`,
+    { isDefault: true },
+  );
+  const resolvedEnv = await resolveProviderCredential(sql, {
+    organizationId: orgId,
+    providerSlug: 'openai',
+  });
+  const envOk =
+    resolvedEnv.authMethod === 'env' &&
+    'secret' in resolvedEnv &&
+    resolvedEnv.secret === 'env-secret-123';
+
+  record(
+    'provider credentials (0.4 resolver over PG)',
+    created.success &&
+      listedRow?.maskedPreview === 'sk-i…ue' &&
+      !listedRaw.includes('sk-itest-super-secret-value') &&
+      apiKeyOk &&
+      envCred.success &&
+      badEnv.status === 400 &&
+      swapped.ok &&
+      envOk,
+    `masked=${listedRow?.maskedPreview}, apiKeyResolve=${apiKeyOk}, badEnv → ${badEnv.status} (want 400), defaultSwap+envResolve=${envOk}`,
+  );
+  void credentialId;
+}
+
+/**
  * Login throttle + audit chain, end to end through the real auth hooks:
  * repeated wrong passwords cross the lockout threshold (429 from the
  * before-hook), the lock expires on schedule (default first backoff = 1s),
@@ -1588,6 +1705,11 @@ async function main(): Promise<void> {
     );
   }
 
+  if (!process.env.ENCRYPTION_SECRET_HEX && !process.env.ENCRYPTION_SECRET) {
+    // Secret-box key for the credential round-trip (64 hex chars = 32 bytes).
+    process.env.ENCRYPTION_SECRET_HEX = 'ab'.repeat(32);
+  }
+
   // Better Auth validates the request Host against baseURL, so the server
   // port must be known BEFORE the auth instance is created — pick one
   // deterministically instead of binding port 0.
@@ -1674,6 +1796,7 @@ async function main(): Promise<void> {
     await checkFiles(baseUrl, authCtx);
     await checkDocuments(baseUrl, authCtx);
     await checkSmallDomains(baseUrl, authCtx);
+    await checkProviderCredentials(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,

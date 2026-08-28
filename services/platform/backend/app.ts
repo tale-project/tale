@@ -14,6 +14,7 @@ import { createNotificationRoutes } from './domains/notifications/routes.ts';
 import { createOrganizationRoutes } from './domains/organizations/routes.ts';
 import { createProductRoutes } from './domains/products/routes.ts';
 import { createProjectRoutes } from './domains/projects/routes.ts';
+import { createProviderCredentialRoutes } from './domains/provider_credentials/routes.ts';
 import { createSupportCaseRoutes } from './domains/support_cases/routes.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createUserPreferenceRoutes } from './domains/user_preferences/routes.ts';
@@ -45,6 +46,10 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/organizations', createOrganizationRoutes(deps));
   app.route('/api/app/products', createProductRoutes(deps));
   app.route('/api/app/projects', createProjectRoutes(deps));
+  app.route(
+    '/api/app/provider-credentials',
+    createProviderCredentialRoutes(deps),
+  );
   app.route('/api/app/support-cases', createSupportCaseRoutes(deps));
   app.route('/api/app/tasks', createTaskRoutes(deps));
   app.route('/api/app/user-preferences', createUserPreferenceRoutes(deps));
