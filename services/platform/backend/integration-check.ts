@@ -5829,6 +5829,114 @@ async function checkBrandingAndTeams(
 }
 
 /**
+ * Agent secrets: write-only values (masked listings), upsert/delete audit,
+ * and the per-turn env resolution through the work lanes' shim handler —
+ * with the credential-access audit row per injected name.
+ */
+async function checkAgentSecrets(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const created = z.object({ created: z.boolean() }).safeParse(
+    await (
+      await post(`/api/app/agent-secrets?orgId=${orgId}`, {
+        name: 'ITEST_TOKEN',
+        value: 'tok-123456789',
+        description: 'itest secret',
+      })
+    ).json(),
+  );
+  const updated = z.object({ created: z.boolean() }).safeParse(
+    await (
+      await post(`/api/app/agent-secrets?orgId=${orgId}`, {
+        name: 'ITEST_TOKEN',
+        value: 'tok-rotated-987654321',
+      })
+    ).json(),
+  );
+  const badName = await post(`/api/app/agent-secrets?orgId=${orgId}`, {
+    name: '1BAD NAME',
+    value: 'whatever-long-enough',
+  });
+  const listed = z
+    .object({
+      secrets: z.array(
+        z
+          .object({ name: z.string(), maskedPreview: z.string().nullable() })
+          .loose(),
+      ),
+    })
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/agent-secrets?orgId=${orgId}`, {
+          headers: { cookie },
+        })
+      ).json(),
+    );
+  const listedRow = listed.success ? listed.data.secrets[0] : undefined;
+
+  const { sandboxToolShimHandlers } = await import('./domains/sandbox/shim.ts');
+  const resolve =
+    sandboxToolShimHandlers(sql)[
+      'agent_secrets/actions:resolveAgentSecretsEnv'
+    ];
+  const resolved = z
+    .object({ env: z.record(z.string(), z.string()) })
+    .safeParse(
+      await resolve?.({
+        organizationId: orgId,
+        sessionId: 'itest-secrets-session',
+        names: ['ITEST_TOKEN', 'MISSING_NAME'],
+      }),
+    );
+  const accessRows = await sql<{ slug: string }[]>`
+    SELECT slug FROM app.sandbox_credential_access
+    WHERE session_id = 'itest-secrets-session'
+  `;
+  await fetch(`${base}/api/app/agent-secrets/ITEST_TOKEN?orgId=${orgId}`, {
+    method: 'DELETE',
+    headers: { cookie, origin: base },
+  });
+  const afterDelete = z
+    .object({ env: z.record(z.string(), z.string()) })
+    .safeParse(
+      await resolve?.({
+        organizationId: orgId,
+        sessionId: 'itest-secrets-session-2',
+        names: ['ITEST_TOKEN'],
+      }),
+    );
+  record(
+    'agent secrets: write-only upsert, masked list, turn env injection',
+    created.success &&
+      created.data.created &&
+      updated.success &&
+      !updated.data.created &&
+      badName.status === 400 &&
+      listed.success &&
+      listedRow?.name === 'ITEST_TOKEN' &&
+      (listedRow.maskedPreview ?? '').includes('•') &&
+      !JSON.stringify(listed.data).includes('tok-rotated') &&
+      resolved.success &&
+      resolved.data.env.ITEST_TOKEN === 'tok-rotated-987654321' &&
+      !('MISSING_NAME' in resolved.data.env) &&
+      accessRows.length === 1 &&
+      accessRows[0]?.slug === 'agent-secret:ITEST_TOKEN' &&
+      afterDelete.success &&
+      Object.keys(afterDelete.data.env).length === 0,
+    `created=${created.success ? created.data.created : 'ERR'}, rotatedIsUpdate=${updated.success ? !updated.data.created : 'ERR'}, badName=${badName.status}, masked=${listedRow?.maskedPreview}, env=${resolved.success ? resolved.data.env.ITEST_TOKEN === 'tok-rotated-987654321' : 'ERR'}, audit=${accessRows[0]?.slug}, afterDelete=${afterDelete.success ? Object.keys(afterDelete.data.env).length : 'ERR'}`,
+  );
+}
+
+/**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
  * with no resume; a settled predecessor with a stamped handle on the live
@@ -6707,6 +6815,7 @@ async function main(): Promise<void> {
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkAgentSecrets(sql, baseUrl, authCtx);
     await checkChatMemoriesDeferredAuto(
       sql,
       baseUrl,

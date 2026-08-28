@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 
 import type { ShimHandlers } from '../../lib/convex-shim.ts';
+import { resolveAgentSecretsEnv } from '../agent_secrets/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { addTaskComment } from '../tasks/comments.ts';
 
@@ -103,6 +104,16 @@ async function projectKnowledgeScope(
 export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
   const base = chatShimHandlers(sql);
   return {
+    'agent_secrets/actions:resolveAgentSecretsEnv': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the turn-equipment resolver passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        names: string[];
+      };
+      return resolveAgentSecretsEnv(sql, args);
+    },
+
     ...base,
 
     'sandbox/session_mutations:recordToolCall': async (raw) => {
