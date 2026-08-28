@@ -112,10 +112,10 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | skills | pending | |
 | status | pending | |
 | support_cases | pending | |
-| tasks | in-progress | inc 07 (Tier A): board core — CRUD/status choreography (human semantics, subtask close-guard)/assignee validation/claim/LexoRank moves (rank module reused)/labels catalog/dependencies (DAG-guarded)/board views/activity timeline/project rollup transitions/hard delete. Tier B with its infra: discussion comments+mentions (thread store), agent runs+review arc+status verbs that kick runs (INV 5–7, 20, 22), notify/event fan-outs, attachments/outputs blobs (storage router), REST surface, date notifications (crons), bulk ops, ops indicators |
+| tasks | in-progress | inc 07 (Tier A): board core — CRUD/status choreography (human semantics, subtask close-guard)/assignee validation/claim/LexoRank moves (rank module reused)/labels catalog/dependencies (DAG-guarded)/board views/activity timeline/project rollup transitions/hard delete. Tier B with its infra: discussion comments+mentions (thread store), agent runs+review arc+status verbs that kick runs (INV 5–7, 20, 22), notify/event fan-outs, attachments/outputs blobs (storage router), REST surface, date notifications (crons), bulk ops, ops indicators. inc 11 adds: discussion comments on the message store (add/edit/delete, lockstep meta, comment counts, activity + audit) — mention directory/fan-outs with collab/agents/automations |
 | team_members | pending | |
 | testing | dropped(convex-test harness) | replaced by vitest+throwaway PG |
-| threads | pending | agent-component store replacement |
+| threads | in-progress | inc 11: the store (app.threads/messages, (order, step_order) turn model, jsonb parts + derived text) + thread_metadata sidecar table; chat engine (streaming lane, generation lifecycle) with the chat domain |
 | trusted_headers_auth | pending | |
 | tts | pending | |
 | two_factor | pending | plugin live (inc 05); org enforcement hooks + verify-endpoint lockout + grace windows remain |

@@ -877,6 +877,63 @@ async function checkTasks(
       actions.includes('claimed'),
     `dep → ${dep.status}, cycle → ${cycle.status} (want 400), claim → ${claim.status}, activity=${actions.join('/')}`,
   );
+
+  // Comments on the message store: add ×2 → list → edit → delete → count.
+  const c1 = z
+    .object({ messageId: z.string(), threadId: z.string() })
+    .safeParse(
+      await (
+        await send('POST', `/api/app/tasks/${aId}/comments?orgId=${orgId}`, {
+          body: 'First comment',
+        })
+      ).json(),
+    );
+  await send('POST', `/api/app/tasks/${aId}/comments?orgId=${orgId}`, {
+    body: 'Second comment',
+  });
+  const edited = await send(
+    'POST',
+    `/api/app/tasks/comments/${c1.success ? c1.data.messageId : ''}?orgId=${orgId}`,
+    { body: 'First comment (edited)' },
+  );
+  const listed = z
+    .object({
+      comments: z.array(
+        z.object({
+          messageId: z.string(),
+          body: z.string(),
+          editedAt: z.number().nullable(),
+        }),
+      ),
+    })
+    .safeParse(await get(`/api/app/tasks/${aId}/comments?orgId=${orgId}`));
+  const removed = await send(
+    'DELETE',
+    `/api/app/tasks/comments/${c1.success ? c1.data.messageId : ''}?orgId=${orgId}`,
+  );
+  const afterDelete = z
+    .object({
+      comments: z.array(z.object({ body: z.string() })),
+    })
+    .safeParse(await get(`/api/app/tasks/${aId}/comments?orgId=${orgId}`));
+  const taskAfter = z
+    .object({ task: z.object({ commentCount: z.number() }) })
+    .safeParse(await get(`/api/app/tasks/${aId}?orgId=${orgId}`));
+  record(
+    'task comments (message store) add/edit/delete + count',
+    c1.success &&
+      edited.ok &&
+      listed.success &&
+      listed.data.comments.length === 2 &&
+      listed.data.comments[0]?.body === 'First comment (edited)' &&
+      listed.data.comments[0]?.editedAt !== null &&
+      removed.ok &&
+      afterDelete.success &&
+      afterDelete.data.comments.length === 1 &&
+      taskAfter.success &&
+      taskAfter.data.task.commentCount === 1,
+    `list=${listed.success ? listed.data.comments.length : 'ERR'}, first=${listed.success ? JSON.stringify(listed.data.comments[0]?.body) : 'ERR'}, afterDelete=${afterDelete.success ? afterDelete.data.comments.length : 'ERR'}, count=${taskAfter.success ? taskAfter.data.task.commentCount : 'ERR'}`,
+  );
 }
 
 /**

@@ -100,6 +100,7 @@ export interface TaskRow {
   externalSystem: string | null;
   externalId: string | null;
   externalUrl: string | null;
+  discussionThreadId: string | null;
   startDate: number | null;
   dueDate: number | null;
   statusChangedAt: number | null;
@@ -119,7 +120,9 @@ const TASK_COLUMNS = `
   assignee_id AS "assigneeId", reviewer_user_id AS "reviewerUserId",
   parent_task_id AS "parentTaskId", comment_count AS "commentCount", rank,
   external_system AS "externalSystem", external_id AS "externalId",
-  external_url AS "externalUrl", start_date_ms::float8 AS "startDate",
+  external_url AS "externalUrl",
+  discussion_thread_id AS "discussionThreadId",
+  start_date_ms::float8 AS "startDate",
   due_date_ms::float8 AS "dueDate",
   status_changed_at_ms::float8 AS "statusChangedAt",
   claimed_at_ms::float8 AS "claimedAt",

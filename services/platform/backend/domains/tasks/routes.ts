@@ -16,6 +16,13 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import {
+  addTaskComment,
+  deleteTaskComment,
+  editTaskComment,
+  listTaskComments,
+  TASK_COMMENT_MAX,
+} from './comments.ts';
+import {
   addTaskDependency,
   archiveTask,
   assignTask,
@@ -316,6 +323,72 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     try {
       const auth = await authCtx(c);
       return c.json(await getTask(deps.sql, auth, c.req.param('taskId')));
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:taskId/comments', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        comments: await listTaskComments(deps.sql, auth, c.req.param('taskId')),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:taskId/comments', async (c) => {
+    const body = z
+      .object({ body: z.string().min(1).max(TASK_COMMENT_MAX) })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      await checkUserRateLimit(deps.sql, 'task:comment', auth.userId);
+      const result = await transactSerializable(deps.sql, (tx) =>
+        addTaskComment(tx, auth, {
+          taskId: c.req.param('taskId'),
+          body: body.data.body,
+        }),
+      );
+      return c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/comments/:messageId', async (c) => {
+    const body = z
+      .object({ body: z.string().min(1).max(TASK_COMMENT_MAX) })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        editTaskComment(tx, auth, {
+          messageId: c.req.param('messageId'),
+          body: body.data.body,
+        }),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.delete('/comments/:messageId', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        deleteTaskComment(tx, auth, c.req.param('messageId')),
+      );
+      return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
     }
