@@ -8,11 +8,13 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
   AutomationError,
+  answerAsk,
   beginRun,
   cancelRun,
   deleteAutomationCascade,
   deleteTrigger,
   deploy,
+  getPendingAskForRun,
   getRun,
   listAutomations,
   listRuns,
@@ -57,6 +59,8 @@ const projectsSchema = z.object({
   projectIds: z.array(z.string().min(1)).max(100),
 });
 
+const answerSchema = z.object({ answer: z.string().min(1).max(20_000) });
+
 const startSchema = z.object({
   input: z.unknown().optional(),
   mode: z.enum(['mock', 'live']).optional(),
@@ -100,6 +104,35 @@ export function createAutomationRoutes(deps: {
       suffix === '' ? rest : rest.slice(0, -(suffix.length + 1)),
     );
   };
+
+  // The live question of one run — membership-gated like every run read;
+  // null when nothing is waiting on a person.
+  app.get('/runs/:runId/ask', async (c) => {
+    return c.json({
+      ask: await getPendingAskForRun(
+        deps.sql,
+        c.get('orgId'),
+        c.req.param('runId'),
+      ),
+    });
+  });
+
+  // Any member may answer (the 0.4 gate) — the agent asked a PERSON, not a
+  // role. The answer records and the resume job rides its transaction.
+  app.post('/asks/:askId/answer', async (c) => {
+    const body = answerSchema.parse(await c.req.json());
+    try {
+      await answerAsk(deps.sql, {
+        organizationId: c.get('orgId'),
+        askId: c.req.param('askId'),
+        answer: body.answer,
+        answeredBy: c.get('sessionBundle').user.id,
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+    return c.json({ ok: true });
+  });
 
   app.post('/runs/:runId/cancel', async (c) => {
     return c.json(

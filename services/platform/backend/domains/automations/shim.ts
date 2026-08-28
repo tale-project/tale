@@ -554,6 +554,119 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       `;
     },
 
+    'automations/human_asks:getAskForResume': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { askId: string; organizationId: string };
+      const rows = await sql<
+        {
+          _id: string;
+          runId: string;
+          nodeId: string;
+          execId: string;
+          question: string;
+          expiresAt: number;
+          status: string;
+          agentSessionId: string | null;
+          answer: string | null;
+        }[]
+      >`
+        SELECT id AS "_id", run_id AS "runId", node_id AS "nodeId",
+               exec_id AS "execId", question,
+               expires_at_ms::float8 AS "expiresAt", status,
+               agent_session_id AS "agentSessionId", answer
+        FROM app.automation_human_asks
+        WHERE id = ${args.askId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      const row = rows[0];
+      if (!row) return null;
+      return {
+        _id: row._id,
+        runId: row.runId,
+        nodeId: row.nodeId,
+        execId: row.execId,
+        question: row.question,
+        expiresAt: row.expiresAt,
+        status: row.status,
+        ...(row.agentSessionId !== null
+          ? { agentSessionId: row.agentSessionId }
+          : {}),
+        ...(row.answer !== null ? { answer: row.answer } : {}),
+      };
+    },
+
+    'automations/human_asks:retargetAgentCursor': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        runId: string;
+        nodeId: string;
+        fromExecId: string;
+        toExecId?: string;
+        deadlineAt?: number;
+      };
+      // The same guarded patch as `recordAgentTurnSettled`: the run must be
+      // live, parked on this node, on the expected exec, with no result — a
+      // stale resume retargets nothing. FOR UPDATE serializes racing resumes
+      // so exactly one wins the retarget.
+      return sql.begin(async (tx) => {
+        const rows = await tx<{ status: string; checkpoints: unknown }[]>`
+          SELECT status, checkpoints FROM app.automation_runs
+          WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+          FOR UPDATE
+        `;
+        const row = rows[0];
+        if (!row || !['waiting', 'running', 'queued'].includes(row.status)) {
+          return { retargeted: false };
+        }
+        const checkpoints =
+          row.checkpoints !== null && typeof row.checkpoints === 'object'
+            ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper owns this JSON shape
+              (row.checkpoints as {
+                nodes?: unknown;
+                cursor?: {
+                  node?: string;
+                  agent?: {
+                    execId?: string;
+                    result?: unknown;
+                    deadlineAt?: number;
+                  };
+                };
+                executions?: unknown;
+              })
+            : {};
+        const cursor = checkpoints.cursor;
+        if (
+          cursor === undefined ||
+          cursor.node !== args.nodeId ||
+          cursor.agent === undefined ||
+          cursor.agent.execId !== args.fromExecId ||
+          cursor.agent.result !== undefined
+        ) {
+          return { retargeted: false };
+        }
+        const patched = {
+          ...checkpoints,
+          cursor: {
+            ...cursor,
+            agent: {
+              ...cursor.agent,
+              ...(args.toExecId !== undefined ? { execId: args.toExecId } : {}),
+              ...(args.deadlineAt !== undefined
+                ? { deadlineAt: args.deadlineAt }
+                : {}),
+            },
+          },
+        };
+        await tx`
+          UPDATE app.automation_runs SET
+            checkpoints = ${tx.json(toJson(patched))}
+          WHERE id = ${args.runId}
+        `;
+        return { retargeted: true };
+      });
+    },
+
     'automations/human_asks:recordAskParked': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as {
@@ -576,6 +689,10 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
  * refs map onto pg-boss jobs (enqueued OUTSIDE any caller tx — best-effort,
  * mirroring the 0.4 scheduler's fire-and-forget posture at these sites). */
 export function automationShimScheduler(sql: Sql): ShimScheduler {
+  // Scheduled payloads arrive as unknown JSON — narrow each field instead of
+  // String() (which would stringify a stray object to '[object Object]').
+  const str = (value: unknown): string =>
+    typeof value === 'string' ? value : '';
   return async (functionName, delayMs, args) => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the scheduled refs carry the payloads their handlers re-validate
     const payload = args as Record<string, unknown>;
@@ -591,13 +708,28 @@ export function automationShimScheduler(sql: Sql): ShimScheduler {
       );
       return;
     }
+    if (
+      functionName ===
+      'automations/agent_host:resumeWorkflowAgentTurnWithAnswer'
+    ) {
+      await addJobInTx(
+        sql,
+        'automation.ask_resume',
+        {
+          organizationId: str(payload.organizationId),
+          askId: str(payload.askId),
+        },
+        startAfter,
+      );
+      return;
+    }
     if (functionName === 'automations/stepper:stepRun') {
       await addJobInTx(
         sql,
         'automation.step',
         {
-          organizationId: String(payload.organizationId ?? ''),
-          runId: String(payload.runId ?? ''),
+          organizationId: str(payload.organizationId),
+          runId: str(payload.runId),
         },
         startAfter,
       );
@@ -608,8 +740,8 @@ export function automationShimScheduler(sql: Sql): ShimScheduler {
         sql,
         'automation.poll',
         {
-          organizationId: String(payload.organizationId ?? ''),
-          runId: String(payload.runId ?? ''),
+          organizationId: str(payload.organizationId),
+          runId: str(payload.runId),
           seq: Number(payload.seq ?? 0),
           pollMs: Number(payload.pollMs ?? 1000),
         },

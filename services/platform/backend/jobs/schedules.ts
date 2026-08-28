@@ -24,6 +24,11 @@ const SCHEDULES: CronSchedule[] = [
   // sweep is the only wake source for a run whose scheduled resume was lost.
   { name: 'automation.trigger_scan', cron: '* * * * *' },
   { name: 'automation.liveness', cron: '* * * * *' },
+  // The agent-lane and sandbox backstops (each its own entry so a throw in
+  // one sweep can never disable another — the 0.4 isolation rationale).
+  { name: 'watchdog.task_agents', cron: '*/2 * * * *' },
+  { name: 'watchdog.sandbox', cron: '*/5 * * * *' },
+  { name: 'watchdog.chat_generations', cron: '*/2 * * * *' },
 ];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {

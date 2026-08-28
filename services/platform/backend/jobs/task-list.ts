@@ -1,7 +1,10 @@
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { startWorkflowAgentTurnImpl } from '../../convex/automations/agent_host.ts';
+import {
+  resumeWorkflowAgentTurnWithAnswerImpl,
+  startWorkflowAgentTurnImpl,
+} from '../../convex/automations/agent_host.ts';
 import { stepRunImpl } from '../../convex/automations/stepper.ts';
 import { removeOrgSubtree } from '../../convex/organizations/scaffold.ts';
 import { startTaskAgentTurnImpl } from '../../convex/tasks/agent_run_host.ts';
@@ -14,9 +17,12 @@ import {
   sweepOverdueRuns,
 } from '../domains/automations/store.ts';
 import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
+import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
 import { indexUploadedFile } from '../domains/knowledge/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
+import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import { agentTurnShimHandlers } from '../domains/tasks/agent-turn-shim.ts';
+import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
 import { createCtxShim } from '../lib/convex-shim.ts';
 
 /** One task handler; `payload` is a job row — external input, re-validate. */
@@ -127,6 +133,28 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         console.log(`[automations] liveness sweep re-poked ${swept} runs`);
       }
     },
+    'watchdog.task_agents': async () => {
+      const result = await runTaskAgentWatchdog(deps.sql);
+      if (result.failed > 0 || result.woken > 0) {
+        console.log(
+          `[watchdog] task agents: failed ${result.failed} overdue, woke ${result.woken} parked`,
+        );
+      }
+    },
+    'watchdog.sandbox': async () => {
+      const result = await runSandboxWatchdog(deps.sql);
+      if (result.expired > 0 || result.healed > 0 || result.reaped > 0) {
+        console.log(
+          `[watchdog] sandbox: expired ${result.expired}, healed ${result.healed}, reaped ${result.reaped} tickets`,
+        );
+      }
+    },
+    'watchdog.chat_generations': async () => {
+      const cleared = await runChatGenerationWatchdog(deps.sql);
+      if (cleared > 0) {
+        console.log(`[watchdog] chat: cleared ${cleared} stale generations`);
+      }
+    },
     'task.agent_turn': async (payload) => {
       const input = z
         .object({
@@ -234,6 +262,27 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         shim as unknown as Parameters<typeof startWorkflowAgentTurnImpl>[0],
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the kick built exactly the host's start-args shape; the host re-validates semantics
         input as unknown as Parameters<typeof startWorkflowAgentTurnImpl>[1],
+      );
+    },
+    'automation.ask_resume': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          askId: z.string().min(1),
+        })
+        .parse(payload);
+      const shim = createCtxShim(automationShimHandlers(deps.sql), {
+        scheduler: automationShimScheduler(deps.sql),
+      });
+      await resumeWorkflowAgentTurnWithAnswerImpl(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by automationShimHandlers
+        shim as unknown as Parameters<
+          typeof resumeWorkflowAgentTurnWithAnswerImpl
+        >[0],
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- askId is the row id; the Convex Id type is a branded string
+        input as unknown as Parameters<
+          typeof resumeWorkflowAgentTurnWithAnswerImpl
+        >[1],
       );
     },
     'automation.poll': async (payload) => {

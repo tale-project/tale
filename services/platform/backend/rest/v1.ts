@@ -194,7 +194,7 @@ export function createRestV1Routes(deps: {
     c.set('organizationId', resolved.organizationId);
     c.set('orgSlug', resolved.orgSlug);
     c.set('role', member.role);
-    await next();
+    return next();
   });
 
   const scope = (c: Context<RestEnv>): ContactScope & ProductScope => ({

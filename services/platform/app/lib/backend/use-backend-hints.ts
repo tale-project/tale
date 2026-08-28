@@ -20,7 +20,7 @@ export function useBackendHints(orgId: string | undefined): void {
   const queryClient = useQueryClient();
   useEffect(() => {
     if (orgId === undefined || orgId === '') {
-      return;
+      return undefined;
     }
     const source = new EventSource(eventsUrl(orgId), {
       withCredentials: true,

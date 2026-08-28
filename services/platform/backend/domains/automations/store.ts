@@ -251,21 +251,21 @@ export async function listVersions(
     createdAt: number;
   }>
 > {
-  return sql`
-    SELECT version, message, tests_passed AS "testsPassed",
-           created_by AS "createdBy", created_at_ms::float8 AS "createdAt"
-    FROM app.automations
-    WHERE org_id = ${organizationId} AND name = ${name}
-    ORDER BY version DESC
-  ` as unknown as Promise<
-    Array<{
+  return sql<
+    {
       version: number;
       message: string | null;
       testsPassed: boolean | null;
       createdBy: string;
       createdAt: number;
-    }>
-  >;
+    }[]
+  >`
+    SELECT version, message, tests_passed AS "testsPassed",
+           created_by AS "createdBy", created_at_ms::float8 AS "createdAt"
+    FROM app.automations
+    WHERE org_id = ${organizationId} AND name = ${name}
+    ORDER BY version DESC
+  `;
 }
 
 // ---------------------------------------------------------------- bindings
@@ -423,15 +423,8 @@ export async function listTriggers(
     lastFiredAt: number | null;
   }>
 > {
-  return sql`
-    SELECT name, kind, cron, timezone, event, enabled,
-           last_fired_at_ms::float8 AS "lastFiredAt"
-    FROM app.automation_triggers
-    WHERE org_id = ${organizationId}
-      AND (${name ?? null}::text IS NULL OR name = ${name ?? null})
-    ORDER BY name
-  ` as unknown as Promise<
-    Array<{
+  return sql<
+    {
       name: string;
       kind: string;
       cron: string | null;
@@ -439,8 +432,15 @@ export async function listTriggers(
       event: string | null;
       enabled: boolean;
       lastFiredAt: number | null;
-    }>
-  >;
+    }[]
+  >`
+    SELECT name, kind, cron, timezone, event, enabled,
+           last_fired_at_ms::float8 AS "lastFiredAt"
+    FROM app.automation_triggers
+    WHERE org_id = ${organizationId}
+      AND (${name ?? null}::text IS NULL OR name = ${name ?? null})
+    ORDER BY name
+  `;
 }
 
 // ------------------------------------------------------------------- runs
@@ -1001,5 +1001,126 @@ export async function deleteAutomationCascade(
         deleted_by = EXCLUDED.deleted_by,
         deleted_at_ms = EXCLUDED.deleted_at_ms
     `;
+  });
+}
+
+// --- the human-ask answer surface --------------------------------------------
+
+export interface PendingAsk {
+  askId: string;
+  runId: string;
+  nodeId: string;
+  question: string;
+  questions?: unknown;
+  createdAt: number;
+  expiresAt: number;
+  taskId?: string;
+}
+
+/** The live question of one run, for the run dialog and the task panel.
+ * Null when nothing is waiting on a person — a dead run's question is
+ * unanswerable, so the card never offers it (the 0.4 gate). */
+export async function getPendingAskForRun(
+  sql: Sql,
+  organizationId: string,
+  runId: string,
+): Promise<PendingAsk | null> {
+  const rows = await sql<
+    {
+      askId: string;
+      runId: string;
+      nodeId: string;
+      question: string;
+      questions: unknown;
+      createdAt: number;
+      expiresAt: number;
+      taskId: string | null;
+    }[]
+  >`
+    SELECT a.id AS "askId", a.run_id AS "runId", a.node_id AS "nodeId",
+           a.question, a.questions,
+           a.created_at_ms::float8 AS "createdAt",
+           a.expires_at_ms::float8 AS "expiresAt", a.task_id AS "taskId"
+    FROM app.automation_human_asks a
+    JOIN app.automation_runs r ON r.id = a.run_id
+    WHERE a.run_id = ${runId} AND a.org_id = ${organizationId}
+      AND a.status = 'pending'
+      AND a.expires_at_ms > ${Date.now()}
+      AND r.status IN ('waiting', 'running', 'queued')
+    ORDER BY a.created_at_ms
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    askId: row.askId,
+    runId: row.runId,
+    nodeId: row.nodeId,
+    question: row.question,
+    ...(row.questions !== null ? { questions: row.questions } : {}),
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    ...(row.taskId !== null ? { taskId: row.taskId } : {}),
+  };
+}
+
+/**
+ * A member answers. Records the answer and enqueues the resume job in the
+ * SAME transaction (tighter than 0.4's post-commit scheduler — the answer
+ * can never land without its resume). The task-comment mirror of the answer
+ * stays the CALLER's job, exactly as in 0.4.
+ */
+export async function answerAsk(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    askId: string;
+    answer: string;
+    answeredBy: string;
+  },
+): Promise<void> {
+  const answer = args.answer.trim().slice(0, 20_000);
+  if (answer === '') {
+    throw new AutomationError('EMPTY_ANSWER', 'the answer is empty', 400);
+  }
+  await sql.begin(async (tx) => {
+    const rows = await tx<{ status: string; expiresAt: number }[]>`
+      SELECT status, expires_at_ms::float8 AS "expiresAt"
+      FROM app.automation_human_asks
+      WHERE id = ${args.askId} AND org_id = ${args.organizationId}
+      FOR UPDATE
+    `;
+    const ask = rows[0];
+    if (!ask) {
+      throw new AutomationError(
+        'HUMAN_ASK_NOT_FOUND',
+        'this question does not exist',
+        404,
+      );
+    }
+    if (ask.status !== 'pending') {
+      throw new AutomationError(
+        'HUMAN_ASK_NOT_PENDING',
+        'this question was already answered or closed',
+        409,
+      );
+    }
+    if (Date.now() > ask.expiresAt) {
+      throw new AutomationError(
+        'HUMAN_ASK_EXPIRED',
+        'this question expired before it was answered',
+        409,
+      );
+    }
+    await tx`
+      UPDATE app.automation_human_asks SET
+        status = 'answered', answer = ${answer},
+        answered_by = ${args.answeredBy}, answered_at_ms = ${Date.now()}
+      WHERE id = ${args.askId}
+    `;
+    await addJobInTx(tx, 'automation.ask_resume', {
+      organizationId: args.organizationId,
+      askId: args.askId,
+    });
   });
 }

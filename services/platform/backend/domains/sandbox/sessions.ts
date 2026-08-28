@@ -895,6 +895,7 @@ export async function loadAgentCheckpoint(
   `;
   const row = rows[0];
   if (!row) return null;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the row's columns mirror AgentCheckpoint field-for-field; null-stripping restores the optional shape
   return Object.fromEntries(
     Object.entries(row).filter(([, value]) => value !== null),
   ) as unknown as AgentCheckpoint;

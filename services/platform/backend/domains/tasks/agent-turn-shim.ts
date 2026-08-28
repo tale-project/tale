@@ -224,8 +224,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                   entry !== null && typeof entry === 'object',
               )
               .map((entry) => ({
-                fileId: String(entry.fileId ?? ''),
-                fileName: String(entry.fileName ?? ''),
+                fileId: typeof entry.fileId === 'string' ? entry.fileId : '',
+                fileName:
+                  typeof entry.fileName === 'string' ? entry.fileName : '',
               }))
               .filter((entry) => entry.fileId !== '' && entry.fileName !== '')
           : [];
@@ -497,7 +498,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       try {
         return await reserveSessionSlot(sql, args);
       } catch (error) {
-        quotaAsConvexError(error);
+        return quotaAsConvexError(error);
       }
     },
 
@@ -521,7 +522,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       try {
         return await resumeSessionSlot(sql, args);
       } catch (error) {
-        quotaAsConvexError(error);
+        return quotaAsConvexError(error);
       }
     },
 

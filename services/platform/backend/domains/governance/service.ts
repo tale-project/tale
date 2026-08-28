@@ -9,10 +9,6 @@ import {
   evaluateModelAccess,
   type ModelAccessCheckResult,
 } from '../../../convex/governance/model_access_enforcement.ts';
-import type {
-  FeatureFlagsConfig,
-  ModelAccessConfig,
-} from '../../../lib/shared/schemas/governance.ts';
 import {
   getUserTeamIds,
   findOrganizationMember,
@@ -52,8 +48,7 @@ export async function checkModelAccessForUser(
   );
   const who = await whoIs(sql, args.organizationId, args.userId);
   return evaluateModelAccess(
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the file reader parsed against modelAccessConfigSchema
-    config as ModelAccessConfig | null,
+    config,
     { userId: who.userId, teamIds: who.teamIds, userRole: who.role },
     args.modelId,
   );
@@ -69,11 +64,7 @@ export async function resolveFeatureFlagsForUser(
     'feature_flags',
   );
   const who = await whoIs(sql, args.organizationId, args.userId);
-  return evaluateFeatureFlags(
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the file reader parsed against featureFlagsConfigSchema
-    config as FeatureFlagsConfig | null,
-    who,
-  );
+  return evaluateFeatureFlags(config, who);
 }
 
 /** The turn lane's context cap. Null = no cap applies. */

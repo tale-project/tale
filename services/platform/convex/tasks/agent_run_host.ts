@@ -1311,12 +1311,9 @@ async function continueOrSettle(
       internal.tasks.agent_run_host.driveTaskAgentTurn,
       {
         organizationId: args.organizationId,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-        runId: args.runId as never,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-        taskId: args.taskId as never,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-        agentId: args.agentId as never,
+        runId: args.runId,
+        taskId: args.taskId,
+        agentId: args.agentId,
         execId: args.execId,
         sessionId: args.sessionId,
         harness: args.harness,
@@ -1431,8 +1428,7 @@ async function settleTaskAgentTurn(
     // first-wins, so racing a live winner degrades to a no-op.
     const run = await ctx.runQuery(
       internal.tasks.agent_runs.getTaskAgentRunForDrive,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-      { runId: args.runId as never },
+      { runId: args.runId },
     );
     if (
       run === null ||
@@ -1450,8 +1446,7 @@ async function settleTaskAgentTurn(
 
   if (result.errored) {
     await ctx.runMutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-      runId: args.runId as never,
+      runId: args.runId,
       error: result.reason ?? 'the agent run failed',
       // Exec-guarded: a chain superseded by a restart-steer rotation must
       // not terminal-stamp the run its successor is working on.
@@ -1526,10 +1521,8 @@ async function settleTaskAgentTurn(
         internal.tasks.internal_mutations.agentRecordTaskOutputs,
         {
           organizationId: args.organizationId,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-          taskId: args.taskId as never,
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-          runId: args.runId as never,
+          taskId: args.taskId,
+          runId: args.runId,
           files,
         },
       );
@@ -1542,8 +1535,7 @@ async function settleTaskAgentTurn(
     // rerun can redo the work, an invisible loss cannot be acted on.
     console.warn('[task-agent] output harvest failed:', err);
     await ctx.runMutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-      runId: args.runId as never,
+      runId: args.runId,
       error: `output harvest failed: ${err instanceof Error ? err.message : String(err)}`,
       // Exec-guarded: a chain superseded by a restart-steer rotation must
       // not terminal-stamp the run its successor is working on.
@@ -1580,8 +1572,7 @@ async function settleTaskAgentTurn(
       {
         organizationId: args.organizationId,
         actorId: args.agentId,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-        taskId: args.taskId as never,
+        taskId: args.taskId,
         body,
       },
     );
@@ -1595,15 +1586,13 @@ async function settleTaskAgentTurn(
     {
       organizationId: args.organizationId,
       actorId: args.agentId,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-      taskId: args.taskId as never,
+      taskId: args.taskId,
       status: 'in_review',
       // Park-and-mint in one transaction: the run's workflow-free
       // `task_review` (+ reviewer bell) rides the status flip, so a refused
       // transition never mints and the burned-claim replay finds the
       // existing row instead of minting twice.
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-      review: { runId: args.runId as never },
+      review: { runId: args.runId },
     },
   );
   if (!status.ok) {
@@ -1611,8 +1600,7 @@ async function settleTaskAgentTurn(
   }
 
   await ctx.runMutation(internal.tasks.agent_runs.markTaskAgentRunSettled, {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-    runId: args.runId as never,
+    runId: args.runId,
     resultText,
     ...(resultMessageId !== undefined ? { resultMessageId } : {}),
     // Exec-guarded, same reason as the failed mark above.

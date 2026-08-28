@@ -205,11 +205,11 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         const readAllowed =
           base['sandbox/workspace_access:resolveWorkspaceReadAccess'];
         if (readAllowed !== undefined) {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the chat-shim handler returns exactly this shape
           const access = (await readAllowed({
             organizationId: args.organizationId,
             userId: args.userId,
             subject: args.subject,
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the chat-shim handler returns exactly this shape
           })) as { allowed: boolean };
           if (!access.allowed) {
             return { allowed: false, reason: 'read_denied' };

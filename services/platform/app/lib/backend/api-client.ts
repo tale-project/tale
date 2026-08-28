@@ -74,6 +74,7 @@ export async function backendFetch<T>(
     try {
       const body: unknown = await response.json();
       if (body !== null && typeof body === 'object') {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object; string-typeof guards gate every field read
         const record = body as Record<string, unknown>;
         if (typeof record.message === 'string' && record.message.length > 0) {
           message = record.message;
@@ -90,7 +91,9 @@ export async function backendFetch<T>(
     throw new BackendApiError(response.status, message, code);
   }
   if (response.status === 204) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 204 callers declare T = undefined
     return undefined as T;
   }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the fetch boundary: T states the endpoint's contract
   return (await response.json()) as T;
 }

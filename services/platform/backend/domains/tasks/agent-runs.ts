@@ -292,15 +292,13 @@ export async function listParkedAgentRuns(
   sql: Sql,
   limit = 50,
 ): Promise<Array<{ organizationId: string; runId: string; execId: string }>> {
-  return sql`
+  return sql<{ organizationId: string; runId: string; execId: string }[]>`
     SELECT org_id AS "organizationId", id AS "runId", exec_id AS "execId"
     FROM app.project_agent_runs
     WHERE status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL
     ORDER BY waiting_for_capacity_at_ms
     LIMIT ${limit}
-  ` as unknown as Promise<
-    Array<{ organizationId: string; runId: string; execId: string }>
-  >;
+  `;
 }
 
 export async function listOverdueAgentRuns(

@@ -3393,7 +3393,7 @@ async function checkAutomationAgentNode(
   sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string },
-  orgSlug: string,
+  _orgSlug: string,
 ): Promise<void> {
   if (!process.env.ITEST_S3_ENDPOINT) {
     record(
@@ -3454,7 +3454,7 @@ async function checkAutomationAgentNode(
         );
         return;
       }
-      if (method === 'POST' && /\/exec$/.test(url.pathname)) {
+      if (method === 'POST' && url.pathname.endsWith('/exec')) {
         res.setHeader('content-type', 'text/event-stream');
         const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`;
         const events = [
@@ -4581,6 +4581,481 @@ async function checkLoginThrottleAndAuditChain(
   );
 }
 
+/**
+ * The human-ask ANSWER surface: the pending-ask read skips expired rows, an
+ * expired ask refuses the answer, a live one records it and enqueues the
+ * resume job in the same transaction, a second answer is refused, and the
+ * cursor retarget is exec-fenced (the resume's single-winner election).
+ * The route-answered run's cursor deliberately names a DIFFERENT exec so
+ * the live worker's resume no-ops deterministically — the full resume dance
+ * shares the substrate the agent-node check already proves.
+ */
+async function checkAskAnswer(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { toJson } = await import('./db/sql.ts');
+  const { automationShimHandlers } =
+    await import('./domains/automations/shim.ts');
+  const now = Date.now();
+  const checkpointsA = {
+    nodes: {},
+    cursor: {
+      node: 'ask_node',
+      agent: { execId: 'exec-ask-other', input: {}, harness: 'claude-code' },
+    },
+    executions: {},
+  };
+  const runA = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, checkpoints,
+      started_at_ms
+    ) VALUES (
+      ${orgId}, 'itest/ask-answer', 1, 'waiting', 'live', 'itest:ask',
+      ${sql.json(toJson(checkpointsA))}, ${now}
+    ) RETURNING id
+  `;
+  const runAId = runA[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.automation_human_asks (
+      org_id, run_id, node_id, session_id, exec_id, question, status,
+      expires_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, ${runAId}, 'ask_node', 'wf-ask-a', 'exec-ask-expired',
+      'Expired question?', 'pending', ${now - 60_000}, ${now - 3_600_000}
+    )
+  `;
+  const liveAsk = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_human_asks (
+      org_id, run_id, node_id, session_id, exec_id, question, status,
+      expires_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, ${runAId}, 'ask_node', 'wf-ask-a', 'exec-ask-a',
+      'Which VAT rate applies?', 'pending', ${now + 3_600_000}, ${now}
+    ) RETURNING id
+  `;
+  const liveAskId = liveAsk[0]?.id ?? '';
+  const expiredAskId =
+    (
+      await sql<{ id: string }[]>`
+        SELECT id FROM app.automation_human_asks
+        WHERE run_id = ${runAId} AND exec_id = 'exec-ask-expired'
+      `
+    )[0]?.id ?? '';
+
+  const pending = z
+    .object({
+      ask: z
+        .object({ askId: z.string(), question: z.string() })
+        .loose()
+        .nullable(),
+    })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/automations/runs/${runAId}/ask?orgId=${orgId}`,
+          { headers: { cookie } },
+        )
+      ).json(),
+    );
+  record(
+    'pending-ask read returns the live ask, skipping the expired one',
+    pending.success &&
+      pending.data.ask !== null &&
+      pending.data.ask.askId === liveAskId &&
+      pending.data.ask.question === 'Which VAT rate applies?',
+    `ask=${pending.success ? JSON.stringify(pending.data.ask)?.slice(0, 80) : 'ERR'}`,
+  );
+
+  const answerRoute = (askId: string, answer: string): Promise<Response> =>
+    fetch(`${base}/api/app/automations/asks/${askId}/answer?orgId=${orgId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ answer }),
+    });
+  const expiredRes = await answerRoute(expiredAskId, 'too late');
+  const expiredBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await expiredRes.json());
+  record(
+    'answering an expired ask is refused',
+    expiredRes.status === 409 &&
+      expiredBody.success &&
+      expiredBody.data.error === 'HUMAN_ASK_EXPIRED',
+    `status=${expiredRes.status} error=${expiredBody.success ? expiredBody.data.error : 'ERR'}`,
+  );
+
+  const okRes = await answerRoute(liveAskId, 'The reduced rate: 7 percent.');
+  const answeredRow = await sql<
+    { status: string; answer: string | null; answeredBy: string | null }[]
+  >`
+    SELECT status, answer, answered_by AS "answeredBy"
+    FROM app.automation_human_asks WHERE id = ${liveAskId}
+  `;
+  const resumeJobs = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'automation.ask_resume'
+      AND data ->> 'askId' = ${liveAskId}
+  `;
+  record(
+    'answer records and enqueues the resume job transactionally',
+    okRes.status === 200 &&
+      answeredRow[0]?.status === 'answered' &&
+      answeredRow[0].answer === 'The reduced rate: 7 percent.' &&
+      answeredRow[0].answeredBy === userId &&
+      Number(resumeJobs[0]?.count ?? '0') >= 1,
+    `status=${okRes.status} row=${answeredRow[0]?.status}/${answeredRow[0]?.answeredBy === userId} jobs=${resumeJobs[0]?.count}`,
+  );
+
+  const dupRes = await answerRoute(liveAskId, 'changed my mind');
+  record(
+    'a second answer is refused',
+    dupRes.status === 409,
+    `status=${dupRes.status} (want 409)`,
+  );
+  const pendingAfter = z
+    .object({ ask: z.unknown().nullable() })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/automations/runs/${runAId}/ask?orgId=${orgId}`,
+          { headers: { cookie } },
+        )
+      ).json(),
+    );
+  record(
+    'no pending ask remains after the answer',
+    pendingAfter.success && pendingAfter.data.ask === null,
+    `ask=${pendingAfter.success ? JSON.stringify(pendingAfter.data.ask) : 'ERR'}`,
+  );
+
+  // Mechanics lane on a second run the worker never touches: the resume
+  // reads the answered row through the shim and retargets the cursor onto
+  // the fresh exec — wrong-exec attempts retarget nothing.
+  const checkpointsB = {
+    nodes: { earlier: { output: 'kept' } },
+    cursor: {
+      node: 'ask_node',
+      agent: { execId: 'exec-b-1', input: {}, harness: 'claude-code' },
+    },
+    executions: { seq: 3 },
+  };
+  const runB = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, checkpoints,
+      started_at_ms
+    ) VALUES (
+      ${orgId}, 'itest/ask-answer-b', 1, 'waiting', 'live', 'itest:ask',
+      ${sql.json(toJson(checkpointsB))}, ${now}
+    ) RETURNING id
+  `;
+  const runBId = runB[0]?.id ?? '';
+  const askB = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_human_asks (
+      org_id, run_id, node_id, session_id, exec_id, agent_session_id,
+      question, answer, answered_by, answered_at_ms, status, expires_at_ms,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, ${runBId}, 'ask_node', 'wf-ask-b', 'exec-b-1', 'conv-b',
+      'Approve the draft?', 'Approved.', ${userId}, ${now}, 'answered',
+      ${now + 3_600_000}, ${now}
+    ) RETURNING id
+  `;
+  const askBId = askB[0]?.id ?? '';
+  const shim = automationShimHandlers(sql);
+  const forResume = z
+    .object({
+      _id: z.string(),
+      status: z.string(),
+      answer: z.string(),
+      agentSessionId: z.string(),
+    })
+    .loose()
+    .safeParse(
+      await shim['automations/human_asks:getAskForResume']?.({
+        askId: askBId,
+        organizationId: orgId,
+      }),
+    );
+  record(
+    'getAskForResume returns the answered row with its conversation handle',
+    forResume.success &&
+      forResume.data.status === 'answered' &&
+      forResume.data.answer === 'Approved.' &&
+      forResume.data.agentSessionId === 'conv-b',
+    `row=${forResume.success ? `${forResume.data.status}/${forResume.data.agentSessionId}` : 'ERR'}`,
+  );
+  const missShape = z.object({ retargeted: z.boolean() });
+  const miss = missShape.safeParse(
+    await shim['automations/human_asks:retargetAgentCursor']?.({
+      organizationId: orgId,
+      runId: runBId,
+      nodeId: 'ask_node',
+      fromExecId: 'exec-b-STALE',
+      toExecId: 'exec-b-2',
+      deadlineAt: now + 7_200_000,
+    }),
+  );
+  const hit = missShape.safeParse(
+    await shim['automations/human_asks:retargetAgentCursor']?.({
+      organizationId: orgId,
+      runId: runBId,
+      nodeId: 'ask_node',
+      fromExecId: 'exec-b-1',
+      toExecId: 'exec-b-2',
+      deadlineAt: now + 7_200_000,
+    }),
+  );
+  const patched = await sql<{ checkpoints: unknown }[]>`
+    SELECT checkpoints FROM app.automation_runs WHERE id = ${runBId}
+  `;
+  const cp = z
+    .object({
+      nodes: z.object({ earlier: z.object({ output: z.string() }) }),
+      cursor: z.object({
+        node: z.string(),
+        agent: z.object({ execId: z.string(), deadlineAt: z.number() }).loose(),
+      }),
+      executions: z.object({ seq: z.number() }),
+    })
+    .safeParse(patched[0]?.checkpoints);
+  record(
+    'cursor retarget is exec-fenced and patches only the agent cursor',
+    miss.success &&
+      !miss.data.retargeted &&
+      hit.success &&
+      hit.data.retargeted &&
+      cp.success &&
+      cp.data.cursor.agent.execId === 'exec-b-2' &&
+      cp.data.cursor.agent.deadlineAt === now + 7_200_000 &&
+      cp.data.nodes.earlier.output === 'kept' &&
+      cp.data.executions.seq === 3,
+    `miss=${miss.success ? miss.data.retargeted : 'ERR'} hit=${hit.success ? hit.data.retargeted : 'ERR'} exec=${cp.success ? cp.data.cursor.agent.execId : 'ERR'}`,
+  );
+}
+
+/**
+ * The watchdog sweeps on hand-stranded rows — the handler bodies invoked
+ * directly (the scheduled lane is just a cron row over the same functions;
+ * assertions are on ROW STATE so a cron firing mid-check changes nothing):
+ * an overdue running run deadline-fails with its op cancelled and its
+ * session slot released; an overdue PARKED run fails too; an expired-TTL
+ * session flips while a fresh one stays; a dead admission ticket reaps
+ * while a live one stays; a stale chat generation clears with its thread
+ * settled idle and its pending placeholder failed.
+ */
+async function checkWatchdogs(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const project = z
+    .object({ projectId: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Watchdogs' })
+      ).json(),
+    );
+  const projectId = project.success ? project.data.projectId : '';
+  const task = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Watchdog quarry',
+      })
+    ).json(),
+  );
+  const taskId = task.success ? task.data.taskId : '';
+  const now = Date.now();
+
+  // Lane 1: an overdue RUNNING run with a live op and a live session slot.
+  const overdue = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, started_at_ms, launched_at_ms,
+      deadline_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${taskId}, 'wd-agent', 'exec-wd-1',
+      'pa-wd-agent', 'running', 'claude-code', 'itest-model', 'itest:wd',
+      ${now - 13 * 3_600_000}, ${now - 13 * 3_600_000}, ${now - 3_600_000},
+      ${now}
+    ) RETURNING id
+  `;
+  const overdueId = overdue[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, heartbeat_at_ms,
+      started_at_ms
+    ) VALUES (
+      ${orgId}, 'pa-wd-agent', 'exec-wd-1', 'agent-run', 'running',
+      ${now - 3_600_000}, ${now - 13 * 3_600_000}
+    )
+  `;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, 'pa-wd-agent', 'active', 'project_agent', 'wd-agent',
+      'itest:wd', ${now - 13 * 3_600_000}, ${now + 24 * 3_600_000}
+    )
+  `;
+  // Lane 2: an overdue PARKED run (never launched — no op, no slot).
+  const parked = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, started_at_ms, waiting_for_capacity_at_ms,
+      deadline_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${taskId}, 'wd-agent-2', 'exec-wd-2',
+      'pa-wd-agent-2', 'queued', 'claude-code', 'itest-model', 'itest:wd',
+      ${now - 13 * 3_600_000}, ${now - 13 * 3_600_000}, ${now - 3_600_000},
+      ${now}
+    ) RETURNING id
+  `;
+  const parkedId = parked[0]?.id ?? '';
+
+  const taskWatchdogs = await import('./domains/tasks/watchdogs.ts');
+  await taskWatchdogs.runTaskAgentWatchdog(sql);
+  const runsAfter = await sql<
+    { id: string; status: string; error: string | null }[]
+  >`
+    SELECT id, status, error FROM app.project_agent_runs
+    WHERE id IN (${overdueId}, ${parkedId})
+  `;
+  const overdueAfter = runsAfter.find((r) => r.id === overdueId);
+  const parkedAfter = runsAfter.find((r) => r.id === parkedId);
+  const opAfter = await sql<{ status: string; finalizedAt: number | null }[]>`
+    SELECT status, finalized_at_ms::float8 AS "finalizedAt"
+    FROM app.sandbox_session_ops
+    WHERE session_id = 'pa-wd-agent' AND exec_id = 'exec-wd-1'
+  `;
+  const slotAfter = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE session_id = 'pa-wd-agent' AND org_id = ${orgId}
+    ORDER BY created_at_ms DESC LIMIT 1
+  `;
+  record(
+    'task-agent watchdog deadline-fails overdue runs and frees their slots',
+    overdueAfter?.status === 'failed' &&
+      (overdueAfter.error ?? '').includes('time limit') &&
+      parkedAfter?.status === 'failed' &&
+      (parkedAfter.error ?? '').includes('capacity') &&
+      opAfter[0]?.status === 'cancelled' &&
+      opAfter[0].finalizedAt !== null &&
+      slotAfter[0]?.status === 'stopped',
+    `overdue=${overdueAfter?.status} parked=${parkedAfter?.status} op=${opAfter[0]?.status} slot=${slotAfter[0]?.status}`,
+  );
+
+  // Lane 3: sandbox expiry + admission reap (reconcile skipped — no spawner
+  // is live here; the cron lane fail-closes on probe errors by design).
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES
+      (${orgId}, 'wd-ttl-gone', 'active', 'render', 'wd-ttl-gone',
+       'itest:wd', ${now - 25 * 3_600_000}, ${now - 3_600_000}),
+      (${orgId}, 'wd-ttl-live', 'active', 'render', 'wd-ttl-live',
+       'itest:wd', ${now}, ${now + 24 * 3_600_000})
+  `;
+  await sql`
+    INSERT INTO app.sandbox_admission_tickets (
+      org_id, kind, owner_type, owner_id, source, status, created_at_ms,
+      last_seen_at_ms
+    ) VALUES
+      (${orgId}, 'session', 'render', 'wd-ticket-dead', 'workflow',
+       'waiting', ${now - 3_600_000}, ${now - 3_600_000}),
+      (${orgId}, 'session', 'render', 'wd-ticket-live', 'workflow',
+       'waiting', ${now}, ${now})
+  `;
+  const sandboxWatchdogs = await import('./domains/sandbox/watchdogs.ts');
+  await sandboxWatchdogs.runSandboxWatchdog(sql, { skipReconcile: true });
+  const ttlRows = await sql<{ sessionId: string; status: string }[]>`
+    SELECT session_id AS "sessionId", status FROM app.sandbox_sessions
+    WHERE session_id IN ('wd-ttl-gone', 'wd-ttl-live')
+  `;
+  const tickets = await sql<{ ownerId: string }[]>`
+    SELECT owner_id AS "ownerId" FROM app.sandbox_admission_tickets
+    WHERE owner_id IN ('wd-ticket-dead', 'wd-ticket-live')
+  `;
+  record(
+    'sandbox watchdog expires overdue sessions and reaps dead tickets',
+    ttlRows.find((r) => r.sessionId === 'wd-ttl-gone')?.status === 'expired' &&
+      ttlRows.find((r) => r.sessionId === 'wd-ttl-live')?.status === 'active' &&
+      tickets.length === 1 &&
+      tickets[0]?.ownerId === 'wd-ticket-live',
+    `ttl=${JSON.stringify(ttlRows)} tickets=${tickets.map((t) => t.ownerId).join(',')}`,
+  );
+
+  // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
+  // settles idle and the pending placeholder fails.
+  const thread = await sql<{ id: string }[]>`
+    INSERT INTO app.threads (org_id, kind, created_at_ms, updated_at_ms)
+    VALUES (${orgId}, 'chat', ${now}, ${now}) RETURNING id
+  `;
+  const threadId = thread[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.thread_metadata (
+      thread_id, org_id, user_id, chat_type, status, generation_status,
+      stream_id, generation_heartbeat_at_ms, created_at_ms
+    ) VALUES (
+      ${threadId}, ${orgId}, 'itest:wd', 'assistant', 'active', 'generating',
+      'stream-wd', ${now - 20 * 60_000}, ${now}
+    )
+  `;
+  await sql`
+    INSERT INTO app.messages (
+      thread_id, org_id, "order", step_order, role, text, status,
+      created_at_ms
+    ) VALUES (
+      ${threadId}, ${orgId}, 1, 0, 'assistant', '', 'pending', ${now}
+    )
+  `;
+  await sql`
+    INSERT INTO app.generations (
+      thread_id, org_id, text, started_at_ms, heartbeat_at_ms, updated_at_ms
+    ) VALUES (
+      ${threadId}, ${orgId}, 'partial…', ${now - 20 * 60_000},
+      ${now - 20 * 60_000}, ${now - 20 * 60_000}
+    )
+  `;
+  const chatWatchdogs = await import('./domains/chat/watchdogs.ts');
+  await chatWatchdogs.runChatGenerationWatchdog(sql);
+  const genGone = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.generations
+    WHERE thread_id = ${threadId}
+  `;
+  const metaAfter = await sql<
+    { generationStatus: string | null; streamId: string | null }[]
+  >`
+    SELECT generation_status AS "generationStatus", stream_id AS "streamId"
+    FROM app.thread_metadata WHERE thread_id = ${threadId}
+  `;
+  const msgAfter = await sql<{ status: string; error: string | null }[]>`
+    SELECT status, error FROM app.messages WHERE thread_id = ${threadId}
+  `;
+  record(
+    'chat watchdog clears stale generations and settles the thread',
+    genGone[0]?.count === '0' &&
+      metaAfter[0]?.generationStatus === 'idle' &&
+      metaAfter[0].streamId === null &&
+      msgAfter[0]?.status === 'failed' &&
+      (msgAfter[0].error ?? '') !== '',
+    `gen=${genGone[0]?.count} meta=${metaAfter[0]?.generationStatus} msg=${msgAfter[0]?.status}`,
+  );
+}
+
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -4712,8 +5187,10 @@ async function main(): Promise<void> {
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkAskAnswer(sql, baseUrl, authCtx);
     await checkSandboxSessions(sql, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
+    await checkWatchdogs(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,

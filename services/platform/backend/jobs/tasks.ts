@@ -39,6 +39,19 @@ export interface TaskPayloads {
   /** One workflow-agent turn for an automation run's agent node. The payload
    * is the reused host's full start-args shape (validated by the handler). */
   'automation.agent_turn': Record<string, unknown>;
+  /** An answered human ask hands the turn back to the agent host, which
+   * resumes the SAME harness conversation with the answer as its next
+   * message. Enqueued in the answer's transaction. */
+  'automation.ask_resume': { organizationId: string; askId: string };
+  /** 2-min backstops for the task-agent lane: deadline-fail overdue runs,
+   * wake capacity-parked ones whose release edge was lost. */
+  'watchdog.task_agents': Record<string, never>;
+  /** 5-min sandbox drift sweep: expire overdue sessions, reap stale
+   * admission tickets (the only guard against queue-head starvation). */
+  'watchdog.sandbox': Record<string, never>;
+  /** 2-min direct-chat crash recovery: clear stale generation rows so a
+   * hard-killed turn cannot wedge its thread's composer. */
+  'watchdog.chat_generations': Record<string, never>;
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -94,4 +107,8 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // NEW run); a lost job is the watchdog's to re-kick, never pg-boss's.
   'task.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
+  'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
+  'watchdog.task_agents': { retryLimit: 1, expireInSeconds: 120 },
+  'watchdog.sandbox': { retryLimit: 1, expireInSeconds: 300 },
+  'watchdog.chat_generations': { retryLimit: 1, expireInSeconds: 120 },
 };

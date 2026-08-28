@@ -1391,7 +1391,18 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
     askId: v.id('automationHumanAsks'),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) =>
+    resumeWorkflowAgentTurnWithAnswerImpl(ctx, args),
+});
+
+/** The answered-ask resume as a PLAIN exported function — the internalAction
+ * above wraps it, and the 0.5 backend's `automation.ask_resume` job runs it
+ * on the ctx shim (same pattern as the turn start). */
+export async function resumeWorkflowAgentTurnWithAnswerImpl(
+  ctx: ActionCtx,
+  args: { organizationId: string; askId: Id<'automationHumanAsks'> },
+): Promise<null> {
+  {
     const ask = readAskRow(
       await ctx.runQuery(internal.automations.human_asks.getAskForResume, {
         askId: args.askId,
@@ -1701,8 +1712,8 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       );
     }
     return null;
-  },
-});
+  }
+}
 
 /** Narrow the cursor's recorded request (stored as plain JSON) back to the
  * fields the resume needs. Absent fields degrade, never throw — the resume
