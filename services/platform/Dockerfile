@@ -8,6 +8,11 @@ ARG VERSION=dev
 # Bun binary for all stages
 FROM oven/bun:1.3.12 AS bun-bin
 
+# Node binary for the 0.5 backend roles (api/worker). The backend runs its .ts
+# sources directly via Node's type stripping (>= 22.18); only the binary is
+# needed — no npm, no corepack.
+FROM node:22.21.1-bookworm-slim AS node-bin
+
 # ============================================================================
 # Stage 1: Dependencies
 # ============================================================================
@@ -114,6 +119,10 @@ COPY services/platform/server.ts \
      services/platform/sla-targets.ts \
      ./services/platform/
 
+# 0.5 backend (Hono API + pg-boss worker on Postgres) — server-side only, so
+# copied after the vite build for the same cache reason as server.ts above.
+COPY services/platform/backend ./services/platform/backend
+
 # ============================================================================
 # Stage 2b: Dev (local hot-reload image — NOT used by prod/CI)
 # ----------------------------------------------------------------------------
@@ -145,6 +154,11 @@ COPY services/platform/server.ts \
 FROM builder AS dev
 
 ARG VERSION=dev
+
+# Node for the 0.5 backend roles; the dev image keeps sources at the workspace
+# path, so the entrypoint's role dispatch needs the dir override below.
+COPY --from=node-bin /usr/local/bin/node /usr/local/bin/node
+ENV TALE_BACKEND_DIR=/app/services/platform/backend
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -251,6 +265,8 @@ RUN HUSKY=0 bun install --production \
 FROM ghcr.io/get-convex/convex-backend:903b8b96c4bceb34c62e366cf36e8f4774955e6b AS runner
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+# Node runs the 0.5 backend roles (api/worker); Bun keeps running server.ts.
+COPY --from=node-bin /usr/local/bin/node /usr/local/bin/node
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 WORKDIR /app
@@ -347,6 +363,9 @@ COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
 # (jsdom, …) get bundled inline and the push fails at analyze.
 COPY --chown=app:app services/platform/convex.json ./convex.json
 COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
+# 0.5 backend sources (run unbundled by Node via type stripping; role dispatch
+# in docker-entrypoint.sh execs `node /app/backend/main.ts`).
+COPY --from=pruner --chown=app:app /app/services/platform/backend ./backend
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 # Workspace packages backing the `@tale/*` symlinks in node_modules. The
 # platform runs `bun server.ts` unbundled, so server-side imports of

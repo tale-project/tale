@@ -434,6 +434,90 @@ services:
       - internal
 
   # ============================================================================
+  # Tale 0.5 backend (parallel build) — OPT-IN under the `backend` profile
+  # ----------------------------------------------------------------------------
+  # The SAME platform image, started in a different role via TALE_ROLE
+  # (docker-entrypoint.sh dispatches before any Convex work). Default topology
+  # is one `api` + one `worker` container; either scales independently:
+  #   docker compose --profile backend up -d --scale backend-worker=3
+  # (no `container_name` on these two services precisely so --scale works).
+  # Runs alongside the Convex stack during the 0.5 parallel build; replaces the
+  # `convex` (and opt-in `controller`) services at cutover. State lives in the
+  # `tale_app` database on the `db` service (created idempotently by
+  # services/db/init-scripts/04-create-app-database.sql).
+  backend-api:
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: .
+      dockerfile: services/platform/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+    profiles:
+      - backend
+    environment:
+      TALE_ROLE: api
+      PORT: '3005'
+      # Interpolated from .env at compose level; the dev fallback mirrors
+      # compose.dev.yml's DB_PASSWORD default so the opt-in profile boots on a
+      # plain dev stack. Production always has a real .env (tale deploy).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    # Override the image's baked web healthcheck (port 3000) with the api port.
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:3005/ping']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - internal
+
+  backend-worker:
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: .
+      dockerfile: services/platform/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+    profiles:
+      - backend
+    environment:
+      TALE_ROLE: worker
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    # The worker exposes no HTTP; the image's baked healthcheck targets the web
+    # port and would read permanently unhealthy here, so disable it. Liveness
+    # is the Graphile Worker heartbeat + at-least-once job recovery.
+    healthcheck:
+      disable: true
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - internal
+
+  # ============================================================================
   # Tale Proxy (Caddy)
   # ============================================================================
   # Single entry point for all traffic (both local dev and production)

@@ -1,0 +1,468 @@
+import { apiKey } from '@better-auth/api-key';
+import { passkey } from '@better-auth/passkey';
+import { transactSerializable } from '@tale/shared/db/serializable';
+import { betterAuth, type BetterAuthPlugin } from 'better-auth';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
+import { organization, twoFactor } from 'better-auth/plugins';
+import pg from 'pg';
+import type { Sql } from 'postgres';
+
+import { getClientIp } from '../../convex/lib/utils/client_ip.ts';
+import { assertValidOrgSlug } from '../../lib/shared/constants/org-slug.ts';
+import { isReservedOrgSlug } from '../../lib/shared/constants/reserved-org-slugs.ts';
+import { DEFAULT_TRUSTED_PROXIES } from '../../lib/shared/schemas/governance.ts';
+import { organizationNameSchema } from '../../lib/shared/schemas/organizations.ts';
+import { sessionIdleWindowSeconds } from '../../lib/shared/session-idle.ts';
+import { getString, isRecord } from '../../lib/utils/type-utils.ts';
+import { logJoinedOrganization } from '../domains/audit_logs/service.ts';
+import {
+  clearOnSuccess,
+  getLockState,
+  recordBlocked,
+  recordFailure,
+} from '../domains/login_attempts/service.ts';
+import { addJobInTx } from '../jobs/enqueue.ts';
+import { readGovernancePolicy } from '../lib/org-config.ts';
+import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';
+import { ac, orgRoles } from './access.ts';
+
+/**
+ * Better Auth on Postgres — the 0.5 replacement for the Convex Better Auth
+ * component, at 0.4 parity: email+password with the login-throttle gate
+ * (per-IP flood guard + per-account exponential lockout), the organization
+ * plugin (teams, access control, slug/name hooks, scaffold-on-create), and
+ * the apiKey / twoFactor / passkey plugins. Differences from 0.4, tracked in
+ * ../MIGRATION.md:
+ *  - the Convex JWT/JWKS plugin is gone (same-process sessions; the sandbox
+ *    port decides whether an equivalent returns);
+ *  - member/team mirror resyncs are gone (mirrors died — see membership.ts);
+ *  - the 2FA enforcement hooks (grace windows, verify-endpoint lockout) land
+ *    with the two_factor domain;
+ *  - `afterCreateOrganization` provisioning of automations/starter content
+ *    lands with the provisioning domain.
+ */
+export interface AuthConfig {
+  databaseUrl: string;
+  secret: string;
+  /** Public origin auth cookies/callbacks bind to, e.g. https://localhost. */
+  baseUrl: string;
+  /** App query lane for hooks (throttle state, audit chain, jobs). */
+  sql: Sql;
+}
+
+const SIGN_IN_EMAIL_PATH = '/sign-in/email';
+
+// Random delay (ms) added to lockout responses to fuzz the timing channel
+// between "wrong password" (bcrypt, ~100ms) and "locked" (a single read).
+const LOCKOUT_JITTER_MAX_MS = 200;
+
+function bodyEmail(body: unknown): string | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+  const email = getString(body, 'email');
+  return email ? email.toLowerCase() : null;
+}
+
+async function jitterDelay(): Promise<void> {
+  const ms = Math.floor(Math.random() * LOCKOUT_JITTER_MAX_MS);
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Trusted-proxy list for X-Forwarded-For resolution: the deployment-level
+ * `default` config tree's login policy, with built-in defaults. (0.4 read
+ * the same policy through the legacy `default` org's configCache row.)
+ */
+async function loadTrustedProxies(): Promise<string[]> {
+  const policy = await readGovernancePolicy('default', 'login_policy');
+  return policy && policy.trustedProxies.length > 0
+    ? policy.trustedProxies
+    : [...DEFAULT_TRUSTED_PROXIES];
+}
+
+/**
+ * Schema-only plugin: adds the `suffix` column to the apiKey plugin's model
+ * so the after-hook below can persist the trailing plaintext chars (the
+ * upstream plugin stores only `start`; the table renders `start … suffix`).
+ */
+const apiKeySuffixPlugin = {
+  id: 'tale-apikey-suffix',
+  schema: {
+    apikey: {
+      fields: {
+        suffix: { type: 'string', required: false, input: false },
+      },
+    },
+  },
+} satisfies BetterAuthPlugin;
+
+export function createAuth(config: AuthConfig) {
+  const siteUrl = config.baseUrl;
+
+  // Fail fast if a non-loopback hostname is served over HTTP — the backend
+  // must never silently downgrade to insecure cookies (mirrors 0.4).
+  {
+    const parsed = new URL(siteUrl);
+    const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(
+      parsed.hostname,
+    );
+    if (parsed.protocol === 'http:' && !isLoopback) {
+      throw new Error(
+        `SITE_URL must use HTTPS for non-loopback hostnames (got ${siteUrl}). ` +
+          `Set SITE_URL=https://your-domain or run behind a TLS-terminating ` +
+          `proxy with TLS_MODE=external.`,
+      );
+    }
+  }
+  const isHttps = siteUrl.startsWith('https://');
+  const sql = config.sql;
+
+  return betterAuth({
+    database: new pg.Pool({ connectionString: config.databaseUrl, max: 5 }),
+    secret: config.secret,
+    baseURL: siteUrl,
+    basePath: '/api/auth',
+    trustedOrigins: [new URL(siteUrl).origin],
+    // Pinned off regardless of upstream default changes.
+    telemetry: { enabled: false },
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: false,
+    },
+    advanced: {
+      cookiePrefix: 'better-auth',
+      // __Secure- prefix is added automatically when true.
+      useSecureCookies: isHttps,
+    },
+    // Our before-hook owns ALL sign-in throttling (per-IP flood guard via
+    // app.rate_limits + per-account exponential lockout via
+    // app.login_attempts); the built-in limiter would stack an opaque
+    // fixed-window on top with an in-memory store.
+    rateLimit: { enabled: false },
+    user: {
+      additionalFields: {
+        // Per-user idempotent grace-period anchor for org `enforceTwoFactor`
+        // (set once on first affected sign-in; admin reset clears it).
+        // Enforcement logic lands with the two_factor domain.
+        twoFactorGraceUntil: {
+          type: 'number',
+          required: false,
+          input: false,
+        } as const,
+        // Last org the user signed in to — persists across logout/login,
+        // unlike session.activeOrganizationId. Written by recordOrgSwitch.
+        lastActiveOrganizationId: {
+          type: 'string',
+          required: false,
+          input: false,
+        } as const,
+      },
+    },
+    session: {
+      // Sliding idle window when SESSION_IDLE_TIMEOUT_MINUTES is set; else
+      // default lifetime with updateAge tightened so `updatedAt` tracks
+      // activity for the per-org idle-revocation sweep.
+      ...sessionIdleWindowSeconds(),
+      additionalFields: {
+        trustedRole: {
+          type: 'string' as const,
+          required: false,
+        },
+        trustedTeams: {
+          type: 'string' as const,
+          required: false,
+        },
+      },
+    },
+    hooks: {
+      // Pre-flight gate: reject sign-ins over the per-IP flood limit OR
+      // against a locked account, surfacing the MAX retry-after of the two.
+      before: createAuthMiddleware(async (mw) => {
+        if (mw.path !== SIGN_IN_EMAIL_PATH) {
+          return;
+        }
+        const email = bodyEmail(mw.body);
+        const trusted = await loadTrustedProxies();
+        const ip = mw.request
+          ? getClientIp(mw.request.headers, trusted)
+          : 'unknown';
+
+        let lockoutMs = 0;
+        if (email) {
+          const { lockedUntil } = await getLockState(sql, email);
+          if (lockedUntil !== null && lockedUntil > Date.now()) {
+            lockoutMs = lockedUntil - Date.now();
+          }
+        }
+
+        let ipLimitMs = 0;
+        try {
+          await checkIpRateLimit(sql, 'security:login-ip', ip);
+        } catch (error) {
+          if (error instanceof RateLimitExceededError) {
+            ipLimitMs = error.retryAfter;
+          } else {
+            throw error;
+          }
+        }
+
+        const retryAfterMs = Math.max(lockoutMs, ipLimitMs);
+        if (retryAfterMs > 0) {
+          // Better Auth skips after-hooks when a before-hook throws, so the
+          // coalesced block-counter write happens HERE.
+          if (email) {
+            await transactSerializable(sql, (tx) =>
+              recordBlocked(tx, { email, ip }),
+            );
+          }
+          await jitterDelay();
+          throw new APIError('TOO_MANY_REQUESTS', {
+            message: 'Invalid credentials',
+            retryAfter: Math.ceil(retryAfterMs / 1000),
+          });
+        }
+      }),
+
+      // Post-flight: classify the sign-in result into the failure counter,
+      // and persist the api-key suffix on creation.
+      after: createAuthMiddleware(async (mw) => {
+        const trusted = await loadTrustedProxies();
+        const ip = mw.request
+          ? getClientIp(mw.request.headers, trusted)
+          : undefined;
+        const userAgent = mw.request?.headers.get('user-agent') ?? undefined;
+
+        if (mw.path === SIGN_IN_EMAIL_PATH) {
+          const email = bodyEmail(mw.body);
+          if (email) {
+            const returned = mw.context.returned;
+            // Anything reaching here made it to the password check — a
+            // before-hook 429 never runs after-hooks.
+            const failed =
+              returned instanceof APIError || !mw.context.newSession;
+            await transactSerializable(sql, (tx) =>
+              failed
+                ? recordFailure(tx, {
+                    email,
+                    ...(ip !== undefined ? { ip } : {}),
+                    ...(userAgent !== undefined ? { userAgent } : {}),
+                  }).then(() => undefined)
+                : clearOnSuccess(tx, {
+                    email,
+                    ...(ip !== undefined ? { ip } : {}),
+                    ...(userAgent !== undefined ? { userAgent } : {}),
+                  }),
+            );
+          }
+        }
+
+        // Persist the trailing plaintext chars of a freshly created API key
+        // (`start … suffix` masking convention). Non-fatal on failure.
+        if (mw.path === '/api-key/create') {
+          const returned = mw.context.returned;
+          const id = isRecord(returned) ? getString(returned, 'id') : null;
+          const plaintext = isRecord(returned)
+            ? getString(returned, 'key')
+            : null;
+          if (id && plaintext && plaintext.length > 4) {
+            try {
+              await sql`
+                UPDATE "apikey" SET "suffix" = ${plaintext.slice(-4)}
+                WHERE "id" = ${id}
+              `;
+            } catch (error) {
+              console.warn(
+                '[api-key/create] failed to persist suffix',
+                error instanceof Error ? error.message : error,
+              );
+            }
+          }
+        }
+      }),
+    },
+    plugins: [
+      organization({
+        ac,
+        roles: orgRoles,
+        creatorRole: 'owner',
+        teams: {
+          enabled: true,
+          allowRemovingAllTeams: true,
+          defaultTeam: { enabled: false },
+        },
+        organizationHooks: {
+          beforeCreateOrganization: async (data) => {
+            const slug = data.organization.slug;
+            if (!slug) {
+              return;
+            }
+            // Normalize BEFORE the reservation and uniqueness checks so
+            // case tricks can't bypass either.
+            const normalizedSlug = slug.toLowerCase();
+            try {
+              assertValidOrgSlug(normalizedSlug);
+            } catch (error) {
+              throw new APIError('BAD_REQUEST', {
+                message: error instanceof Error ? error.message : String(error),
+              });
+            }
+            if (isReservedOrgSlug(normalizedSlug)) {
+              throw new APIError('BAD_REQUEST', {
+                message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,
+              });
+            }
+            // The DB has no unique index on slug (Better Auth owns the
+            // table), so enforce uniqueness here like 0.4 did.
+            const existing = await sql<{ id: string }[]>`
+              SELECT "id" FROM "organization"
+              WHERE "slug" = ${normalizedSlug} LIMIT 1
+            `;
+            if (existing.length > 0) {
+              throw new APIError('BAD_REQUEST', {
+                message: `Organization slug "${normalizedSlug}" is already taken.`,
+              });
+            }
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Better Auth's loose hook payload; projecting the normalized slug back (0.4 pattern)
+            (data.organization as Record<string, unknown>).slug =
+              normalizedSlug;
+          },
+          beforeUpdateOrganization: async (data) => {
+            // Re-run the create-time guards on update so a rename can't
+            // reach a reserved/duplicate slug or clear the name.
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Better Auth's loose update payload (0.4 pattern)
+            const orgPatch = data.organization as Record<string, unknown>;
+            if (orgPatch.name !== undefined) {
+              const parsedName = organizationNameSchema().safeParse(
+                orgPatch.name,
+              );
+              if (!parsedName.success) {
+                throw new APIError('BAD_REQUEST', {
+                  message: 'Organization name is required.',
+                });
+              }
+              orgPatch.name = parsedName.data;
+            }
+            const rawSlug = orgPatch.slug;
+            if (typeof rawSlug !== 'string') {
+              return;
+            }
+            const normalizedSlug = rawSlug.toLowerCase();
+            try {
+              assertValidOrgSlug(normalizedSlug);
+            } catch (error) {
+              throw new APIError('BAD_REQUEST', {
+                message: error instanceof Error ? error.message : String(error),
+              });
+            }
+            if (isReservedOrgSlug(normalizedSlug)) {
+              throw new APIError('BAD_REQUEST', {
+                message: `Organization slug "${normalizedSlug}" is reserved by the platform.`,
+              });
+            }
+            const selfOrgId = (
+              data.member as { organizationId?: unknown } | undefined
+            )?.organizationId;
+            const collision = await sql<{ id: string }[]>`
+              SELECT "id" FROM "organization"
+              WHERE "slug" = ${normalizedSlug} LIMIT 1
+            `;
+            const collisionIsSelf =
+              typeof selfOrgId === 'string' && collision[0]?.id === selfOrgId;
+            if (collision.length > 0 && !collisionIsSelf) {
+              throw new APIError('BAD_REQUEST', {
+                message: `Organization slug "${normalizedSlug}" is already taken.`,
+              });
+            }
+            orgPatch.slug = normalizedSlug;
+          },
+          afterCreateOrganization: async (data) => {
+            const slug = data.organization.slug;
+            if (slug) {
+              // Scaffold is filesystem work → a worker job (idempotent
+              // per-domain, singletonKey dedupes create-path retries). The
+              // 0.4 follow-ups — configCache sync (dead in 0.5), default
+              // automations, starter content — land with their domains.
+              try {
+                await addJobInTx(
+                  sql,
+                  'org.scaffold',
+                  {
+                    orgSlug: slug,
+                    cleanFirst: true,
+                  },
+                  { singletonKey: `org-scaffold:${slug}` },
+                );
+              } catch (error) {
+                console.error(
+                  '[afterCreateOrganization] failed to enqueue scaffold',
+                  error instanceof Error ? error.message : error,
+                );
+              }
+            }
+            // Member-POV audit row: the creator joined as owner. Non-fatal.
+            try {
+              await transactSerializable(sql, (tx) =>
+                logJoinedOrganization(tx, {
+                  organizationId: data.organization.id,
+                  userId: data.user.id,
+                  userEmail: data.user.email,
+                  userRole: data.member.role,
+                }).then(() => undefined),
+              );
+            } catch (error) {
+              console.error(
+                '[afterCreateOrganization] failed to write joined_organization audit',
+                error instanceof Error ? error.message : error,
+              );
+            }
+          },
+          afterAcceptInvitation: async (data) => {
+            try {
+              await transactSerializable(sql, (tx) =>
+                logJoinedOrganization(tx, {
+                  organizationId: data.organization.id,
+                  userId: data.user.id,
+                  userEmail: data.user.email,
+                  userRole: data.member.role,
+                }).then(() => undefined),
+              );
+            } catch (error) {
+              console.error(
+                '[afterAcceptInvitation] failed to write joined_organization audit',
+                error instanceof Error ? error.message : error,
+              );
+            }
+          },
+        },
+      }),
+      apiKey({
+        defaultPrefix: 'tale',
+        apiKeyHeaders: ['x-api-key'],
+        enableSessionForAPIKeys: true,
+        rateLimit: {
+          enabled: true,
+          timeWindow: 60,
+          maxRequests: 100,
+        },
+      }),
+      apiKeySuffixPlugin,
+      // TOTP two-factor. The verify-endpoint lockout + org enforcement hooks
+      // land with the two_factor domain port.
+      twoFactor({
+        issuer: 'Tale',
+        totpOptions: { digits: 6, period: 30 },
+        backupCodeOptions: { amount: 10, length: 10 },
+        skipVerificationOnEnable: false,
+      }),
+      // WebAuthn / passkeys as a phishing-resistant second factor.
+      passkey({
+        rpID: new URL(siteUrl).hostname,
+        rpName: 'Tale',
+        origin: new URL(siteUrl).origin,
+      }),
+    ],
+  });
+}
+
+export type Auth = ReturnType<typeof createAuth>;

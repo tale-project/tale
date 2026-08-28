@@ -59,6 +59,37 @@ if [ "$(id -u)" = '0' ]; then
   fi
 fi
 
+# ============================================================================
+# 0.5 role dispatch
+# ----------------------------------------------------------------------------
+# The same platform image also runs the Postgres-backed 0.5 backend: compose
+# starts one `api` and one `worker` container from it (TALE_ROLE), each
+# horizontally scalable, replacing the Convex service at cutover. These roles
+# only need DATABASE_URL — everything Convex-related below is skipped. `exec`
+# hands PID 1 (under tini) to Node so SIGTERM reaches the backend's own
+# graceful shutdown.
+# ============================================================================
+case "${TALE_ROLE:-web}" in
+  api|worker|all)
+    log_section "Tale backend starting (role=${TALE_ROLE}, version ${TALE_VERSION:-unknown})"
+    export ROLE="${TALE_ROLE}"
+    # --experimental-transform-types + the resolve hook let the backend
+    # import 0.4 pure modules (extensionless specifiers, non-erasable TS)
+    # from the sibling /app/convex + /app/lib trees unchanged.
+    exec node --experimental-transform-types \
+      --disable-warning=ExperimentalWarning \
+      --import "${TALE_BACKEND_DIR:-/app/backend}/node-loader.mjs" \
+      "${TALE_BACKEND_DIR:-/app/backend}/main.ts"
+    ;;
+  web)
+    # Fall through to the platform web flow below.
+    ;;
+  *)
+    log_error "Unknown TALE_ROLE '${TALE_ROLE}' (expected web|api|worker|all)"
+    exit 64
+    ;;
+esac
+
 log_section "Tale Platform starting (version ${TALE_VERSION:-unknown})"
 
 # ============================================================================
