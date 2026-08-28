@@ -1,12 +1,11 @@
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
-import { createAuth } from '../../auth';
-import { signCookieValue } from '../sign_cookie_value';
+import {
+  finishLoginWithConvexAuth,
+  type FinishLogin,
+} from '../login/finish_login';
 import { mapSamlIdentity } from './attributes';
 import { samlEndpoints } from './metadata_handler';
-
-const SESSION_COOKIE_NAME = 'better-auth.session_token';
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
 function loginRedirect(origin: string, message: string): Response {
   const basePath = process.env.BASE_PATH || '';
@@ -27,6 +26,9 @@ function loginRedirect(origin: string, message: string): Response {
 export async function samlAcsHandler(
   ctx: ActionCtx,
   req: Request,
+  deps: { finishLogin: FinishLogin } = {
+    finishLogin: finishLoginWithConvexAuth,
+  },
 ): Promise<Response> {
   const origin = new URL(req.url).origin;
   try {
@@ -106,44 +108,10 @@ export async function samlAcsHandler(
       return loginRedirect(origin, result.error || 'SAML login failed');
     }
 
-    const secret = process.env.BETTER_AUTH_SECRET;
-    if (!secret) return loginRedirect(origin, 'Server configuration error');
-
-    const signedToken = await signCookieValue(result.sessionToken, secret);
-    const isHttps = origin.startsWith('https://');
-    const cookieName = isHttps
-      ? `__Secure-${SESSION_COOKIE_NAME}`
-      : SESSION_COOKIE_NAME;
-    const cookieParts = [
-      `${cookieName}=${signedToken}`,
-      `Max-Age=${SESSION_MAX_AGE}`,
-      'Path=/',
-      'HttpOnly',
-      'SameSite=Lax',
-    ];
-    if (isHttps) cookieParts.push('Secure');
-
-    const auth = createAuth(ctx);
-    const authResponse = await auth.handler(
-      new Request(new URL('/api/auth/get-session', origin).toString(), {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${result.sessionToken}`,
-          'Content-Type': 'application/json',
-        },
-      }),
-    );
-
-    const headers = new Headers();
-    const basePath = process.env.BASE_PATH || '';
-    headers.set('Location', `${origin}${basePath}/dashboard`);
-    headers.append('Set-Cookie', cookieParts.join('; '));
-    authResponse.headers.forEach((value, key) => {
-      if (key.toLowerCase() === 'set-cookie')
-        headers.append('Set-Cookie', value);
+    return await deps.finishLogin(ctx, {
+      sessionToken: result.sessionToken,
+      frontendOrigin: origin,
     });
-
-    return new Response(null, { status: 302, headers });
   } catch (error) {
     console.error('[SSO] SAML ACS error:', error);
     return loginRedirect(origin, 'Internal server error');

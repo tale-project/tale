@@ -1,6 +1,5 @@
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
-import { createAuth } from '../../auth';
 import { decryptString } from '../../lib/crypto/decrypt_string';
 import { sanitizeRawClaims } from '../claims';
 import { parseIdTokenAuthContext } from '../entra_id/adapter';
@@ -11,12 +10,10 @@ import {
   extractClaimsChallenge,
 } from '../entra_id/error_codes';
 import { getAdapter } from '../registry';
-import { signCookieValue, verifySignedValue } from '../sign_cookie_value';
+import { verifySignedValue } from '../sign_cookie_value';
+import { finishLoginWithConvexAuth, type FinishLogin } from './finish_login';
 import { recordSsoLoginFailure } from './login_audit';
 import { redirectWithError } from './redirect_with_error';
-
-const SESSION_COOKIE_NAME = 'better-auth.session_token';
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
 function buildAuthorizeRedirectUrl(
   origin: string,
@@ -43,6 +40,9 @@ function buildAuthorizeRedirectUrl(
 export async function ssoCallbackHandler(
   ctx: ActionCtx,
   req: Request,
+  deps: { finishLogin: FinishLogin } = {
+    finishLogin: finishLoginWithConvexAuth,
+  },
 ): Promise<Response> {
   // Behind the reverse proxy the request origin is the INTERNAL Convex address
   // (unreachable from a browser), so error redirects must target the public
@@ -303,44 +303,10 @@ export async function ssoCallbackHandler(
       return redirectWithError(frontendOrigin, 'Failed to create session');
     }
 
-    const signedToken = await signCookieValue(result.sessionToken, secret);
-    const isHttps = frontendOrigin.startsWith('https://');
-    const cookieName = isHttps
-      ? `__Secure-${SESSION_COOKIE_NAME}`
-      : SESSION_COOKIE_NAME;
-
-    const cookieParts = [
-      `${cookieName}=${signedToken}`,
-      `Max-Age=${SESSION_MAX_AGE}`,
-      'Path=/',
-      'HttpOnly',
-      'SameSite=Lax',
-    ];
-    if (isHttps) cookieParts.push('Secure');
-    const sessionCookie = cookieParts.join('; ');
-
-    const auth = createAuth(ctx);
-    const getSessionUrl = new URL('/api/auth/get-session', frontendOrigin);
-    const getSessionRequest = new Request(getSessionUrl.toString(), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${result.sessionToken}`,
-        'Content-Type': 'application/json',
-      },
+    return await deps.finishLogin(ctx, {
+      sessionToken: result.sessionToken,
+      frontendOrigin,
     });
-    const authResponse = await auth.handler(getSessionRequest);
-
-    const cookies: string[] = [sessionCookie];
-    authResponse.headers.forEach((value, key) => {
-      if (key.toLowerCase() === 'set-cookie') cookies.push(value);
-    });
-
-    const headers = new Headers();
-    const basePath = process.env.BASE_PATH || '';
-    headers.set('Location', `${frontendOrigin}${basePath}/dashboard`);
-    for (const cookie of cookies) headers.append('Set-Cookie', cookie);
-
-    return new Response(null, { status: 302, headers });
   } catch (error) {
     console.error('[SSO] Callback error:', error);
     // Token-exchange failures throw with Microsoft's response body in the

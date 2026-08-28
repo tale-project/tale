@@ -3684,6 +3684,261 @@ async function checkRestResources(
 }
 
 /**
+ * Enterprise SSO sign-in, end to end on the REUSED 0.4 protocol handlers:
+ * connection file on disk → discover → authorize (PKCE challenge in the
+ * IdP redirect, signed state) → callback (code exchange against a fake
+ * OIDC IdP verifying the PKCE verifier, userinfo) → user/account/member
+ * provisioned with the group-mapped role → team synced → session cookie
+ * that Better Auth accepts → re-login syncing role + team churn.
+ */
+async function checkSsoLogin(
+  sql: Sql,
+  base: string,
+  orgId: string,
+  orgSlug: string,
+): Promise<void> {
+  const { createServer } = await import('node:http');
+  const { createHash } = await import('node:crypto');
+  const { serializeSsoConnectionYaml, resolveSsoDir } =
+    await import('../convex/enterprise_sso/file_utils.ts');
+
+  // --- fake OIDC IdP -------------------------------------------------------
+  let seenChallenge = '';
+  let pkceVerified = false;
+  let userinfoGroups = ['Ops', 'Everyone'];
+  const idp = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const url = req.url ?? '';
+      if (url.includes('/.well-known/openid-configuration')) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            issuer: idpBase,
+            authorization_endpoint: `${idpBase}/authorize`,
+            token_endpoint: `${idpBase}/token`,
+            userinfo_endpoint: `${idpBase}/userinfo`,
+          }),
+        );
+        return;
+      }
+      if (url.includes('/token')) {
+        const params = new URLSearchParams(body);
+        const verifier = params.get('code_verifier') ?? '';
+        const challenge = createHash('sha256')
+          .update(verifier)
+          .digest('base64url');
+        pkceVerified = verifier !== '' && challenge === seenChallenge;
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            access_token: 'itest-sso-access',
+            token_type: 'Bearer',
+            expires_in: 3600,
+            scope: 'openid profile email',
+          }),
+        );
+        return;
+      }
+      if (url.includes('/userinfo')) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            sub: 'idp-user-77',
+            email: 'sso.user@door.test',
+            name: 'Sso User',
+            groups: userinfoGroups,
+          }),
+        );
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+  });
+  await new Promise<void>((resolve) => {
+    idp.listen(0, '127.0.0.1', resolve);
+  });
+  const idpAddress = idp.address();
+  const idpPort =
+    idpAddress !== null && typeof idpAddress === 'object' ? idpAddress.port : 0;
+  const idpBase = `http://127.0.0.1:${idpPort}`;
+
+  try {
+    // --- connection file (the on-disk source of truth) ---------------------
+    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+    const ssoDir = resolveSsoDir(orgSlug);
+    await mkdir(ssoDir, { recursive: true });
+    await writeFile(
+      path.join(ssoDir, 'connection.yml'),
+      serializeSsoConnectionYaml({
+        enabled: true,
+        protocol: 'oidc',
+        displayName: 'Itest IdP',
+        oidc: {
+          providerId: 'generic-oidc',
+          issuer: idpBase,
+          scopes: ['openid', 'profile', 'email'],
+          pkce: true,
+        },
+        provisioning: {
+          autoProvisionRole: true,
+          defaultRole: 'member',
+          roleMappingRules: [
+            { source: 'group', pattern: 'Ops', targetRole: 'developer' },
+          ],
+          autoProvisionTeam: true,
+          excludeGroups: ['Everyone'],
+        },
+      }),
+    );
+    await writeFile(
+      path.join(ssoDir, 'connection.secrets.json'),
+      JSON.stringify({
+        clientId: 'itest-client',
+        clientSecret: 'itest-client-secret',
+      }),
+    );
+    void configRoot;
+
+    // --- discover ----------------------------------------------------------
+    const discovered = z
+      .object({
+        ssoEnabled: z.boolean(),
+        organizationId: z.string().optional(),
+        protocol: z.string().optional(),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/sso/discover`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email: 'sso.user@door.test' }),
+          })
+        ).json(),
+      );
+
+    // --- one full login round, reusable ------------------------------------
+    const loginRound = async (): Promise<{
+      authorizeStatus: number;
+      idpHost: boolean;
+      callbackStatus: number;
+      cookie: string;
+      location: string;
+    }> => {
+      const authorizeRes = await fetch(
+        `${base}/api/sso/authorize?organizationId=${orgId}`,
+        { redirect: 'manual' },
+      );
+      const idpLocation = authorizeRes.headers.get('location') ?? '';
+      let state = '';
+      let idpHost = false;
+      if (idpLocation !== '') {
+        const idpUrl = new URL(idpLocation);
+        idpHost = idpUrl.origin === idpBase;
+        state = idpUrl.searchParams.get('state') ?? '';
+        seenChallenge = idpUrl.searchParams.get('code_challenge') ?? '';
+      }
+      const callbackRes = await fetch(
+        `${base}/api/sso/callback?code=itest-code&state=${encodeURIComponent(state)}`,
+        { redirect: 'manual' },
+      );
+      const setCookie = callbackRes.headers.get('set-cookie') ?? '';
+      const cookiePair = setCookie.split(';')[0] ?? '';
+      return {
+        authorizeStatus: authorizeRes.status,
+        idpHost,
+        callbackStatus: callbackRes.status,
+        cookie: cookiePair,
+        location: callbackRes.headers.get('location') ?? '',
+      };
+    };
+
+    const first = await loginRound();
+    // The minted cookie must satisfy Better Auth itself.
+    const sessionBody = z
+      .looseObject({
+        user: z.looseObject({ email: z.string() }).optional().nullable(),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/auth/get-session`, {
+            headers: { cookie: first.cookie, origin: base },
+          })
+        ).json(),
+      );
+    const rows1 = await sql<
+      { role: string; email: string; teams: string | null }[]
+    >`
+      SELECT m."role", u."email",
+             (SELECT string_agg(t."name", ',' ORDER BY t."name")
+              FROM "teamMember" tm JOIN "team" t ON t."id" = tm."teamId"
+              WHERE tm."userId" = u."id") AS teams
+      FROM "user" u
+      JOIN "member" m ON m."userId" = u."id"
+        AND m."organizationId" = ${orgId}
+      WHERE u."email" = 'sso.user@door.test'
+    `;
+    const firstPkce = pkceVerified;
+
+    // --- second login: the IdP demotes (group gone) + team churn -----------
+    userinfoGroups = ['Finance'];
+    pkceVerified = false;
+    const second = await loginRound();
+    const rows2 = await sql<{ role: string; teams: string | null }[]>`
+      SELECT m."role",
+             (SELECT string_agg(t."name", ',' ORDER BY t."name")
+              FROM "teamMember" tm JOIN "team" t ON t."id" = tm."teamId"
+              WHERE tm."userId" = u."id") AS teams
+      FROM "user" u
+      JOIN "member" m ON m."userId" = u."id"
+        AND m."organizationId" = ${orgId}
+      WHERE u."email" = 'sso.user@door.test'
+    `;
+    const opsTeamGone = await sql<{ id: string }[]>`
+      SELECT "id" FROM "team"
+      WHERE "organizationId" = ${orgId} AND "name" = 'Ops'
+    `;
+
+    // --- the 0.4 proxy-path alias serves the same handlers -----------------
+    const aliasRes = await fetch(
+      `${base}/http_api/api/sso/authorize?organizationId=${orgId}`,
+      { redirect: 'manual' },
+    );
+
+    record(
+      'enterprise SSO login (OIDC + PKCE + provisioning over PG)',
+      discovered.success &&
+        discovered.data.ssoEnabled &&
+        discovered.data.protocol === 'oidc' &&
+        first.authorizeStatus === 302 &&
+        first.idpHost &&
+        seenChallenge !== '' &&
+        first.callbackStatus === 302 &&
+        first.location.includes('/dashboard') &&
+        first.cookie.includes('better-auth.session_token=') &&
+        firstPkce &&
+        sessionBody.success &&
+        sessionBody.data.user?.email === 'sso.user@door.test' &&
+        rows1[0]?.role === 'developer' &&
+        rows1[0]?.teams === 'Ops' &&
+        second.callbackStatus === 302 &&
+        pkceVerified &&
+        rows2[0]?.role === 'member' &&
+        rows2[0]?.teams === 'Finance' &&
+        opsTeamGone.length === 0 &&
+        aliasRes.status === 302,
+      `discover=${discovered.success ? `${discovered.data.ssoEnabled}/${discovered.data.protocol ?? ''}` : 'ERR'}, authorize=${first.authorizeStatus} idp=${first.idpHost} pkce=${firstPkce}, callback=${first.callbackStatus}→${first.location.includes('/dashboard') ? 'dashboard' : first.location}, session=${sessionBody.success ? (sessionBody.data.user?.email ?? 'none') : 'ERR'}, first role/teams=${rows1[0]?.role}/${rows1[0]?.teams} (want developer/Ops), second role/teams=${rows2[0]?.role}/${rows2[0]?.teams} (want member/Finance), opsReaped=${opsTeamGone.length === 0}, alias=${aliasRes.status}`,
+    );
+  } finally {
+    idp.close();
+  }
+}
+
+/**
  * The task-agent TURN, end to end on the REUSED 0.4 host: kick → session
  * ensure (fake spawner) → gateway VK mint (fake bifrost) → exec streaming a
  * canned claude-code stream-json turn → harvest (fake workspace file → real
@@ -8728,9 +8983,12 @@ async function main(): Promise<void> {
   // The production pool factory — the pg-boss tx adapter depends on its
   // json serializer semantics, so the harness must not use a bare pool.
   const sql = createSql(databaseUrl);
+  // The reused 0.4 SSO handlers sign state/cookies from process.env — keep
+  // it in lockstep with the instance secret or cookie verification splits.
+  process.env.BETTER_AUTH_SECRET ??= 'itest-secret-itest-secret';
   const auth = createAuth({
     databaseUrl,
-    secret: 'itest-secret-itest-secret',
+    secret: process.env.BETTER_AUTH_SECRET,
     baseUrl,
     sql,
   });
@@ -8837,6 +9095,7 @@ async function main(): Promise<void> {
     await checkRestDoor(sql, baseUrl, authCtx);
     await checkRestMachineJourney(sql, baseUrl, authCtx);
     await checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkSsoLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

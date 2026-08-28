@@ -31,6 +31,7 @@ import { createRetentionRoutes } from './domains/retention/routes.ts';
 import { createToolDispatchRoutes } from './domains/sandbox/dispatch-routes.ts';
 import { createSandboxRoutes } from './domains/sandbox/routes.ts';
 import { createSkillRoutes } from './domains/skills/routes.ts';
+import { createSsoRoutes } from './domains/sso/routes.ts';
 import { createSupportCaseRoutes } from './domains/support_cases/routes.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createTeamRoutes } from './domains/teams/routes.ts';
@@ -56,6 +57,14 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/tools', createToolDispatchRoutes({ sql: deps.sql }));
   // Automation webhook triggers — the token in the path is the credential.
   app.route('/api/automations/webhook', createWebhookRoutes({ sql: deps.sql }));
+
+  // Enterprise SSO — pre-auth by nature (it CREATES the session). Mounted on
+  // the 0.5-native path and on the 0.4 proxy-era alias: IdP registrations
+  // (redirect URIs, SP entity ids, ACS URLs) carry `/http_api/api/sso/...`,
+  // and re-registering every IdP at cutover is not an option.
+  const ssoRoutes = createSsoRoutes({ sql: deps.sql });
+  app.route('/api/sso', ssoRoutes);
+  app.route('/http_api/api/sso', ssoRoutes);
   // The REST machine door (Bearer API key).
   app.route('/api/v1', createRestV1Routes(deps));
   // Internal app API (the surface the web app consumes); one sub-app per
