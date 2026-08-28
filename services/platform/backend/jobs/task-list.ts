@@ -138,6 +138,14 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         console.log(`[automations] liveness sweep re-poked ${swept} runs`);
       }
     },
+    'governance.effect_hold_releases': async () => {
+      const { effectApprovedReleases } =
+        await import('../domains/legal_holds/service.ts');
+      const effected = await effectApprovedReleases(deps.sql);
+      if (effected > 0) {
+        console.log(`[legal-holds] effected ${effected} approved releases`);
+      }
+    },
     'watchdog.task_agents': async () => {
       const result = await runTaskAgentWatchdog(deps.sql);
       if (result.failed > 0 || result.woken > 0) {

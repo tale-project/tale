@@ -7,6 +7,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   listAutomationCapabilities,
   listComposerModels,
@@ -161,7 +162,7 @@ function handleThreadError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
-  if (error instanceof ChatThreadError) {
+  if (error instanceof ChatThreadError || error instanceof LegalHoldError) {
     return c.json({ error: error.code, message: error.message }, error.status);
   }
   throw error;
@@ -608,17 +609,21 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
 
   app.post('/threads/:threadId/trash', async (c) => {
     const { organizationId, userId } = caller(c);
-    return c.json({
-      ok: await trashThread(
-        deps.sql,
-        {
-          organizationId,
-          userId,
-          email: c.get('sessionBundle').user.email,
-        },
-        c.req.param('threadId'),
-      ),
-    });
+    try {
+      return c.json({
+        ok: await trashThread(
+          deps.sql,
+          {
+            organizationId,
+            userId,
+            email: c.get('sessionBundle').user.email,
+          },
+          c.req.param('threadId'),
+        ),
+      });
+    } catch (error) {
+      return handleThreadError(c, error);
+    }
   });
 
   app.post('/threads/:threadId/restore', async (c) => {

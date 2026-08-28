@@ -8,6 +8,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { FileError, getFileUrl } from '../files/service.ts';
 import { FolderError } from '../folders/service.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   getProjectAuthContext,
   ProjectError,
@@ -49,7 +50,8 @@ function handleError<E extends OrgEnv>(
     error instanceof DocumentError ||
     error instanceof FolderError ||
     error instanceof FileError ||
-    error instanceof ProjectError
+    error instanceof ProjectError ||
+    error instanceof LegalHoldError
   ) {
     return c.json({ error: error.code }, error.status);
   }

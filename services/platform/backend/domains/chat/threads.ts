@@ -9,6 +9,7 @@ import {
 } from '../../auth/membership.ts';
 import { toJson } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { assertNotHeld, loadActiveHolds } from '../legal_holds/service.ts';
 
 /**
  * Threads — the conversations a user owns in one organization; the 0.5 twin
@@ -891,6 +892,16 @@ export async function trashThread(
     WHERE thread_id = ${thread.id} LIMIT 1
   `;
   if (generating.length > 0) return false;
+  // Throws LEGAL_HOLD_ACTIVE when the org — or this owner, as a custodian —
+  // is under an active hold.
+  await assertNotHeld(
+    sql,
+    auth.organizationId,
+    'thread',
+    thread.id,
+    undefined,
+    thread.userId,
+  );
   const now = Date.now();
   await sql.begin(async (tx) => {
     await tx`
@@ -936,6 +947,11 @@ export async function restoreThread(
   `;
   const thread = rows[0];
   if (!thread || thread.status !== 'trashed') return false;
+  // A hold freezes the trash state in place — restore included.
+  const holds = await loadActiveHolds(sql, auth.organizationId);
+  if (holds.orgHeld || holds.userMembershipIds.has(thread.userId)) {
+    return false;
+  }
   const now = Date.now();
   await sql.begin(async (tx) => {
     await tx`

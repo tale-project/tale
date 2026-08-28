@@ -6343,6 +6343,154 @@ async function checkChangelogAndAccounts(
 }
 
 /**
+ * Legal holds: the custodian cascade freezes an owner's thread trash and a
+ * document trash; placement dedupes on the active-per-target index; release
+ * is maker-checker (self-approval blocked without the escape hatch, the
+ * cooldown gates the effect sweep); an org hold freezes everything and a
+ * released hold unfreezes.
+ */
+async function checkLegalHolds(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  const placed = z.object({ holdId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/legal-holds?orgId=${orgId}`, {
+        targetType: 'userMembership',
+        targetId: userId,
+        reason: 'Matter 44 preservation',
+      })
+    ).json(),
+  );
+  const holdId = placed.success ? placed.data.holdId : '';
+  const dup = await post(`/api/app/legal-holds?orgId=${orgId}`, {
+    targetType: 'userMembership',
+    targetId: userId,
+    reason: 'duplicate',
+  });
+
+  const heldThread = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/chat/threads?orgId=${orgId}`, {
+        title: 'Held thread',
+      })
+    ).json(),
+  );
+  const heldThreadId = heldThread.success ? heldThread.data.id : '';
+  const trashRefused = await post(
+    `/api/app/chat/threads/${heldThreadId}/trash?orgId=${orgId}`,
+  );
+  const docRows = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (
+      org_id, title, file_ref, mime_type, source_provider, team_tags,
+      created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, 'held.md', 's3:itest/held', 'text/markdown', 'upload',
+      ${[]}::text[], ${userId}, ${Date.now()}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const heldDocId = docRows[0]?.id ?? '';
+  const docTrashRefused = await post(
+    `/api/app/documents/${heldDocId}/trash?orgId=${orgId}`,
+    { trashed: true },
+  );
+
+  const requested = z
+    .object({ requestId: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/legal-holds/${holdId}/release-requests?orgId=${orgId}`,
+          { reason: 'Matter closed' },
+        )
+      ).json(),
+    );
+  const requestId = requested.success ? requested.data.requestId : '';
+  const selfBlocked = await post(
+    `/api/app/legal-holds/release-requests/${requestId}/approve?orgId=${orgId}`,
+  );
+  process.env.TALE_LEGAL_HOLD_SINGLE_ADMIN_OK = 'true';
+  const approved = z
+    .object({ effectiveAt: z.number() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/legal-holds/release-requests/${requestId}/approve?orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  delete process.env.TALE_LEGAL_HOLD_SINGLE_ADMIN_OK;
+  const { effectApprovedReleases } =
+    await import('./domains/legal_holds/service.ts');
+  const beforeCooldown = await effectApprovedReleases(sql);
+  await sql`
+    UPDATE app.legal_hold_release_requests SET effective_at_ms = ${Date.now() - 1_000}
+    WHERE id = ${requestId}
+  `;
+  const afterCooldown = await effectApprovedReleases(sql);
+  const trashAllowed = z
+    .object({ ok: z.boolean() })
+    .safeParse(
+      await (
+        await post(`/api/app/chat/threads/${heldThreadId}/trash?orgId=${orgId}`)
+      ).json(),
+    );
+
+  // The org-wide nuclear halt freezes even unrelated owners' deletes.
+  const orgHold = z.object({ holdId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/legal-holds?orgId=${orgId}`, {
+        targetType: 'org',
+        targetId: orgId,
+        reason: 'Org-wide preservation',
+      })
+    ).json(),
+  );
+  const orgThread = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/chat/threads?orgId=${orgId}`, {
+        title: 'Org-held thread',
+      })
+    ).json(),
+  );
+  const orgTrashRefused = await post(
+    `/api/app/chat/threads/${orgThread.success ? orgThread.data.id : ''}/trash?orgId=${orgId}`,
+  );
+  // Test hygiene: lift the org hold directly so later checks stay unfrozen.
+  await sql`
+    UPDATE app.legal_holds SET released_at_ms = ${Date.now()},
+      released_by = 'itest', release_reason = 'itest cleanup'
+    WHERE id = ${orgHold.success ? orgHold.data.holdId : ''}
+  `;
+  record(
+    'legal holds: custodian + org freezes, dedupe, maker-checker release',
+    placed.success &&
+      dup.status === 409 &&
+      trashRefused.status === 409 &&
+      docTrashRefused.status === 409 &&
+      requested.success &&
+      selfBlocked.status === 403 &&
+      approved.success &&
+      beforeCooldown === 0 &&
+      afterCooldown === 1 &&
+      trashAllowed.success &&
+      trashAllowed.data.ok &&
+      orgHold.success &&
+      orgTrashRefused.status === 409,
+    `place=${placed.success}, dup=${dup.status} (want 409), threadFreeze=${trashRefused.status}, docFreeze=${docTrashRefused.status}, self=${selfBlocked.status} (want 403), cooldownHeld=${beforeCooldown === 0}, effected=${afterCooldown}, unfrozen=${trashAllowed.success && trashAllowed.data.ok}, orgFreeze=${orgTrashRefused.status}`,
+  );
+}
+
+/**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
  * with no resume; a settled predecessor with a stamped handle on the live
@@ -7283,6 +7431,7 @@ async function main(): Promise<void> {
     await checkKnowledgeEntries(sql, baseUrl, authCtx);
     await checkCollabEmitters(sql, baseUrl, authCtx);
     await checkChangelogAndAccounts(sql, baseUrl, authCtx);
+    await checkLegalHolds(sql, baseUrl, authCtx);
     await checkChatMemoriesDeferredAuto(
       sql,
       baseUrl,

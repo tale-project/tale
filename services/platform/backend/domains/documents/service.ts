@@ -9,6 +9,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { getFileMetadata } from '../files/service.ts';
 import { loadFolderOrThrow } from '../folders/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
+import { assertNotHeld } from '../legal_holds/service.ts';
 import {
   loadProjectOrThrow,
   type ProjectAuthContext,
@@ -343,6 +344,18 @@ export async function setDocumentTrashed(
 ): Promise<void> {
   const doc = await loadDocumentOrThrow(tx, documentId);
   await assertDocumentVisible(tx, auth, doc);
+  if (trashed) {
+    // Preservation gate: an org hold (or the author's custodian hold)
+    // freezes destructive paths.
+    await assertNotHeld(
+      tx,
+      auth.organizationId,
+      'document',
+      documentId,
+      undefined,
+      doc.createdBy ?? undefined,
+    );
+  }
   await tx`
     UPDATE app.documents SET
       lifecycle_status = ${trashed ? 'trashed' : null},
