@@ -24,10 +24,27 @@ const CONVEX_BASE = process.env.CONVEX_URL || 'http://127.0.0.1:3210';
 const CONVEX_SITE_PROXY =
   process.env.CONVEX_SITE_PROXY_URL || CONVEX_BASE.replace(/:\d+$/, ':3211');
 
+// 0.5 backend for dev proxy. When TALE_BACKEND_URL is set, auth + the app
+// API + the hint stream route to the Postgres backend instead of Convex —
+// the migration's incremental dev posture (Convex still serves everything
+// not yet ported through the entries below).
+const BACKEND_BASE = process.env.TALE_BACKEND_URL;
+
 // Convex routing, shared by the dev server (`vite dev`) and the preview server
 // (`vite preview`, used by the prod-build E2E mode — see scripts/dev.ts). In a
 // real deployment Caddy fronts these same paths; locally Vite stands in for it.
 const convexProxy = {
+  ...(BACKEND_BASE
+    ? {
+        // 0.5 backend lanes — listed BEFORE the '/api' catch-all below
+        // (Vite picks the first matching prefix in insertion order), so
+        // everything not named here keeps flowing to Convex during the
+        // migration.
+        '/api/auth': { target: BACKEND_BASE, changeOrigin: true },
+        '/api/app': { target: BACKEND_BASE, changeOrigin: true },
+        '/events': { target: BACKEND_BASE, changeOrigin: true },
+      }
+    : {}),
   // Proxy Convex API requests to the (possibly remote) convex service.
   '/ws_api': {
     target: CONVEX_BASE,

@@ -59,6 +59,14 @@ Run locally: `bun run --filter @tale/platform backend:dev` (needs
 `DATABASE_URL`; `TALE_CONFIG_DIR`/`TALE_CONFIG_BUILTIN_DIR` for org-config
 reads and scaffolding).
 
+To put the web app's dev server in front of it, start Vite with
+`TALE_BACKEND_URL=http://127.0.0.1:<PORT>` — `/api/auth`, `/api/app`, and
+`/events` then proxy here while every other route keeps flowing to Convex
+(the incremental-migration dev posture; see `vite.config.ts`). The app-side
+data layer for these lanes lives in `app/lib/backend/` (fetch client,
+`['backend', orgId, entity]` query keys, and the `/events` hint →
+`invalidateQueries` hook).
+
 ## Tests
 
 - Unit tests ride the platform vitest `server` project:
