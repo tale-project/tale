@@ -1111,3 +1111,249 @@ export async function searchChats(
   }
   return results;
 }
+
+// --- edit / regenerate sibling branches --------------------------------------
+
+/** Selections beyond this are dropped oldest-first — a bound, not a quota. */
+const MAX_BRANCH_SELECTIONS = 50;
+
+/**
+ * Copy `parent`'s conversation up to `copyThrough` (inclusive, by `order`)
+ * into a fresh HIDDEN sibling forked at `forkSequence`. The branch inherits
+ * everything a turn reads from the thread (agent, capabilities, project) so
+ * a turn into it behaves exactly like one into the parent. Chat appends are
+ * flat (`step_order` 0, `order` = the 0.4 sequence), so order comparisons
+ * ARE the 0.4 sequence comparisons and the copy stays gap-free from zero.
+ */
+async function createBranchSibling(
+  sql: Sql,
+  parent: ThreadRow,
+  forkSequence: number,
+  copyThrough: number,
+): Promise<string> {
+  const now = Date.now();
+  const rootId = parent.branchRootId ?? parent.id;
+  return sql.begin(async (tx) => {
+    const inserted = await tx<{ id: string }[]>`
+      INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                               updated_at_ms)
+      VALUES (${parent.organizationId}, ${parent.userId}, ${parent.title},
+              ${parent.kind}, ${now}, ${now})
+      RETURNING id
+    `;
+    const branchId = inserted[0]?.id;
+    if (!branchId) throw new Error('branch insert failed');
+    const capabilities = readCapabilities(parent.capabilities);
+    await tx`
+      INSERT INTO app.thread_metadata (
+        thread_id, org_id, user_id, chat_type, status, project_id,
+        agent_slug, harness, capabilities, reasoning_effort, hidden,
+        branch_root_id, branch_parent_id, branch_fork_sequence,
+        created_at_ms
+      ) VALUES (
+        ${branchId}, ${parent.organizationId}, ${parent.userId},
+        ${parent.kind}, 'active', ${parent.projectId}, ${parent.agentSlug},
+        ${parent.harness},
+        ${capabilities === null ? null : tx.json(toJson(capabilities))},
+        ${parent.reasoningEffort}, true, ${rootId}, ${parent.id},
+        ${forkSequence}, ${now}
+      )
+    `;
+    await tx`
+      INSERT INTO app.messages (
+        thread_id, org_id, "order", step_order, role, parts, text, model,
+        provider_slug, usage, blocked_reason, error, status, created_at_ms
+      )
+      SELECT ${branchId}, org_id, "order", step_order, role, parts, text,
+             model, provider_slug, usage, blocked_reason, error, status,
+             ${now}
+      FROM app.messages
+      WHERE thread_id = ${parent.id} AND "order" <= ${copyThrough}
+      ORDER BY "order", step_order
+    `;
+    return branchId;
+  });
+}
+
+/**
+ * Fork for an EDIT: the branch carries everything BEFORE the edited user
+ * message; the client then sends the edited text into the branch through
+ * the normal turn, which appends it at the same sequence the original held.
+ */
+export async function branchForEdit(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+  threadId: string,
+  editedMessageId: string,
+): Promise<string | null> {
+  const thread = await loadOwnedThread(sql, organizationId, userId, threadId);
+  if (!thread) return null;
+  const messages = await sql<{ order: number; role: string }[]>`
+    SELECT "order", role FROM app.messages
+    WHERE id = ${editedMessageId} AND thread_id = ${thread.id}
+    LIMIT 1
+  `;
+  const message = messages[0];
+  if (!message || message.role !== 'user') return null;
+  return createBranchSibling(sql, thread, message.order, message.order - 1);
+}
+
+/**
+ * Fork for a REGENERATE: the branch carries everything THROUGH the user
+ * message the chosen assistant reply answered; the turn then re-runs that
+ * prompt without appending it again (`resend`).
+ */
+export async function branchForRegenerate(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+  threadId: string,
+  assistantMessageId: string,
+): Promise<string | null> {
+  const thread = await loadOwnedThread(sql, organizationId, userId, threadId);
+  if (!thread) return null;
+  const messages = await sql<{ order: number; role: string }[]>`
+    SELECT "order", role FROM app.messages
+    WHERE id = ${assistantMessageId} AND thread_id = ${thread.id}
+    LIMIT 1
+  `;
+  const message = messages[0];
+  if (!message || message.role !== 'assistant') return null;
+  const prompts = await sql<{ order: number }[]>`
+    SELECT "order" FROM app.messages
+    WHERE thread_id = ${thread.id} AND role = 'user'
+      AND "order" < ${message.order}
+    ORDER BY "order" DESC
+    LIMIT 1
+  `;
+  const prompt = prompts[0];
+  if (!prompt) return null;
+  return createBranchSibling(sql, thread, prompt.order, prompt.order);
+}
+
+export interface BranchInfo {
+  id: string;
+  parentId: string;
+  forkSequence: number;
+  createdAt: number;
+}
+
+/** A root's whole lineage in one read: its live branches plus the root's
+ * selection map — one watch serves the navigator. */
+export async function listThreadBranches(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+  rootThreadId: string,
+): Promise<{ branches: BranchInfo[]; selections: string | null }> {
+  const root = await loadOwnedThread(sql, organizationId, userId, rootThreadId);
+  if (!root) return { branches: [], selections: null };
+  const rows = await sql<
+    {
+      id: string;
+      parentId: string | null;
+      forkSequence: number | null;
+      createdAt: number;
+    }[]
+  >`
+    SELECT t.id, tm.branch_parent_id AS "parentId",
+           tm.branch_fork_sequence AS "forkSequence",
+           t.created_at_ms::float8 AS "createdAt"
+    FROM app.thread_metadata tm
+    JOIN app.threads t ON t.id = tm.thread_id
+    WHERE tm.branch_root_id = ${root.id} AND tm.status = 'active'
+      AND tm.branch_parent_id IS NOT NULL
+    ORDER BY t.created_at_ms
+  `;
+  const selections = await sql<{ branchSelections: string | null }[]>`
+    SELECT branch_selections AS "branchSelections"
+    FROM app.thread_metadata WHERE thread_id = ${root.id}
+  `;
+  return {
+    branches: rows.map((row) => ({
+      id: row.id,
+      parentId: row.parentId ?? root.id,
+      forkSequence: row.forkSequence ?? 0,
+      createdAt: row.createdAt,
+    })),
+    selections: selections[0]?.branchSelections ?? null,
+  };
+}
+
+/** The lineage a turn's retrieval scope covers: root + every sibling —
+ * attachments upload against whichever sibling the URL shows while the turn
+ * runs on the active branch. Falls back to the id it was given. */
+export async function getThreadLineageIds(
+  sql: Sql,
+  organizationId: string,
+  threadId: string,
+): Promise<{ rootId: string; threadIds: string[] }> {
+  const rows = await sql<{ branchRootId: string | null }[]>`
+    SELECT tm.branch_root_id AS "branchRootId"
+    FROM app.thread_metadata tm
+    JOIN app.threads t ON t.id = tm.thread_id
+    WHERE tm.thread_id = ${threadId} AND t.org_id = ${organizationId}
+    LIMIT 1
+  `;
+  if (rows.length === 0) {
+    return { rootId: threadId, threadIds: [threadId] };
+  }
+  const rootId = rows[0]?.branchRootId ?? threadId;
+  const siblings = await sql<{ threadId: string }[]>`
+    SELECT tm.thread_id AS "threadId"
+    FROM app.thread_metadata tm
+    JOIN app.threads t ON t.id = tm.thread_id
+    WHERE tm.branch_root_id = ${rootId} AND t.org_id = ${organizationId}
+  `;
+  const ids = new Set<string>([threadId, rootId]);
+  for (const sibling of siblings) ids.add(sibling.threadId);
+  return { rootId, threadIds: [...ids] };
+}
+
+/** Record which sibling a fork point shows — stored on the ROOT as a JSON
+ * map keyed `"<parentId>:<forkSequence>"`, bounded oldest-first. A metadata
+ * edit: `updatedAt` stays untouched. */
+export async function setBranchSelection(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+  rootThreadId: string,
+  forkKey: string,
+  selectedThreadId: string,
+): Promise<void> {
+  const root = await loadOwnedThread(sql, organizationId, userId, rootThreadId);
+  if (!root) return;
+  const current = await sql<{ branchSelections: string | null }[]>`
+    SELECT branch_selections AS "branchSelections"
+    FROM app.thread_metadata WHERE thread_id = ${root.id}
+  `;
+  let selections: Record<string, string> = {};
+  const raw = current[0]?.branchSelections;
+  if (raw !== null && raw !== undefined) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed !== null && typeof parsed === 'object') {
+        for (const [key, value] of Object.entries(parsed)) {
+          if (typeof value === 'string') selections[key] = value;
+        }
+      }
+    } catch (error) {
+      console.warn('[chat] unreadable branch selections were reset', error);
+    }
+  }
+  selections[forkKey] = selectedThreadId;
+  const keys = Object.keys(selections);
+  if (keys.length > MAX_BRANCH_SELECTIONS) {
+    selections = Object.fromEntries(
+      keys
+        .slice(keys.length - MAX_BRANCH_SELECTIONS)
+        .map((key) => [key, selections[key] ?? '']),
+    );
+  }
+  await sql`
+    UPDATE app.thread_metadata SET
+      branch_selections = ${JSON.stringify(selections)}
+    WHERE thread_id = ${root.id}
+  `;
+}

@@ -5125,6 +5125,83 @@ async function checkChatThreadSurface(
     `text=${byText.success && byText.data.results.length} title=${byTitle.success && byTitle.data.results.length} miss=${miss.success ? miss.data.results.length : 'ERR'}`,
   );
 
+  // Edit/regenerate lineage: an EDIT fork copies strictly BEFORE the edited
+  // user message; a REGENERATE fork copies THROUGH the prompt it re-answers;
+  // both are HIDDEN siblings on the root (absent from the list), the
+  // lineage read returns them with the selection map, and the turn-scope
+  // walk widens to the whole lineage.
+  const editBranch = z
+    .object({ id: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${threadB}/branch-edit?orgId=${orgId}`,
+          { editedMessageId: forkSource[0]?.id ?? '' },
+        )
+      ).json(),
+    );
+  const editBranchId = editBranch.success ? editBranch.data.id : '';
+  const editCount = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.messages
+    WHERE thread_id = ${editBranchId}
+  `;
+  const assistantMsg = await sql<{ id: string }[]>`
+    SELECT id FROM app.messages
+    WHERE thread_id = ${threadB} AND "order" = 1 AND role = 'assistant'
+  `;
+  const regenBranch = z
+    .object({ id: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${threadB}/branch-regenerate?orgId=${orgId}`,
+          { assistantMessageId: assistantMsg[0]?.id ?? '' },
+        )
+      ).json(),
+    );
+  const regenBranchId = regenBranch.success ? regenBranch.data.id : '';
+  const regenCount = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.messages
+    WHERE thread_id = ${regenBranchId}
+  `;
+  await post(
+    `/api/app/chat/threads/${threadB}/branch-selection?orgId=${orgId}`,
+    { forkKey: `${threadB}:0`, selectedThreadId: regenBranchId },
+  );
+  const lineage = z
+    .object({
+      branches: z.array(z.object({ id: z.string() }).loose()),
+      selections: z.string().nullable(),
+    })
+    .safeParse(
+      await get(`/api/app/chat/threads/${threadB}/branches?orgId=${orgId}`),
+    );
+  const activeAfterBranches = summaryList.safeParse(
+    await get(`/api/app/chat/threads?orgId=${orgId}`),
+  );
+  const listedIds = activeAfterBranches.success
+    ? activeAfterBranches.data.threads.map((thread) => thread.id)
+    : [];
+  const { getThreadLineageIds } = await import('./domains/chat/threads.ts');
+  const scope = await getThreadLineageIds(sql, orgId, regenBranchId);
+  record(
+    'edit/regenerate lineage: copy boundaries, hidden siblings, scope walk',
+    editBranch.success &&
+      editCount[0]?.count === '0' &&
+      regenBranch.success &&
+      regenCount[0]?.count === '1' &&
+      lineage.success &&
+      lineage.data.branches.length === 2 &&
+      (lineage.data.selections ?? '').includes(regenBranchId) &&
+      !listedIds.includes(editBranchId) &&
+      !listedIds.includes(regenBranchId) &&
+      scope.rootId === threadB &&
+      scope.threadIds.includes(threadB) &&
+      scope.threadIds.includes(editBranchId) &&
+      scope.threadIds.includes(regenBranchId),
+    `edit=${editCount[0]?.count} (want 0), regen=${regenCount[0]?.count} (want 1), lineage=${lineage.success ? lineage.data.branches.length : 'ERR'} (want 2), hidden=${!listedIds.includes(editBranchId)}, scope=${scope.threadIds.length}`,
+  );
+
   // The AI-title lane: the TurnStore's first-user-message append on an
   // untitled thread enqueues the job; with no reachable model the fallback
   // (the message's own words) lands via the guarded fill-only write.

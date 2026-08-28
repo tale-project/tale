@@ -8,6 +8,8 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { runChatTurn } from './service.ts';
 import {
+  branchForEdit,
+  branchForRegenerate,
   branchThread,
   ChatThreadError,
   createThread,
@@ -15,6 +17,7 @@ import {
   getThread,
   getThreadShareStatus,
   listArchivedThreads,
+  listThreadBranches,
   listThreads,
   listThreadsForProject,
   markThreadRead,
@@ -22,6 +25,7 @@ import {
   renameThread,
   restoreThread,
   searchChats,
+  setBranchSelection,
   setThreadArchived,
   setThreadCapabilities,
   setThreadPinned,
@@ -511,6 +515,75 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return branchId === null
       ? c.json({ error: 'thread or message not found' }, 404)
       : c.json({ id: branchId }, 201);
+  });
+
+  // Edit / regenerate sibling branches + the fork-point selection map.
+  app.post('/threads/:threadId/branch-edit', async (c) => {
+    const body = z
+      .object({ editedMessageId: z.string().min(1).max(128) })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    const branchId = await branchForEdit(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+      body.data.editedMessageId,
+    );
+    return branchId === null
+      ? c.json({ error: 'thread or message not found' }, 404)
+      : c.json({ id: branchId }, 201);
+  });
+
+  app.post('/threads/:threadId/branch-regenerate', async (c) => {
+    const body = z
+      .object({ assistantMessageId: z.string().min(1).max(128) })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    const branchId = await branchForRegenerate(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+      body.data.assistantMessageId,
+    );
+    return branchId === null
+      ? c.json({ error: 'thread or message not found' }, 404)
+      : c.json({ id: branchId }, 201);
+  });
+
+  app.get('/threads/:threadId/branches', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json(
+      await listThreadBranches(
+        deps.sql,
+        organizationId,
+        userId,
+        c.req.param('threadId'),
+      ),
+    );
+  });
+
+  app.post('/threads/:threadId/branch-selection', async (c) => {
+    const body = z
+      .object({
+        forkKey: z.string().min(1).max(256),
+        selectedThreadId: z.string().min(1).max(128),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    await setBranchSelection(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+      body.data.forkKey,
+      body.data.selectedThreadId,
+    );
+    return c.json({ ok: true });
   });
 
   app.post('/threads/:threadId/trash', async (c) => {

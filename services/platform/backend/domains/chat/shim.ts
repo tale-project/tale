@@ -14,7 +14,7 @@ import {
   listProjects,
   type ProjectRow,
 } from '../projects/service.ts';
-import { setThreadTitleIfAbsent } from './threads.ts';
+import { getThreadLineageIds, setThreadTitleIfAbsent } from './threads.ts';
 
 /**
  * The handler map behind the reused 0.4 chat host (`executeTurn`) and tool
@@ -287,11 +287,10 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
     },
 
     // -------------------------------------------------------------- lineage
-    // Branches are not ported: every thread is its own lineage of one.
     'chat/branches:getThreadLineageIds': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
       const args = raw as { organizationId: string; threadId: string };
-      return { rootId: args.threadId, threadIds: [args.threadId] };
+      return getThreadLineageIds(sql, args.organizationId, args.threadId);
     },
 
     // -------------------------------------------------------------- history
