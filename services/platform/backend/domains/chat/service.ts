@@ -36,6 +36,9 @@ export interface ChatTurnRequest {
   readonly reasoningEffort?: ExecuteTurnArgs['reasoningEffort'];
   readonly locale?: string;
   readonly resend?: boolean;
+  /** Auto — the server resolves a concrete (provider, model) pair for THIS
+   * message before anything binds. Exactly one of modelId / this. */
+  readonly modelSelection?: 'auto';
 }
 
 export async function runChatTurn(
@@ -52,6 +55,9 @@ export async function runChatTurn(
       ? { attachments: request.attachments }
       : {}),
     ...(request.modelId !== undefined ? { modelId: request.modelId } : {}),
+    ...(request.modelSelection !== undefined
+      ? { modelSelection: request.modelSelection }
+      : {}),
     ...(request.providerSlug !== undefined
       ? { providerSlug: request.providerSlug }
       : {}),

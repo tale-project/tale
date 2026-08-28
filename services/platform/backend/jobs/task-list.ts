@@ -173,6 +173,14 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         input,
       );
     },
+    'chat.deferred_send_poll': async (payload) => {
+      const input = z
+        .object({ deferredSendId: z.string().min(1) })
+        .parse(payload);
+      const { pollDeferredSend } =
+        await import('../domains/chat/deferred-sends.ts');
+      await pollDeferredSend(deps.sql, input.deferredSendId);
+    },
     'watchdog.chat_generations': async () => {
       const cleared = await runChatGenerationWatchdog(deps.sql);
       if (cleared > 0) {

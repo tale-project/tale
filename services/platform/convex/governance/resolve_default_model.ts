@@ -17,7 +17,7 @@ interface DefaultModelOverride {
  * Find the most specific model rule that applies.
  * Priority: team > role > default
  */
-function findApplicableModelRule(
+export function findApplicableModelRule(
   rules: DefaultModelRule[],
   teamIds: string[],
   userRole?: string,

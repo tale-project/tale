@@ -6,6 +6,17 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  cancelDeferredSend,
+  enqueueDeferredSend,
+  listDeferredSends,
+} from './deferred-sends.ts';
+import {
+  listMemories,
+  reviewMemory,
+  saveMemory,
+  searchApprovedMemories,
+} from './memories.ts';
 import { runChatTurn } from './service.ts';
 import {
   branchForEdit,
@@ -64,7 +75,10 @@ const createThreadSchema = z.object({
 
 const sendSchema = z.object({
   text: z.string().max(200_000),
-  modelId: z.string().min(1).max(200),
+  /** Exactly one of `modelId` and `modelSelection: 'auto'` — enforced by
+   * the turn engine itself (an unresolvable Auto refuses loudly). */
+  modelId: z.string().min(1).max(200).optional(),
+  modelSelection: z.literal('auto').optional(),
   providerSlug: z.string().min(1).max(200).optional(),
   reasoningEffort: z.enum(['low', 'medium', 'high', 'extra', 'max']).optional(),
   attachments: z
@@ -616,6 +630,149 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     });
   });
 
+  // Memories: approval-gated durable facts (the preferences page's review
+  // surface + the model-readable approved set).
+  app.get('/memories', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json(await listMemories(deps.sql, organizationId, userId));
+  });
+
+  app.get('/memories/search', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const limitRaw = c.req.query('limit');
+    return c.json({
+      memories: await searchApprovedMemories(deps.sql, {
+        organizationId,
+        userId,
+        ...(c.req.query('q') !== undefined ? { query: c.req.query('q') } : {}),
+        ...(limitRaw !== undefined ? { limit: Number(limitRaw) } : {}),
+      }),
+    });
+  });
+
+  app.post('/memories', async (c) => {
+    const body = z
+      .object({
+        content: z.string().min(1).max(4_000),
+        sourceThreadId: z.string().max(128).optional(),
+        sourceMessageId: z.string().max(128).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    const id = await saveMemory(deps.sql, {
+      organizationId,
+      userId,
+      email: c.get('sessionBundle').user.email,
+      content: body.data.content,
+      ...(body.data.sourceThreadId !== undefined
+        ? { sourceThreadId: body.data.sourceThreadId }
+        : {}),
+      ...(body.data.sourceMessageId !== undefined
+        ? { sourceMessageId: body.data.sourceMessageId }
+        : {}),
+    });
+    return c.json({ id }, 201);
+  });
+
+  app.post('/memories/:memoryId/review', async (c) => {
+    const body = z
+      .object({ decision: z.enum(['approved', 'rejected']) })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      ok: await reviewMemory(deps.sql, {
+        organizationId,
+        userId,
+        memoryId: c.req.param('memoryId'),
+        decision: body.data.decision,
+      }),
+    });
+  });
+
+  // Deferred sends: park a send while media settle; the tray + cancel.
+  app.post('/threads/:threadId/deferred-sends', async (c) => {
+    const body = z
+      .object({
+        text: z.string().max(200_000),
+        attachments: z
+          .array(
+            z.object({
+              fileId: z.string().min(1).max(1024),
+              fileName: z.string().min(1).max(512),
+              fileType: z.string().min(1).max(255),
+              fileSize: z.number().int().min(0),
+            }),
+          )
+          .max(20)
+          .optional(),
+        modelId: z.string().min(1).max(200).optional(),
+        modelSelection: z.literal('auto').optional(),
+        providerSlug: z.string().min(1).max(200).optional(),
+        reasoningEffort: z
+          .enum(['low', 'medium', 'high', 'extra', 'max'])
+          .optional(),
+        locale: z.string().max(20).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    try {
+      return c.json(
+        await enqueueDeferredSend(deps.sql, {
+          organizationId,
+          userId,
+          threadId: c.req.param('threadId'),
+          userText: body.data.text,
+          ...(body.data.attachments !== undefined
+            ? { attachments: body.data.attachments }
+            : {}),
+          ...(body.data.modelId !== undefined
+            ? { modelId: body.data.modelId }
+            : {}),
+          ...(body.data.modelSelection !== undefined
+            ? { modelSelection: body.data.modelSelection }
+            : {}),
+          ...(body.data.providerSlug !== undefined
+            ? { providerSlug: body.data.providerSlug }
+            : {}),
+          ...(body.data.reasoningEffort !== undefined
+            ? { reasoningEffort: body.data.reasoningEffort }
+            : {}),
+          ...(body.data.locale !== undefined
+            ? { locale: body.data.locale }
+            : {}),
+        }),
+        201,
+      );
+    } catch (error) {
+      return handleThreadError(c, error);
+    }
+  });
+
+  app.get('/threads/:threadId/deferred-sends', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      sends: await listDeferredSends(deps.sql, {
+        organizationId,
+        userId,
+        threadId: c.req.param('threadId'),
+      }),
+    });
+  });
+
+  app.post('/deferred-sends/:deferredSendId/cancel', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json({
+      ok: await cancelDeferredSend(deps.sql, {
+        organizationId,
+        userId,
+        deferredSendId: c.req.param('deferredSendId'),
+      }),
+    });
+  });
+
   // The project page's Chats tab: mine + shared-with-project.
   app.get('/project/:projectId/threads', async (c) => {
     const { organizationId, userId } = caller(c);
@@ -680,7 +837,12 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       userId,
       threadId: thread.id,
       userText: body.data.text,
-      modelId: body.data.modelId,
+      ...(body.data.modelId !== undefined
+        ? { modelId: body.data.modelId }
+        : {}),
+      ...(body.data.modelSelection !== undefined
+        ? { modelSelection: body.data.modelSelection }
+        : {}),
       ...(body.data.providerSlug !== undefined
         ? { providerSlug: body.data.providerSlug }
         : {}),

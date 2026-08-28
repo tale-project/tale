@@ -47,6 +47,9 @@ export interface TaskPayloads {
     userId: string;
     firstMessage: string;
   };
+  /** One readiness-poll step of a parked send — self-chaining until the
+   * media settle and the thread idles, then claims and runs the turn. */
+  'chat.deferred_send_poll': { deferredSendId: string };
   /** Auto-retry arm for a retryably-failed task-agent run: the handler
    * re-derives every guard (task still in_progress and agent-assigned, the
    * failed run still newest, the consecutive-failure budget) and kicks. */
@@ -125,6 +128,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'task.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   'chat.generate_title': { retryLimit: 0, expireInSeconds: 60 },
+  'chat.deferred_send_poll': { retryLimit: 0, expireInSeconds: 3_600 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
   'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
   'watchdog.task_agents': { retryLimit: 1, expireInSeconds: 120 },

@@ -206,17 +206,32 @@ export async function getAccessibleModels(
     return allModelIds;
   }
 
+  return filterAccessibleModels(
+    config,
+    { userId, teamIds, userRole },
+    allModelIds,
+  );
+}
+
+/** The pure accessible-models filter behind `getAccessibleModels` — the 0.5
+ * backend calls it directly over its file-read config. */
+export function filterAccessibleModels(
+  config: ModelAccessConfig | null,
+  who: { userId: string; teamIds: string[]; userRole: string | undefined },
+  allModelIds: string[],
+): string[] {
+  if (!config || !config.enabled || config.rules.length === 0) {
+    return allModelIds;
+  }
   const resolved = resolveAllowedAndBlockedModels(
     config,
-    userId,
-    teamIds,
-    userRole,
+    who.userId,
+    who.teamIds,
+    who.userRole,
   );
-
   if (!resolved) {
     return allModelIds;
   }
-
   return allModelIds.filter((modelId) =>
     isModelPermitted(
       config.mode,

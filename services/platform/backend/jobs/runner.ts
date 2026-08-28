@@ -26,7 +26,11 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
         perJobResults: true,
         burstWhenBatchFull: true,
         pollingIntervalSeconds: 2,
-        notifyPollingIntervalSeconds: 30,
+        // NOTIFY fires on INSERT, not when a delayed job's startAfter
+        // passes — the fallback poll is the ONLY thing that surfaces
+        // delayed self-chains (deferred-send cadence, automation polls),
+        // so it must match the polling interval, not idle at 30s.
+        notifyPollingIntervalSeconds: 2,
       },
       (jobs) =>
         Promise.all(

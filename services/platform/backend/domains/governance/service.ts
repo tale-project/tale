@@ -7,8 +7,10 @@ import {
 import { buildPeriodKeyFromTimestamp } from '../../../convex/governance/helpers.ts';
 import {
   evaluateModelAccess,
+  filterAccessibleModels,
   type ModelAccessCheckResult,
 } from '../../../convex/governance/model_access_enforcement.ts';
+import { findApplicableModelRule } from '../../../convex/governance/resolve_default_model.ts';
 import {
   getUserTeamIds,
   findOrganizationMember,
@@ -34,6 +36,89 @@ async function whoIs(
   const member = await findOrganizationMember(sql, organizationId, userId);
   const teamIds = await getUserTeamIds(sql, userId);
   return { userId, teamIds, role: member?.role };
+}
+
+/**
+ * The Auto picker's one identity-explicit governance read — the 0.5 twin of
+ * `governance/internal_queries.resolveModelGovernanceInternal`: the admin's
+ * `default_models` pin (dropped when the org's `model_access` policy would
+ * refuse it) plus the accessible subset of the catalog the picker offers.
+ * The explicit-modelId path short-circuits to the single-model check.
+ */
+export async function resolveModelGovernanceForUser(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    userId: string;
+    supportedModels: string[];
+    explicitModelId?: string;
+  },
+): Promise<{
+  defaultModel?: { providerName: string; modelId: string };
+  accessibleModelRefs: string[];
+  explicitAllowed?: { allowed: boolean; reason?: string };
+}> {
+  if (args.explicitModelId !== undefined) {
+    const verdict = await checkModelAccessForUser(sql, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      modelId: args.explicitModelId,
+    });
+    return { accessibleModelRefs: [], explicitAllowed: verdict };
+  }
+  const who = await whoIs(sql, args.organizationId, args.userId);
+  const accessConfig = await readGovernancePolicyForOrg(
+    sql,
+    args.organizationId,
+    'model_access',
+  );
+  const whoFacts = {
+    userId: who.userId,
+    teamIds: who.teamIds,
+    userRole: who.role,
+  };
+
+  let defaultModel: { providerName: string; modelId: string } | undefined;
+  const defaults = await readGovernancePolicyForOrg(
+    sql,
+    args.organizationId,
+    'default_models',
+  );
+  if (defaults?.enabled === true && defaults.rules.length > 0) {
+    const rule = findApplicableModelRule(defaults.rules, who.teamIds, who.role);
+    if (rule) {
+      const pinAllowed = evaluateModelAccess(
+        accessConfig,
+        whoFacts,
+        rule.modelId,
+      );
+      if (pinAllowed.allowed) {
+        defaultModel = {
+          providerName: rule.providerName,
+          modelId: rule.modelId,
+        };
+      }
+    }
+  }
+
+  const stripQualifier = (ref: string): string => {
+    const slash = ref.indexOf('/');
+    return slash === -1 ? ref : ref.slice(slash + 1);
+  };
+  const accessiblePlain = new Set(
+    filterAccessibleModels(
+      accessConfig,
+      whoFacts,
+      args.supportedModels.map(stripQualifier),
+    ),
+  );
+  const accessibleModelRefs = args.supportedModels.filter((ref) =>
+    accessiblePlain.has(stripQualifier(ref)),
+  );
+  return {
+    ...(defaultModel !== undefined ? { defaultModel } : {}),
+    accessibleModelRefs,
+  };
 }
 
 /** The turn-boundary model-access verdict (the picker filter's server twin). */

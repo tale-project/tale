@@ -5,6 +5,7 @@ import type { ShimHandlers } from '../../lib/convex-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
   checkModelAccessForUser,
+  resolveModelGovernanceForUser,
   getContextCapForUser,
   recordConnectorUsage,
 } from '../governance/service.ts';
@@ -263,6 +264,47 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         args.title,
       );
       return null;
+    },
+
+    'provider_credentials/queries:listActiveCredentialFactsInternal': async (
+      raw,
+    ) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
+      const args = raw as { organizationId: string };
+      return sql<
+        {
+          providerSlug: string;
+          authMethod: string;
+          modelAllowlist: string[] | null;
+        }[]
+      >`
+        SELECT provider_slug AS "providerSlug",
+               auth_method AS "authMethod",
+               model_allowlist AS "modelAllowlist"
+        FROM app.provider_credentials
+        WHERE org_id = ${args.organizationId} AND status = 'active'
+      `.then((rows) =>
+        rows.map((row) => ({
+          providerSlug: row.providerSlug,
+          authMethod: row.authMethod,
+          ...(row.modelAllowlist !== null
+            ? { modelAllowlist: row.modelAllowlist }
+            : {}),
+        })),
+      );
+    },
+
+    'governance/internal_queries:resolveModelGovernanceInternal': async (
+      raw,
+    ) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        userId: string;
+        supportedModels: string[];
+        explicitModelId?: string;
+      };
+      return resolveModelGovernanceForUser(sql, args);
     },
 
     'governance/queries:checkModelAccessInternal': async (raw) => {

@@ -5250,6 +5250,380 @@ async function setThreadTitleProbe(
 }
 
 /**
+ * Memories (approval-gated), the Auto model pick (`modelSelection: 'auto'`
+ * resolved inside the reused turn via the new credential-facts + governance
+ * shim reads), and deferred sends (park on a still-indexing attachment,
+ * readiness poll, claim → the turn runs under the stored identity, the row
+ * settles). A live fake provider serves the catalog and the streaming
+ * completions for both turns.
+ */
+async function checkChatMemoriesDeferredAuto(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const get = async (route: string): Promise<unknown> =>
+    (await fetch(`${base}${route}`, { headers: { cookie } })).json();
+
+  // ---- memories -----------------------------------------------------------
+  const saved = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/chat/memories?orgId=${orgId}`, {
+        content: 'Prefers metric units',
+      })
+    ).json(),
+  );
+  const memoryId = saved.success ? saved.data.id : '';
+  const listedPending = z
+    .object({
+      pending: z.array(z.object({ id: z.string(), content: z.string() })),
+      approved: z.array(z.unknown()),
+    })
+    .safeParse(await get(`/api/app/chat/memories?orgId=${orgId}`));
+  const searchWhilePending = z
+    .object({ memories: z.array(z.unknown()) })
+    .safeParse(
+      await get(`/api/app/chat/memories/search?orgId=${orgId}&q=metric`),
+    );
+  await post(`/api/app/chat/memories/${memoryId}/review?orgId=${orgId}`, {
+    decision: 'approved',
+  });
+  const searchApproved = z
+    .object({ memories: z.array(z.object({ content: z.string() }).loose()) })
+    .safeParse(
+      await get(`/api/app/chat/memories/search?orgId=${orgId}&q=metric`),
+    );
+  const bogusReview = z
+    .object({ ok: z.boolean() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/memories/00000000-0000-4000-8000-000000000000/review?orgId=${orgId}`,
+          { decision: 'approved' },
+        )
+      ).json(),
+    );
+  record(
+    'memories: pending until approved, retrieval sees approved only',
+    saved.success &&
+      listedPending.success &&
+      listedPending.data.pending.some((row) => row.id === memoryId) &&
+      listedPending.data.approved.length === 0 &&
+      searchWhilePending.success &&
+      searchWhilePending.data.memories.length === 0 &&
+      searchApproved.success &&
+      searchApproved.data.memories.length === 1 &&
+      bogusReview.success &&
+      !bogusReview.data.ok,
+    `pending=${listedPending.success ? listedPending.data.pending.length : 'ERR'}, hiddenWhilePending=${searchWhilePending.success ? searchWhilePending.data.memories.length === 0 : 'ERR'}, approvedHits=${searchApproved.success ? searchApproved.data.memories.length : 'ERR'}, bogus=${bogusReview.success ? bogusReview.data.ok : 'ERR'} (want false)`,
+  );
+
+  // ---- a live fake provider (catalog + streaming completions) -------------
+  const AUTO_ANSWER = 'Deferred answer done.';
+  const autoServer = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const url = req.url ?? '';
+      if (req.method === 'GET' && url.endsWith('/models')) {
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            object: 'list',
+            data: [
+              {
+                id: 'auto-pick-model',
+                object: 'model',
+                context_length: 32_768,
+              },
+            ],
+          }),
+        );
+        return;
+      }
+      if (url.endsWith('/chat/completions')) {
+        res.setHeader('content-type', 'text/event-stream');
+        const sse = (payload: unknown): string =>
+          `data: ${JSON.stringify(payload)}\n\n`;
+        for (const word of AUTO_ANSWER.split(' ')) {
+          res.write(
+            sse({
+              choices: [
+                {
+                  index: 0,
+                  delta: { content: `${word} ` },
+                  finish_reason: null,
+                },
+              ],
+            }),
+          );
+        }
+        res.write(
+          sse({
+            choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+            usage: {
+              prompt_tokens: 9,
+              completion_tokens: 4,
+              total_tokens: 13,
+            },
+          }),
+        );
+        res.write('data: [DONE]\n\n');
+        res.end();
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    autoServer.listen(0, '127.0.0.1', resolve);
+  });
+  const address = autoServer.address();
+  const port =
+    address !== null && typeof address === 'object' ? address.port : 0;
+
+  try {
+    process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+    const providersDir = path.join(configRoot, orgSlug, 'providers');
+    await mkdir(providersDir, { recursive: true });
+    await writeFile(
+      path.join(providersDir, 'itestauto.yml'),
+      [
+        'name: itestauto',
+        'displayName: Itest Auto',
+        'apiFormat: openai',
+        `baseUrl: http://127.0.0.1:${port}/v1`,
+        'catalog:',
+        '  source: models-endpoint',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    // Pin the pick: earlier checks left providers whose catalogs are CACHED
+    // but whose endpoints are dead — an allowlist makes Auto deterministic
+    // (and the deferred turn's explicit model passes the same policy).
+    const governanceDir = path.join(configRoot, orgSlug, 'governance');
+    await mkdir(governanceDir, { recursive: true });
+    await writeFile(
+      path.join(governanceDir, 'model-access.yml'),
+      [
+        'enabled: true',
+        'mode: allowlist',
+        'rules:',
+        '  - scope: default',
+        '    allowedModels:',
+        '      - auto-pick-model',
+      ].join('\n'),
+    );
+    const orgConfig = await import('./lib/org-config.ts');
+    orgConfig.clearOrgConfigCaches();
+    await post(`/api/app/provider-credentials?orgId=${orgId}`, {
+      providerSlug: 'itestauto',
+      authMethod: 'api-key',
+      name: 'Auto key',
+      secret: 'sk-itest-auto',
+    });
+
+    // ---- the Auto turn ----------------------------------------------------
+    const autoThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await post(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Auto pick',
+        })
+      ).json(),
+    );
+    const autoThreadId = autoThread.success ? autoThread.data.id : '';
+    const autoSend = z
+      .object({ status: z.string() })
+      .loose()
+      .safeParse(
+        await (
+          await post(
+            `/api/app/chat/threads/${autoThreadId}/messages?orgId=${orgId}`,
+            { text: 'Pick a model for me and answer.', modelSelection: 'auto' },
+          )
+        ).json(),
+      );
+    const autoMessages = await sql<
+      { role: string; text: string | null; model: string | null }[]
+    >`
+      SELECT role, text, model FROM app.messages
+      WHERE thread_id = ${autoThreadId}
+      ORDER BY "order"
+    `;
+    const autoAssistant = autoMessages.find((row) => row.role === 'assistant');
+    record(
+      'Auto resolves a concrete model inside the reused turn and completes',
+      autoSend.success &&
+        autoSend.data.status === 'completed' &&
+        (autoAssistant?.text ?? '').includes('Deferred answer done') &&
+        autoAssistant?.model === 'auto-pick-model',
+      `status=${autoSend.success ? autoSend.data.status : 'ERR'} model=${autoAssistant?.model} text="${(autoAssistant?.text ?? '').slice(0, 30)}"`,
+    );
+
+    // ---- deferred sends ---------------------------------------------------
+    const deferThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await post(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Deferred send',
+        })
+      ).json(),
+    );
+    const deferThreadId = deferThread.success ? deferThread.data.id : '';
+    const storageRef = `itest-defer-${Date.now()}`;
+    await sql`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, rag_status,
+        created_at_ms
+      ) VALUES (
+        ${orgId}, ${storageRef}, 'brief.pdf', 'application/pdf', 512,
+        'running', ${Date.now()}
+      )
+    `;
+    const noModel = await post(
+      `/api/app/chat/threads/${deferThreadId}/deferred-sends?orgId=${orgId}`,
+      { text: 'missing model' },
+    );
+    const parked = z.object({ deferredSendId: z.string() }).safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${deferThreadId}/deferred-sends?orgId=${orgId}`,
+          {
+            text: 'Summarize the brief.',
+            modelId: 'auto-pick-model',
+            attachments: [
+              {
+                fileId: storageRef,
+                fileName: 'brief.pdf',
+                fileType: 'application/pdf',
+                fileSize: 512,
+              },
+            ],
+          },
+        )
+      ).json(),
+    );
+    await sleep(1200); // let the first poll run — the row must stay parked
+    const stillWaiting = z
+      .object({
+        sends: z.array(z.object({ status: z.string() }).loose()),
+      })
+      .safeParse(
+        await get(
+          `/api/app/chat/threads/${deferThreadId}/deferred-sends?orgId=${orgId}`,
+        ),
+      );
+    await sql`
+      UPDATE app.file_metadata SET rag_status = 'completed'
+      WHERE storage_ref = ${storageRef}
+    `;
+    let sendsLeft = -1;
+    for (let i = 0; i < 60; i++) {
+      const rows = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM app.deferred_sends
+        WHERE thread_id = ${deferThreadId}
+      `;
+      sendsLeft = Number(rows[0]?.count ?? '-1');
+      if (sendsLeft === 0) break;
+      await sleep(300);
+    }
+    const deferMessages = await sql<{ role: string; text: string | null }[]>`
+      SELECT role, text FROM app.messages
+      WHERE thread_id = ${deferThreadId}
+      ORDER BY "order"
+    `;
+    const cancelRow = z
+      .object({ deferredSendId: z.string() })
+      .safeParse(
+        await (
+          await post(
+            `/api/app/chat/threads/${deferThreadId}/deferred-sends?orgId=${orgId}`,
+            { text: 'never sends', modelId: 'auto-pick-model' },
+          )
+        ).json(),
+      );
+    // A no-attachment row is ready immediately — cancel must win the race
+    // only if it lands first, so cancel a PARKED row instead: re-park on the
+    // same file flipped back to running.
+    await sql`
+      UPDATE app.file_metadata SET rag_status = 'running'
+      WHERE storage_ref = ${storageRef}
+    `;
+    const cancelParked = z.object({ deferredSendId: z.string() }).safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${deferThreadId}/deferred-sends?orgId=${orgId}`,
+          {
+            text: 'parked to cancel',
+            modelId: 'auto-pick-model',
+            attachments: [
+              {
+                fileId: storageRef,
+                fileName: 'brief.pdf',
+                fileType: 'application/pdf',
+                fileSize: 512,
+              },
+            ],
+          },
+        )
+      ).json(),
+    );
+    const cancelled = z
+      .object({ ok: z.boolean() })
+      .safeParse(
+        await (
+          await post(
+            `/api/app/chat/deferred-sends/${cancelParked.success ? cancelParked.data.deferredSendId : ''}/cancel?orgId=${orgId}`,
+          )
+        ).json(),
+      );
+    record(
+      'deferred send: parks on indexing, runs on readiness, cancel works',
+      noModel.status === 400 &&
+        parked.success &&
+        stillWaiting.success &&
+        stillWaiting.data.sends.some((row) => row.status === 'waiting') &&
+        sendsLeft === 0 &&
+        deferMessages.some(
+          (row) =>
+            row.role === 'assistant' &&
+            (row.text ?? '').includes('Deferred answer done'),
+        ) &&
+        cancelRow.success &&
+        cancelled.success &&
+        cancelled.data.ok,
+      `noModel=${noModel.status} (want 400), parkedWhileIndexing=${stillWaiting.success && stillWaiting.data.sends.length > 0}, settled=${sendsLeft === 0}, answered=${deferMessages.filter((row) => row.role === 'assistant').length}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}`,
+    );
+  } finally {
+    // Lift the pick pin — later checks (automation llm nodes, the
+    // governance scenario) bring their own policies.
+    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+    await writeFile(
+      path.join(configRoot, orgSlug, 'governance', 'model-access.yml'),
+      'enabled: false\n',
+    );
+    const orgConfig = await import('./lib/org-config.ts');
+    orgConfig.clearOrgConfigCaches();
+    await new Promise<void>((resolve) => {
+      autoServer.close(() => resolve());
+    });
+  }
+}
+
+/**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
  * with no resume; a settled predecessor with a stamped handle on the live
@@ -6127,6 +6501,12 @@ async function main(): Promise<void> {
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChatThreadSurface(sql, baseUrl, authCtx);
+    await checkChatMemoriesDeferredAuto(
+      sql,
+      baseUrl,
+      authCtx,
+      `itest-${orgSuffix}`,
+    );
     await checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkRestDoor(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
