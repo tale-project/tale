@@ -6151,6 +6151,300 @@ async function checkProvisioning(sql: Sql): Promise<void> {
 }
 
 /**
+ * The WebDAV re-home: the reused RFC 4918 protocol layer on the backend at
+ * /dav/<orgSlug>/…, HTTP Basic app-password auth, and the PG tree — MKCOL,
+ * sized PUT (blob to MinIO + document row + RAG queued), GET round-trip,
+ * overwrite with old-blob reclaim, PROPFIND listing, MOVE, COPY (shared
+ * bytes), LOCK/UNLOCK, folder-cascade DELETE with the .trash listing,
+ * hub-only visibility for project rows, the chunked-PUT refusal, and the
+ * revoke lockout.
+ */
+async function checkWebdav(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+
+  // Mint an app password through the admin surface.
+  const minted = z
+    .object({ password: z.string(), prefix: z.string() })
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/webdav/app-passwords?orgId=${orgId}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie, origin: base },
+          body: JSON.stringify({ label: 'itest device' }),
+        })
+      ).json(),
+    );
+  const password = minted.success ? minted.data.password : '';
+  const basic = Buffer.from(`itest:${password}`).toString('base64');
+  const dav = (
+    davPath: string,
+    init: {
+      method?: string;
+      body?: string;
+      headers?: Record<string, string>;
+      auth?: string | null;
+    } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/dav/${orgSlug}${davPath}`, {
+      method: init.method ?? 'GET',
+      headers: {
+        ...(init.auth === null
+          ? {}
+          : { authorization: `Basic ${init.auth ?? basic}` }),
+        ...init.headers,
+      },
+      ...(init.body !== undefined ? { body: init.body } : {}),
+    });
+
+  const options = await fetch(`${base}/dav`, { method: 'OPTIONS' });
+  const noAuth = await dav('/documents/', {
+    method: 'PROPFIND',
+    headers: { depth: '1' },
+    auth: null,
+  });
+  const badAuth = await dav('/documents/', {
+    method: 'PROPFIND',
+    headers: { depth: '1' },
+    auth: Buffer.from('itest:wrong-password-here').toString('base64'),
+  });
+  const rootList = await dav('/documents/', {
+    method: 'PROPFIND',
+    headers: { depth: '1' },
+  });
+
+  // MKCOL + double-MKCOL (405 per RFC 4918 §9.3.1).
+  const mkcol = await dav('/documents/Reports', { method: 'MKCOL' });
+  const mkcolAgain = await dav('/documents/Reports', { method: 'MKCOL' });
+
+  // Sized PUT → blob in MinIO + document row + RAG queued.
+  const putBody = 'hello webdav';
+  const put = await dav('/documents/Reports/plan.txt', {
+    method: 'PUT',
+    body: putBody,
+    headers: {
+      'content-type': 'text/plain',
+      'content-length': String(putBody.length),
+    },
+  });
+  const docRows = await sql<
+    { id: string; fileRef: string | null; sourceProvider: string | null }[]
+  >`
+    SELECT d.id, d.file_ref AS "fileRef",
+           d.source_provider AS "sourceProvider"
+    FROM app.documents d
+    JOIN app.folders f ON f.id = d.folder_id
+    WHERE d.org_id = ${orgId} AND d.title = 'plan.txt'
+      AND f.name = 'Reports'
+    LIMIT 1
+  `;
+  const firstRef = docRows[0]?.fileRef ?? '';
+  const ragQueued = await sql<{ ragStatus: string | null }[]>`
+    SELECT rag_status AS "ragStatus" FROM app.file_metadata
+    WHERE org_id = ${orgId} AND storage_ref = ${firstRef} LIMIT 1
+  `;
+  const got = await dav('/documents/Reports/plan.txt');
+  const gotBody = got.ok ? await got.text() : '';
+
+  // Overwrite: new blob, the old one reclaimed (refcount 0).
+  const put2Body = 'hello again, webdav';
+  const put2 = await dav('/documents/Reports/plan.txt', {
+    method: 'PUT',
+    body: put2Body,
+    headers: {
+      'content-type': 'text/plain',
+      'content-length': String(put2Body.length),
+    },
+  });
+  const afterOverwrite = await sql<{ fileRef: string | null }[]>`
+    SELECT file_ref AS "fileRef" FROM app.documents
+    WHERE id = ${docRows[0]?.id ?? ''} LIMIT 1
+  `;
+  const secondRef = afterOverwrite[0]?.fileRef ?? '';
+  const oldMeta = await sql<{ lifecycleStatus: string | null }[]>`
+    SELECT lifecycle_status AS "lifecycleStatus" FROM app.file_metadata
+    WHERE org_id = ${orgId} AND storage_ref = ${firstRef} LIMIT 1
+  `;
+  const got2 = await dav('/documents/Reports/plan.txt');
+  const got2Body = got2.ok ? await got2.text() : '';
+
+  // Depth-1 PROPFIND on the folder lists the file with a length.
+  const folderList = await dav('/documents/Reports/', {
+    method: 'PROPFIND',
+    headers: { depth: '1' },
+  });
+  const folderXml = folderList.ok ? await folderList.text() : '';
+
+  // MOVE (rename), then COPY (shared bytes).
+  const move = await dav('/documents/Reports/plan.txt', {
+    method: 'MOVE',
+    headers: {
+      destination: `${base}/dav/${orgSlug}/documents/Reports/plan2.txt`,
+    },
+  });
+  const oldGone = await dav('/documents/Reports/plan.txt');
+  const copy = await dav('/documents/Reports/plan2.txt', {
+    method: 'COPY',
+    headers: {
+      destination: `${base}/dav/${orgSlug}/documents/plan-copy.txt`,
+    },
+  });
+  const copyGet = await dav('/documents/plan-copy.txt');
+  const copyBody = copyGet.ok ? await copyGet.text() : '';
+
+  // LOCK → second LOCK 423 → UNLOCK.
+  const lockXml =
+    '<?xml version="1.0" encoding="utf-8"?><D:lockinfo xmlns:D="DAV:">' +
+    '<D:lockscope><D:exclusive/></D:lockscope>' +
+    '<D:locktype><D:write/></D:locktype>' +
+    '<D:owner>itest</D:owner></D:lockinfo>';
+  const lock = await dav('/documents/Reports/plan2.txt', {
+    method: 'LOCK',
+    body: lockXml,
+    headers: { 'content-type': 'application/xml', timeout: 'Second-600' },
+  });
+  const lockToken = lock.headers.get('lock-token') ?? '';
+  const lockAgain = await dav('/documents/Reports/plan2.txt', {
+    method: 'LOCK',
+    body: lockXml,
+    headers: { 'content-type': 'application/xml', timeout: 'Second-600' },
+  });
+  const unlock = await dav('/documents/Reports/plan2.txt', {
+    method: 'UNLOCK',
+    headers: { 'lock-token': lockToken },
+  });
+
+  // Hub-only visibility: a project doc + folder never surface (#2545).
+  const projRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, key, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Dav Proj', 'DAVP', ${userId}, ${Date.now()},
+            ${Date.now()})
+    RETURNING id
+  `;
+  const projId = projRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.documents (org_id, title, project_id, created_by,
+                               created_at_ms, updated_at_ms)
+    VALUES (${orgId}, 'proj-secret.txt', ${projId}, ${userId},
+            ${Date.now()}, ${Date.now()})
+  `;
+  await sql`
+    INSERT INTO app.folders (org_id, name, project_id, created_by,
+                             created_at_ms)
+    VALUES (${orgId}, 'ProjFolder', ${projId}, ${userId}, ${Date.now()})
+  `;
+  const rootAfterProj = await dav('/documents/', {
+    method: 'PROPFIND',
+    headers: { depth: '1' },
+  });
+  const rootXml = rootAfterProj.ok ? await rootAfterProj.text() : '';
+  const projGet = await dav('/documents/proj-secret.txt');
+
+  // Folder-cascade DELETE, then the flat .trash namespace lists the doc.
+  const del = await dav('/documents/Reports', { method: 'DELETE' });
+  const delGone = await dav('/documents/Reports/', {
+    method: 'PROPFIND',
+    headers: { depth: '1' },
+  });
+  const trashList = await dav('/.trash/', {
+    method: 'PROPFIND',
+    headers: { depth: '1' },
+  });
+  const trashXml = trashList.ok ? await trashList.text() : '';
+
+  // Chunked PUT (no Content-Length) refuses loudly — S3 needs a length.
+  // The shim's CHUNKED_PUT_UNSUPPORTED throw escapes to the adapter's 500
+  // (the 0.4 lane returned a Convex URL here, so put.ts has no catch).
+  const chunked = await fetch(`${base}/dav/${orgSlug}/documents/chunked.txt`, {
+    method: 'PUT',
+    headers: {
+      authorization: `Basic ${basic}`,
+      'content-type': 'text/plain',
+    },
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('streamed'));
+        controller.close();
+      },
+    }),
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- duplex is required for stream bodies and missing from the lib type
+    ...({ duplex: 'half' } as unknown as RequestInit),
+  });
+
+  // Revoke → the credential stops working.
+  const list = z
+    .object({
+      appPasswords: z.array(
+        z.looseObject({ _id: z.string(), revokedAt: z.number().nullable() }),
+      ),
+    })
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/webdav/app-passwords?orgId=${orgId}`, {
+          headers: { cookie, origin: base },
+        })
+      ).json(),
+    );
+  const passwordId = list.success ? (list.data.appPasswords[0]?._id ?? '') : '';
+  await fetch(
+    `${base}/api/app/webdav/app-passwords/${passwordId}/revoke?orgId=${orgId}`,
+    { method: 'POST', headers: { cookie, origin: base } },
+  );
+  const afterRevoke = await dav('/documents/', {
+    method: 'PROPFIND',
+    headers: { depth: '1' },
+  });
+
+  record(
+    'webdav re-home (protocol + tree + locks + visibility on pg)',
+    minted.success &&
+      options.status === 200 &&
+      (options.headers.get('dav') ?? '').includes('1') &&
+      noAuth.status === 401 &&
+      badAuth.status === 401 &&
+      rootList.status === 207 &&
+      mkcol.status === 201 &&
+      mkcolAgain.status === 405 &&
+      put.status === 201 &&
+      docRows[0]?.sourceProvider === 'webdav' &&
+      ragQueued[0]?.ragStatus === 'queued' &&
+      got.status === 200 &&
+      gotBody === putBody &&
+      put2.status === 204 &&
+      secondRef !== '' &&
+      secondRef !== firstRef &&
+      oldMeta[0]?.lifecycleStatus === 'trashed' &&
+      got2Body === put2Body &&
+      folderList.status === 207 &&
+      folderXml.includes('plan.txt') &&
+      folderXml.includes(String(put2Body.length)) &&
+      move.status === 201 &&
+      oldGone.status === 404 &&
+      copy.status === 201 &&
+      copyBody === put2Body &&
+      lock.status === 200 &&
+      lockToken !== '' &&
+      lockAgain.status === 423 &&
+      unlock.status === 204 &&
+      !rootXml.includes('proj-secret.txt') &&
+      !rootXml.includes('ProjFolder') &&
+      projGet.status === 404 &&
+      del.status === 204 &&
+      delGone.status === 404 &&
+      trashList.status === 207 &&
+      trashXml.includes('plan2.txt') &&
+      chunked.status === 500 &&
+      afterRevoke.status === 401,
+    `mint=${minted.success} options=${options.status}/${options.headers.get('dav')} auth=${noAuth.status}/${badAuth.status} root=${rootList.status}, mkcol=${mkcol.status}/${mkcolAgain.status}, put=${put.status} provider=${docRows[0]?.sourceProvider} rag=${ragQueued[0]?.ragStatus} get=${got.status}:${gotBody === putBody}, overwrite=${put2.status} refChanged=${secondRef !== firstRef} oldMeta=${oldMeta[0]?.lifecycleStatus} get2=${got2Body === put2Body}, list=${folderList.status}/${folderXml.includes('plan.txt')}/len=${folderXml.includes(String(put2Body.length))}, move=${move.status} gone=${oldGone.status} copy=${copy.status}:${copyBody === put2Body}, lock=${lock.status}/${lockToken !== ''} again=${lockAgain.status} (want 423) unlock=${unlock.status}, projHidden=${!rootXml.includes('proj-secret.txt')}/${!rootXml.includes('ProjFolder')} projGet=${projGet.status} (want 404), del=${del.status} gone=${delGone.status} trash=${trashList.status}/${trashXml.includes('plan2.txt')}, chunked=${chunked.status} (want 500), revoked=${afterRevoke.status} (want 401)`,
+  );
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -11376,6 +11670,8 @@ async function main(): Promise<void> {
   // No implicit seeding into the checks' org — the provisioning check
   // drives the seeders directly against a throwaway org.
   process.env.TALE_PROVISIONING_DISABLED ??= '1';
+  // WebDAV app-password HMAC (64 hex chars, the boot rule).
+  process.env.WEBDAV_APP_PASSWORD_HMAC_KEY ??= 'ab'.repeat(32);
   const auth = createAuth({
     databaseUrl,
     secret: process.env.BETTER_AUTH_SECRET,
@@ -11500,6 +11796,7 @@ async function main(): Promise<void> {
     await checkAddressRouting(sql, authCtx, `itest-${orgSuffix}`);
     await checkControlDrain(sql, baseUrl, authCtx);
     await checkProvisioning(sql);
+    await checkWebdav(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkApprovalsSurface(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);

@@ -47,6 +47,10 @@ import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createTeamRoutes } from './domains/teams/routes.ts';
 import { createUserPreferenceRoutes } from './domains/user_preferences/routes.ts';
 import { createUserRoutes } from './domains/users/routes.ts';
+import {
+  createWebdavAdminRoutes,
+  createWebdavProtocolRoutes,
+} from './domains/webdav/routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
 import { createRestV1Routes } from './rest/v1.ts';
 
@@ -106,6 +110,11 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/contacts', createContactRoutes(deps));
   app.route('/api/app/approvals', createApprovalRoutes(deps));
   app.route('/api/control', createControlRoutes(deps));
+  // WebDAV (/dav/<orgSlug>/…): HTTP Basic app-password auth lives inside the
+  // reused dispatch; the raw request URL carries the /dav prefix the parser
+  // expects, so the mount path only scopes routing.
+  app.route('/dav', createWebdavProtocolRoutes(deps));
+  app.route('/api/app/webdav', createWebdavAdminRoutes(deps));
   app.route('/api/app/conversations', createConversationRoutes(deps));
   app.route('/api/app/documents', createDocumentRoutes(deps));
   app.route('/api/app/files', createFileRoutes(deps));
