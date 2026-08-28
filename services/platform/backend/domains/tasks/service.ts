@@ -976,6 +976,106 @@ export async function updateTaskStatus(
   // TODO(collab): notify fan-out.
 }
 
+/**
+ * TRUSTED agent-side status flip — the settle's park to `in_review` (and the
+ * failure paths that leave `in_progress` alone). The turn host already
+ * resolved authority (the run belongs to the agent); this is the lower half:
+ * status + rank + rollup + activity, attributed to the agent actor. The
+ * review-row mint (task_review + reviewer bell) lands with the review arc.
+ */
+export async function agentUpdateTaskStatusTrusted(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    actorId: string;
+    taskId: string;
+    status: TaskStatus;
+  },
+): Promise<{ ok: boolean; reason?: string }> {
+  const task = await loadTaskOrThrow(tx, args.taskId);
+  if (task.organizationId !== args.organizationId) {
+    return { ok: false, reason: 'wrong organization' };
+  }
+  if (task.status === args.status) {
+    return { ok: true };
+  }
+  if (TERMINAL_STATUSES.has(args.status)) {
+    return { ok: false, reason: 'agents never complete work' };
+  }
+  const now = Date.now();
+  const rank = await computeEndRank(tx, task.projectId, args.status);
+  await tx`
+    UPDATE app.tasks SET
+      status = ${args.status}, rank = ${rank}, updated_at_ms = ${now},
+      status_changed_at_ms = ${now}
+    WHERE id = ${args.taskId}
+  `;
+  await applyTaskCountTransition(
+    tx,
+    task.projectId,
+    taskCountBucket(task),
+    taskCountBucket({ status: args.status, archivedAt: task.archivedAt }),
+  );
+  await recordActivity(tx, {
+    task,
+    actorType: 'agent',
+    actorId: args.actorId,
+    action: 'status.changed',
+    fromValue: task.status,
+    toValue: args.status,
+  });
+  return { ok: true };
+}
+
+/**
+ * TRUSTED deliverables merge into the task's Output zone (same fileName ⇒
+ * replace) — the settle's attach step.
+ */
+export async function agentRecordTaskOutputsTrusted(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    taskId: string;
+    files: Array<{
+      fileId: string;
+      fileName: string;
+      fileType: string;
+      fileSize: number;
+    }>;
+  },
+): Promise<void> {
+  if (args.files.length === 0) return;
+  const task = await loadTaskOrThrow(tx, args.taskId);
+  if (task.organizationId !== args.organizationId) return;
+  const next: Array<{
+    fileId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }> = Array.isArray(task.outputs)
+    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the outputs column is written only by this shape
+      ([...task.outputs] as Array<{
+        fileId: string;
+        fileName: string;
+        fileType: string;
+        fileSize: number;
+      }>)
+    : [];
+  for (const file of args.files) {
+    const fileName = file.fileName.slice(0, 255);
+    if (fileName === '') continue;
+    const entry = { ...file, fileName };
+    const at = next.findIndex((output) => output.fileName === fileName);
+    if (at === -1) next.push(entry);
+    else next[at] = entry;
+  }
+  await tx`
+    UPDATE app.tasks SET
+      outputs = ${tx.json(toJson(next))}, updated_at_ms = ${Date.now()}
+    WHERE id = ${args.taskId}
+  `;
+}
+
 export async function assignTask(
   tx: TransactionSql,
   auth: ProjectAuthContext,

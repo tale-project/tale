@@ -22,6 +22,7 @@ import { ConvexError, v } from 'convex/values';
 import { buildStdinUserMessage } from '../../lib/harnesses/parsers/claude-stream-json';
 import { isHarnessSlug } from '../../lib/harnesses/types';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import {
@@ -97,9 +98,9 @@ const turnArgs = {
 
 interface TurnKeys {
   organizationId: string;
-  runId: string;
-  taskId: string;
-  agentId: string;
+  runId: Id<'projectAgentRuns'>;
+  taskId: Id<'tasks'>;
+  agentId: Id<'projectAgents'>;
   execId: string;
   sessionId: string;
   harness: string;
@@ -705,7 +706,36 @@ export const startTaskAgentTurn = internalAction({
     excludeBrokerTokenHashes: v.optional(v.array(v.string())),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) => startTaskAgentTurnImpl(ctx, args),
+});
+
+/** The start's full argument shape — `turnArgs` plus the kick shaping. */
+export interface StartTaskAgentTurnArgs extends TurnKeys {
+  model: string;
+  modelProvider?: string;
+  instructions?: string;
+  skills: string[];
+  connectors: string[];
+  tools: string[];
+  secrets: string[];
+  feedback?: string;
+  resume?: string;
+  resumeSessionCreatedAt?: number;
+  resumeDiscussionSince?: number;
+  resumePredecessorExecId?: string;
+  sweep?: boolean;
+  inspectNote?: boolean;
+  excludeBrokerTokenHashes?: string[];
+}
+
+/** The start as a PLAIN exported function — the internalAction above wraps
+ * it, and the 0.5 backend's `task.agent_turn` job runs it on the ctx shim
+ * (same pattern as `chat/turn_action.executeTurn`). */
+export async function startTaskAgentTurnImpl(
+  ctx: ActionCtx,
+  args: StartTaskAgentTurnArgs,
+): Promise<null> {
+  {
     // Idempotency gate: the kick, the capacity wake, and the watchdog retry
     // can each schedule a start; only a run still at `queued` under THIS
     // execId gets one. Without it a second start mints a second gateway key
@@ -1080,8 +1110,8 @@ export const startTaskAgentTurn = internalAction({
       });
     }
     return null;
-  },
-});
+  }
+}
 
 /** The `QUOTA_EXCEEDED` shape thrown by the slot reserve and the cap-checked
  * resume — the one start failure that parks instead of failing. */
@@ -1103,7 +1133,15 @@ function isQuotaExceededError(err: unknown): boolean {
 export const driveTaskAgentTurn = internalAction({
   args: turnArgs,
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) => driveTaskAgentTurnImpl(ctx, args),
+});
+
+/** One drive window as a PLAIN exported function (see the start's twin). */
+export async function driveTaskAgentTurnImpl(
+  ctx: ActionCtx,
+  args: TurnKeys,
+): Promise<null> {
+  {
     // Orphan check: the run may have been cancelled or already settled. An
     // orphan turn is cut, its key revoked, and nothing else touched.
     const run = await ctx.runQuery(
@@ -1168,8 +1206,8 @@ export const driveTaskAgentTurn = internalAction({
     await progress.flush();
     await continueOrSettle(ctx, args, window);
     return null;
-  },
-});
+  }
+}
 
 /** Cut a live exec (cancel button, leaving in_progress): reap + revoke. The
  * run row is already marked cancelled by the public mutation. */
@@ -1196,7 +1234,8 @@ export const cancelTaskAgentExec = internalAction({
     if (args.agentId !== undefined) {
       await releaseProjectAgentSlotAfterSettle(ctx, {
         organizationId: args.organizationId,
-        agentId: args.agentId,
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the optional arg is a projectAgents id by the caller's contract; validated downstream
+        agentId: args.agentId as Id<'projectAgents'>,
       });
     }
     return null;

@@ -2937,6 +2937,452 @@ async function checkRestDoor(
 }
 
 /**
+ * The task-agent TURN, end to end on the REUSED 0.4 host: kick → session
+ * ensure (fake spawner) → gateway VK mint (fake bifrost) → exec streaming a
+ * canned claude-code stream-json turn → harvest (fake workspace file → real
+ * MinIO blob) → settle choreography (outputs attached, agent comment,
+ * in_review park, VK revoked, op finalized).
+ */
+async function checkTaskAgentTurnDrive(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'task-agent turn drive (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — the harvest lane needs blob storage',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const { createHash, createHmac } = await import('node:crypto');
+
+  const SPAWNER_TOKEN = 'itest-drive-spawner';
+  const REPORT_BYTES = '# Report\n\nAll good.';
+  const FINAL_TEXT = 'Wrote the report to the box.';
+  const gatewayCalls = { minted: 0, revoked: 0 };
+  let boxTaskDir = '';
+
+  // --- fake spawner: sessions + exec SSE + files ---------------------------
+  const spawner = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const rawUrl = req.url ?? '';
+      const method = req.method ?? 'GET';
+      const bodyHash = createHash('sha256').update(body).digest('hex');
+      const signedString = `${method}\n${rawUrl}\n${String(req.headers['x-tale-sandbox-timestamp'] ?? '')}\n${String(req.headers['x-tale-sandbox-nonce'] ?? '')}\n${bodyHash}`;
+      const expected = createHmac('sha256', SPAWNER_TOKEN)
+        .update(signedString)
+        .digest('hex');
+      if (req.headers['x-tale-sandbox-signature'] !== expected) {
+        res.statusCode = 401;
+        res.end('{"error":"bad signature"}');
+        return;
+      }
+      const url = new URL(rawUrl, 'http://x');
+      const sessionInfo = (sessionId: string): unknown => ({
+        session: {
+          sessionId,
+          organizationId: orgId,
+          profile: 'agent',
+          state: 'ready',
+          backend: 'itest',
+          createdAtMs: Date.now(),
+          lastActivityAtMs: Date.now(),
+          expiresAtMs: Date.now() + 3_600_000,
+          idleTimeoutMs: 600_000,
+        },
+      });
+      res.setHeader('content-type', 'application/json');
+      if (method === 'POST' && url.pathname === '/v1/sessions') {
+        const parsed = z
+          .object({ sessionId: z.string() })
+          .loose()
+          .safeParse(JSON.parse(body || '{}'));
+        res.end(
+          JSON.stringify(
+            sessionInfo(parsed.success ? parsed.data.sessionId : ''),
+          ),
+        );
+        return;
+      }
+      const exec = /^\/v1\/sessions\/([^/]+)\/exec$/.exec(url.pathname);
+      if (method === 'POST' && exec) {
+        // The canned claude-code stream-json turn, then the exec result.
+        res.setHeader('content-type', 'text/event-stream');
+        const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`;
+        const events = [
+          line({
+            type: 'system',
+            subtype: 'init',
+            session_id: 'conv-42',
+            model: 'itest-agent-model',
+          }),
+          line({
+            type: 'assistant',
+            message: {
+              id: 'm1',
+              model: 'itest-agent-model',
+              content: [{ type: 'text', text: 'Working on the report…' }],
+              usage: { input_tokens: 120, output_tokens: 40 },
+            },
+          }),
+          line({
+            type: 'result',
+            subtype: 'success',
+            session_id: 'conv-42',
+            result: FINAL_TEXT,
+            duration_ms: 850,
+          }),
+        ];
+        let seq = 0;
+        for (const text of events) {
+          seq += 1;
+          res.write(
+            `event: stdout\ndata: ${JSON.stringify({ text, seq })}\n\n`,
+          );
+        }
+        res.write(
+          `event: result\ndata: ${JSON.stringify({
+            exitCode: 0,
+            stdoutBase64: '',
+            stderrBase64: '',
+          })}\n\n`,
+        );
+        res.end();
+        return;
+      }
+      if (url.pathname.endsWith('/files/stage')) {
+        res.end(JSON.stringify({ staged: [], skipped: [] }));
+        return;
+      }
+      if (url.pathname.endsWith('/files/delete')) {
+        res.end(JSON.stringify({ deleted: [], skipped: [] }));
+        return;
+      }
+      if (url.pathname.endsWith('/files/content')) {
+        res.setHeader('content-type', 'text/markdown');
+        res.end(REPORT_BYTES);
+        return;
+      }
+      if (/\/v1\/sessions\/[^/]+\/files$/.test(url.pathname)) {
+        const dir = url.searchParams.get('path') ?? '';
+        if (boxTaskDir !== '' && dir === boxTaskDir) {
+          res.end(
+            JSON.stringify({
+              entries: [
+                {
+                  name: 'report.md',
+                  type: 'file',
+                  size: REPORT_BYTES.length,
+                  mtimeMs: Date.now(),
+                },
+              ],
+            }),
+          );
+          return;
+        }
+        res.end(JSON.stringify({ entries: [] }));
+        return;
+      }
+      if (/\/exec\/[^/]+\/cancel$/.test(url.pathname)) {
+        res.end('{"cancelled":true}');
+        return;
+      }
+      if (method === 'GET' && /^\/v1\/sessions\/[^/]+$/.test(url.pathname)) {
+        res.end(
+          JSON.stringify(sessionInfo(url.pathname.split('/').at(-1) ?? '')),
+        );
+        return;
+      }
+      if (method === 'DELETE') {
+        res.end('{"destroyed":true}');
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    spawner.listen(0, '127.0.0.1', resolve);
+  });
+  const spawnerAddress = spawner.address();
+  const spawnerPort =
+    spawnerAddress !== null && typeof spawnerAddress === 'object'
+      ? spawnerAddress.port
+      : 0;
+
+  // --- fake bifrost admin --------------------------------------------------
+  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
+  const gateway = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const url = req.url ?? '';
+      const method = req.method ?? 'GET';
+      res.setHeader('content-type', 'application/json');
+      if (url === '/api/config') {
+        res.end(JSON.stringify({ client_config: {} }));
+        return;
+      }
+      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
+      if (keysMatch) {
+        const provider = decodeURIComponent(keysMatch[1] ?? '');
+        if (method === 'GET') {
+          res.end(JSON.stringify({ keys: providerKeys.get(provider) ?? [] }));
+          return;
+        }
+        const parsed = z
+          .looseObject({ name: z.string() })
+          .safeParse(JSON.parse(body || '{}'));
+        const list = providerKeys.get(provider) ?? [];
+        if (parsed.success && !list.some((k) => k.name === parsed.data.name)) {
+          list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
+        }
+        providerKeys.set(provider, list);
+        res.end('{}');
+        return;
+      }
+      if (/^\/api\/providers\//.test(url)) {
+        res.end('{}');
+        return;
+      }
+      if (url === '/api/governance/virtual-keys' && method === 'POST') {
+        gatewayCalls.minted += 1;
+        res.end(
+          JSON.stringify({
+            virtual_key: { id: 'vk-drive-1', value: 'sk-bf-drive-1' },
+          }),
+        );
+        return;
+      }
+      if (/^\/api\/governance\/virtual-keys\//.test(url)) {
+        if (method === 'DELETE') {
+          gatewayCalls.revoked += 1;
+          res.end('{}');
+          return;
+        }
+        res.end(
+          JSON.stringify({ virtual_key: { budget: { current_usage: 0.03 } } }),
+        );
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    gateway.listen(0, '127.0.0.1', resolve);
+  });
+  const gatewayAddress = gateway.address();
+  const gatewayPort =
+    gatewayAddress !== null && typeof gatewayAddress === 'object'
+      ? gatewayAddress.port
+      : 0;
+
+  // --- fake models endpoint for the serving catalog ------------------------
+  const modelsServer = createServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if ((req.url ?? '').endsWith('/models')) {
+      res.end(
+        JSON.stringify({
+          object: 'list',
+          data: [
+            {
+              id: 'itest-agent-model',
+              object: 'model',
+              context_length: 32_768,
+            },
+          ],
+        }),
+      );
+      return;
+    }
+    res.statusCode = 404;
+    res.end('{}');
+  });
+  await new Promise<void>((resolve) => {
+    modelsServer.listen(0, '127.0.0.1', resolve);
+  });
+  const modelsAddress = modelsServer.address();
+  const modelsPort =
+    modelsAddress !== null && typeof modelsAddress === 'object'
+      ? modelsAddress.port
+      : 0;
+
+  process.env.SANDBOX_URL = `http://127.0.0.1:${spawnerPort}`;
+  process.env.SANDBOX_TOKEN = SPAWNER_TOKEN;
+  process.env.SANDBOX_LLM_GATEWAY_URL = `http://127.0.0.1:${gatewayPort}`;
+  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+
+  try {
+    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+    const providersDir = path.join(configRoot, orgSlug, 'providers');
+    await mkdir(providersDir, { recursive: true });
+    await writeFile(
+      path.join(providersDir, 'itestagent.yml'),
+      [
+        'name: itestagent',
+        'displayName: Itest Agent Serving',
+        'apiFormat: openai',
+        `baseUrl: http://127.0.0.1:${modelsPort}/v1`,
+        'catalog:',
+        '  source: models-endpoint',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    const post = (route: string, payload?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+      });
+    await post(`/api/app/provider-credentials?orgId=${orgId}`, {
+      providerSlug: 'itestagent',
+      authMethod: 'api-key',
+      name: 'Agent serving key',
+      secret: 'sk-itest-agent',
+    });
+
+    const project = z
+      .object({ projectId: z.string() })
+      .safeParse(
+        await (
+          await post(`/api/app/projects?orgId=${orgId}`, { name: 'Turn Drive' })
+        ).json(),
+      );
+    const projectId = project.success ? project.data.projectId : '';
+    const agent = z.object({ agentId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+          name: 'Drive Bot',
+          harness: 'claude-code',
+          model: 'itest-agent-model',
+          skills: [],
+          connectors: [],
+        })
+      ).json(),
+    );
+    const agentId = agent.success ? agent.data.agentId : '';
+    const task = z.object({ taskId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/tasks?orgId=${orgId}`, {
+          projectId,
+          title: 'Write the quarterly report',
+        })
+      ).json(),
+    );
+    const taskId = task.success ? task.data.taskId : '';
+    boxTaskDir = `/agent/output/${taskId}`;
+    await post(`/api/app/tasks/${taskId}/assign?orgId=${orgId}`, {
+      assigneeType: 'agent',
+      assigneeId: agentId,
+    });
+    await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+      status: 'in_progress',
+    });
+
+    // The worker's task.agent_turn job drives the whole turn to a settle.
+    const settled = await waitFor(async () => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status FROM app.project_agent_runs
+        WHERE task_id = ${taskId} ORDER BY started_at_ms DESC LIMIT 1
+      `;
+      return ['settled', 'failed'].includes(rows[0]?.status ?? '');
+    }, 45_000);
+    const runRows = await sql<
+      {
+        status: string;
+        resultText: string | null;
+        error: string | null;
+        launchedAt: number | null;
+        agentSessionId: string | null;
+      }[]
+    >`
+      SELECT status, result_text AS "resultText", error,
+             launched_at_ms::float8 AS "launchedAt",
+             agent_session_id AS "agentSessionId"
+      FROM app.project_agent_runs
+      WHERE task_id = ${taskId} ORDER BY started_at_ms DESC LIMIT 1
+    `;
+    const run = runRows[0];
+    const taskRows = await sql<{ status: string; outputs: unknown }[]>`
+      SELECT status, outputs FROM app.tasks WHERE id = ${taskId}
+    `;
+    const taskRow = taskRows[0];
+    const outputsRaw = JSON.stringify(taskRow?.outputs ?? []);
+    const comments = await sql<{ body: string }[]>`
+      SELECT coalesce(m.text, '') AS body
+      FROM app.task_discussion_message_meta meta
+      JOIN app.messages m ON m.id = meta.message_id
+      WHERE meta.task_id = ${taskId} AND meta.author_type = 'agent'
+      ORDER BY m.created_at_ms DESC LIMIT 1
+    `;
+    const opRows = await sql<
+      {
+        status: string;
+        finalizedAt: number | null;
+        spentCents: number | null;
+      }[]
+    >`
+      SELECT status, finalized_at_ms::float8 AS "finalizedAt",
+             spent_cents AS "spentCents"
+      FROM app.sandbox_session_ops
+      WHERE session_id = ${`pa-${agentId}`}
+      ORDER BY started_at_ms DESC LIMIT 1
+    `;
+    const metadataRows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.file_metadata
+      WHERE org_id = ${orgId} AND file_name = 'report.md'
+        AND source = 'task-output'
+    `;
+
+    record(
+      'task-agent turn drive (reused host: exec→harvest→settle)',
+      settled &&
+        run?.status === 'settled' &&
+        run.resultText === FINAL_TEXT &&
+        run.launchedAt !== null &&
+        run.agentSessionId === 'conv-42' &&
+        taskRow?.status === 'in_review' &&
+        outputsRaw.includes('report.md') &&
+        (comments[0]?.body ?? '').includes(FINAL_TEXT) &&
+        (comments[0]?.body ?? '').includes('report.md') &&
+        opRows[0]?.status === 'completed' &&
+        opRows[0].finalizedAt !== null &&
+        opRows[0].spentCents === 3 &&
+        Number(metadataRows[0]?.count ?? '0') >= 1 &&
+        gatewayCalls.minted === 1 &&
+        gatewayCalls.revoked === 1,
+      `run=${run?.status}${run?.error ? ` (${run.error.slice(0, 120)})` : ''} text=${JSON.stringify(run?.resultText)} conv=${run?.agentSessionId}, task=${taskRow?.status} (want in_review) outputs=${outputsRaw.includes('report.md')}, comment=${(comments[0]?.body ?? '').slice(0, 60)}…, op=${opRows[0]?.status}/finalized=${opRows[0]?.finalizedAt !== null}/spent=${opRows[0]?.spentCents}, metadata=${metadataRows[0]?.count}, vk mint/revoke=${gatewayCalls.minted}/${gatewayCalls.revoked}`,
+    );
+  } finally {
+    delete process.env.SANDBOX_URL;
+    delete process.env.SANDBOX_TOKEN;
+    delete process.env.SANDBOX_LLM_GATEWAY_URL;
+    await new Promise<void>((resolve) => {
+      spawner.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      gateway.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      modelsServer.close(() => resolve());
+    });
+  }
+}
+
+/**
  * Sandbox session substrate: per-owner and per-budget caps, park-on-capacity
  * FIFO tickets (fairness + release-edge admission), hibernate/resume slot
  * accounting, hash-only token lifecycle, and durable op rows — all under the
@@ -3564,10 +4010,24 @@ async function checkTaskAgentRuns(
     assigneeId: agentId,
   });
 
-  // The choreography: in_progress on an agent-owned task kicks a run.
-  await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
-    status: 'in_progress',
-  });
+  // The mechanics run on a HAND-INSERTED row (no turn job): the kick +
+  // full drive are proven end to end by the turn-drive check, and letting
+  // the live worker race these park/claim assertions would make them
+  // meaningless.
+  const agentRuns = await import('./domains/tasks/agent-runs.ts');
+  const inserted = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, started_at_ms, deadline_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${taskId}, ${agentId}, 'exec-ledger-1',
+      ${`pa-${agentId}`}, 'queued', 'claude-code', 'itest-model',
+      'itest:ledger', ${Date.now()}, ${Date.now() + 3_600_000}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const runId = inserted[0]?.id ?? '';
+  const execId = 'exec-ledger-1';
   const runsView = z
     .object({
       runs: z.array(
@@ -3581,11 +4041,9 @@ async function checkTaskAgentRuns(
     })
     .loose()
     .safeParse(await get(`/api/app/tasks/${taskId}/agent-runs?orgId=${orgId}`));
-  const kicked = runsView.success ? runsView.data.runs[0] : undefined;
-
-  const agentRuns = await import('./domains/tasks/agent-runs.ts');
-  const runId = kicked?.id ?? '';
-  const execId = kicked?.execId ?? '';
+  const kicked = runsView.success
+    ? runsView.data.runs.find((run) => run.id === runId)
+    : undefined;
 
   // Park → single-winner claim (a second claim must lose) → re-park → wake.
   await agentRuns.parkAgentRunForCapacity(sql, {
@@ -3631,17 +4089,24 @@ async function checkTaskAgentRuns(
   });
   const finalRun = await agentRuns.getAgentRun(sql, orgId, runId);
 
-  // A fresh kick on the same task reuses nothing (previous run terminal).
-  await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
-    status: 'todo',
-  });
-  await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
-    status: 'in_progress',
-  });
-  const secondRuns = z
-    .object({ runs: z.array(z.looseObject({ id: z.string() })) })
-    .loose()
-    .safeParse(await get(`/api/app/tasks/${taskId}/agent-runs?orgId=${orgId}`));
+  // A live run makes a concurrent kick REUSE it; a terminal one mints anew.
+  const reuseProbe = await sql.begin((tx) =>
+    agentRuns.kickAgentRun(tx, {
+      organizationId: orgId,
+      projectId,
+      taskId,
+      agentId,
+      harness: 'claude-code',
+      model: 'itest-model',
+      startedBy: 'itest:ledger',
+    }),
+  );
+  const secondRuns = {
+    success: true as const,
+    data: {
+      runs: await agentRuns.listAgentRunsForTask(sql, orgId, taskId),
+    },
+  };
 
   record(
     'task-agent run ledger (kick + park/claim/wake + exactly-once settle)',
@@ -3660,8 +4125,9 @@ async function checkTaskAgentRuns(
       finalRun.resultText === 'Delivered the work.' &&
       finalRun.launchedAt !== null &&
       secondRuns.success &&
-      secondRuns.data.runs.length === 2,
-    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.success ? secondRuns.data.runs.length : 'ERR'} (want 2)`,
+      secondRuns.data.runs.length === 2 &&
+      !reuseProbe.reused,
+    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.data.runs.length} (want 2, fresh=${!reuseProbe.reused})`,
   );
 }
 
@@ -3904,6 +4370,7 @@ async function main(): Promise<void> {
     await checkRestDoor(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
+    await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSandboxSessions(sql, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(

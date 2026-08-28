@@ -72,7 +72,13 @@ export async function resolveOrgObjectStore(
   if (cached && cached.expires > now) {
     return cached.store;
   }
-  const resolved = await readOrgObjectStorageConnection(orgSlug);
+  // The org's own BYO connection wins; without one, the DEPLOYMENT DEFAULT
+  // tree's connection serves every org (the 0.5 posture — Convex `_storage`
+  // dies at cutover). A 0.4 deployment ships no `default` tree, so its
+  // fallback order is unchanged (org → Convex).
+  const resolved =
+    (await readOrgObjectStorageConnection(orgSlug)) ??
+    (await readOrgObjectStorageConnection('default').catch(() => null));
   let store: ResolvedObjectStore;
   if (resolved === null) {
     store = CONVEX_STORE;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { stepRunImpl } from '../../convex/automations/stepper.ts';
 import { removeOrgSubtree } from '../../convex/organizations/scaffold.ts';
+import { startTaskAgentTurnImpl } from '../../convex/tasks/agent_run_host.ts';
 import { automationShimHandlers } from '../domains/automations/shim.ts';
 import {
   pollParkedRun,
@@ -11,6 +12,7 @@ import {
 import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
 import { indexUploadedFile } from '../domains/knowledge/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
+import { agentTurnShimHandlers } from '../domains/tasks/agent-turn-shim.ts';
 import { createCtxShim } from '../lib/convex-shim.ts';
 
 /** One task handler; `payload` is a job row — external input, re-validate. */
@@ -117,6 +119,96 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       if (swept > 0) {
         console.log(`[automations] liveness sweep re-poked ${swept} runs`);
       }
+    },
+    'task.agent_turn': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          runId: z.string().min(1),
+          execId: z.string().min(1),
+        })
+        .parse(payload);
+      const runs = await deps.sql<
+        {
+          taskId: string;
+          agentId: string;
+          sessionId: string;
+          harness: string;
+          model: string;
+          modelProvider: string | null;
+          feedback: string | null;
+          deadlineAt: number;
+          status: string;
+          execId: string;
+        }[]
+      >`
+        SELECT task_id AS "taskId", agent_id AS "agentId",
+               session_id AS "sessionId", harness, model,
+               model_provider AS "modelProvider", feedback,
+               deadline_at_ms::float8 AS "deadlineAt", status,
+               exec_id AS "execId"
+        FROM app.project_agent_runs
+        WHERE id = ${input.runId} AND org_id = ${input.organizationId}
+        LIMIT 1
+      `;
+      const run = runs[0];
+      if (!run || run.status !== 'queued' || run.execId !== input.execId) {
+        console.warn(
+          `[task-agent] turn job for ${input.execId} skipped (run ${run?.status ?? 'gone'})`,
+        );
+        return;
+      }
+      const agents = await deps.sql<
+        {
+          instructions: string | null;
+          skills: string[];
+          connectors: string[];
+          tools: string[];
+          secrets: string[];
+        }[]
+      >`
+        SELECT instructions, skills, connectors, tools, secrets
+        FROM app.project_agents
+        WHERE id = ${run.agentId} AND org_id = ${input.organizationId}
+        LIMIT 1
+      `;
+      const agent = agents[0];
+      if (!agent) {
+        console.warn(
+          `[task-agent] turn job for ${input.execId} skipped (agent gone)`,
+        );
+        return;
+      }
+      // The REUSED 0.4 turn host on the ctx shim — the whole start: session
+      // ensure, staging, key mint, exec, drain, settle choreography.
+      const shim = createCtxShim(agentTurnShimHandlers(deps.sql));
+      await startTaskAgentTurnImpl(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by agentTurnShimHandlers
+        shim as unknown as Parameters<typeof startTaskAgentTurnImpl>[0],
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- row ids are the branded Convex Id types' runtime shape (strings)
+        {
+          organizationId: input.organizationId,
+          runId: input.runId,
+          taskId: run.taskId,
+          agentId: run.agentId,
+          execId: input.execId,
+          sessionId: run.sessionId,
+          harness: run.harness,
+          deadlineAt: run.deadlineAt,
+          model: run.model,
+          ...(run.modelProvider !== null
+            ? { modelProvider: run.modelProvider }
+            : {}),
+          ...(agent.instructions !== null
+            ? { instructions: agent.instructions }
+            : {}),
+          skills: agent.skills,
+          connectors: agent.connectors,
+          tools: agent.tools,
+          secrets: agent.secrets,
+          ...(run.feedback !== null ? { feedback: run.feedback } : {}),
+        } as unknown as Parameters<typeof startTaskAgentTurnImpl>[1],
+      );
     },
     'automation.poll': async (payload) => {
       const input = z
