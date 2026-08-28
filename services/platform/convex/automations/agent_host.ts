@@ -1018,7 +1018,46 @@ export const startWorkflowAgentTurn = internalAction({
     request: requestValidator,
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args) => startWorkflowAgentTurnImpl(ctx, args),
+});
+
+/** The start's argument shape — the validator above, as data. */
+export interface StartWorkflowAgentTurnArgs {
+  organizationId: string;
+  runId: Id<'automationRuns'>;
+  nodeId: string;
+  execId: string;
+  sessionId: string;
+  harness: string;
+  lane?: 'gateway' | 'subscription';
+  providerSlug: string;
+  modelId: string;
+  gatewayModel: string;
+  apiBaseUrl?: string;
+  visionProviderSlug?: string;
+  visionModelId?: string;
+  excludeBrokerTokenHashes?: string[];
+  deadlineAt: number;
+  request: {
+    model: string;
+    prompt: string;
+    system?: string;
+    skills?: string[];
+    connectors?: string[];
+    tools?: string[];
+    secrets?: string[];
+    files?: unknown;
+  };
+}
+
+/** The start as a PLAIN exported function — the internalAction above wraps
+ * it, and the 0.5 backend's `automation.agent_turn` job runs it on the ctx
+ * shim (same pattern as the task-agent lane). */
+export async function startWorkflowAgentTurnImpl(
+  ctx: ActionCtx,
+  args: StartWorkflowAgentTurnArgs,
+): Promise<null> {
+  {
     try {
       await ensureWorkflowSession(ctx, args.organizationId, args.runId);
 
@@ -1235,8 +1274,8 @@ export const startWorkflowAgentTurn = internalAction({
       });
     }
     return null;
-  },
-});
+  }
+}
 
 /** The self-chaining drainer: one attach window per invocation. */
 export const driveWorkflowAgentTurn = internalAction({

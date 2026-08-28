@@ -3152,7 +3152,7 @@ async function checkTaskAgentTurnDrive(
         res.end('{}');
         return;
       }
-      if (/^\/api\/providers\//.test(url)) {
+      if (url.startsWith('/api/providers/')) {
         res.end('{}');
         return;
       }
@@ -3165,7 +3165,7 @@ async function checkTaskAgentTurnDrive(
         );
         return;
       }
-      if (/^\/api\/governance\/virtual-keys\//.test(url)) {
+      if (url.startsWith('/api/governance/virtual-keys/')) {
         if (method === 'DELETE') {
           gatewayCalls.revoked += 1;
           res.end('{}');
@@ -3378,6 +3378,346 @@ async function checkTaskAgentTurnDrive(
     });
     await new Promise<void>((resolve) => {
       modelsServer.close(() => resolve());
+    });
+  }
+}
+
+/**
+ * The automation AGENT NODE, end to end across the async dance: the stepper
+ * kicks (session reserve + op row + a scheduled turn job) and parks the run
+ * on the agent cursor; the turn job drives the reused workflow host (mint →
+ * exec stream → harvest → recordAgentTurnSettled); the settle wakes the
+ * stepper, which consumes the result and finishes the run.
+ */
+async function checkAutomationAgentNode(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'automation agent node (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — the harvest lane needs blob storage',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const { createHash, createHmac } = await import('node:crypto');
+
+  const SPAWNER_TOKEN = 'itest-node-spawner';
+  const NODE_TEXT = 'Analysis complete; wrote note.md.';
+  const NOTE_BYTES = 'automation note';
+  const gatewayCalls = { minted: 0, revoked: 0 };
+
+  const spawner = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const rawUrl = req.url ?? '';
+      const method = req.method ?? 'GET';
+      const bodyHash = createHash('sha256').update(body).digest('hex');
+      const signedString = `${method}\n${rawUrl}\n${String(req.headers['x-tale-sandbox-timestamp'] ?? '')}\n${String(req.headers['x-tale-sandbox-nonce'] ?? '')}\n${bodyHash}`;
+      const expected = createHmac('sha256', SPAWNER_TOKEN)
+        .update(signedString)
+        .digest('hex');
+      if (req.headers['x-tale-sandbox-signature'] !== expected) {
+        res.statusCode = 401;
+        res.end('{"error":"bad signature"}');
+        return;
+      }
+      const url = new URL(rawUrl, 'http://x');
+      res.setHeader('content-type', 'application/json');
+      if (method === 'POST' && url.pathname === '/v1/sessions') {
+        const parsed = z
+          .object({ sessionId: z.string() })
+          .loose()
+          .safeParse(JSON.parse(body || '{}'));
+        res.end(
+          JSON.stringify({
+            session: {
+              sessionId: parsed.success ? parsed.data.sessionId : '',
+              organizationId: orgId,
+              profile: 'agent',
+              state: 'ready',
+              backend: 'itest',
+              createdAtMs: Date.now(),
+              lastActivityAtMs: Date.now(),
+              expiresAtMs: Date.now() + 3_600_000,
+              idleTimeoutMs: 600_000,
+            },
+          }),
+        );
+        return;
+      }
+      if (method === 'POST' && /\/exec$/.test(url.pathname)) {
+        res.setHeader('content-type', 'text/event-stream');
+        const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`;
+        const events = [
+          line({
+            type: 'system',
+            subtype: 'init',
+            session_id: 'wfconv-7',
+            model: 'itest-agent-model',
+          }),
+          line({
+            type: 'assistant',
+            message: {
+              id: 'wm1',
+              model: 'itest-agent-model',
+              content: [{ type: 'text', text: 'Analyzing…' }],
+              usage: { input_tokens: 80, output_tokens: 25 },
+            },
+          }),
+          line({
+            type: 'result',
+            subtype: 'success',
+            session_id: 'wfconv-7',
+            result: NODE_TEXT,
+            duration_ms: 400,
+          }),
+        ];
+        let seq = 0;
+        for (const text of events) {
+          seq += 1;
+          res.write(
+            `event: stdout\ndata: ${JSON.stringify({ text, seq })}\n\n`,
+          );
+        }
+        res.write(
+          `event: result\ndata: ${JSON.stringify({
+            exitCode: 0,
+            stdoutBase64: '',
+            stderrBase64: '',
+          })}\n\n`,
+        );
+        res.end();
+        return;
+      }
+      if (url.pathname.endsWith('/files/stage')) {
+        res.end(JSON.stringify({ staged: [], skipped: [] }));
+        return;
+      }
+      if (url.pathname.endsWith('/files/delete')) {
+        res.end(JSON.stringify({ deleted: [], skipped: [] }));
+        return;
+      }
+      if (url.pathname.endsWith('/files/content')) {
+        res.setHeader('content-type', 'text/plain');
+        res.end(NOTE_BYTES);
+        return;
+      }
+      if (/\/v1\/sessions\/[^/]+\/files$/.test(url.pathname)) {
+        const dir = url.searchParams.get('path') ?? '';
+        if (dir === '/agent/output') {
+          res.end(
+            JSON.stringify({
+              entries: [
+                {
+                  name: 'note.md',
+                  type: 'file',
+                  size: NOTE_BYTES.length,
+                  mtimeMs: Date.now(),
+                },
+              ],
+            }),
+          );
+          return;
+        }
+        res.end(JSON.stringify({ entries: [] }));
+        return;
+      }
+      if (/\/exec\/[^/]+\/cancel$/.test(url.pathname)) {
+        res.end('{"cancelled":true}');
+        return;
+      }
+      if (method === 'GET' && /^\/v1\/sessions\/[^/]+$/.test(url.pathname)) {
+        res.end('{"session":{"state":"ready"}}');
+        return;
+      }
+      if (method === 'DELETE') {
+        res.end('{"destroyed":true}');
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    spawner.listen(0, '127.0.0.1', resolve);
+  });
+  const spawnerAddress = spawner.address();
+  const spawnerPort =
+    spawnerAddress !== null && typeof spawnerAddress === 'object'
+      ? spawnerAddress.port
+      : 0;
+
+  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
+  const gateway = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const url = req.url ?? '';
+      const method = req.method ?? 'GET';
+      res.setHeader('content-type', 'application/json');
+      if (url === '/api/config') {
+        res.end(JSON.stringify({ client_config: {} }));
+        return;
+      }
+      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
+      if (keysMatch) {
+        const provider = decodeURIComponent(keysMatch[1] ?? '');
+        if (method === 'GET') {
+          res.end(JSON.stringify({ keys: providerKeys.get(provider) ?? [] }));
+          return;
+        }
+        const parsed = z
+          .looseObject({ name: z.string() })
+          .safeParse(JSON.parse(body || '{}'));
+        const list = providerKeys.get(provider) ?? [];
+        if (parsed.success && !list.some((k) => k.name === parsed.data.name)) {
+          list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
+        }
+        providerKeys.set(provider, list);
+        res.end('{}');
+        return;
+      }
+      if (url.startsWith('/api/providers/')) {
+        res.end('{}');
+        return;
+      }
+      if (url === '/api/governance/virtual-keys' && method === 'POST') {
+        gatewayCalls.minted += 1;
+        res.end(
+          JSON.stringify({
+            virtual_key: {
+              id: `vk-node-${gatewayCalls.minted}`,
+              value: `sk-bf-node-${gatewayCalls.minted}`,
+            },
+          }),
+        );
+        return;
+      }
+      if (url.startsWith('/api/governance/virtual-keys/')) {
+        if (method === 'DELETE') {
+          gatewayCalls.revoked += 1;
+          res.end('{}');
+          return;
+        }
+        res.end(
+          JSON.stringify({ virtual_key: { budget: { current_usage: 0.01 } } }),
+        );
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    gateway.listen(0, '127.0.0.1', resolve);
+  });
+  const gatewayAddress = gateway.address();
+  const gatewayPort =
+    gatewayAddress !== null && typeof gatewayAddress === 'object'
+      ? gatewayAddress.port
+      : 0;
+
+  process.env.SANDBOX_URL = `http://127.0.0.1:${spawnerPort}`;
+  process.env.SANDBOX_TOKEN = SPAWNER_TOKEN;
+  process.env.SANDBOX_LLM_GATEWAY_URL = `http://127.0.0.1:${gatewayPort}`;
+  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+
+  try {
+    // The itestagent provider + credential from the drive check are already
+    // in place (same org config tree, same catalog server no longer needed —
+    // the catalog was cached in-process by the earlier resolution).
+    const post = (route: string, payload?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+      });
+    const document = {
+      version: 1,
+      name: 'ops/agentic',
+      nodes: [
+        {
+          id: 'work',
+          type: 'agent',
+          model: 'itest-agent-model',
+          prompt: 'Analyze the input: {{ input.subject }}',
+        },
+      ],
+      output: '{{ nodes.work.output }}',
+    };
+    await post(`/api/app/automations/ops/agentic/save?orgId=${orgId}`, {
+      document,
+    });
+    await post(`/api/app/automations/ops/agentic/deploy?orgId=${orgId}`, {
+      version: 1,
+    });
+    const started = z.object({ runId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/automations/ops/agentic/start?orgId=${orgId}`, {
+          input: { subject: 'quarterly numbers' },
+          mode: 'live',
+        })
+      ).json(),
+    );
+    const runId = started.success ? started.data.runId : '';
+    const settled = await waitFor(async () => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status FROM app.automation_runs WHERE id = ${runId}
+      `;
+      return ['success', 'failed', 'cancelled'].includes(rows[0]?.status ?? '');
+    }, 60_000);
+    const runRows = await sql<
+      { status: string; output: unknown; detail: string | null }[]
+    >`
+      SELECT status, output, detail FROM app.automation_runs
+      WHERE id = ${runId}
+    `;
+    const run = runRows[0];
+    const outputRaw = JSON.stringify(run?.output ?? null);
+    const opRows = await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_session_ops
+      WHERE kind = 'workflow-agent'
+      ORDER BY started_at_ms DESC LIMIT 1
+    `;
+    const sessionRows = await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_sessions
+      WHERE owner_type = 'workflow_run'
+        AND (owner_id = ${runId} OR owner_id LIKE ${runId + ':%'})
+      ORDER BY created_at_ms DESC LIMIT 1
+    `;
+
+    record(
+      'automation agent node (kick→park→turn→settle→resume→finish)',
+      settled &&
+        run?.status === 'success' &&
+        outputRaw.includes(NODE_TEXT) &&
+        outputRaw.includes('note.md') &&
+        opRows[0]?.status === 'completed' &&
+        sessionRows[0]?.status === 'stopped' &&
+        gatewayCalls.minted === 1 &&
+        gatewayCalls.revoked === 1,
+      `run=${run?.status}${run?.detail ? ` (${run.detail.slice(0, 120)})` : ''}, output has text=${outputRaw.includes(NODE_TEXT)} file=${outputRaw.includes('note.md')}, op=${opRows[0]?.status}, session=${sessionRows[0]?.status} (want stopped), vk=${gatewayCalls.minted}/${gatewayCalls.revoked}`,
+    );
+  } finally {
+    delete process.env.SANDBOX_URL;
+    delete process.env.SANDBOX_TOKEN;
+    delete process.env.SANDBOX_LLM_GATEWAY_URL;
+    await new Promise<void>((resolve) => {
+      spawner.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      gateway.close(() => resolve());
     });
   }
 }
@@ -4371,6 +4711,7 @@ async function main(): Promise<void> {
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSandboxSessions(sql, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(

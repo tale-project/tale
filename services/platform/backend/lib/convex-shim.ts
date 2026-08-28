@@ -51,27 +51,49 @@ function refuse(facility: string): () => never {
   };
 }
 
+/** How a shim host runs a scheduled function: by NAME, after a delay. The
+ * 0.5 hosts map these onto pg-boss jobs. */
+export type ShimScheduler = (
+  functionName: string,
+  delayMs: number,
+  args: unknown,
+) => Promise<void>;
+
 /**
  * Build the shim. The return type is deliberately `never`-ish loose — pass
  * it where an `ActionCtx`/`MutationCtx` is expected via the caller's own
  * assertion, keeping the unsafe cast at the call site where the reused
  * function is named.
  */
-export function createCtxShim(handlers: ShimHandlers): {
+export function createCtxShim(
+  handlers: ShimHandlers,
+  options: { scheduler?: ShimScheduler } = {},
+): {
   runQuery: (ref: unknown, args: unknown) => Promise<unknown>;
   runMutation: (ref: unknown, args: unknown) => Promise<unknown>;
   runAction: (ref: unknown, args: unknown) => Promise<unknown>;
   storage: { getUrl: () => never; get: () => never };
-  scheduler: { runAfter: () => never; runAt: () => never };
+  scheduler: {
+    runAfter: (delayMs: number, ref: unknown, args: unknown) => Promise<void>;
+    runAt: () => never;
+  };
   auth: { getUserIdentity: () => never };
 } {
+  const scheduler = options.scheduler;
   return {
     runQuery: dispatcher('query', handlers),
     runMutation: dispatcher('mutation', handlers),
     runAction: dispatcher('action', handlers),
     storage: { getUrl: refuse('storage.getUrl'), get: refuse('storage.get') },
     scheduler: {
-      runAfter: refuse('scheduler.runAfter'),
+      runAfter: async (delayMs, ref, args) => {
+        if (scheduler === undefined) {
+          throw new Error(
+            '[convex-shim] ctx.scheduler.runAfter is not available in 0.5 (no scheduler seam registered)',
+          );
+        }
+        await scheduler(shimFunctionName(ref), delayMs, args);
+      },
       runAt: refuse('scheduler.runAt'),
     },
     auth: { getUserIdentity: refuse('auth.getUserIdentity') },

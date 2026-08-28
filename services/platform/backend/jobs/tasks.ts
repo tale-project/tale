@@ -36,6 +36,9 @@ export interface TaskPayloads {
   'automation.liveness': Record<string, never>;
   /** One project-agent turn against a task (driver lands with 25b). */
   'task.agent_turn': { organizationId: string; runId: string; execId: string };
+  /** One workflow-agent turn for an automation run's agent node. The payload
+   * is the reused host's full start-args shape (validated by the handler). */
+  'automation.agent_turn': Record<string, unknown>;
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -90,4 +93,5 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // At-most-once LLM spend: the run ledger owns retries (auto-retry kicks a
   // NEW run); a lost job is the watchdog's to re-kick, never pg-boss's.
   'task.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
+  'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
 };

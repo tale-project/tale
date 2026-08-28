@@ -1,10 +1,14 @@
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { startWorkflowAgentTurnImpl } from '../../convex/automations/agent_host.ts';
 import { stepRunImpl } from '../../convex/automations/stepper.ts';
 import { removeOrgSubtree } from '../../convex/organizations/scaffold.ts';
 import { startTaskAgentTurnImpl } from '../../convex/tasks/agent_run_host.ts';
-import { automationShimHandlers } from '../domains/automations/shim.ts';
+import {
+  automationShimHandlers,
+  automationShimScheduler,
+} from '../domains/automations/shim.ts';
 import {
   pollParkedRun,
   sweepOverdueRuns,
@@ -97,8 +101,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         .object({ organizationId: z.string().min(1), runId: z.string().min(1) })
         .parse(payload);
       // The REUSED 0.4 stepper on the ctx shim. Claim-fenced and idempotent:
-      // a retried job either wins a fresh claim or no-ops.
-      const shim = createCtxShim(automationShimHandlers(deps.sql));
+      // a retried job either wins a fresh claim or no-ops. The scheduler seam
+      // lets the agent node's kick schedule its turn as a pg-boss job.
+      const shim = createCtxShim(automationShimHandlers(deps.sql), {
+        scheduler: automationShimScheduler(deps.sql),
+      });
       await stepRunImpl(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 stepper; every ctx facility it touches is covered by automationShimHandlers
         shim as unknown as Parameters<typeof stepRunImpl>[0],
@@ -208,6 +215,25 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           secrets: agent.secrets,
           ...(run.feedback !== null ? { feedback: run.feedback } : {}),
         } as unknown as Parameters<typeof startTaskAgentTurnImpl>[1],
+      );
+    },
+    'automation.agent_turn': async (payload) => {
+      const input = z
+        .looseObject({
+          organizationId: z.string().min(1),
+          runId: z.string().min(1),
+          execId: z.string().min(1),
+          sessionId: z.string().min(1),
+        })
+        .parse(payload);
+      const shim = createCtxShim(automationShimHandlers(deps.sql), {
+        scheduler: automationShimScheduler(deps.sql),
+      });
+      await startWorkflowAgentTurnImpl(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by automationShimHandlers
+        shim as unknown as Parameters<typeof startWorkflowAgentTurnImpl>[0],
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the kick built exactly the host's start-args shape; the host re-validates semantics
+        input as unknown as Parameters<typeof startWorkflowAgentTurnImpl>[1],
       );
     },
     'automation.poll': async (payload) => {
