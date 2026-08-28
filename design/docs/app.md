@@ -21,6 +21,11 @@ Colour comes from tokens, never hex (see [tokens.md](tokens.md)). Motion is smal
   **one** `border-border` line: the tab strip's own `border-b` when a tab row follows (Knowledge,
   Inbox, project detail), otherwise the header's own bottom border (`AdaptiveHeaderRoot showBorder` —
   Projects, Automations, Settings). Icon buttons are 32×32, 8px radius, hover fill.
+- **Detail pages** — the header is a breadcrumb trail (`HeaderBreadcrumbs`: semantic `nav > ol`, the
+  leaf is the page's only `h1`). When the entity has siblings, the leaf is the shared
+  `HeaderBreadcrumbSwitcher` (name + chevron opening a titled, searchable list) — projects and
+  automations use the same primitive. Run/sub-pages keep a plain leaf and link the entity name back
+  up the trail.
 - **Right/secondary panels** (history sidebar, detail panels) slide in and **resize the main column**
   rather than overlay it; main content re-flows to the remaining width.
 - **Main column is centred and width-capped** — e.g. chat is 558px (new) / 768px (conversation). Don't

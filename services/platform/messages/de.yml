@@ -502,6 +502,11 @@ automations:
   title: Automatisierungen
   entityLabel: Automatisierungen
   entityLabelOne: Automatisierung
+  switcher:
+    title: Automatisierung wechseln
+    searchPlaceholder: Automatisierungen suchen
+    empty: Keine Automatisierungen gefunden
+    ariaLabel: 'Automatisierung wechseln, aktuell: {name}'
   list:
     createButton: Automatisierung erstellen
     searchPlaceholder: Automatisierungen suchen

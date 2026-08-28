@@ -6,9 +6,11 @@
  * On the automation page: `Automations / <name>` — the Automations crumb
  * always returns to the org Automations hub (the project has no Automations
  * tab; its `/automations` list sits under Projects chrome and reads as a
- * detour). On a run page: `Automations / <name> / Run` — the name crumb
- * returns to this automation (project-scoped when opened from a project),
- * and the mobile back arrow follows that immediate parent.
+ * detour), and the name leaf is the shared breadcrumb switcher over sibling
+ * automations, exactly like a project's name. On a run page:
+ * `Automations / <name> / Run` — the name crumb returns to this automation
+ * (project-scoped when opened from a project) as a plain link, and the
+ * mobile back arrow follows that immediate parent.
  */
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
@@ -26,6 +28,7 @@ import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
 import { useAutomation } from '../hooks/queries';
+import { AutomationBreadcrumbSwitcher } from './automation-breadcrumb-switcher';
 
 export function AutomationBreadcrumbs({
   organizationId,
@@ -111,7 +114,12 @@ export function AutomationBreadcrumbs({
           <span className="inline-block h-4 w-32 align-middle" />
         </SkeletonBox>
       ) : (
-        displayName
+        <AutomationBreadcrumbSwitcher
+          organizationId={organizationId}
+          automationSlug={automationSlug}
+          displayName={displayName}
+          {...(projectId !== undefined && { projectId })}
+        />
       )}
     </Skeletonize>
   );

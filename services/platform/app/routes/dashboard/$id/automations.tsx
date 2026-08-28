@@ -21,8 +21,9 @@ export const Route = createFileRoute('/dashboard/$id/automations')({
  * one run all render under this header, which owns the page's only `h1`.
  *
  * On the hub the title is plain "Automations". On a detail or run route the
- * header becomes the breadcrumb trail (`Automations / <name>`) so there is
- * always a way back to the list. Either way the header ends in the shared
+ * header becomes the breadcrumb trail (`Automations / <name>`, the name
+ * doubling as the sibling switcher) so there is always a way back to the
+ * list. Either way the header ends in the shared
  * divider — no tab strip follows in this area, so the row carries its own
  * border, exactly like the Projects list.
  *
