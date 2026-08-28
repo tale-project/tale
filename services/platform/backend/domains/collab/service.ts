@@ -1,7 +1,12 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { coalesceKeyFor } from '../../../convex/collab/coalesce.ts';
+import {
+  coalesceKeyFor,
+  NOTIFICATION_EMAIL_DEBOUNCE_MS,
+} from '../../../convex/collab/coalesce.ts';
+import { isActionableNotificationType } from '../../../lib/shared/attention.ts';
 import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 
 /**
@@ -89,6 +94,42 @@ export type CoalesceOutcome = 'inserted' | 'rewritten' | 'cancelled';
 /** The newest UNREAD twin scan bound (the 0.4 cap). */
 const UNREAD_SCAN_CAP = 100;
 
+/** The email debounce window (0.4 parity: 60s). Read at call time so the
+ * integration harness can shorten it via NOTIFICATION_EMAIL_DEBOUNCE_MS. */
+export function notificationEmailDebounceMs(): number {
+  return (
+    Number(process.env.NOTIFICATION_EMAIL_DEBOUNCE_MS ?? '') ||
+    NOTIFICATION_EMAIL_DEBOUNCE_MS
+  );
+}
+
+/**
+ * Hand the row to the email sink after the debounce window. The epoch bump
+ * replaces the 0.4 cancel+reschedule: the fired job sends only when its
+ * epoch is still the row's current one, so the older job of a rewritten row
+ * no-ops and the newer one carries the final state. Non-actionable types
+ * never email.
+ */
+async function scheduleNotificationEmail(
+  db: Db,
+  args: { notificationId: string; type: string },
+): Promise<void> {
+  if (!isActionableNotificationType(args.type)) return;
+  const bumped = await db<{ emailEpoch: number }[]>`
+    UPDATE app.user_notifications SET email_epoch = email_epoch + 1
+    WHERE id = ${args.notificationId}
+    RETURNING email_epoch::float8 AS "emailEpoch"
+  `;
+  const epoch = bumped[0]?.emailEpoch;
+  if (epoch === undefined) return;
+  await addJobInTx(
+    db,
+    'notification.email',
+    { notificationId: args.notificationId, epoch },
+    { startAfter: new Date(Date.now() + notificationEmailDebounceMs()) },
+  );
+}
+
 /**
  * Write (or rewrite, or cancel) one notification row. Callers own the
  * preference gate — this is the mechanics of one row.
@@ -137,6 +178,10 @@ export async function writeCoalescedNotification(
         actor_id = ${args.actorId ?? null}, created_at_ms = ${now}
       WHERE id = ${existingId}
     `;
+    await scheduleNotificationEmail(db, {
+      notificationId: existingId,
+      type: args.type,
+    });
     await emitHintInTx(db, {
       orgId: args.organizationId,
       entity: 'user_notification',
@@ -145,7 +190,7 @@ export async function writeCoalescedNotification(
     return 'rewritten';
   }
 
-  await db`
+  const inserted = await db<{ id: string }[]>`
     INSERT INTO app.user_notifications (
       user_id, org_id, type, title_key, body_key, params, resource_type,
       resource_id, task_id, actor_type, actor_id, read, created_at_ms,
@@ -158,7 +203,15 @@ export async function writeCoalescedNotification(
       ${args.actorType}, ${args.actorId ?? null}, false, ${now},
       ${key}
     )
+    RETURNING id
   `;
+  const insertedId = inserted[0]?.id;
+  if (insertedId !== undefined) {
+    await scheduleNotificationEmail(db, {
+      notificationId: insertedId,
+      type: args.type,
+    });
+  }
   await emitHintInTx(db, {
     orgId: args.organizationId,
     entity: 'user_notification',

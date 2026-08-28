@@ -82,6 +82,11 @@ export interface TaskPayloads {
       size: number;
     }>;
   };
+  /** One actionable notification's email, debounce-delayed. The handler
+   * re-reads the row and sends only when it is still unread AND the payload
+   * epoch is current — a rewrite bumped the epoch (its own newer job carries
+   * the final state) and an undo deleted the row. */
+  'notification.email': { notificationId: string; epoch: number };
   /** Auto-retry arm for a retryably-failed task-agent run: the handler
    * re-derives every guard (task still in_progress and agent-assigned, the
    * failed run still newest, the consecutive-failure budget) and kicks. */
@@ -174,6 +179,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // At-most-once outbound mail: a lost job settles via retrySendMessage by a
   // human, never a silent duplicate email from pg-boss.
   'conversation.send_message': { retryLimit: 0, expireInSeconds: 600 },
+  // Best-effort at-most-once: the bell row is the durable record; a lost or
+  // failed email is never retried into a duplicate.
+  'notification.email': { retryLimit: 0, expireInSeconds: 300 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
   'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
   'governance.process_erasure': { retryLimit: 1, expireInSeconds: 1_800 },

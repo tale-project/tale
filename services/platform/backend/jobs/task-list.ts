@@ -210,6 +210,17 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         .parse(payload);
       await runApiTurn(deps.sql, input);
     },
+    'notification.email': async (payload) => {
+      const input = z
+        .object({
+          notificationId: z.string().min(1),
+          epoch: z.number(),
+        })
+        .parse(payload);
+      const { runNotificationEmailJob } =
+        await import('../domains/collab/email-sink.ts');
+      await runNotificationEmailJob(deps.sql, input);
+    },
     'conversation.send_message': async (payload) => {
       const input = z
         .object({

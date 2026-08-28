@@ -34,6 +34,7 @@ import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
+import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
@@ -264,6 +265,37 @@ async function waitFor(
     await sleep(50);
   }
   return predicate();
+}
+
+/**
+ * The harness-wide default mail transport: debounced notification emails
+ * from EARLIER checks fire whenever their window lapses, and none of them
+ * may ever reach a real network. Checks that assert SMTP traffic install
+ * their own recording fake and restore THIS one in their finally.
+ */
+const DEFAULT_MAIL_FAKE = {
+  openImap: async (): Promise<never> => {
+    throw new Error('itest default transport opens no IMAP session');
+  },
+  openSmtp: async () => ({
+    send: async () => ({
+      messageId: `<itest-default-${Math.random().toString(36).slice(2)}@door.test>`,
+    }),
+    close: async () => {},
+  }),
+};
+
+/** Settle every pending notification email before a check that counts SMTP
+ * sends — an earlier check's debounced bell must not pollute its fake. */
+async function drainNotificationEmails(sql: Sql): Promise<boolean> {
+  return waitFor(async () => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'notification.email'
+        AND state NOT IN ('completed', 'cancelled')
+    `;
+    return Number(rows[0]?.count ?? '1') === 0;
+  }, 15_000);
 }
 
 function cookieHeaderFrom(response: Response): string {
@@ -4706,8 +4738,9 @@ async function checkMailboxSyncLane(
   ctx: { orgId: string },
 ): Promise<void> {
   const { orgId } = ctx;
-  const { runConnectorAction, setMailTransportForTesting } =
+  const { runConnectorAction } =
     await import('./domains/connectors/service.ts');
+  await drainNotificationEmails(sql);
 
   // --- the fake transport (phased inbox) -----------------------------------
   let phase: 1 | 2 = 1;
@@ -4964,7 +4997,7 @@ async function checkMailboxSyncLane(
       `sync1=${first.status}/${firstOut.success ? `${firstOut.data.inbound.processedCount} listed=${firstOut.data.listed}` : 'ERR'} conv=${conversationsAfterFirst.length} contacts=${conversationsAfterFirst.map((r) => r.contactEmail).join('|')}, watermark=${(watermark[0]?.inbound ?? 0) > 0}, repeat=${againOut.success ? againOut.data.inbound.processedCount : 'ERR'} conv=${countAfterRepeat[0]?.count} msgs=${messagesAfterRepeat[0]?.count} (want 2/2), aliceThread=${aliceThread[0]?.count} (want 2) totalConv=${conversationsFinal[0]?.count} (want 2), send=${sent.status} smtp=${smtpAfterSystemSend} audit=${sendAudit[0]?.count}, gate=${gated.status}/${approvalRows[0]?.status}→retry=${retried.status}/${approvalAfter[0]?.status} smtpAfter=${smtpSends.length}`,
     );
   } finally {
-    setMailTransportForTesting(undefined);
+    setMailTransportForTesting(DEFAULT_MAIL_FAKE);
   }
 }
 
@@ -4984,10 +5017,9 @@ async function checkOutboundSendLane(
   ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
   const { cookie, orgId, userId } = ctx;
-  const { setMailTransportForTesting } =
-    await import('./domains/connectors/service.ts');
   const { createConversation, addMessageToConversation } =
     await import('./domains/conversations/service.ts');
+  await drainNotificationEmails(sql);
 
   const api = (
     route: string,
@@ -5262,7 +5294,147 @@ async function checkOutboundSendLane(
       `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject}, bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
     );
   } finally {
-    setMailTransportForTesting(undefined);
+    setMailTransportForTesting(DEFAULT_MAIL_FAKE);
+  }
+}
+
+/**
+ * The debounced actionable-email sink: an actionable bell schedules a
+ * `notification.email` job one debounce window out; a rewrite inside the
+ * window bumps the epoch so the older job no-ops and ONE email carries the
+ * final state; a row read in the app, an undone row, and a recipient with
+ * the preference off all send nothing. Delivery rides the connector door
+ * (imap-smtp `notificationSender` From rewrite) on a fake SMTP.
+ */
+async function checkNotificationEmailSink(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const { writeCoalescedNotification } =
+    await import('./domains/collab/service.ts');
+  await drainNotificationEmails(sql);
+
+  const smtpSends: Array<{
+    to: string;
+    from: string;
+    subject: string;
+    text?: string;
+    html?: string;
+  }> = [];
+  setMailTransportForTesting({
+    openImap: async () => {
+      throw new Error('itest email sink opens no IMAP session');
+    },
+    openSmtp: async () => ({
+      send: async (message: {
+        to: string;
+        from: string;
+        subject: string;
+        text?: string;
+        html?: string;
+      }) => {
+        smtpSends.push({
+          to: message.to,
+          from: message.from,
+          subject: message.subject,
+          ...(message.text !== undefined ? { text: message.text } : {}),
+          ...(message.html !== undefined ? { html: message.html } : {}),
+        });
+        return { messageId: `<notif-${smtpSends.length}@door.test>` };
+      },
+      close: async () => {},
+    }),
+  });
+
+  try {
+    const bell = (
+      taskId: string,
+      title: string,
+      undoes?: boolean,
+      recipient?: string,
+    ) =>
+      writeCoalescedNotification(sql, {
+        userId: recipient ?? userId,
+        organizationId: orgId,
+        type: 'task_assigned',
+        titleKey: 'taskAssigned',
+        bodyKey: 'taskAssignedBody',
+        params: { title, projectId: 'p-email-sink' },
+        resourceType: 'task',
+        resourceId: taskId,
+        taskId,
+        actorType: 'user',
+        actorId: 'someone-else',
+        ...(undoes === true ? { undoes: true } : {}),
+      });
+
+    // A) Burst on one dimension: write then rewrite before the window fires
+    // → the stale-epoch job skips, ONE email carries the final state.
+    const first = await bell('email-task-a', 'Email me A');
+    const rewritten = await bell('email-task-a', 'Email me B (final)');
+
+    // B) Read before the window fires → no email.
+    await bell('email-task-b', 'Read before fire');
+    await sql`
+      UPDATE app.user_notifications SET read = true, read_at_ms = ${Date.now()}
+      WHERE org_id = ${orgId} AND user_id = ${userId}
+        AND resource_id = 'email-task-b'
+    `;
+
+    // C) An event that undoes its unread twin → row gone, no email.
+    await bell('email-task-c', 'About to be undone');
+    const undone = await bell('email-task-c', 'Undone', true);
+
+    // D) Preference off → no email for that recipient.
+    const prefUsers = await sql<{ id: string }[]>`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt",
+                          "updatedAt")
+      VALUES (gen_random_uuid(), 'no-email-pref@door.test', 'Pref Off',
+              true, ${new Date()}, ${new Date()})
+      RETURNING "id"
+    `;
+    const prefUserId = prefUsers[0]?.id ?? '';
+    await sql`
+      INSERT INTO app.notification_preferences (
+        user_id, org_id, actionable_email, updated_at_ms
+      ) VALUES (${prefUserId}, ${orgId}, false, ${Date.now()})
+    `;
+    await bell('email-task-d', 'Pref is off', undefined, prefUserId);
+
+    const drained = await drainNotificationEmails(sql);
+    const delivered = smtpSends[0];
+    const adminEmailRows = await sql<{ email: string | null }[]>`
+      SELECT "email" FROM "user" WHERE "id" = ${userId} LIMIT 1
+    `;
+    const adminEmail = adminEmailRows[0]?.email ?? '';
+    const rowsLeft = await sql<{ resourceId: string }[]>`
+      SELECT resource_id AS "resourceId" FROM app.user_notifications
+      WHERE org_id = ${orgId} AND resource_id LIKE 'email-task-%'
+    `;
+
+    record(
+      'notification email sink (debounce epoch, read/undo/pref skips)',
+      first === 'inserted' &&
+        rewritten === 'rewritten' &&
+        undone === 'cancelled' &&
+        drained &&
+        smtpSends.length === 1 &&
+        delivered?.subject === 'Task assigned to you' &&
+        delivered?.to === adminEmail &&
+        (delivered?.text ?? '').includes('Email me B (final)') &&
+        (delivered?.html ?? '').includes(
+          `/dashboard/${orgId}/projects/p-email-sink/tasks?task=email-task-a`,
+        ) &&
+        (delivered?.from ?? '').startsWith('notification@') &&
+        !rowsLeft.some((row) => row.resourceId === 'email-task-c'),
+      `write=${first}/${rewritten}/undo=${undone}, drained=${drained}, emails=${smtpSends.length} (want 1) subject=${delivered?.subject} to=${delivered?.to}==${adminEmail} from=${delivered?.from} finalBody=${(delivered?.text ?? '').includes('Email me B (final)')} deepLink=${(delivered?.html ?? '').includes(`/projects/p-email-sink/tasks?task=email-task-a`)}, undoneRowGone=${!rowsLeft.some((row) => row.resourceId === 'email-task-c')} rows=${rowsLeft
+        .map((r) => r.resourceId)
+        .sort()
+        .join('|')}`,
+    );
+  } finally {
+    setMailTransportForTesting(DEFAULT_MAIL_FAKE);
   }
 }
 
@@ -10316,6 +10488,9 @@ async function main(): Promise<void> {
   process.env.BETTER_AUTH_SECRET ??= 'itest-secret-itest-secret';
   // Shrink the outbound-send undo window so the send lane check stays fast.
   process.env.CONVERSATION_UNDO_SEND_DELAY_MS ??= '1500';
+  // Shrink the notification-email debounce for the sink check; the drain
+  // helper settles stragglers before any SMTP-counting fake installs.
+  process.env.NOTIFICATION_EMAIL_DEBOUNCE_MS ??= '1500';
   const auth = createAuth({
     databaseUrl,
     secret: process.env.BETTER_AUTH_SECRET,
@@ -10329,6 +10504,8 @@ async function main(): Promise<void> {
   await ensureQueues(boss);
   await registerSchedules(boss);
   setEnqueueBoss(boss);
+  // No itest job may ever open a real IMAP/SMTP connection.
+  setMailTransportForTesting(DEFAULT_MAIL_FAKE);
 
   console.log('[itest] running boot migrations twice, concurrently…');
   const migrationOptions = {
@@ -10432,6 +10609,7 @@ async function main(): Promise<void> {
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);
+    await checkNotificationEmailSink(sql, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
