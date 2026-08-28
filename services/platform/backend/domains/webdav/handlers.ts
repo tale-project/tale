@@ -27,7 +27,11 @@ import {
 import { registerUploadedBytes } from '../files/service.ts';
 import { MAX_FOLDER_DEPTH } from '../folders/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
-import { assertNotHeld, loadActiveHolds } from '../legal_holds/service.ts';
+import {
+  assertNotHeld,
+  LegalHoldError,
+  loadActiveHolds,
+} from '../legal_holds/service.ts';
 
 /**
  * The WebDAV backing handlers — the 0.5 twins of `convex/webdav/*` (tree,
@@ -301,18 +305,34 @@ async function loadDoc(
 
 // ------------------------------------------------------- destructive core
 
+/** The 0.5 hold guard throws its own LegalHoldError class; the REUSED DAV
+ * method handlers branch on ConvexError codes (403 for LEGAL_HOLD_ACTIVE) —
+ * translate so a held delete never reads as a 500. */
+async function translateHoldError<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof LegalHoldError) {
+      throw new ConvexError({ code: 'LEGAL_HOLD_ACTIVE' });
+    }
+    throw error;
+  }
+}
+
 async function assertWebdavDocNotHeld(
   db: Sql | TransactionSql,
   organizationId: string,
   doc: DocRow,
 ): Promise<void> {
-  await assertNotHeld(
-    db,
-    organizationId,
-    'document',
-    doc.id,
-    undefined,
-    doc.createdBy ?? undefined,
+  await translateHoldError(() =>
+    assertNotHeld(
+      db,
+      organizationId,
+      'document',
+      doc.id,
+      undefined,
+      doc.createdBy ?? undefined,
+    ),
   );
 }
 
@@ -344,7 +364,9 @@ async function assertFolderTreeNotHeld(
   folderId: string,
 ): Promise<void> {
   const holds = await loadActiveHolds(tx, organizationId);
-  await assertNotHeld(tx, organizationId, 'folder', folderId, holds);
+  await translateHoldError(() =>
+    assertNotHeld(tx, organizationId, 'folder', folderId, holds),
+  );
   const budget = newReadBudget();
   const walk = async (id: string, depth: number): Promise<void> => {
     if (depth > MAX_FOLDER_DEPTH) throw new ConvexError({ code: 'CONFLICT' });
@@ -356,13 +378,15 @@ async function assertFolderTreeNotHeld(
     chargeReadBudget(budget, docs.length);
     for (const d of docs) {
       if (!isVisibleDoc(d)) continue;
-      await assertNotHeld(
-        tx,
-        organizationId,
-        'document',
-        d.id,
-        holds,
-        d.createdBy ?? undefined,
+      await translateHoldError(() =>
+        assertNotHeld(
+          tx,
+          organizationId,
+          'document',
+          d.id,
+          holds,
+          d.createdBy ?? undefined,
+        ),
       );
     }
     const children = await tx<{ id: string }[]>`

@@ -6376,6 +6376,92 @@ async function checkWebdav(
     ...({ duplex: 'half' } as unknown as RequestInit),
   });
 
+  // The connector door shares the SAME tree (the agent tool lane). The
+  // webdav connector declares `auth: basic`, so the dispatcher needs a
+  // stored credential (the native store itself never uses it — no HTTP).
+  await fetch(`${base}/api/app/connector-credentials?orgId=${orgId}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, origin: base },
+    body: JSON.stringify({
+      connectorSlug: 'webdav',
+      authMethod: 'basic',
+      name: 'itest dav',
+      secret: { username: 'itest', password },
+    }),
+  });
+  const { runConnectorAction } =
+    await import('./domains/connectors/service.ts');
+  const doorCaller = { kind: 'system' as const, reason: 'itest webdav door' };
+  const doorWrite = await runConnectorAction(sql, {
+    organizationId: orgId,
+    connector: 'webdav',
+    action: 'write',
+    input: { path: 'agent-note.txt', content: 'from the agent lane' },
+    mode: 'live',
+    caller: doorCaller,
+  });
+  const doorFile = await dav('/documents/agent-note.txt');
+  const doorFileBody = doorFile.ok ? await doorFile.text() : '';
+  const doorList = await runConnectorAction(sql, {
+    organizationId: orgId,
+    connector: 'webdav',
+    action: 'list',
+    input: { path: '' },
+    mode: 'live',
+    caller: doorCaller,
+  });
+  const doorListRaw = JSON.stringify(
+    doorList.status === 'ok' ? doorList.output : {},
+  );
+  const doorRead = await runConnectorAction(sql, {
+    organizationId: orgId,
+    connector: 'webdav',
+    action: 'read',
+    input: { path: 'agent-note.txt' },
+    mode: 'live',
+    caller: doorCaller,
+  });
+  const doorReadRaw = JSON.stringify(
+    doorRead.status === 'ok' ? doorRead.output : {},
+  );
+  const doorDeleteGhost = await runConnectorAction(sql, {
+    organizationId: orgId,
+    connector: 'webdav',
+    action: 'delete',
+    input: { path: 'no-such-file.txt' },
+    mode: 'live',
+    caller: doorCaller,
+  });
+  const doorDelete = await runConnectorAction(sql, {
+    organizationId: orgId,
+    connector: 'webdav',
+    action: 'delete',
+    input: { path: 'agent-note.txt' },
+    mode: 'live',
+    caller: doorCaller,
+  });
+
+  // A legal hold refuses a DAV delete with 403 (not a lock's 423), and the
+  // release opens it again.
+  const holdRows = await sql<{ id: string }[]>`
+    INSERT INTO app.legal_holds (org_id, target_type, target_id,
+                                 target_label, reason, placed_by,
+                                 placed_at_ms)
+    VALUES (${orgId}, 'org', ${orgId}, 'itest org', 'webdav hold check',
+            ${userId}, ${Date.now()})
+    RETURNING id
+  `;
+  const heldDelete = await dav('/documents/plan-copy.txt', {
+    method: 'DELETE',
+  });
+  await sql`
+    UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
+    WHERE id = ${holdRows[0]?.id ?? ''}
+  `;
+  const releasedDelete = await dav('/documents/plan-copy.txt', {
+    method: 'DELETE',
+  });
+
   // Revoke → the credential stops working.
   const list = z
     .object({
@@ -6439,8 +6525,20 @@ async function checkWebdav(
       trashList.status === 207 &&
       trashXml.includes('plan2.txt') &&
       chunked.status === 500 &&
+      doorWrite.status === 'ok' &&
+      doorFile.status === 200 &&
+      doorFileBody === 'from the agent lane' &&
+      doorList.status === 'ok' &&
+      doorListRaw.includes('agent-note.txt') &&
+      doorRead.status === 'ok' &&
+      doorReadRaw.includes('from the agent lane') &&
+      doorDeleteGhost.status === 'ok' &&
+      JSON.stringify(doorDeleteGhost.output).includes('false') &&
+      doorDelete.status === 'ok' &&
+      heldDelete.status === 403 &&
+      releasedDelete.status === 204 &&
       afterRevoke.status === 401,
-    `mint=${minted.success} options=${options.status}/${options.headers.get('dav')} auth=${noAuth.status}/${badAuth.status} root=${rootList.status}, mkcol=${mkcol.status}/${mkcolAgain.status}, put=${put.status} provider=${docRows[0]?.sourceProvider} rag=${ragQueued[0]?.ragStatus} get=${got.status}:${gotBody === putBody}, overwrite=${put2.status} refChanged=${secondRef !== firstRef} oldMeta=${oldMeta[0]?.lifecycleStatus} get2=${got2Body === put2Body}, list=${folderList.status}/${folderXml.includes('plan.txt')}/len=${folderXml.includes(String(put2Body.length))}, move=${move.status} gone=${oldGone.status} copy=${copy.status}:${copyBody === put2Body}, lock=${lock.status}/${lockToken !== ''} again=${lockAgain.status} (want 423) unlock=${unlock.status}, projHidden=${!rootXml.includes('proj-secret.txt')}/${!rootXml.includes('ProjFolder')} projGet=${projGet.status} (want 404), del=${del.status} gone=${delGone.status} trash=${trashList.status}/${trashXml.includes('plan2.txt')}, chunked=${chunked.status} (want 500), revoked=${afterRevoke.status} (want 401)`,
+    `mint=${minted.success} options=${options.status}/${options.headers.get('dav')} auth=${noAuth.status}/${badAuth.status} root=${rootList.status}, mkcol=${mkcol.status}/${mkcolAgain.status}, put=${put.status} provider=${docRows[0]?.sourceProvider} rag=${ragQueued[0]?.ragStatus} get=${got.status}:${gotBody === putBody}, overwrite=${put2.status} refChanged=${secondRef !== firstRef} oldMeta=${oldMeta[0]?.lifecycleStatus} get2=${got2Body === put2Body}, list=${folderList.status}/${folderXml.includes('plan.txt')}/len=${folderXml.includes(String(put2Body.length))}, move=${move.status} gone=${oldGone.status} copy=${copy.status}:${copyBody === put2Body}, lock=${lock.status}/${lockToken !== ''} again=${lockAgain.status} (want 423) unlock=${unlock.status}, projHidden=${!rootXml.includes('proj-secret.txt')}/${!rootXml.includes('ProjFolder')} projGet=${projGet.status} (want 404), del=${del.status} gone=${delGone.status} trash=${trashList.status}/${trashXml.includes('plan2.txt')}, chunked=${chunked.status} (want 500), door w/g/l/r/d=${doorWrite.status}/${doorFile.status}:${doorFileBody === 'from the agent lane'}/${doorList.status}:${doorListRaw.includes('agent-note.txt')}/${doorRead.status}/${doorDelete.status} ghost=${JSON.stringify(doorDeleteGhost.status === 'ok' ? doorDeleteGhost.output : {})}, hold=${heldDelete.status} (want 403) released=${releasedDelete.status} (want 204), revoked=${afterRevoke.status} (want 401)`,
   );
 }
 

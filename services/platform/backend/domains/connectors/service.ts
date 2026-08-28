@@ -20,10 +20,8 @@ import {
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import {
   registerNativeConnectors,
-  WebdavStoreError,
   type MailTransport,
   type SandboxScriptRunner,
-  type WebdavStore,
   type WorkflowConversationStore,
   type WorkflowDocumentStore,
   type WorkflowTaskStore,
@@ -46,6 +44,7 @@ import {
   agentUpdateTaskStatusTrusted,
   loadTaskOrThrow,
 } from '../tasks/service.ts';
+import { pgWebdavStore } from '../webdav/connector-store.ts';
 
 /**
  * The 0.5 door to the connector dispatcher — the twin of
@@ -57,9 +56,8 @@ import {
  *
  * INTERNAL by contract — callers do their own authorization first.
  *
- * Deliberately fail-loud until their domains land: the WebDAV store and the
- * sandbox script runner (each method says what is missing instead of
- * silently degrading). Live yaml-js bodies run on the data-only in-process
+ * Deliberately fail-loud until its domain lands: the sandbox script runner
+ * (it says what is missing instead of silently degrading). Live yaml-js bodies run on the data-only in-process
  * runner, which refuses host capabilities by design — the out-of-process
  * sandbox runner rides the external-turn bridge increment.
  */
@@ -72,21 +70,6 @@ export function setMailTransportForTesting(
   transport: MailTransport | undefined,
 ): void {
   mailTransportOverride = transport;
-}
-
-function failLoudWebdavStore(): WebdavStore {
-  const refuse = (): never => {
-    throw new WebdavStoreError(
-      'not-found',
-      'the WebDAV document store is not available yet on this deployment',
-    );
-  };
-  return {
-    list: async () => refuse(),
-    read: async () => refuse(),
-    write: async () => refuse(),
-    remove: async () => refuse(),
-  };
 }
 
 const failLoudScriptRunner: SandboxScriptRunner = async () => {
@@ -304,7 +287,7 @@ function assembleConnectorHost(sql: Sql): void {
   installConnectorCatalog(connectors);
   for (const connector of connectors) registerConnector(connector);
   registerNativeConnectors({
-    webdav: failLoudWebdavStore(),
+    webdav: pgWebdavStore(sql),
     sandboxScripts: failLoudScriptRunner,
     tasks: pgTaskStore(sql),
     documents: pgDocumentStore(sql),
