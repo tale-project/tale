@@ -126,6 +126,10 @@ export interface TaskPayloads {
   'onedrive.sync_scan': Record<string, never>;
   /** Reconcile one OneDrive sync config (claim-fenced in the config row). */
   'onedrive.sync_config': { organizationId: string; configId: string };
+  /** 15-min Google Drive sync scan (same engine as OneDrive's). */
+  'google_drive.sync_scan': Record<string, never>;
+  /** Reconcile one Google Drive sync config (claim-fenced). */
+  'google_drive.sync_config': { organizationId: string; configId: string };
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -206,4 +210,6 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // At-most-once per scan round: a lost run is re-enqueued by the next scan,
   // and the config-row claim fence already blocks overlapping reconciles.
   'onedrive.sync_config': { retryLimit: 0, expireInSeconds: 1800 },
+  'google_drive.sync_scan': { retryLimit: 1, expireInSeconds: 300 },
+  'google_drive.sync_config': { retryLimit: 0, expireInSeconds: 1800 },
 };

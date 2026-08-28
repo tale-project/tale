@@ -14,8 +14,8 @@ import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
 import {
   cancelSyncConfig,
   createPgImportDeps,
-  OneDriveError,
   resolveGraphTokenForUser,
+  SyncConfigError,
 } from './service.ts';
 
 /**
@@ -29,7 +29,7 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
-  if (error instanceof OneDriveError) {
+  if (error instanceof SyncConfigError) {
     return c.json({ error: error.code, message: error.message }, error.status);
   }
   throw error;

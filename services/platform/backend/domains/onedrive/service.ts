@@ -9,12 +9,7 @@ import { extractTenantId } from '../../../convex/enterprise_sso/entra_id/constan
 import { sourceFromProvider } from '../../../convex/file_metadata/source_from_provider.ts';
 import { deleteKnowledgeDocument } from '../../../convex/legacy/knowledge_delete.ts';
 import { getFileMetadata } from '../../../convex/onedrive/get_file_metadata.ts';
-import {
-  importFiles,
-  type ImportFilesDependencies,
-  type ImportFilesResult,
-  type ImportItem,
-} from '../../../convex/onedrive/import_files.ts';
+import { importFiles } from '../../../convex/onedrive/import_files.ts';
 import type { FileItem } from '../../../convex/onedrive/list_folder_contents.ts';
 import { listFolderContents } from '../../../convex/onedrive/list_folder_contents.ts';
 import {
@@ -58,15 +53,20 @@ import { readSsoSecrets, resolveSignInConfig } from '../sso/config.ts';
  * Tokens resolve cloud-import grant FIRST (the explicit Documents grant from
  * inc 64), then the Better Auth Microsoft login account (legacy / SSO
  * shortcut) — the 0.4 `withMicrosoftToken` order. Agents never reach these.
+ *
+ * Like the 0.4 tree (google_drive imports onedrive's prune/reconcile
+ * helpers), this module is also the home of the PROVIDER-GENERIC engine:
+ * everything below is parameterized over a {@link SyncProviderAdapter}, and
+ * `domains/google_drive` binds a second adapter to the same machinery.
  */
 
-export class OneDriveError extends Error {
+export class SyncConfigError extends Error {
   readonly code: string;
   readonly status: 400 | 403 | 404;
 
   constructor(code: string, message: string, status: 400 | 403 | 404 = 400) {
     super(message);
-    this.name = 'OneDriveError';
+    this.name = 'SyncConfigError';
     this.code = code;
     this.status = status;
   }
@@ -74,7 +74,7 @@ export class OneDriveError extends Error {
 
 // --------------------------------------------------------------- config rows
 
-export interface OneDriveSyncConfigRow {
+export interface SyncConfigRow {
   id: string;
   organizationId: string;
   userId: string;
@@ -100,23 +100,110 @@ const CONFIG_COLUMNS = `
   last_sync_status AS "lastSyncStatus", error_message AS "errorMessage"
 `;
 
-export async function getSyncConfig(
+/** The provider seam the generic sync engine runs over. Fetchers are the
+ * reused 0.4 modules; table/provider names come from a CLOSED constant set
+ * (never user input — they land in SQL via `unsafe`). */
+export interface SyncProviderAdapter {
+  /** Log tag + error copy ('OneDrive' / 'Google Drive'). */
+  displayName: string;
+  /** `app.documents.source_provider` value this engine owns. */
+  sourceProvider: string;
+  /** Schema-qualified sync-config table. */
+  configTable: string;
+  /** Per-config job + its dedup key prefix. */
+  configJobName: 'onedrive.sync_config' | 'google_drive.sync_config';
+  singletonPrefix: string;
+  /** Legacy metadata keys that may carry the external item id. */
+  metadataItemIdKeys: readonly string[];
+  resolveToken(
+    sql: Sql,
+    args: { organizationId: string; userId: string },
+  ): Promise<GraphTokenResult>;
+  listFolderContents(args: {
+    itemId: string;
+    token: string;
+    recursive: boolean;
+  }): Promise<{ success: boolean; files?: FileItem[]; error?: string }>;
+  getFileMetadata(
+    itemId: string,
+    token: string,
+    siteId?: string,
+    driveId?: string,
+  ): Promise<{
+    success: boolean;
+    data?: { hash?: string; mimeType?: string; size?: number };
+    notFound?: boolean;
+    error?: string;
+  }>;
+  /** Vendor download URL for one item (the import deps' fetch target). */
+  buildDownloadUrl(args: {
+    itemId: string;
+    siteId?: string;
+    driveId?: string;
+  }): string;
+  /** Run the provider's REUSED 0.4 import pipeline with pg deps. */
+  runImport(
+    sql: Sql,
+    args: {
+      items: SyncImportItem[];
+      organizationId: string;
+      importType: 'one-time' | 'sync';
+      teamId?: string;
+      token: string;
+      userId: string;
+    },
+  ): Promise<SyncImportOutcome>;
+}
+
+/** Structural superset of both providers' 0.4 `ImportItem` shapes. */
+export interface SyncImportItem {
+  id: string;
+  name: string;
+  size: number;
+  relativePath?: string;
+  isDirectlySelected?: boolean;
+  selectedParentId?: string;
+  selectedParentName?: string;
+  selectedParentPath?: string;
+  siteId?: string;
+  driveId?: string;
+  sourceType?: 'onedrive' | 'sharepoint';
+}
+
+/** Structural projection of both providers' 0.4 `ImportFilesResult`. */
+export interface SyncImportOutcome {
+  success: boolean;
+  successCount: number;
+  failedCount: number;
+  skippedCount: number;
+  results: {
+    fileId: string;
+    fileName: string;
+    status: 'success' | 'skipped' | 'error';
+    documentId?: string;
+    error?: string;
+  }[];
+}
+
+export async function getSyncConfigRow(
   db: Sql | TransactionSql,
+  table: string,
   configId: string,
-): Promise<OneDriveSyncConfigRow | null> {
-  const rows = await db<OneDriveSyncConfigRow[]>`
-    SELECT ${db.unsafe(CONFIG_COLUMNS)} FROM app.onedrive_sync_configs
+): Promise<SyncConfigRow | null> {
+  const rows = await db<SyncConfigRow[]>`
+    SELECT ${db.unsafe(CONFIG_COLUMNS)} FROM ${db.unsafe(table)}
     WHERE id = ${configId} LIMIT 1
   `;
   return rows[0] ?? null;
 }
 
-export async function listActiveSyncConfigs(
+export async function listActiveSyncConfigRows(
   db: Sql | TransactionSql,
+  table: string,
   organizationId: string,
-): Promise<OneDriveSyncConfigRow[]> {
-  return db<OneDriveSyncConfigRow[]>`
-    SELECT ${db.unsafe(CONFIG_COLUMNS)} FROM app.onedrive_sync_configs
+): Promise<SyncConfigRow[]> {
+  return db<SyncConfigRow[]>`
+    SELECT ${db.unsafe(CONFIG_COLUMNS)} FROM ${db.unsafe(table)}
     WHERE org_id = ${organizationId} AND status = 'active'
     ORDER BY created_at_ms ASC
   `;
@@ -124,11 +211,12 @@ export async function listActiveSyncConfigs(
 
 /**
  * Create-or-reactivate the sync config for a selected item (the 0.4
- * `createOneDriveSyncConfig`): one config per (org, source item); an
+ * `create*SyncConfig`): one config per (org, source item); an
  * inactive/error row is reactivated in place with the fresh selection.
  */
-export async function upsertSyncConfig(
+export async function upsertSyncConfigRow(
   db: Sql | TransactionSql,
+  table: string,
   args: {
     organizationId: string;
     userId: string;
@@ -143,7 +231,7 @@ export async function upsertSyncConfig(
 ): Promise<string | null> {
   const now = Date.now();
   const rows = await db<{ id: string }[]>`
-    INSERT INTO app.onedrive_sync_configs (
+    INSERT INTO ${db.unsafe(table)} (
       org_id, user_id, item_type, item_id, item_name, item_path,
       target_bucket, storage_prefix, team_id, status, created_at_ms,
       updated_at_ms
@@ -173,8 +261,9 @@ export async function upsertSyncConfig(
  * write never touches an `inactive` row — a cancel landing while a sync is
  * in flight must not be resurrected by that run's final stamp.
  */
-export async function updateSyncConfigStatus(
+export async function updateSyncConfigStatusRow(
   db: Sql | TransactionSql,
+  table: string,
   args: {
     configId: string;
     /** Caller's org — when set, a config in another tenant is not touched. */
@@ -186,7 +275,7 @@ export async function updateSyncConfigStatus(
   },
 ): Promise<void> {
   await db`
-    UPDATE app.onedrive_sync_configs SET
+    UPDATE ${db.unsafe(table)} SET
       status = ${args.status !== undefined ? args.status : db.unsafe('status')},
       last_sync_at_ms = ${args.lastSyncAt !== undefined ? args.lastSyncAt : db.unsafe('last_sync_at_ms')},
       last_sync_status = ${args.lastSyncStatus !== undefined ? args.lastSyncStatus : db.unsafe('last_sync_status')},
@@ -203,19 +292,20 @@ export async function updateSyncConfigStatus(
  * Stop a sync without touching the already-imported documents; re-running
  * "Sync import" on the same item reactivates the config.
  */
-export async function cancelSyncConfig(
+export async function cancelSyncConfigRow(
   db: Sql | TransactionSql,
+  table: string,
   organizationId: string,
   configId: string,
 ): Promise<void> {
   const rows = await db<{ id: string }[]>`
-    UPDATE app.onedrive_sync_configs SET
+    UPDATE ${db.unsafe(table)} SET
       status = 'inactive', updated_at_ms = ${Date.now()}
     WHERE id = ${configId} AND org_id = ${organizationId}
     RETURNING id
   `;
   if (rows.length === 0) {
-    throw new OneDriveError(
+    throw new SyncConfigError(
       'SYNC_CONFIG_NOT_FOUND',
       'Sync config not found',
       404,
@@ -223,25 +313,36 @@ export async function cancelSyncConfig(
   }
 }
 
+/** Both providers' config tables — the cross-provider hooks sweep all of
+ * them, the 0.4 `deactivate_sync_configs.ts` posture. */
+const ALL_SYNC_CONFIG_TABLES = [
+  'app.onedrive_sync_configs',
+  'app.google_drive_sync_configs',
+] as const;
+
 /**
  * Deleting a synced hub folder means "stop syncing it" — deactivate every
- * active config whose synced tree lives at or below the given hub path, or
- * the next sync run resurrects the folder just removed.
+ * active config (any provider) whose synced tree lives at or below the
+ * given hub path, or the next sync run resurrects the folder just removed.
  */
 export async function deactivateSyncConfigsForPath(
   db: Sql | TransactionSql,
   organizationId: string,
   folderPath: string,
 ): Promise<number> {
-  const rows = await db<{ id: string }[]>`
-    UPDATE app.onedrive_sync_configs SET
-      status = 'inactive', updated_at_ms = ${Date.now()}
-    WHERE org_id = ${organizationId} AND status = 'active'
-      AND (coalesce(item_path, '') = ${folderPath}
-           OR coalesce(item_path, '') LIKE ${folderPath + '/%'})
-    RETURNING id
-  `;
-  return rows.length;
+  let deactivated = 0;
+  for (const table of ALL_SYNC_CONFIG_TABLES) {
+    const rows = await db<{ id: string }[]>`
+      UPDATE ${db.unsafe(table)} SET
+        status = 'inactive', updated_at_ms = ${Date.now()}
+      WHERE org_id = ${organizationId} AND status = 'active'
+        AND (coalesce(item_path, '') = ${folderPath}
+             OR coalesce(item_path, '') LIKE ${folderPath + '/%'})
+      RETURNING id
+    `;
+    deactivated += rows.length;
+  }
+  return deactivated;
 }
 
 /**
@@ -249,8 +350,8 @@ export async function deactivateSyncConfigsForPath(
  * syncing it" — otherwise the next scheduled run refreshes the mirror the
  * user just removed. Only a directly-selected single-file config maps 1:1
  * to a document; folder-member docs carry the FOLDER's config id and are
- * left alone. No-op for manual uploads. (The 0.4
- * `stopSyncForDeletedDocument`, hooked at the 0.5 trash lane.)
+ * left alone. No-op for manual uploads. Covers both providers' tables (the
+ * 0.4 `stopSyncForDeletedDocument`, hooked at the 0.5 trash lane).
  */
 export async function stopSyncForTrashedDocument(
   db: Sql | TransactionSql,
@@ -264,14 +365,17 @@ export async function stopSyncForTrashedDocument(
   ) {
     return false;
   }
-  const rows = await db<{ id: string }[]>`
-    UPDATE app.onedrive_sync_configs SET
-      status = 'inactive', updated_at_ms = ${Date.now()}
-    WHERE id = ${meta.syncConfigId} AND org_id = ${document.organizationId}
-      AND status <> 'inactive'
-    RETURNING id
-  `;
-  return rows.length > 0;
+  for (const table of ALL_SYNC_CONFIG_TABLES) {
+    const rows = await db<{ id: string }[]>`
+      UPDATE ${db.unsafe(table)} SET
+        status = 'inactive', updated_at_ms = ${Date.now()}
+      WHERE id = ${meta.syncConfigId} AND org_id = ${document.organizationId}
+        AND status <> 'inactive'
+      RETURNING id
+    `;
+    if (rows.length > 0) return true;
+  }
+  return false;
 }
 
 // ------------------------------------------------------------------- tokens
@@ -464,8 +568,9 @@ const DOC_SYNC_COLUMNS = `
   content_hash AS "contentHash", metadata
 `;
 
-async function fetchGraphContentToStorage(
+async function fetchVendorContentToStorage(
   sql: Sql,
+  adapter: SyncProviderAdapter,
   args: {
     organizationId: string;
     itemId: string;
@@ -480,10 +585,7 @@ async function fetchGraphContentToStorage(
   size?: number;
   error?: string;
 }> {
-  const url =
-    args.siteId && args.driveId
-      ? `https://graph.microsoft.com/v1.0/sites/${args.siteId}/drives/${args.driveId}/items/${args.itemId}/content`
-      : `https://graph.microsoft.com/v1.0/me/drive/items/${args.itemId}/content`;
+  const url = adapter.buildDownloadUrl(args);
   try {
     const download = await fetch(url, {
       headers: { Authorization: `Bearer ${args.token}` },
@@ -573,20 +675,112 @@ async function scheduleDocumentRagIndexing(
   return true;
 }
 
+/** The structural dep object both providers' REUSED pipelines accept —
+ * wide-typed params (a `sourceProvider: string` impl satisfies each
+ * pipeline's narrower literal union under parameter contravariance). */
+export interface PgSyncImportDeps {
+  getFileMetadata: (
+    itemId: string,
+    token: string,
+    siteId?: string,
+    driveId?: string,
+  ) => Promise<{
+    success: boolean;
+    data?: { hash?: string; mimeType?: string; size?: number };
+    error?: string;
+  }>;
+  downloadToStorage: (args: {
+    itemId: string;
+    token: string;
+    siteId?: string;
+    driveId?: string;
+  }) => Promise<{
+    success: boolean;
+    storageId?: never;
+    mimeType?: string;
+    size?: number;
+    error?: string;
+  }>;
+  findDocumentByExternalId: (args: {
+    organizationId: string;
+    externalItemId: string;
+  }) => Promise<{ _id: never; contentHash?: string } | null>;
+  createDocument: (args: {
+    organizationId: string;
+    title: string;
+    fileId: string;
+    mimeType?: string;
+    sourceProvider: string;
+    externalItemId: string;
+    contentHash?: string;
+    teamId?: string;
+    metadata?: Record<string, unknown>;
+    createdBy?: string;
+    folderId?: string;
+  }) => Promise<never>;
+  updateDocument: (args: {
+    documentId: string;
+    title: string;
+    fileId: string;
+    mimeType?: string;
+    sourceProvider: string;
+    externalItemId: string;
+    contentHash?: string;
+    teamId?: string;
+    metadata?: Record<string, unknown>;
+    folderId?: string;
+  }) => Promise<void>;
+  getOrCreateFolderPath: (
+    organizationId: string,
+    pathSegments: string[],
+    createdBy?: string,
+    teamId?: string,
+  ) => Promise<never>;
+  saveFileMetadata: (
+    storageId: string,
+    fileName: string,
+    contentType: string,
+    size: number,
+    documentId: string,
+  ) => Promise<void>;
+  linkDocumentToFile: (storageId: string, documentId: string) => Promise<void>;
+  scheduleHubDocumentRagIndexing: (documentId: string) => Promise<void>;
+  upsertSyncConfig: (
+    target: {
+      itemType: 'file' | 'folder';
+      itemId: string;
+      itemName: string;
+      itemPath?: string;
+    } & {
+      organizationId: string;
+      userId: string;
+      teamId?: string;
+      targetBucket: string;
+      storagePrefix?: string;
+    },
+  ) => Promise<string | null>;
+}
+
 /**
- * The pg dependency object for the REUSED 0.4 `importFiles` pipeline —
- * direct SQL twins of the 0.4 internal mutations. System lane: the route
- * gates membership; the sync engine runs under the config owner.
+ * The pg dependency object for the REUSED 0.4 `importFiles` pipelines —
+ * direct SQL twins of the 0.4 internal mutations, provider-parameterized.
+ * System lane: the route gates membership; the sync engine runs under the
+ * config owner.
  */
-export function createPgImportDeps(
+export function createSyncImportDeps(
   sql: Sql,
+  adapter: SyncProviderAdapter,
   organizationId: string,
-): ImportFilesDependencies {
+): PgSyncImportDeps {
   return {
     getFileMetadata: (itemId, token, siteId, driveId) =>
-      getFileMetadata(itemId, token, siteId, driveId),
+      adapter.getFileMetadata(itemId, token, siteId, driveId),
     downloadToStorage: (streamArgs) =>
-      fetchGraphContentToStorage(sql, { ...streamArgs, organizationId }),
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg blob refs stand in for the reused pipeline's BlobRef brand
+      fetchVendorContentToStorage(sql, adapter, {
+        ...streamArgs,
+        organizationId,
+      }) as never,
     findDocumentByExternalId: async (findArgs) => {
       // Deliberately NO lifecycle filter (0.4 contract): a trashed row with
       // the same external id must update in place, or the next sweep would
@@ -609,7 +803,7 @@ export function createPgImportDeps(
     createDocument: async (createArgs) => {
       const now = Date.now();
       const folderId =
-        createArgs.folderId !== undefined ? String(createArgs.folderId) : null;
+        createArgs.folderId !== undefined ? createArgs.folderId : null;
       const folderPath =
         folderId !== null
           ? await buildHubFolderPath(sql, createArgs.organizationId, folderId)
@@ -621,7 +815,7 @@ export function createPgImportDeps(
           created_by, folder_id, folder_path, created_at_ms, updated_at_ms
         ) VALUES (
           ${createArgs.organizationId}, ${createArgs.title},
-          ${String(createArgs.fileId)}, ${createArgs.mimeType ?? null},
+          ${createArgs.fileId}, ${createArgs.mimeType ?? null},
           ${extractExtension(createArgs.title) ?? null},
           ${createArgs.sourceProvider}, ${createArgs.externalItemId},
           ${createArgs.contentHash ?? null}, ${createArgs.teamId ?? null},
@@ -638,7 +832,7 @@ export function createPgImportDeps(
       return id as never;
     },
     updateDocument: async (updateArgs) => {
-      const documentId = String(updateArgs.documentId);
+      const documentId = updateArgs.documentId;
       const rows = await sql<DocumentSyncRow[]>`
         SELECT ${sql.unsafe(DOC_SYNC_COLUMNS)} FROM app.documents
         WHERE id = ${documentId} LIMIT 1
@@ -651,7 +845,7 @@ export function createPgImportDeps(
         throw new Error('A project document cannot be assigned to a team');
       }
 
-      const newFileRef = String(updateArgs.fileId);
+      const newFileRef = updateArgs.fileId;
       const hashChanged =
         updateArgs.contentHash !== undefined &&
         doc.contentHash !== updateArgs.contentHash;
@@ -669,7 +863,7 @@ export function createPgImportDeps(
       // must not strip a user's manual folder move, team assignment, or the
       // stored hash just because the pipeline had nothing to say about it.
       const folderId =
-        updateArgs.folderId !== undefined ? String(updateArgs.folderId) : null;
+        updateArgs.folderId !== undefined ? updateArgs.folderId : null;
       const folderPath =
         folderId !== null
           ? await buildHubFolderPath(sql, organizationId, folderId)
@@ -704,7 +898,7 @@ export function createPgImportDeps(
             await deleteKnowledgeDocument({ orgSlug, fileId: doc.fileRef });
           } catch (error) {
             console.warn(
-              `[onedrive] corpus purge failed for replaced blob ${doc.fileRef}:`,
+              `[${adapter.sourceProvider}] corpus purge failed for replaced blob ${doc.fileRef}:`,
               error instanceof Error ? error.message : error,
             );
           }
@@ -726,7 +920,7 @@ export function createPgImportDeps(
       size,
       documentId,
     ) => {
-      const ref = String(storageId);
+      const ref = storageId;
       const existing = await sql<{ id: string }[]>`
         SELECT id FROM app.file_metadata
         WHERE org_id = ${organizationId} AND storage_ref = ${ref}
@@ -736,7 +930,7 @@ export function createPgImportDeps(
         await sql`
           UPDATE app.file_metadata SET
             file_name = ${fileName}, content_type = ${contentType},
-            size = ${size}, document_id = ${String(documentId)}
+            size = ${size}, document_id = ${documentId}
           WHERE id = ${existing[0].id}
         `;
         return;
@@ -747,28 +941,29 @@ export function createPgImportDeps(
           document_id, created_at_ms
         ) VALUES (
           ${organizationId}, ${ref}, ${fileName}, ${contentType}, ${size},
-          'user', ${String(documentId)}, ${Date.now()}
+          'user', ${documentId}, ${Date.now()}
         )
       `;
     },
     linkDocumentToFile: async (storageId, documentId) => {
       const docs = await sql<{ sourceProvider: string | null }[]>`
         SELECT source_provider AS "sourceProvider" FROM app.documents
-        WHERE id = ${String(documentId)} LIMIT 1
+        WHERE id = ${documentId} LIMIT 1
       `;
       const source = sourceFromProvider(docs[0]?.sourceProvider ?? undefined);
       await sql`
         UPDATE app.file_metadata SET
-          document_id = ${String(documentId)},
+          document_id = ${documentId},
           source = ${source !== undefined ? source : sql.unsafe('source')}
         WHERE org_id = ${organizationId}
-          AND storage_ref = ${String(storageId)}
+          AND storage_ref = ${storageId}
       `;
     },
     scheduleHubDocumentRagIndexing: async (documentId) => {
-      await scheduleDocumentRagIndexing(sql, String(documentId));
+      await scheduleDocumentRagIndexing(sql, documentId);
     },
-    upsertSyncConfig: async (target) => upsertSyncConfig(sql, target),
+    upsertSyncConfig: async (target) =>
+      upsertSyncConfigRow(sql, adapter.configTable, target),
   };
 }
 
@@ -808,13 +1003,13 @@ export async function pruneSyncedDocuments(
       doc.externalItemId !== ref.externalItemId
     ) {
       console.warn(
-        `[onedrive] aborting stale prune for ${ref.documentId}: externalItemId re-bound`,
+        `[sync] aborting stale prune for ${ref.documentId}: externalItemId re-bound`,
       );
       continue;
     }
     if (ref.fileId !== undefined && doc.fileRef !== ref.fileId) {
       console.warn(
-        `[onedrive] aborting stale prune for ${ref.documentId}: fileRef re-bound`,
+        `[sync] aborting stale prune for ${ref.documentId}: fileRef re-bound`,
       );
       continue;
     }
@@ -830,7 +1025,7 @@ export async function pruneSyncedDocuments(
     } catch (error) {
       if (error instanceof LegalHoldError) {
         console.warn(
-          `[onedrive] prune skipped for held document ${doc.id}: ${error.message}`,
+          `[sync] prune skipped for held document ${doc.id}: ${error.message}`,
         );
         continue;
       }
@@ -881,9 +1076,10 @@ function metadataRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
-/** Every org document imported from OneDrive, as prune candidates. */
-async function listOneDriveDocumentRefs(
+/** Every org document imported from this provider, as prune candidates. */
+async function listProviderDocumentRefs(
   sql: Sql,
+  adapter: SyncProviderAdapter,
   organizationId: string,
 ): Promise<SyncedDocumentRef[]> {
   const refs: SyncedDocumentRef[] = [];
@@ -891,19 +1087,22 @@ async function listOneDriveDocumentRefs(
   for (;;) {
     const rows = await sql<DocumentSyncRow[]>`
       SELECT ${sql.unsafe(DOC_SYNC_COLUMNS)} FROM app.documents
-      WHERE org_id = ${organizationId} AND source_provider = 'onedrive'
+      WHERE org_id = ${organizationId}
+        AND source_provider = ${adapter.sourceProvider}
         AND id > ${after}
       ORDER BY id ASC
       LIMIT 200
     `;
     for (const doc of rows) {
       const meta = metadataRecord(doc.metadata);
-      const fallbackId =
-        typeof meta.oneDriveItemId === 'string'
-          ? meta.oneDriveItemId
-          : typeof meta.oneDriveId === 'string'
-            ? meta.oneDriveId
-            : undefined;
+      let fallbackId: string | undefined;
+      for (const key of adapter.metadataItemIdKeys) {
+        const value = meta[key];
+        if (typeof value === 'string') {
+          fallbackId = value;
+          break;
+        }
+      }
       const externalItemId = doc.externalItemId ?? fallbackId;
       refs.push({
         documentId: doc.id,
@@ -925,8 +1124,9 @@ async function listOneDriveDocumentRefs(
 }
 
 /** Sync a folder config: shared import pipeline + prune of departed files. */
-export async function reconcileFolder(
+export async function reconcileFolderWith(
   sql: Sql,
+  adapter: SyncProviderAdapter,
   args: {
     organizationId: string;
     configId: string;
@@ -948,19 +1148,20 @@ export async function reconcileFolder(
     },
     args.files,
   );
-  const importResult = await importFiles(
-    {
-      items,
-      organizationId: args.organizationId,
-      importType: 'sync',
-      ...(args.teamId !== undefined ? { teamId: args.teamId } : {}),
-      token: args.token,
-      userId: args.userId,
-    },
-    createPgImportDeps(sql, args.organizationId),
-  );
+  const importResult = await adapter.runImport(sql, {
+    items,
+    organizationId: args.organizationId,
+    importType: 'sync',
+    ...(args.teamId !== undefined ? { teamId: args.teamId } : {}),
+    token: args.token,
+    userId: args.userId,
+  });
 
-  const existingDocs = await listOneDriveDocumentRefs(sql, args.organizationId);
+  const existingDocs = await listProviderDocumentRefs(
+    sql,
+    adapter,
+    args.organizationId,
+  );
   const toPrune = selectDocumentsToPrune(
     args.configId,
     new Set(args.files.map((f) => f.id)),
@@ -997,7 +1198,7 @@ export async function reconcileFolder(
   };
 }
 
-/** Every auto-synced document this config owns for its single file. */
+/** Every auto-synced document a single-file config owns for its file. */
 async function collectOwnedSingleFileRefs(
   sql: Sql,
   args: { organizationId: string; configId: string; itemId: string },
@@ -1026,8 +1227,9 @@ async function collectOwnedSingleFileRefs(
  * id → update in place), collapse duplicate rows a prior no-dedup run
  * created, and — on a definitive 404 at the source — remove the mirror.
  */
-export async function reconcileSingleFile(
+export async function reconcileSingleFileWith(
   sql: Sql,
+  adapter: SyncProviderAdapter,
   args: {
     organizationId: string;
     configId: string;
@@ -1039,34 +1241,30 @@ export async function reconcileSingleFile(
     token: string;
   },
 ): Promise<ReconcileResult> {
-  const item: ImportItem = {
+  const item: SyncImportItem = {
     id: args.itemId,
     name: args.itemName,
     size: 0,
     relativePath: args.itemPath ?? args.itemName,
     isDirectlySelected: true,
   };
-  const importResult: ImportFilesResult = await importFiles(
-    {
-      items: [item],
-      organizationId: args.organizationId,
-      importType: 'sync',
-      ...(args.teamId !== undefined ? { teamId: args.teamId } : {}),
-      token: args.token,
-      userId: args.userId,
-    },
-    createPgImportDeps(sql, args.organizationId),
-  );
+  const importResult = await adapter.runImport(sql, {
+    items: [item],
+    organizationId: args.organizationId,
+    importType: 'sync',
+    ...(args.teamId !== undefined ? { teamId: args.teamId } : {}),
+    token: args.token,
+    userId: args.userId,
+  });
 
   const primary = importResult.results[0];
-  const canonicalId =
-    primary?.documentId !== undefined ? String(primary.documentId) : undefined;
+  const canonicalId = primary?.documentId;
 
   if (canonicalId === undefined) {
     // Only a definitive 404 (source deleted/trashed) removes the mirror — a
     // transient / permission / throttle failure keeps the doc and errors
     // the config (a move keeps the item id, so this 404 means truly gone).
-    const meta = await getFileMetadata(args.itemId, args.token);
+    const meta = await adapter.getFileMetadata(args.itemId, args.token);
     if (!meta.success && meta.notFound) {
       const owned = await collectOwnedSingleFileRefs(sql, args);
       const deleted = await pruneSyncedDocuments(sql, {
@@ -1081,7 +1279,9 @@ export async function reconcileSingleFile(
         sourceDeleted: true,
       };
     }
-    throw new Error(primary?.error ?? 'Failed to sync file from OneDrive');
+    throw new Error(
+      primary?.error ?? `Failed to sync file from ${adapter.displayName}`,
+    );
   }
 
   const strays = (await collectOwnedSingleFileRefs(sql, args)).filter(
@@ -1102,25 +1302,28 @@ export async function reconcileSingleFile(
 }
 
 /**
- * Sync one config end to end: resolve the owner's Graph token, then
- * reconcile the folder (recursive listing that THROWS on a truncated page
- * walk — a short read must fail the sync, never prune) or the single file.
- * Throws on hard failure so the caller marks the config `error`.
+ * Sync one config end to end: resolve the owner's token, then reconcile
+ * the folder (recursive listing that THROWS on a truncated page walk — a
+ * short read must fail the sync, never prune) or the single file. Throws
+ * on hard failure so the caller marks the config `error`.
  */
-export async function syncOneConfig(
+export async function syncOneConfigWith(
   sql: Sql,
-  config: OneDriveSyncConfigRow,
+  adapter: SyncProviderAdapter,
+  config: SyncConfigRow,
 ): Promise<ReconcileResult> {
-  const token = await resolveGraphTokenForUser(sql, {
+  const token = await adapter.resolveToken(sql, {
     organizationId: config.organizationId,
     userId: config.userId,
   });
   if (!token.success) {
-    throw new Error('No valid Microsoft Graph token for the config owner');
+    throw new Error(
+      `No valid ${adapter.displayName} token for the config owner`,
+    );
   }
 
   if (config.itemType === 'folder') {
-    const listed = await listFolderContents({
+    const listed = await adapter.listFolderContents({
       itemId: config.itemId,
       token: token.token,
       recursive: true,
@@ -1128,7 +1331,7 @@ export async function syncOneConfig(
     if (!listed.success) {
       throw new Error(listed.error ?? 'Failed to list folder contents');
     }
-    return reconcileFolder(sql, {
+    return reconcileFolderWith(sql, adapter, {
       organizationId: config.organizationId,
       configId: config.id,
       itemId: config.itemId,
@@ -1141,7 +1344,7 @@ export async function syncOneConfig(
     });
   }
 
-  return reconcileSingleFile(sql, {
+  return reconcileSingleFileWith(sql, adapter, {
     organizationId: config.organizationId,
     configId: config.id,
     itemId: config.itemId,
@@ -1159,15 +1362,17 @@ export async function syncOneConfig(
 const SYNC_CLAIM_STALE_MS = 30 * 60 * 1000;
 
 /**
- * Cron scan: one `onedrive.sync_config` job per syncable config. `error`
- * configs are retried too (a transient Graph failure must not silently end
- * a sync forever — the 0.4 active-only listing predates this engine);
- * `inactive` is the only terminal state (cancel, source deleted, folder
- * removed).
+ * Cron scan: one per-config job per syncable config. `error` configs are
+ * retried too (a transient vendor failure must not silently end a sync
+ * forever — the 0.4 active-only listing predates this engine); `inactive`
+ * is the only terminal state (cancel, source deleted, folder removed).
  */
-export async function runOneDriveSyncScan(sql: Sql): Promise<number> {
+export async function runSyncScanWith(
+  sql: Sql,
+  adapter: SyncProviderAdapter,
+): Promise<number> {
   const rows = await sql<{ id: string; organizationId: string }[]>`
-    SELECT id, org_id AS "organizationId" FROM app.onedrive_sync_configs
+    SELECT id, org_id AS "organizationId" FROM ${sql.unsafe(adapter.configTable)}
     WHERE status IN ('active', 'error')
     ORDER BY created_at_ms ASC
     LIMIT 1000
@@ -1175,23 +1380,24 @@ export async function runOneDriveSyncScan(sql: Sql): Promise<number> {
   for (const row of rows) {
     await addJobInTx(
       sql,
-      'onedrive.sync_config',
+      adapter.configJobName,
       { organizationId: row.organizationId, configId: row.id },
-      { singletonKey: `onedrive-sync-${row.id}` },
+      { singletonKey: `${adapter.singletonPrefix}${row.id}` },
     );
   }
   return rows.length;
 }
 
 /** One per-config sync job: claim, reconcile, stamp the outcome. */
-export async function runOneDriveSyncConfigJob(
+export async function runSyncConfigJobWith(
   sql: Sql,
+  adapter: SyncProviderAdapter,
   payload: { organizationId: string; configId: string },
 ): Promise<void> {
   // Claim fence: a second job for the same config no-ops while a fresh run
   // is in flight; a stale 'running' stamp (crashed worker) is reclaimable.
   const claimed = await sql<{ id: string }[]>`
-    UPDATE app.onedrive_sync_configs SET
+    UPDATE ${sql.unsafe(adapter.configTable)} SET
       last_sync_status = 'running', updated_at_ms = ${Date.now()}
     WHERE id = ${payload.configId} AND org_id = ${payload.organizationId}
       AND status IN ('active', 'error')
@@ -1200,13 +1406,17 @@ export async function runOneDriveSyncConfigJob(
     RETURNING id
   `;
   if (claimed.length === 0) return;
-  const config = await getSyncConfig(sql, payload.configId);
+  const config = await getSyncConfigRow(
+    sql,
+    adapter.configTable,
+    payload.configId,
+  );
   if (!config) return;
 
   try {
-    const result = await syncOneConfig(sql, config);
+    const result = await syncOneConfigWith(sql, adapter, config);
     if (result.sourceDeleted === true) {
-      await updateSyncConfigStatus(sql, {
+      await updateSyncConfigStatusRow(sql, adapter.configTable, {
         configId: config.id,
         organizationId: config.organizationId,
         status: 'inactive',
@@ -1216,7 +1426,7 @@ export async function runOneDriveSyncConfigJob(
       });
       return;
     }
-    await updateSyncConfigStatus(sql, {
+    await updateSyncConfigStatusRow(sql, adapter.configTable, {
       configId: config.id,
       organizationId: config.organizationId,
       status: 'active',
@@ -1228,7 +1438,7 @@ export async function runOneDriveSyncConfigJob(
       errorMessage: null,
     });
   } catch (error) {
-    await updateSyncConfigStatus(sql, {
+    await updateSyncConfigStatusRow(sql, adapter.configTable, {
       configId: config.id,
       organizationId: config.organizationId,
       status: 'error',
@@ -1237,4 +1447,62 @@ export async function runOneDriveSyncConfigJob(
       errorMessage: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+// ---------------------------------------------------- the OneDrive binding
+
+const ONEDRIVE_CONFIG_TABLE = 'app.onedrive_sync_configs';
+
+export const ONEDRIVE_SYNC_ADAPTER: SyncProviderAdapter = {
+  displayName: 'OneDrive',
+  sourceProvider: 'onedrive',
+  configTable: ONEDRIVE_CONFIG_TABLE,
+  configJobName: 'onedrive.sync_config',
+  singletonPrefix: 'onedrive-sync-',
+  metadataItemIdKeys: ['oneDriveItemId', 'oneDriveId'],
+  resolveToken: (sql, args) => resolveGraphTokenForUser(sql, args),
+  listFolderContents: (args) => listFolderContents(args),
+  getFileMetadata: (itemId, token, siteId, driveId) =>
+    getFileMetadata(itemId, token, siteId, driveId),
+  buildDownloadUrl: (args) =>
+    args.siteId && args.driveId
+      ? `https://graph.microsoft.com/v1.0/sites/${args.siteId}/drives/${args.driveId}/items/${args.itemId}/content`
+      : `https://graph.microsoft.com/v1.0/me/drive/items/${args.itemId}/content`,
+  runImport: (sql, args) =>
+    importFiles(
+      args,
+      createSyncImportDeps(sql, ONEDRIVE_SYNC_ADAPTER, args.organizationId),
+    ),
+};
+
+/** The pg dependency object for the OneDrive import route. */
+export function createPgImportDeps(
+  sql: Sql,
+  organizationId: string,
+): PgSyncImportDeps {
+  return createSyncImportDeps(sql, ONEDRIVE_SYNC_ADAPTER, organizationId);
+}
+
+export async function cancelSyncConfig(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  configId: string,
+): Promise<void> {
+  await cancelSyncConfigRow(
+    db,
+    ONEDRIVE_CONFIG_TABLE,
+    organizationId,
+    configId,
+  );
+}
+
+export async function runOneDriveSyncScan(sql: Sql): Promise<number> {
+  return runSyncScanWith(sql, ONEDRIVE_SYNC_ADAPTER);
+}
+
+export async function runOneDriveSyncConfigJob(
+  sql: Sql,
+  payload: { organizationId: string; configId: string },
+): Promise<void> {
+  await runSyncConfigJobWith(sql, ONEDRIVE_SYNC_ADAPTER, payload);
 }

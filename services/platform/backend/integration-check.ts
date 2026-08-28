@@ -7587,7 +7587,7 @@ async function checkOneDriveSync(
     }, 15_000);
     const cancel = await post(`/sync-configs/${folderConfig.id}/cancel`, {});
     const cancelMissing = await post('/sync-configs/does-not-exist/cancel', {});
-    await onedrive.updateSyncConfigStatus(sql, {
+    await onedrive.updateSyncConfigStatusRow(sql, 'app.onedrive_sync_configs', {
       configId: folderConfig.id,
       status: 'active',
       lastSyncStatus: 'success',
@@ -7634,6 +7634,410 @@ async function checkOneDriveSync(
     } catch (error) {
       console.warn('[itest] onedrive cleanup failed:', error);
     }
+  }
+}
+
+/**
+ * Google Drive Knowledge sync — the second binding of the provider-generic
+ * engine (fake Drive v3 API via the same global-fetch interception).
+ * Asserts the PROVIDER seams the OneDrive journey cannot: grant-only
+ * tokens, Drive children listings (q= parents), md5Checksum hashes,
+ * Workspace-native exclusion (browse + sync listing + metadata refusal),
+ * the google config table behind the shared cross-provider trash hook,
+ * and the second job pair. The engine mechanics (hash-skip, history,
+ * prune/reap, holds, cancel-wins) are proven by the OneDrive check.
+ */
+async function checkGoogleDriveSync(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const gdrive = await import('./domains/google_drive/service.ts');
+  const cloud = await import('./domains/cloud_import/service.ts');
+
+  interface DriveNode {
+    id: string;
+    name: string;
+    parent?: string;
+    content?: string;
+    hash?: string;
+    mime?: string;
+  }
+  const GFOLDER = 'application/vnd.google-apps.folder';
+  const drive = new Map<string, DriveNode>();
+  const seed = (node: DriveNode): void => void drive.set(node.id, node);
+  seed({ id: 'g-root', name: 'GDReports', mime: GFOLDER });
+  seed({ id: 'g-sub', name: 'GY2026', parent: 'g-root', mime: GFOLDER });
+  seed({
+    id: 'g-q1',
+    name: 'gq1.txt',
+    parent: 'g-root',
+    content: 'gq1 v1',
+    hash: 'md5-gq1-v1',
+    mime: 'text/plain',
+  });
+  seed({
+    id: 'g-sum',
+    name: 'gsummary.txt',
+    parent: 'g-sub',
+    content: 'gsum v1',
+    hash: 'md5-gsum-v1',
+    mime: 'text/plain',
+  });
+  seed({
+    id: 'g-native',
+    name: 'Native Doc',
+    parent: 'g-root',
+    content: '',
+    mime: 'application/vnd.google-apps.document',
+  });
+  seed({
+    id: 'g-memo',
+    name: 'gmemo.md',
+    content: 'gmemo v1',
+    hash: 'md5-gmemo-v1',
+    mime: 'text/markdown',
+  });
+
+  const jsonResponse = (body: unknown, status = 200): Response =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+  const driveHandler = (url: URL): Response => {
+    if (url.pathname === '/drive/v3/files') {
+      const q = url.searchParams.get('q') ?? '';
+      const parentMatch = /^'([^']+)' in parents/.exec(q);
+      const parentId = parentMatch?.[1];
+      const rows = [...drive.values()]
+        .filter((node) => node.parent === parentId)
+        .map((node) => ({
+          id: node.id,
+          name: node.name,
+          size:
+            node.mime === GFOLDER
+              ? undefined
+              : String((node.content ?? '').length),
+          mimeType: node.mime,
+        }));
+      return jsonResponse({ files: rows });
+    }
+    const fileMatch = /^\/drive\/v3\/files\/([^/]+)$/.exec(url.pathname);
+    const node = fileMatch?.[1]
+      ? drive.get(decodeURIComponent(fileMatch[1]))
+      : undefined;
+    if (!node) {
+      return jsonResponse({ error: { code: 404, message: 'notFound' } }, 404);
+    }
+    if (url.searchParams.get('alt') === 'media') {
+      const content = node.content ?? '';
+      return new Response(content, {
+        status: 200,
+        headers: {
+          'content-type': node.mime ?? 'application/octet-stream',
+          'content-length': String(content.length),
+        },
+      });
+    }
+    return jsonResponse({
+      id: node.id,
+      name: node.name,
+      size: String((node.content ?? '').length),
+      mimeType: node.mime,
+      md5Checksum: node.hash,
+    });
+  };
+  const realFetch = globalThis.fetch;
+  const fakeFetchImpl = async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ): Promise<Response> => {
+    const raw =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+    const url = new URL(raw);
+    if (url.hostname === 'www.googleapis.com') return driveHandler(url);
+    return realFetch(input, init);
+  };
+  globalThis.fetch = Object.assign(fakeFetchImpl, {
+    preconnect: (): void => {},
+  });
+
+  try {
+    await cloud.storeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'google-drive',
+      accessToken: 'gdrive-grant-token',
+      expiresAt: Date.now() + 3_600_000,
+      scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+    });
+
+    const post = (route: string, body: unknown): Promise<Response> =>
+      fetch(`${base}/api/app/google-drive${route}?orgId=${orgId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify(body),
+      });
+    interface GDocRow {
+      id: string;
+      contentHash: string | null;
+      folderPath: string | null;
+      historyFiles: string[];
+      lifecycleStatus: string | null;
+    }
+    const docsByExternalId = async (externalId: string): Promise<GDocRow[]> =>
+      sql<GDocRow[]>`
+        SELECT id, content_hash AS "contentHash", folder_path AS "folderPath",
+               history_files AS "historyFiles",
+               lifecycle_status AS "lifecycleStatus"
+        FROM app.documents
+        WHERE org_id = ${orgId} AND external_item_id = ${externalId}
+          AND source_provider = 'google_drive'
+      `;
+    interface GConfigRow {
+      id: string;
+      status: string;
+      itemType: string;
+      lastSyncStatus: string | null;
+    }
+    const configByItem = async (itemId: string): Promise<GConfigRow | null> => {
+      const rows = await sql<GConfigRow[]>`
+        SELECT id, status, item_type AS "itemType",
+               last_sync_status AS "lastSyncStatus"
+        FROM app.google_drive_sync_configs
+        WHERE org_id = ${orgId} AND item_id = ${itemId}
+        LIMIT 1
+      `;
+      return rows[0] ?? null;
+    };
+    const muteRagJobs = async (): Promise<void> => {
+      await sql`
+        UPDATE app.file_metadata SET skip_rag_indexing = true
+        WHERE org_id = ${orgId} AND document_id IN (
+          SELECT id FROM app.documents
+          WHERE org_id = ${orgId} AND source_provider = 'google_drive'
+        )
+      `;
+    };
+    const runConfig = async (configId: string): Promise<void> => {
+      await gdrive.runGoogleDriveSyncConfigJob(sql, {
+        organizationId: orgId,
+        configId,
+      });
+      await muteRagJobs();
+    };
+
+    // 1. Browse (Workspace-native file hidden, folder selectable) + sync
+    //    import of the folder and a single file; idle re-sync skips.
+    const browse = await post('/list-files', { folderId: 'g-root' });
+    const browseBody = z
+      .object({
+        success: z.boolean(),
+        items: z.array(z.object({ id: z.string() })).optional(),
+      })
+      .safeParse(await browse.json());
+    const browseIds = (browseBody.success ? (browseBody.data.items ?? []) : [])
+      .map((item) => item.id)
+      .sort()
+      .join('+');
+
+    const importResponse = await post('/import', {
+      importType: 'sync',
+      items: [
+        {
+          id: 'g-q1',
+          name: 'gq1.txt',
+          size: 6,
+          relativePath: 'GDReports/gq1.txt',
+          selectedParentId: 'g-root',
+          selectedParentName: 'GDReports',
+          selectedParentPath: 'GDReports',
+        },
+        {
+          id: 'g-sum',
+          name: 'gsummary.txt',
+          size: 7,
+          relativePath: 'GDReports/GY2026/gsummary.txt',
+          selectedParentId: 'g-root',
+          selectedParentName: 'GDReports',
+          selectedParentPath: 'GDReports',
+        },
+        {
+          id: 'g-memo',
+          name: 'gmemo.md',
+          size: 7,
+          relativePath: 'gmemo.md',
+          isDirectlySelected: true,
+        },
+      ],
+    });
+    const imported = z
+      .object({
+        success: z.boolean(),
+        successCount: z.number(),
+        results: z.array(
+          z.object({ status: z.string(), documentId: z.string().optional() }),
+        ),
+      })
+      .safeParse(await importResponse.json());
+    await muteRagJobs();
+    const folderConfig = await configByItem('g-root');
+    const memoConfig = await configByItem('g-memo');
+    const q1Doc = (await docsByExternalId('g-q1'))[0];
+    const sumDoc = (await docsByExternalId('g-sum'))[0];
+    if (!folderConfig || !memoConfig) {
+      throw new Error('google-drive: sync configs missing, aborting check');
+    }
+    await runConfig(folderConfig.id);
+    const afterIdle = await configByItem('g-root');
+    const q1AfterIdle = (await docsByExternalId('g-q1'))[0];
+    record(
+      'google-drive sync import (grant token, drive listing, substrate)',
+      browse.status === 200 &&
+        browseIds === 'g-q1+g-sub' &&
+        imported.success &&
+        imported.data.successCount === 3 &&
+        folderConfig.status === 'active' &&
+        folderConfig.itemType === 'folder' &&
+        memoConfig.status === 'active' &&
+        memoConfig.itemType === 'file' &&
+        q1Doc?.folderPath === 'GDReports' &&
+        sumDoc?.folderPath === 'GDReports/GY2026' &&
+        afterIdle?.lastSyncStatus === 'success' &&
+        q1AfterIdle?.contentHash === 'md5-gq1-v1' &&
+        q1AfterIdle.historyFiles.length === 0,
+      `browse=${browse.status}/${browseIds} (want g-q1+g-sub — native hidden, folder listed), import=${imported.success ? imported.data.successCount : 'ERR'}/3, configs=${folderConfig.itemType}:${folderConfig.status}+${memoConfig.itemType}:${memoConfig.status}, paths=${q1Doc?.folderPath}|${sumDoc?.folderPath}, idle=${afterIdle?.lastSyncStatus} hash=${q1AfterIdle?.contentHash} history=${q1AfterIdle?.historyFiles.length}/0`,
+    );
+
+    // 2. Drift through the second job pair: md5 change updates in place,
+    //    a deleted source prunes + reaps, a NEW Workspace-native file in
+    //    the synced folder is never imported (listing excludes it).
+    seed({
+      id: 'g-q1',
+      name: 'gq1.txt',
+      parent: 'g-root',
+      content: 'gq1 v2 body',
+      hash: 'md5-gq1-v2',
+      mime: 'text/plain',
+    });
+    drive.delete('g-sum');
+    seed({
+      id: 'g-native2',
+      name: 'Native Sheet',
+      parent: 'g-root',
+      content: '',
+      mime: 'application/vnd.google-apps.spreadsheet',
+    });
+    await runConfig(folderConfig.id);
+    const q1AfterDrift = (await docsByExternalId('g-q1'))[0];
+    const sumAfterDrift = await docsByExternalId('g-sum');
+    const nativeDocs = await sql<{ id: string }[]>`
+      SELECT id FROM app.documents
+      WHERE org_id = ${orgId} AND external_item_id IN ('g-native', 'g-native2')
+    `;
+    const foldersAfterDrift = await sql<{ name: string }[]>`
+      SELECT name FROM app.folders
+      WHERE org_id = ${orgId} AND project_id IS NULL
+        AND name IN ('GDReports', 'GY2026')
+    `;
+    record(
+      'google-drive drift: md5 update in place, prune + reap, native excluded',
+      q1AfterDrift?.id === q1Doc?.id &&
+        q1AfterDrift?.contentHash === 'md5-gq1-v2' &&
+        q1AfterDrift?.historyFiles.length === 1 &&
+        sumAfterDrift.length === 0 &&
+        nativeDocs.length === 0 &&
+        foldersAfterDrift.length === 1 &&
+        foldersAfterDrift[0]?.name === 'GDReports',
+      `q1 sameRow=${q1AfterDrift?.id === q1Doc?.id} hash=${q1AfterDrift?.contentHash} history=${q1AfterDrift?.historyFiles.length}/1, sumPruned=${sumAfterDrift.length === 0}, nativeImported=${nativeDocs.length}/0, folders=${foldersAfterDrift.map((f) => f.name).join('+') || 'NONE'} (want GDReports only)`,
+    );
+
+    // 3. Single-file 404 deactivates; the CROSS-PROVIDER trash hook reaches
+    //    the google table; cancel door + scan enqueue for the second pair.
+    drive.delete('g-memo');
+    await runConfig(memoConfig.id);
+    const memoGone = (await docsByExternalId('g-memo')).length === 0;
+    const memoConfigAfter = await configByItem('g-memo');
+
+    // Re-import a fresh directly-selected file, then trash its document.
+    seed({
+      id: 'g-note',
+      name: 'gnote.md',
+      content: 'gnote v1',
+      hash: 'md5-gnote-v1',
+      mime: 'text/markdown',
+    });
+    const noteImport = await post('/import', {
+      importType: 'sync',
+      items: [
+        {
+          id: 'g-note',
+          name: 'gnote.md',
+          size: 8,
+          relativePath: 'gnote.md',
+          isDirectlySelected: true,
+        },
+      ],
+    });
+    const noteResult = z
+      .object({
+        successCount: z.number(),
+        results: z.array(z.object({ documentId: z.string().optional() })),
+      })
+      .safeParse(await noteImport.json());
+    await muteRagJobs();
+    const noteDocId = noteResult.success
+      ? (noteResult.data.results[0]?.documentId ?? '')
+      : '';
+    const trash = await fetch(
+      `${base}/api/app/documents/${noteDocId}/trash?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({}),
+      },
+    );
+    const noteConfigAfterTrash = await configByItem('g-note');
+
+    const scanned = await gdrive.runGoogleDriveSyncScan(sql);
+    const scanDrained = await waitFor(async () => {
+      const rows = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'google_drive.sync_config'
+          AND state IN ('created', 'retry', 'active')
+      `;
+      return Number(rows[0]?.count ?? '0') === 0;
+    }, 15_000);
+    const cancel = await post(`/sync-configs/${folderConfig.id}/cancel`, {});
+    const cancelMissing = await post('/sync-configs/nope/cancel', {});
+    record(
+      'google-drive 404/trash deactivation + second job pair + cancel door',
+      memoGone &&
+        memoConfigAfter?.status === 'inactive' &&
+        memoConfigAfter.lastSyncStatus === 'source-deleted' &&
+        noteResult.success &&
+        noteResult.data.successCount === 1 &&
+        trash.status === 200 &&
+        noteConfigAfterTrash?.status === 'inactive' &&
+        scanned === 1 &&
+        scanDrained &&
+        cancel.status === 200 &&
+        cancelMissing.status === 404,
+      `404: gone=${memoGone} config=${memoConfigAfter?.status}/${memoConfigAfter?.lastSyncStatus}, trash=${trash.status} noteConfig=${noteConfigAfterTrash?.status} (cross-provider hook), scan=${scanned}/1 drained=${scanDrained}, cancel=${cancel.status}/${cancelMissing.status} (want 200/404)`,
+    );
+
+    await cloud.revokeCloudAuthorization(sql, {
+      organizationId: orgId,
+      userId,
+      provider: 'google-drive',
+    });
+  } finally {
+    globalThis.fetch = realFetch;
   }
 }
 
@@ -12953,6 +13357,7 @@ async function main(): Promise<void> {
     await checkTts(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkCloudImport(sql, baseUrl, authCtx);
     await checkOneDriveSync(sql, baseUrl, authCtx);
+    await checkGoogleDriveSync(sql, baseUrl, authCtx);
     await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAgentSecrets(sql, baseUrl, authCtx);

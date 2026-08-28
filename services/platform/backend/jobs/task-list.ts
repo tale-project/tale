@@ -22,6 +22,10 @@ import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
 import { runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
+import {
+  runGoogleDriveSyncConfigJob,
+  runGoogleDriveSyncScan,
+} from '../domains/google_drive/service.ts';
 import { indexUploadedFile } from '../domains/knowledge/service.ts';
 import {
   runOneDriveSyncConfigJob,
@@ -321,6 +325,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         })
         .parse(payload);
       await runOneDriveSyncConfigJob(deps.sql, input);
+    },
+    'google_drive.sync_scan': async () => {
+      await runGoogleDriveSyncScan(deps.sql);
+    },
+    'google_drive.sync_config': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          configId: z.string().min(1),
+        })
+        .parse(payload);
+      await runGoogleDriveSyncConfigJob(deps.sql, input);
     },
     'task.agent_turn': async (payload) => {
       const input = z
