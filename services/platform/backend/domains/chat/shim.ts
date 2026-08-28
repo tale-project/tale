@@ -3,6 +3,7 @@ import type { Sql } from 'postgres';
 import { findOrganizationMember } from '../../auth/membership.ts';
 import type { ShimHandlers } from '../../lib/convex-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { searchConversationsForChat } from '../conversations/search-chat.ts';
 import {
   checkModelAccessForUser,
   resolveModelGovernanceForUser,
@@ -30,10 +31,9 @@ import { getThreadLineageIds, setThreadTitleIfAbsent } from './threads.ts';
  *    allows, `getContextCapInternal` un-caps, `recordConnectorUsage`
  *    no-ops) until the governance domain ports — the MIGRATION.md ledger
  *    carries each one;
- *  - honest empties for corpora 0.5 has no tables for yet (knowledge
- *    entries, websites, mail conversations, video links) — an empty result
- *    is factually right against this database, and the tool layer already
- *    words empties for the model.
+ *  - honest empties for corpora 0.5 has no tables for yet (websites,
+ *    video links) — an empty result is factually right against this
+ *    database, and the tool layer already words empties for the model.
  *
  * Everything stays fail-loud for names NOT in this map — a new ctx call in
  * 0.4 surfaces as `[convex-shim] un-shimmed …` naming the function.
@@ -874,7 +874,6 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       );
     },
 
-    // Corpora without 0.5 tables yet — honest empties (see module header).
     'knowledge_entries/internal_queries:listEntriesForAgent': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 tool leg passes exactly this shape
       const args = raw as {
@@ -889,10 +888,12 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         cursor: args.paginationOpts.cursor,
       });
     },
+    // A corpus without a 0.5 table yet — an honest empty (see header).
     'websites/internal_queries:listWebsiteSummaries': async () => [],
-    'conversations/search_for_chat:searchConversationsForChat': async () => ({
-      conversations: [],
-      truncated: false,
-    }),
+    'conversations/search_for_chat:searchConversationsForChat': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 tool leg passes exactly this shape
+      const args = raw as Parameters<typeof searchConversationsForChat>[1];
+      return searchConversationsForChat(sql, args);
+    },
   };
 }

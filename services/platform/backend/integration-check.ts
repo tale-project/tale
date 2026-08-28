@@ -5439,6 +5439,103 @@ async function checkNotificationEmailSink(
 }
 
 /**
+ * The chat assistant's conversations search leg (rag_search entity leg,
+ * previously an honest empty): subject/contact/body matching over the rows
+ * the mailbox and send checks seeded, with the assignment-privacy predicate
+ * deciding EVERY row — an admin sees the unassigned inbox, a plain member
+ * sees only their own rows, a stranger sees nothing.
+ */
+async function checkChatConversationSearchLeg(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const { searchConversationsForChat } =
+    await import('./domains/conversations/search-chat.ts');
+
+  // Subject match ("quote" hits both the reply thread and the composed one).
+  const bySubject = await searchConversationsForChat(sql, {
+    organizationId: orgId,
+    userId,
+    term: 'quote',
+    limit: 10,
+  });
+  // Body match (the sent reply's HTML is stripped before matching).
+  const byBody = await searchConversationsForChat(sql, {
+    organizationId: orgId,
+    userId,
+    term: 'shipped',
+    limit: 10,
+  });
+  // Contact-name match (a conversation is findable by who it is with).
+  const byContact = await searchConversationsForChat(sql, {
+    organizationId: orgId,
+    userId,
+    term: 'Carla',
+    limit: 10,
+  });
+  // Listing skips the text match but keeps the privacy predicate.
+  const listedAdmin = await searchConversationsForChat(sql, {
+    organizationId: orgId,
+    userId,
+    term: '',
+    list: true,
+    limit: 50,
+  });
+
+  // The plain member from the conversations check: hand them ONE of the
+  // send-lane threads ('Quote 7') — they see exactly their assigned row,
+  // never the unassigned rest of the inbox.
+  const memberRows = await sql<{ id: string }[]>`
+    SELECT "id" FROM "user" WHERE "email" = 'inbox.member@door.test' LIMIT 1
+  `;
+  const memberId = memberRows[0]?.id ?? '';
+  await sql`
+    UPDATE app.conversations SET assignee_user_id = ${memberId}
+    WHERE org_id = ${orgId} AND subject = 'Quote 7'
+  `;
+  const memberQuote = await searchConversationsForChat(sql, {
+    organizationId: orgId,
+    userId: memberId,
+    term: 'quote',
+    limit: 10,
+  });
+  const memberList = await searchConversationsForChat(sql, {
+    organizationId: orgId,
+    userId: memberId,
+    term: '',
+    list: true,
+    limit: 50,
+  });
+  const stranger = await searchConversationsForChat(sql, {
+    organizationId: orgId,
+    userId: 'no-such-user',
+    term: 'quote',
+    limit: 10,
+  });
+
+  const subjects = new Set(
+    bySubject.conversations.map((row) => row.subject ?? ''),
+  );
+  record(
+    'chat conversations search leg (subject/body/contact + assignment scope)',
+    subjects.has('Send me a quote') &&
+      subjects.has('Quote 7') &&
+      byBody.conversations.some((row) => row.subject === 'Send me a quote') &&
+      byContact.conversations.length >= 2 &&
+      listedAdmin.conversations.length >= 3 &&
+      memberQuote.conversations.length === 1 &&
+      memberQuote.conversations[0]?.subject === 'Quote 7' &&
+      memberList.conversations.length >= 1 &&
+      memberList.conversations.every(
+        (row) => row.assigneeUserId === memberId,
+      ) &&
+      stranger.conversations.length === 0,
+    `subject=${[...subjects].sort().join('|')} body=${byBody.conversations.map((r) => r.subject).join('|')} contact=${byContact.conversations.length} adminList=${listedAdmin.conversations.length}, memberQuote=${memberQuote.conversations.map((r) => r.subject).join('|')} (want only Quote 7) memberList=${memberList.conversations.length}/ownOnly=${memberList.conversations.every((row) => row.assigneeUserId === memberId)}, stranger=${stranger.conversations.length} (want 0)`,
+  );
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -10778,6 +10875,7 @@ async function main(): Promise<void> {
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);
     await checkNotificationEmailSink(sql, authCtx);
+    await checkChatConversationSearchLeg(sql, authCtx);
     await checkApprovalsSurface(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);

@@ -109,7 +109,7 @@ export interface ConversationViewer {
   role: string;
 }
 
-function viewerIsAdmin(role: string): boolean {
+export function viewerIsAdmin(role: string): boolean {
   const normalized = role.toLowerCase();
   return normalized === 'owner' || normalized === 'admin';
 }
