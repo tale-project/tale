@@ -117,6 +117,9 @@ nav:
     changelog:
       label: Changelog
       description: Was neu ist, neueste zuerst.
+    about:
+      label: Über uns
+      description: Das Schweizer Unternehmen hinter Tale.
   aboutUs: Über uns
   contactUs: Kontakt aufnehmen
   requestDemo: Demo anfragen
@@ -915,6 +918,34 @@ about:
       title: Mehr als Software
       body: Wir liefern auch AI-Hardware zum Mieten, Leasen oder Kaufen und
         bieten KI-Trainings für Teams an, die Agents einführen.
+  work:
+    heading: Wie wir mit Unternehmen arbeiten
+    description: Tale ist die Plattform — aber KI in einem regulierten
+      Unternehmen einzuführen, ist mehr als Software. Wir arbeiten mit Teams an
+      den Daten, den Kontrollen und den Zielen, die darüber entscheiden, ob sie
+      etwas bringt.
+    dataQuality:
+      title: Daten, auf die man Agents ansetzen kann
+      body: Agents erben die Qualität dessen, was sie lesen. Wir fangen beim
+        Fundament an — Struktur, Verantwortlichkeiten, Herkunft —, damit die
+        Recherche deine Realität zitiert und sie nicht annähert.
+    regulated:
+      title: Zu Hause in regulierten Umgebungen
+      body: 'Wo Audits, Datenhaltung und Nachweispflichten den Rahmen setzen,
+        ist das Deployment das Design: selbst gehostet oder betrieben in der
+        Schweiz oder der EU, jede Aktion protokolliert, menschliche Freigabe
+        dort, wo sie zählt — DSGVO-konform und zertifiziert nach ISO 27001 &
+        SOC 2 Type II.'
+    edge:
+      title: Ein Vorsprung, der dir bleibt
+      body: Der Vorsprung wächst dort, wo Daten und Abläufe liegen. Wer KI auf
+        dem eigenen Stack betreibt, behält ihn im Unternehmen — statt ihn der
+        Plattform eines Wettbewerbers oder einem KI-Labor zu überlassen.
+    tailored:
+      title: Lösungen, die zu deinen Zielen passen
+      body: Keine zwei Organisationen führen KI gleich ein. Wir bauen Agents,
+        Automationen, Wissen und Hardware um das herum, was du erreichen willst
+        — und lassen weg, was du nicht brauchst.
   values:
     heading: Wofür wir stehen
     privacy:

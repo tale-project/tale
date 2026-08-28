@@ -7,7 +7,7 @@
  */
 
 import type { LucideIcon } from 'lucide-react';
-import { BookOpen, History, Server } from 'lucide-react';
+import { BookOpen, Building2, History, Server } from 'lucide-react';
 
 import type { LocalizedRoutePath } from '@/lib/seo/route-paths';
 
@@ -31,7 +31,7 @@ interface NavMenuDef {
   items: readonly NavMenuItem[];
 }
 
-/** Resources — docs (external), changelog, hardware. */
+/** Resources — docs (external), changelog, hardware, about. */
 const RESOURCES_MENU_ITEMS: readonly NavMenuItem[] = [
   {
     id: 'changelog',
@@ -46,6 +46,13 @@ const RESOURCES_MENU_ITEMS: readonly NavMenuItem[] = [
     labelKey: 'resource.hardware.label',
     descriptionKey: 'resource.hardware.description',
     icon: Server,
+  },
+  {
+    id: 'about',
+    path: '/about',
+    labelKey: 'resource.about.label',
+    descriptionKey: 'resource.about.description',
+    icon: Building2,
   },
 ] as const;
 
