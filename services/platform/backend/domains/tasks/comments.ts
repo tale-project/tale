@@ -4,6 +4,7 @@ import { TASK_AUDIT_ACTIONS } from '../../../convex/tasks/audit_actions.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { notifyTaskComment } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
 import {
   loadProjectOrThrow,
@@ -109,6 +110,13 @@ export async function addTaskComment(
       comment_count = comment_count + 1, updated_at_ms = ${Date.now()}
     WHERE id = ${args.taskId}
   `;
+  await notifyTaskComment(tx, {
+    task,
+    commentId: messageId,
+    mentions,
+    actorType: author.actorType === 'user' ? 'user' : 'agent',
+    actorId: author.actorId,
+  });
   await tx`
     INSERT INTO app.task_activity (
       org_id, task_id, project_id, actor_type, actor_id, action, created_at_ms

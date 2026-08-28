@@ -6059,6 +6059,151 @@ async function checkKnowledgeEntries(
 }
 
 /**
+ * Collab emitters: the creator auto-follows their task; an agent's status
+ * flip writes ONE coalesced bell (a second flip rewrites it in place); an
+ * agent comment writes task_commented; a pref toggle blocks the write; and
+ * mark-all clears the bell.
+ */
+async function checkCollabEmitters(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const project = z
+    .object({ projectId: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Bells' })
+      ).json(),
+    );
+  const projectId = project.success ? project.data.projectId : '';
+  const task = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Bell quarry',
+      })
+    ).json(),
+  );
+  const taskId = task.success ? task.data.taskId : '';
+  const creatorSub = await sql<{ reason: string }[]>`
+    SELECT reason FROM app.task_subscriptions
+    WHERE task_id = ${taskId} AND subscriber_id = ${userId}
+  `;
+
+  const { agentTurnShimHandlers } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const statusDoor =
+    agentTurnShimHandlers(sql)[
+      'tasks/internal_mutations:agentUpdateTaskStatus'
+    ];
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: 'bell-agent',
+    taskId,
+    status: 'in_progress',
+  });
+  const afterFirst = await sql<
+    { params: Record<string, unknown> | null; read: boolean }[]
+  >`
+    SELECT params, read FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND type = 'task_status_changed' AND task_id = ${taskId}
+  `;
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: 'bell-agent',
+    taskId,
+    status: 'todo',
+  });
+  const afterSecond = await sql<{ params: Record<string, unknown> | null }[]>`
+    SELECT params FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND type = 'task_status_changed' AND task_id = ${taskId}
+      AND read = false
+  `;
+
+  const { addTaskComment } = await import('./domains/tasks/comments.ts');
+  const { getProjectAuthContext } =
+    await import('./domains/projects/service.ts');
+  await sql.begin(async (tx) => {
+    const auth = await getProjectAuthContext(sql, {
+      organizationId: orgId,
+      userId,
+      role: 'owner',
+    });
+    await addTaskComment(tx, auth, {
+      taskId,
+      body: 'Ping from the agent.',
+      author: { actorType: 'agent', actorId: 'bell-agent' },
+    });
+  });
+  const commentBell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND type = 'task_commented' AND task_id = ${taskId}
+  `;
+
+  // Pref off blocks the WRITE — the stale unread row keeps its params.
+  await post(`/api/app/collab/preferences?orgId=${orgId}`, {
+    taskStatusChanged: false,
+  });
+  await statusDoor?.({
+    organizationId: orgId,
+    actorId: 'bell-agent',
+    taskId,
+    status: 'backlog',
+  });
+  const afterBlocked = await sql<{ params: Record<string, unknown> | null }[]>`
+    SELECT params FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND type = 'task_status_changed' AND task_id = ${taskId}
+      AND read = false
+  `;
+  await post(`/api/app/collab/preferences?orgId=${orgId}`, {});
+  const markAll = z
+    .object({ marked: z.number() })
+    .safeParse(
+      await (
+        await post(`/api/app/collab/notifications/read-all?orgId=${orgId}`)
+      ).json(),
+    );
+  const unread = z
+    .object({ count: z.number() })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/collab/notifications/unread-count?orgId=${orgId}`,
+          { headers: { cookie } },
+        )
+      ).json(),
+    );
+  record(
+    'collab emitters: creator follows, coalesced status bell, comment bell, pref gate',
+    creatorSub[0]?.reason === 'creator' &&
+      afterFirst.length === 1 &&
+      afterFirst[0]?.params?.to === 'in_progress' &&
+      afterSecond.length === 1 &&
+      afterSecond[0]?.params?.to === 'todo' &&
+      commentBell[0]?.count === '1' &&
+      afterBlocked.length === 1 &&
+      afterBlocked[0]?.params?.to === 'todo' &&
+      markAll.success &&
+      markAll.data.marked >= 2 &&
+      unread.success &&
+      unread.data.count === 0,
+    `creator=${creatorSub[0]?.reason}, first=${afterFirst.length}/${JSON.stringify(afterFirst[0]?.params?.to)}, coalesced=${afterSecond.length}/${JSON.stringify(afterSecond[0]?.params?.to)}, comment=${commentBell[0]?.count}, blocked=${JSON.stringify(afterBlocked[0]?.params?.to)} (want still todo), marked=${markAll.success ? markAll.data.marked : 'ERR'}, unread=${unread.success ? unread.data.count : 'ERR'}`,
+  );
+}
+
+/**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
  * with no resume; a settled predecessor with a stamped handle on the live
@@ -6622,7 +6767,9 @@ async function checkReviewArc(
       // The policy-gated round's bell was dismissed by nothing — its refusal
       // left the approval pending, so its bell stays unread.
       withdrawnBell !== undefined &&
-      subscribed[0]?.reason === 'reviewer',
+      // First reason wins in the idempotent upsert (0.4 semantics): the
+      // creator subscription predates the reviewer designation.
+      subscribed.length === 1,
     `bells=${bells.length} (want 4 — one per mint), first=${firstBell?.read} (want read), round2=${roundTwoBell?.read} (want read), subscribed=${subscribed[0]?.reason}`,
   );
 }
@@ -6975,6 +7122,7 @@ async function main(): Promise<void> {
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAgentSecrets(sql, baseUrl, authCtx);
     await checkKnowledgeEntries(sql, baseUrl, authCtx);
+    await checkCollabEmitters(sql, baseUrl, authCtx);
     await checkChatMemoriesDeferredAuto(
       sql,
       baseUrl,

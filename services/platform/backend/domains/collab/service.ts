@@ -570,3 +570,233 @@ export async function dismissReviewRequestNotifications(
   `;
   return rows.length;
 }
+
+// ---------------------------------------------------------- task emitters
+
+interface TaskFacts {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  title: string;
+}
+
+/** Exclude the actor (only when the actor is a human). */
+function withoutActor(
+  ids: Iterable<string>,
+  actorType: NotificationActorType,
+  actorId: string,
+): string[] {
+  const set = new Set(ids);
+  if (actorType === 'user') set.delete(actorId);
+  return [...set];
+}
+
+/** A human actor resolves to a proper noun; agents fall back to the
+ * impersonal body rather than leaking an English word into DE/FR copy. */
+async function resolveActorName(
+  db: Db,
+  actorType: NotificationActorType,
+  actorId: string,
+): Promise<string | null> {
+  if (actorType !== 'user') return null;
+  return resolveUserDisplayName(db, actorId);
+}
+
+export async function notifyTaskStatusChanged(
+  db: Db,
+  args: {
+    task: TaskFacts;
+    fromStatus: string;
+    toStatus: string;
+    actorType: NotificationActorType;
+    actorId: string;
+  },
+): Promise<void> {
+  const recipients = withoutActor(
+    await taskSubscriberUserIds(db, args.task.id),
+    args.actorType,
+    args.actorId,
+  );
+  const actorName = await resolveActorName(db, args.actorType, args.actorId);
+  for (const userId of recipients) {
+    await notifyUser(db, {
+      userId,
+      organizationId: args.task.organizationId,
+      type: 'task_status_changed',
+      titleKey: 'taskStatusChanged',
+      bodyKey: actorName ? 'taskStatusChangedByBody' : 'taskStatusChangedBody',
+      params: {
+        title: args.task.title,
+        projectId: args.task.projectId,
+        from: args.fromStatus,
+        to: args.toStatus,
+        ...(actorName ? { actor: actorName } : {}),
+      },
+      resourceType: 'task',
+      resourceId: args.task.id,
+      taskId: args.task.id,
+      actorType: args.actorType,
+      actorId: args.actorId,
+    });
+  }
+}
+
+/**
+ * The assignment fan-out: the human who LOST the work is told (an unread
+ * "assigned" twin collapses to nothing — `undoes`), the new human assignee
+ * is subscribed and told (never for self-assignment); agents and apps have
+ * no inbox.
+ */
+export async function notifyTaskAssigned(
+  db: Db,
+  args: {
+    task: TaskFacts;
+    assigneeType: 'user' | 'agent' | 'app' | null;
+    assigneeId: string | null;
+    actorType: NotificationActorType;
+    actorId: string;
+    previousAssigneeType?: 'user' | 'agent' | 'app' | null;
+    previousAssigneeId?: string | null;
+  },
+): Promise<void> {
+  const previousId = args.previousAssigneeId;
+  if (
+    args.previousAssigneeType === 'user' &&
+    previousId != null &&
+    !(args.assigneeType === 'user' && args.assigneeId === previousId) &&
+    !(args.actorType === 'user' && args.actorId === previousId)
+  ) {
+    const actorName = await resolveActorName(db, args.actorType, args.actorId);
+    await notifyUser(db, {
+      userId: previousId,
+      organizationId: args.task.organizationId,
+      type: 'task_unassigned',
+      titleKey: 'taskUnassigned',
+      bodyKey: actorName ? 'taskUnassignedByBody' : 'taskUnassignedBody',
+      params: {
+        title: args.task.title,
+        projectId: args.task.projectId,
+        ...(actorName ? { actor: actorName } : {}),
+      },
+      resourceType: 'task',
+      resourceId: args.task.id,
+      taskId: args.task.id,
+      actorType: args.actorType,
+      actorId: args.actorId,
+      undoes: true,
+    });
+  }
+  if (args.assigneeType !== 'user' || args.assigneeId === null) return;
+  await autoSubscribe(db, {
+    organizationId: args.task.organizationId,
+    taskId: args.task.id,
+    subscriberType: 'user',
+    subscriberId: args.assigneeId,
+    reason: 'assignee',
+  });
+  if (args.actorType === 'user' && args.actorId === args.assigneeId) return;
+  const actorName = await resolveActorName(db, args.actorType, args.actorId);
+  await notifyUser(db, {
+    userId: args.assigneeId,
+    organizationId: args.task.organizationId,
+    type: 'task_assigned',
+    titleKey: 'taskAssigned',
+    bodyKey: actorName ? 'taskAssignedByBody' : 'taskAssignedBody',
+    params: {
+      title: args.task.title,
+      projectId: args.task.projectId,
+      ...(actorName ? { actor: actorName } : {}),
+    },
+    resourceType: 'task',
+    resourceId: args.task.id,
+    taskId: args.task.id,
+    actorType: args.actorType,
+    actorId: args.actorId,
+  });
+}
+
+/**
+ * The comment fan-out: the human commenter starts following; mentioned
+ * humans are subscribed and get the precedence 'mention' row; other
+ * unmuted subscribers get 'task_commented' (skip actor + mentioned).
+ */
+export async function notifyTaskComment(
+  db: Db,
+  args: {
+    task: TaskFacts;
+    commentId: string;
+    mentions: Array<{ type: string; id: string }>;
+    actorType: NotificationActorType;
+    actorId: string;
+    notifySubscribers?: boolean;
+  },
+): Promise<void> {
+  if (args.actorType === 'user') {
+    await autoSubscribe(db, {
+      organizationId: args.task.organizationId,
+      taskId: args.task.id,
+      subscriberType: 'user',
+      subscriberId: args.actorId,
+      reason: 'commenter',
+    });
+  }
+  const mentionedUserIds = new Set(
+    args.mentions
+      .filter((mention) => mention.type === 'user')
+      .map((mention) => mention.id),
+  );
+  const actorName = await resolveActorName(db, args.actorType, args.actorId);
+  for (const userId of mentionedUserIds) {
+    if (args.actorType === 'user' && userId === args.actorId) continue;
+    await autoSubscribe(db, {
+      organizationId: args.task.organizationId,
+      taskId: args.task.id,
+      subscriberType: 'user',
+      subscriberId: userId,
+      reason: 'mention',
+    });
+    await notifyUser(db, {
+      userId,
+      organizationId: args.task.organizationId,
+      type: 'mention',
+      titleKey: 'mention',
+      bodyKey: actorName ? 'mentionByBody' : 'mentionBody',
+      params: {
+        title: args.task.title,
+        projectId: args.task.projectId,
+        ...(actorName ? { actor: actorName } : {}),
+      },
+      resourceType: 'comment',
+      resourceId: args.commentId,
+      taskId: args.task.id,
+      actorType: args.actorType,
+      actorId: args.actorId,
+    });
+  }
+  if (args.notifySubscribers === false) return;
+  const subscribers = withoutActor(
+    await taskSubscriberUserIds(db, args.task.id),
+    args.actorType,
+    args.actorId,
+  );
+  for (const userId of subscribers) {
+    if (mentionedUserIds.has(userId)) continue;
+    await notifyUser(db, {
+      userId,
+      organizationId: args.task.organizationId,
+      type: 'task_commented',
+      titleKey: 'taskCommented',
+      bodyKey: actorName ? 'taskCommentedByBody' : 'taskCommentedBody',
+      params: {
+        title: args.task.title,
+        projectId: args.task.projectId,
+        ...(actorName ? { actor: actorName } : {}),
+      },
+      resourceType: 'comment',
+      resourceId: args.commentId,
+      taskId: args.task.id,
+      actorType: args.actorType,
+      actorId: args.actorId,
+    });
+  }
+}

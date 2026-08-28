@@ -12,6 +12,11 @@ import {
 } from '../../../lib/shared/task-label-colors.ts';
 import { toJson } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  autoSubscribe,
+  notifyTaskAssigned,
+  notifyTaskStatusChanged,
+} from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
 import {
   loadProjectOrThrow,
@@ -756,7 +761,15 @@ export async function createTask(
       actorId: auth.userId,
     },
   });
-  // TODO(collab): assignment notification, description mention fan-out.
+  // The human creator starts following their task.
+  await autoSubscribe(tx, {
+    organizationId: auth.organizationId,
+    taskId,
+    subscriberType: 'user',
+    subscriberId: auth.userId,
+    reason: 'creator',
+  });
+  // TODO(collab): description mention fan-out rides the mention directory.
   return taskId;
 }
 
@@ -996,7 +1009,13 @@ export async function updateTaskStatus(
       trigger: { kind: 'human', actorId: auth.userId },
     });
   }
-  // TODO(collab): notify fan-out.
+  await notifyTaskStatusChanged(tx, {
+    task,
+    fromStatus: task.status,
+    toStatus: status,
+    actorType: 'user',
+    actorId: auth.userId,
+  });
 }
 
 /**
@@ -1067,6 +1086,13 @@ export async function agentUpdateTaskStatusTrusted(
     action: 'status.changed',
     fromValue: task.status,
     toValue: args.status,
+  });
+  await notifyTaskStatusChanged(tx, {
+    task,
+    fromStatus: task.status,
+    toStatus: args.status,
+    actorType: 'agent',
+    actorId: args.actorId,
   });
   await mintReview();
   return { ok: true };
@@ -1173,6 +1199,15 @@ export async function assignTask(
       },
     ),
   );
+  await notifyTaskAssigned(tx, {
+    task,
+    assigneeType: assignee?.assigneeType ?? null,
+    assigneeId: assignee?.assigneeId ?? null,
+    actorType: 'user',
+    actorId: auth.userId,
+    previousAssigneeType: task.assigneeType,
+    previousAssigneeId: task.assigneeId,
+  });
 }
 
 /** Self-serve claim of an unassigned task. */
