@@ -5669,6 +5669,166 @@ async function checkChatMemoriesDeferredAuto(
 }
 
 /**
+ * Branding (per-org theming files: open pre-auth read with the default
+ * bucket, admin-gated writes, image lifecycle, history snapshot, reset) and
+ * team membership over the Better Auth tables.
+ */
+async function checkBrandingAndTeams(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const get = async (route: string, withCookie = true): Promise<unknown> =>
+    (
+      await fetch(`${base}${route}`, {
+        headers: withCookie ? { cookie } : {},
+      })
+    ).json();
+
+  // Pre-auth read (no session): the platform default bucket answers.
+  const preAuth = z
+    .object({ logoUrl: z.string().nullable(), hash: z.string() })
+    .loose()
+    .safeParse(await get(`/api/app/branding`, false));
+  await post(`/api/app/branding/save?orgId=${orgId}`, {
+    accentColor: '#ff0055',
+  });
+  // A 1x1 transparent PNG.
+  const pngBase64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const savedImage = z.object({ filename: z.string() }).safeParse(
+    await (
+      await post(`/api/app/branding/images?orgId=${orgId}`, {
+        type: 'logo',
+        base64: pngBase64,
+        mimeType: 'image/png',
+      })
+    ).json(),
+  );
+  // The 0.4 flow: the upload stores the FILE; the filename lands in the
+  // config through the follow-up save (the settings page's submit).
+  await post(`/api/app/branding/save?orgId=${orgId}`, {
+    accentColor: '#ff0055',
+    logoFilename: savedImage.success ? savedImage.data.filename : '',
+  });
+  const branded = z
+    .object({
+      appName: z.string().optional(),
+      accentColor: z.string().optional(),
+      logoUrl: z.string().nullable(),
+      hash: z.string(),
+    })
+    .loose()
+    .safeParse(await get(`/api/app/branding?orgId=${orgId}`));
+  const snapshot = z
+    .object({ snapshot: z.object({ timestamp: z.string() }).nullable() })
+    .safeParse(
+      await (await post(`/api/app/branding/snapshot?orgId=${orgId}`)).json(),
+    );
+  await fetch(`${base}/api/app/branding/images/logo?orgId=${orgId}`, {
+    method: 'DELETE',
+    headers: { cookie, origin: base },
+  });
+  await post(`/api/app/branding/reset?orgId=${orgId}`);
+  const afterReset = z
+    .object({
+      accentColor: z.string().optional(),
+      logoUrl: z.string().nullable(),
+    })
+    .loose()
+    .safeParse(await get(`/api/app/branding?orgId=${orgId}`));
+  record(
+    'branding: pre-auth default, admin save/image/snapshot, reset clears',
+    preAuth.success &&
+      preAuth.data.logoUrl === null &&
+      savedImage.success &&
+      savedImage.data.filename === 'logo.png' &&
+      branded.success &&
+      branded.data.accentColor === '#ff0055' &&
+      (branded.data.logoUrl ?? '').endsWith(
+        `/branding/images/${orgSlug}/logo.png`,
+      ) &&
+      typeof branded.data.appName === 'string' &&
+      snapshot.success &&
+      snapshot.data.snapshot !== null &&
+      afterReset.success &&
+      afterReset.data.accentColor === undefined &&
+      afterReset.data.logoUrl === null,
+    `preAuth=${preAuth.success}, image=${savedImage.success ? savedImage.data.filename : 'ERR'}, accent=${branded.success ? branded.data.accentColor : 'ERR'}, logo=${branded.success ? branded.data.logoUrl : 'ERR'}, snapshot=${snapshot.success && snapshot.data.snapshot !== null}, reset=${afterReset.success ? `${afterReset.data.accentColor}/${afterReset.data.logoUrl}` : 'ERR'}`,
+  );
+
+  // Teams: membership add/list/remove over the Better Auth tables.
+  const teamId = `itest-team-${Date.now()}`;
+  await sql`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt")
+    VALUES (${teamId}, 'Itest Team', ${orgId}, ${new Date()})
+  `;
+  const added = z
+    .object({ id: z.string(), alreadyMember: z.boolean() })
+    .safeParse(
+      await (
+        await post(`/api/app/teams/${teamId}/members?orgId=${orgId}`, {
+          userId,
+        })
+      ).json(),
+    );
+  const dup = z
+    .object({ alreadyMember: z.boolean() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/teams/${teamId}/members?orgId=${orgId}`, {
+          userId,
+        })
+      ).json(),
+    );
+  const outsider = await post(
+    `/api/app/teams/${teamId}/members?orgId=${orgId}`,
+    { userId: 'not-a-member' },
+  );
+  const listed = z
+    .object({
+      members: z.array(
+        z.object({ userId: z.string(), email: z.string().optional() }).loose(),
+      ),
+    })
+    .safeParse(await get(`/api/app/teams/${teamId}/members?orgId=${orgId}`));
+  const removed = z
+    .object({ removed: z.boolean() })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/teams/${teamId}/members/${userId}?orgId=${orgId}`,
+          { method: 'DELETE', headers: { cookie, origin: base } },
+        )
+      ).json(),
+    );
+  record(
+    'teams: add/dedupe/list/remove membership, outsiders refused',
+    added.success &&
+      !added.data.alreadyMember &&
+      dup.success &&
+      dup.data.alreadyMember &&
+      outsider.status === 400 &&
+      listed.success &&
+      listed.data.members.length === 1 &&
+      listed.data.members[0]?.userId === userId &&
+      typeof listed.data.members[0]?.email === 'string' &&
+      removed.success &&
+      removed.data.removed,
+    `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, removed=${removed.success ? removed.data.removed : 'ERR'}`,
+  );
+}
+
+/**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
  * with no resume; a settled predecessor with a stamped handle on the live
@@ -6546,6 +6706,7 @@ async function main(): Promise<void> {
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChatThreadSurface(sql, baseUrl, authCtx);
+    await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChatMemoriesDeferredAuto(
       sql,
       baseUrl,

@@ -7,6 +7,7 @@ import { createAgentRoutes } from './domains/agents/routes.ts';
 import { createAuditLogRoutes } from './domains/audit_logs/routes.ts';
 import { createAutomationRoutes } from './domains/automations/routes.ts';
 import { createWebhookRoutes } from './domains/automations/triggers.ts';
+import { createBrandingRoutes } from './domains/branding/routes.ts';
 import { createChatRoutes } from './domains/chat/routes.ts';
 import { createContactRoutes } from './domains/contacts/routes.ts';
 import { createDocumentRoutes } from './domains/documents/routes.ts';
@@ -25,6 +26,7 @@ import { createSandboxRoutes } from './domains/sandbox/routes.ts';
 import { createSkillRoutes } from './domains/skills/routes.ts';
 import { createSupportCaseRoutes } from './domains/support_cases/routes.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
+import { createTeamRoutes } from './domains/teams/routes.ts';
 import { createUserPreferenceRoutes } from './domains/user_preferences/routes.ts';
 import { createUserRoutes } from './domains/users/routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
@@ -53,6 +55,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // ported domain.
   app.route('/api/app/agents', createAgentRoutes(deps));
   app.route('/api/app/audit-logs', createAuditLogRoutes(deps));
+  app.route('/api/app/branding', createBrandingRoutes(deps));
   app.route('/api/app/automations', createAutomationRoutes(deps));
   app.route('/api/app/chat', createChatRoutes(deps));
   app.route('/api/app/contacts', createContactRoutes(deps));
@@ -74,6 +77,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/skills', createSkillRoutes(deps));
   app.route('/api/app/support-cases', createSupportCaseRoutes(deps));
   app.route('/api/app/tasks', createTaskRoutes(deps));
+  app.route('/api/app/teams', createTeamRoutes(deps));
   app.route('/api/app/user-preferences', createUserPreferenceRoutes(deps));
   app.route('/api/app/users', createUserRoutes(deps));
   return app;
