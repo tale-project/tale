@@ -8,6 +8,7 @@ import { loadEnv } from './env.ts';
 import { createBoss, ensureQueues } from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
+import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
 
 async function main(): Promise<void> {
@@ -52,6 +53,7 @@ async function main(): Promise<void> {
       taskList: createTaskList({ sql }),
       concurrency: env.WORKER_CONCURRENCY,
     });
+    await registerSchedules(boss);
   }
 
   const server =

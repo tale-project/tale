@@ -15,6 +15,10 @@ export interface TaskPayloads {
   'org.scaffold': { orgSlug: string; cleanFirst?: boolean };
   /** Remove a deleted org's on-disk config subtree. */
   'org.cleanup_files': { orgSlug: string };
+  /** Daily sweep of idle rate-limit rows (cron). */
+  'maintenance.rate_limit_gc': Record<string, never>;
+  /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
+  'maintenance.login_attempts_ttl': Record<string, never>;
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -46,4 +50,6 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryBackoff: true,
     expireInSeconds: 300,
   },
+  'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
+  'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
 };

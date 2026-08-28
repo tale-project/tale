@@ -20,6 +20,7 @@ import {
 } from '../../../lib/shared/project_key.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { emitEvent } from '../events/emit.ts';
 
 /**
  * Projects domain — ported from `convex/projects/*` with the pure access
@@ -522,6 +523,11 @@ export async function createProject(
       metadata: { isOrgWide: !args.teamId && sharedWithTeamIds.length === 0 },
     }),
   );
+  await emitEvent(tx, {
+    organizationId: auth.organizationId,
+    eventType: 'project.created',
+    eventData: { projectId, name, actorId: auth.userId },
+  });
   return projectId;
 }
 

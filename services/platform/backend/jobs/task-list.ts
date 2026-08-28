@@ -28,7 +28,7 @@ export interface TaskDeps {
  * idempotent (at-least-once delivery), and every payload is re-validated at
  * the boundary.
  */
-export function createTaskList(_deps: TaskDeps): BackendTaskList {
+export function createTaskList(deps: TaskDeps): BackendTaskList {
   return {
     noop: (payload) => {
       console.debug(`[backend] noop task executed: ${JSON.stringify(payload)}`);
@@ -41,6 +41,29 @@ export function createTaskList(_deps: TaskDeps): BackendTaskList {
         // Throw so pg-boss retries — scaffold is idempotent per domain.
         throw new Error(`org scaffold failed: ${result.error}`);
       }
+    },
+    'maintenance.rate_limit_gc': async () => {
+      // Any row idle for 7 days is past every window/refill horizon.
+      const cutoff = Date.now() - 7 * 24 * 3_600_000;
+      const deleted = await deps.sql`
+        DELETE FROM app.rate_limits WHERE ts < ${cutoff}
+      `;
+      console.log(`[maintenance] rate_limit_gc removed ${deleted.count} rows`);
+    },
+    'maintenance.login_attempts_ttl': async () => {
+      const attemptsCutoff = Date.now() - 30 * 24 * 3_600_000;
+      const countersCutoff = Date.now() - 90 * 24 * 3_600_000;
+      const attempts = await deps.sql`
+        DELETE FROM app.login_attempts
+        WHERE last_failure_at < ${attemptsCutoff}
+      `;
+      const counters = await deps.sql`
+        DELETE FROM app.login_block_counters
+        WHERE window_start < ${countersCutoff}
+      `;
+      console.log(
+        `[maintenance] login_attempts_ttl removed ${attempts.count} attempts, ${counters.count} counters`,
+      );
     },
     'org.cleanup_files': async (payload) => {
       const input = orgCleanupSchema.parse(payload);

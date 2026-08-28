@@ -48,7 +48,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | Rate limiting (63 rules) | done | inc 05; `lib/rate-limit.ts` PG token bucket + fixed window, atomic UPSERTs, full 0.4 rule catalog as data (shards dropped); call sites wire up as domains land; stale-row GC with crons infra |
 | File storage router (per-org S3/MinIO + `_storage` replacement) | done | inc 08; S3-ONLY (Convex `_storage` dies): per-org BYO connection → deployment default (`default` tree's object-storage/connection.json; compose ships MinIO + seeded connection at cutover) → fail-closed. aws4fetch mechanics reused from 0.4 unchanged. Sandbox stage tokens with the sandbox domain |
 | Frontend data layer (hint hook + auth client + api client) | pending | keep TanStack Query; wrapper-hook swap |
-| Crons (~20) + watchdog jobs | pending | pg-boss `schedule()` (cron per queue); per-job idempotency |
+| Crons (~20) + watchdog jobs | in-progress | inc 09: pg-boss `schedule()` registry (`jobs/schedules.ts`, worker-boot upsert, UTC) + first sweeps (rate-limit GC, loginAttempts TTL); each domain port adds its rows |
 | Proxy routes → backend-api | pending | cutover step |
 | tale CLI (deploy/migrate/drain against PG backend) | pending | cutover step |
 | Observability (SLA targets, status probe, metrics) | pending | port from server.ts lanes |
@@ -82,7 +82,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | discussions | pending | |
 | documents | pending | replacement-upload handshake redesign |
 | enterprise_sso | pending | |
-| events | pending | |
+| events | done | inc 09; the emit seam at its 0.4 contract (deliberate no-op dispatch until automations rebuild the fan-out); producers wired (task.created/status_changed, project.created) |
 | feedback | pending | |
 | file_metadata | in-progress | inc 08: `app.file_metadata` ledger (all pipeline columns shipped nullable) + core reads; RAG dispatch pools → per-queue workers, transcription, OCR with knowledge/tts |
 | files | in-progress | inc 08: upload handshake (server-minted keys, HEAD-verified register), presigned serve, org-scoped delete (uploader/admin); sandbox blob HTTP + rejected-upload lanes with sandbox/documents |

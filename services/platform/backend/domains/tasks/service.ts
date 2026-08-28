@@ -12,6 +12,7 @@ import {
 } from '../../../lib/shared/task-label-colors.ts';
 import { toJson } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { emitEvent } from '../events/emit.ts';
 import {
   loadProjectOrThrow,
   type ProjectAuthContext,
@@ -737,8 +738,17 @@ export async function createTask(
       },
     }),
   );
-  // TODO(collab/events): assignment notification, task.created event,
-  // description mention fan-out.
+  await emitEvent(tx, {
+    organizationId: auth.organizationId,
+    eventType: 'task.created',
+    eventData: {
+      taskId,
+      projectId: args.projectId,
+      actorType: 'user',
+      actorId: auth.userId,
+    },
+  });
+  // TODO(collab): assignment notification, description mention fan-out.
   return taskId;
 }
 
@@ -908,8 +918,19 @@ export async function updateTaskStatus(
       newState: { status },
     }),
   );
-  // TODO(collab/events/agent runs): notify, task.status_changed event,
-  // in_progress agent-run kick.
+  await emitEvent(tx, {
+    organizationId: auth.organizationId,
+    eventType: 'task.status_changed',
+    eventData: {
+      taskId,
+      projectId: task.projectId,
+      fromStatus: task.status,
+      toStatus: status,
+      actorType: 'user',
+      actorId: auth.userId,
+    },
+  });
+  // TODO(collab/agent runs): notify fan-out, in_progress agent-run kick.
 }
 
 export async function assignTask(

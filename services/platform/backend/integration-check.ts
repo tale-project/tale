@@ -38,6 +38,7 @@ import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
+import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
 import { emitHintInTx } from './realtime/outbox.ts';
 
@@ -1168,6 +1169,7 @@ async function main(): Promise<void> {
   const boss = createBoss(databaseUrl, { supervise: true });
   await boss.start();
   await ensureQueues(boss);
+  await registerSchedules(boss);
   setEnqueueBoss(boss);
 
   console.log('[itest] running boot migrations twice, concurrently…');
