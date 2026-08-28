@@ -112,7 +112,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | skills | pending | |
 | status | pending | |
 | support_cases | pending | |
-| tasks | pending | runs/retry/review; INV 5–7, 20, 22 |
+| tasks | in-progress | inc 07 (Tier A): board core — CRUD/status choreography (human semantics, subtask close-guard)/assignee validation/claim/LexoRank moves (rank module reused)/labels catalog/dependencies (DAG-guarded)/board views/activity timeline/project rollup transitions/hard delete. Tier B with its infra: discussion comments+mentions (thread store), agent runs+review arc+status verbs that kick runs (INV 5–7, 20, 22), notify/event fan-outs, attachments/outputs blobs (storage router), REST surface, date notifications (crons), bulk ops, ops indicators |
 | team_members | pending | |
 | testing | dropped(convex-test harness) | replaced by vitest+throwaway PG |
 | threads | pending | agent-component store replacement |

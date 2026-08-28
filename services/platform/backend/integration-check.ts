@@ -723,6 +723,162 @@ async function checkProjects(
 }
 
 /**
+ * Task board vertical: create (label resolve + numbering + rollups) →
+ * subtask close-guard → status transitions with project rollups → rank move
+ * → dependency cycle rejection → activity trail → archive.
+ */
+async function checkTasks(
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const get = async (path2: string): Promise<unknown> =>
+    (await fetch(`${base}${path2}`, { headers: { cookie } })).json();
+  const send = (
+    method: 'POST' | 'DELETE',
+    path2: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${path2}`, {
+      method,
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  const proj = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/projects?orgId=${orgId}`, {
+        name: 'Task Board Project',
+      })
+    ).json(),
+  );
+  const projectId = proj.success ? proj.data.projectId : '';
+
+  const parent = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Parent task',
+        labels: ['bug'],
+        status: 'todo',
+      })
+    ).json(),
+  );
+  const parentId = parent.success ? parent.data.taskId : '';
+  const child = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Child task',
+        parentTaskId: parentId,
+        status: 'todo',
+      })
+    ).json(),
+  );
+  const childId = child.success ? child.data.taskId : '';
+  const taskRead = z
+    .object({
+      task: z.object({ number: z.number(), status: z.string() }),
+      labels: z.array(z.object({ name: z.string() })),
+    })
+    .safeParse(await get(`/api/app/tasks/${parentId}?orgId=${orgId}`));
+  record(
+    'task create + numbering + label resolve',
+    parent.success &&
+      child.success &&
+      taskRead.success &&
+      taskRead.data.task.number === 1 &&
+      taskRead.data.labels[0]?.name === 'bug',
+    `parent #${taskRead.success ? taskRead.data.task.number : 'ERR'}, labels=${taskRead.success ? taskRead.data.labels.map((l) => l.name).join(',') : 'ERR'}`,
+  );
+
+  // Terminal parent while the child is open must be refused.
+  const blockedClose = await send(
+    'POST',
+    `/api/app/tasks/${parentId}/status?orgId=${orgId}`,
+    { status: 'done' },
+  );
+  await send('POST', `/api/app/tasks/${childId}/status?orgId=${orgId}`, {
+    status: 'done',
+  });
+  const parentClose = await send(
+    'POST',
+    `/api/app/tasks/${parentId}/status?orgId=${orgId}`,
+    { status: 'done' },
+  );
+  const overview = z
+    .object({
+      projects: z.array(
+        z.object({
+          id: z.string(),
+          openTaskCount: z.number(),
+          doneTaskCount: z.number(),
+        }),
+      ),
+    })
+    .safeParse(await get(`/api/app/projects/overview?orgId=${orgId}`));
+  const row = overview.success
+    ? overview.data.projects.find((p) => p.id === projectId)
+    : undefined;
+  record(
+    'task subtask guard + rollup transition',
+    blockedClose.status === 400 &&
+      parentClose.ok &&
+      row?.openTaskCount === 0 &&
+      row.doneTaskCount === 2,
+    `close-with-open-child → ${blockedClose.status} (want 400); rollups open=${row?.openTaskCount} done=${row?.doneTaskCount} (want 0/2)`,
+  );
+
+  // Dependencies: a → b, then b → a must be rejected as a cycle.
+  const t1 = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Dep A',
+      })
+    ).json(),
+  );
+  const t2 = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Dep B',
+      })
+    ).json(),
+  );
+  const aId = t1.success ? t1.data.taskId : '';
+  const bId = t2.success ? t2.data.taskId : '';
+  const dep = await send('POST', `/api/app/tasks/dependencies?orgId=${orgId}`, {
+    blockerTaskId: aId,
+    blockedTaskId: bId,
+  });
+  const cycle = await send(
+    'POST',
+    `/api/app/tasks/dependencies?orgId=${orgId}`,
+    { blockerTaskId: bId, blockedTaskId: aId },
+  );
+  const claim = await send(
+    'POST',
+    `/api/app/tasks/${aId}/claim?orgId=${orgId}`,
+  );
+  const activity = z
+    .object({ activity: z.array(z.object({ action: z.string() })) })
+    .safeParse(await get(`/api/app/tasks/${aId}/activity?orgId=${orgId}`));
+  const actions = activity.success
+    ? activity.data.activity.map((a) => a.action)
+    : [];
+  record(
+    'task dependencies + claim + activity',
+    dep.ok &&
+      cycle.status === 400 &&
+      claim.ok &&
+      actions.includes('created') &&
+      actions.includes('claimed'),
+    `dep → ${dep.status}, cycle → ${cycle.status} (want 400), claim → ${claim.status}, activity=${actions.join('/')}`,
+  );
+}
+
+/**
  * Login throttle + audit chain, end to end through the real auth hooks:
  * repeated wrong passwords cross the lockout threshold (429 from the
  * before-hook), the lock expires on schedule (default first backoff = 1s),
@@ -935,6 +1091,7 @@ async function main(): Promise<void> {
       `itest-${orgSuffix}@example.com`,
     );
     await checkProjects(baseUrl, authCtx);
+    await checkTasks(baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,

@@ -10,6 +10,7 @@ import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
+import { ensureDefaultProjectLabels } from '../tasks/service.ts';
 import {
   archiveProject,
   assertCanCreateProjects,
@@ -176,9 +177,15 @@ export function createProjectRoutes(deps: {
       const auth = await authCtx(c);
       assertCanCreateProjects(auth);
       await checkUserRateLimit(deps.sql, 'project:create', auth.userId);
-      const projectId = await transactSerializable(deps.sql, (tx) =>
-        createProject(tx, auth, body.data),
-      );
+      const projectId = await transactSerializable(deps.sql, async (tx) => {
+        const id = await createProject(tx, auth, body.data);
+        await ensureDefaultProjectLabels(tx, {
+          organizationId: auth.organizationId,
+          projectId: id,
+          createdBy: auth.userId,
+        });
+        return id;
+      });
       return c.json({ projectId });
     } catch (error) {
       return handleError(c, error);
