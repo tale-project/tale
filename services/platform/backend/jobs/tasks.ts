@@ -34,6 +34,8 @@ export interface TaskPayloads {
   'automation.trigger_scan': Record<string, never>;
   /** Per-minute liveness sweep re-poking overdue runs (cron). */
   'automation.liveness': Record<string, never>;
+  /** One project-agent turn against a task (driver lands with 25b). */
+  'task.agent_turn': { organizationId: string; runId: string; execId: string };
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -85,4 +87,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'automation.poll': { retryLimit: 3, retryDelay: 2, expireInSeconds: 120 },
   'automation.trigger_scan': { retryLimit: 1, expireInSeconds: 120 },
   'automation.liveness': { retryLimit: 1, expireInSeconds: 120 },
+  // At-most-once LLM spend: the run ledger owns retries (auto-retry kicks a
+  // NEW run); a lost job is the watchdog's to re-kick, never pg-boss's.
+  'task.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
 };

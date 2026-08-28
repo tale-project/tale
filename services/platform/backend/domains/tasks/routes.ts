@@ -12,9 +12,11 @@ import {
 } from '../../lib/rate-limit.ts';
 import {
   getProjectAuthContext,
+  loadProjectOrThrow,
   ProjectError,
   type ProjectAuthContext,
 } from '../projects/service.ts';
+import { cancelAgentRun, listAgentRunsForTask } from './agent-runs.ts';
 import {
   addTaskComment,
   deleteTaskComment,
@@ -47,6 +49,9 @@ import {
   TaskError,
   updateTask,
   updateTaskStatus,
+  assertTaskReadable,
+  assertTaskWritable,
+  loadTaskOrThrow,
 } from './service.ts';
 
 const statusSchema = z.enum([
@@ -438,6 +443,39 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         updateTask(tx, auth, { taskId: c.req.param('taskId'), ...body.data }),
       );
       return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:taskId/agent-runs', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const project = await loadProjectOrThrow(deps.sql, task.projectId);
+      assertTaskReadable(project, auth);
+      const runs = await listAgentRunsForTask(
+        deps.sql,
+        auth.organizationId,
+        task.id,
+      );
+      return c.json({ runs });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:taskId/agent-runs/:runId/cancel', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const project = await loadProjectOrThrow(deps.sql, task.projectId);
+      assertTaskWritable(project, auth);
+      const cancelled = await cancelAgentRun(deps.sql, {
+        organizationId: auth.organizationId,
+        runId: c.req.param('runId'),
+      });
+      return c.json({ cancelled });
     } catch (error) {
       return handleError(c, error);
     }

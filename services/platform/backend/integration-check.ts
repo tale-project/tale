@@ -3509,6 +3509,163 @@ async function checkSandboxSpawner(
 }
 
 /**
+ * Task-agent run ledger: the status choreography kicks a queued run (same
+ * transaction as the status write), capacity parks stamp-and-claim with
+ * single-winner election, the release edge wakes the oldest parked run,
+ * and settle/fail are exactly-once.
+ */
+async function checkTaskAgentRuns(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const get = async (route: string): Promise<unknown> =>
+    (await fetch(`${base}${route}`, { headers: { cookie } })).json();
+
+  // A project + agent + task assigned to the agent.
+  const project = z
+    .object({ projectId: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Run Ledger' })
+      ).json(),
+    );
+  const projectId = project.success ? project.data.projectId : '';
+  const agent = z.object({ agentId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+        name: 'Runner Bot',
+        harness: 'claude-code',
+        model: 'anthropic/claude-fable-5',
+        skills: [],
+        connectors: [],
+      })
+    ).json(),
+  );
+  const agentId = agent.success ? agent.data.agentId : '';
+  const task = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Agent-owned work',
+      })
+    ).json(),
+  );
+  const taskId = task.success ? task.data.taskId : '';
+  await post(`/api/app/tasks/${taskId}/assign?orgId=${orgId}`, {
+    assigneeType: 'agent',
+    assigneeId: agentId,
+  });
+
+  // The choreography: in_progress on an agent-owned task kicks a run.
+  await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+    status: 'in_progress',
+  });
+  const runsView = z
+    .object({
+      runs: z.array(
+        z.looseObject({
+          id: z.string(),
+          status: z.string(),
+          execId: z.string(),
+          launchedAt: z.number().nullable(),
+        }),
+      ),
+    })
+    .loose()
+    .safeParse(await get(`/api/app/tasks/${taskId}/agent-runs?orgId=${orgId}`));
+  const kicked = runsView.success ? runsView.data.runs[0] : undefined;
+
+  const agentRuns = await import('./domains/tasks/agent-runs.ts');
+  const runId = kicked?.id ?? '';
+  const execId = kicked?.execId ?? '';
+
+  // Park → single-winner claim (a second claim must lose) → re-park → wake.
+  await agentRuns.parkAgentRunForCapacity(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+  });
+  const firstClaim = await agentRuns.claimParkedAgentRun(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+  });
+  const secondClaim = await agentRuns.claimParkedAgentRun(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+  });
+  await agentRuns.parkAgentRunForCapacity(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+  });
+  const woken = await agentRuns.wakeParkedAgentRuns(sql, orgId);
+  const afterWake = await agentRuns.getAgentRun(sql, orgId, runId);
+
+  // Launch + exactly-once settle; `launchedAt` distinct from kick time.
+  const launched = await agentRuns.setAgentRunRunning(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+  });
+  const settled = await agentRuns.settleAgentRun(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+    resultText: 'Delivered the work.',
+  });
+  const settledTwice = await agentRuns.failAgentRun(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+    error: 'late failure must not overwrite a settle',
+  });
+  const finalRun = await agentRuns.getAgentRun(sql, orgId, runId);
+
+  // A fresh kick on the same task reuses nothing (previous run terminal).
+  await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+    status: 'todo',
+  });
+  await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+    status: 'in_progress',
+  });
+  const secondRuns = z
+    .object({ runs: z.array(z.looseObject({ id: z.string() })) })
+    .loose()
+    .safeParse(await get(`/api/app/tasks/${taskId}/agent-runs?orgId=${orgId}`));
+
+  record(
+    'task-agent run ledger (kick + park/claim/wake + exactly-once settle)',
+    runsView.success &&
+      kicked !== undefined &&
+      kicked.status === 'queued' &&
+      kicked.launchedAt === null &&
+      firstClaim &&
+      !secondClaim &&
+      woken === 1 &&
+      afterWake?.waitingForCapacityAt === null &&
+      launched &&
+      settled &&
+      !settledTwice &&
+      finalRun?.status === 'settled' &&
+      finalRun.resultText === 'Delivered the work.' &&
+      finalRun.launchedAt !== null &&
+      secondRuns.success &&
+      secondRuns.data.runs.length === 2,
+    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.success ? secondRuns.data.runs.length : 'ERR'} (want 2)`,
+  );
+}
+
+/**
  * Login throttle + audit chain, end to end through the real auth hooks:
  * repeated wrong passwords cross the lockout threshold (429 from the
  * before-hook), the lock expires on schedule (default first backoff = 1s),
@@ -3746,6 +3903,7 @@ async function main(): Promise<void> {
     await checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkRestDoor(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkSandboxSessions(sql, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(

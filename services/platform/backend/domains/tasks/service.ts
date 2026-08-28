@@ -18,6 +18,7 @@ import {
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
+import { kickAgentRun } from './agent-runs.ts';
 
 /**
  * Tasks domain, Tier A — the task board core: CRUD, status choreography
@@ -933,7 +934,46 @@ export async function updateTaskStatus(
       actorId: auth.userId,
     },
   });
-  // TODO(collab/agent runs): notify fan-out, in_progress agent-run kick.
+  // The status choreography's agent kick: an agent-owned task moving to
+  // in_progress starts (or reuses) a run in the SAME transaction as the
+  // status write — the board never shows an in-progress agent task with no
+  // run behind it.
+  if (
+    status === 'in_progress' &&
+    task.assigneeType === 'agent' &&
+    task.assigneeId !== null
+  ) {
+    const agents = await tx<
+      {
+        id: string;
+        harness: string;
+        model: string;
+        modelProvider: string | null;
+      }[]
+    >`
+      SELECT id, harness, model, model_provider AS "modelProvider"
+      FROM app.project_agents
+      WHERE id = ${task.assigneeId} AND org_id = ${auth.organizationId}
+      LIMIT 1
+    `;
+    const agent = agents[0];
+    if (agent) {
+      await kickAgentRun(tx, {
+        organizationId: auth.organizationId,
+        projectId: task.projectId,
+        taskId,
+        agentId: agent.id,
+        harness: agent.harness,
+        model: agent.model,
+        ...(agent.modelProvider !== null
+          ? { modelProvider: agent.modelProvider }
+          : {}),
+        startedBy: auth.userId,
+        trigger: 'manual',
+      });
+    }
+  }
+  // TODO(collab): notify fan-out.
 }
 
 export async function assignTask(

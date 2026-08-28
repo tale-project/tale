@@ -15,6 +15,7 @@ import {
 import type { SandboxQuotaConfig } from '../../../lib/shared/schemas/governance.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
 
 /**
  * The sandbox session substrate over PG — the 0.5 twin of
@@ -367,8 +368,16 @@ export async function markSessionStopped(
       AND status <> 'stopped' AND pinned = false
     RETURNING id
   `;
-  // A freed slot is a release edge; the parked-waiter wake seam lands with
-  // the task-agent runs port (the 0.4 waker targets those runs).
+  // A freed slot is a release edge — wake the org's oldest parked run
+  // immediately instead of waiting for the watchdog tick. Best-effort: a
+  // wake failure must never fail the release.
+  if (rows.length > 0) {
+    await wakeParkedAgentRuns(sql, args.organizationId).catch(
+      (error: unknown) => {
+        console.warn('[sandbox] capacity wake failed:', error);
+      },
+    );
+  }
   return rows.length > 0;
 }
 
@@ -450,31 +459,43 @@ export async function markSessionDestroyed(
   sql: Sql,
   args: { organizationId: string; sessionId: string },
 ): Promise<boolean> {
-  return sql.begin(async (tx) => {
-    const now = Date.now();
-    const rows = await tx<{ ownerType: string; ownerId: string }[]>`
+  return sql
+    .begin(async (tx) => {
+      const now = Date.now();
+      const rows = await tx<{ ownerType: string; ownerId: string }[]>`
       UPDATE app.sandbox_sessions SET
         status = 'destroyed', destroyed_at_ms = ${now}
       WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
         AND status <> 'destroyed'
       RETURNING owner_type AS "ownerType", owner_id AS "ownerId"
     `;
-    const row = rows[0];
-    if (!row) return false;
-    await tx`
+      const row = rows[0];
+      if (!row) return false;
+      await tx`
       UPDATE app.sandbox_session_tokens SET revoked_at_ms = ${now}
       WHERE session_id = ${args.sessionId} AND revoked_at_ms IS NULL
     `;
-    await tx`
+      await tx`
       DELETE FROM app.sandbox_agent_checkpoints
       WHERE session_id = ${args.sessionId}
     `;
-    await tx`
+      await tx`
       DELETE FROM app.sandbox_admission_tickets
       WHERE owner_type = ${row.ownerType} AND owner_id = ${row.ownerId}
     `;
-    return true;
-  });
+      return true;
+    })
+    .then(async (destroyed) => {
+      if (destroyed) {
+        // Release edge (see markSessionStopped) — after the commit.
+        await wakeParkedAgentRuns(sql, args.organizationId).catch(
+          (error: unknown) => {
+            console.warn('[sandbox] capacity wake failed:', error);
+          },
+        );
+      }
+      return destroyed;
+    });
 }
 
 /** Owner lifecycle cascade (thread delete, workflow-run end, erasure). */
