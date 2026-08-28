@@ -68,6 +68,35 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // Throw so pg-boss retries — scaffold is idempotent per domain.
         throw new Error(`org scaffold failed: ${result.error}`);
       }
+      // Provisioning (the 0.4 afterCreateOrganization schedule): default
+      // automation packs + starter content. Both idempotent, so the
+      // scaffold's own retries stay safe; a provisioning failure logs and
+      // retries with the job.
+      const orgs = await deps.sql<{ id: string }[]>`
+        SELECT "id" FROM "organization" WHERE "slug" = ${input.orgSlug}
+        LIMIT 1
+      `;
+      const organizationId = orgs[0]?.id;
+      // Kill-switch (mirrors TALE_RETENTION_DISABLED): the integration
+      // harness seeds nothing implicitly — its provisioning check drives the
+      // seeders directly against a throwaway org.
+      if (
+        organizationId !== undefined &&
+        process.env.TALE_PROVISIONING_DISABLED !== '1'
+      ) {
+        const { seedDefaultAutomationPacks, seedStarterContent } =
+          await import('../domains/provisioning/service.ts');
+        const seeded = await seedDefaultAutomationPacks(
+          deps.sql,
+          organizationId,
+        );
+        if (seeded.provisioned.length > 0) {
+          console.log(
+            `[provisioning] seeded packs for ${input.orgSlug}: ${seeded.provisioned.join(', ')}`,
+          );
+        }
+        await seedStarterContent(deps.sql, organizationId);
+      }
     },
     'maintenance.rate_limit_gc': async () => {
       // Any row idle for 7 days is past every window/refill horizon.
