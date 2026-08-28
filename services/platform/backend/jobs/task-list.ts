@@ -210,6 +210,36 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         .parse(payload);
       await runApiTurn(deps.sql, input);
     },
+    'conversation.send_message': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          messageId: z.string().min(1),
+          connectorName: z.string().min(1),
+          to: z.array(z.string()).min(1),
+          cc: z.array(z.string()).optional(),
+          subject: z.string(),
+          body: z.string(),
+          contentType: z.string().optional(),
+          inReplyTo: z.string().optional(),
+          references: z.array(z.string()).optional(),
+          from: z.string().optional(),
+          attachments: z
+            .array(
+              z.object({
+                storageRef: z.string().min(1),
+                fileName: z.string(),
+                contentType: z.string(),
+                size: z.number(),
+              }),
+            )
+            .optional(),
+        })
+        .parse(payload);
+      const { runSendMessageJob } =
+        await import('../domains/conversations/send.ts');
+      await runSendMessageJob(deps.sql, input);
+    },
     'chat.deferred_send_poll': async (payload) => {
       const input = z
         .object({ deferredSendId: z.string().min(1) })

@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -5,6 +6,14 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  bulkReplyToConversations,
+  composeEmailConversation,
+  discardOutboundMessage,
+  replyToConversation,
+  retrySendMessage,
+  undoSendMessage,
+} from './send.ts';
 import {
   assignConversation,
   assignConversationTeam,
@@ -35,8 +44,28 @@ function handleError<E extends OrgEnv>(
   if (error instanceof ConversationError) {
     return c.json({ error: error.code, message: error.message }, error.status);
   }
+  // The reused attachment-cap validator refuses with coded ConvexErrors.
+  if (error instanceof ConvexError) {
+    const data: unknown = error.data;
+    if (data !== null && typeof data === 'object' && 'code' in data) {
+      const code = Reflect.get(data, 'code');
+      if (
+        typeof code === 'string' &&
+        code.startsWith('CONVERSATION_ATTACHMENT')
+      ) {
+        return c.json({ error: code, message: code }, 400);
+      }
+    }
+  }
   throw error;
 }
+
+const attachmentSchema = z.object({
+  storageId: z.string().min(1).max(1024),
+  fileName: z.string().min(1).max(512),
+  contentType: z.string().min(1).max(255),
+  size: z.number().int().nonnegative(),
+});
 
 const statusSchema = z.enum(['open', 'closed', 'spam', 'archived']);
 
@@ -221,6 +250,155 @@ export function createConversationRoutes(deps: {
         organizationId: c.get('orgId'),
         conversationId: c.req.param('id'),
         assigneeTeamId: body.data.assigneeTeamId ?? null,
+        actor: actor(c),
+      });
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /** One reply body to many conversations (cap 50, partial failure). */
+  app.post('/bulk/reply', async (c) => {
+    const body = z
+      .object({
+        conversationIds: z.array(z.string().max(64)).min(1).max(200),
+        content: z.string().min(1).max(200_000),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    // Scope every named row through the viewer's own visibility first.
+    const scoped: string[] = [];
+    const errors: string[] = [];
+    for (const id of body.data.conversationIds) {
+      try {
+        await loadVisibleConversation(deps.sql, viewer(c), id);
+        scoped.push(id);
+      } catch {
+        errors.push(`Conversation ${id} not found`);
+      }
+    }
+    try {
+      const result = await bulkReplyToConversations(deps.sql, {
+        organizationId: c.get('orgId'),
+        conversationIds: scoped,
+        content: body.data.content,
+        actor: actor(c),
+      });
+      return c.json({
+        ...result,
+        failedCount: result.failedCount + errors.length,
+        errors: [...errors, ...result.errors],
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /** Send a reply through the conversation's connector (undo window). */
+  app.post('/:id/reply', async (c) => {
+    const body = z
+      .object({
+        content: z.string().min(1).max(200_000),
+        sourceMarkdown: z.string().max(200_000).optional(),
+        attachments: z.array(attachmentSchema).max(50).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
+      const messageId = await replyToConversation(deps.sql, {
+        conversationId: c.req.param('id'),
+        organizationId: c.get('orgId'),
+        content: body.data.content,
+        ...(body.data.sourceMarkdown !== undefined
+          ? { sourceMarkdown: body.data.sourceMarkdown }
+          : {}),
+        ...(body.data.attachments?.length
+          ? { attachments: body.data.attachments }
+          : {}),
+        actor: actor(c),
+      });
+      return c.json({ messageId }, 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /** Start a new outbound email conversation with a contact. */
+  app.post('/compose', async (c) => {
+    const body = z
+      .object({
+        contactId: z.string().min(1).max(64),
+        connectorName: z.string().min(1).max(128),
+        subject: z.string().min(1).max(1000),
+        content: z.string().min(1).max(200_000),
+        sourceMarkdown: z.string().max(200_000).optional(),
+        from: z.string().max(320).optional(),
+        assigneeUserId: z.string().max(128).optional(),
+        attachments: z.array(attachmentSchema).max(50).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      const result = await composeEmailConversation(deps.sql, {
+        organizationId: c.get('orgId'),
+        contactId: body.data.contactId,
+        connectorName: body.data.connectorName,
+        subject: body.data.subject,
+        content: body.data.content,
+        ...(body.data.sourceMarkdown !== undefined
+          ? { sourceMarkdown: body.data.sourceMarkdown }
+          : {}),
+        ...(body.data.from !== undefined ? { from: body.data.from } : {}),
+        ...(body.data.assigneeUserId !== undefined
+          ? { assigneeUserId: body.data.assigneeUserId }
+          : {}),
+        ...(body.data.attachments?.length
+          ? { attachments: body.data.attachments }
+          : {}),
+        actor: actor(c),
+      });
+      return c.json(result, 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /** Cancel a still-queued send; hands the composer draft back. */
+  app.post('/messages/:messageId/undo', async (c) => {
+    try {
+      const result = await undoSendMessage(deps.sql, {
+        organizationId: c.get('orgId'),
+        messageId: c.req.param('messageId'),
+        actor: actor(c),
+      });
+      return c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /** Re-attempt a failed send immediately (no undo window). */
+  app.post('/messages/:messageId/retry', async (c) => {
+    try {
+      await retrySendMessage(deps.sql, {
+        organizationId: c.get('orgId'),
+        messageId: c.req.param('messageId'),
+        actor: actor(c),
+      });
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /** Remove a failed outbound bubble — the email never left. */
+  app.post('/messages/:messageId/discard', async (c) => {
+    try {
+      await discardOutboundMessage(deps.sql, {
+        organizationId: c.get('orgId'),
+        messageId: c.req.param('messageId'),
         actor: actor(c),
       });
       return c.json({ ok: true });

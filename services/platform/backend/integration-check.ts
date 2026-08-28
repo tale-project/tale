@@ -4969,6 +4969,304 @@ async function checkMailboxSyncLane(
 }
 
 /**
+ * The outbound send surface over the connector door: a reply queues a row
+ * and schedules the send one (shortened) undo window out; the worker's job
+ * re-checks the row, delivers through the fake SMTP, and stamps the
+ * provider's Message-ID; an undo inside the window deletes the row and the
+ * fired job no-ops; a forced SMTP failure settles `failed` with the error,
+ * retry re-delivers, discard removes the bubble; compose opens a new
+ * outbound conversation; bulk reply follows the partial-failure contract;
+ * and the pending conversation approval completes on send.
+ */
+async function checkOutboundSendLane(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { setMailTransportForTesting } =
+    await import('./domains/connectors/service.ts');
+  const { createConversation, addMessageToConversation } =
+    await import('./domains/conversations/service.ts');
+
+  const api = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/conversations${route}?orgId=${orgId}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+  interface OutboundRow {
+    deliveryState: string;
+    externalMessageId: string | null;
+    retryCount: number | null;
+    metadata: Record<string, unknown> | null;
+  }
+  const messageRow = async (id: string): Promise<OutboundRow | null> => {
+    const rows = await sql<OutboundRow[]>`
+      SELECT delivery_state AS "deliveryState",
+             external_message_id AS "externalMessageId",
+             retry_count AS "retryCount", metadata
+      FROM app.conversation_messages WHERE id = ${id} LIMIT 1
+    `;
+    return rows[0] ?? null;
+  };
+  const waitForState = (id: string, state: string) =>
+    waitFor(
+      async () => (await messageRow(id))?.deliveryState === state,
+      20_000,
+    );
+
+  // --- the fake SMTP (deliver or fail on demand) ---------------------------
+  let failMode = false;
+  const smtpSends: Array<{
+    to: string;
+    subject: string;
+    html?: string;
+    text?: string;
+    inReplyTo?: string;
+  }> = [];
+  setMailTransportForTesting({
+    openImap: async () => {
+      throw new Error('itest outbound lane opens no IMAP session');
+    },
+    openSmtp: async () => ({
+      send: async (message: {
+        to: string;
+        subject: string;
+        html?: string;
+        text?: string;
+        inReplyTo?: string;
+      }) => {
+        if (failMode) throw new Error('SMTP 451 mailbox busy (itest)');
+        smtpSends.push({
+          to: message.to,
+          subject: message.subject,
+          ...(message.html !== undefined ? { html: message.html } : {}),
+          ...(message.text !== undefined ? { text: message.text } : {}),
+          ...(message.inReplyTo !== undefined
+            ? { inReplyTo: message.inReplyTo }
+            : {}),
+        });
+        return { messageId: `<smtp-out-${smtpSends.length}@door.test>` };
+      },
+      close: async () => {},
+    }),
+  });
+
+  try {
+    // Seed: a contact + an inbound email thread to reply into.
+    const contactRows = await sql<{ id: string }[]>`
+      INSERT INTO app.contacts (org_id, name, email, source, created_at_ms,
+                                updated_at_ms)
+      VALUES (${orgId}, 'Carla Ext', 'carla@ext.test', 'api_import',
+              ${Date.now()}, ${Date.now()})
+      RETURNING id
+    `;
+    const contactId = contactRows[0]?.id ?? '';
+    const conversationId = await sql.begin((tx) =>
+      createConversation(tx, {
+        organizationId: orgId,
+        contactId,
+        subject: 'Send me a quote',
+        channel: 'email',
+        direction: 'inbound',
+        connectorName: 'imap-smtp',
+        externalMessageId: 'root-send@ext.test',
+      }),
+    );
+    await sql.begin((tx) =>
+      addMessageToConversation(tx, {
+        conversationId,
+        organizationId: orgId,
+        sender: 'carla@ext.test',
+        content: 'Please quote 7 units.',
+        isCustomer: true,
+        externalMessageId: 'root-send@ext.test',
+        sentAt: Date.now() - 120_000,
+        connectorName: 'imap-smtp',
+      }),
+    );
+    // A pending approval on the conversation (an agent-drafted reply): the
+    // human send must complete it.
+    const approvalRows = await sql<{ id: string }[]>`
+      INSERT INTO app.approvals (org_id, resource_type, resource_id, status,
+                                 created_at_ms)
+      VALUES (${orgId}, 'conversations', ${conversationId}, 'pending',
+              ${Date.now()})
+      RETURNING id
+    `;
+
+    // 1. Reply → 201, row queued with the undo stamps, approval completed.
+    const replyRes = await api(`/${conversationId}/reply`, {
+      body: {
+        content: '<p>We <b>shipped</b> it.</p>',
+        sourceMarkdown: 'We **shipped** it.',
+      },
+    });
+    const replyBody = z
+      .object({ messageId: z.string() })
+      .safeParse(await replyRes.json());
+    const replyId = replyBody.success ? replyBody.data.messageId : '';
+    const queuedRow = await messageRow(replyId);
+    const approvalAfterSend = await sql<
+      { status: string; approvedBy: string | null }[]
+    >`
+      SELECT status, approved_by AS "approvedBy" FROM app.approvals
+      WHERE id = ${approvalRows[0]?.id ?? ''}
+    `;
+
+    // …the delayed job fires and the fake SMTP delivers.
+    const sentOk = await waitForState(replyId, 'sent');
+    const sentRow = await messageRow(replyId);
+    const firstSend = smtpSends[0];
+
+    // 2. Forced SMTP failure settles `failed` with the error message…
+    failMode = true;
+    const failRes = await api(`/${conversationId}/reply`, {
+      body: { content: 'This one bounces.' },
+    });
+    const failBody = z
+      .object({ messageId: z.string() })
+      .safeParse(await failRes.json());
+    const failId = failBody.success ? failBody.data.messageId : '';
+    const failedOk = await waitForState(failId, 'failed');
+    const failedRow = await messageRow(failId);
+    failMode = false;
+
+    // …and retry (immediate, no undo window) re-delivers.
+    const retryRes = await api(`/messages/${failId}/retry`, { body: {} });
+    const retriedOk = await waitForState(failId, 'sent');
+    const retriedRow = await messageRow(failId);
+
+    // 3. Undo inside the window: the draft comes back, the row is gone, and
+    // the fired job no-ops on the missing row.
+    const undoTarget = await api(`/${conversationId}/reply`, {
+      body: { content: 'Recall me.', sourceMarkdown: 'Recall me.' },
+    });
+    const undoTargetBody = z
+      .object({ messageId: z.string() })
+      .safeParse(await undoTarget.json());
+    const undoId = undoTargetBody.success ? undoTargetBody.data.messageId : '';
+    const undoRes = await api(`/messages/${undoId}/undo`, { body: {} });
+    const undoBody = z
+      .object({ sourceMarkdown: z.string().nullable() })
+      .safeParse(await undoRes.json());
+    const undoneRow = await messageRow(undoId);
+    const undoRepeat = await api(`/messages/${undoId}/undo`, { body: {} });
+
+    // 4. Discard a failed bubble: the row is gone.
+    failMode = true;
+    const discardTarget = await api(`/${conversationId}/reply`, {
+      body: { content: 'Doomed and discarded.' },
+    });
+    const discardTargetBody = z
+      .object({ messageId: z.string() })
+      .safeParse(await discardTarget.json());
+    const discardId = discardTargetBody.success
+      ? discardTargetBody.data.messageId
+      : '';
+    await waitForState(discardId, 'failed');
+    failMode = false;
+    const discardRes = await api(`/messages/${discardId}/discard`, {
+      body: {},
+    });
+    const discardedRow = await messageRow(discardId);
+
+    // 5. Compose opens a NEW outbound conversation and delivers.
+    const composeRes = await api('/compose', {
+      body: {
+        contactId,
+        connectorName: 'imap-smtp',
+        subject: 'Quote 7',
+        content: 'Seven units, forty crowns.',
+      },
+    });
+    const composeBody = z
+      .object({ conversationId: z.string(), messageId: z.string() })
+      .safeParse(await composeRes.json());
+    const composedOk = composeBody.success
+      ? await waitForState(composeBody.data.messageId, 'sent')
+      : false;
+    const composedConv = composeBody.success
+      ? await sql<{ direction: string | null; subject: string | null }[]>`
+          SELECT direction, subject FROM app.conversations
+          WHERE id = ${composeBody.data.conversationId} LIMIT 1
+        `
+      : [];
+
+    // 6. Bulk reply: one visible + one ghost → partial failure.
+    const bulkRes = await api('/bulk/reply', {
+      body: {
+        conversationIds: [conversationId, 'ghost-conversation'],
+        content: 'Bulk follow-up.',
+      },
+    });
+    const bulkBody = z
+      .object({
+        successCount: z.number(),
+        failedCount: z.number(),
+        errors: z.array(z.string()),
+      })
+      .safeParse(await bulkRes.json());
+
+    // Drain: every send job settles (the undone job completes as a no-op).
+    const drained = await waitFor(async () => {
+      const rows = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'conversation.send_message'
+          AND state NOT IN ('completed', 'cancelled')
+      `;
+      return Number(rows[0]?.count ?? '1') === 0;
+    }, 20_000);
+    const finalSendCount = smtpSends.length;
+
+    record(
+      'outbound send lane (reply/compose/undo/retry/discard + undo-window job)',
+      replyRes.status === 201 &&
+        queuedRow?.deliveryState === 'queued' &&
+        typeof queuedRow?.metadata?.scheduledSendAt === 'number' &&
+        queuedRow?.metadata?.sendContentType === 'HTML' &&
+        approvalAfterSend[0]?.status === 'completed' &&
+        approvalAfterSend[0]?.approvedBy === userId &&
+        sentOk &&
+        sentRow?.externalMessageId === 'smtp-out-1@door.test' &&
+        firstSend?.to === 'carla@ext.test' &&
+        firstSend?.subject === 'Re: Send me a quote' &&
+        firstSend?.html === '<p>We <b>shipped</b> it.</p>' &&
+        firstSend?.inReplyTo === 'root-send@ext.test' &&
+        failRes.status === 201 &&
+        failedOk &&
+        typeof failedRow?.metadata?.error === 'string' &&
+        retryRes.status === 200 &&
+        retriedOk &&
+        retriedRow?.retryCount === 1 &&
+        undoRes.status === 200 &&
+        undoBody.success &&
+        undoBody.data.sourceMarkdown === 'Recall me.' &&
+        undoneRow === null &&
+        undoRepeat.status === 404 &&
+        discardRes.status === 200 &&
+        discardedRow === null &&
+        composeRes.status === 201 &&
+        composedOk &&
+        composedConv[0]?.direction === 'outbound' &&
+        composedConv[0]?.subject === 'Quote 7' &&
+        bulkBody.success &&
+        bulkBody.data.successCount === 1 &&
+        bulkBody.data.failedCount === 1 &&
+        drained &&
+        finalSendCount === 4,
+      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject}, bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
+    );
+  } finally {
+    setMailTransportForTesting(undefined);
+  }
+}
+
+/**
  * The task-agent TURN, end to end on the REUSED 0.4 host: kick → session
  * ensure (fake spawner) → gateway VK mint (fake bifrost) → exec streaming a
  * canned claude-code stream-json turn → harvest (fake workspace file → real
@@ -10016,6 +10314,8 @@ async function main(): Promise<void> {
   // The reused 0.4 SSO handlers sign state/cookies from process.env — keep
   // it in lockstep with the instance secret or cookie verification splits.
   process.env.BETTER_AUTH_SECRET ??= 'itest-secret-itest-secret';
+  // Shrink the outbound-send undo window so the send lane check stays fast.
+  process.env.CONVERSATION_UNDO_SEND_DELAY_MS ??= '1500';
   const auth = createAuth({
     databaseUrl,
     secret: process.env.BETTER_AUTH_SECRET,
@@ -10131,6 +10431,7 @@ async function main(): Promise<void> {
     await checkConnectorCredentials(sql, baseUrl, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
+    await checkOutboundSendLane(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

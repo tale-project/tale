@@ -61,6 +61,27 @@ export interface TaskPayloads {
     providerSlug?: string;
     locale?: string;
   };
+  /** One outbound conversation send — fired after the undo window; the
+   * handler re-checks the row is still queued (an undo deletes it). */
+  'conversation.send_message': {
+    organizationId: string;
+    messageId: string;
+    connectorName: string;
+    to: string[];
+    cc?: string[];
+    subject: string;
+    body: string;
+    contentType?: string;
+    inReplyTo?: string;
+    references?: string[];
+    from?: string;
+    attachments?: Array<{
+      storageRef: string;
+      fileName: string;
+      contentType: string;
+      size: number;
+    }>;
+  };
   /** Auto-retry arm for a retryably-failed task-agent run: the handler
    * re-derives every guard (task still in_progress and agent-assigned, the
    * failed run still newest, the consecutive-failure budget) and kicks. */
@@ -150,6 +171,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // At-most-once LLM spend, like the other turn lanes: a crash surfaces via
   // the generation watchdog + the appended error row, never a silent rerun.
   'chat.api_turn': { retryLimit: 0, expireInSeconds: 3_600 },
+  // At-most-once outbound mail: a lost job settles via retrySendMessage by a
+  // human, never a silent duplicate email from pg-boss.
+  'conversation.send_message': { retryLimit: 0, expireInSeconds: 600 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
   'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
   'governance.process_erasure': { retryLimit: 1, expireInSeconds: 1_800 },

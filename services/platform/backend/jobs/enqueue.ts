@@ -50,8 +50,8 @@ export async function addJobInTx<TName extends TaskIdentifier>(
   identifier: TName,
   payload: TaskPayloads[TName],
   options: EnqueueOptions = {},
-): Promise<void> {
-  await requireBoss().send(identifier, payload, {
+): Promise<string | null> {
+  return requireBoss().send(identifier, payload, {
     db: {
       executeSql: async (text, values) => {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg-boss hands plain JSON-safe parameters; postgres.js's ParameterOrJSON generic can't be named for a passthrough adapter

@@ -65,7 +65,7 @@ export interface ConversationRow {
   createdAt: number;
 }
 
-const CONVERSATION_COLUMNS = `
+export const CONVERSATION_COLUMNS = `
   id, org_id AS "organizationId", contact_id AS "contactId",
   assignee_user_id AS "assigneeUserId", assignee_team_id AS "assigneeTeamId",
   external_message_id AS "externalMessageId", subject, status, priority,
@@ -93,7 +93,7 @@ export interface ConversationMessageRow {
   createdAt: number;
 }
 
-const MESSAGE_COLUMNS = `
+export const MESSAGE_COLUMNS = `
   id, org_id AS "organizationId", conversation_id AS "conversationId",
   channel, direction, external_message_id AS "externalMessageId",
   delivery_state AS "deliveryState", retry_count AS "retryCount",
