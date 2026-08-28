@@ -5,6 +5,7 @@ import type { Auth } from './auth/auth.ts';
 import { requireSession, type AuthEnv } from './auth/session.ts';
 import { createAgentSecretRoutes } from './domains/agent_secrets/routes.ts';
 import { createAgentRoutes } from './domains/agents/routes.ts';
+import { createApprovalRoutes } from './domains/approvals/routes.ts';
 import { createAuditLogRoutes } from './domains/audit_logs/routes.ts';
 import { createAutomationRoutes } from './domains/automations/routes.ts';
 import { createWebhookRoutes } from './domains/automations/triggers.ts';
@@ -100,6 +101,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     createConnectorCredentialRoutes(deps),
   );
   app.route('/api/app/contacts', createContactRoutes(deps));
+  app.route('/api/app/approvals', createApprovalRoutes(deps));
   app.route('/api/app/conversations', createConversationRoutes(deps));
   app.route('/api/app/documents', createDocumentRoutes(deps));
   app.route('/api/app/files', createFileRoutes(deps));

@@ -5439,6 +5439,174 @@ async function checkNotificationEmailSink(
 }
 
 /**
+ * The approvals inbox surface: listing with filters + keyset pagination,
+ * per-status counts, one-row read, and the generic decision with the 0.4
+ * FSM (pending → executing|rejected only, once), the dedicated-door
+ * refusal for review-gate rows, approver stamping, the workflow audit row,
+ * and the silent-no-op poke for a stale run reference.
+ */
+async function checkApprovalsSurface(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const api = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(
+      `${base}/api/app/approvals${route}${route.includes('?') ? '&' : '?'}orgId=${orgId}`,
+      {
+        method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      },
+    );
+
+  const seed = async (
+    resourceType: string,
+    resourceId: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.approvals (org_id, resource_type, resource_id, status,
+                                 metadata, created_at_ms)
+      VALUES (${orgId}, ${resourceType}, ${resourceId}, 'pending',
+              ${metadata === undefined ? null : sql.json(JSON.stringify(metadata))},
+              ${Date.now()})
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const rowOf = async (id: string) => {
+    const rows = await sql<
+      {
+        status: string;
+        approvedBy: string | null;
+        metadata: Record<string, unknown> | null;
+      }[]
+    >`
+      SELECT status, approved_by AS "approvedBy", metadata
+      FROM app.approvals WHERE id = ${id} LIMIT 1
+    `;
+    return rows[0] ?? null;
+  };
+
+  // Seeds: two connector operations (one to approve, one to reject) and a
+  // review-gate row that must refuse toward its dedicated door.
+  const approveId = await seed('connector_operation', 'itest-appr-op-1', {
+    runId: 'no-such-run',
+    connector: 'imap-smtp',
+    action: 'send',
+  });
+  const rejectId = await seed('connector_operation', 'itest-appr-op-2');
+  const reviewId = await seed('task_review', 'itest-appr-task-1');
+
+  // Listing: pending connector operations include both seeds; limit=1 pages.
+  const listed = z
+    .object({
+      page: z.array(z.looseObject({ id: z.string(), status: z.string() })),
+      cursor: z.string().nullable(),
+    })
+    .safeParse(
+      await (
+        await api('?status=pending&resourceType=connector_operation')
+      ).json(),
+    );
+  const listedIds = listed.success
+    ? new Set(listed.data.page.map((row) => row.id))
+    : new Set<string>();
+  const pageOne = z
+    .object({
+      page: z.array(z.looseObject({ id: z.string() })),
+      cursor: z.string().nullable(),
+    })
+    .safeParse(
+      await (
+        await api('?status=pending&resourceType=connector_operation&limit=1')
+      ).json(),
+    );
+  const pageTwo = pageOne.success
+    ? z
+        .object({ page: z.array(z.looseObject({ id: z.string() })) })
+        .safeParse(
+          await (
+            await api(
+              `?status=pending&resourceType=connector_operation&limit=1&cursor=${pageOne.data.cursor ?? ''}`,
+            )
+          ).json(),
+        )
+    : undefined;
+  const paged =
+    pageOne.success &&
+    pageTwo?.success === true &&
+    pageOne.data.page.length === 1 &&
+    pageTwo.data.page.length === 1 &&
+    pageOne.data.page[0]?.id !== pageTwo.data.page[0]?.id;
+
+  const counts = z
+    .object({ byStatus: z.record(z.string(), z.number()) })
+    .safeParse(await (await api('/counts')).json());
+  const gotten = z
+    .looseObject({ id: z.string(), resourceType: z.string() })
+    .safeParse(await (await api(`/${approveId}`)).json());
+  const foreign = await api('/no-such-approval');
+
+  // The decision FSM: approve (executing) once; a second decision refuses.
+  const approved = await api(`/${approveId}/decide`, {
+    body: { status: 'executing', comments: 'looks right' },
+  });
+  const approvedRow = await rowOf(approveId);
+  const again = await api(`/${approveId}/decide`, {
+    body: { status: 'rejected' },
+  });
+  const rejected = await api(`/${rejectId}/decide`, {
+    body: { status: 'rejected', comments: 'not like this' },
+  });
+  const rejectedRow = await rowOf(rejectId);
+  const reviewRefused = await api(`/${reviewId}/decide`, {
+    body: { status: 'executing' },
+  });
+  const badStatus = await api(`/${rejectId}/decide`, {
+    body: { status: 'completed' },
+  });
+  const auditRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND category = 'workflow'
+      AND action IN ('approve_request', 'reject_request')
+      AND resource_id IN (${approveId}, ${rejectId})
+  `;
+
+  record(
+    'approvals inbox surface (list/counts/get + decide FSM)',
+    listed.success &&
+      listedIds.has(approveId) &&
+      listedIds.has(rejectId) &&
+      !listedIds.has(reviewId) &&
+      paged &&
+      counts.success &&
+      (counts.data.byStatus.pending ?? 0) >= 3 &&
+      gotten.success &&
+      gotten.data.resourceType === 'connector_operation' &&
+      foreign.status === 404 &&
+      approved.status === 200 &&
+      approvedRow?.status === 'executing' &&
+      approvedRow?.approvedBy === userId &&
+      typeof approvedRow?.metadata?.approverName === 'string' &&
+      approvedRow?.metadata?.comments === 'looks right' &&
+      again.status === 409 &&
+      rejected.status === 200 &&
+      rejectedRow?.status === 'rejected' &&
+      rejectedRow?.metadata?.comments === 'not like this' &&
+      reviewRefused.status === 409 &&
+      badStatus.status === 400 &&
+      Number(auditRows[0]?.count ?? '0') === 2,
+    `list=${listed.success}/${listedIds.has(approveId)}&${listedIds.has(rejectId)}&!${listedIds.has(reviewId)} paged=${paged}, counts=${counts.success ? JSON.stringify(counts.data.byStatus) : 'ERR'}, get=${gotten.success} foreign=${foreign.status}, approve=${approved.status} row=${approvedRow?.status}/${approvedRow?.approvedBy === userId}/name=${typeof approvedRow?.metadata?.approverName} again=${again.status} (want 409), reject=${rejected.status}/${rejectedRow?.status} reviewGate=${reviewRefused.status} (want 409) badStatus=${badStatus.status} (want 400), audits=${auditRows[0]?.count} (want 2)`,
+  );
+}
+
+/**
  * The task-agent TURN, end to end on the REUSED 0.4 host: kick → session
  * ensure (fake spawner) → gateway VK mint (fake bifrost) → exec streaming a
  * canned claude-code stream-json turn → harvest (fake workspace file → real
@@ -10610,6 +10778,7 @@ async function main(): Promise<void> {
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);
     await checkNotificationEmailSink(sql, authCtx);
+    await checkApprovalsSurface(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

@@ -975,6 +975,32 @@ export async function sweepOverdueRuns(sql: Sql, limit = 50): Promise<number> {
   return rows.length;
 }
 
+/**
+ * The 0.4 `pokeParkedRun` twin: wake a PARKED run because something it waits
+ * on just happened — a human resolving the approval its current node parked
+ * behind. A `running` walker is already awake and reads the decision itself;
+ * terminal or foreign runs are a silent no-op (a stale approval must not
+ * throw the resolution). Same claim-promise + step enqueue as the liveness
+ * sweep.
+ */
+export async function pokeParkedRun(
+  sql: Sql,
+  args: { organizationId: string; runId: string },
+): Promise<boolean> {
+  return sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      UPDATE app.automation_runs SET
+        wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND status = 'waiting'
+      RETURNING id
+    `;
+    if (!rows[0]) return false;
+    await enqueueStep(tx, args.organizationId, args.runId, 0);
+    return true;
+  });
+}
+
 // ---------------------------------------------------------------- deletion
 
 export async function deleteAutomationCascade(
