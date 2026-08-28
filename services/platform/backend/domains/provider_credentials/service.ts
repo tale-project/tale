@@ -86,22 +86,12 @@ function rowOrNull(rows: ResolverRow[]): ResolverRow | null {
   };
 }
 
-/**
- * Resolve one (org, provider[, credential]) selection to usable secret
- * material — the 0.4 resolver running over Postgres rows. INTERNAL ONLY:
- * callers keep the result out of logs and responses.
- */
-export async function resolveProviderCredential(
+/** The credential-row shim handlers, shared with every reused 0.4 module
+ * that resolves credentials (knowledge embedding, the chat gateway later). */
+export function credentialShimHandlers(
   sql: Sql,
-  args: {
-    organizationId: string;
-    providerSlug: string;
-    credentialId?: string;
-    excludeBrokerTokens?: readonly string[];
-    excludeBrokerTokenHashes?: readonly string[];
-  },
-): Promise<ResolvedProviderCredential> {
-  const shim = createCtxShim({
+): Record<string, (raw: unknown) => Promise<unknown>> {
+  return {
     'provider_credentials/queries:getCredentialInternal': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the reused 0.4 caller passes exactly this shape
       const { credentialId } = raw as { credentialId: string };
@@ -130,7 +120,25 @@ export async function resolveProviderCredential(
         `,
       );
     },
-  });
+  };
+}
+
+/**
+ * Resolve one (org, provider[, credential]) selection to usable secret
+ * material — the 0.4 resolver running over Postgres rows. INTERNAL ONLY:
+ * callers keep the result out of logs and responses.
+ */
+export async function resolveProviderCredential(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    providerSlug: string;
+    credentialId?: string;
+    excludeBrokerTokens?: readonly string[];
+    excludeBrokerTokenHashes?: readonly string[];
+  },
+): Promise<ResolvedProviderCredential> {
+  const shim = createCtxShim(credentialShimHandlers(sql));
   return resolveProviderCredential04(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused 0.4 resolver touches only runQuery (see convex-shim contract)
     shim as unknown as Parameters<typeof resolveProviderCredential04>[0],

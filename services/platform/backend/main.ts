@@ -4,6 +4,7 @@ import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import { ensureDefaultCorpusSchema } from './domains/knowledge/service.ts';
 import { loadEnv } from './env.ts';
 import { createBoss, ensureQueues } from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
@@ -54,6 +55,11 @@ async function main(): Promise<void> {
       concurrency: env.WORKER_CONCURRENCY,
     });
     await registerSchedules(boss);
+    // The deployment-default knowledge corpus bootstraps itself; per-org
+    // BYO corpora bootstrap on first use inside the pool router.
+    await ensureDefaultCorpusSchema().catch((error: unknown) => {
+      console.warn('[backend] default corpus bootstrap failed:', error);
+    });
   }
 
   const server =

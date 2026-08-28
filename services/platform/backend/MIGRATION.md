@@ -91,8 +91,8 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | governance | pending | erasure cascades; retention |
 | http_connectors | pending | |
 | identities | pending | |
-| knowledge | pending | already PG-backed; move pool mgmt |
-| knowledge_entries | pending | |
+| knowledge | in-progress | inc 15: search/fetch REUSED verbatim via the ctx shim (org lookup + credential loads + Tier-A retrievable filter re-pointed at 0.5); ingest = 0.5 composition of the exported pieces (extract→embed→indexDocument) on the `rag.index_file` job; default-corpus bootstrap at worker boot. PENDING: web corpus crawling (websites), transcript RAG (tts), conversation/email retrievable branches, corpus status/repair surfaces, KNOWLEDGE_MIGRATIONS_DIR in the runner image |
+| knowledge_entries | pending | manual entries tab (writes through the same indexDocument lane) |
 | legacy | dropped(vestigial 0.4 tables) | |
 | lib | in-progress | port per-consumer, never wholesale; inc 05 reuses (loader): file_io, config_store read lane, audit_hash, pii_hash, client_ip, login helpers, scaffold |
 | login_attempts | done | inc 05; lockout + block counters + per-org audit + lockout notification; 30-day retention sweep with crons infra |

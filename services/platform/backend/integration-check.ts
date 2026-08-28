@@ -1574,6 +1574,195 @@ async function checkProviderCredentials(
 }
 
 /**
+ * Knowledge (RAG) vertical against the real corpus database and a local
+ * fake embedding endpoint: upload → document bind → rag.index_file job
+ * (extract → embed → chunk upsert) → hybrid search → windowed fetch.
+ */
+async function checkKnowledge(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'knowledge RAG loop (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+
+  // Deterministic fake embedder: 8-dim vectors from character statistics.
+  const { createServer } = await import('node:http');
+  const embedServer = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      const parsed = z
+        .object({
+          input: z.union([z.string(), z.array(z.string())]),
+          encoding_format: z.string().optional(),
+        })
+        .safeParse(JSON.parse(body || '{}'));
+      const inputs = parsed.success
+        ? Array.isArray(parsed.data.input)
+          ? parsed.data.input
+          : [parsed.data.input]
+        : [''];
+      const wantsBase64 =
+        parsed.success && parsed.data.encoding_format === 'base64';
+      const data = inputs.map((text, index) => {
+        const vector = Array.from({ length: 8 }, (_, i) => {
+          let acc = 0;
+          for (let j = i; j < text.length; j += 8) {
+            acc += text.charCodeAt(j) % 97;
+          }
+          return (acc % 1000) / 1000 + 0.001;
+        });
+        // The OpenAI SDK requests base64 by default and decodes Float32 bytes.
+        const embedding = wantsBase64
+          ? Buffer.from(new Float32Array(vector).buffer).toString('base64')
+          : vector;
+        return { object: 'embedding', embedding, index };
+      });
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          object: 'list',
+          data,
+          model: 'itest-embed',
+          usage: { prompt_tokens: 1, total_tokens: 1 },
+        }),
+      );
+    });
+  });
+  await new Promise<void>((resolve) => {
+    embedServer.listen(0, '127.0.0.1', resolve);
+  });
+  const embedAddress = embedServer.address();
+  const embedPort =
+    embedAddress !== null && typeof embedAddress === 'object'
+      ? embedAddress.port
+      : 0;
+
+  try {
+    // Org embedding config + corpus bootstrap.
+    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+    const dir = path.join(configRoot, orgSlug, 'knowledge');
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      path.join(dir, 'embedding.json'),
+      JSON.stringify({
+        providerSlug: 'openai',
+        model: 'itest-embed',
+        dimensions: 8,
+        baseUrl: `http://127.0.0.1:${embedPort}/v1`,
+      }),
+    );
+    const { ensureDefaultCorpusSchema } =
+      await import('./domains/knowledge/service.ts');
+    await ensureDefaultCorpusSchema();
+
+    const send = (
+      method: 'POST',
+      route: string,
+      body?: unknown,
+    ): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method,
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+
+    const payload =
+      'The Heidelberg quarterly review covers verdigris pigments and the zeppelin ledger.';
+    const handoff = z
+      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+      .safeParse(
+        await (
+          await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+            contentType: 'text/plain',
+            size: payload.length,
+          })
+        ).json(),
+      );
+    if (!handoff.success) {
+      record('knowledge RAG loop', false, 'upload handoff failed');
+      return;
+    }
+    await fetch(handoff.data.uploadUrl, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: payload,
+    });
+    const registered = z.object({ fileId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/files/register?orgId=${orgId}`, {
+          storageRef: handoff.data.storageRef,
+          fileName: 'quarterly.txt',
+          contentType: 'text/plain',
+        })
+      ).json(),
+    );
+    await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
+      fileId: registered.success ? registered.data.fileId : '',
+      fileName: 'quarterly.txt',
+    });
+
+    // The rag.index_file job runs on the live worker; wait for completion.
+    const indexed = await waitFor(async () => {
+      const rows = await sql<{ status: string | null }[]>`
+        SELECT rag_status AS status FROM app.file_metadata
+        WHERE id = ${registered.success ? registered.data.fileId : ''}
+      `;
+      return rows[0]?.status === 'completed';
+    }, 20_000);
+    const statusRows = await sql<
+      { status: string | null; error: string | null }[]
+    >`
+      SELECT rag_status AS status, rag_error AS error FROM app.file_metadata
+      WHERE id = ${registered.success ? registered.data.fileId : ''}
+    `;
+
+    const searchBody = await (
+      await send('POST', `/api/app/knowledge/search?orgId=${orgId}`, {
+        query: 'verdigris zeppelin ledger',
+        limit: 5,
+      })
+    ).json();
+    const search = z
+      .object({ hits: z.array(z.looseObject({})) })
+      .loose()
+      .safeParse(searchBody);
+    const searchRaw = JSON.stringify(searchBody);
+    const fetchRes = await (
+      await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
+        fileId: handoff.data.storageRef,
+      })
+    ).json();
+    const fetchRaw = JSON.stringify(fetchRes);
+
+    record(
+      'knowledge RAG loop (extract→embed→index→search→fetch)',
+      indexed &&
+        search.success &&
+        search.data.hits.length > 0 &&
+        searchRaw.includes('verdigris') &&
+        fetchRaw.includes('zeppelin ledger'),
+      `indexed=${indexed} (status=${statusRows[0]?.status}${statusRows[0]?.error ? `, err=${statusRows[0].error.slice(0, 80)}` : ''}), hits=${search.success ? search.data.hits.length : 'ERR'}, searchHit=${searchRaw.includes('verdigris')}, fetchHit=${fetchRaw.includes('zeppelin ledger')}`,
+    );
+  } finally {
+    await new Promise<void>((resolve) => {
+      embedServer.close(() => resolve());
+    });
+  }
+}
+
+/**
  * Login throttle + audit chain, end to end through the real auth hooks:
  * repeated wrong passwords cross the lockout threshold (429 from the
  * before-hook), the lock expires on schedule (default first backoff = 1s),
@@ -1705,6 +1894,13 @@ async function main(): Promise<void> {
     );
   }
 
+  if (!process.env.KNOWLEDGE_DATABASE_URL) {
+    // Same throwaway server; the tale-db image creates tale_knowledge.
+    process.env.KNOWLEDGE_DATABASE_URL = databaseUrl.replace(
+      /\/[^/]+$/,
+      '/tale_knowledge',
+    );
+  }
   if (!process.env.ENCRYPTION_SECRET_HEX && !process.env.ENCRYPTION_SECRET) {
     // Secret-box key for the credential round-trip (64 hex chars = 32 bytes).
     process.env.ENCRYPTION_SECRET_HEX = 'ab'.repeat(32);
@@ -1797,6 +1993,7 @@ async function main(): Promise<void> {
     await checkDocuments(baseUrl, authCtx);
     await checkSmallDomains(baseUrl, authCtx);
     await checkProviderCredentials(sql, baseUrl, authCtx);
+    await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,

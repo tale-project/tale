@@ -1,4 +1,4 @@
-import { getFunctionName } from 'convex/server';
+import { getFunctionAddress, getFunctionName } from 'convex/server';
 
 /**
  * A minimal ActionCtx stand-in for REUSING 0.4 `'use node'` functions whose
@@ -16,10 +16,27 @@ export interface ShimHandlers {
   [functionName: string]: (args: unknown) => Promise<unknown>;
 }
 
+/**
+ * Name a function reference: `path/module:export` for app/internal refs,
+ * the raw `_reference/childComponent/…` address for component refs (which
+ * `getFunctionName` rejects).
+ */
+export function shimFunctionName(ref: unknown): string {
+  try {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- getFunctionName accepts any function reference; the shim's whole job is bridging the untyped seam
+    return getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
+  } catch {
+    const address = getFunctionAddress(ref);
+    if ('reference' in address && typeof address.reference === 'string') {
+      return address.reference;
+    }
+    throw new Error('[convex-shim] unnameable function reference');
+  }
+}
+
 function dispatcher(kind: string, handlers: ShimHandlers) {
   return async (ref: unknown, args: unknown): Promise<unknown> => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- getFunctionName accepts any function reference; the shim's whole job is bridging the untyped seam
-    const name = getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
+    const name = shimFunctionName(ref);
     const handler = handlers[name];
     if (!handler) {
       throw new Error(`[convex-shim] un-shimmed ${kind} call: ${name}`);

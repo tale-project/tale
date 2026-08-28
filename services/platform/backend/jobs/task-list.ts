@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { removeOrgSubtree } from '../../convex/organizations/scaffold.ts';
+import { indexUploadedFile } from '../domains/knowledge/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 
 /** One task handler; `payload` is a job row — external input, re-validate. */
@@ -64,6 +65,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       console.log(
         `[maintenance] login_attempts_ttl removed ${attempts.count} attempts, ${counters.count} counters`,
       );
+    },
+    'rag.index_file': async (payload) => {
+      const input = z.object({ fileId: z.string().min(1) }).parse(payload);
+      await indexUploadedFile(deps.sql, input.fileId);
     },
     'org.cleanup_files': async (payload) => {
       const input = orgCleanupSchema.parse(payload);

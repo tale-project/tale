@@ -3,10 +3,12 @@ import type { Sql, TransactionSql } from 'postgres';
 import { hasTeamAccess } from '../../../convex/lib/team_access.ts';
 import { checkProjectAccess } from '../../../convex/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { getFileMetadata } from '../files/service.ts';
 import { loadFolderOrThrow } from '../folders/service.ts';
+import { markRagQueued } from '../knowledge/service.ts';
 import {
   loadProjectOrThrow,
   type ProjectAuthContext,
@@ -262,6 +264,9 @@ export async function createDocumentFromUpload(
     entity: 'document',
     entityId: documentId,
   });
+  // RAG ingest rides the same transaction: rollback enqueues nothing.
+  await markRagQueued(tx, args.fileId);
+  await addJobInTx(tx, 'rag.index_file', { fileId: args.fileId });
   return documentId;
 }
 

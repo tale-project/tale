@@ -19,6 +19,8 @@ export interface TaskPayloads {
   'maintenance.rate_limit_gc': Record<string, never>;
   /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
   'maintenance.login_attempts_ttl': Record<string, never>;
+  /** Index one uploaded file into the org's RAG corpus. */
+  'rag.index_file': { fileId: string };
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -52,4 +54,10 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
+  'rag.index_file': {
+    retryLimit: 5,
+    retryDelay: 5,
+    retryBackoff: true,
+    expireInSeconds: 900,
+  },
 };
