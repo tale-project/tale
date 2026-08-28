@@ -15,9 +15,9 @@ Cette page couvre la provenance des automatisations et ce qu’un paquet télév
 
 ## Ce que montre la liste
 
-Chaque ligne est une automatisation : son nom, son nombre de versions, et soit la version en service, soit **Pas en service**. La recherche filtre la liste. **Nouvelle automatisation** se trouve dans la barre d’outils du tableau, comme sur les autres listes — **À partir d’un objectif**, **Vierge (trigger + agent)** ou **Téléverser un paquet**. Le menu de la ligne propose **Supprimer** sans ouvrir l’éditeur. La page de l’org liste les automatisations au niveau de l’organisation ; une automatisation qui appartient à un projet vit dans l’onglet **Automatisations** de ce projet — l’endroit où elle apparaît se décide une fois, à son premier enregistrement, et ne bouge plus. Clique une ligne pour arriver sur la page de l’automatisation, que décrit [L’éditeur de workflow](/fr/platform/automations/editor).
+Chaque ligne est une automatisation : son nom, son nombre de versions, et soit la version en service, soit **Pas en service**. La recherche filtre la liste. **Créer une automatisation** se trouve dans la barre d’outils du tableau, comme sur les autres listes — **À partir d’un objectif**, **Vierge (trigger + agent)** ou **Téléverser un paquet**. Le menu de la ligne propose **Supprimer** sans ouvrir l’éditeur. La page de l’org liste les automatisations au niveau de l’organisation ; une automatisation qui appartient à un projet vit dans l’onglet **Automatisations** de ce projet — l’endroit où elle apparaît se décide une fois, à son premier enregistrement, et ne bouge plus. Clique une ligne pour arriver sur la page de l’automatisation, que décrit [L’éditeur de workflow](/fr/platform/automations/editor).
 
-**Nouvelle automatisation** propose deux façons de partir de zéro : **À partir d’un objectif** confie ta description au builder, qui construit les nœuds pour toi ; **Vierge (trigger + agent)** échafaude une automatisation à un seul agent que tu câbles toi-même — nomme-la, choisis le modèle de l’agent, et le reste (le prompt, les outils et secrets accordés, le trigger) est à toi de le poser sur le canvas. Les packs livrés ne demandent aucune installation : chaque organisation en est équipée à sa création, prêts à déployer.
+**Créer une automatisation** propose deux façons de partir de zéro : **À partir d’un objectif** confie ta description au builder, qui construit les nœuds pour toi ; **Vierge (trigger + agent)** échafaude une automatisation à un seul agent que tu câbles toi-même — nomme-la, choisis le modèle de l’agent, et le reste (le prompt, les outils et secrets accordés, le trigger) est à toi de le poser sur le canvas. Les packs livrés ne demandent aucune installation : chaque organisation en est équipée à sa création, prêts à déployer.
 
 ## Téléverser un paquet
 
@@ -34,7 +34,7 @@ review-invoices/
             └── checklist-rules.md
 ```
 
-Pour téléverser, ouvre **Automatisations**, choisis **Téléverser un paquet** dans le menu **Nouvelle automatisation**, puis l’une des deux formes du même pack :
+Pour téléverser, ouvre **Automatisations**, choisis **Téléverser un paquet** dans le menu **Créer une automatisation**, puis l’une des deux formes du même pack :
 
 - **Les fichiers** — `workflow.yml`, plus `automation.yml` si le pack en fournit un. Le bon choix pour un pack qui n’est que son document.
 - **Un seul `.zip` du dossier du pack** — obligatoire quand le pack embarque des skills, puisque seul le zip peut porter leurs dossiers. Les notes Markdown hors de `skills/` (un README, par exemple) sont ignorées, tout comme les dotfiles et les résidus de build (`__pycache__/`, `node_modules/`) — alors zippe le dossier tel quel, même juste après avoir lancé les tests. Le zip reste sous 20 MiB.

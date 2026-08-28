@@ -15,9 +15,9 @@ Diese Seite behandelt, woher Automatisierungen kommen und was ein hochgeladenes 
 
 ## Was die Liste zeigt
 
-Jede Zeile ist eine Automatisierung: ihr Name, wie viele Versionen sie hat, und entweder die Live-Version oder **Nicht live**. Die Suche filtert die Liste. **Neue Automatisierung** sitzt in der Tabellenleiste wie auf den anderen Listen — **Aus einem Ziel**, **Leer (Trigger + Agent)** oder **Paket hochladen**. Das Zeilenmenü bietet **Löschen**, ohne den Editor zu öffnen. Die Org-Seite listet Automatisierungen auf Organisationsebene; eine Automatisierung, die zu einem Projekt gehört, lebt stattdessen im **Automatisierungen**-Tab dieses Projekts — wo eine Automatisierung erscheint, entscheidet ihr erster Save, und danach zieht sie nie um. Klicke eine Zeile an und du landest auf der Seite der Automatisierung, wie [Der Workflow-Editor](/de/platform/automations/editor) sie beschreibt.
+Jede Zeile ist eine Automatisierung: ihr Name, wie viele Versionen sie hat, und entweder die Live-Version oder **Nicht live**. Die Suche filtert die Liste. **Automatisierung erstellen** sitzt in der Tabellenleiste wie auf den anderen Listen — **Aus einem Ziel**, **Leer (Trigger + Agent)** oder **Paket hochladen**. Das Zeilenmenü bietet **Löschen**, ohne den Editor zu öffnen. Die Org-Seite listet Automatisierungen auf Organisationsebene; eine Automatisierung, die zu einem Projekt gehört, lebt stattdessen im **Automatisierungen**-Tab dieses Projekts — wo eine Automatisierung erscheint, entscheidet ihr erster Save, und danach zieht sie nie um. Klicke eine Zeile an und du landest auf der Seite der Automatisierung, wie [Der Workflow-Editor](/de/platform/automations/editor) sie beschreibt.
 
-**Neue Automatisierung** bietet zwei Wege, bei null zu starten: **Aus einem Ziel** übergibt deine Beschreibung dem Builder, der die Nodes für dich baut; **Leer (Trigger + Agent)** legt eine Ein-Agent-Automatisierung an, die du selbst verdrahtest — benenne sie, wähle das Modell des Agenten, und den Rest (Prompt, gewährte Tools und Secrets, Trigger) setzt du auf dem Canvas. Die mitgelieferten Packs brauchen gar keinen Installationsschritt: Jede Organisation wird bei ihrer Anlage damit ausgestattet, bereit zum Deployen.
+**Automatisierung erstellen** bietet zwei Wege, bei null zu starten: **Aus einem Ziel** übergibt deine Beschreibung dem Builder, der die Nodes für dich baut; **Leer (Trigger + Agent)** legt eine Ein-Agent-Automatisierung an, die du selbst verdrahtest — benenne sie, wähle das Modell des Agenten, und den Rest (Prompt, gewährte Tools und Secrets, Trigger) setzt du auf dem Canvas. Die mitgelieferten Packs brauchen gar keinen Installationsschritt: Jede Organisation wird bei ihrer Anlage damit ausgestattet, bereit zum Deployen.
 
 ## Ein Paket hochladen
 
@@ -34,7 +34,7 @@ review-invoices/
             └── checklist-rules.md
 ```
 
-Zum Hochladen öffnest du **Automatisierungen**, wählst im Menü **Neue Automatisierung** den Punkt **Paket hochladen** und gibst eine der beiden Formen desselben Packs an:
+Zum Hochladen öffnest du **Automatisierungen**, wählst im Menü **Automatisierung erstellen** den Punkt **Paket hochladen** und gibst eine der beiden Formen desselben Packs an:
 
 - **Die Dateien** — `workflow.yml`, plus `automation.yml`, wenn das Pack eine mitbringt. Richtig für ein Pack, das nur aus seinem Dokument besteht.
 - **Eine `.zip` des Pack-Verzeichnisses** — Pflicht, wenn das Pack Skills mitbringt, denn nur die Zip kann deren Ordner tragen. Markdown-Notizen außerhalb von `skills/` — etwa ein README — ignoriert der Upload, genauso wie Dotfiles und Build-Reste (`__pycache__/`, `node_modules/`); zippe das Verzeichnis also, wie es ist, ruhig direkt nach einem Testlauf. Die Zip bleibt unter 20 MiB.

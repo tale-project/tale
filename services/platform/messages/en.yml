@@ -478,6 +478,7 @@ automations:
   entityLabel: automations
   entityLabelOne: automation
   list:
+    createButton: Create automation
     searchPlaceholder: Search automations
     columnName: Name
     columnProjects: Projects
@@ -520,7 +521,6 @@ automations:
     submitting: Creating…
     initialMessage: Initial version
   builder:
-    new: New automation
     title: New automation
     description: Describe what goal you want this automation to achieve.
     goalLabel: Goal

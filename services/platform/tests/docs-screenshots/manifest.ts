@@ -583,13 +583,13 @@ export const SHOTS: readonly Shot[] = [
   },
   {
     // The Upload package dialog — file drop zone and the Install into picker.
-    // Its trigger is an item of the New automation create menu.
+    // Its trigger is an item of the Create automation menu.
     name: 'automations-upload-dialog',
     section: 'platform',
     route: '/dashboard/:orgId/automations',
     prepare: async (page) => {
       await page
-        .getByRole('button', { name: t('automations.builder.new') })
+        .getByRole('button', { name: t('automations.list.createButton') })
         .click();
       await page
         .getByRole('menuitem', { name: t('automations.upload.trigger') })
