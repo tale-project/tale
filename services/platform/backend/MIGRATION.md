@@ -74,7 +74,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | collab | pending | |
 | connector_credentials | pending | |
 | connectors | pending | in-sandbox bridge routes |
-| contacts | pending | |
+| contacts | in-progress | inc 12: CRUD/list-filter/find-or-create (email normalized), soft trash, contact.* events; bulk import + REST lanes with the machine door |
 | control | pending | drain door for CLI |
 | conversations | pending | IMAP polling jobs |
 | debug | pending | likely dropped |
@@ -83,7 +83,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | documents | in-progress | inc 10 (Tier A): create-from-upload bind, hub/project scoped reads (access module semantics mirrored), rename/move/team edits, trash/restore, project attach/detach (closes the projects gap), mention search, presigned serve. Tier B: controlled records (approvals), replacement uploads (redesign), generate-document lanes, sync configs, RAG dispatch (knowledge), WebDAV resolvers, hard delete + blob erasure (governance) |
 | enterprise_sso | pending | |
 | events | done | inc 09; the emit seam at its 0.4 contract (deliberate no-op dispatch until automations rebuild the fan-out); producers wired (task.created/status_changed, project.created) |
-| feedback | pending | |
+| feedback | done | inc 12; per-(message,user) upsert votes, toggle, org insights feed + stats (matrix-gated) |
 | file_metadata | in-progress | inc 08: `app.file_metadata` ledger (all pipeline columns shipped nullable) + core reads; RAG dispatch pools → per-queue workers, transcription, OCR with knowledge/tts |
 | files | in-progress | inc 08: upload handshake (server-minted keys, HEAD-verified register), presigned serve, org-scoped delete (uploader/admin); sandbox blob HTTP + rejected-upload lanes with sandbox/documents |
 | folders | in-progress | inc 10: tree CRUD (depth cap, sibling-name uniqueness, scope inheritance/conflict rules), breadcrumb, hub/project listings; delete refuses on any descendant document until the trash-cascade lands (conservative); legal-hold/record guards + sync-config deactivation with governance/sync domains |
@@ -111,7 +111,7 @@ Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 | scim | pending | |
 | skills | pending | |
 | status | pending | |
-| support_cases | pending | |
+| support_cases | in-progress | inc 12: case lifecycle (status stamps, escalation, SLA fields), comments (first-response stamp), activity feed, archive; agent assignee lanes with agents domain |
 | tasks | in-progress | inc 07 (Tier A): board core — CRUD/status choreography (human semantics, subtask close-guard)/assignee validation/claim/LexoRank moves (rank module reused)/labels catalog/dependencies (DAG-guarded)/board views/activity timeline/project rollup transitions/hard delete. Tier B with its infra: discussion comments+mentions (thread store), agent runs+review arc+status verbs that kick runs (INV 5–7, 20, 22), notify/event fan-outs, attachments/outputs blobs (storage router), REST surface, date notifications (crons), bulk ops, ops indicators. inc 11 adds: discussion comments on the message store (add/edit/delete, lockstep meta, comment counts, activity + audit) — mention directory/fan-outs with collab/agents/automations |
 | team_members | pending | |
 | testing | dropped(convex-test harness) | replaced by vitest+throwaway PG |

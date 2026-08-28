@@ -1263,6 +1263,156 @@ async function checkDocuments(
 }
 
 /**
+ * Small-domain smoke: contacts CRUD + find-or-create shape, message
+ * feedback upsert/toggle/stats, support case lifecycle.
+ */
+async function checkSmallDomains(
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const get = async (route: string): Promise<unknown> =>
+    (await fetch(`${base}${route}`, { headers: { cookie } })).json();
+  const send = (
+    method: 'POST' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  // Contacts.
+  const contact = z.object({ contactId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/contacts?orgId=${orgId}`, {
+        name: 'Ada Lovelace',
+        email: 'Ada@Example.com',
+        source: 'manual_import',
+        tags: ['vip'],
+      })
+    ).json(),
+  );
+  const contactId = contact.success ? contact.data.contactId : '';
+  const found = z
+    .object({
+      items: z.array(
+        z.object({ id: z.string(), email: z.string().nullable() }),
+      ),
+    })
+    .safeParse(await get(`/api/app/contacts?orgId=${orgId}&search=lovelace`));
+  const updated = await send(
+    'POST',
+    `/api/app/contacts/${contactId}?orgId=${orgId}`,
+    {
+      phone: '+49 30 1234',
+    },
+  );
+  const trashed = await send(
+    'DELETE',
+    `/api/app/contacts/${contactId}?orgId=${orgId}`,
+  );
+  const afterTrash = z
+    .object({ items: z.array(z.object({ id: z.string() })) })
+    .safeParse(await get(`/api/app/contacts?orgId=${orgId}`));
+  record(
+    'contacts CRUD + normalization + trash',
+    contact.success &&
+      found.success &&
+      found.data.items[0]?.email === 'ada@example.com' &&
+      updated.ok &&
+      trashed.ok &&
+      afterTrash.success &&
+      !afterTrash.data.items.some((i) => i.id === contactId),
+    `email=${found.success ? found.data.items[0]?.email : 'ERR'} (want normalized), trashHidden=${afterTrash.success ? !afterTrash.data.items.some((i) => i.id === contactId) : 'ERR'}`,
+  );
+
+  // Message feedback: vote → toggle → stats reflect one negative.
+  await send('POST', `/api/app/feedback?orgId=${orgId}`, {
+    threadId: 'itest-thread',
+    messageId: 'itest-msg-1',
+    rating: 'positive',
+  });
+  await send('POST', `/api/app/feedback?orgId=${orgId}`, {
+    threadId: 'itest-thread',
+    messageId: 'itest-msg-1',
+    rating: 'negative',
+    comment: 'wrong answer',
+  });
+  const stats = z
+    .object({
+      items: z.array(z.object({ rating: z.string() })),
+      stats: z.object({ positive: z.number(), negative: z.number() }),
+    })
+    .safeParse(await get(`/api/app/feedback?orgId=${orgId}`));
+  record(
+    'message feedback upsert + stats',
+    stats.success &&
+      stats.data.items.length === 1 &&
+      stats.data.stats.negative === 1 &&
+      stats.data.stats.positive === 0,
+    `items=${stats.success ? stats.data.items.length : 'ERR'} (want 1 after toggle), stats=${stats.success ? JSON.stringify(stats.data.stats) : 'ERR'}`,
+  );
+
+  // Support case lifecycle.
+  const supportCase = z.object({ caseId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/support-cases?orgId=${orgId}`, {
+        subject: 'Printer on fire',
+        priority: 'urgent',
+        requesterEmail: 'customer@example.com',
+      })
+    ).json(),
+  );
+  const caseId = supportCase.success ? supportCase.data.caseId : '';
+  await send(
+    'POST',
+    `/api/app/support-cases/${caseId}/comments?orgId=${orgId}`,
+    {
+      body: 'Looking into it.',
+    },
+  );
+  await send(
+    'POST',
+    `/api/app/support-cases/${caseId}/escalate?orgId=${orgId}`,
+  );
+  await send('POST', `/api/app/support-cases/${caseId}/status?orgId=${orgId}`, {
+    status: 'resolved',
+  });
+  const caseRead = z
+    .object({
+      supportCase: z.object({
+        status: z.string(),
+        escalationLevel: z.number().nullable(),
+        commentCount: z.number(),
+        firstRespondedAt: z.number().nullable(),
+        resolvedAt: z.number().nullable(),
+      }),
+      comments: z.array(z.object({ body: z.string() })),
+      activity: z.array(z.object({ action: z.string() })),
+    })
+    .safeParse(await get(`/api/app/support-cases/${caseId}?orgId=${orgId}`));
+  const caseActions = caseRead.success
+    ? caseRead.data.activity.map((a) => a.action)
+    : [];
+  record(
+    'support case lifecycle',
+    caseRead.success &&
+      caseRead.data.supportCase.status === 'resolved' &&
+      caseRead.data.supportCase.escalationLevel === 1 &&
+      caseRead.data.supportCase.commentCount === 1 &&
+      caseRead.data.supportCase.firstRespondedAt !== null &&
+      caseRead.data.supportCase.resolvedAt !== null &&
+      caseActions.includes('created') &&
+      caseActions.includes('escalated') &&
+      caseActions.includes('status.changed'),
+    `status=${caseRead.success ? caseRead.data.supportCase.status : 'ERR'}, escalation=${caseRead.success ? caseRead.data.supportCase.escalationLevel : 'ERR'}, comments=${caseRead.success ? caseRead.data.supportCase.commentCount : 'ERR'}, activity=${caseActions.join('/')}`,
+  );
+}
+
+/**
  * Login throttle + audit chain, end to end through the real auth hooks:
  * repeated wrong passwords cross the lockout threshold (429 from the
  * before-hook), the lock expires on schedule (default first backoff = 1s),
@@ -1479,6 +1629,7 @@ async function main(): Promise<void> {
     await checkTasks(baseUrl, authCtx);
     await checkFiles(baseUrl, authCtx);
     await checkDocuments(baseUrl, authCtx);
+    await checkSmallDomains(baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,
