@@ -8,6 +8,7 @@ import {
   resolveConnectorCredential,
 } from '../connector_credentials/service.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
+import { applyAddressRouting } from './routing.ts';
 import {
   addMessageToConversation,
   createConversation,
@@ -284,6 +285,21 @@ export function conversationShimHandlers(
               }
             : {}),
         });
+        // Address routing (governance feature): auto-assign a NEW inbound
+        // conversation to the team/person mapped to the address it was sent
+        // to, BEFORE downstream notifications observe the row (the 0.4
+        // ingest-inline hook).
+        if (args.direction === 'inbound') {
+          await applyAddressRouting(tx, {
+            id: conversationId,
+            organizationId: args.organizationId,
+            subject: args.subject ?? null,
+            status: args.status ?? 'open',
+            assigneeUserId: args.assigneeUserId ?? null,
+            assigneeTeamId: args.assigneeTeamId ?? null,
+            metadata: args.metadata ?? null,
+          });
+        }
         return { conversationId, messageId };
       });
     },

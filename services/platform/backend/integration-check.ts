@@ -5536,6 +5536,138 @@ async function checkChatConversationSearchLeg(
 }
 
 /**
+ * Address→assignee routing at inbound ingest: the org's
+ * `conversation_routing` governance file maps the address the customer
+ * wrote to onto a team queue or a person; an unknown address and a stale
+ * rule (deleted user) leave the row unassigned WITHOUT breaking ingest;
+ * `enabled: false` silences configured rules.
+ */
+async function checkAddressRouting(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const { conversationShimHandlers } =
+    await import('./domains/conversations/shim.ts');
+  const { clearOrgConfigCaches } = await import('./lib/org-config.ts');
+
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt")
+    VALUES (gen_random_uuid(), 'Routing Desk', ${orgId}, ${new Date()})
+    RETURNING "id"
+  `;
+  const teamId = teamRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (gen_random_uuid(), ${teamId}, ${userId}, ${new Date()})
+  `;
+
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const governanceDir = path.join(configRoot, orgSlug, 'governance');
+  await mkdir(governanceDir, { recursive: true });
+  const routingFile = path.join(governanceDir, 'conversation-routing.yml');
+  await writeFile(
+    routingFile,
+    [
+      'enabled: true',
+      'rules:',
+      '  - address: support@door.test',
+      `    teamId: ${teamId}`,
+      '  - address: billing@door.test',
+      `    userId: ${userId}`,
+      '  - address: ghost@door.test',
+      '    userId: no-such-user',
+    ].join('\n'),
+  );
+  clearOrgConfigCaches();
+
+  const handlers = conversationShimHandlers(sql, () => {
+    throw new Error('the routing check dispatches no connector calls');
+  });
+  const create =
+    handlers['conversations/internal_mutations:createConversationWithMessage'];
+  if (!create) throw new Error('shim handler missing');
+  const mk = async (address: string, subject: string) => {
+    const out = z
+      .object({ conversationId: z.string() })
+      .loose()
+      .parse(
+        await create({
+          organizationId: orgId,
+          direction: 'inbound',
+          channel: 'email',
+          subject,
+          metadata: { to: [{ address }] },
+          initialMessage: {
+            sender: 'router.customer@ext.test',
+            content: 'route me',
+            isCustomer: true,
+          },
+        }),
+      );
+    const rows = await sql<
+      { assigneeUserId: string | null; assigneeTeamId: string | null }[]
+    >`
+      SELECT assignee_user_id AS "assigneeUserId",
+             assignee_team_id AS "assigneeTeamId"
+      FROM app.conversations WHERE id = ${out.conversationId} LIMIT 1
+    `;
+    return { id: out.conversationId, row: rows[0] ?? null };
+  };
+
+  const toTeam = await mk('support@door.test', 'Routed to team');
+  const toUser = await mk('Billing@Door.Test', 'Routed to person');
+  const unknown = await mk('nobody@door.test', 'No rule');
+  const stale = await mk('ghost@door.test', 'Stale rule');
+
+  const bell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND type = 'conversation_assigned' AND actor_type = 'system'
+      AND resource_id IN (${toTeam.id}, ${toUser.id})
+  `;
+  const audits = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'assign_conversation'
+      AND actor_type = 'system'
+      AND resource_id IN (${toTeam.id}, ${toUser.id})
+  `;
+
+  // The kill switch: configured rules silenced by an explicit false.
+  await writeFile(
+    routingFile,
+    [
+      'enabled: false',
+      'rules:',
+      '  - address: support@door.test',
+      `    teamId: ${teamId}`,
+    ].join('\n'),
+  );
+  clearOrgConfigCaches();
+  const silenced = await mk('support@door.test', 'Silenced');
+
+  const { unlink } = await import('node:fs/promises');
+  await unlink(routingFile);
+  clearOrgConfigCaches();
+
+  record(
+    'address routing at inbound ingest (governance file, stale-rule safety)',
+    toTeam.row?.assigneeTeamId === teamId &&
+      toTeam.row.assigneeUserId === null &&
+      toUser.row?.assigneeUserId === userId &&
+      unknown.row?.assigneeUserId === null &&
+      unknown.row.assigneeTeamId === null &&
+      stale.row?.assigneeUserId === null &&
+      stale.row.assigneeTeamId === null &&
+      silenced.row?.assigneeTeamId === null &&
+      Number(bell[0]?.count ?? '0') === 2 &&
+      Number(audits[0]?.count ?? '0') === 2,
+    `team=${toTeam.row?.assigneeTeamId === teamId} user=${toUser.row?.assigneeUserId === userId} (case-insensitive), unknown=${unknown.row?.assigneeUserId ?? 'null'}/${unknown.row?.assigneeTeamId ?? 'null'} stale=${stale.row?.assigneeUserId ?? 'null'} (ingest survived), silenced=${silenced.row?.assigneeTeamId ?? 'null'}, bells=${bell[0]?.count} (want 2) audits=${audits[0]?.count} (want 2)`,
+  );
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -10876,6 +11008,7 @@ async function main(): Promise<void> {
     await checkOutboundSendLane(sql, baseUrl, authCtx);
     await checkNotificationEmailSink(sql, authCtx);
     await checkChatConversationSearchLeg(sql, authCtx);
+    await checkAddressRouting(sql, authCtx, `itest-${orgSuffix}`);
     await checkApprovalsSurface(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
