@@ -5668,6 +5668,158 @@ async function checkAddressRouting(
 }
 
 /**
+ * The deploy-drain control plane: the token-guarded machine door
+ * (`/api/control`), the chat send door refusing NEW turns while draining
+ * (503 — nothing appended, the client retries), real in-flight counting
+ * over fresh generation heartbeats, and the crashed-deploy expiry reading
+ * as "not draining".
+ */
+async function checkControlDrain(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const token = process.env.TALE_CONTROL_TOKEN ?? '';
+  const control = (
+    route: string,
+    init: { method?: string; bearer?: string } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/control${route}`, {
+      method: init.method ?? 'GET',
+      headers: {
+        ...(init.bearer !== undefined
+          ? { authorization: `Bearer ${init.bearer}` }
+          : {}),
+      },
+    });
+
+  // Door auth: no bearer / wrong bearer → 401; unset env → 404.
+  const noBearer = await control('/drain-status');
+  const wrongBearer = await control('/drain-status', { bearer: 'nope' });
+  const saved = process.env.TALE_CONTROL_TOKEN;
+  process.env.TALE_CONTROL_TOKEN = '';
+  const doorGone = await control('/drain-status', { bearer: token });
+  process.env.TALE_CONTROL_TOKEN = saved;
+
+  // A thread to poke the send door with.
+  const threadRes = await fetch(`${base}/api/app/chat/threads?orgId=${orgId}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, origin: base },
+    body: JSON.stringify({}),
+  });
+  const threadBody = z
+    .looseObject({ threadId: z.string().optional(), id: z.string().optional() })
+    .safeParse(await threadRes.json());
+  const threadId = threadBody.success
+    ? (threadBody.data.threadId ?? threadBody.data.id ?? '')
+    : '';
+
+  // Begin the drain → status flips; a NEW send refuses 503 with nothing
+  // appended.
+  const began = z
+    .object({ inFlight: z.number() })
+    .safeParse(
+      await (await control('/drain', { method: 'POST', bearer: token })).json(),
+    );
+  const statusDraining = z
+    .object({ draining: z.boolean(), inFlight: z.number() })
+    .safeParse(
+      await (await control('/drain-status', { bearer: token })).json(),
+    );
+  const refusedSend = await fetch(
+    `${base}/api/app/chat/threads/${threadId}/messages?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ text: 'hello during drain' }),
+    },
+  );
+  const refusedBody = z
+    .object({ status: z.string(), reason: z.string() })
+    .safeParse(await refusedSend.json());
+  const appended = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.messages
+    WHERE thread_id = ${threadId}
+  `;
+
+  // In-flight counting: a fresh fake generation counts, a stale one not.
+  const now = Date.now();
+  await sql`
+    INSERT INTO app.generations (thread_id, org_id, message_id,
+                                 started_at_ms, heartbeat_at_ms,
+                                 updated_at_ms)
+    VALUES (${threadId}, ${orgId}, 'itest-drain-msg', ${now}, ${now}, ${now})
+  `;
+  const withFresh = z
+    .object({ inFlight: z.number() })
+    .loose()
+    .safeParse(
+      await (await control('/drain-status', { bearer: token })).json(),
+    );
+  await sql`
+    UPDATE app.generations SET heartbeat_at_ms = ${now - 11 * 60_000}
+    WHERE thread_id = ${threadId}
+  `;
+  const withStale = z
+    .object({ inFlight: z.number() })
+    .loose()
+    .safeParse(
+      await (await control('/drain-status', { bearer: token })).json(),
+    );
+  await sql`DELETE FROM app.generations WHERE thread_id = ${threadId}`;
+
+  // End → the send door opens again (the busy gate now decides, not the
+  // drain), and an EXPIRED flag reads as not draining.
+  const ended = await control('/end-drain', { method: 'POST', bearer: token });
+  const statusEnded = z
+    .object({ draining: z.boolean() })
+    .loose()
+    .safeParse(
+      await (await control('/drain-status', { bearer: token })).json(),
+    );
+  await sql`
+    UPDATE app.backend_control SET
+      draining = true, drain_expires_at_ms = ${Date.now() - 1_000}
+    WHERE key = 'singleton'
+  `;
+  const statusExpired = z
+    .object({ draining: z.boolean() })
+    .loose()
+    .safeParse(
+      await (await control('/drain-status', { bearer: token })).json(),
+    );
+  await sql`
+    UPDATE app.backend_control SET draining = false WHERE key = 'singleton'
+  `;
+
+  record(
+    'deploy drain control plane (token door, send gate, expiry)',
+    noBearer.status === 401 &&
+      wrongBearer.status === 401 &&
+      doorGone.status === 404 &&
+      threadId !== '' &&
+      began.success &&
+      statusDraining.success &&
+      statusDraining.data.draining === true &&
+      refusedSend.status === 503 &&
+      refusedBody.success &&
+      refusedBody.data.status === 'refused' &&
+      appended[0]?.count === '0' &&
+      withFresh.success &&
+      withFresh.data.inFlight === 1 &&
+      withStale.success &&
+      withStale.data.inFlight === 0 &&
+      ended.status === 200 &&
+      statusEnded.success &&
+      statusEnded.data.draining === false &&
+      statusExpired.success &&
+      statusExpired.data.draining === false,
+    `auth=${noBearer.status}/${wrongBearer.status}/gone=${doorGone.status} (want 401/401/404), begin=${began.success} draining=${statusDraining.success ? statusDraining.data.draining : 'ERR'}, send=${refusedSend.status} (want 503) body=${refusedBody.success ? refusedBody.data.status : 'ERR'} appended=${appended[0]?.count} (want 0), inFlight fresh=${withFresh.success ? withFresh.data.inFlight : 'ERR'}/stale=${withStale.success ? withStale.data.inFlight : 'ERR'} (want 1/0), end=${ended.status} → draining=${statusEnded.success ? statusEnded.data.draining : 'ERR'}, expired=${statusExpired.success ? statusExpired.data.draining : 'ERR'} (want false)`,
+  );
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -10888,6 +11040,8 @@ async function main(): Promise<void> {
   // Shrink the notification-email debounce for the sink check; the drain
   // helper settles stragglers before any SMTP-counting fake installs.
   process.env.NOTIFICATION_EMAIL_DEBOUNCE_MS ??= '1500';
+  // The deploy-control door's bearer for the drain check.
+  process.env.TALE_CONTROL_TOKEN ??= 'itest-control-token';
   const auth = createAuth({
     databaseUrl,
     secret: process.env.BETTER_AUTH_SECRET,
@@ -11009,6 +11163,7 @@ async function main(): Promise<void> {
     await checkNotificationEmailSink(sql, authCtx);
     await checkChatConversationSearchLeg(sql, authCtx);
     await checkAddressRouting(sql, authCtx, `itest-${orgSuffix}`);
+    await checkControlDrain(sql, baseUrl, authCtx);
     await checkApprovalsSurface(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);

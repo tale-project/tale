@@ -15,6 +15,7 @@ import { createChatRoutes } from './domains/chat/routes.ts';
 import { createCollabRoutes } from './domains/collab/routes.ts';
 import { createConnectorCredentialRoutes } from './domains/connector_credentials/routes.ts';
 import { createContactRoutes } from './domains/contacts/routes.ts';
+import { createControlRoutes } from './domains/control/routes.ts';
 import { createConversationRoutes } from './domains/conversations/routes.ts';
 import { createDocumentRoutes } from './domains/documents/routes.ts';
 import { createErasureRoutes } from './domains/erasure/routes.ts';
@@ -102,6 +103,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   );
   app.route('/api/app/contacts', createContactRoutes(deps));
   app.route('/api/app/approvals', createApprovalRoutes(deps));
+  app.route('/api/control', createControlRoutes(deps));
   app.route('/api/app/conversations', createConversationRoutes(deps));
   app.route('/api/app/documents', createDocumentRoutes(deps));
   app.route('/api/app/files', createFileRoutes(deps));

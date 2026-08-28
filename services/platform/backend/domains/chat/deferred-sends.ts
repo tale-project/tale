@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { isBackendDraining } from '../control/service.ts';
 import { runChatTurn } from './service.ts';
 import { ChatThreadError, loadOwnedThread } from './threads.ts';
 
@@ -290,6 +291,12 @@ export async function pollDeferredSend(
     return 'waiting';
   }
 
+  // Deploy drain: keep the parked send parked — it claims after the
+  // restart instead of failing into a bubble the user must retry.
+  if (await isBackendDraining(sql)) {
+    await reschedule(READY_POLL_MS);
+    return 'waiting';
+  }
   // One turn per thread: while a generation row exists, wait our turn.
   const generating = await sql<{ threadId: string }[]>`
     SELECT thread_id AS "threadId" FROM app.generations

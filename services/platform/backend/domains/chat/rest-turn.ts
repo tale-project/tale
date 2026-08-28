@@ -4,6 +4,8 @@ import {
   classifyChatErrorCode,
   encodeChatError,
 } from '../../../lib/shared/chat-errors.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
+import { isBackendDraining } from '../control/service.ts';
 import { runChatTurn } from './service.ts';
 import { appendAssistantErrorMessage } from './store.ts';
 import { loadOwnedThread } from './threads.ts';
@@ -31,6 +33,15 @@ export async function runApiTurn(
   sql: Sql,
   payload: ApiTurnPayload,
 ): Promise<void> {
+  // Deploy drain: hand the accepted message to a FRESH job past the window
+  // instead of erroring it — the new `created` job survives the restart, so
+  // the 202 promise is kept.
+  if (await isBackendDraining(sql)) {
+    await addJobInTx(sql, 'chat.api_turn', payload, {
+      startAfter: new Date(Date.now() + 5_000),
+    });
+    return;
+  }
   const thread = await loadOwnedThread(
     sql,
     payload.organizationId,

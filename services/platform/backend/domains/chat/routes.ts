@@ -7,6 +7,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { isBackendDraining } from '../control/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   listAutomationCapabilities,
@@ -868,6 +869,18 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     );
     if (thread === null) {
       return c.json({ error: 'thread not found' }, 404);
+    }
+    // Deploy drain: refuse NEW turns so the client retries onto the
+    // restarted backend (nothing is appended — the send is safe to repeat).
+    if (await isBackendDraining(deps.sql)) {
+      return c.json(
+        {
+          status: 'refused',
+          reason:
+            'The backend is restarting for an upgrade — send again in a moment.',
+        },
+        503,
+      );
     }
     // At most one turn per thread — refuse a concurrent send rather than
     // let two turns interleave and delete each other's generation row.
