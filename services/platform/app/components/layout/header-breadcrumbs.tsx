@@ -32,7 +32,9 @@ export interface HeaderBreadcrumbCrumb {
  * width (unless {@link showImmediateParentOnMobile} opts in to
  * `[parent] / [leaf]`). Every gap is the same `gap-2`, so the trail reads
  * identically on agents, automations, workflows, and projects. The separator
- * trails each ancestor `li`, so the leaf needs none of its own.
+ * trails each ancestor `li`, so the leaf needs none of its own. When the
+ * entity has siblings to jump between, the leaf is a
+ * `HeaderBreadcrumbSwitcher` rather than a plain name.
  */
 export function HeaderBreadcrumbs({
   ariaLabel,
