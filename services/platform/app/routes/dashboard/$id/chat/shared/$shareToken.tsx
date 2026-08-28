@@ -39,7 +39,7 @@ function SharedChatPage() {
   return (
     <PageLayout
       header={
-        <AdaptiveHeaderRoot standalone={false}>
+        <AdaptiveHeaderRoot standalone={false} showBorder>
           <AdaptiveHeaderTitle>{t('share.sharedChat')}</AdaptiveHeaderTitle>
           <Button
             variant="ghost"
