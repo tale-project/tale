@@ -2260,6 +2260,195 @@ async function checkChat(
 }
 
 /**
+ * Sandbox session substrate: per-owner and per-budget caps, park-on-capacity
+ * FIFO tickets (fairness + release-edge admission), hibernate/resume slot
+ * accounting, hash-only token lifecycle, and durable op rows — all under the
+ * per-org advisory-lock admission section.
+ */
+async function checkSandboxSessions(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const sessions = await import('./domains/sandbox/sessions.ts');
+  const { orgId, userId } = ctx;
+  const reserve = (
+    n: number,
+    ownerType: string,
+    ticket?: { source: 'chat' | 'workflow' },
+  ): Promise<string> =>
+    sessions.reserveSessionSlot(sql, {
+      organizationId: orgId,
+      sessionId: `itest-sb-${n}`,
+      profile: { image: 'itest' },
+      ownerType,
+      ownerId: `owner-${n}`,
+      createdBy: userId,
+      ...(ticket !== undefined ? { ticket } : {}),
+    });
+  const code = (error: unknown): string =>
+    error !== null && typeof error === 'object' && 'code' in error
+      ? String(error.code)
+      : String(error);
+
+  // Slots 1+2 fill the default project budget (maxSessionsPerOrg=2).
+  await reserve(1, 'project_agent');
+  await sessions.setSessionStatus(sql, {
+    organizationId: orgId,
+    sessionId: 'itest-sb-1',
+    status: 'active',
+  });
+  await reserve(2, 'project_agent');
+  const dupOwner = await sessions
+    .reserveSessionSlot(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-sb-1b',
+      profile: {},
+      ownerType: 'project_agent',
+      ownerId: 'owner-1',
+      createdBy: userId,
+    })
+    .then(() => 'ok')
+    .catch(code);
+  const hardCap = await reserve(3, 'project_agent')
+    .then(() => 'ok')
+    .catch(code);
+  const parked3 = await reserve(3, 'project_agent', { source: 'workflow' })
+    .then(() => 'ok')
+    .catch(code);
+  // A second, LATER waiter — FIFO fairness must keep it behind owner-3.
+  const parked4 = await reserve(4, 'project_agent', { source: 'workflow' })
+    .then(() => 'ok')
+    .catch(code);
+  const pollWhileFull = await sessions.pollAdmission(sql, {
+    organizationId: orgId,
+    ownerType: 'project_agent',
+    ownerId: 'owner-3',
+    ticket: { source: 'workflow' },
+  });
+
+  // Release edge: hibernating slot 1 opens exactly one slot — the FIFO head
+  // (owner-3) may proceed, the later waiter (owner-4) may not.
+  await sessions.markSessionStopped(sql, {
+    organizationId: orgId,
+    sessionId: 'itest-sb-1',
+  });
+  const pollLater = await sessions.pollAdmission(sql, {
+    organizationId: orgId,
+    ownerType: 'project_agent',
+    ownerId: 'owner-4',
+    ticket: { source: 'workflow' },
+  });
+  const pollHead = await sessions.pollAdmission(sql, {
+    organizationId: orgId,
+    ownerType: 'project_agent',
+    ownerId: 'owner-3',
+    ticket: { source: 'workflow' },
+  });
+  const admitted3 = await reserve(3, 'project_agent', { source: 'workflow' })
+    .then(() => 'ok')
+    .catch(code);
+
+  // Resuming the hibernated slot 1 while the budget is full re-queues fairly.
+  const resumeFull = await sessions
+    .resumeSessionSlot(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-sb-1',
+    })
+    .then(() => 'ok')
+    .catch(code);
+  await sessions.markSessionDestroyed(sql, {
+    organizationId: orgId,
+    sessionId: 'itest-sb-3',
+  });
+  const resumeAfterFree = await sessions
+    .resumeSessionSlot(sql, {
+      organizationId: orgId,
+      sessionId: 'itest-sb-1',
+    })
+    .then(() => 'ok')
+    .catch(code);
+
+  // Separate workflow budget (default 4) — untouched by the project fill.
+  const wf = await reserve(10, 'workflow_run')
+    .then(() => 'ok')
+    .catch(code);
+
+  // Tokens: hash-only lifecycle.
+  await sessions.insertSessionToken(sql, {
+    organizationId: orgId,
+    sessionId: 'itest-sb-1',
+    tokenHash: 'hash-abc',
+    scope: {
+      agentKind: 'claude-code',
+      allowedModels: ['m1'],
+      connectorGrants: [],
+      budgetCents: 100,
+    },
+    ttlMs: 60_000,
+  });
+  const tokenLive = await sessions.getSessionTokenByHash(sql, 'hash-abc');
+  await sessions.revokeTokensForSession(sql, orgId, 'itest-sb-1');
+  const tokenRevoked = await sessions.getSessionTokenByHash(sql, 'hash-abc');
+
+  // Ops: start → progress → exactly-once finalize; watchdog staleness read.
+  await sessions.startSessionOp(sql, {
+    organizationId: orgId,
+    sessionId: 'itest-sb-1',
+    execId: 'exec-1',
+    kind: 'agent-run',
+    threadId: 'itest-thread-1',
+  });
+  await sessions.flushOpProgress(sql, {
+    sessionId: 'itest-sb-1',
+    execId: 'exec-1',
+    progressText: 'working…',
+    lastSeq: 7,
+  });
+  const liveOp = await sessions.latestAgentRunForThread(sql, 'itest-thread-1');
+  const abandoned = await sessions.listAbandonedOps(sql, Date.now() + 60_000);
+  const finalizedOnce = await sessions.finalizeSessionOp(sql, {
+    sessionId: 'itest-sb-1',
+    execId: 'exec-1',
+    status: 'completed',
+    exitCode: 0,
+  });
+  const finalizedTwice = await sessions.finalizeSessionOp(sql, {
+    sessionId: 'itest-sb-1',
+    execId: 'exec-1',
+    status: 'failed',
+  });
+
+  const reaped = await sessions.reapStaleAdmissionTickets(
+    sql,
+    Date.now() + 60_000,
+  );
+
+  record(
+    'sandbox sessions (caps + FIFO admission + tokens + ops)',
+    dupOwner === 'QUOTA_EXCEEDED' &&
+      hardCap === 'QUOTA_EXCEEDED' &&
+      parked3 === 'WAIT_FIFO' &&
+      parked4 === 'WAIT_FIFO' &&
+      !pollWhileFull.proceed &&
+      !pollLater.proceed &&
+      pollHead.proceed &&
+      admitted3 === 'ok' &&
+      resumeFull === 'QUOTA_EXCEEDED' &&
+      resumeAfterFree === 'ok' &&
+      wf === 'ok' &&
+      tokenLive !== null &&
+      tokenLive.scope.agentKind === 'claude-code' &&
+      tokenRevoked === null &&
+      liveOp?.progressText === 'working…' &&
+      abandoned.some((op) => op.execId === 'exec-1') &&
+      finalizedOnce &&
+      !finalizedTwice &&
+      reaped >= 1,
+    `dupOwner=${dupOwner}, hardCap=${hardCap}, park=${parked3}/${parked4}, fifo(full=${pollWhileFull.proceed},later=${pollLater.proceed},head=${pollHead.proceed}), admit=${admitted3}, resume(full=${resumeFull},freed=${resumeAfterFree}), wfBudget=${wf}, token(live=${tokenLive !== null},revoked=${tokenRevoked === null}), op(progress=${liveOp?.progressText === 'working…'},finalize=${finalizedOnce}/${finalizedTwice}), reaped=${reaped}`,
+  );
+}
+
+/**
  * Login throttle + audit chain, end to end through the real auth hooks:
  * repeated wrong passwords cross the lockout threshold (429 from the
  * before-hook), the lock expires on schedule (default first backoff = 1s),
@@ -2493,6 +2682,7 @@ async function main(): Promise<void> {
     await checkProviderCredentials(sql, baseUrl, authCtx);
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkSandboxSessions(sql, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,
