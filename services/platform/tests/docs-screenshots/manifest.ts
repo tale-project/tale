@@ -574,7 +574,7 @@ export const SHOTS: readonly Shot[] = [
   },
   {
     // The Automations page — the seeded pack rows with their version count
-    // and deployment state, plus the New automation create menu.
+    // and deployment state, plus the Create automation menu.
     name: 'automations-catalog',
     section: 'platform',
     route: '/dashboard/:orgId/automations',

@@ -105,15 +105,17 @@ output:
 
 ## Automated coverage
 
-No e2e spec covers this surface — the pre-rewrite `automations` and
-`email-automation` specs were retired with the AI-backend rewrite (#2857) and
-no successor exists, so every row below is manual against a browser. Component
-tests (vitest, next to the sources in `app/features/automations/`) cover
-slices of the logic only:
+One e2e spec, `automations.spec.ts`, drives the provider-free slice end to
+end: the toolbar create menu, the yml upload lane with the **Later** decline,
+the row → detail routing, the breadcrumb leaf switcher, and delete-from-list.
+Everything else below is manual against a browser. Component tests (vitest,
+next to the sources in `app/features/automations/`) cover slices of the logic
+only:
 
 | Case(s)          | Status         | e2e spec                                                                                                                                          |
 | ---------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1–F34, B1–B6    | ⛔ manual-only | — (no automations spec exists)                                                                                                                    |
+| F1 (toolbar create), F1b, F4 (org-level row), F8 (yml lane, Later), F12 (leaf switcher) | 🔶 partial | `automations.spec.ts` (upload → detail switcher → delete) |
+| Everything else in F1–F34, B1–B6 | ⛔ manual-only | —                                                                                                                                  |
 | F5, F13–F16, F19 | 🔶 partial     | unit: `automations-list.test.tsx`, `automation-detail.test.tsx`, `automation-canvas.test.tsx`, `node-inspector.test.tsx`, `version-list.test.tsx` |
 | F8–F11           | 🔶 partial     | unit: `upload-automation-dialog.test.tsx` (lanes, zip cap, skill-conflict panel — no end-to-end run)                                              |
 | F22–F23, F26     | 🔶 partial     | unit: `effect-list.test.tsx`, `agent-execution-log.test.tsx`, `run-ask-card.test.tsx`                                                             |
