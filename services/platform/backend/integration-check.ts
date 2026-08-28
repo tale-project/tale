@@ -5937,6 +5937,128 @@ async function checkAgentSecrets(
 }
 
 /**
+ * Knowledge entries: topic-keyed markdown facts with the supersede chain —
+ * create (dup refused), update (chain + SAME backing file re-indexed, so
+ * the corpus replaces in place), agent listing through the chat shim,
+ * versions, and delete (chain soft-deleted + backing document trashed ⇒
+ * unretrievable).
+ */
+async function checkKnowledgeEntries(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const get = async (route: string): Promise<unknown> =>
+    (await fetch(`${base}${route}`, { headers: { cookie } })).json();
+
+  const created = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+        topic: 'VAT filing deadline',
+        content: 'Quarterly VAT filings are due on the 10th.',
+      })
+    ).json(),
+  );
+  const entryId = created.success ? created.data.id : '';
+  const dup = await post(`/api/app/knowledge-entries?orgId=${orgId}`, {
+    topic: '  vat   FILING deadline ',
+    content: 'Duplicate by normalized topic key.',
+  });
+  const firstFile = await sql<
+    { fileId: string; storageRef: string; documentId: string | null }[]
+  >`
+    SELECT fm.id AS "fileId", fm.storage_ref AS "storageRef",
+           fm.document_id AS "documentId"
+    FROM app.file_metadata fm
+    JOIN app.knowledge_entries ke ON ke.document_id = fm.document_id
+    WHERE ke.id = ${entryId}
+  `;
+  const updated = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/knowledge-entries/${entryId}?orgId=${orgId}`, {
+        topic: 'VAT filing deadline',
+        content: 'Quarterly VAT filings are due on the 10th of the month.',
+      })
+    ).json(),
+  );
+  const newEntryId = updated.success ? updated.data.id : '';
+  const afterUpdate = await sql<{ fileId: string; storageRef: string }[]>`
+    SELECT fm.id AS "fileId", fm.storage_ref AS "storageRef"
+    FROM app.file_metadata fm
+    JOIN app.knowledge_entries ke ON ke.document_id = fm.document_id
+    WHERE ke.id = ${newEntryId}
+  `;
+  const versions = z
+    .object({
+      versions: z.array(z.object({ status: z.string() }).loose()),
+    })
+    .safeParse(
+      await get(
+        `/api/app/knowledge-entries/${newEntryId}/versions?orgId=${orgId}`,
+      ),
+    );
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const agentListing = z
+    .object({
+      page: z.array(z.object({ topic: z.string(), content: z.string() })),
+      isDone: z.boolean(),
+    })
+    .loose()
+    .safeParse(
+      await chatShimHandlers(sql)[
+        'knowledge_entries/internal_queries:listEntriesForAgent'
+      ]?.({
+        organizationId: orgId,
+        topic: 'vat',
+        paginationOpts: { numItems: 10, cursor: null },
+      }),
+    );
+  await fetch(
+    `${base}/api/app/knowledge-entries/${newEntryId}?orgId=${orgId}`,
+    {
+      method: 'DELETE',
+      headers: { cookie, origin: base },
+    },
+  );
+  const afterDelete = z
+    .object({ rows: z.array(z.unknown()) })
+    .loose()
+    .safeParse(await get(`/api/app/knowledge-entries?orgId=${orgId}`));
+  const docTrashed = await sql<{ lifecycleStatus: string | null }[]>`
+    SELECT d.lifecycle_status AS "lifecycleStatus"
+    FROM app.documents d
+    JOIN app.knowledge_entries ke ON ke.document_id = d.id
+    WHERE ke.id = ${newEntryId}
+  `;
+  record(
+    'knowledge entries: chain + stable corpus key + agent leg + delete',
+    created.success &&
+      dup.status === 409 &&
+      updated.success &&
+      firstFile[0] !== undefined &&
+      afterUpdate[0] !== undefined &&
+      afterUpdate[0].fileId === firstFile[0].fileId &&
+      afterUpdate[0].storageRef !== firstFile[0].storageRef &&
+      versions.success &&
+      versions.data.versions.length === 2 &&
+      agentListing.success &&
+      agentListing.data.page.length === 1 &&
+      agentListing.data.page[0]?.content.includes('10th of the month') &&
+      afterDelete.success &&
+      afterDelete.data.rows.length === 0 &&
+      docTrashed[0]?.lifecycleStatus === 'trashed',
+    `dup=${dup.status} (want 409), sameFile=${afterUpdate[0]?.fileId === firstFile[0]?.fileId}, rotatedRef=${afterUpdate[0]?.storageRef !== firstFile[0]?.storageRef}, versions=${versions.success ? versions.data.versions.length : 'ERR'}, agent=${agentListing.success ? agentListing.data.page.length : 'ERR'}, deleted=${afterDelete.success ? afterDelete.data.rows.length : 'ERR'}, doc=${docTrashed[0]?.lifecycleStatus}`,
+  );
+}
+
+/**
  * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
  * hand-inserted rows against the REUSED decision core: a first kick sweeps
  * with no resume; a settled predecessor with a stamped handle on the live
@@ -6816,6 +6938,7 @@ async function main(): Promise<void> {
     await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAgentSecrets(sql, baseUrl, authCtx);
+    await checkKnowledgeEntries(sql, baseUrl, authCtx);
     await checkChatMemoriesDeferredAuto(
       sql,
       baseUrl,

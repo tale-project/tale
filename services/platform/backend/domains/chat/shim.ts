@@ -10,6 +10,7 @@ import {
   recordConnectorUsage,
 } from '../governance/service.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
+import { listEntriesForAgent } from '../knowledge_entries/service.ts';
 import {
   getProjectAuthContext,
   listProjects,
@@ -874,8 +875,20 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
     },
 
     // Corpora without 0.5 tables yet — honest empties (see module header).
-    'knowledge_entries/internal_queries:listEntriesForAgent': async () =>
-      emptyPage(),
+    'knowledge_entries/internal_queries:listEntriesForAgent': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 tool leg passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        topic?: string;
+        paginationOpts: { numItems: number; cursor: string | null };
+      };
+      return listEntriesForAgent(sql, {
+        organizationId: args.organizationId,
+        ...(args.topic !== undefined ? { topic: args.topic } : {}),
+        numItems: args.paginationOpts.numItems,
+        cursor: args.paginationOpts.cursor,
+      });
+    },
     'websites/internal_queries:listWebsiteSummaries': async () => [],
     'conversations/search_for_chat:searchConversationsForChat': async () => ({
       conversations: [],
