@@ -7,6 +7,9 @@
 
 CREATE TABLE app.project_agent_runs (
   id text PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- Monotonic creation order (the 0.4 _creationTime): newest-first walks
+  -- (predecessor pick, retry budget) must never tie on a same-ms clock.
+  seq bigint GENERATED ALWAYS AS IDENTITY,
   org_id text NOT NULL,
   project_id text NOT NULL REFERENCES app.projects (id) ON DELETE CASCADE,
   task_id text NOT NULL REFERENCES app.tasks (id) ON DELETE CASCADE,
@@ -42,6 +45,8 @@ CREATE TABLE app.project_agent_runs (
 
 CREATE INDEX project_agent_runs_task
   ON app.project_agent_runs (task_id, started_at_ms DESC);
+CREATE INDEX project_agent_runs_task_seq
+  ON app.project_agent_runs (task_id, seq DESC);
 CREATE INDEX project_agent_runs_agent
   ON app.project_agent_runs (agent_id, started_at_ms DESC);
 CREATE INDEX project_agent_runs_status ON app.project_agent_runs (status);

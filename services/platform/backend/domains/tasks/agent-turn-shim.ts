@@ -3,7 +3,9 @@ import { ConvexError } from 'convex/values';
 import type { Sql } from 'postgres';
 
 import { readSkillBundleForViewer } from '../../../convex/skills/file_actions.ts';
+import { isAutoRetryableFailure } from '../../../convex/tasks/task_auto_retry.ts';
 import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers } from '../../lib/convex-shim.ts';
 import {
   reserveSessionSlot,
@@ -133,19 +135,37 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         apiErrorStatus?: number;
       };
       const now = Date.now();
-      await sql`
-        UPDATE app.project_agent_runs SET
-          status = 'failed', error = ${args.error.slice(0, 2000)},
-          api_error_status = ${args.apiErrorStatus ?? null},
-          agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id),
-          session_created_at_ms = coalesce(${args.sessionCreatedAt ?? null}::bigint, session_created_at_ms),
-          settled_at_ms = ${now}, updated_at_ms = ${now}
-        WHERE id = ${args.runId}
-          AND status NOT IN ('settled', 'failed', 'cancelled')
-          AND (${args.execId ?? null}::text IS NULL
-               OR exec_id = ${args.execId ?? null})
-      `;
-      // The auto-retry scheduler consumes failureCode with its own port.
+      await sql.begin(async (tx) => {
+        const flipped = await tx<
+          { organizationId: string; taskId: string; agentId: string }[]
+        >`
+          UPDATE app.project_agent_runs SET
+            status = 'failed', error = ${args.error.slice(0, 2000)},
+            api_error_status = ${args.apiErrorStatus ?? null},
+            agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id),
+            session_created_at_ms = coalesce(${args.sessionCreatedAt ?? null}::bigint, session_created_at_ms),
+            settled_at_ms = ${now}, updated_at_ms = ${now}
+          WHERE id = ${args.runId}
+            AND status NOT IN ('settled', 'failed', 'cancelled')
+            AND (${args.execId ?? null}::text IS NULL
+                 OR exec_id = ${args.execId ?? null})
+          RETURNING org_id AS "organizationId", task_id AS "taskId",
+                    agent_id AS "agentId"
+        `;
+        const run = flipped[0];
+        // Auto-retry hangs off the SAME once-only claim: only the winning
+        // terminal flip reaches here, so at most one retry arm per failed
+        // run — and it rides the flip's transaction. The kick job re-derives
+        // the budget and every guard; this is just the arm.
+        if (run !== undefined && isAutoRetryableFailure(args.failureCode)) {
+          await addJobInTx(tx, 'task.agent_retry', {
+            organizationId: run.organizationId,
+            taskId: run.taskId,
+            agentId: run.agentId,
+            expectedRunId: args.runId,
+          });
+        }
+      });
       return null;
     },
 

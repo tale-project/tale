@@ -71,6 +71,8 @@ export interface KickAgentRunArgs {
   startedBy: string;
   trigger?: 'manual' | 'mention' | 'auto_retry';
   feedback?: string;
+  /** 1-based display stamp for `trigger: 'auto_retry'` kicks. */
+  autoRetryAttempt?: number;
 }
 
 /**
@@ -95,14 +97,15 @@ export async function kickAgentRun(
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
-      harness, model, model_provider, trigger, feedback, started_by,
-      started_at_ms, deadline_at_ms, updated_at_ms
+      harness, model, model_provider, trigger, feedback, auto_retry_attempt,
+      started_by, started_at_ms, deadline_at_ms, updated_at_ms
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionIdForProjectAgent(args.agentId)},
       'queued', ${args.harness}, ${args.model},
       ${args.modelProvider ?? null}, ${args.trigger ?? 'manual'},
-      ${args.feedback ?? null}, ${args.startedBy}, ${now},
+      ${args.feedback ?? null}, ${args.autoRetryAttempt ?? null},
+      ${args.startedBy}, ${now},
       ${now + TASK_AGENT_RUN_DEADLINE_MS}, ${now}
     )
     RETURNING id

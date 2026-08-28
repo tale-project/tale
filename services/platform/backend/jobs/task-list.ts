@@ -8,6 +8,7 @@ import {
 import { stepRunImpl } from '../../convex/automations/stepper.ts';
 import { removeOrgSubtree } from '../../convex/organizations/scaffold.ts';
 import { startTaskAgentTurnImpl } from '../../convex/tasks/agent_run_host.ts';
+import { resolveAutoRetryBudget } from '../../convex/tasks/task_auto_retry.ts';
 import {
   automationShimHandlers,
   automationShimScheduler,
@@ -21,7 +22,9 @@ import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
 import { indexUploadedFile } from '../domains/knowledge/service.ts';
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
+import { kickAgentRun } from '../domains/tasks/agent-runs.ts';
 import { agentTurnShimHandlers } from '../domains/tasks/agent-turn-shim.ts';
+import { resolveTaskKickStartArgs } from '../domains/tasks/kick-plan.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
 import { createCtxShim } from '../lib/convex-shim.ts';
 
@@ -214,6 +217,17 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
         return;
       }
+      // The kick-time resume plan (reused decision core over PG): does the
+      // previous harness conversation continue, is the box swept, which
+      // broker accounts rotate out. Every start scheduler funnels through
+      // this job, so the plan covers the kick, the wake, and the retry.
+      const plan = await resolveTaskKickStartArgs(deps.sql, {
+        organizationId: input.organizationId,
+        taskId: run.taskId,
+        agentId: run.agentId,
+        harness: run.harness,
+        sessionId: run.sessionId,
+      });
       // The REUSED 0.4 turn host on the ctx shim — the whole start: session
       // ensure, staging, key mint, exec, drain, settle choreography.
       const shim = createCtxShim(agentTurnShimHandlers(deps.sql));
@@ -242,8 +256,120 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           tools: agent.tools,
           secrets: agent.secrets,
           ...(run.feedback !== null ? { feedback: run.feedback } : {}),
+          ...plan,
         } as unknown as Parameters<typeof startTaskAgentTurnImpl>[1],
       );
+    },
+    'task.agent_retry': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          taskId: z.string().min(1),
+          agentId: z.string().min(1),
+          expectedRunId: z.string().min(1),
+        })
+        .parse(payload);
+      // The 0.5 port of `kickAutoRetryRun`: every guard re-derived in ONE
+      // transaction — the failed run must still be the task's newest (a
+      // raced manual kick supersedes the retry), the card must still sit at
+      // in_progress with THIS agent assigned (a person intervening must not
+      // be overridden), and the consecutive-failure budget (reused pure
+      // module) must have room. Attribution stays with the failed run's own
+      // starter — the retry continues THEIR kick.
+      const outcome = await deps.sql.begin(async (tx) => {
+        const tasks = await tx<
+          {
+            status: string;
+            archivedAt: number | null;
+            projectId: string;
+            assigneeType: string | null;
+            assigneeId: string | null;
+          }[]
+        >`
+          SELECT status, archived_at_ms::float8 AS "archivedAt",
+                 project_id AS "projectId",
+                 assignee_type AS "assigneeType", assignee_id AS "assigneeId"
+          FROM app.tasks
+          WHERE id = ${input.taskId} AND org_id = ${input.organizationId}
+          FOR UPDATE
+        `;
+        const task = tasks[0];
+        if (!task || task.archivedAt !== null) return 'task_unavailable';
+        if (task.status !== 'in_progress') return 'task_moved';
+        if (
+          task.assigneeType !== 'agent' ||
+          task.assigneeId !== input.agentId
+        ) {
+          return 'reassigned';
+        }
+        const runs = await tx<
+          {
+            id: string;
+            status: string;
+            agentId: string;
+            startedBy: string;
+            launchedAt: number | null;
+            settledAt: number | null;
+          }[]
+        >`
+          SELECT id, status, agent_id AS "agentId",
+                 started_by AS "startedBy",
+                 launched_at_ms::float8 AS "launchedAt",
+                 settled_at_ms::float8 AS "settledAt"
+          FROM app.project_agent_runs
+          WHERE task_id = ${input.taskId}
+          ORDER BY seq DESC
+          LIMIT 8
+        `;
+        const newest = runs[0];
+        if (newest === undefined || newest.id !== input.expectedRunId) {
+          return 'superseded';
+        }
+        if (newest.status !== 'failed') return 'not_failed';
+        const budget = resolveAutoRetryBudget(
+          runs.map((row) => ({
+            agentId: row.agentId,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly these statuses
+            status: row.status as
+              | 'queued'
+              | 'running'
+              | 'settled'
+              | 'failed'
+              | 'cancelled',
+            launchedAt: row.launchedAt ?? undefined,
+            settledAt: row.settledAt ?? undefined,
+          })),
+        );
+        if (!budget.retry) return 'budget_exhausted';
+        const agents = await tx<
+          { harness: string; model: string; modelProvider: string | null }[]
+        >`
+          SELECT harness, model, model_provider AS "modelProvider"
+          FROM app.project_agents
+          WHERE id = ${input.agentId} AND org_id = ${input.organizationId}
+          LIMIT 1
+        `;
+        const agent = agents[0];
+        if (!agent) return 'agent_gone';
+        await kickAgentRun(tx, {
+          organizationId: input.organizationId,
+          projectId: task.projectId,
+          taskId: input.taskId,
+          agentId: input.agentId,
+          harness: agent.harness,
+          model: agent.model,
+          ...(agent.modelProvider !== null
+            ? { modelProvider: agent.modelProvider }
+            : {}),
+          startedBy: newest.startedBy,
+          trigger: 'auto_retry',
+          autoRetryAttempt: budget.attempt,
+        });
+        return 'kicked';
+      });
+      if (outcome !== 'kicked') {
+        console.log(`[task-agent] auto-retry skipped: ${outcome}`);
+      }
     },
     'automation.agent_turn': async (payload) => {
       const input = z

@@ -39,6 +39,15 @@ export interface TaskPayloads {
   /** One workflow-agent turn for an automation run's agent node. The payload
    * is the reused host's full start-args shape (validated by the handler). */
   'automation.agent_turn': Record<string, unknown>;
+  /** Auto-retry arm for a retryably-failed task-agent run: the handler
+   * re-derives every guard (task still in_progress and agent-assigned, the
+   * failed run still newest, the consecutive-failure budget) and kicks. */
+  'task.agent_retry': {
+    organizationId: string;
+    taskId: string;
+    agentId: string;
+    expectedRunId: string;
+  };
   /** An answered human ask hands the turn back to the agent host, which
    * resumes the SAME harness conversation with the answer as its next
    * message. Enqueued in the answer's transaction. */
@@ -107,6 +116,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // NEW run); a lost job is the watchdog's to re-kick, never pg-boss's.
   'task.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
+  'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
   'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
   'watchdog.task_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.sandbox': { retryLimit: 1, expireInSeconds: 300 },

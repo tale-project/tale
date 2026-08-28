@@ -4465,9 +4465,11 @@ async function checkTaskAgentRuns(
       finalRun.resultText === 'Delivered the work.' &&
       finalRun.launchedAt !== null &&
       secondRuns.success &&
-      secondRuns.data.runs.length === 2 &&
+      // ≥2, not ==2: the rekicked run's start fails on the fake model and
+      // the auto-retry arm may already have added attempts by this read.
+      secondRuns.data.runs.length >= 2 &&
       !reuseProbe.reused,
-    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.data.runs.length} (want 2, fresh=${!reuseProbe.reused})`,
+    `kick=${kicked?.status} (launchedAt null=${kicked?.launchedAt === null}), claim=${firstClaim}/${secondClaim} (want true/false), wake=${woken}, settle=${settled}/${settledTwice} (want true/false), final=${finalRun?.status} launched=${finalRun?.launchedAt !== null}, rekick runs=${secondRuns.data.runs.length} (want ≥2, fresh=${!reuseProbe.reused})`,
   );
 }
 
@@ -4838,6 +4840,253 @@ async function checkAskAnswer(
 }
 
 /**
+ * The kick-time resume plan + the auto-retry arc. Plan mechanics run on
+ * hand-inserted rows against the REUSED decision core: a first kick sweeps
+ * with no resume; a settled predecessor with a stamped handle on the live
+ * incarnation resumes (sweep stays true); a failed newest predecessor
+ * resumes with sweep=false + inspectNote and rotates its burned broker
+ * hash; an incarnation mismatch falls back fresh. The retry arc runs LIVE:
+ * moving the agent-assigned task to in_progress kicks a run whose start
+ * fails on the fake model (`start_failed`, retryable) — the arm + budget
+ * must produce exactly 1 + 3 runs, the retries stamped `auto_retry`
+ * attempts 1..3, then stop (budget_exhausted). Non-retryable codes and
+ * guard misses arm nothing / kick nothing.
+ */
+async function checkAutoRetryAndKickPlan(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const project = z
+    .object({ projectId: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Retry Plan' })
+      ).json(),
+    );
+  const projectId = project.success ? project.data.projectId : '';
+  const agent = z.object({ agentId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+        name: 'Retry Bot',
+        harness: 'claude-code',
+        model: 'itest-model',
+        skills: [],
+        connectors: [],
+      })
+    ).json(),
+  );
+  const agentId = agent.success ? agent.data.agentId : '';
+  const mkTask = async (title: string): Promise<string> => {
+    const created = z
+      .object({ taskId: z.string() })
+      .safeParse(
+        await (
+          await post(`/api/app/tasks?orgId=${orgId}`, { projectId, title })
+        ).json(),
+      );
+    return created.success ? created.data.taskId : '';
+  };
+
+  // --- plan mechanics on a task no worker touches -------------------------
+  const planTask = await mkTask('Plan mechanics');
+  const kickPlan = await import('./domains/tasks/kick-plan.ts');
+  const sessionId = `pa-${agentId}`;
+  const planArgs = {
+    organizationId: orgId,
+    taskId: planTask,
+    agentId,
+    harness: 'claude-code',
+    sessionId,
+  };
+  const first = await kickPlan.resolveTaskKickStartArgs(sql, planArgs);
+  const now = Date.now();
+  const incarnation = now - 60_000;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${sessionId}, 'stopped', 'project_agent', ${agentId},
+      'itest:plan', ${incarnation}, ${now + 24 * 3_600_000}
+    )
+  `;
+  await sql`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, agent_session_id, session_created_at_ms,
+      started_at_ms, launched_at_ms, settled_at_ms, deadline_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${planTask}, ${agentId}, 'exec-plan-1',
+      ${sessionId}, 'settled', 'claude-code', 'itest-model', 'itest:plan',
+      'conv-plan-1', ${incarnation}, ${now - 50_000}, ${now - 49_000},
+      ${now - 40_000}, ${now + 3_600_000}, ${now}
+    )
+  `;
+  const afterSettled = await kickPlan.resolveTaskKickStartArgs(sql, planArgs);
+  await sql`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, agent_session_id, session_created_at_ms,
+      broker_token_hash, started_at_ms, launched_at_ms, settled_at_ms,
+      deadline_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${planTask}, ${agentId}, 'exec-plan-2',
+      ${sessionId}, 'failed', 'claude-code', 'itest-model', 'itest:plan',
+      'conv-plan-2', ${incarnation}, 'bh-burned-1', ${now - 30_000},
+      ${now - 29_000}, ${now - 20_000}, ${now + 3_600_000}, ${now}
+    )
+  `;
+  const afterFailed = await kickPlan.resolveTaskKickStartArgs(sql, planArgs);
+  await sql`
+    INSERT INTO app.project_agent_runs (
+      org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+      harness, model, started_by, agent_session_id, session_created_at_ms,
+      started_at_ms, launched_at_ms, settled_at_ms, deadline_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, ${planTask}, ${agentId}, 'exec-plan-3',
+      ${sessionId}, 'failed', 'claude-code', 'itest-model', 'itest:plan',
+      'conv-plan-3', ${incarnation - 999}, ${now - 10_000}, ${now - 9_000},
+      ${now - 5_000}, ${now + 3_600_000}, ${now}
+    )
+  `;
+  const mismatch = await kickPlan.resolveTaskKickStartArgs(sql, planArgs);
+  record(
+    'kick plan: first start / resume / failed-resume / incarnation fence',
+    first.resume === undefined &&
+      first.sweep &&
+      !first.inspectNote &&
+      afterSettled.resume === 'conv-plan-1' &&
+      afterSettled.sweep &&
+      afterSettled.resumePredecessorExecId === 'exec-plan-1' &&
+      afterFailed.resume === 'conv-plan-2' &&
+      !afterFailed.sweep &&
+      afterFailed.inspectNote &&
+      (afterFailed.excludeBrokerTokenHashes ?? []).includes('bh-burned-1') &&
+      mismatch.resume === undefined &&
+      !mismatch.sweep &&
+      mismatch.inspectNote,
+    `first=${JSON.stringify(first)} settled=${afterSettled.resume}/${afterSettled.sweep} failed=${afterFailed.resume}/${afterFailed.sweep}/${(afterFailed.excludeBrokerTokenHashes ?? []).join('|')} mismatch=${mismatch.resume ?? 'fresh'}`,
+  );
+
+  // --- the LIVE retry cascade --------------------------------------------
+  const retryTask = await mkTask('Retry cascade');
+  await post(`/api/app/tasks/${retryTask}/assign?orgId=${orgId}`, {
+    assigneeType: 'agent',
+    assigneeId: agentId,
+  });
+  await post(`/api/app/tasks/${retryTask}/status?orgId=${orgId}`, {
+    status: 'in_progress',
+  });
+  let cascade: {
+    status: string;
+    trigger: string | null;
+    attempt: number | null;
+  }[] = [];
+  for (let i = 0; i < 60; i++) {
+    cascade = await sql<
+      { status: string; trigger: string | null; attempt: number | null }[]
+    >`
+      SELECT status, trigger, auto_retry_attempt AS attempt
+      FROM app.project_agent_runs
+      WHERE task_id = ${retryTask}
+      ORDER BY started_at_ms
+    `;
+    const live = cascade.some(
+      (r) => r.status === 'queued' || r.status === 'running',
+    );
+    if (!live && cascade.length >= 4) break;
+    await sleep(250);
+  }
+  await sleep(700); // budget_exhausted must add nothing after the cascade
+  const finalCascade = await sql<
+    { status: string; trigger: string | null; attempt: number | null }[]
+  >`
+    SELECT status, trigger, auto_retry_attempt AS attempt
+    FROM app.project_agent_runs
+    WHERE task_id = ${retryTask}
+    ORDER BY started_at_ms
+  `;
+  const retries = finalCascade.filter((r) => r.trigger === 'auto_retry');
+  record(
+    'auto-retry cascade: 3 stamped attempts then budget exhausted',
+    finalCascade.length === 4 &&
+      finalCascade.every((r) => r.status === 'failed') &&
+      retries.length === 3 &&
+      retries.map((r) => r.attempt).join(',') === '1,2,3',
+    `runs=${finalCascade.length} statuses=${finalCascade.map((r) => r.status).join(',')} attempts=${retries.map((r) => r.attempt).join(',')}`,
+  );
+
+  // --- arm + guard negatives ---------------------------------------------
+  const { agentTurnShimHandlers } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const shim = agentTurnShimHandlers(sql);
+  const failMark = shim['tasks/agent_runs:markTaskAgentRunFailed'];
+  const backlogTask = await mkTask('Guard-miss quarry');
+  const seedRun = async (exec: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.project_agent_runs (
+        org_id, project_id, task_id, agent_id, exec_id, session_id, status,
+        harness, model, started_by, started_at_ms, deadline_at_ms,
+        updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${backlogTask}, ${agentId}, ${exec},
+        ${sessionId}, 'running', 'claude-code', 'itest-model', 'itest:plan',
+        ${Date.now()}, ${Date.now() + 3_600_000}, ${Date.now()}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const deadlineRun = await seedRun('exec-noretry-1');
+  await failMark?.({
+    runId: deadlineRun,
+    error: 'ran past the limit',
+    failureCode: 'deadline',
+  });
+  const deadlineJobs = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'task.agent_retry'
+      AND data ->> 'expectedRunId' = ${deadlineRun}
+  `;
+  const guardRun = await seedRun('exec-guardmiss-1');
+  await failMark?.({
+    runId: guardRun,
+    error: 'crashed',
+    failureCode: 'turn_crashed',
+  });
+  let guardCount = 0;
+  for (let i = 0; i < 40; i++) {
+    const runsNow = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.project_agent_runs
+      WHERE task_id = ${backlogTask}
+    `;
+    guardCount = Number(runsNow[0]?.count ?? '0');
+    const jobs = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'task.agent_retry'
+        AND data ->> 'expectedRunId' = ${guardRun}
+        AND state IN ('created', 'active', 'retry')
+    `;
+    if (jobs[0]?.count === '0') break; // the arm drained (and was skipped)
+    await sleep(200);
+  }
+  record(
+    'retry arm: non-retryable codes arm nothing; guard misses kick nothing',
+    Number(deadlineJobs[0]?.count ?? '9') === 0 && guardCount === 2,
+    `deadlineJobs=${deadlineJobs[0]?.count} (want 0), backlog-task runs=${guardCount} (want 2 — the crash-armed retry declined on task status)`,
+  );
+}
+
+/**
  * The watchdog sweeps on hand-stranded rows — the handler bodies invoked
  * directly (the scheduled lane is just a cron row over the same functions;
  * assertions are on ROW STATE so a cron firing mid-check changes nothing):
@@ -5188,6 +5437,7 @@ async function main(): Promise<void> {
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAskAnswer(sql, baseUrl, authCtx);
+    await checkAutoRetryAndKickPlan(sql, baseUrl, authCtx);
     await checkSandboxSessions(sql, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkWatchdogs(sql, baseUrl, authCtx);
