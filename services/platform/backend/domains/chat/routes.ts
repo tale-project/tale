@@ -4,8 +4,14 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import type { Auth } from '../../auth/auth.ts';
+import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  listAutomationCapabilities,
+  listComposerModels,
+  listProjectCapabilities,
+} from './composer.ts';
 import {
   cancelDeferredSend,
   enqueueDeferredSend,
@@ -628,6 +634,44 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         c.req.param('threadId'),
       ),
     });
+  });
+
+  // The composer surface: the model picker + capability menus.
+  app.get('/composer/models', async (c) => {
+    const { organizationId, userId } = caller(c);
+    return c.json(
+      await listComposerModels(deps.sql, { organizationId, userId }),
+    );
+  });
+
+  app.get('/composer/project/:projectId/capabilities', async (c) => {
+    const { organizationId, userId } = caller(c);
+    try {
+      return c.json(
+        await listProjectCapabilities(deps.sql, {
+          organizationId,
+          userId,
+          projectId: c.req.param('projectId'),
+        }),
+      );
+    } catch (error) {
+      return handleThreadError(c, error);
+    }
+  });
+
+  app.get('/composer/automation-capabilities', async (c) => {
+    const { organizationId } = caller(c);
+    // Developer-gated, matching the automation domain's own write gate.
+    if (!isAdminOrDeveloperRole(c.get('orgMember').role)) {
+      return c.json({ error: 'admin or developer role required' }, 403);
+    }
+    const projectId = c.req.query('projectId');
+    return c.json(
+      await listAutomationCapabilities(deps.sql, {
+        organizationId,
+        ...(projectId !== undefined ? { projectId } : {}),
+      }),
+    );
   });
 
   // Memories: approval-gated durable facts (the preferences page's review

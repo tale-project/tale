@@ -99,6 +99,67 @@ const composerHarnessValidator = v.object({
 });
 
 /**
+ * The per-hit projection behind the model picker — pure, so the 0.5 backend
+ * runs it over its own catalog walk. Keyed by (provider, id), first-wins per
+ * pair (the caller sorts direct-capable credentials first): an org with two
+ * providers serving the same model sees BOTH copies, grouped by provider in
+ * the picker. Voice availability rides the same walk: a TTS-tagged entry on
+ * a DIRECT credential enables synthesis, a transcription-tagged entry on a
+ * DIRECT openai-format connector enables dictation (the Anthropic Messages
+ * wire has no transcription endpoint).
+ */
+export function collectComposerOptions(
+  hits: readonly Awaited<ReturnType<typeof walkChatCatalog>>[number][],
+): {
+  byId: Map<string, ComposerModelOption>;
+  ttsAvailable: boolean;
+  transcriptionAvailable: boolean;
+} {
+  const byId = new Map<string, ComposerModelOption>();
+  let ttsAvailable = false;
+  let transcriptionAvailable = false;
+  for (const { connector, credential, credentialAuth, entry } of hits) {
+    if (
+      entry.tags.includes('text-to-speech') &&
+      (credential.authMethod === 'api-key' || credential.authMethod === 'env')
+    ) {
+      ttsAvailable = true;
+    }
+    if (
+      entry.tags.includes('transcription') &&
+      connector.apiFormat === 'openai' &&
+      (credential.authMethod === 'api-key' || credential.authMethod === 'env')
+    ) {
+      transcriptionAvailable = true;
+    }
+    // The picker lists conversational models only — a TTS or embedding
+    // entry is a capability, not something a turn can be sent to.
+    if (!entry.tags.includes('chat')) continue;
+    const key = `${connector.name} ${entry.id}`;
+    if (byId.has(key)) continue;
+    byId.set(key, {
+      id: entry.id,
+      label: entry.id,
+      providerSlug: connector.name,
+      providerLabel: connector.displayName,
+      credential: credentialAuth,
+      ...(entry.reasoning !== undefined
+        ? {
+            reasoning: {
+              knob: entry.reasoning.knob,
+              ...(entry.reasoning.toolsRequireOff === true
+                ? { toolsRequireOff: true }
+                : {}),
+            },
+          }
+        : {}),
+      ...(entry.supportsVision ? { vision: true } : {}),
+    });
+  }
+  return { byId, ttsAvailable, transcriptionAvailable };
+}
+
+/**
  * The models the composer's picker lists for one org. Open to any org
  * member; the listing is non-secret capability metadata — the credential
  * SHAPES here, never secret material.
@@ -129,59 +190,9 @@ export const listComposerModels = action({
       .filter((credential) => credential.status === 'active')
       .sort((a, b) => directFirst(a.authMethod) - directFirst(b.authMethod));
 
-    // Keyed by (provider, id), direct-preferred first-wins per pair: an org
-    // with two providers serving the same model sees BOTH copies, grouped by
-    // provider in the picker — hiding one made the second provider's copy
-    // unselectable and the model hard to find under the other's section.
-    const byId = new Map<string, ComposerModelOption>();
-    let ttsAvailable = false;
-    let transcriptionAvailable = false;
     const hits = await walkChatCatalog(ctx, args.organizationId, active);
-    for (const { connector, credential, credentialAuth, entry } of hits) {
-      // Voice availability rides the same walk: a TTS-tagged entry served
-      // by a DIRECT credential means "Read replies aloud" can synthesize.
-      if (
-        entry.tags.includes('text-to-speech') &&
-        (credential.authMethod === 'api-key' || credential.authMethod === 'env')
-      ) {
-        ttsAvailable = true;
-      }
-      // Likewise for dictation: a transcription-tagged entry on an
-      // openai-format connector served by a DIRECT credential means the
-      // MediaRecorder fallback can transcribe (`transcribeDictation`) —
-      // the Anthropic Messages wire has no transcription endpoint, so
-      // anthropic-format connectors never qualify.
-      if (
-        entry.tags.includes('transcription') &&
-        connector.apiFormat === 'openai' &&
-        (credential.authMethod === 'api-key' || credential.authMethod === 'env')
-      ) {
-        transcriptionAvailable = true;
-      }
-      // The picker lists conversational models only — a TTS or embedding
-      // entry is a capability, not something a turn can be sent to.
-      if (!entry.tags.includes('chat')) continue;
-      const key = `${connector.name} ${entry.id}`;
-      if (byId.has(key)) continue;
-      byId.set(key, {
-        id: entry.id,
-        label: entry.id,
-        providerSlug: connector.name,
-        providerLabel: connector.displayName,
-        credential: credentialAuth,
-        ...(entry.reasoning !== undefined
-          ? {
-              reasoning: {
-                knob: entry.reasoning.knob,
-                ...(entry.reasoning.toolsRequireOff === true
-                  ? { toolsRequireOff: true }
-                  : {}),
-              },
-            }
-          : {}),
-        ...(entry.supportsVision ? { vision: true } : {}),
-      });
-    }
+    const { byId, ttsAvailable, transcriptionAvailable } =
+      collectComposerOptions(hits);
 
     // The governance model-access policy filters the catalog server-side —
     // the picker (and anything caching its answer) never even sees a model

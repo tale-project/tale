@@ -5474,6 +5474,51 @@ async function checkChatMemoriesDeferredAuto(
       `status=${autoSend.success ? autoSend.data.status : 'ERR'} model=${autoAssistant?.model} text="${(autoAssistant?.text ?? '').slice(0, 30)}"`,
     );
 
+    // ---- the composer surface ----------------------------------------------
+    const composer = z
+      .object({
+        models: z.array(
+          z
+            .object({
+              id: z.string(),
+              providerSlug: z.string(),
+              credential: z.object({ authMethod: z.string() }).loose(),
+            })
+            .loose(),
+        ),
+        harnesses: z.array(z.object({ harness: z.string() }).loose()),
+        voice: z.object({
+          ttsAvailable: z.boolean(),
+          transcriptionAvailable: z.boolean(),
+        }),
+      })
+      .safeParse(await get(`/api/app/chat/composer/models?orgId=${orgId}`));
+    const capabilities = z
+      .object({
+        skills: z.array(z.unknown()),
+        connectors: z.array(z.unknown()),
+      })
+      .safeParse(
+        await get(
+          `/api/app/chat/composer/automation-capabilities?orgId=${orgId}`,
+        ),
+      );
+    record(
+      'composer picker: governance-filtered models + harness roster',
+      composer.success &&
+        composer.data.models.some(
+          (model) =>
+            model.id === 'auto-pick-model' &&
+            model.providerSlug === 'itestauto' &&
+            model.credential.authMethod === 'api-key',
+        ) &&
+        // The allowlist pin means ONLY the auto model survives the filter.
+        composer.data.models.every((model) => model.id === 'auto-pick-model') &&
+        composer.data.harnesses.length > 0 &&
+        capabilities.success,
+      `models=${composer.success ? composer.data.models.map((model) => model.id).join(',') : 'ERR'} harnesses=${composer.success ? composer.data.harnesses.length : 'ERR'} capabilities=${capabilities.success}`,
+    );
+
     // ---- deferred sends ---------------------------------------------------
     const deferThread = z.object({ id: z.string() }).safeParse(
       await (

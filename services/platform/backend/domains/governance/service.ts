@@ -121,6 +121,25 @@ export async function resolveModelGovernanceForUser(
   };
 }
 
+/** The picker's accessible subset of a candidate list — the pure filter over
+ * the org's `model_access` file for one member. */
+export async function getAccessibleModelsForUser(
+  sql: Sql,
+  args: { organizationId: string; userId: string; modelIds: string[] },
+): Promise<string[]> {
+  const config = await readGovernancePolicyForOrg(
+    sql,
+    args.organizationId,
+    'model_access',
+  );
+  const who = await whoIs(sql, args.organizationId, args.userId);
+  return filterAccessibleModels(
+    config,
+    { userId: who.userId, teamIds: who.teamIds, userRole: who.role },
+    args.modelIds,
+  );
+}
+
 /** The turn-boundary model-access verdict (the picker filter's server twin). */
 export async function checkModelAccessForUser(
   sql: Sql,
