@@ -22,6 +22,7 @@ import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
 import { runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
+import { runTranscribeJob } from '../domains/files/transcription.ts';
 import {
   runGoogleDriveSyncConfigJob,
   runGoogleDriveSyncScan,
@@ -379,6 +380,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         })
         .parse(payload);
       await runWebsitesRowSync(deps.sql, input);
+    },
+    'files.transcribe': async (payload) => {
+      const input = z
+        .object({
+          storageId: z.string().min(1),
+          fileName: z.string().min(1),
+          contentType: z.string().min(1),
+          organizationId: z.string().min(1),
+          attempt: z.number().int().min(0).optional(),
+        })
+        .parse(payload);
+      await runTranscribeJob(deps.sql, input);
     },
     'task.agent_turn': async (payload) => {
       const input = z

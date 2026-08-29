@@ -8462,6 +8462,288 @@ async function checkWebsitesCrawl(
 }
 
 /**
+ * Audio transcription — the REUSED 0.4 pipeline (ffmpeg compress → chunk →
+ * `/audio/transcriptions` → paragraphized transcript on the file row →
+ * ledger minutes) on pg-boss, against a fake Whisper endpoint (the shipped
+ * openai static catalog carries the `transcription`-tagged whisper-1; the
+ * DEFAULT openai credential is re-pointed at the fake — the tts check left
+ * it aimed at ITS closed fake). A real 0.6s PCM WAV is synthesized inline
+ * so ffmpeg has genuine audio to compress. Journey: upload → register
+ * (audio auto-queues) → completed transcript + duration + ledger seconds →
+ * a permanent 400 fails fast (sanitized error) → the retry door re-queues
+ * to success → skip parks a queued row before the engine spends anything →
+ * one-shot dictation (inline bytes, ledger only).
+ */
+async function checkTranscription(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'transcription (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — audio needs a blob store',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+
+  let whisperCalls = 0;
+  let failNextWith: number | null = null;
+  const whisperServer = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      if (!(req.url ?? '').endsWith('/audio/transcriptions')) {
+        res.statusCode = 404;
+        res.end('{}');
+        return;
+      }
+      whisperCalls += 1;
+      if (failNextWith !== null) {
+        res.statusCode = failNextWith;
+        failNextWith = null;
+        res.end('{"error":"itest transcription refused sk-secret123456789"}');
+        return;
+      }
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          text: 'Hello world from itest. Second sentence here.',
+          duration: 4.2,
+          segments: [
+            { id: 0, start: 0, end: 2, text: 'Hello world from itest.' },
+            { id: 1, start: 2, end: 4.2, text: 'Second sentence here.' },
+          ],
+        }),
+      );
+    });
+  });
+  await new Promise<void>((resolve) => {
+    whisperServer.listen(0, '127.0.0.1', resolve);
+  });
+  const whisperAddress = whisperServer.address();
+  const whisperPort =
+    whisperAddress !== null && typeof whisperAddress === 'object'
+      ? whisperAddress.port
+      : 0;
+  const whisperBase = `http://127.0.0.1:${whisperPort}/v1`;
+
+  // A real WAV (16-bit PCM mono 8 kHz, 0.6 s of 440 Hz sine) so ffmpeg's
+  // compress pass has genuine audio — silence-strip must not eat it.
+  const sampleRate = 8000;
+  const seconds = 0.6;
+  const sampleCount = Math.floor(sampleRate * seconds);
+  const wav = Buffer.alloc(44 + sampleCount * 2);
+  wav.write('RIFF', 0);
+  wav.writeUInt32LE(36 + sampleCount * 2, 4);
+  wav.write('WAVE', 8);
+  wav.write('fmt ', 12);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(sampleRate, 24);
+  wav.writeUInt32LE(sampleRate * 2, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write('data', 36);
+  wav.writeUInt32LE(sampleCount * 2, 40);
+  for (let i = 0; i < sampleCount; i++) {
+    const sample = Math.round(
+      Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 12_000,
+    );
+    wav.writeInt16LE(sample, 44 + i * 2);
+  }
+
+  try {
+    const send = (route: string, body?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+
+    // Re-point the DEFAULT openai credential (the transcription resolver
+    // reads exactly that row) at this check's fake.
+    const swapped = await sql<{ id: string }[]>`
+      UPDATE app.provider_credentials SET endpoint_url = ${whisperBase}
+      WHERE org_id = ${orgId} AND provider_slug = 'openai' AND is_default
+      RETURNING id
+    `;
+    if (swapped.length === 0) {
+      throw new Error('transcription check: no default openai credential');
+    }
+
+    const uploadAudio = async (): Promise<string> => {
+      const handoff = z
+        .object({ storageRef: z.string(), uploadUrl: z.string() })
+        .safeParse(
+          await (
+            await send(`/api/app/files/upload-handoff?orgId=${orgId}`, {
+              contentType: 'audio/wav',
+              size: wav.length,
+            })
+          ).json(),
+        );
+      if (!handoff.success) throw new Error('upload handoff failed');
+      const put = await fetch(handoff.data.uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': 'audio/wav' },
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Buffer is a valid BodyInit at runtime
+        body: wav as never,
+      });
+      if (!put.ok) throw new Error(`audio PUT failed: ${put.status}`);
+      const registered = await send(`/api/app/files/register?orgId=${orgId}`, {
+        storageRef: handoff.data.storageRef,
+        fileName: 'meeting.wav',
+        contentType: 'audio/wav',
+      });
+      if (registered.status !== 200) {
+        throw new Error(`register failed: ${registered.status}`);
+      }
+      return handoff.data.storageRef;
+    };
+    const rowFor = async (
+      ref: string,
+    ): Promise<{
+      status: string | null;
+      transcript: string | null;
+      duration: number | null;
+      error: string | null;
+    } | null> => {
+      const rows = await sql<
+        {
+          status: string | null;
+          transcript: string | null;
+          duration: number | null;
+          error: string | null;
+        }[]
+      >`
+        SELECT transcription_status AS status, transcript,
+               transcription_duration_sec AS duration,
+               transcription_error AS error
+        FROM app.file_metadata
+        WHERE org_id = ${orgId} AND storage_ref = ${ref}
+        LIMIT 1
+      `;
+      return rows[0] ?? null;
+    };
+    const drainTranscribe = (): Promise<boolean> =>
+      waitFor(async () => {
+        const rows = await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pgboss.job
+          WHERE name = 'files.transcribe'
+            AND state IN ('created', 'retry', 'active')
+            AND start_after <= now()
+        `;
+        return Number(rows[0]?.count ?? '0') === 0;
+      }, 60_000);
+
+    // 1. Upload → auto-queue → completed transcript + ledger seconds.
+    const firstRef = await uploadAudio();
+    const queuedRow = await rowFor(firstRef);
+    const drained = await drainTranscribe();
+    const doneRow = await rowFor(firstRef);
+    const ledger = await sql<{ seconds: number | null; requests: number }[]>`
+      SELECT audio_duration_sec::float8 AS seconds, request_count AS requests
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = '__transcription__'
+        AND granularity = 'daily'
+      LIMIT 1
+    `;
+    record(
+      'transcription pipeline (ffmpeg + fake whisper on pg-boss)',
+      queuedRow?.status === 'queued' &&
+        drained &&
+        doneRow?.status === 'completed' &&
+        (doneRow.transcript ?? '').includes('Hello world from itest.') &&
+        (doneRow.transcript ?? '').includes('Second sentence here.') &&
+        (doneRow.duration ?? 0) > 0 &&
+        whisperCalls === 1 &&
+        (ledger[0]?.seconds ?? 0) > 0,
+      `queued=${queuedRow?.status} drained=${drained} done=${doneRow?.status} transcriptOk=${(doneRow?.transcript ?? '').includes('Second sentence here.')} duration=${doneRow?.duration} calls=${whisperCalls}/1 ledgerSec=${ledger[0]?.seconds}`,
+    );
+
+    // 2. A permanent 400 fails fast (no 30s retry chain), the error lands
+    //    sanitized (the sk- token redacted); the retry door re-queues.
+    failNextWith = 400;
+    const secondRef = await uploadAudio();
+    await drainTranscribe();
+    const failedRow = await rowFor(secondRef);
+    const retry = await send(
+      `/api/app/files/transcription/retry?orgId=${orgId}`,
+      { storageRef: secondRef },
+    );
+    await drainTranscribe();
+    const retriedRow = await rowFor(secondRef);
+    const retryWrongState = await send(
+      `/api/app/files/transcription/retry?orgId=${orgId}`,
+      { storageRef: secondRef },
+    );
+    record(
+      'transcription failure → sanitized error → retry door',
+      failedRow?.status === 'failed' &&
+        (failedRow.error ?? '').includes('Transcription API 400') &&
+        !(failedRow.error ?? '').includes('sk-secret') &&
+        retry.status === 200 &&
+        retriedRow?.status === 'completed' &&
+        retryWrongState.status === 400,
+      `failed=${failedRow?.status} err400=${(failedRow?.error ?? '').includes('Transcription API 400')} redacted=${!(failedRow?.error ?? '').includes('sk-secret')}, retry=${retry.status} → ${retriedRow?.status}, retryOnCompleted=${retryWrongState.status}/400`,
+    );
+
+    // 3. Skip parks a queued row (the engine's pre-check bails, no provider
+    //    spend); dictation transcribes inline bytes. The queued row is
+    //    seeded directly and the job driven BY HAND after the skip — the
+    //    live worker would otherwise win the race on a sub-second clip.
+    const callsBeforeSkip = whisperCalls;
+    const thirdRef = `s3:${orgId}/itest-transcribe-skip.wav`;
+    await sql`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size,
+        transcription_status, created_at_ms
+      ) VALUES (
+        ${orgId}, ${thirdRef}, 'skipme.wav', 'audio/wav', ${wav.length},
+        'queued', ${Date.now()}
+      )
+    `;
+    const skip = await send(
+      `/api/app/files/transcription/skip?orgId=${orgId}`,
+      { storageRef: thirdRef },
+    );
+    const transcription = await import('./domains/files/transcription.ts');
+    await transcription.runTranscribeJob(sql, {
+      storageId: thirdRef,
+      fileName: 'skipme.wav',
+      contentType: 'audio/wav',
+      organizationId: orgId,
+    });
+    const skippedRow = await rowFor(thirdRef);
+    const dictation = z.object({ text: z.string() }).safeParse(
+      await (
+        await send(`/api/app/files/dictation?orgId=${orgId}`, {
+          audioBase64: wav.toString('base64'),
+          mimeType: 'audio/wav',
+        })
+      ).json(),
+    );
+    record(
+      'transcription skip (no spend) + one-shot dictation',
+      skip.status === 200 &&
+        skippedRow?.status === 'skipped' &&
+        whisperCalls === callsBeforeSkip + 1 &&
+        dictation.success &&
+        dictation.data.text.includes('Hello world from itest.'),
+      `skip=${skip.status} row=${skippedRow?.status} calls=${whisperCalls}(want ${callsBeforeSkip + 1} — dictation only), dictation=${dictation.success ? dictation.data.text.slice(0, 30) : 'ERR'}`,
+    );
+  } finally {
+    whisperServer.close();
+  }
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -13779,6 +14061,7 @@ async function main(): Promise<void> {
     await checkOneDriveSync(sql, baseUrl, authCtx);
     await checkGoogleDriveSync(sql, baseUrl, authCtx);
     await checkWebsitesCrawl(sql, baseUrl, authCtx);
+    await checkTranscription(sql, baseUrl, authCtx);
     await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAgentSecrets(sql, baseUrl, authCtx);

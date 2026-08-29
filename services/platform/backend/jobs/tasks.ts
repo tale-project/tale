@@ -152,6 +152,15 @@ export interface TaskPayloads {
   };
   /** Push the corpus-side truth onto one (orgSlug, domain) websites row. */
   'websites.row_sync': { orgSlug: string; domain: string };
+  /** One transcription attempt for an uploaded audio/video file (the reused
+   * pipeline self-retries through this queue with [30s,60s,120s] delays). */
+  'files.transcribe': {
+    storageId: string;
+    fileName: string;
+    contentType: string;
+    organizationId: string;
+    attempt?: number;
+  };
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -235,6 +244,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'google_drive.sync_scan': { retryLimit: 1, expireInSeconds: 300 },
   'google_drive.sync_config': { retryLimit: 0, expireInSeconds: 1800 },
   'websites.scan_due': { retryLimit: 1, expireInSeconds: 240 },
+  // At-most-once per attempt: the pipeline classifies its own errors and
+  // self-chains retries; the single-flight lease on the row fences dupes.
+  'files.transcribe': { retryLimit: 0, expireInSeconds: 2100 },
   // At-most-once per link: the engine records its own failures on the row
   // and the 5-min scheduler is the retry; the corpus claim fences overlap.
   // A link's budget is ~9 minutes (the 0.4 action hard wall).

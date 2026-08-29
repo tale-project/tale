@@ -12,7 +12,11 @@ import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { checkProviderHostPolicy } from '../lib/http/host_policy';
 import { resolveTranscriptionModel } from '../lib/providers/resolve_transcription_model';
 import { readBlobBytes } from '../lib/storage/blob_access';
-import { blobRefValidator, convexStorageId } from '../lib/storage/blob_ref';
+import {
+  blobRefValidator,
+  convexStorageId,
+  type BlobRef,
+} from '../lib/storage/blob_ref';
 import {
   chunkCompressedAudio,
   compressAudio,
@@ -181,7 +185,22 @@ export const transcribeAudio = internalAction({
     attempt: v.optional(v.number()),
   },
   returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
+  handler: async (ctx, args): Promise<null> => transcribeAudioImpl(ctx, args),
+});
+
+/** The pipeline body, hoisted so the 0.5 backend can run it on a ctx shim
+ * (the wrapper above keeps the 0.4 wiring). */
+export async function transcribeAudioImpl(
+  ctx: ActionCtx,
+  args: {
+    storageId: BlobRef;
+    fileName: string;
+    contentType: string;
+    organizationId: string;
+    attempt?: number;
+  },
+): Promise<null> {
+  {
     const attempt = args.attempt ?? 0;
     const requestId = `transcribe-${args.storageId}-${Date.now()}`;
     const startedAt = Date.now();
@@ -571,5 +590,5 @@ export const transcribeAudio = internalAction({
         { storageId: args.storageId, runId: requestId },
       );
     }
-  },
-});
+  }
+}

@@ -3,6 +3,7 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { isAudioOrVideo } from '../../../lib/shared/file-types.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
@@ -18,6 +19,12 @@ import {
   getFileUrl,
   registerUpload,
 } from './service.ts';
+import {
+  queueTranscription,
+  retryTranscription,
+  skipTranscription,
+  transcribeDictation,
+} from './transcription.ts';
 
 const handoffSchema = z.object({
   contentType: z.string().min(1).max(255),
@@ -86,7 +93,69 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       const result = await transactSerializable(deps.sql, (tx) =>
         registerUpload(deps.sql, tx, scope, body.data),
       );
+      // Audio/video uploads transcribe server-side (the 0.4 saveFileMetadata
+      // audio branch): stamp queued + enqueue the pipeline job.
+      if (isAudioOrVideo(body.data.contentType)) {
+        await queueTranscription(deps.sql, {
+          organizationId: scope.organizationId,
+          storageRef: body.data.storageRef,
+          fileName: body.data.fileName,
+          contentType: body.data.contentType,
+        });
+      }
       return c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /** One-shot dictation transcription (inline bytes, never persisted). */
+  app.post('/dictation', async (c) => {
+    const body = z
+      .object({
+        audioBase64: z.string().min(1).max(12_000_000),
+        mimeType: z.string().min(1).max(255),
+      })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      const audio = new Uint8Array(
+        Buffer.from(body.data.audioBase64, 'base64'),
+      );
+      return c.json(
+        await transcribeDictation(deps.sql, {
+          organizationId: c.get('orgId'),
+          userId: c.get('sessionBundle').user.id,
+          audio,
+          mimeType: body.data.mimeType,
+        }),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/transcription/skip', async (c) => {
+    const body = z
+      .object({ storageRef: z.string().min(1).max(1024) })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      await skipTranscription(deps.sql, c.get('orgId'), body.data.storageRef);
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/transcription/retry', async (c) => {
+    const body = z
+      .object({ storageRef: z.string().min(1).max(1024) })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      await retryTranscription(deps.sql, c.get('orgId'), body.data.storageRef);
+      return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
     }
