@@ -17749,6 +17749,108 @@ async function checkAutomationsSurface(
 }
 
 /**
+ * Inc-95 library surface: the skill BUNDLE-UPLOAD lane on pg — a zip staged
+ * through the org byte lane installs a new slug, a repeat answers
+ * needs_confirm (nothing written), and force replaces; a foreign/garbage
+ * storage ref refuses with the 0.4 codes.
+ */
+async function checkLibrarySurface(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const { default: JSZip } = await import('jszip');
+  const stageZip = async (body: string): Promise<string> => {
+    const zip = new JSZip();
+    zip.file('SKILL.md', body);
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const res = await fetch(`${base}/api/app/files/upload?orgId=${orgId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/zip', cookie, origin: base },
+      body: blob,
+    });
+    const parsed = z
+      .object({ storageId: z.string() })
+      .safeParse(await res.json());
+    return parsed.success ? parsed.data.storageId : '';
+  };
+  const skillMd = (description: string): string =>
+    `---\nname: itest-bundle-skill\ndescription: ${description}\n---\n\nAudit steps v1.`;
+
+  const first = z.object({ ok: z.literal(true), slug: z.string() }).safeParse(
+    await (
+      await post(`/api/app/skills/upload?orgId=${orgId}`, {
+        storageId: await stageZip(skillMd('First install.')),
+      })
+    ).json(),
+  );
+  const repeat = z
+    .object({
+      ok: z.literal(false),
+      status: z.literal('needs_confirm'),
+      slug: z.string(),
+    })
+    .safeParse(
+      await (
+        await post(`/api/app/skills/upload?orgId=${orgId}`, {
+          storageId: await stageZip(skillMd('Second install attempt.')),
+        })
+      ).json(),
+    );
+  const forced = z.object({ ok: z.literal(true), slug: z.string() }).safeParse(
+    await (
+      await post(`/api/app/skills/upload?orgId=${orgId}`, {
+        storageId: await stageZip(skillMd('Forced replacement.')),
+        force: true,
+      })
+    ).json(),
+  );
+  // The replacement really landed on disk (org config tree).
+  const { readFile: readSkillFile } = await import('node:fs/promises');
+  let replacedOnDisk = false;
+  try {
+    const content = await readSkillFile(
+      path.join(
+        process.env.TALE_CONFIG_DIR ?? '',
+        orgSlug,
+        'skills',
+        first.success ? first.data.slug : '',
+        'SKILL.md',
+      ),
+      'utf8',
+    );
+    replacedOnDisk = content.includes('Forced replacement.');
+  } catch (error) {
+    console.warn('[itest] skill bundle disk check failed:', error);
+  }
+  const foreign = await post(`/api/app/skills/upload?orgId=${orgId}`, {
+    storageId: 's3:orgs/some-other-org/uploads/nope.zip',
+  });
+  const garbage = await post(`/api/app/skills/upload?orgId=${orgId}`, {
+    storageId: 'not-a-ref',
+  });
+  record(
+    'library surface: skill bundle upload (install / confirm / force)',
+    first.success &&
+      first.data.slug === 'itest-bundle-skill' &&
+      repeat.success &&
+      forced.success &&
+      replacedOnDisk &&
+      foreign.status === 403 &&
+      garbage.status === 403,
+    `first=${first.success ? first.data.slug : 'ERR'}, repeat=${repeat.success ? repeat.data.status : 'ERR'}, forced=${forced.success}, disk=${replacedOnDisk}, foreign=${foreign.status} (want 403), garbage=${garbage.status} (want 403)`,
+  );
+}
+
+/**
  * Two-factor enforcement: an enforced policy with zero grace flips the
  * sign-in response to the enrolment-wall shape; a grace policy anchors the
  * per-user clock once; the verify-endpoint lockout mirrors the password
@@ -18895,6 +18997,7 @@ async function main(): Promise<void> {
     await checkAuditSurface(sql, baseUrl, authCtx);
     await checkDataResidency(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationsSurface(sql, baseUrl, authCtx);
+    await checkLibrarySurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

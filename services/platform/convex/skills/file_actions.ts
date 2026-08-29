@@ -404,7 +404,7 @@ async function cleanupUploadResources(
  * its sharing is honored verbatim (any member may share, and the parse step
  * already refused the inconsistent shapes).
  */
-function normalizedBundleFiles(
+export function normalizedBundleFiles(
   parsed: ParsedBundle,
   uploader: UserSkillViewer,
 ): Array<{ path: string; content: Buffer }> {

@@ -16,6 +16,7 @@ import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { uploadSkillBundlePg } from './upload.ts';
 
 /**
  * /api/app/skills — the org's skill bundles, REUSING the 0.4 file layer
@@ -42,6 +43,11 @@ const ERROR_STATUS: Record<string, 400 | 403 | 404 | 422> = {
   SKILL_PRIVATE_RETIRED: 400,
   SKILL_FORBIDDEN: 403,
   SKILL_MALFORMED: 422,
+  STORAGE_NOT_OWNED: 403,
+  STORAGE_NOT_FOUND: 404,
+  BUNDLE_TOO_LARGE: 400,
+  INVALID_BUNDLE: 400,
+  WRITE_FAILED: 400,
 };
 
 function handleError<E extends OrgEnv>(
@@ -138,6 +144,31 @@ export function createSkillRoutes(deps: {
         ...body.data,
       });
       return c.json({ skill });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /** The bundle-upload lane (zip staged via the org byte lane). */
+  app.post('/upload', async (c) => {
+    const body = z
+      .object({
+        storageId: z.string().min(1).max(2_000),
+        force: z.boolean().optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      const who = await caller(c);
+      return c.json(
+        await uploadSkillBundlePg(deps.sql, {
+          organizationId: c.get('orgId'),
+          orgSlug: who.orgSlug,
+          viewer: who.viewer,
+          storageId: body.data.storageId,
+          ...(body.data.force !== undefined ? { force: body.data.force } : {}),
+        }),
+      );
     } catch (error) {
       return handleError(c, error);
     }

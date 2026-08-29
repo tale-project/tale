@@ -34,6 +34,7 @@ import {
   documentReadAdapters,
   documentWriteAdapters,
 } from './documents';
+import { libraryActionQueryAdapters, libraryWriteAdapters } from './library';
 import {
   projectActionQueryAdapters,
   projectReadAdapters,
@@ -144,6 +145,7 @@ export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {
   ...adminActionQueryAdapters,
   ...adminDataResidencyActionQueries,
   ...automationActionQueryAdapters,
+  ...libraryActionQueryAdapters,
   ...projectActionQueryAdapters,
   ...settingsActionQueryAdapters,
 };
@@ -151,6 +153,7 @@ export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {
 export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
   ...adminWriteAdapters,
   ...automationWriteAdapters,
+  ...libraryWriteAdapters,
   ...documentWriteAdapters,
   ...projectWriteAdapters,
   ...settingsWriteAdapters,
