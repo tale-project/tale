@@ -790,6 +790,101 @@ async function checkProjects(
     `archive → ${archived.status}, hidden=${listAfterArchive.success ? !listAfterArchive.data.projects.some((p) => p.id === projectId) : 'ERR'}, search hits=${searched.success ? searched.data.projects.length : 'ERR'}`,
   );
 
+  // --- Project secrets: write-only values, metadata listings, atomic pair.
+  const secretSet = await send('POST', `/${projectId}/secrets?orgId=${orgId}`, {
+    name: 'api_token',
+    value: 'tok-1234567',
+    description: 'itest',
+  });
+  const secretRotate = await send(
+    'POST',
+    `/${projectId}/secrets?orgId=${orgId}`,
+    { name: 'API_TOKEN', value: 'tok-rotated-89' },
+  );
+  const secretBadName = await send(
+    'POST',
+    `/${projectId}/secrets?orgId=${orgId}`,
+    { name: '1bad name', value: 'whatever-long' },
+  );
+  const secretPair = await send(
+    'POST',
+    `/${projectId}/secrets/pair?orgId=${orgId}`,
+    { baseName: 'portal', username: 'alice', password: 'hunter2-long' },
+  );
+  const secretsListed = z
+    .object({
+      secrets: z.array(
+        z.object({ name: z.string(), updatedBy: z.string() }).loose(),
+      ),
+    })
+    .safeParse(await get(`/${projectId}/secrets?orgId=${orgId}`));
+  const secretNames = secretsListed.success
+    ? secretsListed.data.secrets.map((row) => row.name)
+    : [];
+  const secretDeleted = await send(
+    'DELETE',
+    `/${projectId}/secrets/API_TOKEN?orgId=${orgId}`,
+  );
+  const secretsAfterDelete = z
+    .object({ secrets: z.array(z.object({ name: z.string() }).loose()) })
+    .safeParse(await get(`/${projectId}/secrets?orgId=${orgId}`));
+  record(
+    'project secrets: upsert (case-folded) + pair + masked list + delete',
+    secretSet.ok &&
+      secretRotate.ok &&
+      secretBadName.status === 400 &&
+      secretPair.ok &&
+      secretsListed.success &&
+      secretNames.length === 3 &&
+      secretNames.includes('API_TOKEN') &&
+      secretNames.includes('PORTAL_USERNAME') &&
+      secretNames.includes('PORTAL_PASSWORD') &&
+      !JSON.stringify(secretsListed.data).includes('tok-rotated') &&
+      secretDeleted.ok &&
+      secretsAfterDelete.success &&
+      secretsAfterDelete.data.secrets.length === 2,
+    `set → ${secretSet.status}, rotate → ${secretRotate.status}, badName → ${secretBadName.status} (want 400), pair → ${secretPair.status}, names=${secretNames.join('|')} (want 3 rows), value leaked=${secretsListed.success ? JSON.stringify(secretsListed.data).includes('tok-rotated') : 'ERR'}, delete → ${secretDeleted.status}, after=${secretsAfterDelete.success ? secretsAfterDelete.data.secrets.length : 'ERR'} (want 2)`,
+  );
+
+  // --- Serving previews: a resolution failure is a RESULT, not an error
+  // (no provider is configured in this org, so both lanes answer ok:false
+  // with the resolver's own reason — the route/shim/resolver wiring proof).
+  const previewShape = z.union([
+    z.object({
+      ok: z.literal(true),
+      providerSlug: z.string(),
+      modelId: z.string(),
+      lane: z.string(),
+    }),
+    z.object({ ok: z.literal(false), reason: z.string().min(1) }),
+  ]);
+  const workflowPreviewRes = await fetch(
+    `${base}/api/app/automations/serving-preview?model=some/model&harness=claude-code&orgId=${orgId}`,
+    { headers: { cookie } },
+  );
+  const workflowPreview = previewShape.safeParse(
+    await workflowPreviewRes.json(),
+  );
+  const taskPreviewRes = await fetch(
+    `${base}/api/app/tasks/serving-preview?model=some/model&harness=claude-code&orgId=${orgId}`,
+    { headers: { cookie } },
+  );
+  const taskPreview = previewShape.safeParse(await taskPreviewRes.json());
+  // The reason must be the RESOLVER's own answer, never a shim wiring gap
+  // leaking through the result contract.
+  const previewReasonReal = (parsed: typeof workflowPreview): boolean =>
+    parsed.success &&
+    !parsed.data.ok &&
+    !parsed.data.reason.includes('un-shimmed');
+  record(
+    'serving previews answer resolution results on both lanes',
+    workflowPreviewRes.ok &&
+      previewReasonReal(workflowPreview) &&
+      taskPreviewRes.ok &&
+      previewReasonReal(taskPreview),
+    `workflow → ${workflowPreviewRes.status} ${workflowPreview.success ? JSON.stringify(workflowPreview.data).slice(0, 120) : 'BAD SHAPE'}; task → ${taskPreviewRes.status} ${taskPreview.success ? JSON.stringify(taskPreview.data).slice(0, 120) : 'BAD SHAPE'}`,
+  );
+
   const badDelete = await send('DELETE', `/${projectId}?orgId=${orgId}`, {
     mode: 'cascade',
     confirmPhrase: 'wrong name',

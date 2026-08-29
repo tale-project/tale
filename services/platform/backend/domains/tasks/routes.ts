@@ -3,13 +3,16 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { resolveTaskServing } from '../../../convex/tasks/task_serving.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { createCtxShim } from '../../lib/convex-shim.ts';
 import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
+import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
   getProjectAuthContext,
   loadProjectOrThrow,
@@ -162,6 +165,43 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       },
       c.get('sessionBundle').user.email,
     );
+
+  // What an UNPINNED project-agent model pick would run on RIGHT NOW — the
+  // task resolver's direct-only walk (it intentionally differs from the
+  // workflow lane's). A resolution failure is a RESULT, not an error.
+  app.get('/serving-preview', async (c) => {
+    const organizationId = c.get('orgId');
+    const model = c.req.query('model') ?? '';
+    const harness = c.req.query('harness') ?? '';
+    if (model.length === 0 || harness.length === 0) {
+      return c.json({ error: 'model and harness are required' }, 400);
+    }
+    // The knowledge shim = credential reads + the better-auth org lookup the
+    // provider walk resolves slugs through.
+    const shim = createCtxShim(knowledgeShimHandlers(deps.sql));
+    try {
+      const serving = await resolveTaskServing(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 resolver; its ctx facilities (org lookup + default-credential read) are covered by knowledgeShimHandlers
+        shim as unknown as Parameters<typeof resolveTaskServing>[0],
+        {
+          organizationId,
+          model,
+          harness,
+        },
+      );
+      return c.json({
+        ok: true as const,
+        providerSlug: serving.providerSlug,
+        modelId: serving.modelId,
+        lane: serving.lane,
+      });
+    } catch (error) {
+      return c.json({
+        ok: false as const,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
 
   app.get('/by-project/:projectId', async (c) => {
     try {

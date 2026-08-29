@@ -253,6 +253,23 @@ function assertAdmin(auth: ProjectAuthContext): void {
   }
 }
 
+/** Project-level administer right (the 0.4 secrets gate — org admins and
+ * the project's own administrators, per the reused access matrix). */
+export function assertProjectAdministrable(
+  project: ProjectRow,
+  auth: ProjectAuthContext,
+): void {
+  assertSameOrg(project, auth);
+  const access = checkProjectAccess(
+    accessInput(project),
+    auth.teamIds,
+    auth.role,
+  );
+  if (!access.canAdminister) {
+    throw new ProjectError('PROJECT_FORBIDDEN', 'No project access', 403);
+  }
+}
+
 export function assertCanCreateProjects(auth: ProjectAuthContext): void {
   if (!EDITOR_ROLES.has(auth.role)) {
     throw new ProjectError('RBAC_FORBIDDEN', 'Editor role required', 403);

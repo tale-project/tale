@@ -3,6 +3,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { runSessionWithStore } from '../../../convex/automations_builder/run_session.ts';
+import { resolveWorkflowAgentServing } from '../../../convex/lib/providers/agent_serving.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -111,6 +112,43 @@ export function createAutomationRoutes(deps: {
     return c.json({
       automations: await listAutomations(deps.sql, c.get('orgId')),
     });
+  });
+
+  // What an UNPINNED agent-node model pick would run on RIGHT NOW — the
+  // runtime's own workflow resolver, so the editor can never drift from a
+  // run. A resolution failure is a RESULT, not an error (the 0.4 contract).
+  app.get('/serving-preview', async (c) => {
+    const organizationId = c.get('orgId');
+    const model = c.req.query('model') ?? '';
+    const harness = c.req.query('harness') ?? '';
+    if (model.length === 0 || harness.length === 0) {
+      return c.json({ error: 'model and harness are required' }, 400);
+    }
+    // The knowledge shim = credential reads + the better-auth org lookup the
+    // provider walk resolves slugs through.
+    const shim = createCtxShim(knowledgeShimHandlers(deps.sql));
+    try {
+      const serving = await resolveWorkflowAgentServing(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 resolver; its ctx facilities (org lookup + default-credential read) are covered by knowledgeShimHandlers
+        shim as unknown as Parameters<typeof resolveWorkflowAgentServing>[0],
+        {
+          organizationId,
+          model,
+          harness,
+        },
+      );
+      return c.json({
+        ok: true as const,
+        providerSlug: serving.providerSlug,
+        modelId: serving.modelId,
+        lane: serving.lane,
+      });
+    } catch (error) {
+      return c.json({
+        ok: false as const,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
   });
 
   // The automation name is a '/'-separated path — it rides as a wildcard

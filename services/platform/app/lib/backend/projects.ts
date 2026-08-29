@@ -56,6 +56,9 @@ type ProjectThreadsResult = FunctionReturnType<
 type AgentSecretItem = FunctionReturnType<
   typeof api.agent_secrets.queries.listAgentSecrets
 >[number];
+type ProjectSecretItem = FunctionReturnType<
+  typeof api.projects.secrets.queries.listProjectSecrets
+>[number];
 
 /** One project as the backend returns it (access flags server-stamped). */
 interface ProjectWire {
@@ -445,11 +448,60 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
         }).then((body) => body.secrets),
     };
   },
+  'projects/secrets/queries:listProjectSecrets': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const projectId = args.projectId;
+    if (orgId === undefined || typeof projectId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'project', 'project-secrets', projectId),
+      queryFn: () =>
+        backendFetch<{
+          secrets: {
+            name: string;
+            description: string | null;
+            updatedAt: number;
+            updatedBy: string;
+          }[];
+        }>(`/projects/${encodeURIComponent(projectId)}/secrets`, {
+          orgId,
+        }).then((body): ProjectSecretItem[] =>
+          body.secrets.map((row) => {
+            const view: Record<string, unknown> = {
+              name: row.name,
+              ...(row.description !== null
+                ? { description: row.description }
+                : {}),
+              updatedAt: row.updatedAt,
+              updatedBy: row.updatedBy,
+            };
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the one fetch-boundary projection to the 0.4 shape
+            return view as ProjectSecretItem;
+          }),
+        ),
+    };
+  },
 };
 
 // ---------------------------------------------------------------------------
 // Action-query adapters (the composer's org-config walks)
 // ---------------------------------------------------------------------------
+
+/** The two "currently serving" preview walks share one URL shape. */
+function servingPreviewFetch(
+  domain: 'automations' | 'tasks',
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): (() => Promise<unknown>) | null {
+  const orgId = orgOf(args, ctx);
+  const model = typeof args.model === 'string' ? args.model : '';
+  const harness = typeof args.harness === 'string' ? args.harness : '';
+  if (orgId === undefined || model.length === 0 || harness.length === 0) {
+    return null;
+  }
+  const params = new URLSearchParams({ model, harness });
+  return () =>
+    backendFetch(`/${domain}/serving-preview?${params.toString()}`, { orgId });
+}
 
 export const projectActionQueryAdapters: Record<string, ActionQueryAdapter> = {
   'chat/composer:listComposerModels': (args, ctx) => {
@@ -467,6 +519,10 @@ export const projectActionQueryAdapters: Record<string, ActionQueryAdapter> = {
         { orgId },
       );
   },
+  'automations/serving_preview:previewUnpinnedAgentServing': (args, ctx) =>
+    servingPreviewFetch('automations', args, ctx),
+  'tasks/serving_preview:previewUnpinnedTaskServing': (args, ctx) =>
+    servingPreviewFetch('tasks', args, ctx),
 };
 
 // ---------------------------------------------------------------------------
@@ -740,5 +796,59 @@ export const projectWriteAdapters: Record<string, WriteAdapter> = {
       const orgId = orgOf(args, ctx);
       if (orgId !== undefined) invalidateAgentSecrets(client, orgId);
     },
+  },
+  'projects/secrets/actions:setProjectSecret': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const projectId = requireString(args, 'projectId');
+      await backendFetch(`/projects/${encodeURIComponent(projectId)}/secrets`, {
+        method: 'POST',
+        body: {
+          name: args.name,
+          value: args.value,
+          ...(typeof args.description === 'string'
+            ? { description: args.description }
+            : {}),
+        },
+        orgId,
+      });
+      return null;
+    },
+    invalidate: projectWriteInvalidate,
+  },
+  'projects/secrets/actions:setProjectSecretPair': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const projectId = requireString(args, 'projectId');
+      await backendFetch(
+        `/projects/${encodeURIComponent(projectId)}/secrets/pair`,
+        {
+          method: 'POST',
+          body: {
+            baseName: args.baseName,
+            username: args.username,
+            password: args.password,
+            ...(typeof args.description === 'string'
+              ? { description: args.description }
+              : {}),
+          },
+          orgId,
+        },
+      );
+      return null;
+    },
+    invalidate: projectWriteInvalidate,
+  },
+  'projects/secrets/actions:deleteProjectSecret': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const projectId = requireString(args, 'projectId');
+      await backendFetch(
+        `/projects/${encodeURIComponent(projectId)}/secrets/${encodeURIComponent(requireString(args, 'name'))}`,
+        { method: 'DELETE', orgId },
+      );
+      return null;
+    },
+    invalidate: projectWriteInvalidate,
   },
 };

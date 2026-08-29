@@ -12,6 +12,12 @@ import {
 } from '../../lib/rate-limit.ts';
 import { ensureDefaultProjectLabels } from '../tasks/service.ts';
 import {
+  deleteProjectSecret,
+  listProjectSecrets,
+  setProjectSecret,
+  setProjectSecretPair,
+} from './secrets.ts';
+import {
   archiveProject,
   assertCanCreateProjects,
   createProject,
@@ -501,6 +507,85 @@ export function createProjectRoutes(deps: {
       const auth = await authCtx(c);
       await transactSerializable(deps.sql, (tx) =>
         deleteProjectAgent(tx, auth, c.req.param('agentId')),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // --- Project secrets (metadata-only listings; values are write-only) ---
+
+  app.get('/:id/secrets', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        secrets: await listProjectSecrets(deps.sql, auth, c.req.param('id')),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/secrets', async (c) => {
+    const body = z
+      .object({
+        name: z.string().min(1).max(200),
+        value: z.string().min(1).max(10_000),
+        description: z.string().max(500).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        setProjectSecret(tx, auth, {
+          projectId: c.req.param('id'),
+          ...body.data,
+        }),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/secrets/pair', async (c) => {
+    const body = z
+      .object({
+        baseName: z.string().min(1).max(200),
+        username: z.string().min(1).max(10_000),
+        password: z.string().min(1).max(10_000),
+        description: z.string().max(500).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        setProjectSecretPair(tx, auth, {
+          projectId: c.req.param('id'),
+          ...body.data,
+        }),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.delete('/:id/secrets/:name', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        deleteProjectSecret(tx, auth, {
+          projectId: c.req.param('id'),
+          name: c.req.param('name'),
+        }),
       );
       return c.json({ ok: true });
     } catch (error) {

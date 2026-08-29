@@ -228,6 +228,64 @@ describe('project read adapters', () => {
     expect(result.mine[0]?.authorName).toBeNull();
   });
 
+  it('lists project secrets as metadata with nulls stripped', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        secrets: [
+          {
+            name: 'API_TOKEN',
+            description: null,
+            updatedAt: 5,
+            updatedBy: 'u1',
+          },
+        ],
+      }),
+    );
+
+    const row = projectReadAdapters[
+      'projects/secrets/queries:listProjectSecrets'
+    ]?.({ projectId: 'p1' }, { organizationId: 'org-route' });
+    expect(row?.queryKey).toEqual([
+      'backend',
+      'org-route',
+      'project',
+      'project-secrets',
+      'p1',
+    ]);
+    const secrets = (await row?.queryFn()) as Record<string, unknown>[];
+    expect(secrets[0]).toEqual({
+      name: 'API_TOKEN',
+      updatedAt: 5,
+      updatedBy: 'u1',
+    });
+  });
+
+  it('serves the serving previews from their lane routes', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(() =>
+        Promise.resolve(jsonResponse(200, { ok: false, reason: 'nothing' })),
+      );
+
+    const workflow = projectActionQueryAdapters[
+      'automations/serving_preview:previewUnpinnedAgentServing'
+    ]?.({ organizationId: 'org-1', model: 'm/x', harness: 'claude-code' }, {});
+    await workflow?.();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/app/automations/serving-preview?model=m%2Fx&harness=claude-code&orgId=org-1',
+      expect.anything(),
+    );
+
+    const task = projectActionQueryAdapters[
+      'tasks/serving_preview:previewUnpinnedTaskServing'
+    ]?.({ organizationId: 'org-1', model: 'm/x', harness: 'claude-code' }, {});
+    await task?.();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/app/tasks/serving-preview?model=m%2Fx&harness=claude-code&orgId=org-1',
+      expect.anything(),
+    );
+  });
+
   it('serves the composer walks from their org-scoped routes', async () => {
     const fetchSpy = vi
       .spyOn(window, 'fetch')
@@ -344,6 +402,56 @@ describe('project write adapters', () => {
     );
     expect(keys).toContainEqual(['backend', 'org-1', 'chat_thread']);
     expect(keys).toContainEqual(['backend', 'org-1', 'project']);
+  });
+
+  it('writes project secrets on their routes (set, pair, delete)', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(() =>
+        Promise.resolve(jsonResponse(200, { ok: true })),
+      );
+
+    await projectWriteAdapters[
+      'projects/secrets/actions:setProjectSecret'
+    ]?.run(
+      {
+        organizationId: 'org-1',
+        projectId: 'p1',
+        name: 'API_TOKEN',
+        value: 'tok-123',
+      },
+      {},
+    );
+    let [url, init] = fetchSpy.mock.calls[0] ?? [];
+    expect(url).toBe('/api/app/projects/p1/secrets?orgId=org-1');
+    expect(jsonBody(init)).toEqual({ name: 'API_TOKEN', value: 'tok-123' });
+
+    await projectWriteAdapters[
+      'projects/secrets/actions:setProjectSecretPair'
+    ]?.run(
+      {
+        organizationId: 'org-1',
+        projectId: 'p1',
+        baseName: 'PORTAL',
+        username: 'alice',
+        password: 'hunter2-long',
+      },
+      {},
+    );
+    [url, init] = fetchSpy.mock.calls[1] ?? [];
+    expect(url).toBe('/api/app/projects/p1/secrets/pair?orgId=org-1');
+    expect(jsonBody(init)).toEqual({
+      baseName: 'PORTAL',
+      username: 'alice',
+      password: 'hunter2-long',
+    });
+
+    await projectWriteAdapters[
+      'projects/secrets/actions:deleteProjectSecret'
+    ]?.run({ organizationId: 'org-1', projectId: 'p1', name: 'API_TOKEN' }, {});
+    [url, init] = fetchSpy.mock.calls[2] ?? [];
+    expect(url).toBe('/api/app/projects/p1/secrets/API_TOKEN?orgId=org-1');
+    expect(init?.method).toBe('DELETE');
   });
 
   it('upserts and deletes org agent secrets on their routes', async () => {
