@@ -58,6 +58,9 @@ const SCHEDULES: CronSchedule[] = [
   // offset so the hour boundary is not a thundering herd.
   { name: 'tts.gc_chunks', cron: '10 * * * *' },
   { name: 'tasks.enforce_dates', cron: '25 * * * *' },
+  // Rollup drift repair: the board's counters are incremental, so something
+  // has to reconcile them with the rows they summarize.
+  { name: 'projects.repair_rollups', cron: '40 5 * * *' },
 ];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {

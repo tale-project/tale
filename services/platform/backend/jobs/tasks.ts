@@ -38,6 +38,8 @@ export interface TaskPayloads {
   'tts.gc_chunks': Record<string, never>;
   /** Task start/due/overdue notification ladder (hourly). */
   'tasks.enforce_dates': Record<string, never>;
+  /** Recompute drifted project rollup counters from their source rows. */
+  'projects.repair_rollups': Record<string, never>;
   /** Daily sweep of idle rate-limit rows (cron). */
   'maintenance.rate_limit_gc': Record<string, never>;
   /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
@@ -263,6 +265,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'governance.revoke_idle_sessions': { retryLimit: 1, expireInSeconds: 300 },
   'tts.gc_chunks': { retryLimit: 1, expireInSeconds: 600 },
   'tasks.enforce_dates': { retryLimit: 1, expireInSeconds: 600 },
+  'projects.repair_rollups': { retryLimit: 1, expireInSeconds: 600 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
   'rag.index_file': {

@@ -167,6 +167,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const { gcExpiredTtsChunks } = await import('../domains/tts/service.ts');
       await gcExpiredTtsChunks(deps.sql);
     },
+    'projects.repair_rollups': async () => {
+      const { repairProjectRollups } =
+        await import('../domains/projects/service.ts');
+      await repairProjectRollups(deps.sql);
+    },
     'tasks.enforce_dates': async () => {
       const { enforceTaskDateNotifications } =
         await import('../domains/tasks/date-notifications.ts');

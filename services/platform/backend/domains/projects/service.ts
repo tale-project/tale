@@ -1283,9 +1283,29 @@ function validateProjectAgentFields(args: {
 }
 
 /**
+ * Drop referenced secret names the org no longer has, so an equipment row
+ * never carries a dangling grant. The dialog may still list a secret a
+ * manager just deleted; pruning silently is right because a missing secret
+ * is inert at run time anyway — throwing would block an unrelated edit
+ * (the 0.4 `pruneMissingSecrets` rule).
+ */
+async function pruneMissingSecrets(
+  tx: TransactionSql,
+  organizationId: string,
+  requested: string[],
+): Promise<string[]> {
+  if (requested.length === 0) return [];
+  const rows = await tx<{ name: string }[]>`
+    SELECT name FROM app.agent_secrets
+    WHERE org_id = ${organizationId} AND name = ANY(${requested})
+  `;
+  const existing = new Set(rows.map((row) => row.name));
+  return requested.filter((name) => existing.has(name));
+}
+
+/**
  * Referencing org secrets grants their values to the agent's runs, so only
  * admins may CHANGE the referenced set (0.4's `assertMaySetSecrets`).
- * TODO(agent_secrets): prune references to secrets rows that no longer exist.
  */
 function assertMaySetSecrets(
   auth: ProjectAuthContext,
@@ -1337,6 +1357,11 @@ export async function createProjectAgent(
   const project = await loadProjectOrThrow(tx, args.projectId);
   assertWritable(project, auth);
   const fields = validateProjectAgentFields(args);
+  fields.secrets = await pruneMissingSecrets(
+    tx,
+    auth.organizationId,
+    fields.secrets,
+  );
   assertMaySetSecrets(auth, fields.secrets, []);
 
   const existing = await tx<{ count: string }[]>`
@@ -1425,6 +1450,13 @@ export async function updateProjectAgent(
   const project = await loadProjectOrThrow(tx, agent.projectId);
   assertWritable(project, auth);
   const fields = validateProjectAgentFields(args);
+  // Prune BEFORE the gate: a set that only lost a deleted secret is not a
+  // privileged change, so an editor's unrelated save must not be refused.
+  fields.secrets = await pruneMissingSecrets(
+    tx,
+    auth.organizationId,
+    fields.secrets,
+  );
   assertMaySetSecrets(auth, fields.secrets, agent.secrets);
 
   const nameClash = await tx<{ id: string }[]>`
@@ -1682,4 +1714,62 @@ export async function getProjectByExternalItemId(
     LIMIT 1
   `;
   return rows[0] ?? null;
+}
+
+// -------------------------------------------------------- rollup repair
+
+/**
+ * Recompute the project rollups from their SOURCE rows and fix any drift.
+ *
+ * `open_task_count` / `done_task_count` / `project_agent_count` are
+ * maintained incrementally (`applyTaskCountTransition` and the agent
+ * create/delete paths are their only writers) because the board reads them
+ * on every render. Incremental counters drift: a crash between a task write
+ * and its transition, a hand-run SQL fix, a restored backup. The board then
+ * shows a number the task list contradicts, which reads as data loss.
+ *
+ * The repair is a single set-based statement — the counts ARE a group-by —
+ * and it touches only rows that actually disagree, so a healthy fleet costs
+ * one scan and zero writes. The 0.4 equivalent was a one-shot versioned
+ * backfill; making it periodic is what turns "we fixed it once" into "it
+ * cannot stay wrong".
+ */
+export async function repairProjectRollups(
+  sql: Sql,
+): Promise<{ repaired: number }> {
+  const rows = await sql<{ id: string }[]>`
+    WITH task_counts AS (
+      SELECT project_id,
+             count(*) FILTER (
+               WHERE archived_at_ms IS NULL
+                 AND status NOT IN ('done', 'cancelled')
+             ) AS open_count,
+             count(*) FILTER (
+               WHERE archived_at_ms IS NULL AND status = 'done'
+             ) AS done_count
+      FROM app.tasks GROUP BY project_id
+    ),
+    agent_counts AS (
+      SELECT project_id, count(*) AS agent_count
+      FROM app.project_agents GROUP BY project_id
+    )
+    UPDATE app.projects p SET
+      open_task_count = coalesce(t.open_count, 0),
+      done_task_count = coalesce(t.done_count, 0),
+      project_agent_count = coalesce(a.agent_count, 0)
+    FROM (SELECT id FROM app.projects) ids
+    LEFT JOIN task_counts t ON t.project_id = ids.id
+    LEFT JOIN agent_counts a ON a.project_id = ids.id
+    WHERE p.id = ids.id
+      AND (p.open_task_count IS DISTINCT FROM coalesce(t.open_count, 0)
+        OR p.done_task_count IS DISTINCT FROM coalesce(t.done_count, 0)
+        OR p.project_agent_count IS DISTINCT FROM coalesce(a.agent_count, 0))
+    RETURNING p.id
+  `;
+  if (rows.length > 0) {
+    console.info(
+      `[projects] rollup repair corrected ${rows.length} project(s)`,
+    );
+  }
+  return { repaired: rows.length };
 }

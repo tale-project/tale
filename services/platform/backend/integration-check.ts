@@ -6270,6 +6270,117 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
  * decrypt seam handing an invocation its secrets/config/Basic header —
  * with disabled rows refusing coded.
  */
+async function checkProjectTail(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const now = Date.now();
+  const api = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}${route}?orgId=${orgId}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+
+  // ---- dangling secret references are pruned, not thrown on -------------
+  await sql`
+    INSERT INTO app.agent_secrets (
+      org_id, name, encrypted_value, created_by, updated_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, 'ITEST_LIVE_SECRET', ${sql.json({ v: 'x' })}, ${userId},
+      ${userId}, ${now}, ${now}
+    )
+    ON CONFLICT DO NOTHING
+  `;
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Rollup project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const created = z
+    .object({ agentId: z.string() })
+    .loose()
+    .safeParse(
+      await (
+        await api(`/api/app/projects/${projectId}/agents`, {
+          body: {
+            name: 'Secret Holder',
+            harness: 'claude-code',
+            model: 'itest-model',
+            skills: [],
+            connectors: [],
+            tools: [],
+            // One real name and one the org does not have.
+            secrets: ['ITEST_LIVE_SECRET', 'ITEST_DELETED_SECRET'],
+          },
+        })
+      ).json(),
+    );
+  const agentId = created.success ? created.data.agentId : '';
+  const stored = await sql<{ secrets: string[] }[]>`
+    SELECT secrets FROM app.project_agents WHERE id = ${agentId}
+  `;
+  record(
+    'projects: a dangling secret reference is pruned, not stored',
+    created.success &&
+      (stored[0]?.secrets ?? []).includes('ITEST_LIVE_SECRET') &&
+      !(stored[0]?.secrets ?? []).includes('ITEST_DELETED_SECRET'),
+    `created=${created.success}, stored=${(stored[0]?.secrets ?? []).join(',') || 'none'} (want ITEST_LIVE_SECRET only)`,
+  );
+
+  // ---- rollup drift repair ---------------------------------------------
+  await sql`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES
+      (${orgId}, ${projectId}, 'Open one', 'todo', 'a0', ${userId}, 'user',
+       ${now}, ${now}),
+      (${orgId}, ${projectId}, 'Open two', 'in_progress', 'a1', ${userId},
+       'user', ${now}, ${now}),
+      (${orgId}, ${projectId}, 'Finished', 'done', 'a2', ${userId}, 'user',
+       ${now}, ${now}),
+      (${orgId}, ${projectId}, 'Cancelled', 'cancelled', 'a3', ${userId},
+       'user', ${now}, ${now})
+  `;
+  // Simulate drift the way it happens in the wild: a counter that no longer
+  // matches the rows it summarizes.
+  await sql`
+    UPDATE app.projects SET open_task_count = 99, done_task_count = 0,
+                            project_agent_count = 7
+    WHERE id = ${projectId}
+  `;
+  const { repairProjectRollups } =
+    await import('./domains/projects/service.ts');
+  const firstRepair = await repairProjectRollups(sql);
+  const afterRepair = await sql<
+    { open: number; done: number; agents: number }[]
+  >`
+    SELECT open_task_count AS open, done_task_count AS done,
+           project_agent_count AS agents
+    FROM app.projects WHERE id = ${projectId}
+  `;
+  // A healthy fleet must cost zero writes on the next pass.
+  const secondRepair = await repairProjectRollups(sql);
+  record(
+    'projects: rollup repair fixes drift and is a no-op when healthy',
+    firstRepair.repaired >= 1 &&
+      afterRepair[0]?.open === 2 &&
+      afterRepair[0]?.done === 1 &&
+      afterRepair[0]?.agents === 1 &&
+      secondRepair.repaired === 0,
+    `repaired=${firstRepair.repaired}, counts=${afterRepair[0]?.open}/${afterRepair[0]?.done}/${afterRepair[0]?.agents} (want 2/1/1 — cancelled counts in neither), secondPass=${secondRepair.repaired} (want 0)`,
+  );
+}
+
 async function checkCollabMentions(
   sql: Sql,
   base: string,
@@ -21381,6 +21492,7 @@ async function main(): Promise<void> {
     await checkRecoverySweeps(sql, authCtx);
     await checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`);
     await checkCollabMentions(sql, baseUrl, authCtx);
+    await checkProjectTail(sql, baseUrl, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);
