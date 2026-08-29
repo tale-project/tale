@@ -61,3 +61,112 @@ describe('installPdfjsDomGlobals base64 codecs', () => {
     expect(new TextDecoder().decode(plaintext)).toBe('integration-secret');
   });
 });
+
+describe('installPdfjsDomGlobals Map.getOrInsertComputed', () => {
+  it('installs the method pdfjs calls on its Maps', () => {
+    // Its absence is what broke the operator-list read per page (#3018).
+    installPdfjsDomGlobals();
+    expect(typeof Map.prototype.getOrInsertComputed).toBe('function');
+  });
+
+  it('computes and inserts when the key is absent', () => {
+    installPdfjsDomGlobals();
+    const map = new Map<string, number>();
+    const calls: string[] = [];
+    const value = map.getOrInsertComputed('a', (key) => {
+      calls.push(key);
+      return 1;
+    });
+    expect(value).toBe(1);
+    expect(map.get('a')).toBe(1);
+    expect(calls).toEqual(['a']);
+  });
+
+  it('returns the existing value without calling the callback', () => {
+    // pdfjs relies on this: the callback builds an intent state, and calling
+    // it twice would discard the one already in flight.
+    installPdfjsDomGlobals();
+    const map = new Map<string, number>([['a', 1]]);
+    let called = false;
+    const value = map.getOrInsertComputed('a', () => {
+      called = true;
+      return 2;
+    });
+    expect(value).toBe(1);
+    expect(called).toBe(false);
+  });
+
+  it('stores a value the callback returns even when it is undefined', () => {
+    // Presence, not truthiness: a second call must not recompute.
+    installPdfjsDomGlobals();
+    const map = new Map<string, undefined>();
+    map.getOrInsertComputed('a', () => undefined);
+    expect(map.has('a')).toBe(true);
+    let recomputed = false;
+    map.getOrInsertComputed('a', () => {
+      recomputed = true;
+      return undefined;
+    });
+    expect(recomputed).toBe(false);
+  });
+
+  it('lets the computed value win when the callback inserted the key itself', () => {
+    // The proposal re-checks after the callback and overwrites, so a callback
+    // with a side effect cannot leave the map disagreeing with the return.
+    installPdfjsDomGlobals();
+    const map = new Map<string, number>();
+    const value = map.getOrInsertComputed('a', () => {
+      map.set('a', 99);
+      return 1;
+    });
+    expect(value).toBe(1);
+    expect(map.get('a')).toBe(1);
+  });
+
+  it('rejects a callback that is not callable, even when the key exists', () => {
+    // Spec order: the callable check comes BEFORE the lookup. Without it, a
+    // present key would return happily and a bad callback would go unnoticed
+    // until some later call happened to miss.
+    installPdfjsDomGlobals();
+    const present = new Map<string, number>([['a', 1]]);
+    expect(() =>
+      (
+        present as unknown as {
+          getOrInsertComputed: (k: string, f: unknown) => void;
+        }
+      ).getOrInsertComputed('a', 'not a function'),
+    ).toThrow(TypeError);
+
+    const absent = new Map<string, number>();
+    expect(() =>
+      (
+        absent as unknown as {
+          getOrInsertComputed: (k: string, f: unknown) => void;
+        }
+      ).getOrInsertComputed('a', 'not a function'),
+    ).toThrow(TypeError);
+  });
+
+  it('leaves a real runtime implementation alone', () => {
+    // Guarded like every other shim here, so Node ≥24 wins.
+    const marker = function (this: Map<unknown, unknown>) {
+      return 'native';
+    };
+    // oxlint-disable-next-line no-extend-native -- test stands in for a native implementation
+    Object.defineProperty(Map.prototype, 'getOrInsertComputed', {
+      value: marker,
+      writable: true,
+      configurable: true,
+    });
+    try {
+      installPdfjsDomGlobals();
+      expect(Map.prototype.getOrInsertComputed).toBe(marker);
+    } finally {
+      // The guard will not replace a function, so the stand-in has to be
+      // removed here or every later suite in this worker inherits it.
+      delete (Map.prototype as { getOrInsertComputed?: unknown })
+        .getOrInsertComputed;
+      installPdfjsDomGlobals();
+    }
+  });
+});

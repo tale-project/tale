@@ -344,6 +344,36 @@ function ensureEs2025Shims(): void {
       configurable: true,
     });
   }
+  // pdfjs 5.x calls this on plain Maps in both the main and worker builds
+  // (`_intentStates`, `methodPromises`, `objs`, …). Node 22 lacks it, and the
+  // failure is quiet: the operator-list read throws per page, which is the
+  // path that finds embedded images and decides "scanned page → OCR". Text
+  // extraction still runs, so a digital PDF looks fine while a scanned one
+  // indexes thin or empty with only a warning to say so (#3018).
+  //
+  // Spec shape: return the existing value if the key is present; otherwise
+  // compute, insert, and return. `set` after the callback is what the proposal
+  // does too — the callback may itself have inserted the key, and the computed
+  // value wins.
+  if (typeof Map.prototype.getOrInsertComputed !== 'function') {
+    // oxlint-disable-next-line no-extend-native -- deliberate spec-shaped polyfill of an ES2025 method Node 22 lacks; guarded so a real runtime implementation wins
+    Object.defineProperty(Map.prototype, 'getOrInsertComputed', {
+      value: function <K, V>(this: Map<K, V>, key: K, callbackfn: (k: K) => V) {
+        if (typeof callbackfn !== 'function') {
+          throw new TypeError(
+            'Map.prototype.getOrInsertComputed: callback is not a function',
+          );
+        }
+        if (this.has(key)) return this.get(key);
+        const value = callbackfn(key);
+        this.set(key, value);
+        return value;
+      },
+      writable: true,
+      configurable: true,
+    });
+  }
+
   if (typeof Uint8Array.prototype.toHex !== 'function') {
     // oxlint-disable-next-line no-extend-native -- deliberate spec-shaped polyfill of an ES2025 method Node 22 lacks; guarded so a real runtime implementation wins
     Object.defineProperty(Uint8Array.prototype, 'toHex', {
