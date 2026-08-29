@@ -37,10 +37,25 @@ vi.mock('@tanstack/react-query', () => ({
     reset: vi.fn(),
     _options: options,
   })),
+  useQueryClient: vi.fn(() => mockQueryClient),
+}));
+
+// The registry is swapped for one controllable row so these tests cover the
+// WRAPPER's wiring; the real rows are covered in `app/lib/backend/*.test.ts`.
+const { mockWriteRun, mockQueryClient, mockOrgId } = vi.hoisted(() => ({
+  mockWriteRun: vi.fn(),
+  mockQueryClient: { invalidateQueries: vi.fn() },
+  mockOrgId: { current: undefined as string | undefined },
+}));
+vi.mock('@/app/lib/backend/convex-adapters', () => ({
+  WRITE_ADAPTERS: { 'fake:write': { run: mockWriteRun } },
+  activeOrganizationId: () => mockOrgId.current,
+  runAdapted: (run: () => Promise<unknown>) => run(),
 }));
 
 import { useConvexAction as useActionFn } from '@convex-dev/react-query';
 import { useMutation } from '@tanstack/react-query';
+import { getFunctionName } from 'convex/server';
 
 import { useConvexAction } from './use-convex-action';
 
@@ -92,11 +107,14 @@ describe('useConvexAction', () => {
     });
 
     const options = mockUseMutation.mock.calls[0]?.[0];
-    expect(options.onSuccess).toBe(userOnSuccess);
     expect(options.onSettled).toBe(userOnSettled);
-    // `onError` is deliberately NOT passed through by reference: the hook wraps
-    // it so the error toast fires first. The contract is that the caller's
-    // handler still runs, not that it is the same function.
+    // `onSuccess` and `onError` are deliberately NOT passed through by
+    // reference: the hook wraps them (adapter invalidation first, error toast
+    // first). The contract is that the caller's handler still runs, not that
+    // it is the same function.
+    expect(options.onSuccess).not.toBe(userOnSuccess);
+    (options.onSuccess as (...a: unknown[]) => void)('data', { input: 'x' });
+    expect(userOnSuccess).toHaveBeenCalledWith('data', { input: 'x' });
     expect(options.onError).not.toBe(userOnError);
     (options.onError as (e: Error) => void)(new Error('boom'));
     expect(userOnError).toHaveBeenCalled();
@@ -145,5 +163,31 @@ describe('useConvexAction error toast', () => {
         variant: 'destructive',
       }),
     );
+  });
+});
+
+describe('useConvexAction adapter lane', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getFunctionName).mockReturnValue('fake:write');
+    mockOrgId.current = 'org-1';
+  });
+
+  it('routes mutationFn through the adapter with the route org', async () => {
+    mockWriteRun.mockResolvedValue({ created: true });
+
+    useConvexAction(mockActionRef);
+
+    const options = mockUseMutation.mock.calls[0]?.[0];
+    await expect(
+      (options.mutationFn as (args: unknown) => Promise<unknown>)({
+        name: 'API_KEY',
+      }),
+    ).resolves.toEqual({ created: true });
+    expect(mockWriteRun).toHaveBeenCalledWith(
+      { name: 'API_KEY' },
+      { organizationId: 'org-1' },
+    );
+    expect(mockActionFn).not.toHaveBeenCalled();
   });
 });

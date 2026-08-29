@@ -34,17 +34,23 @@ export function createAgentSecretRoutes(deps: {
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+
+  // The 0.4 listing fails CLOSED TO EMPTY for non-developers (the equipment
+  // picker renders for every project admin), so only the writes 403.
+  app.get('/', async (c) => {
+    if (!isAdminOrDeveloperRole(c.get('orgMember').role)) {
+      return c.json({ secrets: [] });
+    }
+    return c.json({
+      secrets: await listAgentSecrets(deps.sql, c.get('orgId')),
+    });
+  });
+
   app.use(async (c, next) => {
     if (!isAdminOrDeveloperRole(c.get('orgMember').role)) {
       return c.json({ error: 'admin or developer role required' }, 403);
     }
     return next();
-  });
-
-  app.get('/', async (c) => {
-    return c.json({
-      secrets: await listAgentSecrets(deps.sql, c.get('orgId')),
-    });
   });
 
   app.post('/', async (c) => {

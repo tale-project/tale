@@ -13,6 +13,7 @@ import {
   type EncryptedSecret,
 } from '../../../convex/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 
 /**
@@ -135,6 +136,11 @@ export async function upsertAgentSecret(
       metadata: { descriptionLength: description?.length ?? 0 },
       status: 'success',
     });
+    await emitHintInTx(tx, {
+      orgId: args.organizationId,
+      entity: 'agent_secret',
+      entityId: args.name,
+    });
     return { created: existing.length === 0 };
   });
 }
@@ -149,6 +155,7 @@ export async function listAgentSecrets(
     maskedPreview: string | null;
     createdAt: number;
     updatedAt: number;
+    updatedBy: string;
   }>
 > {
   return sql<
@@ -158,11 +165,13 @@ export async function listAgentSecrets(
       maskedPreview: string | null;
       createdAt: number;
       updatedAt: number;
+      updatedBy: string;
     }[]
   >`
     SELECT name, description, masked_preview AS "maskedPreview",
            created_at_ms::float8 AS "createdAt",
-           updated_at_ms::float8 AS "updatedAt"
+           updated_at_ms::float8 AS "updatedAt",
+           updated_by AS "updatedBy"
     FROM app.agent_secrets
     WHERE org_id = ${organizationId}
     ORDER BY name
@@ -202,6 +211,11 @@ export async function deleteAgentSecret(
       resourceId: args.name,
       resourceName: args.name,
       status: 'success',
+    });
+    await emitHintInTx(tx, {
+      orgId: args.organizationId,
+      entity: 'agent_secret',
+      entityId: args.name,
     });
   });
 }

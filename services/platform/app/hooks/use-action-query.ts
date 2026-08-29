@@ -1,6 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAction, useConvexAuth } from 'convex/react';
-import type { FunctionArgs, FunctionReference } from 'convex/server';
+import type {
+  FunctionArgs,
+  FunctionReference,
+  FunctionReturnType,
+} from 'convex/server';
+import { getFunctionName } from 'convex/server';
+
+import {
+  ACTION_QUERY_ADAPTERS,
+  activeOrganizationId,
+  runAdapted,
+} from '@/app/lib/backend/convex-adapters';
 
 interface ActionQueryOptions {
   enabled?: boolean;
@@ -47,17 +58,39 @@ export function useActionQuery<Func extends FunctionReference<'action'>>(
 ) {
   const action = useAction(func);
   const { isAuthenticated } = useConvexAuth();
+
+  // A family migrated to the 0.5 backend serves this walk over HTTP (session
+  // cookie, no WebSocket-auth gate); everything else keeps the Convex action.
+  const adapter = ACTION_QUERY_ADAPTERS[getFunctionName(func)];
+  const organizationId =
+    adapter === undefined ? undefined : activeOrganizationId();
+  const adaptedFetch =
+    adapter === undefined
+      ? null
+      : adapter(
+          args ?? {},
+          organizationId !== undefined ? { organizationId } : {},
+        );
+
+  // The explicit annotation keeps TData = the action's return type on BOTH
+  // lanes — an untyped ternary would collapse the inference to `unknown`.
+  const queryFn: () => Promise<FunctionReturnType<Func>> =
+    adaptedFetch !== null ? () => runAdapted(adaptedFetch) : () => action(args);
+
   return useQuery({
     queryKey,
-    queryFn: () => action(args),
+    queryFn,
     staleTime: Infinity,
     // ConvexError is deterministic — server-side validation, auth gate, or
-    // expected-state signal. Retrying just delays the error reaching the UI
+    // expected-state signal (the adapted lane normalizes its 4xx answers to
+    // the same shape). Retrying just delays the error reaching the UI
     // (default 3 retries with exponential backoff = ~7 s wait before `error`
     // is exposed). Network errors still retry the default 3 times.
     retry: (failureCount, err) =>
       !isStructuredConvexError(err) && failureCount < 3,
     ...options,
-    enabled: isAuthenticated && (options?.enabled ?? true),
+    enabled:
+      (adapter !== undefined ? adaptedFetch !== null : isAuthenticated) &&
+      (options?.enabled ?? true),
   });
 }

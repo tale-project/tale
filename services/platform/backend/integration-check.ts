@@ -698,17 +698,23 @@ async function checkProjects(
         name: z.string(),
         key: z.string().nullable(),
         openTaskCount: z.number(),
+        isOrgWide: z.boolean(),
+        canEdit: z.boolean(),
+        canAdminister: z.boolean(),
       }),
     })
     .safeParse(await get(`/${projectId}?orgId=${orgId}`));
   record(
-    'project create + read + external-id uniqueness',
+    'project create + read + external-id uniqueness + access flags',
     created.success &&
       fetched.success &&
       fetched.data.project.name === 'Integration Project' &&
       (fetched.data.project.key?.length ?? 0) >= 2 &&
+      fetched.data.project.isOrgWide &&
+      fetched.data.project.canEdit &&
+      fetched.data.project.canAdminister &&
       dupExternal.status === 400,
-    `id=${projectId || 'ERR'}, key=${fetched.success ? fetched.data.project.key : 'ERR'}, dupExternal → ${dupExternal.status} (want 400)`,
+    `id=${projectId || 'ERR'}, key=${fetched.success ? fetched.data.project.key : 'ERR'}, flags=${fetched.success ? `${fetched.data.project.isOrgWide}/${fetched.data.project.canEdit}/${fetched.data.project.canAdminister}` : 'ERR'} (want true×3), dupExternal → ${dupExternal.status} (want 400)`,
   );
 
   const agentCreated = z.object({ agentId: z.string() }).safeParse(
@@ -727,23 +733,42 @@ async function checkProjects(
       agents: z.array(z.object({ id: z.string(), name: z.string() })),
     })
     .safeParse(await get(`/${projectId}/agents?orgId=${orgId}`));
+  // Seed one overdue open task so the overview's rollup has something real
+  // to count (a due date an hour in the past, never archived, not terminal).
+  const overdueTask = await fetch(`${base}/api/app/tasks?orgId=${orgId}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie, origin: base },
+    body: JSON.stringify({
+      projectId,
+      title: 'Overdue itest task',
+      status: 'todo',
+      dueDate: Date.now() - 3_600_000,
+    }),
+  });
   const overview = z
     .object({
       projects: z.array(
-        z.object({ id: z.string(), projectAgentCount: z.number() }),
+        z.object({
+          id: z.string(),
+          projectAgentCount: z.number(),
+          overdueTaskCount: z.number(),
+        }),
       ),
+      overdueTruncated: z.boolean(),
     })
     .safeParse(await get(`/overview?orgId=${orgId}`));
   const overviewRow = overview.success
     ? overview.data.projects.find((p) => p.id === projectId)
     : undefined;
   record(
-    'project agent create + rollup',
+    'project agent create + rollups (agents + overdue)',
     agentCreated.success &&
       agents.success &&
       agents.data.agents.length === 1 &&
-      overviewRow?.projectAgentCount === 1,
-    `agents=${agents.success ? agents.data.agents.length : 'ERR'}, rollup=${overviewRow?.projectAgentCount ?? 'ERR'}`,
+      overdueTask.ok &&
+      overviewRow?.projectAgentCount === 1 &&
+      overviewRow.overdueTaskCount === 1,
+    `agents=${agents.success ? agents.data.agents.length : 'ERR'}, rollup=${overviewRow?.projectAgentCount ?? 'ERR'}, overdue=${overviewRow?.overdueTaskCount ?? 'ERR'} (want 1, task → ${overdueTask.status})`,
   );
 
   const archived = await send('POST', `/${projectId}/archive?orgId=${orgId}`);
@@ -769,16 +794,58 @@ async function checkProjects(
     mode: 'cascade',
     confirmPhrase: 'wrong name',
   });
-  const deleted = await send('DELETE', `/${projectId}?orgId=${orgId}`, {
-    mode: 'detach',
-  });
+  // A conversation filed under the project must SURVIVE a detach delete —
+  // released to the owner, counted in the response's walk numbers.
+  const threadCreated = z.object({ id: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/chat/threads?orgId=${orgId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ title: 'Project chat', projectId }),
+      })
+    ).json(),
+  );
+  const threadId = threadCreated.success ? threadCreated.data.id : '';
+  const deletedBody = z
+    .object({
+      detachedDocCount: z.number(),
+      detachedThreadCount: z.number(),
+      cascadedDocCount: z.number(),
+      cascadedThreadCount: z.number(),
+    })
+    .safeParse(
+      await (
+        await send('DELETE', `/${projectId}?orgId=${orgId}`, {
+          mode: 'detach',
+        })
+      ).json(),
+    );
   const gone = await fetch(`${api}/${projectId}?orgId=${orgId}`, {
     headers: { cookie },
   });
+  const survivor = z
+    .object({
+      thread: z.object({ projectId: z.string().nullable() }).loose(),
+    })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/chat/threads/${threadId}/summary?orgId=${orgId}`,
+          { headers: { cookie } },
+        )
+      ).json(),
+    );
   record(
-    'project delete (confirm gate + detach)',
-    badDelete.status === 400 && deleted.ok && gone.status === 404,
-    `cascade w/ wrong phrase → ${badDelete.status} (want 400), detach → ${deleted.status}, read-after → ${gone.status} (want 404)`,
+    'project delete (confirm gate + detach walk releases the thread)',
+    badDelete.status === 400 &&
+      threadCreated.success &&
+      deletedBody.success &&
+      deletedBody.data.detachedThreadCount === 1 &&
+      deletedBody.data.cascadedThreadCount === 0 &&
+      gone.status === 404 &&
+      survivor.success &&
+      survivor.data.thread.projectId === null,
+    `cascade w/ wrong phrase → ${badDelete.status} (want 400), detach counts=${deletedBody.success ? JSON.stringify(deletedBody.data) : 'ERR'} (want detachedThreadCount 1), read-after → ${gone.status} (want 404), thread projectId=${survivor.success ? String(survivor.data.thread.projectId) : 'ERR'} (want null)`,
   );
 }
 
@@ -13268,6 +13335,55 @@ async function checkAgentSecrets(
       afterDelete.success &&
       Object.keys(afterDelete.data.env).length === 0,
     `created=${created.success ? created.data.created : 'ERR'}, rotatedIsUpdate=${updated.success ? !updated.data.created : 'ERR'}, badName=${badName.status}, masked=${listedRow?.maskedPreview}, env=${resolved.success ? resolved.data.env.ITEST_TOKEN === 'tok-rotated-987654321' : 'ERR'}, audit=${accessRows[0]?.slug}, afterDelete=${afterDelete.success ? Object.keys(afterDelete.data.env).length : 'ERR'}`,
+  );
+
+  // The developer gate fails OPEN TO EMPTY on the listing (the equipment
+  // picker renders for every project admin) and CLOSED on the writes —
+  // the 0.4 posture.
+  const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: 'itest-secrets-member@example.com',
+      password: 'itest-password-1',
+      name: 'Secrets Member',
+    }),
+  });
+  const memberCookie = cookieHeaderFrom(memberSignUp);
+  const memberBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await memberSignUp.json());
+  const memberId = memberBody.success ? memberBody.data.user.id : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member', ${new Date()})
+  `;
+  const memberList = z.object({ secrets: z.array(z.unknown()) }).safeParse(
+    await (
+      await fetch(`${base}/api/app/agent-secrets?orgId=${orgId}`, {
+        headers: { cookie: memberCookie },
+      })
+    ).json(),
+  );
+  const memberWrite = await fetch(
+    `${base}/api/app/agent-secrets?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: memberCookie,
+        origin: base,
+      },
+      body: JSON.stringify({ name: 'MEMBER_TOKEN', value: 'nope-123456' }),
+    },
+  );
+  record(
+    'agent secrets developer gate: list fails open empty, write 403',
+    memberList.success &&
+      memberList.data.secrets.length === 0 &&
+      memberWrite.status === 403,
+    `member list=${memberList.success ? memberList.data.secrets.length : 'ERR'} (want 0), member write → ${memberWrite.status} (want 403)`,
   );
 }
 

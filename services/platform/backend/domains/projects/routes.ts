@@ -152,8 +152,13 @@ export function createProjectRoutes(deps: {
   app.get('/overview', async (c) => {
     const auth = await authCtx(c);
     const includeArchived = c.req.query('includeArchived') === 'true';
+    const asOfRaw = c.req.query('asOf');
+    const asOf = asOfRaw === undefined ? Number.NaN : Number(asOfRaw);
     return c.json(
-      await listProjectsOverview(deps.sql, auth, { includeArchived }),
+      await listProjectsOverview(deps.sql, auth, {
+        includeArchived,
+        ...(Number.isFinite(asOf) && asOf > 0 ? { asOf } : {}),
+      }),
     );
   });
 

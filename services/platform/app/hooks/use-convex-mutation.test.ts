@@ -27,10 +27,28 @@ vi.mock('@tanstack/react-query', () => ({
     reset: vi.fn(),
     _options: options,
   })),
+  useQueryClient: vi.fn(() => mockQueryClient),
 }));
 
 vi.mock('convex/server', () => ({
   getFunctionName: vi.fn(() => 'items:update'),
+}));
+
+// The registry is swapped for one controllable row so these tests cover the
+// WRAPPER's wiring; the real rows are covered in `app/lib/backend/*.test.ts`.
+const { mockWriteRun, mockWriteInvalidate, mockQueryClient, mockOrgId } =
+  vi.hoisted(() => ({
+    mockWriteRun: vi.fn(),
+    mockWriteInvalidate: vi.fn(),
+    mockQueryClient: { invalidateQueries: vi.fn() },
+    mockOrgId: { current: undefined as string | undefined },
+  }));
+vi.mock('@/app/lib/backend/convex-adapters', () => ({
+  WRITE_ADAPTERS: {
+    'fake:write': { run: mockWriteRun, invalidate: mockWriteInvalidate },
+  },
+  activeOrganizationId: () => mockOrgId.current,
+  runAdapted: (run: () => Promise<unknown>) => run(),
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({
@@ -43,6 +61,7 @@ vi.mock('@/lib/i18n/client', () => ({
 
 import { useConvexMutation as useMutationFn } from '@convex-dev/react-query';
 import { useMutation } from '@tanstack/react-query';
+import { getFunctionName } from 'convex/server';
 
 import { useConvexMutation } from './use-convex-mutation';
 
@@ -147,7 +166,60 @@ describe('useConvexMutation', () => {
       onSettled: userOnSettled,
     });
     const options = mockUseMutation.mock.calls[0]?.[0];
-    expect(options.onSuccess).toBe(userOnSuccess);
     expect(options.onSettled).toBe(userOnSettled);
+    // `onSuccess` is deliberately NOT passed through by reference: the hook
+    // wraps it so an adapter's invalidations fire first. The contract is that
+    // the caller's handler still runs, not that it is the same function.
+    expect(options.onSuccess).not.toBe(userOnSuccess);
+    (options.onSuccess as (...a: unknown[]) => void)('data', { input: 'x' });
+    expect(userOnSuccess).toHaveBeenCalledWith('data', { input: 'x' });
+  });
+});
+
+describe('useConvexMutation adapter lane', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getFunctionName).mockReturnValue('fake:write');
+    mockOrgId.current = 'org-1';
+  });
+
+  it('routes mutationFn through the adapter with the route org', async () => {
+    mockWriteRun.mockResolvedValue('p-1');
+
+    useConvexMutation(mockMutationRef);
+
+    const options = mockUseMutation.mock.calls[0]?.[0];
+    await expect(
+      (options.mutationFn as (args: unknown) => Promise<unknown>)({
+        projectId: 'p1',
+      }),
+    ).resolves.toBe('p-1');
+    expect(mockWriteRun).toHaveBeenCalledWith(
+      { projectId: 'p1' },
+      { organizationId: 'org-1' },
+    );
+    expect(mockMutationFn).not.toHaveBeenCalled();
+  });
+
+  it('fires the adapter invalidations before the caller onSuccess', () => {
+    const order: string[] = [];
+    mockWriteInvalidate.mockImplementation(() => order.push('invalidate'));
+    const userOnSuccess = vi.fn(() => order.push('caller'));
+
+    useConvexMutation(mockMutationRef, { onSuccess: userOnSuccess });
+
+    const options = mockUseMutation.mock.calls[0]?.[0];
+    (options.onSuccess as (...a: unknown[]) => void)(
+      'data',
+      { projectId: 'p1' },
+      undefined,
+      {},
+    );
+    expect(mockWriteInvalidate).toHaveBeenCalledWith(
+      mockQueryClient,
+      { projectId: 'p1' },
+      { organizationId: 'org-1' },
+    );
+    expect(order).toEqual(['invalidate', 'caller']);
   });
 });

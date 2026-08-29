@@ -14,13 +14,24 @@ export class BackendApiError extends Error {
   readonly status: number;
   /** The backend's machine-readable error code, when the body carried one. */
   readonly code?: string;
+  /** Structured payload beside the code (`body.data`, e.g. the bound
+   * automation names on a refused project delete), when the body carried one. */
+  readonly data?: Record<string, unknown>;
 
-  constructor(status: number, message: string, code?: string) {
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+    data?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = 'BackendApiError';
     this.status = status;
     if (code !== undefined) {
       this.code = code;
+    }
+    if (data !== undefined) {
+      this.data = data;
     }
   }
 }
@@ -71,6 +82,7 @@ export async function backendFetch<T>(
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
     let code: string | undefined;
+    let data: Record<string, unknown> | undefined;
     try {
       const body: unknown = await response.json();
       if (body !== null && typeof body === 'object') {
@@ -84,11 +96,15 @@ export async function backendFetch<T>(
         if (typeof record.error === 'string') {
           code = record.error;
         }
+        if (record.data !== null && typeof record.data === 'object') {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object just above
+          data = record.data as Record<string, unknown>;
+        }
       }
     } catch {
       // A non-JSON error body (proxy page, empty 502) keeps the status text.
     }
-    throw new BackendApiError(response.status, message, code);
+    throw new BackendApiError(response.status, message, code, data);
   }
   if (response.status === 204) {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 204 callers declare T = undefined

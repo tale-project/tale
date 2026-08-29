@@ -4,6 +4,7 @@ import {
   ADMIN_ROLES,
   checkProjectAccess,
   EDITOR_ROLES,
+  isOrgWideProject,
   normalizeSharing,
 } from '../../../convex/projects/access.ts';
 import {
@@ -19,6 +20,7 @@ import {
   PROJECT_KEY_MAX,
 } from '../../../lib/shared/project_key.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { emitEvent } from '../events/emit.ts';
 
@@ -155,6 +157,40 @@ function accessInput(project: ProjectRow): {
     teamId: project.teamId,
     sharedWithTeamIds: project.sharedWithTeamIds,
   };
+}
+
+/** A project row stamped with the caller's access flags — the 0.4 list-item
+ * shape the UI branches on (row actions, settings tabs, table columns). */
+export interface ProjectListRow extends ProjectRow {
+  isOrgWide: boolean;
+  canEdit: boolean;
+  canAdminister: boolean;
+}
+
+function stampAccessFlags(
+  row: ProjectRow,
+  auth: ProjectAuthContext,
+): ProjectListRow {
+  const access = checkProjectAccess(accessInput(row), auth.teamIds, auth.role);
+  return Object.assign(row, {
+    isOrgWide: isOrgWideProject(accessInput(row)),
+    canEdit: access.canEdit,
+    canAdminister: access.canAdminister,
+  });
+}
+
+/** Org-wide invalidation hint for the projects surface (browsers listening
+ * on /events refetch their `project` reads — session AND machine-door writes). */
+async function hintProject(
+  tx: Sql | TransactionSql,
+  organizationId: string,
+  projectId: string,
+): Promise<void> {
+  await emitHintInTx(tx, {
+    orgId: organizationId,
+    entity: 'project',
+    entityId: projectId,
+  });
 }
 
 export async function loadProjectOrThrow(
@@ -528,6 +564,7 @@ export async function createProject(
     eventType: 'project.created',
     eventData: { projectId, name, actorId: auth.userId },
   });
+  await hintProject(tx, auth.organizationId, projectId);
   return projectId;
 }
 
@@ -598,6 +635,7 @@ export async function duplicateProject(
       },
     ),
   );
+  await hintProject(tx, auth.organizationId, newProjectId);
   return newProjectId;
 }
 
@@ -674,6 +712,7 @@ export async function updateProjectIdentity(
       changedFields: diff(previousState, newState),
     }),
   );
+  await hintProject(tx, auth.organizationId, args.projectId);
 }
 
 /** Pin/unpin in the sidebar — read access suffices (benign UI preference). */
@@ -695,6 +734,7 @@ export async function setProjectPinned(
       changedFields: ['pinnedAt'],
     }),
   );
+  await hintProject(tx, auth.organizationId, projectId);
 }
 
 export async function updateProjectInstructions(
@@ -721,6 +761,7 @@ export async function updateProjectInstructions(
       },
     }),
   );
+  await hintProject(tx, auth.organizationId, projectId);
 }
 
 export async function updateProjectSharing(
@@ -765,6 +806,7 @@ export async function updateProjectSharing(
       changedFields: diff(previousState, newState),
     }),
   );
+  await hintProject(tx, auth.organizationId, args.projectId);
 }
 
 export async function updateProjectKnowledgeMode(
@@ -787,6 +829,7 @@ export async function updateProjectKnowledgeMode(
       newState: { knowledgeMode },
     }),
   );
+  await hintProject(tx, auth.organizationId, projectId);
 }
 
 type RestrictionMode = 'all' | 'recommended' | 'restricted';
@@ -849,6 +892,7 @@ export async function updateProjectAgentSettings(
       },
     }),
   );
+  await hintProject(tx, auth.organizationId, args.projectId);
 }
 
 export async function updateProjectModelSettings(
@@ -894,6 +938,7 @@ export async function updateProjectModelSettings(
       changedFields: diff(previousState, newState),
     }),
   );
+  await hintProject(tx, auth.organizationId, args.projectId);
 }
 
 export async function updateProjectConnectorSettings(
@@ -930,6 +975,7 @@ export async function updateProjectConnectorSettings(
       changedFields: diff(previousState, newState),
     }),
   );
+  await hintProject(tx, auth.organizationId, args.projectId);
 }
 
 // ---------------------------------------------------------------------------
@@ -956,6 +1002,7 @@ export async function archiveProject(
     tx,
     projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.archived),
   );
+  await hintProject(tx, auth.organizationId, projectId);
 }
 
 export async function restoreProject(
@@ -978,6 +1025,7 @@ export async function restoreProject(
     tx,
     projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.restored),
   );
+  await hintProject(tx, auth.organizationId, projectId);
 }
 
 export interface DeleteProjectResult {
@@ -989,10 +1037,12 @@ export interface DeleteProjectResult {
 
 /**
  * Delete a project ('detach' releases children, 'cascade' destroys them —
- * requires the confirm phrase). Project agents die with the row (FK).
- * TODO(documents/chat/tasks): the child walks return 0 until those domains
- * land; TODO(automations): the bound-automations guard; TODO(governance):
- * legal-hold check (0.4 also lacks it — resourceType 'project' unmodeled).
+ * requires the confirm phrase). Project agents, folders, and tasks die with
+ * the row (FK cascade — tasks cannot exist without a project); documents
+ * detach (or expire into the retention pipeline on cascade) and threads
+ * detach (cascade trashes only the CALLER's own threads), exactly the 0.4
+ * walk. TODO(governance): legal-hold check (0.4 also lacks it —
+ * resourceType 'project' unmodeled).
  */
 export async function deleteProject(
   tx: TransactionSql,
@@ -1006,6 +1056,21 @@ export async function deleteProject(
   const project = await loadProjectOrThrow(tx, args.projectId);
   assertReadable(project, auth);
   assertAdmin(auth);
+
+  const bound = await tx<{ automationName: string }[]>`
+    SELECT DISTINCT automation_name AS "automationName"
+    FROM app.automation_project_bindings
+    WHERE project_id = ${args.projectId}
+    ORDER BY automation_name
+  `;
+  if (bound.length > 0) {
+    throw new ProjectError(
+      'PROJECT_HAS_BOUND_AUTOMATIONS',
+      'Automations are bound to this project',
+      400,
+      { automations: bound.map((row) => row.automationName) },
+    );
+  }
 
   if (args.mode === 'cascade') {
     const expected = project.name.trim();
@@ -1027,6 +1092,46 @@ export async function deleteProject(
     cascadedDocCount: 0,
     cascadedThreadCount: 0,
   };
+  const now = Date.now();
+
+  if (args.mode === 'cascade') {
+    // Mark for deletion via lifecycle status; the retention pipeline
+    // hard-deletes blob + RAG chunks within the grace window.
+    const cascadedDocs = await tx<{ id: string }[]>`
+      UPDATE app.documents SET
+        project_id = NULL, lifecycle_status = 'expired',
+        status_changed_at_ms = ${now}
+      WHERE org_id = ${auth.organizationId} AND project_id = ${args.projectId}
+      RETURNING id
+    `;
+    counts.cascadedDocCount = cascadedDocs.length;
+    // Caller-owned threads soft-delete; everyone else's merely detach.
+    const cascadedThreads = await tx<{ threadId: string }[]>`
+      UPDATE app.thread_metadata SET
+        status = 'trashed', status_changed_at_ms = ${now},
+        project_id = NULL, shared_with_project = NULL
+      WHERE org_id = ${auth.organizationId}
+        AND project_id = ${args.projectId}
+        AND user_id = ${auth.userId}
+      RETURNING thread_id AS "threadId"
+    `;
+    counts.cascadedThreadCount = cascadedThreads.length;
+  } else {
+    const detachedDocs = await tx<{ id: string }[]>`
+      UPDATE app.documents SET project_id = NULL
+      WHERE org_id = ${auth.organizationId} AND project_id = ${args.projectId}
+      RETURNING id
+    `;
+    counts.detachedDocCount = detachedDocs.length;
+  }
+
+  const detachedThreads = await tx<{ threadId: string }[]>`
+    UPDATE app.thread_metadata SET
+      project_id = NULL, shared_with_project = NULL
+    WHERE org_id = ${auth.organizationId} AND project_id = ${args.projectId}
+    RETURNING thread_id AS "threadId"
+  `;
+  counts.detachedThreadCount = detachedThreads.length;
 
   await tx`DELETE FROM app.projects WHERE id = ${args.projectId}`;
 
@@ -1036,6 +1141,7 @@ export async function deleteProject(
       metadata: { mode: args.mode, ...counts },
     }),
   );
+  await hintProject(tx, auth.organizationId, args.projectId);
   return counts;
 }
 
@@ -1271,6 +1377,7 @@ export async function createProjectAgent(
       metadata: { op: 'create', projectAgentId: agentId },
     }),
   );
+  await hintProject(tx, auth.organizationId, args.projectId);
   return agentId;
 }
 
@@ -1348,6 +1455,7 @@ export async function updateProjectAgent(
       metadata: { op: 'update', projectAgentId: args.agentId },
     }),
   );
+  await hintProject(tx, auth.organizationId, agent.projectId);
 }
 
 export async function deleteProjectAgent(
@@ -1380,6 +1488,7 @@ export async function deleteProjectAgent(
       metadata: { op: 'delete', projectAgentId: agentId },
     }),
   );
+  await hintProject(tx, auth.organizationId, agent.projectId);
 }
 
 // ---------------------------------------------------------------------------
@@ -1401,36 +1510,56 @@ export async function listProjects(
   sql: Sql,
   auth: ProjectAuthContext,
   options: { includeArchived?: boolean } = {},
-): Promise<ProjectRow[]> {
+): Promise<ProjectListRow[]> {
   const includeArchived = options.includeArchived ?? false;
-  return sql<ProjectRow[]>`
+  const rows = await sql<ProjectRow[]>`
     SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND (${includeArchived} OR archived_at_ms IS NULL)
       AND ${visibilityClause(sql, auth)}
     ORDER BY updated_at_ms DESC
   `;
+  return rows.map((row) => stampAccessFlags(row, auth));
 }
 
-export interface ProjectOverviewRow extends ProjectRow {
+export interface ProjectOverviewRow extends ProjectListRow {
   overdueTaskCount: number;
 }
 
 /**
  * The projects list page read: visible projects + at-a-glance rollups.
  * Open/done/agent counts come off the denormalized columns; the overdue
- * count derives from tasks once that domain lands (0 + never truncated
- * until then — kept in the response shape for API stability).
+ * count is one grouped scan over the org's due tasks against `asOf` (the
+ * client's bucketed clock, so its cache key rotates — SQL counts exactly,
+ * `overdueTruncated` is kept `false` for 0.4 API-shape stability).
  */
 export async function listProjectsOverview(
   sql: Sql,
   auth: ProjectAuthContext,
-  options: { includeArchived?: boolean } = {},
+  options: { includeArchived?: boolean; asOf?: number } = {},
 ): Promise<{ projects: ProjectOverviewRow[]; overdueTruncated: boolean }> {
   const projects = await listProjects(sql, auth, options);
+  const asOf = options.asOf ?? Date.now();
+  const overdueRows =
+    projects.length === 0
+      ? []
+      : await sql<{ projectId: string; count: string }[]>`
+          SELECT project_id AS "projectId", count(*)::text AS count
+          FROM app.tasks
+          WHERE org_id = ${auth.organizationId}
+            AND due_date_ms > 0 AND due_date_ms <= ${asOf}
+            AND archived_at_ms IS NULL
+            AND status NOT IN ('done', 'cancelled')
+          GROUP BY project_id
+        `;
+  const overdueByProject = new Map(
+    overdueRows.map((row) => [row.projectId, Number(row.count)]),
+  );
   return {
     projects: projects.map((project) =>
-      Object.assign(project, { overdueTaskCount: 0 }),
+      Object.assign(project, {
+        overdueTaskCount: overdueByProject.get(project.id) ?? 0,
+      }),
     ),
     overdueTruncated: false,
   };
@@ -1440,10 +1569,10 @@ export async function getProject(
   sql: Sql,
   auth: ProjectAuthContext,
   projectId: string,
-): Promise<ProjectRow> {
+): Promise<ProjectListRow> {
   const project = await loadProjectOrThrow(sql, projectId);
   assertReadable(project, auth);
-  return project;
+  return stampAccessFlags(project, auth);
 }
 
 /** Case-insensitive name search across visible projects (bounded). */
