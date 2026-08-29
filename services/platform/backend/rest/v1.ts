@@ -11,6 +11,7 @@ import { createCoreRoutes } from './v1-core.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
 import { createTaskRestRoutes } from './v1-tasks.ts';
 import { createThreadRestRoutes } from './v1-threads.ts';
+import { createRestWebsiteRoutes } from './v1-websites.ts';
 
 /**
  * /api/v1 — the REST machine door: Bearer API key (the Better Auth apiKey
@@ -119,6 +120,7 @@ export function createRestV1Routes(deps: {
   app.route('/', createTaskRestRoutes({ sql: deps.sql }));
   app.route('/', createThreadRestRoutes({ sql: deps.sql }));
   app.route('/', createAutomationRestRoutes({ sql: deps.sql }));
+  app.route('/', createRestWebsiteRoutes({ sql: deps.sql }));
 
   return app;
 }

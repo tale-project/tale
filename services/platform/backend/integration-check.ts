@@ -17,7 +17,7 @@
  * Better Auth tables, and app tables, and writes test rows.
  */
 
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -8042,6 +8042,426 @@ async function checkGoogleDriveSync(
 }
 
 /**
+ * Websites + the crawl engine — the REUSED 0.4 scan pipeline
+ * (discovery → polite fetch → boilerplate strip → chunk → index) running
+ * on pg-boss against a FAKE site (global-fetch interception; the engine's
+ * SSRF guard string-matches hostnames, so a public-looking fake domain
+ * passes and the interceptor answers instead of DNS). Pages are
+ * text/plain so the sandboxed render lane never opens a session (that
+ * lane needs a browser image — the wiring is live, the E2E stays out of
+ * the harness). Journey: register + first scan (corpus rows, chunks
+ * with NULL vectors — no embedding model —, row sync fan-out, pages/
+ * chunks/search reads) → drift (content change re-indexes in place, a
+ * 404 prunes the page + its chunks) → the failure ledger (attempt
+ * backoff, pause after repeated connection failures + admin bell, resume
+ * clears + re-kicks) → the REST /websites family end to end.
+ */
+async function checkWebsitesCrawl(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const websites = await import('./domains/websites/service.ts');
+  const scheduling = await import('../convex/websites/scan_scheduling.ts');
+
+  const DOMAIN = 'itest-crawl.example';
+  const site = new Map<
+    string,
+    { body: string; type: string; status?: number }
+  >();
+  site.set('/robots.txt', {
+    body: `User-agent: *\nSitemap: https://${DOMAIN}/sitemap.xml\n`,
+    type: 'text/plain',
+  });
+  site.set('/sitemap.xml', {
+    body: `<?xml version="1.0"?><urlset><url><loc>https://${DOMAIN}/</loc></url><url><loc>https://${DOMAIN}/a.txt</loc></url><url><loc>https://${DOMAIN}/docs/b.txt</loc></url></urlset>`,
+    type: 'application/xml',
+  });
+  site.set('/', {
+    body: 'Welcome to the itest crawl fixture home page. It has words about alpha topics and general documentation for the harness.',
+    type: 'text/plain',
+  });
+  site.set('/a.txt', {
+    body: 'Alpha content v1. This page describes the alpha subsystem in enough words to survive chunking thresholds in the pipeline.',
+    type: 'text/plain',
+  });
+  site.set('/docs/b.txt', {
+    body: 'Bravo content. This nested page covers the bravo subsystem and exists to prove nested paths crawl and index correctly.',
+    type: 'text/plain',
+  });
+
+  const realFetch = globalThis.fetch;
+  const fakeFetchImpl = async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ): Promise<Response> => {
+    const raw =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+    const url = new URL(raw);
+    if (url.hostname === DOMAIN || url.hostname === `www.${DOMAIN}`) {
+      const page = site.get(url.pathname);
+      if (!page) return new Response('gone', { status: 404 });
+      return new Response(page.body, {
+        status: page.status ?? 200,
+        headers: {
+          'content-type': page.type,
+          'content-length': String(page.body.length),
+        },
+      });
+    }
+    return realFetch(input, init);
+  };
+  globalThis.fetch = Object.assign(fakeFetchImpl, {
+    preconnect: (): void => {},
+  });
+
+  const corpus = await import('../convex/knowledge/pool.ts');
+  const pool = corpus.getKnowledgePool();
+
+  // Park the org's embedding config (an earlier check pointed it at a now-
+  // closed fake server): this journey proves the NO-EMBEDDING lane — chunks
+  // stored with NULL vectors, keyword search only (the 0.4 posture when no
+  // model is configured). Restored in the finally.
+  const orgSlugRows = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId} LIMIT 1
+  `;
+  const orgSlug = orgSlugRows[0]?.slug ?? '';
+  const embeddingConfigPath = path.join(
+    process.env.TALE_CONFIG_DIR ?? '',
+    orgSlug,
+    'knowledge',
+    'embedding.json',
+  );
+  let embeddingParked = false;
+  try {
+    await rename(embeddingConfigPath, `${embeddingConfigPath}.itest-parked`);
+    embeddingParked = true;
+  } catch (error) {
+    console.warn('[itest] no embedding config to park:', error);
+  }
+
+  try {
+    const post = (route: string, body: unknown): Promise<Response> =>
+      fetch(`${base}/api/app/websites${route}?orgId=${orgId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify(body),
+      });
+    const get = (route: string): Promise<Response> =>
+      fetch(
+        `${base}/api/app/websites${route}${route.includes('?') ? '&' : '?'}orgId=${orgId}`,
+        {
+          headers: { cookie },
+        },
+      );
+    const drainCrawlJobs = (): Promise<boolean> =>
+      waitFor(async () => {
+        const rows = await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pgboss.job
+          WHERE name IN ('websites.register', 'websites.scan',
+                         'websites.row_sync')
+            AND state IN ('created', 'retry', 'active')
+            AND start_after <= now()
+        `;
+        return Number(rows[0]?.count ?? '0') === 0;
+      }, 60_000);
+
+    // 1. Register + first scan through the reused engine.
+    const created = await post('', { domain: DOMAIN, scanInterval: '6h' });
+    const createdBody = z
+      .object({ id: z.string() })
+      .safeParse(await created.json());
+    const websiteId = createdBody.success ? createdBody.data.id : '';
+    const duplicate = await post('', { domain: DOMAIN, scanInterval: '6h' });
+    const badInterval = await post('', {
+      domain: 'other.example',
+      scanInterval: '99h',
+    });
+    const drained = await drainCrawlJobs();
+
+    const urlRows = await pool<
+      { url: string; status: string; contentHash: string | null }[]
+    >`
+      SELECT url, status, content_hash AS "contentHash"
+      FROM public_web.website_urls WHERE domain = ${DOMAIN}
+      ORDER BY url ASC
+    `;
+    const chunkCount = await pool<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM public_web.chunks
+      WHERE domain = ${DOMAIN}
+    `;
+    const corpusSiteRow = await pool<{ status: string }[]>`
+      SELECT status FROM public_web.websites WHERE domain = ${DOMAIN}
+    `;
+    const rowAfterScan = await websites.getWebsite(sql, websiteId);
+    const pages = z
+      .object({
+        pages: z.array(
+          z.object({
+            url: z.string(),
+            indexed: z.boolean(),
+            status: z.string(),
+          }),
+        ),
+        total: z.number(),
+      })
+      .safeParse(await (await get(`/${websiteId}/pages`)).json());
+    const chunks = z
+      .object({ total: z.number() })
+      .safeParse(
+        await (
+          await get(
+            `/${websiteId}/chunks?url=${encodeURIComponent(`https://${DOMAIN}/a.txt`)}`,
+          )
+        ).json(),
+      );
+    const search = z
+      .object({ results: z.array(z.unknown()) })
+      .safeParse(
+        await (await post(`/${websiteId}/search`, { query: 'alpha' })).json(),
+      );
+    record(
+      'websites register + first scan (reused engine on pg-boss)',
+      created.status === 201 &&
+        duplicate.status === 409 &&
+        badInterval.status === 400 &&
+        drained &&
+        urlRows.length === 3 &&
+        urlRows.every((row) => row.status === 'active' && row.contentHash) &&
+        Number(chunkCount[0]?.count ?? '0') >= 3 &&
+        corpusSiteRow[0]?.status === 'completed' &&
+        rowAfterScan?.status === 'active' &&
+        rowAfterScan.pageCount === 3 &&
+        rowAfterScan.crawledPageCount === 3 &&
+        rowAfterScan.lastScannedAt !== null &&
+        pages.success &&
+        pages.data.total === 3 &&
+        pages.data.pages.every((p) => p.indexed) &&
+        chunks.success &&
+        chunks.data.total >= 1 &&
+        search.success &&
+        search.data.results.length >= 1,
+      `create=${created.status} dup=${duplicate.status}/409 badInterval=${badInterval.status}/400 drained=${drained}, urls=${urlRows.length}/3 allActive=${urlRows.every((r) => r.status === 'active')}, chunks=${chunkCount[0]?.count}>=3 corpus=${corpusSiteRow[0]?.status}, row=${rowAfterScan?.status}/${rowAfterScan?.pageCount}p/${rowAfterScan?.crawledPageCount}c scanned=${rowAfterScan?.lastScannedAt !== null}, pages=${pages.success ? pages.data.total : 'ERR'} chunksRead=${chunks.success ? chunks.data.total : 'ERR'} search=${search.success ? search.data.results.length : 'ERR'}`,
+    );
+
+    // 2. Drift: changed content re-indexes IN PLACE; a 404 prunes the page
+    //    and its chunks (a site 404 is proof, partial discovery is not).
+    site.set('/a.txt', {
+      body: 'Alpha content v2 — rewritten body with fresh wording so the content hash flips and the chunks regenerate on this scan.',
+      type: 'text/plain',
+    });
+    site.delete('/docs/b.txt');
+    await websites.runWebsitesScan(sql, {
+      domain: DOMAIN,
+      orgSlug,
+      organizationId: orgId,
+    });
+    await drainCrawlJobs();
+    const aChunks = await pool<{ content: string }[]>`
+      SELECT chunk_content AS content FROM public_web.chunks
+      WHERE domain = ${DOMAIN} AND url = ${`https://${DOMAIN}/a.txt`}
+    `;
+    const bRows = await pool<{ status: string }[]>`
+      SELECT status FROM public_web.website_urls
+      WHERE domain = ${DOMAIN} AND url = ${`https://${DOMAIN}/docs/b.txt`}
+    `;
+    const bChunks = await pool<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM public_web.chunks
+      WHERE domain = ${DOMAIN} AND url = ${`https://${DOMAIN}/docs/b.txt`}
+    `;
+    const pagesAfterDrift = z
+      .object({ total: z.number() })
+      .safeParse(await (await get(`/${websiteId}/pages`)).json());
+    record(
+      'websites drift: in-place re-index + 404 prune',
+      aChunks.length >= 1 &&
+        aChunks.every((chunk) => chunk.content.includes('v2')) &&
+        bRows[0]?.status === 'deleted' &&
+        Number(bChunks[0]?.count ?? '9') === 0 &&
+        pagesAfterDrift.success &&
+        pagesAfterDrift.data.total === 2,
+      `aChunks=${aChunks.length} allV2=${aChunks.every((c) => c.content.includes('v2'))}, b=${bRows[0]?.status}/deleted bChunks=${bChunks[0]?.count}/0, pages=${pagesAfterDrift.success ? pagesAfterDrift.data.total : 'ERR'}/2`,
+    );
+
+    // 3. The failure ledger: attempts advance the scheduler clock, repeated
+    //    connection failures pause the site + notify admins ONCE, resume
+    //    clears the bookkeeping and re-kicks a scan.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await websites.recordScanFailure(sql, {
+        organizationId: orgId,
+        domain: DOMAIN,
+        message: `itest connection failure ${attempt + 1}`,
+        corpusUnreachable: true,
+      });
+    }
+    const pausedRow = await websites.getWebsite(sql, websiteId);
+    const pausedMeta = pausedRow?.metadata ?? {};
+    const schedule = await websites.listWebsitesForScanScheduling(sql);
+    const scheduled = schedule.find((s) => s.domain === DOMAIN);
+    const pausedIsDue = scheduled
+      ? scheduling.isDueForScan(scheduled, Date.now() + 365 * 24 * 3_600_000)
+      : true;
+    const bell = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.notifications
+      WHERE org_id = ${orgId} AND title_key = 'websiteScanPaused'
+    `;
+    const resume = await post(`/${websiteId}/resume`, {});
+    await drainCrawlJobs();
+    const resumedRow = await websites.getWebsite(sql, websiteId);
+    const resumedMeta = resumedRow?.metadata ?? {};
+    record(
+      'websites failure ledger: backoff, pause + bell, resume clears',
+      pausedRow?.status === 'error' &&
+        pausedMeta.scanPausedAt != null &&
+        pausedMeta.corpusConnectionFailures === 3 &&
+        scheduled?.scanPaused === true &&
+        !pausedIsDue &&
+        Number(bell[0]?.count ?? '0') === 1 &&
+        resume.status === 200 &&
+        resumedMeta.scanPausedAt == null &&
+        resumedMeta.corpusConnectionFailures == null &&
+        resumedRow?.status === 'active',
+      `paused=${pausedRow?.status}/${String(pausedMeta.scanPausedAt != null)} failures=${String(pausedMeta.corpusConnectionFailures)}/3 schedPaused=${scheduled?.scanPaused} due=${pausedIsDue}(want false) bell=${bell[0]?.count}/1, resume=${resume.status} cleared=${resumedMeta.scanPausedAt == null && resumedMeta.corpusConnectionFailures == null} status=${resumedRow?.status}/active(post-rescan)`,
+    );
+
+    // 4. The REST /websites family (the 0.4 rest_api contract) + a URL-list
+    //    registration merging on re-post, and delete deregistering the
+    //    corpus rows (last member takes the domain with it).
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie, origin: base },
+          body: JSON.stringify({ name: 'itest-websites' }),
+        })
+      ).json(),
+    );
+    const apiKey = minted.success ? minted.data.key : '';
+    const v1 = (
+      route: string,
+      init: { method?: string; body?: unknown } = {},
+    ): Promise<Response> =>
+      fetch(`${base}/api/v1${route}`, {
+        method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+        },
+        ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      });
+
+    const LIST_DOMAIN = 'itest-list.example';
+    site.set('/list-1.txt', {
+      body: 'Listed page one for the curated URL list lane with enough words to index without any discovery pass at all.',
+      type: 'text/plain',
+    });
+    const listCreated = z.object({ id: z.string() }).safeParse(
+      await (
+        await v1('/websites', {
+          body: {
+            domain: LIST_DOMAIN,
+            scanInterval: '1d',
+            urls: [`https://${LIST_DOMAIN}/list-1.txt`],
+          },
+        })
+      ).json(),
+    );
+    const listBadUrl = await v1('/websites', {
+      body: {
+        domain: LIST_DOMAIN,
+        scanInterval: '1d',
+        urls: ['https://elsewhere.example/x'],
+      },
+    });
+    await drainCrawlJobs();
+    const listedUrls = await pool<{ url: string; listed: boolean }[]>`
+      SELECT url, listed FROM public_web.website_urls
+      WHERE domain = ${LIST_DOMAIN}
+    `;
+    const listKind = await pool<{ kind: string }[]>`
+      SELECT kind FROM public_web.websites WHERE domain = ${LIST_DOMAIN}
+    `;
+
+    const restList = z
+      .object({ page: z.array(z.object({ id: z.string() })) })
+      .safeParse(await (await v1('/websites?limit=50')).json());
+    const restPatch = await v1(`/websites/${websiteId}`, {
+      method: 'PATCH',
+      body: { scanInterval: '1d' },
+    });
+    const restPages = z
+      .object({ total: z.number() })
+      .safeParse(await (await v1(`/websites/${websiteId}/pages`)).json());
+    const restSync = z
+      .object({ status: z.string() })
+      .safeParse(
+        await (await v1(`/websites/${websiteId}/sync`, { body: {} })).json(),
+      );
+    const restSearch = z.object({ results: z.array(z.unknown()) }).safeParse(
+      await (
+        await v1(`/websites/${websiteId}/search`, {
+          body: { query: 'alpha' },
+        })
+      ).json(),
+    );
+    const listId = listCreated.success ? listCreated.data.id : '';
+    const restDeleteList = await v1(`/websites/${listId}`, {
+      method: 'DELETE',
+    });
+    const restDeleteSite = await v1(`/websites/${websiteId}`, {
+      method: 'DELETE',
+    });
+    await drainCrawlJobs();
+    const corpusGone = await pool<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM public_web.websites
+      WHERE domain IN (${DOMAIN}, ${LIST_DOMAIN})
+    `;
+    const rowsGone = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.websites
+      WHERE org_id = ${orgId}
+    `;
+    record(
+      'websites REST family + URL list + delete deregisters the corpus',
+      listCreated.success &&
+        listBadUrl.status === 400 &&
+        listedUrls.length === 1 &&
+        (listedUrls[0]?.listed ?? false) &&
+        listKind[0]?.kind === 'list' &&
+        restList.success &&
+        restList.data.page.length >= 2 &&
+        restPatch.status === 204 &&
+        restPages.success &&
+        restPages.data.total === 2 &&
+        restSync.success &&
+        restSync.data.status === 'syncing' &&
+        restSearch.success &&
+        restDeleteList.status === 204 &&
+        restDeleteSite.status === 204 &&
+        Number(corpusGone[0]?.count ?? '9') === 0 &&
+        Number(rowsGone[0]?.count ?? '9') === 0,
+      `list=${listCreated.success}/${listBadUrl.status}(want 400) urls=${listedUrls.length}/1 listed=${listedUrls[0]?.listed} kind=${listKind[0]?.kind}, rest list=${restList.success ? restList.data.page.length : 'ERR'}>=2 patch=${restPatch.status}/204 pages=${restPages.success ? restPages.data.total : 'ERR'}/2 sync=${restSync.success ? restSync.data.status : 'ERR'} search=${restSearch.success}, delete=${restDeleteList.status}/${restDeleteSite.status} corpusGone=${corpusGone[0]?.count}/0 rowsGone=${rowsGone[0]?.count}/0`,
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    if (embeddingParked) {
+      try {
+        await rename(
+          `${embeddingConfigPath}.itest-parked`,
+          embeddingConfigPath,
+        );
+      } catch (error) {
+        console.warn('[itest] embedding config restore failed:', error);
+      }
+    }
+  }
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -13358,6 +13778,7 @@ async function main(): Promise<void> {
     await checkCloudImport(sql, baseUrl, authCtx);
     await checkOneDriveSync(sql, baseUrl, authCtx);
     await checkGoogleDriveSync(sql, baseUrl, authCtx);
+    await checkWebsitesCrawl(sql, baseUrl, authCtx);
     await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAgentSecrets(sql, baseUrl, authCtx);

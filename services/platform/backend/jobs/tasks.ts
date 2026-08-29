@@ -130,6 +130,28 @@ export interface TaskPayloads {
   'google_drive.sync_scan': Record<string, never>;
   /** Reconcile one Google Drive sync config (claim-fenced). */
   'google_drive.sync_config': { organizationId: string; configId: string };
+  /** 5-min website crawl scheduler tick (the 0.4 cron). */
+  'websites.scan_due': Record<string, never>;
+  /** One continuation link of a domain scan — the reused engine body
+   * self-chains through this queue; the corpus-side claim is the fence. */
+  'websites.scan': {
+    domain: string;
+    orgSlug: string;
+    organizationId: string;
+    continuation?: number;
+    scanStartedAt?: string;
+  };
+  /** Register a website (or URL list) in the corpus + kick its first scan
+   * (the 0.4 `registerAndSync`, fire-and-forget behind the create). */
+  'websites.register': {
+    websiteId: string;
+    domain: string;
+    scanInterval: string;
+    organizationId: string;
+    urls?: string[];
+  };
+  /** Push the corpus-side truth onto one (orgSlug, domain) websites row. */
+  'websites.row_sync': { orgSlug: string; domain: string };
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -212,4 +234,11 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'onedrive.sync_config': { retryLimit: 0, expireInSeconds: 1800 },
   'google_drive.sync_scan': { retryLimit: 1, expireInSeconds: 300 },
   'google_drive.sync_config': { retryLimit: 0, expireInSeconds: 1800 },
+  'websites.scan_due': { retryLimit: 1, expireInSeconds: 240 },
+  // At-most-once per link: the engine records its own failures on the row
+  // and the 5-min scheduler is the retry; the corpus claim fences overlap.
+  // A link's budget is ~9 minutes (the 0.4 action hard wall).
+  'websites.scan': { retryLimit: 0, expireInSeconds: 900 },
+  'websites.register': { retryLimit: 1, expireInSeconds: 300 },
+  'websites.row_sync': { retryLimit: 0, expireInSeconds: 120 },
 };

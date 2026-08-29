@@ -58,6 +58,7 @@ import {
   createWebdavAdminRoutes,
   createWebdavProtocolRoutes,
 } from './domains/webdav/routes.ts';
+import { createWebsiteRoutes } from './domains/websites/routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
 import { createRestV1Routes } from './rest/v1.ts';
 
@@ -158,5 +159,6 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/teams', createTeamRoutes(deps));
   app.route('/api/app/user-preferences', createUserPreferenceRoutes(deps));
   app.route('/api/app/users', createUserRoutes(deps));
+  app.route('/api/app/websites', createWebsiteRoutes(deps));
   return app;
 }

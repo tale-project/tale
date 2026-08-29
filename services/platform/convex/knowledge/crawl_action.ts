@@ -165,7 +165,22 @@ export const scanWebsite = internalAction({
     scanStartedAt: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
+  handler: async (ctx, args): Promise<null> => scanWebsiteImpl(ctx, args),
+});
+
+/** The engine body, hoisted so the 0.5 backend can run it on a ctx shim
+ * (the wrapper above keeps the 0.4 wiring). */
+export async function scanWebsiteImpl(
+  ctx: ActionCtx,
+  args: {
+    domain: string;
+    orgSlug: string;
+    organizationId: string;
+    continuation?: number;
+    scanStartedAt?: string;
+  },
+): Promise<null> {
+  {
     const actionStartedAt = Date.now();
     const continuation = args.continuation ?? 0;
     const scanStartedAt = args.scanStartedAt ?? new Date().toISOString();
@@ -390,8 +405,8 @@ export const scanWebsite = internalAction({
 
     await fanOutRowSync(ctx, sql, args.domain);
     return null;
-  },
-});
+  }
+}
 
 /**
  * The five-minute scheduler: find websites whose scan interval has elapsed
@@ -402,7 +417,12 @@ export const scanWebsite = internalAction({
 export const scanDueWebsites = internalAction({
   args: {},
   returns: v.null(),
-  handler: async (ctx): Promise<null> => {
+  handler: async (ctx): Promise<null> => scanDueWebsitesImpl(ctx),
+});
+
+/** The scheduler body, hoisted for the 0.5 backend (see scanWebsiteImpl). */
+export async function scanDueWebsitesImpl(ctx: ActionCtx): Promise<null> {
+  {
     const websites = await ctx.runQuery(
       internal.websites.internal_queries.listWebsitesForScanScheduling,
       {},
@@ -432,8 +452,8 @@ export const scanDueWebsites = internalAction({
       );
     }
     return null;
-  },
-});
+  }
+}
 
 /** What this domain row is: a crawled site (pages discovered) or a curated
  * URL list (exactly the listed rows are fetched). Rows that predate the

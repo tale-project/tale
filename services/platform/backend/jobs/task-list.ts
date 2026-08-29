@@ -37,6 +37,12 @@ import { kickAgentRun } from '../domains/tasks/agent-runs.ts';
 import { agentTurnShimHandlers } from '../domains/tasks/agent-turn-shim.ts';
 import { resolveTaskKickStartArgs } from '../domains/tasks/kick-plan.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
+import {
+  runWebsiteRegister,
+  runWebsitesRowSync,
+  runWebsitesScan,
+  runWebsitesScanDue,
+} from '../domains/websites/service.ts';
 import { createCtxShim } from '../lib/convex-shim.ts';
 
 /** One task handler; `payload` is a job row — external input, re-validate. */
@@ -337,6 +343,42 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         })
         .parse(payload);
       await runGoogleDriveSyncConfigJob(deps.sql, input);
+    },
+    'websites.scan_due': async () => {
+      await runWebsitesScanDue(deps.sql);
+    },
+    'websites.scan': async (payload) => {
+      const input = z
+        .object({
+          domain: z.string().min(1),
+          orgSlug: z.string().min(1),
+          organizationId: z.string().min(1),
+          continuation: z.number().int().min(0).optional(),
+          scanStartedAt: z.string().optional(),
+        })
+        .parse(payload);
+      await runWebsitesScan(deps.sql, input);
+    },
+    'websites.register': async (payload) => {
+      const input = z
+        .object({
+          websiteId: z.string().min(1),
+          domain: z.string().min(1),
+          scanInterval: z.string().min(1),
+          organizationId: z.string().min(1),
+          urls: z.array(z.string()).optional(),
+        })
+        .parse(payload);
+      await runWebsiteRegister(deps.sql, input);
+    },
+    'websites.row_sync': async (payload) => {
+      const input = z
+        .object({
+          orgSlug: z.string().min(1),
+          domain: z.string().min(1),
+        })
+        .parse(payload);
+      await runWebsitesRowSync(deps.sql, input);
     },
     'task.agent_turn': async (payload) => {
       const input = z

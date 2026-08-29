@@ -35,6 +35,8 @@ const SCHEDULES: CronSchedule[] = [
   // staggered so the two vendors' scans don't land on the same tick.
   { name: 'onedrive.sync_scan', cron: '*/15 * * * *' },
   { name: 'google_drive.sync_scan', cron: '7-59/15 * * * *' },
+  // Website crawls: who is due, staggered kick-offs (the 0.4 5-min cron).
+  { name: 'websites.scan_due', cron: '*/5 * * * *' },
 ];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {
