@@ -161,6 +161,17 @@ export interface TaskPayloads {
     organizationId: string;
     attempt?: number;
   };
+  /** One video-link ingest attempt (the reused orchestrator; its
+   * [30s,60s,120s] retry self-chain re-enters this queue). */
+  'video.ingest': { jobId: string; userLocale?: string };
+  /** Materialize a donor transcript for a clone job (no yt-dlp). */
+  'video.clone': {
+    jobId: string;
+    donorFileMetadataId: string;
+    organizationId: string;
+  };
+  /** 5-min stuck-row watchdog + lazy unbound GC for video-link jobs. */
+  'video.watchdog': Record<string, never>;
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -247,6 +258,11 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // At-most-once per attempt: the pipeline classifies its own errors and
   // self-chains retries; the single-flight lease on the row fences dupes.
   'files.transcribe': { retryLimit: 0, expireInSeconds: 2100 },
+  // At-most-once: the orchestrator persists attempts and self-chains its
+  // retries; a lost job is the watchdog's to fail, never pg-boss's to redo.
+  'video.ingest': { retryLimit: 0, expireInSeconds: 1500 },
+  'video.clone': { retryLimit: 1, expireInSeconds: 300 },
+  'video.watchdog': { retryLimit: 1, expireInSeconds: 240 },
   // At-most-once per link: the engine records its own failures on the row
   // and the 5-min scheduler is the retry; the corpus claim fences overlap.
   // A link's budget is ~9 minutes (the 0.4 action hard wall).

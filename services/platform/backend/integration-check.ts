@@ -8744,6 +8744,479 @@ async function checkTranscription(
 }
 
 /**
+ * Video links — the REUSED 0.4 ingest orchestrator on pg-boss, against a
+ * FAKE yt-dlp (a shell script planted via `VIDEO_INGEST_BIN_DIR`, the
+ * engine's own live-test seam — the spawn env is stripped, so behavior is
+ * keyed off the video id in the URL; the audio fixture is synthesized by
+ * the real ffmpeg the pipeline also uses). Journey: captions path
+ * (manual-en selection → VTT parse → chapter TOC + provenance header →
+ * synthetic transcript row) → in-thread dedup + bind/unbind doors →
+ * donor clone in a second thread (no yt-dlp) → whisper path (audio
+ * extract → the inc-68 transcription pipeline via the reactive join) →
+ * a never-retry failure (`unavailable`) + the retry door → cancel +
+ * in-flight cap + the stuck-row watchdog.
+ */
+async function checkVideoLinks(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'video links (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — transcripts need a blob store',
+    );
+    return;
+  }
+  const { cookie, orgId, userId } = ctx;
+  const { createServer } = await import('node:http');
+  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+
+  // Fake whisper for the audio branch (the transcription check's fake has
+  // closed; re-point the default openai credential at this one).
+  let whisperCalls = 0;
+  const whisperServer = createServer((req, res) => {
+    req.on('data', () => undefined);
+    req.on('end', () => {
+      if (!(req.url ?? '').endsWith('/audio/transcriptions')) {
+        res.statusCode = 404;
+        res.end('{}');
+        return;
+      }
+      whisperCalls += 1;
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          text: 'Whisper transcript of the itest video.',
+          duration: 2.0,
+          segments: [
+            {
+              id: 0,
+              start: 0,
+              end: 2,
+              text: 'Whisper transcript of the itest video.',
+            },
+          ],
+        }),
+      );
+    });
+  });
+  await new Promise<void>((resolve) => {
+    whisperServer.listen(0, '127.0.0.1', resolve);
+  });
+  const whisperAddress = whisperServer.address();
+  const whisperPort =
+    whisperAddress !== null && typeof whisperAddress === 'object'
+      ? whisperAddress.port
+      : 0;
+
+  // Fake yt-dlp: behavior keyed off the v= id in the URL (the spawn env is
+  // stripped, so no env channel exists). Audio comes from the real ffmpeg.
+  const binDir = await mkdtemp(path.join(tmpdir(), 'itest-ytdlp-'));
+  const fakeYtdlp = `#!/usr/bin/env bash
+set -u
+args=("$@")
+url="\${args[\${#args[@]}-1]}"
+home_dir=""
+for a in "\${args[@]}"; do
+  case "$a" in home:*) home_dir="\${a#home:}";; esac
+done
+case "$*" in
+  *--help*) echo "Usage: yt-dlp (itest fake)"; exit 0;;
+esac
+vid=""
+case "$url" in
+  *v=capt1*) vid="capt1";;
+  *v=whis1*) vid="whis1";;
+  *v=gone1*) vid="gone1";;
+esac
+if [[ "$*" == *" -J "* || "\${args[0]}" == "-J" || "$*" == *"-J --"* ]]; then
+  case "$vid" in
+    capt1)
+      echo '{"id":"capt1","title":"Captioned itest video","uploader":"ItestChannel","duration":63,"language":"en","subtitles":{"en":[{"ext":"vtt"}]},"automatic_captions":{},"chapters":[{"start_time":0,"end_time":30,"title":"Intro"},{"start_time":30,"end_time":63,"title":"Deep dive"}]}'
+      exit 0;;
+    whis1)
+      echo '{"id":"whis1","title":"Whisper itest video","duration":42,"subtitles":{},"automatic_captions":{}}'
+      exit 0;;
+    gone1)
+      echo "ERROR: [youtube] gone1: Video unavailable" >&2
+      exit 1;;
+    *)
+      echo "ERROR: unknown itest video" >&2
+      exit 1;;
+  esac
+fi
+if [[ "$*" == *"--write-subs"* ]]; then
+  cat > "$home_dir/capt1.en.vtt" <<'VTT'
+WEBVTT
+
+00:00:00.000 --> 00:00:04.000
+Hello from captions, first cue of the itest video.
+
+00:00:04.000 --> 00:00:08.000
+Second cue with more caption words for the transcript body.
+VTT
+  exit 0
+fi
+if [[ "$*" == *" -x "* || "\${args[0]}" == "-x" ]]; then
+  /usr/bin/ffmpeg -hide_banner -loglevel error -f lavfi -i sine=frequency=440:duration=2 -b:a 32k "$home_dir/whis1.mp3"
+  exit 0
+fi
+echo "ERROR: itest fake yt-dlp got unexpected args: $*" >&2
+exit 1
+`;
+  await writeFile(path.join(binDir, 'yt-dlp'), fakeYtdlp, { mode: 0o755 });
+  const savedBinDir = process.env.VIDEO_INGEST_BIN_DIR;
+  process.env.VIDEO_INGEST_BIN_DIR = binDir;
+
+  try {
+    const send = (route: string, body?: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    await sql`
+      UPDATE app.provider_credentials
+      SET endpoint_url = ${`http://127.0.0.1:${whisperPort}/v1`}
+      WHERE org_id = ${orgId} AND provider_slug = 'openai' AND is_default
+    `;
+
+    const thread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Video thread',
+        })
+      ).json(),
+    );
+    const threadId = thread.success ? thread.data.id : '';
+    const drainVideoJobs = (): Promise<boolean> =>
+      waitFor(async () => {
+        const rows = await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM pgboss.job
+          WHERE name IN ('video.ingest', 'video.clone', 'files.transcribe')
+            AND state IN ('created', 'retry', 'active')
+            AND start_after <= now()
+        `;
+        return Number(rows[0]?.count ?? '0') === 0;
+      }, 90_000);
+    const muteRagJobs = async (): Promise<void> => {
+      await sql`
+        UPDATE app.file_metadata SET skip_rag_indexing = true
+        WHERE org_id = ${orgId} AND source = 'video_link'
+      `;
+    };
+    const jobRow = async (
+      jobId: string,
+    ): Promise<{
+      status: string;
+      transcriptSource: string | null;
+      captionTrackKind: string | null;
+      captionLang: string | null;
+      errorReasonCode: string | null;
+      attempts: number | null;
+      storageRef: string | null;
+      fileMetadataId: string | null;
+    } | null> => {
+      const rows = await sql<
+        {
+          status: string;
+          transcriptSource: string | null;
+          captionTrackKind: string | null;
+          captionLang: string | null;
+          errorReasonCode: string | null;
+          attempts: number | null;
+          storageRef: string | null;
+          fileMetadataId: string | null;
+        }[]
+      >`
+        SELECT status, transcript_source AS "transcriptSource",
+               caption_track_kind AS "captionTrackKind",
+               caption_lang AS "captionLang",
+               error_reason_code AS "errorReasonCode", attempts,
+               storage_ref AS "storageRef",
+               file_metadata_id AS "fileMetadataId"
+        FROM app.video_link_jobs WHERE id = ${jobId} LIMIT 1
+      `;
+      return rows[0] ?? null;
+    };
+
+    // 1. Captions path end to end.
+    const captUrl = 'https://www.youtube.com/watch?v=capt1';
+    const ingest = z.object({ jobId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/video-links/ingest?orgId=${orgId}`, {
+          url: captUrl,
+          pastedToken: captUrl,
+          threadId,
+          userLocale: 'en',
+        })
+      ).json(),
+    );
+    const captJobId = ingest.success ? ingest.data.jobId : '';
+    const drained = await drainVideoJobs();
+    await muteRagJobs();
+    const captJob = await jobRow(captJobId);
+    const captFile = captJob?.fileMetadataId
+      ? await sql<
+          {
+            transcript: string | null;
+            source: string | null;
+            threadId: string | null;
+          }[]
+        >`
+          SELECT transcript, source, thread_id AS "threadId"
+          FROM app.file_metadata WHERE id = ${captJob.fileMetadataId} LIMIT 1
+        `
+      : [];
+    const captTranscript = captFile[0]?.transcript ?? '';
+    const listed = z
+      .object({
+        jobs: z.array(
+          z.looseObject({ jobId: z.string(), displayStatus: z.string() }),
+        ),
+      })
+      .safeParse(
+        await (
+          await send(`/api/app/video-links/thread/${threadId}?orgId=${orgId}`)
+        ).json(),
+      );
+    record(
+      'video links: captions path (fake yt-dlp, VTT → transcript row)',
+      ingest.success &&
+        drained &&
+        captJob?.status === 'completed' &&
+        captJob.captionTrackKind === 'manual' &&
+        captJob.captionLang === 'en' &&
+        captTranscript.includes('Source: https://www.youtube.com') &&
+        captTranscript.includes('Chapters:') &&
+        captTranscript.includes('Hello from captions') &&
+        captFile[0]?.source === 'video_link' &&
+        captFile[0].threadId === threadId &&
+        listed.success &&
+        listed.data.jobs.some(
+          (j) => j.jobId === captJobId && j.displayStatus === 'completed',
+        ),
+      `ingest=${ingest.success} drained=${drained} job=${captJob?.status}/${captJob?.captionTrackKind}:${captJob?.captionLang}, transcript(hdr=${captTranscript.includes('Source: https://www.youtube.com')} toc=${captTranscript.includes('Chapters:')} body=${captTranscript.includes('Hello from captions')}), file=${captFile[0]?.source}/${captFile[0]?.threadId === threadId}, chip=${listed.success ? listed.data.jobs.find((j) => j.jobId === captJobId)?.displayStatus : 'ERR'}`,
+    );
+
+    // 2. Dedup, bind/unbind doors, donor clone into a second thread.
+    const dedup = z.object({ jobId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/video-links/ingest?orgId=${orgId}`, {
+          url: captUrl,
+          pastedToken: captUrl,
+          threadId,
+        })
+      ).json(),
+    );
+    const bind = z
+      .object({
+        attachments: z.array(
+          z.looseObject({ jobId: z.string(), fileId: z.string() }),
+        ),
+      })
+      .safeParse(
+        await (
+          await send(`/api/app/video-links/bind?orgId=${orgId}`, { threadId })
+        ).json(),
+      );
+    const rebind = z
+      .object({ attachments: z.array(z.unknown()) })
+      .safeParse(
+        await (
+          await send(`/api/app/video-links/bind?orgId=${orgId}`, { threadId })
+        ).json(),
+      );
+    const unbind = await send(`/api/app/video-links/unbind?orgId=${orgId}`, {
+      jobIds: [captJobId],
+    });
+
+    const thread2 = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Video thread 2',
+        })
+      ).json(),
+    );
+    const threadId2 = thread2.success ? thread2.data.id : '';
+    const donorIngest = z.object({ jobId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/video-links/ingest?orgId=${orgId}`, {
+          url: captUrl,
+          pastedToken: captUrl,
+          threadId: threadId2,
+        })
+      ).json(),
+    );
+    const donorJobId = donorIngest.success ? donorIngest.data.jobId : '';
+    await drainVideoJobs();
+    await muteRagJobs();
+    const donorJob = await jobRow(donorJobId);
+    const donorFile = donorJob?.fileMetadataId
+      ? await sql<{ transcript: string | null }[]>`
+          SELECT transcript FROM app.file_metadata
+          WHERE id = ${donorJob.fileMetadataId} LIMIT 1
+        `
+      : [];
+    const donorAudit = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'video_link.ingest'
+        AND metadata->>'reusedTranscript' = 'true'
+    `;
+    record(
+      'video links: dedup + bind/unbind + donor clone (no yt-dlp)',
+      dedup.success &&
+        dedup.data.jobId === captJobId &&
+        bind.success &&
+        bind.data.attachments.length === 1 &&
+        bind.data.attachments[0]?.jobId === captJobId &&
+        rebind.success &&
+        rebind.data.attachments.length === 0 &&
+        unbind.status === 200 &&
+        donorJobId !== captJobId &&
+        donorJob?.status === 'completed' &&
+        (donorFile[0]?.transcript ?? '').includes('Hello from captions') &&
+        Number(donorAudit[0]?.count ?? '0') === 1,
+      `dedup=${dedup.success && dedup.data.jobId === captJobId}, bind=${bind.success ? bind.data.attachments.length : 'ERR'}/1 rebind=${rebind.success ? rebind.data.attachments.length : 'ERR'}/0 unbind=${unbind.status}, donor=${donorJob?.status} sameText=${(donorFile[0]?.transcript ?? '').includes('Hello from captions')} auditReuse=${donorAudit[0]?.count}/1`,
+    );
+
+    // 3. Whisper path via the inc-68 pipeline, the never-retry failure +
+    //    retry door, cancel, the in-flight cap, and the watchdog.
+    const whisUrl = 'https://www.youtube.com/watch?v=whis1';
+    const whisIngest = z.object({ jobId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/video-links/ingest?orgId=${orgId}`, {
+          url: whisUrl,
+          pastedToken: whisUrl,
+          threadId,
+        })
+      ).json(),
+    );
+    const whisJobId = whisIngest.success ? whisIngest.data.jobId : '';
+    await drainVideoJobs();
+    await muteRagJobs();
+    const whisJob = await jobRow(whisJobId);
+    const whisFile = whisJob?.storageRef
+      ? await sql<
+          { transcriptionStatus: string | null; transcript: string | null }[]
+        >`
+          SELECT transcription_status AS "transcriptionStatus", transcript
+          FROM app.file_metadata
+          WHERE org_id = ${orgId} AND storage_ref = ${whisJob.storageRef}
+          LIMIT 1
+        `
+      : [];
+    const whisChip = z
+      .object({
+        jobs: z.array(
+          z.looseObject({ jobId: z.string(), displayStatus: z.string() }),
+        ),
+      })
+      .safeParse(
+        await (
+          await send(`/api/app/video-links/thread/${threadId}?orgId=${orgId}`)
+        ).json(),
+      );
+
+    const goneUrl = 'https://www.youtube.com/watch?v=gone1';
+    const goneIngest = z.object({ jobId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/video-links/ingest?orgId=${orgId}`, {
+          url: goneUrl,
+          pastedToken: goneUrl,
+          threadId,
+        })
+      ).json(),
+    );
+    const goneJobId = goneIngest.success ? goneIngest.data.jobId : '';
+    await drainVideoJobs();
+    const goneJob = await jobRow(goneJobId);
+    const retry = await send(
+      `/api/app/video-links/${goneJobId}/retry?orgId=${orgId}`,
+      {},
+    );
+    await drainVideoJobs();
+    const goneAfterRetry = await jobRow(goneJobId);
+    const cancel = await send(
+      `/api/app/video-links/${goneJobId}/cancel?orgId=${orgId}`,
+      {},
+    );
+    const goneAfterCancel = await jobRow(goneJobId);
+
+    // In-flight cap: three seeded non-terminal rows block a fourth ingest.
+    const seededIds: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const rows = await sql<{ id: string }[]>`
+        INSERT INTO app.video_link_jobs (
+          org_id, uploaded_by, source_url, source_url_hash, source_platform,
+          pasted_token, status, status_changed_at_ms, attempts,
+          lifecycle_status, created_at_ms
+        ) VALUES (
+          ${orgId}, ${userId}, ${`https://www.youtube.com/watch?v=seed${i}`},
+          ${`seedhash${i}`}, 'youtube', 'seed', 'fetching_metadata',
+          ${Date.now()}, 0, 'active', ${Date.now()}
+        )
+        RETURNING id
+      `;
+      const id = rows[0]?.id;
+      if (id) seededIds.push(id);
+    }
+    const capped = await send(`/api/app/video-links/ingest?orgId=${orgId}`, {
+      url: 'https://www.youtube.com/watch?v=capX9',
+      pastedToken: 'x',
+      threadId,
+    });
+    // Age one seeded row past the fetching_metadata window → watchdog fails
+    // it; the other two are cleaned up directly.
+    const staleId = seededIds[0] ?? '';
+    await sql`
+      UPDATE app.video_link_jobs
+      SET status_changed_at_ms = ${Date.now() - 6 * 60_000}
+      WHERE id = ${staleId}
+    `;
+    const video = await import('./domains/video_links/service.ts');
+    await video.runVideoLinkWatchdog(sql);
+    const staleAfter = await jobRow(staleId);
+    await sql`
+      DELETE FROM app.video_link_jobs
+      WHERE id = ANY(${seededIds.slice(1)})
+    `;
+    record(
+      'video links: whisper path + failure/retry/cancel + cap + watchdog',
+      whisJob?.status === 'transcribing_handoff' &&
+        whisJob.transcriptSource === 'whisper' &&
+        whisFile[0]?.transcriptionStatus === 'completed' &&
+        (whisFile[0].transcript ?? '').includes('Whisper transcript') &&
+        whisperCalls >= 1 &&
+        whisChip.success &&
+        whisChip.data.jobs.some(
+          (j) => j.jobId === whisJobId && j.displayStatus === 'completed',
+        ) &&
+        goneJob?.status === 'failed' &&
+        goneJob.errorReasonCode === 'unavailable' &&
+        retry.status === 200 &&
+        goneAfterRetry?.status === 'failed' &&
+        (goneAfterRetry.attempts ?? 0) >= 1 &&
+        cancel.status === 200 &&
+        goneAfterCancel?.status === 'skipped' &&
+        capped.status === 429 &&
+        staleAfter?.status === 'failed' &&
+        staleAfter.errorReasonCode === 'transient',
+      `whisper: job=${whisJob?.status}/${whisJob?.transcriptSource} file=${whisFile[0]?.transcriptionStatus} calls=${whisperCalls} chip=${whisChip.success ? whisChip.data.jobs.find((j) => j.jobId === whisJobId)?.displayStatus : 'ERR'}; gone=${goneJob?.status}/${goneJob?.errorReasonCode} retry=${retry.status}→${goneAfterRetry?.status}(attempts=${goneAfterRetry?.attempts}) cancel=${cancel.status}→${goneAfterCancel?.status}; cap=${capped.status}/429 watchdog=${staleAfter?.status}/${staleAfter?.errorReasonCode}`,
+    );
+  } finally {
+    whisperServer.close();
+    if (savedBinDir === undefined) {
+      delete process.env.VIDEO_INGEST_BIN_DIR;
+    } else {
+      process.env.VIDEO_INGEST_BIN_DIR = savedBinDir;
+    }
+  }
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -14062,6 +14535,7 @@ async function main(): Promise<void> {
     await checkGoogleDriveSync(sql, baseUrl, authCtx);
     await checkWebsitesCrawl(sql, baseUrl, authCtx);
     await checkTranscription(sql, baseUrl, authCtx);
+    await checkVideoLinks(sql, baseUrl, authCtx);
     await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAgentSecrets(sql, baseUrl, authCtx);

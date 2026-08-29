@@ -15,6 +15,7 @@ import {
 } from '../../lib/convex-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
+import { heartbeatJobByStorageRef } from '../video_links/service.ts';
 import { FileError } from './service.ts';
 
 /**
@@ -143,10 +144,12 @@ function transcriptionHandlers(sql: Sql): ShimHandlers {
       `;
       return null;
     },
-    // The video-links domain is not ported yet — its per-chunk heartbeat is
-    // an honest no-op until that increment lands (the transcript itself
-    // settles on the file row either way).
-    'video_links/internal_mutations:heartbeatJobByStorageId': async () => null,
+    'video_links/internal_mutations:heartbeatJobByStorageId': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the pipeline passes exactly this shape
+      const args = raw as { storageId: string; progress?: string };
+      await heartbeatJobByStorageRef(sql, args);
+      return null;
+    },
     'governance/internal_mutations:recordTranscriptionUsage': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the engine passes exactly this shape
       const args = raw as {

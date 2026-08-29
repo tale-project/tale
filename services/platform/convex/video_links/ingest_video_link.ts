@@ -170,6 +170,17 @@ export const ingestVideoLink = internalAction({
     userLocale: v.optional(v.string()),
   },
   async handler(ctx, args) {
+    await ingestVideoLinkImpl(ctx, args);
+  },
+});
+
+/** The orchestrator body, hoisted so the 0.5 backend can run it on a ctx
+ * shim (the wrapper above keeps the 0.4 wiring). */
+export async function ingestVideoLinkImpl(
+  ctx: ActionCtx,
+  args: { jobId: Id<'videoLinkJobs'>; userLocale?: string },
+): Promise<void> {
+  {
     const job = await ctx.runQuery(
       internal.video_links.internal_queries.getJobById,
       {
@@ -768,8 +779,8 @@ export const ingestVideoLink = internalAction({
     } finally {
       await cleanup();
     }
-  },
-});
+  }
+}
 
 /** Whether a yt-dlp failure is the site actively blocking us (bot wall / 403 /
  *  rate limit) — the signal that burns the pooled session that was used. */

@@ -476,7 +476,21 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       attachments: [],
       truncated: false,
     }),
-    'file_metadata/internal_queries:lookupVideoLinkSources': async () => [],
+    'file_metadata/internal_queries:lookupVideoLinkSources': async (raw) => {
+      // Inline SQL (not the video_links service) — that service composes
+      // ON TOP of this shim, so an import here would be a cycle.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
+      const args = raw as { storageIds: string[] };
+      if (args.storageIds.length === 0) return [];
+      return sql<
+        { storageId: string; sourceUrl: string; sourcePlatform: string }[]
+      >`
+        SELECT storage_ref AS "storageId", source_url AS "sourceUrl",
+               source_platform AS "sourcePlatform"
+        FROM app.video_link_jobs
+        WHERE storage_ref = ANY(${args.storageIds})
+      `;
+    },
 
     // ------------------------------------------------------------- projects
     'projects/internal_queries:getProjectIdForThread': async (raw) => {

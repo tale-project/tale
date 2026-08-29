@@ -39,6 +39,11 @@ import { agentTurnShimHandlers } from '../domains/tasks/agent-turn-shim.ts';
 import { resolveTaskKickStartArgs } from '../domains/tasks/kick-plan.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
 import {
+  runVideoCloneJob,
+  runVideoIngestJob,
+  runVideoLinkWatchdog,
+} from '../domains/video_links/service.ts';
+import {
   runWebsiteRegister,
   runWebsitesRowSync,
   runWebsitesScan,
@@ -380,6 +385,28 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         })
         .parse(payload);
       await runWebsitesRowSync(deps.sql, input);
+    },
+    'video.ingest': async (payload) => {
+      const input = z
+        .object({
+          jobId: z.string().min(1),
+          userLocale: z.string().optional(),
+        })
+        .parse(payload);
+      await runVideoIngestJob(deps.sql, input);
+    },
+    'video.clone': async (payload) => {
+      const input = z
+        .object({
+          jobId: z.string().min(1),
+          donorFileMetadataId: z.string().min(1),
+          organizationId: z.string().min(1),
+        })
+        .parse(payload);
+      await runVideoCloneJob(deps.sql, input);
+    },
+    'video.watchdog': async () => {
+      await runVideoLinkWatchdog(deps.sql);
     },
     'files.transcribe': async (payload) => {
       const input = z
