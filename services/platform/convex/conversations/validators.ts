@@ -50,6 +50,14 @@ export const emailAttachmentMetaValidator = v.object({
   storageId: v.optional(v.string()),
   url: v.optional(v.string()),
   contentId: v.optional(v.string()),
+  /**
+   * The bytes are gone, so this cannot be downloaded. The URL is built at
+   * ingest and stored on the message, which means it outlives the blob — a
+   * restore, a bucket migration or a failed write leaves the message offering
+   * a link that 404s. Set at read time from live truth, and `url` is withheld
+   * alongside it so nothing can offer the broken link anyway.
+   */
+  unavailable: v.optional(v.boolean()),
 });
 
 export const messageValidator = v.object({

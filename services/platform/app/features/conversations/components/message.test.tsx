@@ -271,3 +271,65 @@ describe('Message — attachment list vs inline images', () => {
     expect(screen.queryByText('logo.png')).not.toBeInTheDocument();
   });
 });
+
+describe('Message — an attachment whose bytes are gone', () => {
+  function attachment(over: Record<string, unknown> = {}) {
+    return {
+      id: 'a1',
+      filename: 'CV.pdf',
+      contentType: 'application/pdf',
+      size: 23_359,
+      ...over,
+    } as NonNullable<MessageType['attachments']>[number];
+  }
+
+  it('says the file is no longer available instead of its size', () => {
+    // The size reads as a promise the message cannot keep.
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p>My CV is attached.</p>',
+          attachments: [attachment({ unavailable: true })],
+        })}
+      />,
+    );
+    expect(screen.getByText('CV.pdf')).toBeInTheDocument();
+    expect(screen.getByText('attachment.unavailable')).toBeInTheDocument();
+    expect(screen.queryByText(/KB|bytes/)).not.toBeInTheDocument();
+  });
+
+  it('offers no download control for it, even with a download handler', () => {
+    // A button that can only fail is worse than no button. The handler is what
+    // makes this load-bearing: without a URL the chip would still render a
+    // "fetch it" button, and for a file that no longer exists it can only fail.
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p>My CV is attached.</p>',
+          attachments: [attachment({ unavailable: true })],
+        })}
+        onDownloadAttachments={() => {}}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: /download cv\.pdf/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('still offers the download when the file is there', () => {
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p>My CV is attached.</p>',
+          attachments: [attachment({ url: '/storage/blob_1/CV.pdf' })],
+        })}
+      />,
+    );
+    expect(
+      screen.getByRole('button', { name: /download cv\.pdf/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('attachment.unavailable'),
+    ).not.toBeInTheDocument();
+  });
+});

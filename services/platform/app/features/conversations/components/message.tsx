@@ -142,14 +142,10 @@ function getFileIcon(contentType: string, filename: string) {
 }
 
 interface AttachmentCardProps {
-  attachment: {
-    id: string;
-    filename: string;
-    contentType: string;
-    size: number;
-    storageId?: string;
-    url?: string;
-  };
+  // Derived from the query's own type rather than restated. The hand-written
+  // copy this replaces had already drifted — it was missing `contentId`, and
+  // would have silently ignored any field added later.
+  attachment: Attachment;
   isDownloading?: boolean;
   onDownload?: () => void;
 }
@@ -178,9 +174,11 @@ function AttachmentCard({
           {middleEllipsis(attachment.filename, 28)}
         </Text>
         <Text variant="caption" className="text-[10px]">
-          {isDownloading
-            ? t('attachment.downloading')
-            : formatFileSize(attachment.size)}
+          {attachment.unavailable
+            ? t('attachment.unavailable')
+            : isDownloading
+              ? t('attachment.downloading')
+              : formatFileSize(attachment.size)}
         </Text>
       </div>
       {isDownloading ? (
@@ -191,7 +189,7 @@ function AttachmentCard({
         >
           <Loader2 className="size-3.5 animate-spin" />
         </Row>
-      ) : hasUrl || onDownload ? (
+      ) : attachment.unavailable ? null : hasUrl || onDownload ? (
         <button
           type="button"
           onClick={() => {

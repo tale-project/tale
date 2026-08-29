@@ -312,3 +312,130 @@ describe('transformConversation flat list-row fields', () => {
     expect(result.lastMessagePreview).toBeUndefined();
   });
 });
+
+/**
+ * A ctx whose message walk yields `messages`, and whose `fileMetadata` lookups
+ * answer only for `presentBlobs` — so a case can say which attachment bytes
+ * still exist.
+ */
+function createMockCtxWithBlobs(
+  messages: Doc<'conversationMessages'>[],
+  presentBlobs: string[],
+) {
+  const present = new Set(presentBlobs);
+  const ctx = {
+    db: {
+      query: vi.fn((table: string) => {
+        if (table === 'fileMetadata') {
+          let asked = '';
+          const fileBuilder = {
+            withIndex: vi.fn(
+              (
+                _name: string,
+                bind: (q: {
+                  eq: (f: string, v: unknown) => unknown;
+                }) => unknown,
+              ) => {
+                const q = {
+                  eq(_field: string, value: unknown) {
+                    asked = String(value);
+                    return q;
+                  },
+                };
+                bind(q);
+                return fileBuilder;
+              },
+            ),
+            first: vi.fn(async () =>
+              present.has(asked) ? { _id: 'fm' } : null,
+            ),
+          };
+          return fileBuilder;
+        }
+        return {
+          withIndex: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          first: vi.fn().mockResolvedValue(null),
+          [Symbol.asyncIterator]: async function* () {
+            for (const message of messages) yield message;
+          },
+        };
+      }),
+      get: vi.fn().mockResolvedValue(null),
+    },
+  };
+  return ctx as unknown as QueryCtx;
+}
+
+function messageWithAttachment(storageId: string, url = 'https://x/y.pdf') {
+  return makeMessageDoc({
+    _id: 'msg_att',
+    metadata: {
+      attachments: [
+        {
+          id: 'a1',
+          filename: 'invoice.pdf',
+          contentType: 'application/pdf',
+          size: 1024,
+          storageId,
+          url,
+        },
+      ],
+    },
+  });
+}
+
+describe('transformConversation — an attachment whose bytes are gone', () => {
+  it('marks it unavailable and withholds the link', async () => {
+    // The URL is built at ingest and stored on the message, so it outlives the
+    // blob. Leaving it would let the UI keep offering a download that 404s.
+    const ctx = createMockCtxWithBlobs(
+      [messageWithAttachment('blob_gone')],
+      [],
+    );
+    const result = await transformConversation(ctx, makeConversation(), {
+      includeAllMessages: true,
+    });
+    const attachment = result.messages?.[0]?.attachments?.[0];
+    expect(attachment?.unavailable).toBe(true);
+    expect(attachment?.url).toBeUndefined();
+  });
+
+  it('leaves an attachment whose bytes exist untouched', async () => {
+    const ctx = createMockCtxWithBlobs(
+      [messageWithAttachment('blob_here')],
+      ['blob_here'],
+    );
+    const result = await transformConversation(ctx, makeConversation(), {
+      includeAllMessages: true,
+    });
+    const attachment = result.messages?.[0]?.attachments?.[0];
+    expect(attachment?.unavailable).toBeUndefined();
+    expect(attachment?.url).toBe('https://x/y.pdf');
+  });
+
+  it('leaves an attachment with no storageId alone', async () => {
+    // Nothing to verify against, so nothing is claimed either way.
+    const message = makeMessageDoc({
+      _id: 'msg_att',
+      metadata: {
+        attachments: [
+          {
+            id: 'a1',
+            filename: 'inline.png',
+            contentType: 'image/png',
+            size: 10,
+            url: 'https://x/inline.png',
+          },
+        ],
+      },
+    });
+    const ctx = createMockCtxWithBlobs([message], []);
+    const result = await transformConversation(ctx, makeConversation(), {
+      includeAllMessages: true,
+    });
+    const attachment = result.messages?.[0]?.attachments?.[0];
+    expect(attachment?.unavailable).toBeUndefined();
+    expect(attachment?.url).toBe('https://x/inline.png');
+  });
+});

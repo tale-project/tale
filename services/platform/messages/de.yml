@@ -1832,6 +1832,7 @@ conversations:
   attachment:
     download: Herunterladen
     downloading: Lade herunter...
+    unavailable: Nicht mehr verfügbar
     attachments: '{count, plural, one {# Anhang} other {# Anhänge}}'
   panel:
     uploadFailed: Anhänge konnten nicht hochgeladen werden. Versuch es erneut.

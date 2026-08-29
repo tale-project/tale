@@ -16,6 +16,73 @@ const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
 // truncated line, so shipping more than this per row is dead weight.
 const LAST_MESSAGE_PREVIEW_MAX_CHARS = 200;
 
+/**
+ * How many distinct attachment blobs one conversation view will verify.
+ *
+ * Each is an indexed point read. A conversation long enough to exceed this is
+ * rare, and the walk FAILS OPEN past the cap — nothing is marked — because
+ * wrongly telling someone a file is gone is worse than leaving a link that
+ * might 404.
+ */
+const ATTACHMENT_CHECK_CAP = 60;
+
+/**
+ * The attachment blobs that still exist, or null when there is nothing to
+ * check or the cap was exceeded.
+ *
+ * One deduped pass before the message projection, so the projection stays
+ * synchronous and a blob referenced by ten messages costs one read.
+ */
+async function presentAttachmentBlobs(
+  ctx: QueryCtx,
+  messageDocs: readonly Doc<'conversationMessages'>[],
+): Promise<Set<string> | null> {
+  const storageIds = new Set<string>();
+  for (const m of messageDocs) {
+    const raw = m.metadata?.attachments;
+    if (!Array.isArray(raw)) continue;
+    for (const a of raw) {
+      if (!isAttachmentRecord(a)) continue;
+      const storageId = a.storageId;
+      if (typeof storageId === 'string' && storageId !== '') {
+        storageIds.add(storageId);
+      }
+    }
+  }
+  if (storageIds.size === 0 || storageIds.size > ATTACHMENT_CHECK_CAP) {
+    return null;
+  }
+
+  const present = new Set<string>();
+  await Promise.all(
+    [...storageIds].map(async (storageId) => {
+      const row = await ctx.db
+        .query('fileMetadata')
+        .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
+        .first();
+      if (row !== null) present.add(storageId);
+    }),
+  );
+  return present;
+}
+
+/** Narrow one entry of the untyped `metadata.attachments` array. */
+function isAttachmentRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/** True when the attachment names a blob the deduped pass could not find. */
+function isAttachmentGone(
+  a: { storageId?: string | undefined },
+  presentBlobs: Set<string> | null,
+): boolean {
+  return (
+    a.storageId !== undefined &&
+    presentBlobs !== null &&
+    !presentBlobs.has(a.storageId)
+  );
+}
+
 export async function transformConversation(
   ctx: QueryCtx,
   conversation: Doc<'conversations'>,
@@ -99,6 +166,9 @@ export async function transformConversation(
 
   debugLog('messageDocs', messageDocs.length);
   debugLog('conversation', conversation._id);
+
+  const presentBlobs = await presentAttachmentBlobs(ctx, messageDocs);
+
   const messages: MessageInfo[] = messageDocs.map((m) => {
     let timestamp = '';
 
@@ -145,7 +215,17 @@ export async function transformConversation(
               size: typeof a.size === 'number' ? a.size : 0,
               storageId:
                 typeof a.storageId === 'string' ? a.storageId : undefined,
-              url: typeof a.url === 'string' ? a.url : undefined,
+              // The stored URL outlives the bytes, so a message can offer a
+              // link that 404s. Decided from live truth rather than trusted
+              // from the message. The URL is withheld with it, or anything
+              // holding the attachment could still offer the broken link
+              // regardless of the flag.
+              url: isAttachmentGone(a, presentBlobs)
+                ? undefined
+                : typeof a.url === 'string'
+                  ? a.url
+                  : undefined,
+              unavailable: isAttachmentGone(a, presentBlobs) ? true : undefined,
               contentId:
                 typeof a.contentId === 'string' ? a.contentId : undefined,
             }))

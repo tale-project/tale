@@ -1848,6 +1848,7 @@ conversations:
   attachment:
     download: Télécharger
     downloading: Téléchargement...
+    unavailable: Plus disponible
     attachments: '{count, plural, one {# pièce jointe} other {# pièces jointes}}'
   panel:
     uploadFailed: Échec du téléversement des pièces jointes. Merci de réessayer.

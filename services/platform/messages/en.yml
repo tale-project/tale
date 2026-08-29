@@ -1775,6 +1775,7 @@ conversations:
   attachment:
     download: Download
     downloading: Downloading...
+    unavailable: No longer available
     attachments: '{count, plural, one {# attachment} other {# attachments}}'
   panel:
     uploadFailed: Couldn't upload attachments. Try again.
