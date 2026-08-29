@@ -24,6 +24,10 @@ import {
   upsertSamlConnection,
   type SsoActor,
 } from './admin.ts';
+import {
+  getSsoDiscoveryStatus,
+  listSelectableSsoConnections,
+} from './config.ts';
 
 /**
  * /api/app/sso — the admin settings surface for the file-backed SSO
@@ -57,6 +61,17 @@ export function createSsoAdminRoutes(deps: {
   auth: Auth;
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
+
+  // Public login-page discovery (pre-auth BY DESIGN — the 0.4
+  // `enterprise_sso/queries` pair ran with no auth gate): whether any org
+  // has SSO enabled, and the selectable connections for the org picker.
+  app.get('/discovery/configured', async (c) =>
+    c.json(await getSsoDiscoveryStatus(deps.sql)),
+  );
+  app.get('/discovery/selectable', async (c) =>
+    c.json({ connections: await listSelectableSsoConnections(deps.sql) }),
+  );
+
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
 
   const requireSettingsWrite = (c: Context<OrgEnv>): Response | null => {

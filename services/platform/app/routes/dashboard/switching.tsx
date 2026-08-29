@@ -23,13 +23,12 @@ import {
   useNavigate,
   useRouter,
 } from '@tanstack/react-router';
-import { useMutation } from 'convex/react';
 import { useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod';
 
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
+import { recordOrgSwitch } from '@/app/lib/backend/org';
 import { resetCrossOrgDetailSubpath } from '@/app/lib/org-switch-subpath';
-import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -53,9 +52,7 @@ function SwitchingPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { t } = useT('settings');
-  const recordOrgSwitch = useMutation(
-    api.organizations.record_org_switch.recordOrgSwitch,
-  );
+
   const { organizations } = useUserOrganizationsWithDetails();
   const ranRef = useRef(false);
 
@@ -78,7 +75,7 @@ function SwitchingPage() {
         // path — fire it in the background so the spinner doesn't wait on the
         // dedup scan + better-auth `updateMany` round-trip. Initiated before
         // navigate so the in-flight mutation survives this route unmounting.
-        void recordOrgSwitch({ organizationId: targetOrgId }).catch((err) => {
+        void recordOrgSwitch(targetOrgId).catch((err) => {
           console.warn('Failed to record org switch audit entry:', err);
         });
         // Force a fresh session read so downstream `useQuery(['auth','session'])`
@@ -97,7 +94,18 @@ function SwitchingPage() {
         // for the target org (or with no org arg) are kept.
         queryClient.removeQueries({
           predicate: (q) => {
-            if (!Array.isArray(q.queryKey) || q.queryKey[0] !== 'convexQuery') {
+            if (!Array.isArray(q.queryKey)) return false;
+            // Backend keys are ['backend', <orgId>, entity, …]; drop the
+            // previous org's rows (user-scoped 'me' rows are org-free).
+            if (q.queryKey[0] === 'backend') {
+              const scope = q.queryKey[1];
+              return (
+                typeof scope === 'string' &&
+                scope !== 'me' &&
+                scope !== targetOrgId
+              );
+            }
+            if (q.queryKey[0] !== 'convexQuery') {
               return false;
             }
             const args = q.queryKey[2];
@@ -139,7 +147,7 @@ function SwitchingPage() {
         });
       }
     })();
-  }, [targetOrgId, subpath, queryClient, recordOrgSwitch, navigate, router]);
+  }, [targetOrgId, subpath, queryClient, navigate, router]);
 
   return (
     <FullPageCenter>

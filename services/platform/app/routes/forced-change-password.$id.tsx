@@ -3,6 +3,7 @@ import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
 import { Stack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo } from 'react';
 import { z } from 'zod';
@@ -16,10 +17,9 @@ import { LogoLink } from '@/app/components/ui/logo/logo-link';
 import { useUpdatePassword } from '@/app/features/settings/account/hooks/mutations';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import { passwordExpiryQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
@@ -68,11 +68,7 @@ function ForcedChangePasswordPage() {
 
   // Password-recovery flow can run with a restricted/!isAuthenticated session;
   // preserve the prior ungated behavior (the query enforces auth server-side).
-  const { data: expiryStatus } = useConvexQuery(
-    api.users.queries.getPasswordExpiryStatus,
-    {},
-    { requireAuth: false },
-  );
+  const { data: expiryStatus } = useQuery(passwordExpiryQuery());
   useEffect(() => {
     if (!expiryStatus) return;
     // OAuth-only or already-fresh credential: no reason to be here.

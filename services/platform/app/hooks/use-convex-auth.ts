@@ -1,21 +1,18 @@
 export { useConvexAuth } from 'convex/react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useQuery } from '@tanstack/react-query';
+
 import { clearConvexTokenCache } from '@/app/lib/auth/convex-token-cache';
+import { currentUserQuery } from '@/app/lib/backend/account';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
 import { clearTitleSuffix } from '@/app/lib/title-suffix';
-import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 
 function useConvexAuthUser() {
-  // This query IS the auth probe — it must run before auth is established, so
-  // it opts out of the default auth gate. Gating it would deadlock (the query
-  // waits for auth; auth is derived from the query).
-  const { data: user, isLoading } = useConvexQuery(
-    api.users.queries.getCurrentUser,
-    {},
-    { requireAuth: false },
-  );
+  // This query IS the auth probe: the backend answers it on the session
+  // cookie alone (401 → data undefined → unauthenticated), so it needs no
+  // websocket and no auth gating.
+  const { data: user, isLoading } = useQuery(currentUserQuery());
 
   const isAuthenticated = !!user;
 

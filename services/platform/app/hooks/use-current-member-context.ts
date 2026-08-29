@@ -1,8 +1,10 @@
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import { useQuery } from '@tanstack/react-query';
+
+import { memberContextQuery } from '@/app/lib/backend/org';
 
 /**
- * Subscribes to the current user's membership context for an organization.
+ * The current user's membership context for an organization (the 0.4
+ * `getCurrentMemberContext` shape, served by the 0.5 backend).
  *
  * Pass `skip = true` (e.g. while auth is loading) to disable the query
  * without changing the cache key. When skipped, `isLoading` is forced to
@@ -12,11 +14,10 @@ export function useCurrentMemberContext(
   organizationId: string | undefined,
   skip = false,
 ) {
-  const result = useConvexQuery(
-    api.members.queries.getCurrentMemberContext,
-    organizationId ? { organizationId } : 'skip',
-    { enabled: !!organizationId && !skip },
-  );
+  const result = useQuery({
+    ...memberContextQuery(organizationId ?? ''),
+    enabled: !!organizationId && !skip,
+  });
 
   return {
     ...result,

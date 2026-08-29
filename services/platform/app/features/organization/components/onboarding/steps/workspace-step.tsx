@@ -2,14 +2,13 @@
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMutation } from 'convex/react';
 import { useState } from 'react';
 
 import { Input } from '@/app/components/ui/forms/input';
 import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import { recordOrgSwitch } from '@/app/lib/backend/org';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { MAX_ORG_SLUG_LENGTH } from '@/lib/shared/constants/org-slug';
@@ -71,9 +70,6 @@ export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
   const { t } = useT('onboarding');
   const { locale } = useLocale();
 
-  const recordOrgSwitch = useMutation(
-    api.organizations.record_org_switch.recordOrgSwitch,
-  );
   const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
@@ -151,7 +147,7 @@ export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
       await authClient.organization.setActive({ organizationId });
       await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
       try {
-        await recordOrgSwitch({ organizationId });
+        await recordOrgSwitch(organizationId);
       } catch (err) {
         console.warn('Failed to record org switch audit entry:', err);
       }

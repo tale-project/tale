@@ -33,6 +33,38 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return rows[0] ?? null;
   };
 
+  // The caller's own teams (the team filter's boot read on every dashboard
+  // page) — the 0.4 `members/queries:getMyTeams` shape.
+  app.get('/mine', async (c) => {
+    const rows = await deps.sql<
+      {
+        id: string;
+        name: string;
+        memberCount: string;
+        createdAt: string | null;
+      }[]
+    >`
+      SELECT t."id", t."name",
+             (SELECT count(*) FROM "teamMember" c WHERE c."teamId" = t."id")::text
+               AS "memberCount",
+             t."createdAt"::text AS "createdAt"
+      FROM "team" t
+      JOIN "teamMember" tm ON tm."teamId" = t."id"
+      WHERE t."organizationId" = ${c.get('orgId')}
+        AND tm."userId" = ${c.get('sessionBundle').user.id}
+      ORDER BY t."name" ASC
+    `;
+    return c.json({
+      teams: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        memberCount: Number(row.memberCount),
+        createdAt:
+          row.createdAt === null ? null : new Date(row.createdAt).getTime(),
+      })),
+    });
+  });
+
   app.get('/:teamId/members', async (c) => {
     const team = await teamInOrg(c.req.param('teamId'), c.get('orgId'));
     if (team === null) return c.json({ members: [] });

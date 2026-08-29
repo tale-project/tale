@@ -1,9 +1,12 @@
+import { useQuery } from '@tanstack/react-query';
+
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { myTeamsQuery, type MyTeamRow } from '@/app/lib/backend/org';
 import { api } from '@/convex/_generated/api';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
-export type Team = ConvexItemOf<typeof api.members.queries.getMyTeams>;
+export type Team = MyTeamRow;
 
 export function useApproxTeamCount(organizationId: string) {
   return useConvexQuery(api.members.queries.approxCountMyTeams, {
@@ -13,10 +16,10 @@ export function useApproxTeamCount(organizationId: string) {
 
 export function useTeams() {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.members.queries.getMyTeams,
-    organizationId ? { organizationId } : 'skip',
-  );
+  const { data, isLoading } = useQuery({
+    ...myTeamsQuery(organizationId ?? ''),
+    enabled: !!organizationId,
+  });
 
   return {
     teams: data ?? undefined,

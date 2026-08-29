@@ -358,6 +358,33 @@ async function checkAuthAndSse(
     `create org → ${createOrg.status}, id=${orgId || 'MISSING'}`,
   );
 
+  // 5c-bis. The caller's memberships listing (the org picker's boot read).
+  const orgList = z
+    .object({
+      organizations: z.array(
+        z.object({
+          organizationId: z.string(),
+          role: z.string(),
+          name: z.string(),
+        }),
+      ),
+    })
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/organizations`, { headers: { cookie } })
+      ).json(),
+    );
+  const orgListed =
+    orgList.success &&
+    orgList.data.organizations.some(
+      (org) => org.organizationId === orgId && org.role === 'owner',
+    );
+  record(
+    'user organizations listing',
+    orgListed,
+    `GET /api/app/organizations → ${orgList.success ? `${orgList.data.organizations.length} org(s), owner=${orgListed}` : 'ERR'}`,
+  );
+
   // 5d. Wrong org → 403.
   const forbidden = await fetch(`${base}/events?orgId=not-my-org`, {
     headers: { cookie },
@@ -6474,7 +6501,48 @@ async function checkSsoAdminSurface(
       ...provisioning,
     },
   });
+  // The PUBLIC login-page discovery pair (no cookie on purpose) while the
+  // SAML connection is enabled…
+  const discoveryOn = z
+    .object({ enabled: z.literal(true), providerType: z.string() })
+    .safeParse(
+      await (await fetch(`${base}/api/app/sso/discovery/configured`)).json(),
+    );
+  const selectableOn = z
+    .object({
+      connections: z.array(
+        z.object({
+          organizationId: z.string(),
+          displayName: z.string(),
+          protocol: z.string(),
+        }),
+      ),
+    })
+    .safeParse(
+      await (await fetch(`${base}/api/app/sso/discovery/selectable`)).json(),
+    );
+  const selectableHit =
+    selectableOn.success &&
+    selectableOn.data.connections.some(
+      (conn) =>
+        conn.organizationId === orgId &&
+        conn.displayName === 'Door SAML' &&
+        conn.protocol === 'saml',
+    );
+
   await api('/config/enabled', { body: { enabled: false } });
+
+  // …and after the disable: not configured, nothing selectable.
+  const discoveryOff = z
+    .object({ enabled: z.literal(false) })
+    .safeParse(
+      await (await fetch(`${base}/api/app/sso/discovery/configured`)).json(),
+    );
+  const selectableOff = z
+    .object({ connections: z.array(z.unknown()).length(0) })
+    .safeParse(
+      await (await fetch(`${base}/api/app/sso/discovery/selectable`)).json(),
+    );
   const disabledView = z
     .looseObject({
       configured: z.boolean(),
@@ -6543,6 +6611,11 @@ async function checkSsoAdminSurface(
       parsedMeta.data.idpSsoUrl === 'https://idp.door.test/saml/sso' &&
       parsedMeta.data.idpCertificate.includes('BEGIN CERTIFICATE') &&
       badMeta.status === 400 &&
+      discoveryOn.success &&
+      discoveryOn.data.providerType === 'saml' &&
+      selectableHit &&
+      discoveryOff.success &&
+      selectableOff.success &&
       samlPut.status === 200 &&
       disabledView.success &&
       disabledView.data.configured &&
@@ -6555,7 +6628,7 @@ async function checkSsoAdminSurface(
       Number(auditMap.get('sso_configure') ?? '0') >= 3 &&
       Number(auditMap.get('sso_disabled') ?? '0') >= 1 &&
       Number(auditMap.get('sso_removed') ?? '0') >= 1,
-    `before=${before.success ? before.data.configured : 'ERR'}, oidcPut=${upserted.status} view=${view.success ? `${view.data.protocol}/${view.data.displayName}` : 'ERR'} secretLeak=${viewRaw.includes('door-secret-2')} history=${historyEntries.length} sidecar=${secretsRaw.includes('door-secret-2')}, omitKeeps=${rePut.status}/${secretsAfterOmit.includes('door-secret-2')} reveal=${clientIdReveal.success ? clientIdReveal.data.clientId : 'ERR'}, meta=${parsedMeta.success ? parsedMeta.data.idpSsoUrl : 'ERR'} bad=${badMeta.status} (want 400), saml=${samlPut.status} disabled=${disabledView.success ? `${disabledView.data.configured}/${disabledView.data.enabled}/${disabledView.data.protocol}` : 'ERR'}, remove=${removed.status} after=${afterRemove.success ? afterRemove.data.configured : 'ERR'} files gone=${ymlGone}/${secretsGone}/${historyGone}, audits cfg=${auditMap.get('sso_configure')} dis=${auditMap.get('sso_disabled')} rm=${auditMap.get('sso_removed')}`,
+    `before=${before.success ? before.data.configured : 'ERR'}, oidcPut=${upserted.status} view=${view.success ? `${view.data.protocol}/${view.data.displayName}` : 'ERR'} secretLeak=${viewRaw.includes('door-secret-2')} history=${historyEntries.length} sidecar=${secretsRaw.includes('door-secret-2')}, omitKeeps=${rePut.status}/${secretsAfterOmit.includes('door-secret-2')} reveal=${clientIdReveal.success ? clientIdReveal.data.clientId : 'ERR'}, meta=${parsedMeta.success ? parsedMeta.data.idpSsoUrl : 'ERR'} bad=${badMeta.status} (want 400), saml=${samlPut.status} disabled=${disabledView.success ? `${disabledView.data.configured}/${disabledView.data.enabled}/${disabledView.data.protocol}` : 'ERR'}, remove=${removed.status} after=${afterRemove.success ? afterRemove.data.configured : 'ERR'} discovery=${discoveryOn.success ? discoveryOn.data.providerType : 'ERR'}/${selectableHit}→off=${discoveryOff.success}/${selectableOff.success}, files gone=${ymlGone}/${secretsGone}/${historyGone}, audits cfg=${auditMap.get('sso_configure')} dis=${auditMap.get('sso_disabled')} rm=${auditMap.get('sso_removed')}`,
   );
 }
 

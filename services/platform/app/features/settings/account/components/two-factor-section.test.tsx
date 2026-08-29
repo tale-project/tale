@@ -13,8 +13,10 @@ const { mockStatus } = vi.hoisted(() => ({
   mockStatus: { value: {} },
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: mockStatus.value }),
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQuery: () => ({ data: mockStatus.value, isLoading: false }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({

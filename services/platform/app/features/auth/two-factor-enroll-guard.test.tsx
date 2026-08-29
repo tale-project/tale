@@ -37,8 +37,9 @@ vi.mock('@tanstack/react-router', () => ({
   useSearch: () => mockSearch.value,
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: mockStatus.value }),
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQuery: () => ({ data: mockStatus.value, isLoading: false }),
 }));
 
 vi.mock('@/app/hooks/use-react-query-client', () => ({

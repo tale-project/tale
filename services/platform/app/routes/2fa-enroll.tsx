@@ -2,6 +2,7 @@ import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
 import { Grid, Stack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useQuery } from '@tanstack/react-query';
 /**
  * Post-grace enrollment wall. The sign-in after-hook returns
  * `{ twoFactorRedirect: true, enrollRequired: true }` when an org policy
@@ -27,10 +28,9 @@ import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { Input } from '@/app/components/ui/forms/input';
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
 import { PasskeyRegisterDialog } from '@/app/features/settings/account/components/passkey-register-dialog';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import { twoFactorStatusQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { extractSecret, normalizeOtpauthURI } from '@/lib/utils/totp';
@@ -93,11 +93,7 @@ export function TwoFactorEnrollPage() {
   // (verifyTotp flips twoFactorEnabled before the backup codes are shown), and
   // so /2fa-enroll stays usable for voluntary enrollment by users 2FA isn't
   // enforced for (#2085[04]).
-  const { data: status } = useConvexQuery(
-    api.two_factor.queries.getStatus,
-    {},
-    { requireAuth: false },
-  );
+  const { data: status } = useQuery(twoFactorStatusQuery());
   useEffect(() => {
     if (!status || !status.authenticated) return;
     if (status.twoFactorEnabled && step.kind === 'password') {
@@ -143,6 +139,10 @@ export function TwoFactorEnrollPage() {
         title: t('enrollment.enabled'),
         variant: 'success',
         position: 'top-center',
+      });
+      // The status read is HTTP now — tell it enrollment flipped.
+      void queryClient.invalidateQueries({
+        queryKey: twoFactorStatusQuery().queryKey,
       });
       setStep({ kind: 'done', backupCodes: step.backupCodes });
     } catch {

@@ -9,9 +9,8 @@ import { useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import { twoFactorStatusQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -42,7 +41,7 @@ export function PasskeySection() {
   const queryClient = useQueryClient();
 
   // SSO-only users don't manage local credentials here (the IdP owns auth).
-  const { data: status } = useConvexQuery(api.two_factor.queries.getStatus, {});
+  const { data: status } = useQuery(twoFactorStatusQuery());
 
   const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
   // Revoking a passkey is destructive (it can drop the user's only
@@ -67,6 +66,10 @@ export function PasskeySection() {
 
   function invalidate() {
     void queryClient.invalidateQueries({ queryKey: PASSKEYS_QUERY_KEY });
+    // hasPasskey rides the 2FA status read (HTTP now) — refresh it too.
+    void queryClient.invalidateQueries({
+      queryKey: twoFactorStatusQuery().queryKey,
+    });
   }
 
   async function confirmRevoke() {

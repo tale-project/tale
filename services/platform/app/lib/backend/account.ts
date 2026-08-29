@@ -32,6 +32,53 @@ function retryTransportOnly(failureCount: number, error: unknown): boolean {
   );
 }
 
+/** Fresh-install probe (public): does ANY user exist yet? Drives the
+ * sign-in ↔ setup routing on the auth pages. */
+export function hasAnyUsersQuery() {
+  return queryOptions({
+    queryKey: backendKey('me', 'account', 'has-any-users'),
+    queryFn: ({ signal }) =>
+      backendFetch<{ hasAny: boolean }>('/users/has-any', { signal }).then(
+        (body) => body.hasAny,
+      ),
+    retry: retryTransportOnly,
+  });
+}
+
+/** The 0.4 `users/queries:getCurrentUser` shape. */
+export interface CurrentUserView {
+  userId: string;
+  email?: string;
+  name?: string;
+}
+
+export function currentUserQuery() {
+  return queryOptions({
+    queryKey: backendKey('me', 'account', 'current-user'),
+    queryFn: ({ signal }) =>
+      backendFetch<{ user: CurrentUserView | null }>('/users/me', {
+        signal,
+      }).then((body) => body.user),
+    retry: retryTransportOnly,
+  });
+}
+
+/** Which auth account kinds back this user (the 0.4 `accounts/queries`
+ * pair, answered in one read). */
+export interface AccountFlagsView {
+  hasCredentialAccount: boolean;
+  hasMicrosoftAccount: boolean;
+}
+
+export function accountFlagsQuery() {
+  return queryOptions({
+    queryKey: backendKey('me', 'account', 'auth-accounts'),
+    queryFn: ({ signal }) =>
+      backendFetch<AccountFlagsView>('/users/accounts', { signal }),
+    retry: retryTransportOnly,
+  });
+}
+
 /** The 0.4 `two_factor/queries:getStatus` shape off the 0.5 backend. */
 export function twoFactorStatusQuery() {
   return queryOptions({

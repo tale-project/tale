@@ -39,6 +39,53 @@ export interface OrganizationRow {
 }
 
 /** One org, for a caller whose membership the route has already verified. */
+const VALID_MEMBER_ROLES = new Set(['owner', 'admin', 'developer', 'member']);
+
+/** The 0.4 `members/queries:getUserOrganizationsWithDetails` shape — every
+ * organization the user belongs to, with the display fields the picker
+ * needs (its List sibling is a projection of this). Disabled memberships
+ * are excluded; an off-vocabulary role reads as `member` (the 0.4
+ * normalization). */
+export async function listUserOrganizations(
+  sql: Sql,
+  userId: string,
+): Promise<
+  { organizationId: string; role: string; name: string; slug?: string }[]
+> {
+  const rows = await sql<
+    {
+      organizationId: string;
+      role: string;
+      name: string;
+      slug: string | null;
+    }[]
+  >`
+    SELECT m."organizationId" AS "organizationId", m."role" AS "role",
+           o."name" AS "name", o."slug" AS "slug"
+    FROM "member" m
+    JOIN "organization" o ON o."id" = m."organizationId"
+    WHERE m."userId" = ${userId}
+    ORDER BY o."createdAt" ASC
+  `;
+  const organizations: {
+    organizationId: string;
+    role: string;
+    name: string;
+    slug?: string;
+  }[] = [];
+  for (const row of rows) {
+    const role = row.role.toLowerCase();
+    if (role === 'disabled') continue;
+    organizations.push({
+      organizationId: row.organizationId,
+      role: VALID_MEMBER_ROLES.has(role) ? role : 'member',
+      name: row.name,
+      ...(row.slug !== null ? { slug: row.slug } : {}),
+    });
+  }
+  return organizations;
+}
+
 export async function getOrganization(
   sql: Sql,
   organizationId: string,

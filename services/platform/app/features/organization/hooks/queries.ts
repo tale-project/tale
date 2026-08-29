@@ -1,48 +1,47 @@
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
+import { useQuery } from '@tanstack/react-query';
 
-export type UserOrganization = ConvexItemOf<
-  typeof api.members.queries.getUserOrganizationsList
+import { useAuth } from '@/app/hooks/use-convex-auth';
+import {
+  organizationQuery,
+  userOrganizationsQuery,
+  type UserOrganizationRow,
+} from '@/app/lib/backend/org';
+
+export type UserOrganization = Pick<
+  UserOrganizationRow,
+  'organizationId' | 'role'
 >;
 
-export type UserOrganizationWithDetails = ConvexItemOf<
-  typeof api.members.queries.getUserOrganizationsWithDetails
->;
+export type UserOrganizationWithDetails = UserOrganizationRow;
 
 export function useUserOrganizations() {
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
+  // The session probe, not the websocket: the boot chain must resolve on
+  // the cookie alone (the 0.5 posture — WS auth dies at cutover).
+  const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
 
-  const { data, isLoading } = useConvexQuery(
-    api.members.queries.getUserOrganizationsList,
-  );
+  const { data, isLoading } = useQuery(userOrganizationsQuery());
 
   return {
     organizations: data,
-    isLoading: isAuthLoading || isLoading,
+    isLoading: isLoading,
     isAuthenticated,
     isAuthLoading,
   };
 }
 
 export function useUserOrganizationsWithDetails() {
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
+  const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
 
-  const { data, isLoading } = useConvexQuery(
-    api.members.queries.getUserOrganizationsWithDetails,
-  );
+  const { data, isLoading } = useQuery(userOrganizationsQuery());
 
   return {
     organizations: data,
-    isLoading: isAuthLoading || isLoading,
+    isLoading: isLoading,
     isAuthenticated,
     isAuthLoading,
   };
 }
 
 export function useOrganization(organizationId: string) {
-  return useConvexQuery(api.organizations.queries.getOrganization, {
-    id: organizationId,
-  });
+  return useQuery(organizationQuery(organizationId));
 }

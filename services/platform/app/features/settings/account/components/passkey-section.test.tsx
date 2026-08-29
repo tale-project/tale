@@ -13,16 +13,11 @@ import { render, screen, waitFor, within } from '@/tests/utils/render';
 // A single seeded passkey the list query returns. Hoisted so the
 // `@tanstack/react-query` mock factory (evaluated before the imports below) can
 // read it.
-const { PASSKEY } = vi.hoisted(() => ({
+const { PASSKEY, mockStatus } = vi.hoisted(() => ({
   PASSKEY: { id: 'pk-1', name: 'YubiKey 5C', createdAt: 1_700_000_000_000 },
-}));
-
-// A local, credentialed session is the precondition for the passkeys UI to
-// render at all (SSO-only users don't manage local credentials here).
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({
-    data: { authenticated: true, hasCredential: true },
-  }),
+  // A local, credentialed session is the precondition for the passkeys UI
+  // to render at all (SSO-only users don't manage local credentials here).
+  mockStatus: { value: { authenticated: true, hasCredential: true } },
 }));
 
 // WebAuthn client. `deletePasskey` is the irreversible call under guard: it must
@@ -54,7 +49,12 @@ vi.mock('./passkey-register-dialog', () => ({
 // affects the section under test.
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-query')>()),
-  useQuery: () => ({ data: [PASSKEY], isLoading: false }),
+  // Two reads share this hook now: the passkey list and the 2FA status
+  // (['backend', …] keys, served over HTTP). Switch on the key shape.
+  useQuery: (options: { queryKey?: unknown[] }) =>
+    Array.isArray(options?.queryKey) && options.queryKey[0] === 'backend'
+      ? { data: mockStatus.value, isLoading: false }
+      : { data: [PASSKEY], isLoading: false },
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 

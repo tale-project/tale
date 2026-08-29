@@ -11,6 +11,7 @@ import { requireSession, type AuthEnv } from '../../auth/session.ts';
 import {
   getOrganization,
   hasAnyOrganization,
+  listUserOrganizations,
   OrganizationError,
   prepareOrganizationDeletion,
   recordOrgSwitch,
@@ -34,6 +35,16 @@ export function createOrganizationRoutes(deps: {
   // leak to anonymous probes.
   app.get('/has-any', async (c) => {
     return c.json({ hasAny: await hasAnyOrganization(deps.sql) });
+  });
+
+  // The caller's own memberships (the org picker / boot resolution).
+  app.get('/', async (c) => {
+    return c.json({
+      organizations: await listUserOrganizations(
+        deps.sql,
+        c.get('sessionBundle').user.id,
+      ),
+    });
   });
 
   app.get('/:id', async (c) => {

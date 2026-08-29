@@ -1,4 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
 import {
   createFileRoute,
@@ -9,18 +8,14 @@ import { useEffect } from 'react';
 
 import { SettingsSectionList } from '@/app/features/settings/components/settings-section-list';
 import { useSettingsMenuGroups } from '@/app/features/settings/components/use-settings-menu-groups';
-import { api } from '@/convex/_generated/api';
+import { memberContextQuery } from '@/app/lib/backend/org';
 import { useT } from '@/lib/i18n/client';
 import { getDefaultSettingsRoute } from '@/lib/permissions/get-default-settings-route';
 
 export const Route = createFileRoute('/dashboard/$id/settings/')({
   loader: async ({ context, params }) => {
     const memberContext = await context.queryClient
-      .ensureQueryData(
-        convexQuery(api.members.queries.getCurrentMemberContext, {
-          organizationId: params.id,
-        }),
-      )
+      .ensureQueryData(memberContextQuery(params.id))
       .catch((error: unknown) => {
         console.warn('Failed to load member context for settings index', error);
         return null;

@@ -70,6 +70,75 @@ export async function loadSingleEnabled(
   return found;
 }
 
+/** Practical cap for the login-page picker — also bounds what an anonymous
+ * visitor can enumerate in one request (the 0.4 constant). */
+const MAX_SELECTABLE_CONNECTIONS = 20;
+
+/** The 0.4 `enterprise_sso/queries:isConfigured` shape — the login page's
+ * "does SSO exist here" probe (public, pre-auth by design). */
+export async function getSsoDiscoveryStatus(sql: Sql): Promise<{
+  enabled: boolean;
+  providerType?: string;
+  seamlessSsoEnabled?: boolean;
+  multiple?: boolean;
+}> {
+  const orgs = await sql<{ id: string }[]>`
+    SELECT "id" FROM "organization"
+  `;
+  let first: { providerType?: string } | null = null;
+  let enabledCount = 0;
+  for (const org of orgs) {
+    const conn = await readSsoConnection(sql, org.id);
+    if (conn === null || !conn.config.enabled) continue;
+    enabledCount += 1;
+    first ??= {
+      providerType: conn.config.oidc?.providerId ?? conn.config.protocol,
+    };
+    if (enabledCount > 1) break;
+  }
+  if (!first) return { enabled: false };
+  return {
+    enabled: true,
+    ...(first.providerType !== undefined
+      ? { providerType: first.providerType }
+      : {}),
+    // Seamless (silent) SSO is driven by a query param, not stored config.
+    seamlessSsoEnabled: false,
+    // Several enabled connections → the sign-in flow steps into the picker.
+    multiple: enabledCount > 1,
+  };
+}
+
+/** The 0.4 `enterprise_sso/queries:listSelectable` twin: every enabled
+ * connection, for the multi-org picker (display names are public). */
+export async function listSelectableSsoConnections(
+  sql: Sql,
+): Promise<
+  { organizationId: string; displayName: string; protocol: string }[]
+> {
+  const orgs = await sql<{ id: string }[]>`
+    SELECT "id" FROM "organization"
+  `;
+  const selectable: {
+    organizationId: string;
+    displayName: string;
+    protocol: string;
+  }[] = [];
+  for (const org of orgs) {
+    const conn = await readSsoConnection(sql, org.id);
+    if (conn === null || !conn.config.enabled || !conn.config.protocol) {
+      continue;
+    }
+    selectable.push({
+      organizationId: conn.organizationId,
+      displayName: conn.config.displayName,
+      protocol: conn.config.protocol,
+    });
+    if (selectable.length >= MAX_SELECTABLE_CONNECTIONS) break;
+  }
+  return selectable;
+}
+
 async function loadConnection(
   sql: Sql,
   organizationId: string | undefined,

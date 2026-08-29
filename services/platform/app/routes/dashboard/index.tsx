@@ -1,13 +1,14 @@
-import { convexQuery } from '@convex-dev/react-query';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useMutation } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
 import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
-import { api } from '@/convex/_generated/api';
+import {
+  lastActiveOrgQuery,
+  recordOrgSwitch,
+  userOrganizationsQuery,
+} from '@/app/lib/backend/org';
 import { authClient } from '@/lib/auth-client';
 
 export const Route = createFileRoute('/dashboard/')({
@@ -23,9 +24,7 @@ export const Route = createFileRoute('/dashboard/')({
     return { user: session.data.user };
   },
   loader: ({ context }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.members.queries.getUserOrganizationsWithDetails, {}),
-    );
+    void context.queryClient.prefetchQuery(userOrganizationsQuery());
   },
   component: DashboardIndex,
 });
@@ -33,15 +32,12 @@ export const Route = createFileRoute('/dashboard/')({
 function DashboardIndex() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const recordOrgSwitch = useMutation(
-    api.organizations.record_org_switch.recordOrgSwitch,
-  );
   const resolvedRef = useRef(false);
-  const { data: organizations, isLoading: isOrgsLoading } = useConvexQuery(
-    api.members.queries.getUserOrganizationsWithDetails,
+  const { data: organizations, isLoading: isOrgsLoading } = useQuery(
+    userOrganizationsQuery(),
   );
   const { data: lastActiveOrgId, isLoading: isLastActiveLoading } =
-    useConvexQuery(api.users.get_last_active_org.getLastActiveOrganizationId);
+    useQuery(lastActiveOrgQuery());
 
   useEffect(() => {
     if (
@@ -98,7 +94,7 @@ function DashboardIndex() {
         });
         await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
         try {
-          await recordOrgSwitch({ organizationId: targetOrgId });
+          await recordOrgSwitch(targetOrgId);
         } catch (err) {
           console.warn('Failed to record org switch audit entry:', err);
         }
@@ -118,7 +114,6 @@ function DashboardIndex() {
     lastActiveOrgId,
     navigate,
     queryClient,
-    recordOrgSwitch,
   ]);
 
   return <DashboardShellFrame />;
