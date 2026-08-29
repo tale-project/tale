@@ -16,6 +16,7 @@ import { useIsSsoConfigured } from '@/app/features/auth/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
+import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
@@ -94,11 +95,9 @@ export function AccountStep() {
         return false;
       }
 
-      await queryClient
-        .invalidateQueries({ queryKey: ['auth', 'session'] })
-        .catch((error) =>
-          console.warn('Session cache invalidation failed:', error),
-        );
+      await invalidateAuthState(queryClient).catch((error) =>
+        console.warn('Session cache invalidation failed:', error),
+      );
       return true;
     } catch (error) {
       console.error('Sign up error:', error);

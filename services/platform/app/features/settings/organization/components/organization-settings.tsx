@@ -29,6 +29,7 @@ import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
@@ -369,7 +370,7 @@ export function OrganizationSettings({
         if (result?.error) {
           throw new Error(result.error.message ?? 'Organization update failed');
         }
-        await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
+        await invalidateAuthState(queryClient);
       } catch (error) {
         console.error('Failed to update organization', error);
         throw new OrganizationUpdateError(

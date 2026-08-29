@@ -7,6 +7,7 @@ import { useCallback, useState } from 'react';
 
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { useToast } from '@/app/hooks/use-toast';
+import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -69,9 +70,7 @@ export function useDeleteOrganization() {
               replace: true,
             });
           } else {
-            await queryClient.invalidateQueries({
-              queryKey: ['auth', 'session'],
-            });
+            await invalidateAuthState(queryClient);
             void navigate({
               to: '/dashboard/create-organization',
               replace: true,

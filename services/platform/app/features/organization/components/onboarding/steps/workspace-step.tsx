@@ -8,6 +8,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
+import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { recordOrgSwitch } from '@/app/lib/backend/org';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -145,7 +146,7 @@ export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
       }
 
       await authClient.organization.setActive({ organizationId });
-      await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
+      await invalidateAuthState(queryClient);
       try {
         await recordOrgSwitch(organizationId);
       } catch (err) {

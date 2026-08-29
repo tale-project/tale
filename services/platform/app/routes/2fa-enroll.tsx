@@ -30,6 +30,7 @@ import { LogoLink } from '@/app/components/ui/logo/logo-link';
 import { PasskeyRegisterDialog } from '@/app/features/settings/account/components/passkey-register-dialog';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
+import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { twoFactorStatusQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
@@ -153,9 +154,7 @@ export function TwoFactorEnrollPage() {
   }
 
   async function finish() {
-    await queryClient
-      .invalidateQueries({ queryKey: ['auth', 'session'] })
-      .catch(() => undefined);
+    await invalidateAuthState(queryClient).catch(() => undefined);
     void navigate({ to: redirectTo || '/dashboard' });
   }
 

@@ -32,6 +32,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 
 import { convexErrorCode } from '@/app/hooks/use-action-query';
+import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
 import { authClient } from '@/lib/auth-client';
 
@@ -112,12 +113,10 @@ async function recoverFromDeadOrg(): Promise<void> {
       err instanceof Error ? err.message : err,
     );
   }
-  await queryClient
-    .invalidateQueries({ queryKey: ['auth', 'session'] })
-    .catch((err: unknown) => {
-      console.warn(
-        '[org-error-recovery] failed to refresh the session cache',
-        err instanceof Error ? err.message : err,
-      );
-    });
+  await invalidateAuthState(queryClient).catch((err: unknown) => {
+    console.warn(
+      '[org-error-recovery] failed to refresh the session cache',
+      err instanceof Error ? err.message : err,
+    );
+  });
 }
