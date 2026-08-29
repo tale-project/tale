@@ -16,6 +16,10 @@ import {
   type ShimScheduler,
 } from '../../lib/convex-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import {
+  claimBrowserSession,
+  reportBrowserSessionResult,
+} from '../browser_sessions/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { deleteOrgBlobRefs, putOrgBlobBytes } from '../files/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
@@ -33,8 +37,8 @@ import { checkTtsBudget } from '../tts/service.ts';
  * verbs + the chat shim; its retry self-chain maps onto `video.ingest`
  * jobs and the 0.4 stuck-row cron onto the `video.watchdog` schedule.
  *
- * Browser-session pooling (`browser_sessions`) is not ported yet — the
- * claim answers null, which is byte-for-byte the 0.4 empty-pool path.
+ * Browser-session pooling backs the claim/report verbs — an empty pool
+ * answers null and the ingest proceeds without a session (the 0.4 path).
  */
 
 export class VideoLinkError extends Error {
@@ -522,10 +526,17 @@ function videoShimHandlers(sql: Sql): ShimHandlers {
         return id;
       });
     },
-    // Browser-session pooling is not ported — the empty-pool answers are
-    // byte-for-byte the 0.4 behavior when no session exists.
-    'browser_sessions/sessions:claimBrowserSession': async () => null,
-    'browser_sessions/sessions:reportBrowserSessionResult': async () => null,
+    'browser_sessions/sessions:claimBrowserSession': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the engine passes exactly this shape
+      const args = raw as { organizationId: string; domain: string };
+      return claimBrowserSession(sql, args);
+    },
+    'browser_sessions/sessions:reportBrowserSessionResult': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the engine passes exactly this shape
+      const args = raw as { sessionId: string; outcome: 'ok' | 'blocked' };
+      await reportBrowserSessionResult(sql, args);
+      return null;
+    },
   };
 }
 

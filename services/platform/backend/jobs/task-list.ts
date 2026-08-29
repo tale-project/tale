@@ -19,6 +19,7 @@ import {
   sweepOverdueRuns,
 } from '../domains/automations/store.ts';
 import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
+import { sweepBrowserSessions } from '../domains/browser_sessions/service.ts';
 import { runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
@@ -407,6 +408,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     },
     'video.watchdog': async () => {
       await runVideoLinkWatchdog(deps.sql);
+    },
+    'browser.sweep': async () => {
+      await sweepBrowserSessions(deps.sql);
     },
     'files.transcribe': async (payload) => {
       const input = z

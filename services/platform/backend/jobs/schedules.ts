@@ -39,6 +39,8 @@ const SCHEDULES: CronSchedule[] = [
   { name: 'websites.scan_due', cron: '*/5 * * * *' },
   // Video-link stuck-row recovery + unbound-draft GC (the 0.4 5-min cron).
   { name: 'video.watchdog', cron: '*/5 * * * *' },
+  // Browser-session pool upkeep (the 0.4 10-min cron).
+  { name: 'browser.sweep', cron: '*/10 * * * *' },
 ];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {

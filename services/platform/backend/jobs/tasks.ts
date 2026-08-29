@@ -172,6 +172,8 @@ export interface TaskPayloads {
   };
   /** 5-min stuck-row watchdog + lazy unbound GC for video-link jobs. */
   'video.watchdog': Record<string, never>;
+  /** 10-min browser-session pool sweep (expire/recover/prune). */
+  'browser.sweep': Record<string, never>;
 }
 
 export type TaskIdentifier = keyof TaskPayloads;
@@ -263,6 +265,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'video.ingest': { retryLimit: 0, expireInSeconds: 1500 },
   'video.clone': { retryLimit: 1, expireInSeconds: 300 },
   'video.watchdog': { retryLimit: 1, expireInSeconds: 240 },
+  'browser.sweep': { retryLimit: 1, expireInSeconds: 120 },
   // At-most-once per link: the engine records its own failures on the row
   // and the 5-min scheduler is the retry; the corpus claim fences overlap.
   // A link's budget is ~9 minutes (the 0.4 action hard wall).

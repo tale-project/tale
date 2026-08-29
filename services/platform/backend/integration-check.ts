@@ -9217,6 +9217,151 @@ exit 1
 }
 
 /**
+ * Browser-session pool — the warmed-cookie-jar substrate behind the
+ * video-link ingest's bot-wall mitigation: the editor-allowlist import
+ * gate (the reused `decideInstanceAdmin`), the masked listing, LRU claim
+ * rotation with an at-rest-encrypted jar that decrypts back, the
+ * blocked→cooling→expired strike ladder, and the sweep's cooled-recovery.
+ */
+async function checkBrowserSessions(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const browser = await import('./domains/browser_sessions/service.ts');
+  const { decryptString } =
+    await import('../convex/lib/crypto/decrypt_string.ts');
+  const savedAdmins = process.env.TALE_DEPLOYMENT_CONFIG_ADMINS;
+  const emailRows = await sql<{ email: string }[]>`
+    SELECT "email" FROM "user" WHERE "id" = ${userId} LIMIT 1
+  `;
+  const email = emailRows[0]?.email ?? '';
+  const DOMAIN = 'itest-pool.example';
+
+  try {
+    const send = (route: string, body?: unknown): Promise<Response> =>
+      fetch(`${base}/api/app/browser-sessions${route}?orgId=${orgId}`, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+
+    delete process.env.TALE_DEPLOYMENT_CONFIG_ADMINS;
+    const refused = await send('/import', {
+      domain: DOMAIN,
+      cookiesJar: '# Netscape HTTP Cookie File\nitest\tjar-A',
+    });
+    process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = email;
+    const importedA = z.object({ sessionId: z.string() }).safeParse(
+      await (
+        await send('/import', {
+          domain: DOMAIN,
+          cookiesJar: '# Netscape HTTP Cookie File\nitest\tjar-A',
+          label: 'Session A',
+        })
+      ).json(),
+    );
+    const importedB = z.object({ sessionId: z.string() }).safeParse(
+      await (
+        await send('/import', {
+          domain: DOMAIN,
+          cookiesJar: '# Netscape HTTP Cookie File\nitest\tjar-B',
+          visitorData: 'vd-B',
+        })
+      ).json(),
+    );
+    const idA = importedA.success ? importedA.data.sessionId : '';
+    const idB = importedB.success ? importedB.data.sessionId : '';
+    const listedRaw = await (await send('')).text();
+    const listed = z
+      .object({
+        sessions: z.array(
+          z.looseObject({ id: z.string(), status: z.string() }),
+        ),
+      })
+      .safeParse(JSON.parse(listedRaw));
+    const masked = !listedRaw.includes('jar-A') && !listedRaw.includes('jar-B');
+
+    // LRU rotation: A (imported first, never used) claims first; the next
+    // claim rotates to B; the third comes back to A.
+    const claim1 = await browser.claimBrowserSession(sql, {
+      organizationId: orgId,
+      domain: DOMAIN,
+    });
+    const claim2 = await browser.claimBrowserSession(sql, {
+      organizationId: orgId,
+      domain: DOMAIN,
+    });
+    const claim3 = await browser.claimBrowserSession(sql, {
+      organizationId: orgId,
+      domain: DOMAIN,
+    });
+    const jar1 = claim1 ? await decryptString(claim1.cookiesEncrypted) : '';
+    const rotation =
+      claim1?.sessionId === idA &&
+      claim2?.sessionId === idB &&
+      claim2.visitorData === 'vd-B' &&
+      claim3?.sessionId === idA &&
+      jar1.includes('jar-A');
+
+    // Strike ladder: B blocked ×3 → expired; A blocked once → cooling →
+    // pool empty; ageing A past the quiet period + sweep → healthy again.
+    for (let i = 0; i < 3; i++) {
+      await browser.reportBrowserSessionResult(sql, {
+        sessionId: idB,
+        outcome: 'blocked',
+      });
+    }
+    await browser.reportBrowserSessionResult(sql, {
+      sessionId: idA,
+      outcome: 'blocked',
+    });
+    const statuses = await sql<{ id: string; status: string }[]>`
+      SELECT id, status FROM app.browser_sessions
+      WHERE org_id = ${orgId} AND domain = ${DOMAIN}
+    `;
+    const statusA = statuses.find((r) => r.id === idA)?.status;
+    const statusB = statuses.find((r) => r.id === idB)?.status;
+    const claimEmpty = await browser.claimBrowserSession(sql, {
+      organizationId: orgId,
+      domain: DOMAIN,
+    });
+    await sql`
+      UPDATE app.browser_sessions
+      SET last_used_at_ms = ${Date.now() - 31 * 60_000}
+      WHERE id = ${idA}
+    `;
+    await browser.sweepBrowserSessions(sql);
+    const recovered = await browser.claimBrowserSession(sql, {
+      organizationId: orgId,
+      domain: DOMAIN,
+    });
+    record(
+      'browser sessions: import gate, masked list, LRU claim, strikes, sweep',
+      refused.status === 403 &&
+        importedA.success &&
+        importedB.success &&
+        listed.success &&
+        listed.data.sessions.length === 2 &&
+        masked &&
+        rotation &&
+        statusA === 'cooling' &&
+        statusB === 'expired' &&
+        claimEmpty === null &&
+        recovered?.sessionId === idA,
+      `gate=${refused.status}/403 imports=${importedA.success}/${importedB.success} list=${listed.success ? listed.data.sessions.length : 'ERR'}/2 masked=${masked}, lru=${rotation} jarRoundtrip=${jar1.includes('jar-A')}, strikes A=${statusA}/cooling B=${statusB}/expired empty=${claimEmpty === null}, sweepRecovers=${recovered?.sessionId === idA}`,
+    );
+  } finally {
+    if (savedAdmins === undefined) {
+      delete process.env.TALE_DEPLOYMENT_CONFIG_ADMINS;
+    } else {
+      process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = savedAdmins;
+    }
+  }
+}
+
+/**
  * The approvals inbox surface: listing with filters + keyset pagination,
  * per-status counts, one-row read, and the generic decision with the 0.4
  * FSM (pending → executing|rejected only, once), the dedicated-door
@@ -14536,6 +14681,7 @@ async function main(): Promise<void> {
     await checkWebsitesCrawl(sql, baseUrl, authCtx);
     await checkTranscription(sql, baseUrl, authCtx);
     await checkVideoLinks(sql, baseUrl, authCtx);
+    await checkBrowserSessions(sql, baseUrl, authCtx);
     await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAgentSecrets(sql, baseUrl, authCtx);
