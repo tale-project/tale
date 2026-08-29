@@ -71,6 +71,50 @@ export async function loadActiveHolds(
   return result;
 }
 
+/** The 0.4 `listActiveHoldTargetIds` projection — the member-readable
+ * badge read: org-wide flag + direct holds of one target type, with the
+ * custodian cascade folded in for thread/document badges (entities whose
+ * AUTHOR is on a userMembership hold). Nothing else leaks. */
+export async function listActiveHoldTargetIds(
+  db: Db,
+  organizationId: string,
+  targetType: string,
+): Promise<{ orgHeld: boolean; targetIds: string[] }> {
+  const rows = await db<{ targetType: string; targetId: string }[]>`
+    SELECT target_type AS "targetType", target_id AS "targetId"
+    FROM app.legal_holds
+    WHERE org_id = ${organizationId} AND released_at_ms IS NULL
+  `;
+  let orgHeld = false;
+  const ids = new Set<string>();
+  const heldUserIds: string[] = [];
+  for (const row of rows) {
+    if (row.targetType === 'org') orgHeld = true;
+    else if (row.targetType === targetType) ids.add(row.targetId);
+    if (row.targetType === 'userMembership') heldUserIds.push(row.targetId);
+  }
+  if (
+    heldUserIds.length > 0 &&
+    (targetType === 'thread' || targetType === 'document')
+  ) {
+    if (targetType === 'thread') {
+      const threads = await db<{ id: string }[]>`
+        SELECT id FROM app.threads
+        WHERE org_id = ${organizationId} AND user_id = ANY(${heldUserIds})
+      `;
+      for (const thread of threads) ids.add(thread.id);
+    } else {
+      const documents = await db<{ id: string }[]>`
+        SELECT id FROM app.documents
+        WHERE org_id = ${organizationId}
+          AND created_by = ANY(${heldUserIds})
+      `;
+      for (const document of documents) ids.add(document.id);
+    }
+  }
+  return { orgHeld, targetIds: [...ids] };
+}
+
 export type GuardedTargetType =
   | 'thread'
   | 'document'

@@ -1000,6 +1000,28 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       : c.json({ status: 'refused', reason: outcome.reason });
   });
 
+  // First-token UX metric: stamp the perceived wait ON the message's usage
+  // blob, once (the 0.4 `reportPerceivedWait` — owner-only, assistant rows).
+  app.post('/messages/:messageId/perceived-wait', async (c) => {
+    const body = z
+      .object({ perceivedWaitMs: z.number().finite().positive().max(600_000) })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    await deps.sql`
+      UPDATE app.messages m
+      SET usage = coalesce(m.usage, '{}'::jsonb)
+        || jsonb_build_object('perceivedWaitMs', ${body.data.perceivedWaitMs})
+      FROM app.threads t
+      WHERE m.id = ${c.req.param('messageId')}
+        AND m.org_id = ${organizationId}
+        AND m.role = 'assistant'
+        AND t.id = m.thread_id AND t.user_id = ${userId}
+        AND (m.usage IS NULL OR NOT (m.usage ? 'perceivedWaitMs'))
+    `;
+    return c.json({ ok: true });
+  });
+
   app.post('/threads/:threadId/cancel', async (c) => {
     const { organizationId, userId } = caller(c);
     const thread = await ownedThread(

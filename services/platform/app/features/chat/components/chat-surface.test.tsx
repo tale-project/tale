@@ -159,6 +159,16 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
       available: false,
       resolve: () => Promise.resolve(),
     })),
+    // The HTTP lane serves provider-less renders for real now; keep this
+    // file's everything-unavailable default so renders stay calibrated.
+    useChatProjects: vi.fn(() => ({ status: 'unavailable' as const })),
+    useArchivedThreads: vi.fn(() => ({ status: 'unavailable' as const })),
+    useVoiceMode: vi.fn(() => ({ status: 'unavailable' as const })),
+    useThreadHolds: vi.fn(() => ({ status: 'unavailable' as const })),
+    useChatMessages: vi.fn(() => ({ status: 'unavailable' as const })),
+    useThreadFeedback: vi.fn(() => ({ status: 'unavailable' as const })),
+    useThreadBranches: vi.fn(() => ({ status: 'unavailable' as const })),
+    useChatQueryClient: vi.fn(() => ({}) as never),
   };
 });
 

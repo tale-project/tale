@@ -5,13 +5,14 @@ import { Stack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
+import { useQuery } from '@tanstack/react-query';
 
 import { useActorDirectory } from '@/app/features/tasks/hooks/use-actor-directory';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { api } from '@/convex/_generated/api';
+import { sharedThreadQuery } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
 
+import { useChatQueryClient } from '../data/chat-backend';
 import { toSettledItems } from '../lib/thread-view-core';
 import { MessageThread } from './message-thread';
 
@@ -31,9 +32,10 @@ export function SharedChatView({
 }) {
   const { t } = useT('chat');
   const { formatDate } = useFormatDate();
-  const sharedQuery = useConvexQuery(api.chat.threads.getSharedThread, {
-    shareToken,
-  });
+  const sharedQuery = useQuery(
+    sharedThreadQuery(organizationId, shareToken),
+    useChatQueryClient(),
+  );
   const { resolveActor } = useActorDirectory(organizationId);
 
   if (sharedQuery.isPending) {

@@ -8,6 +8,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
+  listMyThreadFeedback,
   getMyMessageFeedback,
   listMessageFeedback,
   removeMessageFeedback,
@@ -56,6 +57,16 @@ export function createFeedbackRoutes(deps: {
       removeMessageFeedback(tx, scope, c.req.param('messageId')),
     );
     return c.json({ ok: true });
+  });
+
+  app.get('/thread/:threadId', async (c) => {
+    return c.json({
+      feedback: await listMyThreadFeedback(
+        deps.sql,
+        scopeOf(c),
+        c.req.param('threadId'),
+      ),
+    });
   });
 
   app.get('/mine/:messageId', async (c) => {

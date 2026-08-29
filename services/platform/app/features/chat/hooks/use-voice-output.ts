@@ -1,9 +1,14 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { useConvex } from 'convex/react';
+import { useQuery } from '@tanstack/react-query';
+import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useEffect, useRef } from 'react';
 
+import {
+  synthesizeChunkRequest,
+  voiceChunksQuery,
+} from '@/app/lib/backend/chat';
 import { api } from '@/convex/_generated/api';
 import {
   MAX_TTS_CHUNK_CHARS,
@@ -17,7 +22,7 @@ import {
 } from '@/lib/shared/constants/tts';
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
-import { useChatQuery } from '../data/chat-backend';
+import { useChatQueryClient } from '../data/chat-backend';
 import { stripMarkdown } from './markdown-strip';
 import { useVoicePreReservationErrorSink } from './voice-output-context';
 
@@ -113,13 +118,27 @@ function detectChunkLocale(text: string, fallback: string): string {
 export function useVoiceChunks(
   messageId: string | undefined,
   threadId: string | undefined,
+  organizationId?: string,
 ) {
-  const result = useChatQuery(
-    api.tts.queries.getMessageChunks,
-    messageId && threadId ? { messageId, threadId } : 'skip',
-    { cache: false },
+  const enabled =
+    messageId !== undefined &&
+    threadId !== undefined &&
+    organizationId !== undefined;
+  const result = useQuery(
+    {
+      ...voiceChunksQuery(
+        organizationId ?? '',
+        messageId ?? '',
+        threadId ?? '',
+      ),
+      enabled,
+    },
+    useChatQueryClient(),
   );
-  return result.status === 'ready' ? result.data : undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the route serves the 0.4 chunk projection verbatim
+  return result.data as
+    | FunctionReturnType<typeof api.tts.queries.getMessageChunks>
+    | undefined;
 }
 
 /**
@@ -215,7 +234,6 @@ export function useVoiceOutputChunker(opts: {
   // Provider-safe action handle: surfaces without a ConvexProvider (a shared
   // snapshot, component tests) reject into the ordinary error path instead
   // of crashing the render the way `useAction` would.
-  const convex = useConvex();
   const synthesize = useCallback(
     (request: {
       messageId: string;
@@ -224,13 +242,8 @@ export function useVoiceOutputChunker(opts: {
       index: number;
       text: string;
       locale: string;
-    }) => {
-      if (!convex) {
-        return Promise.reject(new Error('no convex client'));
-      }
-      return convex.action(api.tts.synthesize.synthesizeChunk, request);
-    },
-    [convex],
+    }) => synthesizeChunkRequest(request),
+    [],
   );
   const cursorRef = useRef(0);
   const indexRef = useRef(0);

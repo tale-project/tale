@@ -8,6 +8,7 @@ import {
   requireOrganizationMember,
 } from '../../auth/membership.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
+import { writeNotificationForOrgs } from '../notifications/service.ts';
 import {
   getOrganization,
   hasAnyOrganization,
@@ -61,6 +62,36 @@ export function createOrganizationRoutes(deps: {
     return c.json({
       organization: await getOrganization(deps.sql, organizationId),
     });
+  });
+
+  // Budget banner: ask the org's admins for more usage credits — one
+  // system bell to every member surface (the 0.4 `requestUsageCredits`).
+  app.post('/:id/request-credits', async (c) => {
+    const organizationId = c.req.param('id');
+    const userId = c.get('sessionBundle').user.id;
+    try {
+      await requireOrganizationMember(deps.sql, organizationId, userId);
+    } catch (error) {
+      if (error instanceof MembershipError) {
+        return c.json({ ok: false }, 403);
+      }
+      throw error;
+    }
+    const session = c.get('sessionBundle');
+    await deps.sql.begin((tx) =>
+      writeNotificationForOrgs(tx, {
+        organizationIds: [organizationId],
+        category: 'system',
+        severity: 'warning',
+        titleKey: 'creditRequestTitle',
+        bodyKey: 'creditRequestBody',
+        params: {
+          name: session.user.name || session.user.email || 'A member',
+        },
+        subjectUserId: userId,
+      }),
+    );
+    return c.json({ ok: true });
   });
 
   app.post('/:id/record-switch', async (c) => {

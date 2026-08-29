@@ -1,4 +1,7 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
+import type { FunctionReturnType } from 'convex/server';
+
+import type { api } from '@/convex/_generated/api';
 
 import { BackendApiError, backendFetch, backendUrl } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
@@ -427,10 +430,13 @@ export function videoJobsForThreadQuery(
   return queryOptions({
     queryKey: backendKey(organizationId, 'video_link', 'thread', threadId),
     queryFn: ({ signal }) =>
-      backendFetch<{ jobs: VideoLinkJobView[] }>(
-        `/video-links/thread/${encodeURIComponent(threadId)}`,
-        { signal, orgId: organizationId },
-      ).then((body) => body.jobs),
+      backendFetch<{
+        jobs: FunctionReturnType<typeof api.video_links.queries.listForThread>;
+      }>(`/video-links/thread/${encodeURIComponent(threadId)}`, {
+        signal,
+        orgId: organizationId,
+      }).then((body) => body.jobs),
+    refetchInterval: 2000,
   });
 }
 
@@ -634,4 +640,385 @@ export function invalidateChatMessages(
   void queryClient.invalidateQueries({
     queryKey: backendKey(organizationId, 'chat_deferred', threadId),
   });
+}
+
+// ------------------------------------------------------------ feedback
+
+/** The caller's ratings across one thread (the 0.4 shape). */
+export function threadFeedbackQuery(organizationId: string, threadId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'chat_feedback', threadId),
+    queryFn: ({ signal }) =>
+      backendFetch<{
+        feedback: {
+          messageId: string;
+          rating: 'positive' | 'negative';
+          comment?: string;
+        }[];
+      }>(`/feedback/thread/${encodeURIComponent(threadId)}`, {
+        signal,
+        orgId: organizationId,
+      }).then((body) => body.feedback),
+  });
+}
+
+export async function submitMessageFeedbackRequest(
+  organizationId: string,
+  body: {
+    threadId: string;
+    messageId: string;
+    rating: 'positive' | 'negative';
+    comment?: string;
+  },
+): Promise<void> {
+  await backendFetch('/feedback', {
+    method: 'POST',
+    body,
+    orgId: organizationId,
+  });
+}
+
+export async function removeMessageFeedbackRequest(
+  organizationId: string,
+  messageId: string,
+): Promise<void> {
+  await backendFetch(`/feedback/${encodeURIComponent(messageId)}`, {
+    method: 'DELETE',
+    orgId: organizationId,
+  });
+}
+
+/** Nudge the thread's rating latch after a local write. */
+export function invalidateThreadFeedback(
+  queryClient: QueryClient,
+  organizationId: string,
+  threadId: string,
+): void {
+  void queryClient.invalidateQueries({
+    queryKey: backendKey(organizationId, 'chat_feedback', threadId),
+  });
+}
+
+// ---------------------------------------------------------------- voice
+
+/** The effective "Read replies aloud" state (org veto → thread → user). */
+export function voiceModeQuery(organizationId: string, threadId?: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'voice', 'mode', threadId ?? null),
+    queryFn: ({ signal }) =>
+      backendFetch<{
+        enabled: boolean;
+        userDefault: boolean;
+        source: 'thread' | 'preferences' | 'default' | 'org_policy';
+      }>(
+        `/tts/voice-mode${threadId !== undefined ? `?threadId=${encodeURIComponent(threadId)}` : ''}`,
+        { signal, orgId: organizationId },
+      ),
+  });
+}
+
+/** One message's synthesis chunks — polled while playback is mounted
+ * (chunk arrival is the signal; the 0.4 watch pushed, HTTP polls). */
+export function voiceChunksQuery(
+  organizationId: string,
+  messageId: string,
+  threadId: string,
+) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'voice', 'chunks', messageId),
+    queryFn: ({ signal }) =>
+      backendFetch<{ chunks: unknown[] }>(
+        `/tts/messages/${encodeURIComponent(messageId)}/chunks?threadId=${encodeURIComponent(threadId)}`,
+        { signal, orgId: organizationId },
+      ).then((body) => body.chunks),
+    refetchInterval: 1000,
+  });
+}
+
+export function synthesizeChunkRequest(request: {
+  organizationId: string;
+  messageId: string;
+  threadId: string;
+  index: number;
+  text: string;
+  locale: string;
+}): Promise<FunctionReturnType<typeof api.tts.synthesize.synthesizeChunk>> {
+  const { organizationId, ...body } = request;
+  return backendFetch('/tts/synthesize', {
+    method: 'POST',
+    body,
+    orgId: organizationId,
+  });
+}
+
+export async function setThreadVoiceOverrideRequest(
+  organizationId: string,
+  threadId: string,
+  override: boolean | null,
+): Promise<void> {
+  await backendFetch(
+    `/tts/threads/${encodeURIComponent(threadId)}/voice-override`,
+    { method: 'POST', body: { override }, orgId: organizationId },
+  );
+}
+
+export async function setUserVoiceOutputRequest(
+  organizationId: string,
+  enabled: boolean,
+): Promise<void> {
+  await backendFetch('/tts/voice-output', {
+    method: 'POST',
+    body: { enabled },
+    orgId: organizationId,
+  });
+}
+
+export function invalidateVoiceMode(
+  queryClient: QueryClient,
+  organizationId: string,
+): void {
+  void queryClient.invalidateQueries({
+    queryKey: backendKey(organizationId, 'voice', 'mode'),
+  });
+}
+
+/** One-shot dictation transcription (inline bytes, never persisted). */
+export async function transcribeDictationRequest(args: {
+  organizationId: string;
+  audio: ArrayBuffer;
+  mimeType: string;
+}): Promise<{ text: string }> {
+  const bytes = new Uint8Array(args.audio);
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return backendFetch<{ text: string }>('/files/dictation', {
+    method: 'POST',
+    body: { audioBase64: btoa(binary), mimeType: args.mimeType },
+    orgId: args.organizationId,
+  });
+}
+
+// ------------------------------------------------------- chat satellites
+
+/** The caller's memories (pending + approved), the preferences page read. */
+export function chatMemoriesQuery(organizationId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'chat_memory', 'list'),
+    queryFn: ({ signal }) =>
+      backendFetch<{
+        pending: { id: string; content: string }[];
+        approved: { id: string; content: string }[];
+      }>('/chat/memories', { signal, orgId: organizationId }),
+  });
+}
+
+/** The caller's per-org preferences row (chat model default, etc.). */
+export function myPreferencesQuery(organizationId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'user_preference', 'mine'),
+    queryFn: ({ signal }) =>
+      backendFetch<{ preferences: unknown }>('/user-preferences', {
+        signal,
+        orgId: organizationId,
+      }).then((body) => body.preferences),
+  });
+}
+
+export async function setChatModelPreference(
+  organizationId: string,
+  modelId: string | undefined,
+): Promise<void> {
+  await backendFetch('/user-preferences/chat-model', {
+    method: 'POST',
+    body: modelId !== undefined ? { modelId } : {},
+    orgId: organizationId,
+  });
+}
+
+/** The chat sub-panel's project folders (a projection of the full rows). */
+export function chatProjectsQuery(organizationId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'project', 'chat-panel'),
+    queryFn: ({ signal }) =>
+      backendFetch<{
+        projects: {
+          id: string;
+          name: string;
+          icon?: string | null;
+          color?: string | null;
+          pinnedAt?: number | null;
+        }[];
+      }>('/projects', { signal, orgId: organizationId }).then((body) =>
+        body.projects.map((row) =>
+          Object.assign(
+            { _id: row.id, name: row.name },
+            row.icon != null ? { icon: row.icon } : {},
+            row.color != null ? { color: row.color } : {},
+            row.pinnedAt != null ? { pinnedAt: row.pinnedAt } : {},
+          ),
+        ),
+      ),
+  });
+}
+
+export async function setProjectPinnedRequest(
+  organizationId: string,
+  projectId: string,
+  pinned: boolean,
+): Promise<void> {
+  await backendFetch(`/projects/${encodeURIComponent(projectId)}/pin`, {
+    method: 'POST',
+    body: { pinned },
+    orgId: organizationId,
+  });
+}
+
+/** The member-readable legal-hold badge read. */
+export function holdTargetsQuery(organizationId: string, targetType: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'legal_hold', 'targets', targetType),
+    queryFn: ({ signal }) =>
+      backendFetch<{ orgHeld: boolean; targetIds: string[] }>(
+        `/legal-holds/targets?targetType=${encodeURIComponent(targetType)}`,
+        { signal, orgId: organizationId },
+      ),
+  });
+}
+
+/** The shared-thread snapshot by its token (org-membership + token) —
+ * typed off the 0.4 query, the drift-proof way. */
+export function sharedThreadQuery(organizationId: string, token: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'chat_thread', 'shared', token),
+    queryFn: ({ signal }) =>
+      backendFetch<FunctionReturnType<typeof api.chat.threads.getSharedThread>>(
+        `/chat/threads/shared/${encodeURIComponent(token)}`,
+        {
+          signal,
+          orgId: organizationId,
+        },
+      ).then(
+        (body) => body,
+        (error: unknown) => {
+          if (error instanceof BackendApiError && error.status === 404) {
+            return null;
+          }
+          throw error;
+        },
+      ),
+  });
+}
+
+/** Batch pipeline statuses for staged attachments — polled while any file
+ * is still processing (the 0.4 watch pushed; HTTP polls). Typed off the
+ * 0.4 query so consumers keep their contract. */
+export function fileStatusesQuery(
+  organizationId: string,
+  storageIds: readonly string[],
+) {
+  return queryOptions({
+    queryKey: backendKey(
+      organizationId,
+      'file_status',
+      [...storageIds].sort().join(','),
+    ),
+    queryFn: ({ signal }) =>
+      backendFetch<{
+        statuses: FunctionReturnType<
+          typeof api.file_metadata.queries.getByStorageIds
+        >;
+      }>('/files/statuses', {
+        method: 'POST',
+        body: { storageIds: [...storageIds] },
+        orgId: organizationId,
+        signal,
+      }).then((body) => body.statuses),
+    refetchInterval: 2000,
+  });
+}
+
+/** The caller's unbound video jobs (the chat index's chips). */
+export function videoJobsUnboundQuery(organizationId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'video_link', 'unbound'),
+    queryFn: ({ signal }) =>
+      backendFetch<{
+        jobs: FunctionReturnType<
+          typeof api.video_links.queries.listForUserUnboundChat
+        >;
+      }>('/video-links/unbound', { signal, orgId: organizationId }).then(
+        (body) => body.jobs,
+      ),
+    refetchInterval: 2000,
+  });
+}
+
+export async function ingestVideoUrlRequest(args: {
+  organizationId: string;
+  threadId?: string;
+  url: string;
+  pastedToken: string;
+  userLocale?: string;
+}): Promise<{ jobId: string }> {
+  const { organizationId, ...body } = args;
+  return backendFetch<{ jobId: string }>('/video-links/ingest', {
+    method: 'POST',
+    body,
+    orgId: organizationId,
+  });
+}
+
+export async function cancelVideoLinkRequest(
+  organizationId: string,
+  jobId: string,
+): Promise<void> {
+  await backendFetch(`/video-links/${encodeURIComponent(jobId)}/cancel`, {
+    method: 'POST',
+    body: {},
+    orgId: organizationId,
+  });
+}
+
+/** The info dialog's per-message voice spend (0.4 shape; null = none). */
+export function messageVoiceUsageQuery(
+  organizationId: string,
+  messageId: string,
+  threadId: string,
+) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'voice', 'usage', messageId),
+    queryFn: ({ signal }) =>
+      backendFetch<FunctionReturnType<
+        typeof api.tts.queries.getMessageVoiceUsage
+      > | null>(
+        `/tts/messages/${encodeURIComponent(messageId)}/usage?threadId=${encodeURIComponent(threadId)}`,
+        { signal, orgId: organizationId },
+      ),
+  });
+}
+
+/** Budget banner: ask the org's admins for more usage credits. */
+export async function requestUsageCreditsRequest(
+  organizationId: string,
+): Promise<boolean> {
+  const result = await backendFetch<{ ok: boolean }>(
+    `/organizations/${encodeURIComponent(organizationId)}/request-credits`,
+    { method: 'POST', body: {} },
+  );
+  return result.ok;
+}
+
+/** Stamp the first-token perceived wait on an assistant row (fire-once). */
+export async function reportPerceivedWaitRequest(
+  organizationId: string,
+  messageId: string,
+  perceivedWaitMs: number,
+): Promise<void> {
+  await backendFetch(
+    `/chat/messages/${encodeURIComponent(messageId)}/perceived-wait`,
+    { method: 'POST', body: { perceivedWaitMs }, orgId: organizationId },
+  );
 }

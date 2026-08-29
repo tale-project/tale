@@ -333,6 +333,7 @@ export function MessageToolbar({
         <MessageInfoDialog
           message={message}
           threadId={threadId}
+          {...(organizationId !== undefined ? { organizationId } : {})}
           open={infoOpen}
           onOpenChange={setInfoOpen}
         />

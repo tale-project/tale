@@ -95,6 +95,55 @@ export function createTtsRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return c.json({ chunks });
   });
 
+  // The info dialog's per-message voice spend (the 0.4 shape).
+  app.get('/messages/:messageId/usage', async (c) => {
+    const threadId = c.req.query('threadId') ?? '';
+    if (threadId === '') return c.json({ error: 'threadId required' }, 400);
+    const { organizationId, userId } = caller(c);
+    const rows = await deps.sql<
+      {
+        provider: string;
+        model: string;
+        voice: string | null;
+        characters: number;
+        costCents: number;
+        chunkCount: number;
+      }[]
+    >`
+      SELECT c.provider_name AS provider, c.model_id AS model, c.voice,
+             sum(c.character_count)::float8 AS characters,
+             sum(coalesce(c.cost_estimate_cents, 0))::float8 AS "costCents",
+             count(*)::float8 AS "chunkCount"
+      FROM app.tts_audio_chunks c
+      JOIN app.threads t ON t.id = c.thread_id
+      WHERE c.message_id = ${c.req.param('messageId')}
+        AND c.thread_id = ${threadId}
+        AND c.org_id = ${organizationId}
+        AND t.user_id = ${userId}
+        AND c.status = 'ready'
+      GROUP BY c.provider_name, c.model_id, c.voice
+    `;
+    if (rows.length === 0) return c.json(null);
+    const breakdown = rows.map((row) =>
+      Object.assign(
+        {
+          provider: row.provider,
+          model: row.model,
+          characters: row.characters,
+          costCents: row.costCents,
+          chunkCount: row.chunkCount,
+        },
+        row.voice !== null ? { voice: row.voice } : {},
+      ),
+    );
+    return c.json({
+      totalCharacters: breakdown.reduce((sum, b) => sum + b.characters, 0),
+      totalCostCents: breakdown.reduce((sum, b) => sum + b.costCents, 0),
+      chunkCount: breakdown.reduce((sum, b) => sum + b.chunkCount, 0),
+      breakdown,
+    });
+  });
+
   app.get('/voice-mode', async (c) => {
     const threadId = c.req.query('threadId');
     return c.json(

@@ -52,6 +52,15 @@ import {
 
 import { backendFetch } from '@/app/lib/backend/api-client';
 import {
+  fileStatusesQuery,
+  chatMemoriesQuery,
+  myPreferencesQuery,
+  chatProjectsQuery,
+  holdTargetsQuery,
+  setProjectPinnedRequest,
+  setChatModelPreference,
+  voiceModeQuery,
+  threadFeedbackQuery,
   archivedThreadsQuery,
   bindVideoJobsForSend,
   cancelChatGeneration,
@@ -155,6 +164,32 @@ const HTTP_READS: Record<
     chatSearchQuery(String(args.organizationId), String(args.query)),
   'chat/messages:listMessages': (args) =>
     chatMessagesQuery(String(args.organizationId), String(args.threadId)),
+  'feedback/queries:listThreadFeedback': (args) =>
+    threadFeedbackQuery(String(args.organizationId), String(args.threadId)),
+  'tts/queries:getVoiceModeEffective': (args) =>
+    voiceModeQuery(
+      String(args.organizationId),
+      typeof args.threadId === 'string' ? args.threadId : undefined,
+    ),
+  'chat/memories:listMemories': (args) =>
+    chatMemoriesQuery(String(args.organizationId)),
+  'user_preferences/queries:getMyPreferences': (args) =>
+    myPreferencesQuery(String(args.organizationId)),
+  'projects/queries:listProjects': (args) =>
+    chatProjectsQuery(String(args.organizationId)),
+  'governance/legal_hold_queries:listActiveHoldTargetIds': (args) =>
+    holdTargetsQuery(String(args.organizationId), String(args.targetType)),
+  'file_metadata/queries:getByStorageIds': (args) => ({
+    // One-shot here (source cards); the staging hooks poll via their own
+    // useQuery with the refetchInterval kept.
+    ...fileStatusesQuery(
+      String(args.organizationId),
+      Array.isArray(args.storageIds)
+        ? args.storageIds.filter((id): id is string => typeof id === 'string')
+        : [],
+    ),
+    refetchInterval: false as const,
+  }),
 };
 
 /** Provider-less renders (the seam's degrade case) still get a working
@@ -330,25 +365,23 @@ export function useChatProjects(
  * not the projects feature's react-query hooks — so a provider-less render
  * degrades to `available: false` instead of throwing.
  */
-export function useProjectPin(): {
+export function useProjectPin(organizationId: string): {
   readonly available: boolean;
   readonly setPinned: (projectId: string, pinned: boolean) => Promise<void>;
 } {
-  const convex = useConvex();
+  const queryClient = useChatQueryClient();
 
   const setPinned = useCallback(
     async (projectId: string, pinned: boolean): Promise<void> => {
-      if (!convex) throw new Error('The chat backend is not reachable.');
-      await convex.mutation(api.projects.mutations.setProjectPinned, {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the id round-trips through the seam's string view model; its origin is the projects table
-        projectId: projectId as Id<'projects'>,
-        pinned,
+      await setProjectPinnedRequest(organizationId, projectId, pinned);
+      void queryClient.invalidateQueries({
+        queryKey: chatProjectsQuery(organizationId).queryKey,
       });
     },
-    [convex],
+    [queryClient, organizationId],
   );
 
-  return { available: convex !== undefined, setPinned };
+  return { available: true, setPinned };
 }
 
 /**
@@ -681,24 +714,19 @@ export function useChatModelPreference(organizationId: string): {
    * the previously pinned model (an absent preference reads as Auto). */
   readonly save: (modelId: string | undefined) => void;
 } {
-  const convex = useConvex();
   const row = useChatQuery(api.user_preferences.queries.getMyPreferences, {
     organizationId,
   });
 
   const save = useCallback(
     (modelId: string | undefined) => {
-      if (!convex) return;
-      convex
-        .mutation(api.user_preferences.mutations.setChatModel, {
-          organizationId,
-          ...(modelId !== undefined ? { modelId } : {}),
-        })
-        .catch((error: unknown) => {
+      setChatModelPreference(organizationId, modelId).catch(
+        (error: unknown) => {
           console.warn('[chat] could not save the model pick', error);
-        });
+        },
+      );
     },
-    [convex, organizationId],
+    [organizationId],
   );
 
   const preference: ChatQuery<string | undefined> =

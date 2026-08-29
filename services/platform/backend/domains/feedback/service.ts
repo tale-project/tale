@@ -90,6 +90,35 @@ export async function getMyMessageFeedback(
   return rows[0] ?? null;
 }
 
+/** The caller's OWN ratings across one thread (the toolbar's latch read —
+ * the 0.4 `listThreadFeedback` shape). */
+export async function listMyThreadFeedback(
+  sql: Sql,
+  scope: FeedbackScope,
+  threadId: string,
+): Promise<
+  { messageId: string; rating: 'positive' | 'negative'; comment?: string }[]
+> {
+  const rows = await sql<
+    {
+      messageId: string;
+      rating: 'positive' | 'negative';
+      comment: string | null;
+    }[]
+  >`
+    SELECT message_id AS "messageId", rating, comment
+    FROM app.message_feedback
+    WHERE thread_id = ${threadId} AND user_id = ${scope.userId}
+      AND org_id = ${scope.organizationId}
+  `;
+  return rows.map((row) =>
+    Object.assign(
+      { messageId: row.messageId, rating: row.rating },
+      row.comment !== null ? { comment: row.comment } : {},
+    ),
+  );
+}
+
 /** Org-wide feedback feed + counts (the admin insights table). */
 export async function listMessageFeedback(
   sql: Sql,

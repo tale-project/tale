@@ -1,14 +1,23 @@
 'use client';
 
-import { useMutation, useQuery } from 'convex/react';
+import { useQuery as useTanstackQuery } from '@tanstack/react-query';
 import { ConvexError } from 'convex/values';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import { BackendApiError } from '@/app/lib/backend/api-client';
+import {
+  cancelVideoLinkRequest,
+  ingestVideoUrlRequest,
+  retryVideoLinkRequest,
+  videoJobsForThreadQuery,
+  videoJobsUnboundQuery,
+} from '@/app/lib/backend/chat';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { extractVideoUrls, normalizeUrlForHash } from '@/lib/shared/video-url';
+import { extractVideoUrls } from '@/lib/shared/video-url';
+
+import { useChatQueryClient } from '../data/chat-backend';
 
 /**
  * Reactive subscription on this conversation's video-link jobs + ingest /
@@ -53,9 +62,11 @@ const NON_TERMINAL: ReadonlySet<string> = new Set([
   'indexing',
 ]);
 
-/** Structured `code` off a ConvexError rejection — maps 1:1 to
- * `videoLink.errors.*` keys; unstructured errors fall back to generic. */
+/** Structured `code` off a refusal — the 0.5 backend answers coded JSON
+ * (`BackendApiError.code`), the legacy path a ConvexError `data.code`;
+ * both map 1:1 to `videoLink.errors.*` keys. */
 function convexErrorCode(err: unknown): string | undefined {
+  if (err instanceof BackendApiError) return err.code;
   return err instanceof ConvexError &&
     typeof err.data === 'object' &&
     err.data !== null &&
@@ -91,24 +102,23 @@ export function useChatVideoLinks(args: {
   // Two subscriptions, mutually exclusive: in a thread → by threadId; on
   // the index (no thread yet) → the user's unbound rows. The first send
   // binds threadId, so rows migrate between the queries with no flicker.
-  const threadResult = useQuery(
-    api.video_links.queries.listForThread,
-    args.threadId !== undefined
-      ? { threadId: args.threadId, organizationId: args.organizationId }
-      : 'skip',
+  const chatQueryClient = useChatQueryClient();
+  const threadResult = useTanstackQuery(
+    {
+      ...videoJobsForThreadQuery(args.organizationId, args.threadId ?? ''),
+      enabled: args.threadId !== undefined,
+    },
+    chatQueryClient,
   );
-  const unboundResult = useQuery(
-    api.video_links.queries.listForUserUnboundChat,
-    args.threadId === undefined
-      ? { organizationId: args.organizationId }
-      : 'skip',
+  const unboundResult = useTanstackQuery(
+    {
+      ...videoJobsUnboundQuery(args.organizationId),
+      enabled: args.threadId === undefined,
+    },
+    chatQueryClient,
   );
   const queryResult =
-    args.threadId !== undefined ? threadResult : unboundResult;
-
-  const ingestMutation = useMutation(api.video_links.mutations.ingestVideoUrl);
-  const cancelMutation = useMutation(api.video_links.mutations.cancelVideoLink);
-  const retryMutation = useMutation(api.video_links.mutations.retryVideoLink);
+    args.threadId !== undefined ? threadResult.data : unboundResult.data;
 
   // Client-side "just-sent" set so chips vanish in the same commit as the
   // composer clearing; pruned once the subscription catches up.
@@ -179,13 +189,13 @@ export function useChatVideoLinks(args: {
       let ingested = 0;
       for (const match of matches) {
         try {
-          await ingestMutation({
+          // Dedup key + platform derive SERVER-side on 0.5 (the route owns
+          // normalization) — only the pasted facts travel.
+          await ingestVideoUrlRequest({
             organizationId: args.organizationId,
             ...(args.threadId !== undefined ? { threadId: args.threadId } : {}),
             url: match.url,
             pastedToken: match.pastedToken,
-            normalizedUrl: normalizeUrlForHash(match.url),
-            sourcePlatform: match.platform,
             userLocale: args.locale,
           });
           ingested += 1;
@@ -206,7 +216,7 @@ export function useChatVideoLinks(args: {
       }
       return ingested;
     },
-    [args.organizationId, args.threadId, args.locale, ingestMutation, t],
+    [args.organizationId, args.threadId, args.locale, t],
   );
 
   const cancelJob = useCallback(
@@ -219,7 +229,7 @@ export function useChatVideoLinks(args: {
         return next;
       });
       try {
-        await cancelMutation({ jobId });
+        await cancelVideoLinkRequest(args.organizationId, String(jobId));
       } catch (err) {
         setHideJobIds((prev) => {
           if (!prev.has(jobId)) return prev;
@@ -234,13 +244,13 @@ export function useChatVideoLinks(args: {
         throw err;
       }
     },
-    [cancelMutation],
+    [args.organizationId],
   );
 
   const retryJob = useCallback(
     async (jobId: Id<'videoLinkJobs'>) => {
       try {
-        await retryMutation({ jobId });
+        await retryVideoLinkRequest(args.organizationId, String(jobId));
       } catch (err) {
         // The mutation refuses with structured codes (cooldown, budget,
         // in-flight cap); without this catch the click reads as dead.
@@ -258,7 +268,7 @@ export function useChatVideoLinks(args: {
         );
       }
     },
-    [retryMutation, t],
+    [args.organizationId, t],
   );
 
   return {

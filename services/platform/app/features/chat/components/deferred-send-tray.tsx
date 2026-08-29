@@ -18,7 +18,6 @@ import { isAudioOrVideo, isImage } from '@/lib/shared/file-types';
 import { formatFileSize } from '@/lib/utils/format/file';
 
 import { useChatQueryClient } from '../data/chat-backend';
-import type { VideoLinkJob } from '../hooks/use-chat-video-links';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
 import { useFileTranscriptionStatus } from '../hooks/use-file-transcription-status';
 import { VideoLinkChip } from './video-link-chip';
@@ -50,11 +49,13 @@ export function DeferredSendTray({
   const queryClient = useChatQueryClient();
   const { data: rows } = useTanstackQuery(
     deferredSendsQuery(organizationId, threadId),
+    queryClient,
   );
   // The claimed jobs left the composer's chip filter (they are bound), but
   // the thread query still carries them — join by id for live status.
   const { data: threadJobs } = useTanstackQuery(
     videoJobsForThreadQuery(organizationId, threadId),
+    queryClient,
   );
   const cancel = useCallback(
     async (args: {
@@ -96,7 +97,9 @@ export function DeferredSendTray({
 
   if (rows === undefined || rows.length === 0) return null;
 
-  const jobById = new Map((threadJobs ?? []).map((job) => [job.jobId, job]));
+  const jobById = new Map(
+    (threadJobs ?? []).map((job) => [String(job.jobId), job]),
+  );
 
   const attachmentStatus = (attachment: {
     fileId: string;
@@ -198,8 +201,7 @@ export function DeferredSendTray({
                 return (
                   <VideoLinkChip
                     key={jobId}
-                    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Id is a compile-time string brand; the backend view carries the same fields
-                    job={job as unknown as VideoLinkJob}
+                    job={job}
                     onRetry={() => void retryVideo({ jobId })}
                   />
                 );

@@ -6,6 +6,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
+  listActiveHoldTargetIds,
   approveLegalHoldRelease,
   LegalHoldError,
   listLegalHolds,
@@ -41,6 +42,15 @@ export function createLegalHoldRoutes(deps: {
 
   app.get('/', async (c) => {
     return c.json({ holds: await listLegalHolds(deps.sql, c.get('orgId')) });
+  });
+
+  // Member-readable badge read (the 0.4 `listActiveHoldTargetIds`).
+  app.get('/targets', async (c) => {
+    const targetType = c.req.query('targetType') ?? '';
+    if (targetType === '') return c.json({ error: 'targetType required' }, 400);
+    return c.json(
+      await listActiveHoldTargetIds(deps.sql, c.get('orgId'), targetType),
+    );
   });
 
   app.post('/', async (c) => {

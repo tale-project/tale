@@ -64,7 +64,7 @@ export function ProjectFolder({
   const { t: tProjects } = useT('projects');
   const navigate = useNavigate();
   const { organizationId, activeThreadId } = useThreadListFrame();
-  const { setPinned } = useProjectPin();
+  const { setPinned } = useProjectPin(organizationId);
   const isPinned = !!project.pinnedAt;
 
   const handleTogglePin = () => {
