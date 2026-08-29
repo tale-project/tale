@@ -6270,6 +6270,210 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
  * decrypt seam handing an invocation its secrets/config/Basic header —
  * with disabled rows refusing coded.
  */
+async function checkRunProvenance(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Provenance project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      outputs, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Provenance task', 'in_progress', 'a0',
+      ${userId}, 'user', ${sql.json([])}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+  const agentRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agents (
+      org_id, project_id, name, harness, model, created_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Ledger Agent', 'claude-code', 'itest-model',
+      ${userId}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const agentId = agentRows[0]?.id ?? '';
+
+  const sessionId = 'ledger-session-1';
+  const execId = 'ledger-exec-1';
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      agent_kind, created_at_ms, expires_at_ms
+    ) VALUES (${orgId}, ${sessionId}, 'active', 'project_agent', ${agentId},
+              ${userId}, 'claude-code', ${now}, ${now + 3_600_000})
+  `;
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, model_ref,
+      vision_model_ref, minted_key_id, spent_cents, started_at_ms
+    ) VALUES (
+      ${orgId}, ${sessionId}, ${execId}, 'agent-run', 'running',
+      'gw/itest-model', 'gw/vision-model', 'key-ledger-1', 42,
+      ${now - 60_000}
+    )
+  `;
+  await sql`
+    INSERT INTO app.sandbox_session_tokens (
+      org_id, session_id, token_hash, llm_gateway_key_id, scope,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${sessionId}, 'hash-ledger-1', 'key-ledger-1',
+      ${sql.json({
+        allowedModels: ['itest-model'],
+        budgetCents: 500,
+        connectorGrants: ['github'],
+        toolGrants: ['task_create'],
+      })}, ${now}, ${now + 3_600_000}
+    )
+  `;
+  // Two reads on the session: one from THIS run's key, one from a sibling
+  // turn — the sibling must NOT appear in this run's provenance.
+  await sql`
+    INSERT INTO app.sandbox_tool_calls (
+      org_id, session_id, tool, outcome, knowledge_refs, minted_key_id,
+      user_id, created_at_ms
+    ) VALUES
+      (${orgId}, ${sessionId}, 'rag_search', 'ok',
+       ARRAY['doc:ours-1', 'doc:ours-2'], 'key-ledger-1', ${userId},
+       ${now - 30_000}),
+      (${orgId}, ${sessionId}, 'rag_search', 'ok', ARRAY['doc:sibling-1'],
+       'key-other', ${userId}, ${now - 20_000})
+  `;
+  const runRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, task_id, project_id, agent_id, session_id, exec_id, harness,
+      model, trigger, started_by, status, started_at_ms, deadline_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${taskId}, ${projectId}, ${agentId}, ${sessionId}, ${execId},
+      'claude-code', 'itest-model', 'manual', ${userId}, 'running',
+      ${now - 60_000}, ${now + 3_600_000}, ${now}
+    ) RETURNING id
+  `;
+  const runId = runRows[0]?.id ?? '';
+  // A deliverable this run produced, plus one from another run.
+  await sql`
+    UPDATE app.tasks SET outputs = ${sql.json([
+      { runId, fileName: 'report.md', fileSize: 1234, fileId: 's3:out-1' },
+      {
+        runId: 'other-run',
+        fileName: 'stale.md',
+        fileSize: 9,
+        fileId: 's3:out-2',
+      },
+    ])}
+    WHERE id = ${taskId}
+  `;
+  await sql`
+    INSERT INTO app.approvals (
+      org_id, status, resource_type, resource_id, priority, metadata,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'pending', 'task_review', ${taskId}, 'medium',
+      ${sql.json({ runId, requestedFor: userId })}, ${now}
+    )
+  `;
+
+  const { settleAgentRun } = await import('./domains/tasks/agent-runs.ts');
+  const settled = await settleAgentRun(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+    resultText: 'done',
+  });
+  // The settle election admits exactly one terminal transition, so a second
+  // call must write no second ledger entry.
+  const settledTwice = await settleAgentRun(sql, {
+    organizationId: orgId,
+    runId,
+    execId,
+    resultText: 'done again',
+  });
+
+  const entries = await sql<
+    { metadata: unknown; resourceName: string | null; status: string }[]
+  >`
+    SELECT metadata, resource_name AS "resourceName", status
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'agent.run_settled'
+      AND resource_id = ${runId}
+  `;
+  /** Read one nested object out of the untyped audit metadata blob. */
+  const objectAt = (
+    value: unknown,
+    key: string,
+  ): Record<string, unknown> | null => {
+    if (value === null || typeof value !== 'object') return null;
+    const nested =
+      key === '' ? value : Object.entries(value).find(([k]) => k === key)?.[1];
+    if (
+      nested === null ||
+      typeof nested !== 'object' ||
+      Array.isArray(nested)
+    ) {
+      return null;
+    }
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(nested)) out[k] = v;
+    return out;
+  };
+  const metadata = objectAt(entries[0]?.metadata ?? null, '');
+  const model = objectAt(metadata, 'model');
+  const gateway = objectAt(metadata, 'gateway');
+  const grants = objectAt(metadata, 'grants');
+  const review = objectAt(metadata, 'review');
+  const outputs = Array.isArray(metadata?.outputs) ? metadata.outputs : [];
+  const knowledgeReads = Array.isArray(metadata?.knowledgeReads)
+    ? metadata.knowledgeReads.map(String)
+    : [];
+  record(
+    'provenance: one ledger entry per settle binds model, scope, reads, reviewer',
+    settled &&
+      !settledTwice &&
+      entries.length === 1 &&
+      entries[0]?.status === 'success' &&
+      entries[0]?.resourceName === 'Provenance task' &&
+      metadata?.surface === 'task' &&
+      metadata.finalStatus === 'settled' &&
+      metadata.harness === 'claude-code' &&
+      metadata.trigger === 'manual' &&
+      model?.requested === 'itest-model' &&
+      model.servedRef === 'gw/itest-model' &&
+      model.visionRef === 'gw/vision-model' &&
+      gateway?.keyId === 'key-ledger-1' &&
+      gateway.spentCents === 42 &&
+      Array.isArray(grants?.connectors) &&
+      // Only THIS run's deliverable, and only its own reads.
+      outputs.length === 1 &&
+      knowledgeReads.includes('doc:ours-1') &&
+      knowledgeReads.includes('doc:ours-2') &&
+      !knowledgeReads.includes('doc:sibling-1') &&
+      review?.reviewerUserId === userId,
+    `settled=${settled}/${settledTwice} (want true/false), entries=${entries.length}, model=${JSON.stringify(model)}, gateway=${JSON.stringify(gateway)}, outputs=${outputs.length}, reads=${knowledgeReads.join(',') || 'none'}, reviewer=${review?.reviewerUserId === userId}`,
+  );
+
+  // Release the seeded session: an `active` project session holds one of the
+  // org's sandbox slots, and a later suite would hit the quota instead of
+  // the behaviour it is testing.
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'destroyed',
+                                    destroyed_at_ms = ${Date.now()}
+    WHERE session_id = ${sessionId} AND org_id = ${orgId}
+  `;
+}
+
 async function checkProjectTail(
   sql: Sql,
   base: string,
@@ -21493,6 +21697,7 @@ async function main(): Promise<void> {
     await checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`);
     await checkCollabMentions(sql, baseUrl, authCtx);
     await checkProjectTail(sql, baseUrl, authCtx);
+    await checkRunProvenance(sql, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);

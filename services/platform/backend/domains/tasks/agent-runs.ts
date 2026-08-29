@@ -4,6 +4,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { AUTO_RETRY_MAX_ATTEMPTS } from '../../../convex/tasks/task_auto_retry.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 
 /**
  * The project-agent run ledger over PG — the 0.5 twin of
@@ -177,17 +178,29 @@ export async function settleAgentRun(
   },
 ): Promise<boolean> {
   const now = Date.now();
-  const rows = await sql<{ id: string }[]>`
-    UPDATE app.project_agent_runs SET
-      status = 'settled', result_text = ${args.resultText ?? null},
-      result_message_id = ${args.resultMessageId ?? null},
-      agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id),
-      settled_at_ms = ${now}, updated_at_ms = ${now}
-    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
-      AND exec_id = ${args.execId} AND status IN ('queued', 'running')
-    RETURNING id
-  `;
-  return rows.length > 0;
+  // The status guard IS the settle election, so the provenance entry rides
+  // the same transaction: a raced double-settle that degrades to a no-op
+  // also writes no second ledger row.
+  return sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      UPDATE app.project_agent_runs SET
+        status = 'settled', result_text = ${args.resultText ?? null},
+        result_message_id = ${args.resultMessageId ?? null},
+        agent_session_id = coalesce(${args.agentSessionId ?? null}, agent_session_id),
+        settled_at_ms = ${now}, updated_at_ms = ${now}
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND exec_id = ${args.execId} AND status IN ('queued', 'running')
+      RETURNING id
+    `;
+    if (rows.length === 0) return false;
+    await recordTaskAgentRunLedgerEntry(tx, {
+      runId: args.runId,
+      organizationId: args.organizationId,
+      finalStatus: 'settled',
+      settledAt: now,
+    });
+    return true;
+  });
 }
 
 export async function failAgentRun(
@@ -201,16 +214,26 @@ export async function failAgentRun(
   },
 ): Promise<boolean> {
   const now = Date.now();
-  const rows = await sql<{ id: string }[]>`
-    UPDATE app.project_agent_runs SET
-      status = 'failed', error = ${args.error.slice(0, 2000)},
-      api_error_status = ${args.apiErrorStatus ?? null},
-      settled_at_ms = ${now}, updated_at_ms = ${now}
-    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
-      AND exec_id = ${args.execId} AND status IN ('queued', 'running')
-    RETURNING id
-  `;
-  return rows.length > 0;
+  return sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      UPDATE app.project_agent_runs SET
+        status = 'failed', error = ${args.error.slice(0, 2000)},
+        api_error_status = ${args.apiErrorStatus ?? null},
+        settled_at_ms = ${now}, updated_at_ms = ${now}
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND exec_id = ${args.execId} AND status IN ('queued', 'running')
+      RETURNING id
+    `;
+    if (rows.length === 0) return false;
+    await recordTaskAgentRunLedgerEntry(tx, {
+      runId: args.runId,
+      organizationId: args.organizationId,
+      finalStatus: 'failed',
+      settledAt: now,
+      error: args.error.slice(0, 2000),
+    });
+    return true;
+  });
 }
 
 export async function cancelAgentRun(
@@ -218,14 +241,23 @@ export async function cancelAgentRun(
   args: { organizationId: string; runId: string },
 ): Promise<boolean> {
   const now = Date.now();
-  const rows = await sql<{ id: string }[]>`
-    UPDATE app.project_agent_runs SET
-      status = 'cancelled', settled_at_ms = ${now}, updated_at_ms = ${now}
-    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
-      AND status IN ('queued', 'running')
-    RETURNING id
-  `;
-  return rows.length > 0;
+  return sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      UPDATE app.project_agent_runs SET
+        status = 'cancelled', settled_at_ms = ${now}, updated_at_ms = ${now}
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND status IN ('queued', 'running')
+      RETURNING id
+    `;
+    if (rows.length === 0) return false;
+    await recordTaskAgentRunLedgerEntry(tx, {
+      runId: args.runId,
+      organizationId: args.organizationId,
+      finalStatus: 'cancelled',
+      settledAt: now,
+    });
+    return true;
+  });
 }
 
 /** Park the run on a full session budget: it stays queued, stamped. */
