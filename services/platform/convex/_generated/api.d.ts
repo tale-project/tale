@@ -122,6 +122,7 @@ import type * as cloud_import_oauth_state_mutations from "../cloud_import/oauth_
 import type * as cloud_import_providers from "../cloud_import/providers.js";
 import type * as cloud_import_queries from "../cloud_import/queries.js";
 import type * as cloud_import_resolve_token from "../cloud_import/resolve_token.js";
+import type * as cloud_import_token_refresh from "../cloud_import/token_refresh.js";
 import type * as collab_attention from "../collab/attention.js";
 import type * as collab_coalesce from "../collab/coalesce.js";
 import type * as collab_dismiss_review_notifications from "../collab/dismiss_review_notifications.js";
@@ -243,6 +244,7 @@ import type * as conversations_reply_from from "../conversations/reply_from.js";
 import type * as conversations_reply_to_conversation from "../conversations/reply_to_conversation.js";
 import type * as conversations_retry_send_message from "../conversations/retry_send_message.js";
 import type * as conversations_search_for_chat from "../conversations/search_for_chat.js";
+import type * as conversations_send_input from "../conversations/send_input.js";
 import type * as conversations_send_message_via_connector from "../conversations/send_message_via_connector.js";
 import type * as conversations_sync_mailbox from "../conversations/sync_mailbox.js";
 import type * as conversations_transform_conversation from "../conversations/transform_conversation.js";
@@ -328,6 +330,7 @@ import type * as documents_validators from "../documents/validators.js";
 import type * as enterprise_sso_claims from "../enterprise_sso/claims.js";
 import type * as enterprise_sso_config_actions from "../enterprise_sso/config/actions.js";
 import type * as enterprise_sso_config_file_actions from "../enterprise_sso/config/file_actions.js";
+import type * as enterprise_sso_config_file_store from "../enterprise_sso/config/file_store.js";
 import type * as enterprise_sso_config_internal_mutations from "../enterprise_sso/config/internal_mutations.js";
 import type * as enterprise_sso_config_internal_queries from "../enterprise_sso/config/internal_queries.js";
 import type * as enterprise_sso_config_queries from "../enterprise_sso/config/queries.js";
@@ -349,6 +352,7 @@ import type * as enterprise_sso_internal_queries from "../enterprise_sso/interna
 import type * as enterprise_sso_login_authorize_handler from "../enterprise_sso/login/authorize_handler.js";
 import type * as enterprise_sso_login_callback_handler from "../enterprise_sso/login/callback_handler.js";
 import type * as enterprise_sso_login_discover_handler from "../enterprise_sso/login/discover_handler.js";
+import type * as enterprise_sso_login_finish_login from "../enterprise_sso/login/finish_login.js";
 import type * as enterprise_sso_login_login_audit from "../enterprise_sso/login/login_audit.js";
 import type * as enterprise_sso_login_redirect_with_error from "../enterprise_sso/login/redirect_with_error.js";
 import type * as enterprise_sso_login_set_session_handler from "../enterprise_sso/login/set_session_handler.js";
@@ -734,6 +738,7 @@ import type * as node_only_sandbox_workspace_tool_context from "../node_only/san
 import type * as node_only_sandbox_workspace_tool_shared from "../node_only/sandbox/workspace_tool_shared.js";
 import type * as node_only_sandbox_workspace_tools_bridge from "../node_only/sandbox/workspace_tools_bridge.js";
 import type * as notifications_actionable_email_connectors from "../notifications/actionable_email_connectors.js";
+import type * as notifications_actionable_email_input from "../notifications/actionable_email_input.js";
 import type * as notifications_actor_name from "../notifications/actor_name.js";
 import type * as notifications_dispatch_notification from "../notifications/dispatch_notification.js";
 import type * as notifications_email_notification from "../notifications/email_notification.js";
@@ -744,6 +749,7 @@ import type * as notifications_helpers from "../notifications/helpers.js";
 import type * as notifications_mutations from "../notifications/mutations.js";
 import type * as notifications_notification_messages from "../notifications/notification_messages.js";
 import type * as notifications_notify_slack from "../notifications/notify_slack.js";
+import type * as notifications_personal_notification_url from "../notifications/personal_notification_url.js";
 import type * as notifications_queries from "../notifications/queries.js";
 import type * as notifications_send_actionable_email from "../notifications/send_actionable_email.js";
 import type * as oauth2 from "../oauth2.js";
@@ -1136,6 +1142,7 @@ declare const fullApi: ApiFromModules<{
   "cloud_import/providers": typeof cloud_import_providers;
   "cloud_import/queries": typeof cloud_import_queries;
   "cloud_import/resolve_token": typeof cloud_import_resolve_token;
+  "cloud_import/token_refresh": typeof cloud_import_token_refresh;
   "collab/attention": typeof collab_attention;
   "collab/coalesce": typeof collab_coalesce;
   "collab/dismiss_review_notifications": typeof collab_dismiss_review_notifications;
@@ -1257,6 +1264,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/reply_to_conversation": typeof conversations_reply_to_conversation;
   "conversations/retry_send_message": typeof conversations_retry_send_message;
   "conversations/search_for_chat": typeof conversations_search_for_chat;
+  "conversations/send_input": typeof conversations_send_input;
   "conversations/send_message_via_connector": typeof conversations_send_message_via_connector;
   "conversations/sync_mailbox": typeof conversations_sync_mailbox;
   "conversations/transform_conversation": typeof conversations_transform_conversation;
@@ -1342,6 +1350,7 @@ declare const fullApi: ApiFromModules<{
   "enterprise_sso/claims": typeof enterprise_sso_claims;
   "enterprise_sso/config/actions": typeof enterprise_sso_config_actions;
   "enterprise_sso/config/file_actions": typeof enterprise_sso_config_file_actions;
+  "enterprise_sso/config/file_store": typeof enterprise_sso_config_file_store;
   "enterprise_sso/config/internal_mutations": typeof enterprise_sso_config_internal_mutations;
   "enterprise_sso/config/internal_queries": typeof enterprise_sso_config_internal_queries;
   "enterprise_sso/config/queries": typeof enterprise_sso_config_queries;
@@ -1363,6 +1372,7 @@ declare const fullApi: ApiFromModules<{
   "enterprise_sso/login/authorize_handler": typeof enterprise_sso_login_authorize_handler;
   "enterprise_sso/login/callback_handler": typeof enterprise_sso_login_callback_handler;
   "enterprise_sso/login/discover_handler": typeof enterprise_sso_login_discover_handler;
+  "enterprise_sso/login/finish_login": typeof enterprise_sso_login_finish_login;
   "enterprise_sso/login/login_audit": typeof enterprise_sso_login_login_audit;
   "enterprise_sso/login/redirect_with_error": typeof enterprise_sso_login_redirect_with_error;
   "enterprise_sso/login/set_session_handler": typeof enterprise_sso_login_set_session_handler;
@@ -1748,6 +1758,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/workspace_tool_shared": typeof node_only_sandbox_workspace_tool_shared;
   "node_only/sandbox/workspace_tools_bridge": typeof node_only_sandbox_workspace_tools_bridge;
   "notifications/actionable_email_connectors": typeof notifications_actionable_email_connectors;
+  "notifications/actionable_email_input": typeof notifications_actionable_email_input;
   "notifications/actor_name": typeof notifications_actor_name;
   "notifications/dispatch_notification": typeof notifications_dispatch_notification;
   "notifications/email_notification": typeof notifications_email_notification;
@@ -1758,6 +1769,7 @@ declare const fullApi: ApiFromModules<{
   "notifications/mutations": typeof notifications_mutations;
   "notifications/notification_messages": typeof notifications_notification_messages;
   "notifications/notify_slack": typeof notifications_notify_slack;
+  "notifications/personal_notification_url": typeof notifications_personal_notification_url;
   "notifications/queries": typeof notifications_queries;
   "notifications/send_actionable_email": typeof notifications_send_actionable_email;
   oauth2: typeof oauth2;
