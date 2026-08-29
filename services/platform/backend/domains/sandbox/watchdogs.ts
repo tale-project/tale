@@ -47,7 +47,7 @@ export async function runSandboxWatchdog(
       SELECT session_id AS "sessionId", org_id AS "orgId"
       FROM app.sandbox_sessions
       WHERE status IN ('creating', 'active', 'degraded')
-      ORDER BY updated_at_ms
+      ORDER BY created_at_ms
       LIMIT ${options.reconcileBatch ?? 25}
     `;
     for (const candidate of candidates) {
