@@ -158,3 +158,216 @@ export async function listMessageFeedback(
     },
   };
 }
+
+// ---------------------------------------------------------------- metrics
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_SCAN_ALL_TIME = 5000;
+const COMMENT_PROJECTION_MAX = 500;
+const ARENA_VERDICTS = ['a_better', 'b_better', 'tie', 'both_bad'] as const;
+
+interface FeedbackFoldRow {
+  id: string;
+  threadId: string;
+  messageId: string;
+  userId: string;
+  rating: 'positive' | 'negative';
+  comment: string | null;
+  metadata: Record<string, unknown> | null;
+  agentSlug: string | null;
+  model: string | null;
+  provider: string | null;
+  createdAt: number;
+}
+
+const FOLD_COLUMNS = `
+  id, thread_id AS "threadId", message_id AS "messageId",
+  user_id AS "userId", rating, comment, metadata,
+  agent_slug AS "agentSlug", model, provider,
+  created_at_ms::float8 AS "createdAt"
+`;
+
+async function feedbackRowsSince(
+  sql: Sql,
+  organizationId: string,
+  sinceMs: number | null,
+  cap: number,
+): Promise<FeedbackFoldRow[]> {
+  return sql<FeedbackFoldRow[]>`
+    SELECT ${sql.unsafe(FOLD_COLUMNS)} FROM app.message_feedback
+    WHERE org_id = ${organizationId}
+      AND lifecycle_status IS DISTINCT FROM 'trashed'
+      AND (${sinceMs}::bigint IS NULL OR created_at_ms >= ${sinceMs})
+    ORDER BY created_at_ms DESC
+    LIMIT ${cap}
+  `;
+}
+
+/** The 0.4 `getFeedbackStats`: the PURE reducer reused over pg rows. */
+export async function getFeedbackStats(
+  sql: Sql,
+  organizationId: string,
+  args: {
+    periodDays?: 1 | 7 | 30 | 90;
+    agentSlug?: string;
+    model?: string;
+    provider?: string;
+  },
+): Promise<Record<string, unknown>> {
+  const { computeFeedbackStats } =
+    await import('../../../convex/feedback/stats.ts');
+  const now = Date.now();
+  const cutoffMs =
+    args.periodDays !== undefined ? now - args.periodDays * DAY_MS : null;
+  const prevCutoffMs =
+    cutoffMs !== null && args.periodDays !== undefined
+      ? cutoffMs - args.periodDays * DAY_MS
+      : null;
+  const scanCutoffMs = prevCutoffMs ?? cutoffMs;
+
+  const probe = await sql<{ id: string }[]>`
+    SELECT id FROM app.message_feedback
+    WHERE org_id = ${organizationId} LIMIT 1
+  `;
+  const hasAnyFeedback = probe.length > 0;
+
+  const fetched = await feedbackRowsSince(
+    sql,
+    organizationId,
+    scanCutoffMs,
+    cutoffMs === null ? MAX_SCAN_ALL_TIME + 1 : 100_000,
+  );
+  const rows: FeedbackFoldRow[] = [];
+  const prevRows: FeedbackFoldRow[] = [];
+  for (const row of fetched) {
+    if (cutoffMs === null || row.createdAt >= cutoffMs) rows.push(row);
+    else prevRows.push(row);
+    if (cutoffMs === null && rows.length > MAX_SCAN_ALL_TIME) break;
+  }
+
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reducer reads exactly the aliased fields (agentSlug/createdAt/metadata/model/provider/rating)
+  const docRows = rows as unknown as Parameters<typeof computeFeedbackStats>[0];
+  const stats = computeFeedbackStats(docRows, {
+    cutoffMs,
+    ...(args.agentSlug !== undefined ? { agentSlug: args.agentSlug } : {}),
+    ...(args.model !== undefined ? { model: args.model } : {}),
+    ...(args.provider !== undefined ? { provider: args.provider } : {}),
+    maxScan: cutoffMs === null ? MAX_SCAN_ALL_TIME : Number.POSITIVE_INFINITY,
+  });
+
+  let previous:
+    | { positive: number; negative: number; total: number }
+    | undefined;
+  if (prevCutoffMs !== null) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same aliased shape
+    const prevDocRows = prevRows as unknown as Parameters<
+      typeof computeFeedbackStats
+    >[0];
+    const prevStats = computeFeedbackStats(prevDocRows, {
+      cutoffMs: prevCutoffMs,
+      ...(args.agentSlug !== undefined ? { agentSlug: args.agentSlug } : {}),
+      ...(args.model !== undefined ? { model: args.model } : {}),
+      ...(args.provider !== undefined ? { provider: args.provider } : {}),
+      maxScan: Number.POSITIVE_INFINITY,
+    });
+    previous = {
+      positive: prevStats.message.byRating.positive,
+      negative: prevStats.message.byRating.negative,
+      total: prevStats.message.total,
+    };
+  }
+
+  return { ...stats, hasAnyFeedback, ...(previous ? { previous } : {}) };
+}
+
+/** The 0.4 `listRecentFeedback` page (keyset; arena rows ride metadata). */
+export async function listRecentFeedbackPage(
+  sql: Sql,
+  organizationId: string,
+  args: {
+    numItems: number;
+    cursor: { ts: number; id: string } | null;
+    periodDays?: 1 | 7 | 30 | 90;
+    kind?: 'all' | 'message' | 'arena';
+    withCommentOnly?: boolean;
+    agentSlug?: string;
+    model?: string;
+    provider?: string;
+  },
+): Promise<{ page: unknown[]; isDone: boolean; continueCursor: string }> {
+  const cutoffMs =
+    args.periodDays !== undefined
+      ? Date.now() - args.periodDays * DAY_MS
+      : null;
+  const limit = Math.min(Math.max(1, args.numItems), 100);
+  const rows = await sql<FeedbackFoldRow[]>`
+    SELECT ${sql.unsafe(FOLD_COLUMNS)} FROM app.message_feedback
+    WHERE org_id = ${organizationId}
+      AND lifecycle_status IS DISTINCT FROM 'trashed'
+      AND (${cutoffMs}::bigint IS NULL OR created_at_ms >= ${cutoffMs})
+      AND (${args.agentSlug ?? null}::text IS NULL OR agent_slug = ${args.agentSlug ?? null})
+      AND (${args.model ?? null}::text IS NULL OR model = ${args.model ?? null})
+      AND (${args.provider ?? null}::text IS NULL OR provider = ${args.provider ?? null})
+      AND (${args.cursor?.ts ?? null}::bigint IS NULL
+        OR (created_at_ms, id) < (${args.cursor?.ts ?? null}, ${args.cursor?.id ?? null}))
+    ORDER BY created_at_ms DESC, id DESC
+    LIMIT ${limit + 1}
+  `;
+  const pageRows = rows.slice(0, limit);
+  const isDone = rows.length <= limit;
+
+  // Post-filters mirror 0.4 (kind / withCommentOnly are page-level).
+  const wanted = pageRows.filter((row) => {
+    const isArena = row.metadata?.arenaVerdict !== undefined;
+    if (args.kind === 'message' && isArena) return false;
+    if (args.kind === 'arena' && !isArena) return false;
+    if (args.withCommentOnly === true && !row.comment) return false;
+    return true;
+  });
+
+  const userIds = [...new Set(wanted.map((row) => row.userId))];
+  const users =
+    userIds.length === 0
+      ? []
+      : await sql<{ id: string; name: string | null }[]>`
+          SELECT "id", "name" FROM "user" WHERE "id" = ANY(${userIds})
+        `;
+  const nameOf = new Map(users.map((user) => [user.id, user.name] as const));
+
+  const items = wanted.map((row) => {
+    const verdictRaw = row.metadata?.arenaVerdict;
+    const arenaVerdict =
+      ARENA_VERDICTS.find((verdict) => verdict === verdictRaw) ?? null;
+    const modelA = row.metadata?.modelA;
+    const modelB = row.metadata?.modelB;
+    return {
+      _id: row.id,
+      threadId: row.threadId,
+      messageId: row.messageId,
+      userId: row.userId,
+      userDisplayName: nameOf.get(row.userId) ?? row.userId,
+      rating: row.rating,
+      comment: row.comment
+        ? row.comment.length > COMMENT_PROJECTION_MAX
+          ? row.comment.slice(0, COMMENT_PROJECTION_MAX) + '…'
+          : row.comment
+        : null,
+      agentSlug: row.agentSlug,
+      model: row.model,
+      provider: row.provider,
+      arenaVerdict,
+      arenaModelA: typeof modelA === 'string' ? modelA : null,
+      arenaModelB: typeof modelB === 'string' ? modelB : null,
+      isArena: row.metadata?.arenaVerdict !== undefined,
+      createdAt: row.createdAt,
+    };
+  });
+
+  const last = pageRows.at(-1);
+  return {
+    page: items,
+    isDone,
+    continueCursor:
+      isDone || last === undefined ? '' : `${last.createdAt}|${last.id}`,
+  };
+}

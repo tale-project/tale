@@ -12,6 +12,7 @@ import {
 } from '../../../convex/sandbox/quota_policy.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { Auth } from '../../auth/auth.ts';
+import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
@@ -131,6 +132,116 @@ export function createSandboxRoutes(deps: {
           nearLimit: cap > 0 && u / cap >= 0.8,
         };
       }),
+    });
+  });
+
+  /** External-turn KPIs for the Harness-turns metrics page (the 0.4
+   * `getExternalTurnMetrics` fold over settled agent ops; outcome =
+   * agent_result_status with the op status as fallback, recovered =
+   * a continued turn). Developer-gated like the 0.4 read. */
+  app.get('/external-turn-metrics', async (c) => {
+    if (!isAdminOrDeveloperRole(c.get('orgMember').role)) {
+      return c.json({ error: 'developer role required' }, 403);
+    }
+    const periodRaw = Number(c.req.query('periodDays') ?? '7');
+    const periodDays = Number.isFinite(periodRaw)
+      ? Math.min(Math.max(1, periodRaw), 90)
+      : 7;
+    const since = Date.now() - periodDays * 24 * 60 * 60 * 1000;
+    const rows = await deps.sql<
+      {
+        outcome: string | null;
+        status: string;
+        harness: string | null;
+        durationMs: number;
+        spentCents: number | null;
+        recovered: boolean;
+      }[]
+    >`
+      SELECT o.agent_result_status AS outcome, o.status,
+             s.agent_kind AS harness,
+             (o.finished_at_ms - o.started_at_ms)::float8 AS "durationMs",
+             o.spent_cents AS "spentCents",
+             coalesce(o.continuation_count, 0) > 0 AS recovered
+      FROM app.sandbox_session_ops o
+      JOIN app.sandbox_sessions s ON s.session_id = o.session_id
+      WHERE o.org_id = ${c.get('orgId')}
+        AND o.kind = 'agent-run'
+        AND o.finished_at_ms IS NOT NULL
+        AND o.started_at_ms >= ${since}
+      ORDER BY o.started_at_ms DESC
+      LIMIT 5000
+    `;
+    let total = 0;
+    let completed = 0;
+    let failed = 0;
+    let cancelled = 0;
+    let timeout = 0;
+    let recovered = 0;
+    let spentCents = 0;
+    const durations: number[] = [];
+    const byHarness = new Map<
+      string,
+      { total: number; completed: number; failed: number; timeout: number }
+    >();
+    for (const row of rows) {
+      total += 1;
+      durations.push(row.durationMs);
+      if (row.spentCents !== null) spentCents += row.spentCents;
+      if (row.recovered) recovered += 1;
+      const outcome = row.outcome ?? row.status;
+      if (outcome === 'completed') completed += 1;
+      else if (outcome === 'failed') failed += 1;
+      else if (outcome === 'cancelled') cancelled += 1;
+      else timeout += 1;
+      const harness = row.harness ?? 'unknown';
+      const bucket = byHarness.get(harness) ?? {
+        total: 0,
+        completed: 0,
+        failed: 0,
+        timeout: 0,
+      };
+      bucket.total += 1;
+      if (outcome === 'completed') bucket.completed += 1;
+      else if (outcome === 'failed') bucket.failed += 1;
+      else if (outcome === 'timeout') bucket.timeout += 1;
+      byHarness.set(harness, bucket);
+    }
+    const ratedTotal = completed + failed + timeout;
+    durations.sort((a, b) => a - b);
+    const percentile = (sorted: number[], p: number): number | null => {
+      if (sorted.length === 0) return null;
+      const index = Math.min(
+        sorted.length - 1,
+        Math.ceil((p / 100) * sorted.length) - 1,
+      );
+      return sorted[Math.max(0, index)] ?? null;
+    };
+    return c.json({
+      periodDays,
+      capped: total >= 5000,
+      total,
+      completed,
+      failed,
+      cancelled,
+      timeout,
+      recovered,
+      successRate: ratedTotal === 0 ? null : completed / ratedTotal,
+      timeoutRate: ratedTotal === 0 ? null : timeout / ratedTotal,
+      durationP50Ms: percentile(durations, 50),
+      durationP95Ms: percentile(durations, 95),
+      spentCents,
+      byHarness: [...byHarness.entries()]
+        .map(([harness, stats]) =>
+          Object.assign({ harness }, stats, {
+            successRate:
+              stats.completed + stats.failed + stats.timeout === 0
+                ? null
+                : stats.completed /
+                  (stats.completed + stats.failed + stats.timeout),
+          }),
+        )
+        .sort((a, b) => b.total - a.total),
     });
   });
 

@@ -40,6 +40,7 @@ import {
   proposeDsarPolicy,
   saveGovernanceSecret,
   readGovernanceSecretMasked,
+  getGuardrailStats,
 } from './settings-tail.ts';
 import {
   listTrashedRows,
@@ -47,6 +48,7 @@ import {
   TrashError,
   type TrashCursor,
 } from './trash.ts';
+import { getOrgUsageMetricsPg } from './usage-metrics.ts';
 
 /**
  * /api/app/governance — the governance SETTINGS core: policy file
@@ -171,6 +173,37 @@ export function createGovernanceRoutes(deps: {
       });
     });
     return c.json({ ok: true });
+  });
+
+  /** Org usage metrics (the metrics page; admin) — the 0.4 fold reused. */
+  app.get('/usage-metrics', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    const periodRaw = Number(c.req.query('periodDays') ?? '7');
+    const periodDays =
+      periodRaw === 30
+        ? (30 as const)
+        : periodRaw === 90
+          ? (90 as const)
+          : (7 as const);
+    const granRaw = c.req.query('granularity');
+    const granularity =
+      granRaw === 'weekly' || granRaw === 'monthly' ? granRaw : 'daily';
+    return c.json(
+      await getOrgUsageMetricsPg(deps.sql, c.get('orgId'), {
+        periodDays,
+        granularity,
+        ...(c.req.query('agentSlug') !== undefined
+          ? { agentSlug: c.req.query('agentSlug') ?? '' }
+          : {}),
+        ...(c.req.query('model') !== undefined
+          ? { model: c.req.query('model') ?? '' }
+          : {}),
+        ...(c.req.query('provider') !== undefined
+          ? { provider: c.req.query('provider') ?? '' }
+          : {}),
+      }),
+    );
   });
 
   app.get('/my/feature-flags', async (c) => {
@@ -485,6 +518,18 @@ export function createGovernanceRoutes(deps: {
           'Testing the moderation provider is offline while the platform AI backend is rewritten.',
       },
       400,
+    );
+  });
+
+  /** Guardrail aggregates for the chat-health page (the 0.4
+   * `getGuardrailStats`: one bounded newest-first fold). */
+  app.get('/chat-filter-events/stats', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    const periodRaw = Number(c.req.query('periodDays') ?? '7');
+    const periodDays = periodRaw === 1 ? 1 : periodRaw === 30 ? 30 : 7;
+    return c.json(
+      await getGuardrailStats(deps.sql, c.get('orgId'), { periodDays }),
     );
   });
 

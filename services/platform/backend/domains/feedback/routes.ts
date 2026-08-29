@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { authorizeRls } from '../../auth/access.ts';
 import type { Auth } from '../../auth/auth.ts';
+import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
@@ -13,6 +14,8 @@ import {
   listMessageFeedback,
   removeMessageFeedback,
   submitMessageFeedback,
+  getFeedbackStats,
+  listRecentFeedbackPage,
 } from './service.ts';
 
 const submitSchema = z.object({
@@ -89,6 +92,75 @@ export function createFeedbackRoutes(deps: {
       .safeParse(c.req.query('rating'));
     const options = ratingParsed.success ? { rating: ratingParsed.data } : {};
     return c.json(await listMessageFeedback(deps.sql, c.get('orgId'), options));
+  });
+
+  /** Metrics-page stats (the 0.4 `getFeedbackStats`; admin). */
+  app.get('/stats', async (c) => {
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'forbidden' }, 403);
+    }
+    const periodRaw = Number(c.req.query('periodDays') ?? Number.NaN);
+    const periodDays =
+      periodRaw === 1 || periodRaw === 7 || periodRaw === 30 || periodRaw === 90
+        ? periodRaw
+        : undefined;
+    return c.json(
+      await getFeedbackStats(deps.sql, c.get('orgId'), {
+        ...(periodDays !== undefined ? { periodDays } : {}),
+        ...(c.req.query('agentSlug') !== undefined
+          ? { agentSlug: c.req.query('agentSlug') ?? '' }
+          : {}),
+        ...(c.req.query('model') !== undefined
+          ? { model: c.req.query('model') ?? '' }
+          : {}),
+        ...(c.req.query('provider') !== undefined
+          ? { provider: c.req.query('provider') ?? '' }
+          : {}),
+      }),
+    );
+  });
+
+  /** Metrics-page recent-feedback page (the 0.4 `listRecentFeedback`). */
+  app.get('/recent', async (c) => {
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'forbidden' }, 403);
+    }
+    const periodRaw = Number(c.req.query('periodDays') ?? Number.NaN);
+    const periodDays =
+      periodRaw === 1 || periodRaw === 7 || periodRaw === 30 || periodRaw === 90
+        ? periodRaw
+        : undefined;
+    const kindRaw = c.req.query('kind');
+    const kind =
+      kindRaw === 'all' || kindRaw === 'message' || kindRaw === 'arena'
+        ? kindRaw
+        : undefined;
+    const cursorTs = Number(c.req.query('cursorTs') ?? Number.NaN);
+    const cursorId = c.req.query('cursorId');
+    const limitRaw = Number(c.req.query('limit') ?? '25');
+    return c.json(
+      await listRecentFeedbackPage(deps.sql, c.get('orgId'), {
+        numItems: Number.isFinite(limitRaw) ? limitRaw : 25,
+        cursor:
+          Number.isFinite(cursorTs) && cursorId !== undefined
+            ? { ts: cursorTs, id: cursorId }
+            : null,
+        ...(periodDays !== undefined ? { periodDays } : {}),
+        ...(kind !== undefined ? { kind } : {}),
+        ...(c.req.query('withCommentOnly') === 'true'
+          ? { withCommentOnly: true }
+          : {}),
+        ...(c.req.query('agentSlug') !== undefined
+          ? { agentSlug: c.req.query('agentSlug') ?? '' }
+          : {}),
+        ...(c.req.query('model') !== undefined
+          ? { model: c.req.query('model') ?? '' }
+          : {}),
+        ...(c.req.query('provider') !== undefined
+          ? { provider: c.req.query('provider') ?? '' }
+          : {}),
+      }),
+    );
   });
 
   return app;

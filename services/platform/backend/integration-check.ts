@@ -18080,6 +18080,333 @@ async function checkEngagementSurface(
  * per-user clock once; the verify-endpoint lockout mirrors the password
  * schedule and clears on success.
  */
+async function checkMetricsSurface(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const get = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, { headers: { cookie, origin: base } });
+  const now = Date.now();
+  const dayKey = new Date(now).toISOString().slice(0, 10);
+
+  // ---- seeds -------------------------------------------------------------
+  // Usage ledger: two daily buckets in today's key (distinct models).
+  await sql`
+    INSERT INTO app.usage_ledger (
+      org_id, user_id, period_key, granularity, agent_slug, model, provider,
+      input_tokens, output_tokens, total_tokens, cost_estimate_cents,
+      request_count, updated_at_ms
+    ) VALUES
+      (${orgId}, ${userId}, ${dayKey}, 'daily', 'mx-usage-agent', 'glm-x',
+       'zai', 100, 50, 150, 3, 2, ${now}),
+      (${orgId}, ${userId}, ${dayKey}, 'daily', 'mx-usage-agent', 'gpt-t',
+       'openai', 10, 5, 15, 1, 1, ${now})
+  `;
+  // Feedback: positive w/ comment, negative, and an arena verdict row.
+  await sql`
+    INSERT INTO app.message_feedback (
+      org_id, thread_id, message_id, user_id, rating, comment, metadata,
+      agent_slug, model, provider, created_at_ms
+    ) VALUES
+      (${orgId}, 'mx-t1', 'mx-m1', ${userId}, 'positive', 'love it', NULL,
+       'mx-fb-agent', 'glm-x', 'zai', ${now - 3000}),
+      (${orgId}, 'mx-t1', 'mx-m2', ${userId}, 'negative', NULL, NULL,
+       'mx-fb-agent', 'glm-x', 'zai', ${now - 2000}),
+      (${orgId}, 'mx-t2', 'mx-m3', ${userId}, 'positive', NULL,
+       ${sql.json({ arenaVerdict: 'a_better', modelA: 'm1', modelB: 'm2' })},
+       'mx-fb-agent', NULL, NULL, ${now - 1000})
+  `;
+  // Chat health: one attributed thread with ok/error/blocked assistant turns.
+  await sql`
+    INSERT INTO app.threads (id, org_id, user_id, created_at_ms, updated_at_ms)
+    VALUES ('mx-health-t', ${orgId}, ${userId}, ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.thread_metadata (
+      thread_id, org_id, user_id, chat_type, status, agent_slug, created_at_ms
+    ) VALUES ('mx-health-t', ${orgId}, ${userId}, 'assistant', 'active',
+              'mx-health-agent', ${now})
+  `;
+  await sql`
+    INSERT INTO app.messages (
+      id, thread_id, org_id, "order", role, status, usage, error,
+      blocked_reason, model, provider_slug, created_at_ms
+    ) VALUES
+      ('mx-msg-u', 'mx-health-t', ${orgId}, 0, 'user', 'complete',
+       NULL, NULL, NULL, NULL, NULL, ${now - 4000}),
+      ('mx-msg-ok', 'mx-health-t', ${orgId}, 1, 'assistant', 'complete',
+       ${sql.json({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })},
+       NULL, NULL, 'glm-x', 'zai', ${now - 3000}),
+      ('mx-msg-err', 'mx-health-t', ${orgId}, 2, 'assistant', 'failed',
+       NULL, 'Error: boom', NULL, 'glm-x', 'zai', ${now - 2000}),
+      ('mx-msg-blk', 'mx-health-t', ${orgId}, 3, 'assistant', 'complete',
+       NULL, NULL, 'output_filtered', 'glm-x', 'zai', ${now - 1000})
+  `;
+  // Guardrails: one detected + one blocked event.
+  await sql`
+    INSERT INTO app.chat_filter_events (
+      org_id, sanitization_run_id, thread_id, filter_name, direction, kind,
+      category_ids, created_at_ms
+    ) VALUES
+      (${orgId}, 'mx-run', 'mx-health-t', 'pii', 'input', 'detected',
+       ARRAY['cat1'], ${now - 2000}),
+      (${orgId}, 'mx-run', 'mx-health-t', 'pii', 'output', 'blocked',
+       ARRAY['cat1', 'cat2'], ${now - 1000})
+  `;
+  // External turns: one session, four settled agent-run ops (the four
+  // outcomes; the completed one is a recovered continuation).
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      agent_kind, created_at_ms, expires_at_ms
+    ) VALUES (${orgId}, 'mx-sess', 'destroyed', 'user', ${userId}, ${userId},
+              'claude-code', ${now}, ${now + 3_600_000})
+  `;
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, agent_result_status,
+      continuation_count, spent_cents, started_at_ms, finished_at_ms
+    ) VALUES
+      (${orgId}, 'mx-sess', 'mx-e1', 'agent-run', 'completed', 'completed',
+       1, 5, ${now - 60_000}, ${now - 50_000}),
+      (${orgId}, 'mx-sess', 'mx-e2', 'agent-run', 'failed', 'failed',
+       0, 2, ${now - 40_000}, ${now - 35_000}),
+      (${orgId}, 'mx-sess', 'mx-e3', 'agent-run', 'cancelled', 'cancelled',
+       0, NULL, ${now - 30_000}, ${now - 29_000}),
+      (${orgId}, 'mx-sess', 'mx-e4', 'agent-run', 'failed', 'timeout',
+       0, 1, ${now - 20_000}, ${now - 5_000})
+  `;
+
+  // ---- probes ------------------------------------------------------------
+  const usage = z
+    .object({
+      summary: z
+        .object({
+          totalRequests: z.number(),
+          totalTokens: z.number(),
+          totalCostCents: z.number(),
+          activeUsers: z.number(),
+        })
+        .loose(),
+      series: z.array(z.object({}).loose()),
+      topModels: z.array(z.object({ model: z.string() }).loose()),
+      users: z.array(z.object({}).loose()),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await get(
+          `/api/app/governance/usage-metrics?orgId=${orgId}&periodDays=7&granularity=daily&agentSlug=mx-usage-agent`,
+        )
+      ).json(),
+    );
+  const usageOk =
+    usage.success &&
+    usage.data.summary.totalRequests === 3 &&
+    usage.data.summary.totalTokens === 165 &&
+    usage.data.summary.totalCostCents === 4 &&
+    usage.data.summary.activeUsers === 1 &&
+    usage.data.topModels.some((row) => row.model === 'glm-x');
+  const usageFiltered = z
+    .object({ summary: z.object({ totalTokens: z.number() }).loose() })
+    .loose()
+    .safeParse(
+      await (
+        await get(
+          `/api/app/governance/usage-metrics?orgId=${orgId}&periodDays=7&granularity=daily&agentSlug=mx-usage-agent&model=gpt-t`,
+        )
+      ).json(),
+    );
+  record(
+    'metrics: usage fold totals + model filter',
+    usageOk &&
+      usageFiltered.success &&
+      usageFiltered.data.summary.totalTokens === 15,
+    `shape=${usage.success}, totals=${usage.success ? `${usage.data.summary.totalRequests}/${usage.data.summary.totalTokens}/${usage.data.summary.totalCostCents}` : '-'}, filtered=${usageFiltered.success ? usageFiltered.data.summary.totalTokens : '-'}`,
+  );
+
+  const feedbackStats = z
+    .object({
+      message: z.object({
+        total: z.number(),
+        byRating: z.object({ positive: z.number(), negative: z.number() }),
+      }),
+      arena: z.object({ total: z.number() }).loose(),
+      hasAnyFeedback: z.boolean(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await get(
+          `/api/app/feedback/stats?orgId=${orgId}&periodDays=7&agentSlug=mx-fb-agent`,
+        )
+      ).json(),
+    );
+  const statsOk =
+    feedbackStats.success &&
+    feedbackStats.data.message.total === 2 &&
+    feedbackStats.data.message.byRating.positive === 1 &&
+    feedbackStats.data.message.byRating.negative === 1 &&
+    feedbackStats.data.arena.total === 1 &&
+    feedbackStats.data.hasAnyFeedback;
+
+  const pageEnvelope = z.object({
+    page: z.array(
+      z
+        .object({ _id: z.string(), rating: z.string(), isArena: z.boolean() })
+        .loose(),
+    ),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+  });
+  const recentOne = pageEnvelope.safeParse(
+    await (await get(`/api/app/feedback/recent?orgId=${orgId}&limit=2`)).json(),
+  );
+  const cursor = recentOne.success ? recentOne.data.continueCursor : '';
+  const at = cursor.indexOf('|');
+  const recentTwo = pageEnvelope.safeParse(
+    await (
+      await get(
+        `/api/app/feedback/recent?orgId=${orgId}&limit=2&agentSlug=mx-fb-agent&cursorTs=${cursor.slice(0, at)}&cursorId=${encodeURIComponent(cursor.slice(at + 1))}`,
+      )
+    ).json(),
+  );
+  const commentOnly = pageEnvelope.safeParse(
+    await (
+      await get(
+        `/api/app/feedback/recent?orgId=${orgId}&limit=10&agentSlug=mx-fb-agent&withCommentOnly=true`,
+      )
+    ).json(),
+  );
+  const recentOk =
+    recentOne.success &&
+    recentOne.data.page.length === 2 &&
+    !recentOne.data.isDone &&
+    (recentOne.data.page[0]?.isArena ?? false) &&
+    recentTwo.success &&
+    recentTwo.data.page.length === 1 &&
+    recentTwo.data.isDone &&
+    recentTwo.data.page[0]?._id !== recentOne.data.page[0]?._id &&
+    commentOnly.success &&
+    commentOnly.data.page.length === 1 &&
+    commentOnly.data.page[0]?.rating === 'positive';
+  record(
+    'metrics: feedback stats + recent keyset walk',
+    statsOk && recentOk,
+    `stats=${feedbackStats.success ? `${statsOk}` : 'shape-fail'}, page1=${recentOne.success ? recentOne.data.page.length : '-'}, page2=${recentTwo.success ? recentTwo.data.page.length : '-'}, commentOnly=${commentOnly.success ? commentOnly.data.page.length : '-'}`,
+  );
+
+  const health = z
+    .object({
+      summary: z
+        .object({
+          totalTurns: z.number(),
+          errorCount: z.number(),
+          blockedCount: z.number(),
+          tokens: z.object({ total: z.number() }).loose(),
+          hasAnyData: z.boolean(),
+        })
+        .loose(),
+      series: z.array(z.object({}).loose()),
+      byModel: z.array(z.object({ model: z.string() }).loose()),
+      byAgent: z.array(z.object({ agentSlug: z.string(), count: z.number() })),
+      errorsByType: z.array(z.object({ key: z.string() }).loose()),
+      recentErrors: z.array(z.object({ type: z.string() }).loose()),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/chat/health?orgId=${orgId}&periodDays=7`)
+      ).json(),
+    );
+  const healthOk =
+    health.success &&
+    health.data.summary.totalTurns >= 3 &&
+    health.data.summary.errorCount >= 1 &&
+    health.data.summary.blockedCount >= 1 &&
+    health.data.summary.tokens.total >= 15 &&
+    health.data.byAgent.some(
+      (row) => row.agentSlug === 'mx-health-agent' && row.count === 3,
+    ) &&
+    health.data.recentErrors.length >= 1;
+  const guardrails = z
+    .object({
+      byKind: z.array(z.object({ key: z.string(), count: z.number() })),
+      byDirection: z.array(z.object({ key: z.string() }).loose()),
+      byCategory: z.array(z.object({ key: z.string() }).loose()),
+      series: z.array(z.object({}).loose()),
+      capped: z.boolean(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await get(
+          `/api/app/governance/chat-filter-events/stats?orgId=${orgId}&periodDays=7`,
+        )
+      ).json(),
+    );
+  const guardrailsOk =
+    guardrails.success &&
+    guardrails.data.byKind.some(
+      (row) => row.key === 'detected' && row.count >= 1,
+    ) &&
+    guardrails.data.byCategory.some((row) => row.key === 'cat2');
+  record(
+    'metrics: chat health + guardrail folds',
+    healthOk && guardrailsOk,
+    `health=${health.success ? `turns=${health.data.summary.totalTurns} err=${health.data.summary.errorCount} blk=${health.data.summary.blockedCount}` : 'shape-fail'}, guardrails=${guardrails.success ? guardrails.data.byKind.length : 'shape-fail'}`,
+  );
+
+  const turns = z
+    .object({
+      periodDays: z.number(),
+      total: z.number(),
+      completed: z.number(),
+      failed: z.number(),
+      cancelled: z.number(),
+      timeout: z.number(),
+      recovered: z.number(),
+      successRate: z.union([z.number(), z.null()]),
+      timeoutRate: z.union([z.number(), z.null()]),
+      durationP50Ms: z.union([z.number(), z.null()]),
+      durationP95Ms: z.union([z.number(), z.null()]),
+      spentCents: z.number(),
+      byHarness: z.array(
+        z.object({ harness: z.string(), total: z.number() }).loose(),
+      ),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await get(
+          `/api/app/sandbox/external-turn-metrics?orgId=${orgId}&periodDays=7`,
+        )
+      ).json(),
+    );
+  const turnsOk =
+    turns.success &&
+    turns.data.total === 4 &&
+    turns.data.completed === 1 &&
+    turns.data.failed === 1 &&
+    turns.data.cancelled === 1 &&
+    turns.data.timeout === 1 &&
+    turns.data.recovered === 1 &&
+    turns.data.successRate !== null &&
+    Math.abs(turns.data.successRate - 1 / 3) < 1e-9 &&
+    turns.data.durationP95Ms === 15_000 &&
+    turns.data.spentCents === 8 &&
+    turns.data.byHarness[0]?.harness === 'claude-code' &&
+    turns.data.byHarness[0].total === 4;
+  record(
+    'metrics: external-turn outcomes + percentiles',
+    turnsOk,
+    turns.success
+      ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents}`
+      : 'shape-fail',
+  );
+}
+
 async function checkTwoFactor(
   sql: Sql,
   base: string,
@@ -19223,6 +19550,7 @@ async function main(): Promise<void> {
     await checkAutomationsSurface(sql, baseUrl, authCtx);
     await checkLibrarySurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkEngagementSurface(sql, baseUrl, authCtx);
+    await checkMetricsSurface(sql, baseUrl, authCtx);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

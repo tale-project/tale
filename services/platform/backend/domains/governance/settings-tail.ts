@@ -784,3 +784,78 @@ export async function listRecentChatFilterEvents(
     LIMIT ${limit}
   `;
 }
+
+const GUARDRAIL_STATS_MAX_SCAN = 5000;
+
+/** The 0.4 `getGuardrailStats` fold over one bounded newest-first page. */
+export async function getGuardrailStats(
+  sql: Sql,
+  organizationId: string,
+  args: { periodDays: number },
+): Promise<Record<string, unknown>> {
+  const { DAY_MS, dailyKeys, utcDateKey } =
+    await import('../../../lib/shared/metrics-window.ts');
+  const now = Date.now();
+  const windowStart = now - args.periodDays * DAY_MS;
+  const rows = await sql<
+    {
+      kind: string;
+      filterName: string;
+      direction: string;
+      categoryIds: string[];
+      createdAt: number;
+    }[]
+  >`
+    SELECT kind, filter_name AS "filterName", direction,
+           category_ids AS "categoryIds",
+           created_at_ms::float8 AS "createdAt"
+    FROM app.chat_filter_events
+    WHERE org_id = ${organizationId} AND created_at_ms >= ${windowStart}
+    ORDER BY created_at_ms DESC
+    LIMIT ${GUARDRAIL_STATS_MAX_SCAN + 1}
+  `;
+  const capped = rows.length > GUARDRAIL_STATS_MAX_SCAN;
+  const walk = rows.slice(0, GUARDRAIL_STATS_MAX_SCAN);
+
+  const kindCounts = new Map<string, number>();
+  const filterCounts = new Map<string, number>();
+  const directionCounts = new Map<string, number>();
+  const categoryCounts = new Map<string, number>();
+  const seriesMap = new Map(
+    dailyKeys(args.periodDays, now).map((dateKey) => [
+      dateKey,
+      { dateKey, detected: 0, blocked: 0, errors: 0 },
+    ]),
+  );
+  const increment = (map: Map<string, number>, key: string): void => {
+    map.set(key, (map.get(key) ?? 0) + 1);
+  };
+  for (const event of walk) {
+    increment(kindCounts, event.kind);
+    increment(filterCounts, event.filterName);
+    increment(directionCounts, event.direction);
+    for (const categoryId of event.categoryIds) {
+      increment(categoryCounts, categoryId);
+    }
+    const seriesPoint = seriesMap.get(utcDateKey(event.createdAt));
+    if (seriesPoint) {
+      if (event.kind === 'detected') seriesPoint.detected++;
+      else if (event.kind === 'blocked') seriesPoint.blocked++;
+      else seriesPoint.errors++;
+    }
+  }
+  const entries = (
+    map: Map<string, number>,
+  ): { key: string; count: number }[] =>
+    [...map]
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => b.count - a.count);
+  return {
+    byKind: entries(kindCounts),
+    byFilter: entries(filterCounts),
+    byDirection: entries(directionCounts),
+    byCategory: entries(categoryCounts),
+    series: [...seriesMap.values()],
+    capped,
+  };
+}

@@ -21,6 +21,7 @@ import {
   enqueueDeferredSend,
   listDeferredSends,
 } from './deferred-sends.ts';
+import { getOrgChatHealth } from './health.ts';
 import {
   listMemories,
   reviewMemory,
@@ -713,6 +714,23 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     } catch (error) {
       return handleThreadError(c, error);
     }
+  });
+
+  /** Org chat health (the metrics page; admin). */
+  app.get('/health', async (c) => {
+    if (!isAdminOrDeveloperRole(c.get('orgMember').role)) {
+      return c.json({ error: 'admin role required' }, 403);
+    }
+    const periodRaw = Number(c.req.query('periodDays') ?? '7');
+    const periodDays =
+      periodRaw === 1
+        ? (1 as const)
+        : periodRaw === 30
+          ? (30 as const)
+          : (7 as const);
+    return c.json(
+      await getOrgChatHealth(deps.sql, c.get('orgId'), { periodDays }),
+    );
   });
 
   app.get('/composer/automation-capabilities', async (c) => {

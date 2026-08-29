@@ -40,6 +40,7 @@ import {
   engagementWriteAdapters,
 } from './engagement';
 import { libraryActionQueryAdapters, libraryWriteAdapters } from './library';
+import { metricsPaginatedAdapters, metricsReadAdapters } from './metrics';
 import {
   projectActionQueryAdapters,
   projectReadAdapters,
@@ -135,6 +136,7 @@ export const READ_ADAPTERS: Record<string, ReadAdapter> = {
   ...adminReadAdapters,
   ...automationReadAdapters,
   ...engagementReadAdapters,
+  ...metricsReadAdapters,
   ...documentReadAdapters,
   ...projectReadAdapters,
   ...settingsReadAdapters,
@@ -144,6 +146,7 @@ export const READ_ADAPTERS: Record<string, ReadAdapter> = {
 export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
   ...adminPaginatedAdapters,
   ...engagementPaginatedAdapters,
+  ...metricsPaginatedAdapters,
   ...documentPaginatedAdapters,
   ...settingsPaginatedAdapters,
 };
