@@ -60,7 +60,7 @@ const MAX_RETENTION_FILE_BYTES = 256 * 1024;
 
 /** The org's retention DEFAULTS/BOUNDS file (its OWN file only — every org
  * is seeded from the catalog at create; no cross-org fallback). */
-async function loadOrgRetentionConfig(orgSlug: string) {
+export async function loadOrgRetentionConfig(orgSlug: string) {
   const path = await import('node:path');
   const dir = path.join(getConfigRoot('retention'), orgSlug, 'governance');
   const result = await readDomainConfigFile(
@@ -137,9 +137,20 @@ export async function applyRetentionBounds(
 export async function getAppliedBounds(
   sql: Sql,
   organizationId: string,
-): Promise<{ bounds: AppliedBounds; appliedAt: number } | null> {
-  const rows = await sql<{ bounds: AppliedBounds; appliedAt: number }[]>`
-    SELECT bounds, applied_at_ms::float8 AS "appliedAt"
+): Promise<{
+  bounds: AppliedBounds;
+  appliedAt: number;
+  rejectedBoundsHash: string | null;
+} | null> {
+  const rows = await sql<
+    {
+      bounds: AppliedBounds;
+      appliedAt: number;
+      rejectedBoundsHash: string | null;
+    }[]
+  >`
+    SELECT bounds, applied_at_ms::float8 AS "appliedAt",
+           rejected_bounds_hash AS "rejectedBoundsHash"
     FROM app.retention_applied_bounds
     WHERE org_id = ${organizationId}
     LIMIT 1
@@ -147,9 +158,58 @@ export async function getAppliedBounds(
   return rows[0] ?? null;
 }
 
+/** Silence the bounds banner for exactly this operator hash (the 0.4
+ * `rejectedBoundsHash`); a later divergence surfaces it again. */
+export async function setRejectedBoundsHash(
+  sql: Sql,
+  organizationId: string,
+  hash: string,
+): Promise<boolean> {
+  const rows = await sql<{ orgId: string }[]>`
+    UPDATE app.retention_applied_bounds
+    SET rejected_bounds_hash = ${hash}
+    WHERE org_id = ${organizationId}
+    RETURNING org_id AS "orgId"
+  `;
+  return rows[0] !== undefined;
+}
+
 interface OrgPolicy {
   organizationId: string;
   config: RetentionPolicyConfig;
+}
+
+/** During a staged shortening's 7-day cooldown the SWEEP keeps enforcing
+ * the longer pre-save values (the file already holds the new config; the
+ * pending row snapshots the old one). Per numeric retention key the
+ * enforcement value is max(old, new) — reductions wait out the cooldown,
+ * extensions apply immediately. */
+async function overlayPendingShorteningCooldown(
+  sql: Sql,
+  organizationId: string,
+  config: Record<string, unknown>,
+): Promise<void> {
+  const pending = await sql<{ oldConfig: Record<string, unknown> }[]>`
+    SELECT old_config AS "oldConfig"
+    FROM app.retention_policy_pending_changes
+    WHERE org_id = ${organizationId} AND applies_at_ms > ${Date.now()}
+    LIMIT 1
+  `;
+  const oldConfig = pending[0]?.oldConfig;
+  if (oldConfig === undefined) return;
+  for (const [key, oldValue] of Object.entries(oldConfig)) {
+    if (!/Retention(Days|Hours)$/.test(key) && key !== 'deletionGraceDays') {
+      continue;
+    }
+    const newValue = config[key];
+    if (
+      typeof oldValue === 'number' &&
+      typeof newValue === 'number' &&
+      oldValue > newValue
+    ) {
+      config[key] = oldValue;
+    }
+  }
 }
 
 /** The policy file clamped to the org's APPLIED bounds — null when the org
@@ -166,6 +226,11 @@ async function clampedPolicyFor(
   if (!config || typeof config.documentsRetentionDays !== 'number') {
     return null;
   }
+  // Overlay onto a COPY — `readGovernancePolicyForOrg` hands back a cached
+  // object, and mutating it would freeze the pre-cooldown values in the
+  // cache long after the pending row expired.
+  const effectiveConfig = { ...config };
+  await overlayPendingShorteningCooldown(sql, organizationId, effectiveConfig);
   const applied = await getAppliedBounds(sql, organizationId);
   if (applied === null) {
     console.warn(
@@ -183,7 +248,7 @@ async function clampedPolicyFor(
     config: clampConfigToBounds(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- keyed by the same category union the snapshot was built from
       boundsByCategory as Record<RetentionCategory, EffectiveBoundDef>,
-      config,
+      effectiveConfig,
     ),
   };
 }

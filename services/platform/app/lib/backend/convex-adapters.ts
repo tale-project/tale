@@ -31,6 +31,7 @@ import {
   settingsActionQueryAdapters,
   settingsReadAdapters,
   settingsWriteAdapters,
+  settingsPaginatedAdapters,
 } from './settings';
 import { taskReadAdapters, taskWriteAdapters } from './tasks';
 
@@ -121,6 +122,7 @@ export const READ_ADAPTERS: Record<string, ReadAdapter> = {
 
 export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
   ...documentPaginatedAdapters,
+  ...settingsPaginatedAdapters,
 };
 
 export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {

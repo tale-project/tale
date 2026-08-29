@@ -14,6 +14,7 @@ import { backendFetch } from './api-client';
 import type {
   ActionQueryAdapter,
   AdapterContext,
+  PaginatedAdapter,
   ReadAdapter,
   WriteAdapter,
 } from './convex-adapters';
@@ -94,6 +95,90 @@ type MyBudgetStatusResult = FunctionReturnType<
 type TrashListResult = FunctionReturnType<
   typeof api.governance.queries.listTrashedRows
 >;
+type LegalHoldItem = FunctionReturnType<
+  typeof api.governance.legal_hold_queries.listLegalHolds
+>[number];
+type LegalMatterItem = FunctionReturnType<
+  typeof api.governance.legal_hold_queries.listLegalMatters
+>[number];
+type ReleaseRequestItem = FunctionReturnType<
+  typeof api.governance.legal_hold_queries.listLegalHoldReleaseRequests
+>[number];
+type HeldByTargetResult = FunctionReturnType<
+  typeof api.governance.legal_hold_queries.getLegalHoldByTarget
+>;
+type ActiveHoldTargetsResult = FunctionReturnType<
+  typeof api.governance.legal_hold_queries.listActiveHoldTargetIds
+>;
+type MemberPickerItem = FunctionReturnType<
+  typeof api.governance.legal_hold_queries.listOrgMembersForPicker
+>[number];
+type ErasureDetailResult = FunctionReturnType<
+  typeof api.governance.erasure_queries.getErasureRequest
+>;
+type DsarPolicyUiResult = FunctionReturnType<
+  typeof api.governance.dsar_policy.getDsarPolicyForUi
+>;
+type PendingRetentionChangeResult = FunctionReturnType<
+  typeof api.governance.queries.getPendingRetentionChange
+>;
+type RetentionBoundsCatalogResult = FunctionReturnType<
+  typeof api.governance.retention_actions.getRetentionBoundsAction
+>;
+type PendingBoundsProposalResult = FunctionReturnType<
+  typeof api.governance.retention_bounds_proposal.getPendingBoundsProposal
+>;
+type ChatFilterEventItem = FunctionReturnType<
+  typeof api.chat_filter_events.queries.listRecent
+>[number];
+type RequestErasureResult = FunctionReturnType<
+  typeof api.governance.erasure.requestErasure
+>;
+type ExtendErasureResult = FunctionReturnType<
+  typeof api.governance.erasure.extendErasureDeadline
+>;
+type CloseMatterResult = FunctionReturnType<
+  typeof api.governance.legal_hold.closeLegalMatter
+>;
+type ProposeDsarResult = FunctionReturnType<
+  typeof api.governance.dsar_policy.proposeDsarPolicy
+>;
+
+/** GET /members row (the directory projection the pickers reuse). */
+interface MemberDirectoryWire {
+  userId: string;
+  role: string;
+  displayName: string | null;
+  email: string | null;
+}
+
+/** The pg keyset page envelope for the governance history walks. */
+interface KeysetPage<Row> {
+  requests: Row[];
+  nextCursor: { ts: number; id: string } | null;
+}
+
+function keysetQs(cursor: string | null): string {
+  if (cursor === null) return '';
+  const [ts, id] = cursor.split('|');
+  if (ts === undefined || id === undefined || id === '') return '';
+  return `&cursorTs=${encodeURIComponent(ts)}&cursorId=${encodeURIComponent(id)}`;
+}
+
+function keysetEnvelope<Row>(body: KeysetPage<Row>): {
+  page: Row[];
+  isDone: boolean;
+  continueCursor: string;
+} {
+  return {
+    page: body.requests,
+    isDone: body.nextCursor === null,
+    continueCursor:
+      body.nextCursor === null
+        ? ''
+        : `${body.nextCursor.ts}|${body.nextCursor.id}`,
+  };
+}
 
 const CONNECTOR_SECRET_KEYS = [
   'token',
@@ -506,6 +591,180 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.passkeys),
     };
   },
+  'governance/legal_hold_queries:listLegalHolds': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const status = typeof args.status === 'string' ? args.status : 'active';
+    const targetType =
+      typeof args.targetType === 'string' ? args.targetType : '';
+    const qs =
+      `?status=${encodeURIComponent(status)}` +
+      (targetType !== ''
+        ? `&targetType=${encodeURIComponent(targetType)}`
+        : '');
+    return {
+      queryKey: backendKey(orgId, 'legal_hold', 'list', status, targetType),
+      queryFn: () =>
+        backendFetch<{ holds: LegalHoldItem[] }>(`/legal-holds${qs}`, {
+          orgId,
+        }).then((body) => body.holds),
+    };
+  },
+  'governance/legal_hold_queries:listLegalMatters': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const status = typeof args.status === 'string' ? args.status : 'all';
+    return {
+      queryKey: backendKey(orgId, 'legal_hold', 'matters', status),
+      queryFn: () =>
+        backendFetch<{ matters: LegalMatterItem[] }>(
+          `/legal-holds/matters?status=${encodeURIComponent(status)}`,
+          { orgId },
+        ).then((body) => body.matters),
+    };
+  },
+  'governance/legal_hold_queries:listLegalHoldReleaseRequests': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const status = args.status;
+    if (orgId === undefined || typeof status !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'legal_hold', 'release-requests', status),
+      queryFn: () =>
+        backendFetch<{ requests: ReleaseRequestItem[] }>(
+          `/legal-holds/release-requests?status=${encodeURIComponent(status)}&limit=200`,
+          { orgId },
+        ).then((body) => body.requests),
+    };
+  },
+  'governance/legal_hold_queries:getLegalHoldByTarget': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const targetType = args.targetType;
+    const targetId = args.targetId;
+    if (
+      orgId === undefined ||
+      typeof targetType !== 'string' ||
+      typeof targetId !== 'string'
+    ) {
+      return null;
+    }
+    return {
+      queryKey: backendKey(
+        orgId,
+        'legal_hold',
+        'by-target',
+        targetType,
+        targetId,
+      ),
+      queryFn: () =>
+        backendFetch<{ hold: HeldByTargetResult }>(
+          `/legal-holds/by-target?targetType=${encodeURIComponent(targetType)}&targetId=${encodeURIComponent(targetId)}`,
+          { orgId },
+        ).then((body) => body.hold),
+    };
+  },
+  'governance/legal_hold_queries:listActiveHoldTargetIds': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const targetType = args.targetType;
+    if (orgId === undefined || typeof targetType !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'legal_hold', 'targets', targetType),
+      queryFn: () =>
+        backendFetch<ActiveHoldTargetsResult>(
+          `/legal-holds/targets?targetType=${encodeURIComponent(targetType)}`,
+          { orgId },
+        ),
+    };
+  },
+  'governance/legal_hold_queries:listOrgMembersForPicker': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'member', 'picker'),
+      queryFn: () =>
+        backendFetch<{ members: MemberDirectoryWire[] }>('/members', {
+          orgId,
+        }).then((body) =>
+          body.members
+            .filter((row) => row.role.toLowerCase() !== 'disabled')
+            .map((row): MemberPickerItem => ({
+              userId: row.userId,
+              email: row.email ?? '',
+              displayName: row.displayName ?? row.email ?? row.userId,
+              role: row.role,
+            })),
+        ),
+    };
+  },
+  'governance/erasure_queries:getErasureRequest': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const requestId = args.requestId;
+    if (orgId === undefined || typeof requestId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'gdpr_erasure', 'detail', requestId),
+      queryFn: () =>
+        backendFetch<ErasureDetailResult>(
+          `/erasure/${encodeURIComponent(requestId)}`,
+          { orgId },
+        ),
+    };
+  },
+  'governance/dsar_policy:getDsarPolicyForUi': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'governance_policy', 'dsar-ui'),
+      queryFn: () =>
+        backendFetch<DsarPolicyUiResult>('/governance/dsar/policy', { orgId }),
+    };
+  },
+  'governance/queries:getPendingRetentionChange': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'governance_policy', 'retention-pending'),
+      queryFn: () =>
+        backendFetch<{
+          pending: (Record<string, unknown> & { id: string }) | null;
+        }>('/retention/pending-change', { orgId }).then((body) =>
+          body.pending === null
+            ? null
+            : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for Convex ids on the 0.4 wire shape
+              ({
+                ...body.pending,
+                _id: body.pending.id,
+              } as unknown as PendingRetentionChangeResult),
+        ),
+    };
+  },
+  'chat_filter_events/queries:listRecent': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const limit = typeof args.limit === 'number' ? args.limit : 50;
+    const filterName =
+      typeof args.filterName === 'string' ? args.filterName : '';
+    const kind = typeof args.kind === 'string' ? args.kind : '';
+    const qs =
+      `?limit=${encodeURIComponent(String(limit))}` +
+      (filterName !== ''
+        ? `&filterName=${encodeURIComponent(filterName)}`
+        : '') +
+      (kind !== '' ? `&kind=${encodeURIComponent(kind)}` : '');
+    return {
+      queryKey: backendKey(
+        orgId,
+        'chat_filter_event',
+        'recent',
+        String(limit),
+        filterName,
+        kind,
+      ),
+      queryFn: () =>
+        backendFetch<{ events: ChatFilterEventItem[] }>(
+          `/governance/chat-filter-events${qs}`,
+          { orgId },
+        ).then((body) => body.events),
+    };
+  },
 };
 
 export const settingsActionQueryAdapters: Record<string, ActionQueryAdapter> = {
@@ -542,6 +801,81 @@ export const settingsActionQueryAdapters: Record<string, ActionQueryAdapter> = {
         '/connector-credentials/catalog',
         { orgId },
       ).then((body) => body.connectors);
+  },
+  'governance/moderation_provider/secrets:hasModerationSecret': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<{ masked: string | null }>(
+        '/governance/moderation/secret/status',
+        { orgId },
+      ).then((body) => body.masked);
+  },
+  'governance/retention_actions:getRetentionBoundsAction': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<RetentionBoundsCatalogResult>('/retention/bounds/catalog', {
+        orgId,
+      });
+  },
+  'governance/retention_bounds_proposal:getPendingBoundsProposal': (
+    args,
+    ctx,
+  ) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<{ proposal: PendingBoundsProposalResult }>(
+        '/retention/bounds/proposal',
+        { orgId },
+      ).then((body) => body.proposal);
+  },
+};
+
+/** Governance history walks on the adapted infinite lane. */
+export const settingsPaginatedAdapters: Record<string, PaginatedAdapter> = {
+  'governance/legal_hold_queries:listLegalHoldReleaseRequestsPaginated': (
+    args,
+    ctx,
+  ) => {
+    const orgId = orgOf(args, ctx);
+    const status = args.status;
+    if (orgId === undefined || typeof status !== 'string') return null;
+    return {
+      queryKey: backendKey(
+        orgId,
+        'legal_hold',
+        'release-requests-page',
+        status,
+      ),
+      fetchPage: (cursor, numItems) =>
+        backendFetch<KeysetPage<ReleaseRequestItem>>(
+          `/legal-holds/release-requests?status=${encodeURIComponent(status)}&limit=${numItems}${keysetQs(cursor)}`,
+          { orgId },
+        ).then(keysetEnvelope),
+    };
+  },
+  'governance/erasure_queries:listErasureRequests': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const statuses = Array.isArray(args.statuses)
+      ? args.statuses.filter(
+          (value): value is string => typeof value === 'string',
+        )
+      : [];
+    const qsStatuses =
+      statuses.length > 0
+        ? `&statuses=${encodeURIComponent(statuses.join(','))}`
+        : '';
+    return {
+      queryKey: backendKey(orgId, 'gdpr_erasure', 'page', statuses.join(',')),
+      fetchPage: (cursor, numItems) =>
+        backendFetch<KeysetPage<unknown>>(
+          `/erasure?limit=${numItems}${qsStatuses}${keysetQs(cursor)}`,
+          { orgId },
+        ).then(keysetEnvelope),
+    };
   },
 };
 
@@ -1035,4 +1369,238 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       ).then(() => null),
     invalidate: invalidateTeams,
   },
+  'governance/legal_hold:placeLegalHold': {
+    run: (args, ctx) =>
+      backendFetch<{ holdId: string }>('/legal-holds', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          targetType: stringArg(args, 'targetType'),
+          targetId: stringArg(args, 'targetId'),
+          reason: stringArg(args, 'reason'),
+          ...(typeof args.matterRef === 'string' && args.matterRef !== ''
+            ? { matterRef: args.matterRef }
+            : {}),
+        },
+      }).then((body) => body.holdId),
+    invalidate: invalidateLegalHolds,
+  },
+  'governance/legal_hold:requestLegalHoldRelease': {
+    run: (args, ctx) =>
+      backendFetch<{ requestId: string }>(
+        `/legal-holds/${encodeURIComponent(stringArg(args, 'holdId'))}/release-requests`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: { reason: stringArg(args, 'reason') },
+        },
+      ).then((body) => body.requestId),
+    invalidate: invalidateLegalHolds,
+  },
+  'governance/legal_hold:approveLegalHoldRelease': {
+    run: (args, ctx) =>
+      backendFetch<{ effectiveAt: number }>(
+        `/legal-holds/release-requests/${encodeURIComponent(stringArg(args, 'requestId'))}/approve`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then(() => null),
+    invalidate: invalidateLegalHolds,
+  },
+  'governance/legal_hold:rejectLegalHoldRelease': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/legal-holds/release-requests/${encodeURIComponent(stringArg(args, 'requestId'))}/reject`,
+        {
+          orgId: requireOrg(args, ctx),
+          body:
+            typeof args.reason === 'string' && args.reason !== ''
+              ? { reason: args.reason }
+              : {},
+        },
+      ).then(() => null),
+    invalidate: invalidateLegalHolds,
+  },
+  'governance/legal_hold:upsertLegalMatter': {
+    run: (args, ctx) =>
+      backendFetch<{ matterId: string }>('/legal-holds/matters', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          ...(typeof args.matterId === 'string'
+            ? { matterId: args.matterId }
+            : {}),
+          name: stringArg(args, 'name'),
+          ...(typeof args.caseNumber === 'string'
+            ? { caseNumber: args.caseNumber }
+            : {}),
+          ...(typeof args.description === 'string'
+            ? { description: args.description }
+            : {}),
+        },
+      }).then((body) => body.matterId),
+    invalidate: invalidateLegalHolds,
+  },
+  'governance/legal_hold:closeLegalMatter': {
+    run: (args, ctx) =>
+      backendFetch<CloseMatterResult>(
+        `/legal-holds/matters/${encodeURIComponent(stringArg(args, 'matterId'))}/close`,
+        {
+          orgId: requireOrg(args, ctx),
+          body:
+            typeof args.releaseReason === 'string' && args.releaseReason !== ''
+              ? { releaseReason: args.releaseReason }
+              : {},
+        },
+      ),
+    invalidate: invalidateLegalHolds,
+  },
+  'governance/erasure:requestErasure': {
+    run: (args, ctx) =>
+      backendFetch<RequestErasureResult>('/erasure', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          targetUserId: stringArg(args, 'userId'),
+          reason: stringArg(args, 'reason'),
+          reasonCode: stringArg(args, 'reasonCode'),
+        },
+      }),
+    invalidate: invalidateErasure,
+  },
+  'governance/erasure:cancelErasureRequest': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/erasure/${encodeURIComponent(stringArg(args, 'requestId'))}/cancel`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: { reason: stringArg(args, 'cancellationReason') },
+        },
+      ).then(() => null),
+    invalidate: invalidateErasure,
+  },
+  'governance/erasure:retryErasureRequest': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/erasure/${encodeURIComponent(stringArg(args, 'requestId'))}/retry`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then(() => null),
+    invalidate: invalidateErasure,
+  },
+  'governance/erasure:extendErasureDeadline': {
+    run: (args, ctx) =>
+      backendFetch<ExtendErasureResult>(
+        `/erasure/${encodeURIComponent(stringArg(args, 'requestId'))}/extend`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: {
+            extraDays: args.extraDays,
+            extensionReason: stringArg(args, 'extensionReason'),
+          },
+        },
+      ),
+    invalidate: invalidateErasure,
+  },
+  'governance/dsar_policy:proposeDsarPolicy': {
+    run: (args, ctx) =>
+      backendFetch<{ staged: boolean; effectiveAt?: number }>(
+        '/governance/dsar/policy',
+        { orgId: requireOrg(args, ctx), body: { config: args.config } },
+      ).then((body): ProposeDsarResult => ({
+        applied: !body.staged,
+        ...(body.effectiveAt !== undefined
+          ? { effectiveAt: body.effectiveAt }
+          : {}),
+      })),
+    invalidate: invalidateGovernancePolicies,
+  },
+  'governance/dsar_policy:cancelPendingDsarPolicyChange': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/governance/dsar/policy/cancel-pending', {
+        orgId: requireOrg(args, ctx),
+        body: {},
+      }).then(() => null),
+    invalidate: invalidateGovernancePolicies,
+  },
+  'governance/retention_actions:upsertRetentionPolicyAction': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/retention/policy', {
+        orgId: requireOrg(args, ctx),
+        body: { config: args.config },
+      }).then(() => null),
+    invalidate: invalidateGovernancePolicies,
+  },
+  'governance/retention_actions:cancelPendingRetentionChange': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/retention/pending-change/cancel', {
+        orgId: requireOrg(args, ctx),
+        body: {},
+      }).then(() => null),
+    invalidate: invalidateGovernancePolicies,
+  },
+  'governance/retention_bounds_proposal:applyBoundsProposal': {
+    run: (args, ctx) =>
+      backendFetch<{ bounds: unknown }>('/retention/bounds/apply', {
+        orgId: requireOrg(args, ctx),
+        body: { proposedHash: stringArg(args, 'proposedHash') },
+      }).then(() => null),
+    invalidate: invalidateGovernancePolicies,
+  },
+  'governance/retention_bounds_proposal:rejectBoundsProposal': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/retention/bounds/reject', {
+        orgId: requireOrg(args, ctx),
+        body: { proposedHash: stringArg(args, 'proposedHash') },
+      }).then(() => null),
+    invalidate: invalidateGovernancePolicies,
+  },
+  'governance/moderation_provider/secrets:saveModerationSecret': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/governance/moderation/secret', {
+        orgId: requireOrg(args, ctx),
+        body: { authHeader: stringArg(args, 'authHeader') },
+      }).then(() => null),
+  },
+  'governance/moderation_provider/test_action:testModerationProvider': {
+    run: (args, ctx) =>
+      backendFetch<Record<string, unknown>>('/governance/moderation/test', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          text: stringArg(args, 'text'),
+          ...(typeof args.direction === 'string'
+            ? { direction: args.direction }
+            : {}),
+        },
+      }),
+  },
 };
+
+function invalidateLegalHolds(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'legal_hold'),
+  });
+}
+
+function invalidateErasure(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'gdpr_erasure'),
+  });
+}
+
+function invalidateGovernancePolicies(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'governance_policy'),
+  });
+}

@@ -219,6 +219,7 @@ export async function placeLegalHold(
     targetType: 'org' | 'userMembership';
     targetId: string;
     reason: string;
+    matterRef?: string;
   },
 ): Promise<string> {
   await requireAdmin(sql, args.organizationId, args.actorId);
@@ -227,6 +228,20 @@ export async function placeLegalHold(
     throw new LegalHoldError('REASON_REQUIRED', 'A reason is required');
   }
   return sql.begin(async (tx) => {
+    const matterRef = args.matterRef?.trim() || null;
+    if (matterRef !== null) {
+      const matters = await tx<{ id: string }[]>`
+        SELECT id FROM app.legal_matters
+        WHERE id = ${matterRef} AND org_id = ${args.organizationId}
+      `;
+      if (matters.length === 0) {
+        throw new LegalHoldError(
+          'MATTER_NOT_FOUND',
+          'matterRef does not point at an existing matter in this organization.',
+          404,
+        );
+      }
+    }
     const targetLabel = await resolveAndAssertTarget(
       tx,
       args.organizationId,
@@ -237,11 +252,12 @@ export async function placeLegalHold(
     try {
       const rows = await tx<{ id: string }[]>`
         INSERT INTO app.legal_holds (
-          org_id, target_type, target_id, target_label, reason, placed_by,
-          placed_at_ms
+          org_id, target_type, target_id, target_label, reason, matter_ref,
+          placed_by, placed_at_ms
         ) VALUES (
           ${args.organizationId}, ${args.targetType}, ${args.targetId},
-          ${targetLabel}, ${reason}, ${args.actorId}, ${Date.now()}
+          ${targetLabel}, ${reason}, ${matterRef}, ${args.actorId},
+          ${Date.now()}
         ) RETURNING id
       `;
       holdId = rows[0]?.id ?? '';
@@ -443,6 +459,7 @@ export async function rejectLegalHoldRelease(
     actorId: string;
     actorEmail?: string;
     requestId: string;
+    reason?: string;
   },
 ): Promise<void> {
   await requireAdmin(sql, args.organizationId, args.actorId);
@@ -450,7 +467,8 @@ export async function rejectLegalHoldRelease(
     const rows = await tx<{ id: string }[]>`
       UPDATE app.legal_hold_release_requests SET
         status = 'rejected', rejected_by = ${args.actorId},
-        rejected_at_ms = ${Date.now()}
+        rejected_at_ms = ${Date.now()},
+        reject_reason = ${args.reason?.trim() || null}
       WHERE id = ${args.requestId} AND org_id = ${args.organizationId}
         AND status = 'pending'
       RETURNING id
@@ -531,34 +549,387 @@ export async function effectApprovedReleases(sql: Sql): Promise<number> {
   return effected;
 }
 
-export interface LegalHoldRow {
-  id: string;
+export interface LegalHoldItemView {
+  _id: string;
+  organizationId: string;
   targetType: string;
   targetId: string;
   targetLabel: string;
   reason: string;
+  matterRef?: string;
+  matterName?: string;
   placedBy: string;
+  placedByName: string;
   placedAt: number;
-  releasedAt: number | null;
+  releasedAt?: number;
+  releasedBy?: string;
+  releasedByName?: string;
+  releaseReason?: string;
   pendingRelease: boolean;
 }
 
+/** The Legal-hold settings list (the 0.4 `listLegalHolds` item view:
+ * resolved placer/releaser names + matter name; status defaults to
+ * `active`). */
 export async function listLegalHolds(
   sql: Sql,
   organizationId: string,
-): Promise<LegalHoldRow[]> {
-  return sql<LegalHoldRow[]>`
+  args: { status?: 'active' | 'released' | 'all'; targetType?: string } = {},
+): Promise<LegalHoldItemView[]> {
+  const status = args.status ?? 'active';
+  const rows = await sql<
+    {
+      id: string;
+      targetType: string;
+      targetId: string;
+      targetLabel: string;
+      reason: string;
+      matterRef: string | null;
+      matterName: string | null;
+      placedBy: string;
+      placedAt: number;
+      releasedAt: number | null;
+      releasedBy: string | null;
+      releaseReason: string | null;
+      pendingRelease: boolean;
+    }[]
+  >`
     SELECT h.id, h.target_type AS "targetType", h.target_id AS "targetId",
            h.target_label AS "targetLabel", h.reason,
+           h.matter_ref AS "matterRef", m.name AS "matterName",
            h.placed_by AS "placedBy", h.placed_at_ms::float8 AS "placedAt",
            h.released_at_ms::float8 AS "releasedAt",
+           h.released_by AS "releasedBy",
+           h.release_reason AS "releaseReason",
            EXISTS (
              SELECT 1 FROM app.legal_hold_release_requests r
              WHERE r.hold_id = h.id AND r.status IN ('pending', 'approved')
            ) AS "pendingRelease"
     FROM app.legal_holds h
+    LEFT JOIN app.legal_matters m
+      ON m.id = h.matter_ref AND m.org_id = h.org_id
     WHERE h.org_id = ${organizationId}
+      AND (
+        ${status} = 'all'
+        OR (${status} = 'active' AND h.released_at_ms IS NULL)
+        OR (${status} = 'released' AND h.released_at_ms IS NOT NULL)
+      )
+      AND (${args.targetType ?? null}::text IS NULL
+        OR h.target_type = ${args.targetType ?? null})
     ORDER BY h.placed_at_ms DESC
     LIMIT 200
   `;
+  const userIds = [
+    ...new Set(
+      rows.flatMap((row) =>
+        [row.placedBy, row.releasedBy].filter(
+          (id): id is string => id !== null,
+        ),
+      ),
+    ),
+  ];
+  const users =
+    userIds.length === 0
+      ? []
+      : await sql<{ id: string; name: string | null }[]>`
+          SELECT "id", "name" FROM "user" WHERE "id" = ANY(${userIds})
+        `;
+  const nameOf = new Map(users.map((user) => [user.id, user.name] as const));
+  return rows.map((row) => {
+    const view: LegalHoldItemView = {
+      _id: row.id,
+      organizationId,
+      targetType: row.targetType,
+      targetId: row.targetId,
+      targetLabel: row.targetLabel,
+      reason: row.reason,
+      placedBy: row.placedBy,
+      placedByName: nameOf.get(row.placedBy) ?? row.placedBy,
+      placedAt: row.placedAt,
+      pendingRelease: row.pendingRelease,
+    };
+    if (row.matterRef !== null) view.matterRef = row.matterRef;
+    if (row.matterName !== null) view.matterName = row.matterName;
+    if (row.releasedAt !== null) view.releasedAt = row.releasedAt;
+    if (row.releasedBy !== null) {
+      view.releasedBy = row.releasedBy;
+      view.releasedByName = nameOf.get(row.releasedBy) ?? row.releasedBy;
+    }
+    if (row.releaseReason !== null) view.releaseReason = row.releaseReason;
+    return view;
+  });
+}
+
+export interface ReleaseRequestView {
+  _id: string;
+  organizationId: string;
+  holdId: string;
+  targetType?: string;
+  targetId?: string;
+  requestedBy: string;
+  requestedByName: string;
+  requestedAt: number;
+  reason: string;
+  status: string;
+  approvedBy?: string;
+  approvedByName?: string;
+  approvedAt?: number;
+  effectiveAt?: number;
+  rejectedBy?: string;
+  rejectedByName?: string;
+  rejectedAt?: number;
+  rejectReason?: string;
+}
+
+/** The release-request rows with resolved names + hold targets (the 0.4
+ * shaping, one names read + one holds read). Newest first, capped. */
+export async function listReleaseRequestViews(
+  sql: Sql,
+  organizationId: string,
+  args: {
+    limit?: number;
+    status?: string;
+    /** Keyset: rows strictly older than (ts, id) in the DESC walk. */
+    cursor?: { ts: number; id: string };
+  } = {},
+): Promise<ReleaseRequestView[]> {
+  const limit = Math.min(Math.max(1, args.limit ?? 100), 200);
+  const status = args.status ?? null;
+  const cursorTs = args.cursor?.ts ?? null;
+  const cursorId = args.cursor?.id ?? null;
+  const rows = await sql<
+    {
+      id: string;
+      holdId: string;
+      requestedBy: string;
+      requestedAt: number;
+      reason: string;
+      status: string;
+      approvedBy: string | null;
+      approvedAt: number | null;
+      effectiveAt: number | null;
+      rejectedBy: string | null;
+      rejectedAt: number | null;
+      rejectReason: string | null;
+      targetType: string | null;
+      targetId: string | null;
+    }[]
+  >`
+    SELECT r.id, r.hold_id AS "holdId", r.requested_by AS "requestedBy",
+           r.requested_at_ms::float8 AS "requestedAt", r.reason, r.status,
+           r.approved_by AS "approvedBy",
+           r.approved_at_ms::float8 AS "approvedAt",
+           r.effective_at_ms::float8 AS "effectiveAt",
+           r.rejected_by AS "rejectedBy",
+           r.rejected_at_ms::float8 AS "rejectedAt",
+           r.reject_reason AS "rejectReason",
+           h.target_type AS "targetType", h.target_id AS "targetId"
+    FROM app.legal_hold_release_requests r
+    LEFT JOIN app.legal_holds h
+      ON h.id = r.hold_id AND h.org_id = r.org_id
+    WHERE r.org_id = ${organizationId}
+      AND (${status}::text IS NULL OR r.status = ${status})
+      AND (${cursorTs}::bigint IS NULL
+        OR (r.requested_at_ms, r.id) < (${cursorTs}, ${cursorId}))
+    ORDER BY r.requested_at_ms DESC, r.id DESC
+    LIMIT ${limit}
+  `;
+  const userIds = [
+    ...new Set(
+      rows.flatMap((row) =>
+        [row.requestedBy, row.approvedBy, row.rejectedBy].filter(
+          (id): id is string => id !== null,
+        ),
+      ),
+    ),
+  ];
+  const users =
+    userIds.length === 0
+      ? []
+      : await sql<{ id: string; name: string | null }[]>`
+          SELECT "id", "name" FROM "user" WHERE "id" = ANY(${userIds})
+        `;
+  const nameOf = new Map(users.map((user) => [user.id, user.name] as const));
+  return rows.map((row) => {
+    const view: ReleaseRequestView = {
+      _id: row.id,
+      organizationId,
+      holdId: row.holdId,
+      requestedBy: row.requestedBy,
+      requestedByName: nameOf.get(row.requestedBy) ?? row.requestedBy,
+      requestedAt: row.requestedAt,
+      reason: row.reason,
+      status: row.status,
+    };
+    if (row.targetType !== null) view.targetType = row.targetType;
+    if (row.targetId !== null) view.targetId = row.targetId;
+    if (row.approvedBy !== null) {
+      view.approvedBy = row.approvedBy;
+      view.approvedByName = nameOf.get(row.approvedBy) ?? row.approvedBy;
+    }
+    if (row.approvedAt !== null) view.approvedAt = row.approvedAt;
+    if (row.effectiveAt !== null) view.effectiveAt = row.effectiveAt;
+    if (row.rejectedBy !== null) {
+      view.rejectedBy = row.rejectedBy;
+      view.rejectedByName = nameOf.get(row.rejectedBy) ?? row.rejectedBy;
+    }
+    if (row.rejectedAt !== null) view.rejectedAt = row.rejectedAt;
+    if (row.rejectReason !== null) view.rejectReason = row.rejectReason;
+    return view;
+  });
+}
+
+export interface HeldByTargetView {
+  _id: string;
+  targetType: string;
+  targetId: string;
+  placedAt: number;
+  view: 'admin' | 'member';
+  via: 'direct' | 'user_custodian' | 'org';
+  hasPendingRelease: boolean;
+  hasApprovedRelease: boolean;
+  effectiveAt?: number;
+  reason?: string;
+  matterRef?: string;
+  matterName?: string;
+  placedBy?: string;
+  placedByName?: string;
+}
+
+/** One entity's hold status (the 0.4 `getLegalHoldByTarget` cascade:
+ * direct → author custodian (thread/document) → org-wide). */
+export async function getLegalHoldByTarget(
+  sql: Sql,
+  auth: { organizationId: string; isAdmin: boolean },
+  args: { targetType: string; targetId: string },
+): Promise<HeldByTargetView | null> {
+  const findActive = async (
+    targetType: string,
+    targetId: string,
+  ): Promise<
+    | {
+        id: string;
+        targetType: string;
+        targetId: string;
+        placedAt: number;
+        reason: string;
+        matterRef: string | null;
+        placedBy: string;
+      }
+    | undefined
+  > => {
+    const rows = await sql<
+      {
+        id: string;
+        targetType: string;
+        targetId: string;
+        placedAt: number;
+        reason: string;
+        matterRef: string | null;
+        placedBy: string;
+      }[]
+    >`
+      SELECT id, target_type AS "targetType", target_id AS "targetId",
+             placed_at_ms::float8 AS "placedAt", reason,
+             matter_ref AS "matterRef", placed_by AS "placedBy"
+      FROM app.legal_holds
+      WHERE org_id = ${auth.organizationId}
+        AND target_type = ${targetType} AND target_id = ${targetId}
+        AND released_at_ms IS NULL
+      LIMIT 1
+    `;
+    return rows[0];
+  };
+
+  const direct = await findActive(args.targetType, args.targetId);
+  let cascade: Awaited<ReturnType<typeof findActive>>;
+  if (
+    direct === undefined &&
+    (args.targetType === 'thread' || args.targetType === 'document')
+  ) {
+    const authorRows =
+      args.targetType === 'thread'
+        ? await sql<{ authorId: string | null }[]>`
+            SELECT user_id AS "authorId" FROM app.thread_metadata
+            WHERE thread_id = ${args.targetId}
+              AND org_id = ${auth.organizationId}
+            LIMIT 1
+          `
+        : await sql<{ authorId: string | null }[]>`
+            SELECT created_by AS "authorId" FROM app.documents
+            WHERE id = ${args.targetId} AND org_id = ${auth.organizationId}
+            LIMIT 1
+          `;
+    const authorId = authorRows[0]?.authorId ?? null;
+    if (authorId !== null) {
+      cascade = await findActive('userMembership', authorId);
+    }
+  }
+  let orgWide: Awaited<ReturnType<typeof findActive>>;
+  if (direct === undefined && cascade === undefined) {
+    orgWide = await findActive('org', auth.organizationId);
+  }
+  const hold = direct ?? cascade ?? orgWide;
+  if (hold === undefined) return null;
+  const via: HeldByTargetView['via'] =
+    direct !== undefined
+      ? 'direct'
+      : cascade !== undefined
+        ? 'user_custodian'
+        : 'org';
+
+  const latest = await sql<{ status: string; effectiveAt: number | null }[]>`
+    SELECT status, effective_at_ms::float8 AS "effectiveAt"
+    FROM app.legal_hold_release_requests
+    WHERE hold_id = ${hold.id}
+    ORDER BY requested_at_ms DESC
+    LIMIT 1
+  `;
+  const hasPendingRelease = latest[0]?.status === 'pending';
+  const hasApprovedRelease = latest[0]?.status === 'approved';
+  const effectiveAt = hasApprovedRelease
+    ? (latest[0]?.effectiveAt ?? undefined)
+    : undefined;
+
+  if (!auth.isAdmin) {
+    return {
+      _id: hold.id,
+      targetType: hold.targetType,
+      targetId: hold.targetId,
+      placedAt: hold.placedAt,
+      view: 'member',
+      via,
+      hasPendingRelease,
+      hasApprovedRelease,
+      ...(effectiveAt !== undefined ? { effectiveAt } : {}),
+    };
+  }
+  let matterName: string | undefined;
+  if (hold.matterRef !== null) {
+    const matters = await sql<{ name: string }[]>`
+      SELECT name FROM app.legal_matters
+      WHERE id = ${hold.matterRef} AND org_id = ${auth.organizationId}
+      LIMIT 1
+    `;
+    matterName = matters[0]?.name;
+  }
+  const placers = await sql<{ name: string | null }[]>`
+    SELECT "name" FROM "user" WHERE "id" = ${hold.placedBy} LIMIT 1
+  `;
+  return {
+    _id: hold.id,
+    targetType: hold.targetType,
+    targetId: hold.targetId,
+    placedAt: hold.placedAt,
+    view: 'admin',
+    via,
+    hasPendingRelease,
+    hasApprovedRelease,
+    ...(effectiveAt !== undefined ? { effectiveAt } : {}),
+    reason: hold.reason,
+    ...(hold.matterRef !== null ? { matterRef: hold.matterRef } : {}),
+    ...(matterName !== undefined ? { matterName } : {}),
+    placedBy: hold.placedBy,
+    ...(placers[0]?.name != null ? { placedByName: placers[0].name } : {}),
+  };
 }

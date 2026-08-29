@@ -255,7 +255,7 @@ export function diffBounds(
  * `governancePolicies.retention_policy.config` and clamps each
  * `<category>RetentionDays/Hours` field to the proposed `[min, max]`.
  */
-function buildImpactPreview(
+export function buildImpactPreview(
   proposed: AppliedBoundsByCategory,
   storedConfig: unknown,
 ): ImpactEntry[] {

@@ -12,6 +12,7 @@ import {
 import { buildPeriodKey } from '../../../convex/governance/helpers.ts';
 import { isAdmin } from '../../../convex/lib/rls/helpers/role_helpers.ts';
 import {
+  dsarGovernanceConfigSchema,
   isFilePolicyType,
   POLICY_SCHEMAS,
 } from '../../../lib/shared/schemas/governance.ts';
@@ -30,6 +31,16 @@ import {
   getAccessibleModelsForUser,
   resolveFeatureFlagsForUser,
 } from './service.ts';
+import {
+  cancelPendingDsarPolicyChange,
+  getDsarPolicyForUi,
+  GovernanceTailError,
+  listRecentChatFilterEvents,
+  MODERATION_SECRET_NAME,
+  proposeDsarPolicy,
+  saveGovernanceSecret,
+  readGovernanceSecretMasked,
+} from './settings-tail.ts';
 import {
   listTrashedRows,
   restoreSoftDeletedRow,
@@ -362,5 +373,145 @@ export function createGovernanceRoutes(deps: {
     }
   });
 
+  // --- DSAR governance (owner-only writes; lazy-applied 24h grace) --------
+  app.get('/dsar/policy', async (c) => {
+    const role = c.get('orgMember').role;
+    if (!isAdmin(role)) return c.json({ error: 'FORBIDDEN' }, 403);
+    return c.json(
+      await getDsarPolicyForUi(deps.sql, {
+        organizationId: c.get('orgId'),
+        role,
+      }),
+    );
+  });
+
+  app.post('/dsar/policy', async (c) => {
+    if (c.get('orgMember').role.toLowerCase() !== 'owner') {
+      return c.json(
+        { error: 'FORBIDDEN', message: 'Owner role required' },
+        403,
+      );
+    }
+    const body: unknown = await c.req.json().catch(() => null);
+    const parsed = dsarGovernanceConfigSchema.safeParse(
+      body !== null && typeof body === 'object' && 'config' in body
+        ? body.config
+        : body,
+    );
+    if (!parsed.success) {
+      return c.json(
+        { error: 'validation', message: parsed.error.message },
+        400,
+      );
+    }
+    const session = c.get('sessionBundle');
+    try {
+      return c.json(
+        await proposeDsarPolicy(
+          deps.sql,
+          {
+            organizationId: c.get('orgId'),
+            userId: session.user.id,
+            email: session.user.email,
+          },
+          parsed.data,
+        ),
+      );
+    } catch (error) {
+      return handleTailError(c, error);
+    }
+  });
+
+  app.post('/dsar/policy/cancel-pending', async (c) => {
+    if (c.get('orgMember').role.toLowerCase() !== 'owner') {
+      return c.json(
+        { error: 'FORBIDDEN', message: 'Owner role required' },
+        403,
+      );
+    }
+    const session = c.get('sessionBundle');
+    try {
+      await cancelPendingDsarPolicyChange(deps.sql, {
+        organizationId: c.get('orgId'),
+        userId: session.user.id,
+        email: session.user.email,
+      });
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleTailError(c, error);
+    }
+  });
+
+  // --- Moderation provider (Security page) --------------------------------
+  app.post('/moderation/secret', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    const body = z
+      .object({ authHeader: z.string().min(1).max(4096) })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    await saveGovernanceSecret(
+      deps.sql,
+      {
+        organizationId: c.get('orgId'),
+        userId: c.get('sessionBundle').user.id,
+      },
+      { name: MODERATION_SECRET_NAME, value: body.data.authHeader },
+    );
+    return c.json({ ok: true });
+  });
+
+  app.get('/moderation/secret/status', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    return c.json({
+      masked: await readGovernanceSecretMasked(
+        deps.sql,
+        c.get('orgId'),
+        MODERATION_SECRET_NAME,
+      ),
+    });
+  });
+
+  app.post('/moderation/test', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    // Parity with the 0.4 stub: the live probe is offline during the
+    // AI-backend rewrite; the editor shows the refusal message.
+    return c.json(
+      {
+        error: 'MODERATION_TEST_OFFLINE',
+        message:
+          'Testing the moderation provider is offline while the platform AI backend is rewritten.',
+      },
+      400,
+    );
+  });
+
+  // --- Chat-filter events (Security page listing) -------------------------
+  app.get('/chat-filter-events', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    const limitParam = Number(c.req.query('limit') ?? '50');
+    return c.json({
+      events: await listRecentChatFilterEvents(deps.sql, c.get('orgId'), {
+        ...(Number.isFinite(limitParam) ? { limit: limitParam } : {}),
+        ...(c.req.query('filterName') !== undefined
+          ? { filterName: c.req.query('filterName') }
+          : {}),
+        ...(c.req.query('kind') !== undefined
+          ? { kind: c.req.query('kind') }
+          : {}),
+      }),
+    });
+  });
+
   return app;
+}
+
+function handleTailError(c: Context<OrgEnv>, error: unknown): Response {
+  if (error instanceof GovernanceTailError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
+  }
+  throw error;
 }

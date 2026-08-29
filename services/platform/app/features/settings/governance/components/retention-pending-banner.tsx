@@ -4,9 +4,9 @@ import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
 import { Row } from '@tale/ui/layout';
-import { useAction } from 'convex/react';
 import { Clock } from 'lucide-react';
 
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -33,7 +33,7 @@ export function RetentionPendingBanner({ organizationId }: Props) {
     api.governance.queries.getPendingRetentionChange,
     { organizationId },
   );
-  const cancel = useAction(
+  const cancel = useConvexAction(
     api.governance.retention_actions.cancelPendingRetentionChange,
   );
 
@@ -76,7 +76,7 @@ export function RetentionPendingBanner({ organizationId }: Props) {
             variant="ghost"
             onClick={async () => {
               try {
-                await cancel({
+                await cancel.mutateAsync({
                   organizationId,
                   pendingId: _id,
                 });

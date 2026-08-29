@@ -5,6 +5,7 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
 
@@ -28,15 +29,20 @@ const SLA_DAYS = 30;
 export class ErasureError extends Error {
   readonly code: string;
   readonly status: 400 | 403 | 404 | 409 | 429;
+  /** Extra machine-readable fields the UI reads off the error payload
+   * (e.g. the blocked receipt's `requestId`). */
+  readonly data: Record<string, string | number | boolean>;
   constructor(
     code: string,
     message: string,
     status: 400 | 403 | 404 | 409 | 429 = 400,
+    data: Record<string, string | number | boolean> = {},
   ) {
     super(message);
     this.name = 'ErasureError';
     this.code = code;
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -72,7 +78,7 @@ export async function requestErasure(
     reason: string;
     reasonCode: string;
   },
-): Promise<{ requestId: string; status: string; effectiveAt: number | null }> {
+): Promise<{ requestId: string; threadsTargeted: number }> {
   const deny = async (errorMessage: string): Promise<never> => {
     // Surface privilege-escalation attempts via the audit trail.
     await sql.begin((tx) =>
@@ -130,79 +136,143 @@ export async function requestErasure(
   }
 
   const now = Date.now();
-  const requestId = await sql.begin(async (tx) => {
-    let id: string;
-    try {
+  let filed: {
+    id: string;
+    threadsTargeted: number;
+    holdBlock: { orgHeld: boolean; userCustodianHeld: boolean } | null;
+  };
+  try {
+    filed = await sql.begin(async (tx) => {
+      // The targeted set is captured at REQUEST time so the receipt shows
+      // the scope the admin approved (the 0.4 `threadsTargeted`).
+      const targeted = await tx<{ threadId: string }[]>`
+      SELECT thread_id AS "threadId" FROM app.thread_metadata
+      WHERE org_id = ${args.organizationId}
+        AND user_id = ${args.targetUserId} AND branch_root_id IS NULL
+    `;
+      const threadIds = targeted.map((row) => row.threadId);
+      // A duplicate live request trips the partial-unique index here; the
+      // violation aborts the tx, and the wrapper catch below answers
+      // ALREADY_PENDING from a fresh connection.
       const rows = await tx<{ id: string }[]>`
-        INSERT INTO app.gdpr_erasure_requests (
-          org_id, target_user_id, reason, reason_code, requested_by,
-          requested_at_ms, sla_deadline_at_ms, status
-        ) VALUES (
-          ${args.organizationId}, ${args.targetUserId}, ${args.reason.trim()},
-          ${args.reasonCode}, ${args.actorId}, ${now},
-          ${now + SLA_DAYS * DAY_MS}, 'pending'
-        ) RETURNING id
-      `;
-      id = rows[0]?.id ?? '';
-    } catch (error) {
-      if (
-        error !== null &&
-        typeof error === 'object' &&
-        'code' in error &&
-        error.code === '23505'
-      ) {
-        throw new ErasureError(
-          'ERASURE_ALREADY_LIVE',
-          'A live erasure request already exists for this subject',
-          409,
-        );
-      }
-      throw error;
-    }
-    // The hold gate (Art 17(3)(e)) AFTER the insert: the refusal is a
-    // durable 'blocked' receipt, not a vanished request.
-    const holds = await loadActiveHolds(tx, args.organizationId);
-    if (holds.orgHeld || holds.userMembershipIds.has(args.targetUserId)) {
-      await tx`
+      INSERT INTO app.gdpr_erasure_requests (
+        org_id, target_user_id, reason, reason_code, requested_by,
+        requested_at_ms, sla_deadline_at_ms, status, threads_targeted
+      ) VALUES (
+        ${args.organizationId}, ${args.targetUserId}, ${args.reason.trim()},
+        ${args.reasonCode}, ${args.actorId}, ${now},
+        ${now + SLA_DAYS * DAY_MS}, 'pending', ${threadIds}
+      ) RETURNING id
+    `;
+      const id = rows[0]?.id ?? '';
+      // The hold gate (Art 17(3)(e)) AFTER the insert: the refusal is a
+      // durable 'blocked' receipt, not a vanished request.
+      const holds = await loadActiveHolds(tx, args.organizationId);
+      const userCustodianHeld = holds.userMembershipIds.has(args.targetUserId);
+      const blockedByHold = holds.orgHeld || userCustodianHeld;
+      if (blockedByHold) {
+        await tx`
         UPDATE app.gdpr_erasure_requests SET status = 'blocked'
         WHERE id = ${id}
       `;
-    } else {
+        await createAuditLog(tx, {
+          organizationId: args.organizationId,
+          actorId: args.actorId,
+          ...(args.actorEmail !== undefined
+            ? { actorEmail: args.actorEmail }
+            : {}),
+          actorType: 'user',
+          action: 'gdpr_erasure_blocked_by_hold',
+          category: 'admin',
+          resourceType: 'user',
+          resourceId: args.targetUserId,
+          status: 'failure',
+          errorMessage: 'LEGAL_HOLD_BLOCKS_ERASURE',
+          newState: {
+            requestId: id,
+            reason: args.reason.trim(),
+            orgHeld: holds.orgHeld,
+            userCustodianHeld,
+            threadsBlockedByHold: threadIds.length,
+          },
+        });
+        return {
+          id,
+          threadsTargeted: threadIds.length,
+          holdBlock: { orgHeld: holds.orgHeld, userCustodianHeld },
+        };
+      }
       const effectiveAt = now + policy.coolingOffHours * HOUR_MS;
       await tx`
-        UPDATE app.gdpr_erasure_requests SET effective_at_ms = ${effectiveAt}
-        WHERE id = ${id}
-      `;
+      UPDATE app.gdpr_erasure_requests SET effective_at_ms = ${effectiveAt}
+      WHERE id = ${id}
+    `;
       await addJobInTx(
         tx,
         'governance.process_erasure',
         { requestId: id },
         { startAfter: new Date(effectiveAt) },
       );
-    }
-    await createAuditLog(tx, {
-      organizationId: args.organizationId,
-      actorId: args.actorId,
-      ...(args.actorEmail !== undefined ? { actorEmail: args.actorEmail } : {}),
-      actorType: 'user',
-      action: 'gdpr_erasure_requested',
-      category: 'admin',
-      resourceType: 'user',
-      resourceId: args.targetUserId,
-      status: 'success',
-      newState: { requestId: id, reasonCode: args.reasonCode },
+      await createAuditLog(tx, {
+        organizationId: args.organizationId,
+        actorId: args.actorId,
+        ...(args.actorEmail !== undefined
+          ? { actorEmail: args.actorEmail }
+          : {}),
+        actorType: 'user',
+        action: 'gdpr_erasure_requested',
+        category: 'admin',
+        resourceType: 'user',
+        resourceId: args.targetUserId,
+        status: 'success',
+        newState: { requestId: id, reasonCode: args.reasonCode },
+      });
+      return { id, threadsTargeted: threadIds.length, holdBlock: null };
     });
-    return id;
-  });
-  const receipt = await sql<{ status: string; effectiveAt: number | null }[]>`
-    SELECT status, effective_at_ms::float8 AS "effectiveAt"
-    FROM app.gdpr_erasure_requests WHERE id = ${requestId}
-  `;
-  return {
-    requestId,
-    status: receipt[0]?.status ?? 'pending',
-    effectiveAt: receipt[0]?.effectiveAt ?? null,
-  };
+  } catch (error) {
+    if (
+      error !== null &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === '23505'
+    ) {
+      const live = await sql<{ id: string; status: string }[]>`
+        SELECT id, status FROM app.gdpr_erasure_requests
+        WHERE org_id = ${args.organizationId}
+          AND target_user_id = ${args.targetUserId}
+          AND status IN ('pending', 'running', 'blocked', 'partial')
+        ORDER BY requested_at_ms DESC
+        LIMIT 1
+      `;
+      throw new ErasureError(
+        'ALREADY_PENDING',
+        `An erasure request for this subject is already ${live[0]?.status ?? 'live'}.`,
+        409,
+        live[0] !== undefined
+          ? { requestId: live[0].id, status: live[0].status }
+          : {},
+      );
+    }
+    throw error;
+  }
+  // The blocked receipt is durable (committed above); the REFUSAL is the
+  // mutation's answer — the 0.4 `LEGAL_HOLD_BLOCKS_ERASURE` contract the
+  // file-request dialog renders as a "view blocked request" panel.
+  if (filed.holdBlock !== null) {
+    throw new ErasureError(
+      'LEGAL_HOLD_BLOCKS_ERASURE',
+      filed.holdBlock.orgHeld
+        ? 'Org is under an active legal hold — release the hold and use Retry to re-schedule erasure.'
+        : 'The subject user is on an active custodian legal hold — release the hold and use Retry to re-schedule erasure.',
+      409,
+      {
+        requestId: filed.id,
+        orgHeld: filed.holdBlock.orgHeld,
+        userCustodianHeld: filed.holdBlock.userCustodianHeld,
+      },
+    );
+  }
+  return { requestId: filed.id, threadsTargeted: filed.threadsTargeted };
 }
 
 /** Cancel within the cooling-off window (pending only) — terminal, the
@@ -216,22 +286,83 @@ export async function cancelErasure(
     reason: string;
   },
 ): Promise<void> {
-  const rows = await sql<{ id: string }[]>`
-    UPDATE app.gdpr_erasure_requests SET
-      status = 'cancelled', cancelled_by = ${args.actorId},
-      cancellation_reason = ${args.reason.trim()},
-      finished_at_ms = ${Date.now()}
+  const reason = args.reason.trim();
+  const rows = await sql<
+    {
+      id: string;
+      status: string;
+      targetUserId: string;
+      effectiveAt: number | null;
+    }[]
+  >`
+    SELECT id, status, target_user_id AS "targetUserId",
+           effective_at_ms::float8 AS "effectiveAt"
+    FROM app.gdpr_erasure_requests
     WHERE id = ${args.requestId} AND org_id = ${args.organizationId}
-      AND status = 'pending'
-    RETURNING id
+    LIMIT 1
   `;
-  if (rows.length === 0) {
+  const row = rows[0];
+  if (!row) {
+    throw new ErasureError('not_found', 'Request not found', 404);
+  }
+  if (row.status !== 'pending') {
     throw new ErasureError(
-      'ERASURE_NOT_CANCELLABLE',
-      'Only a pending request (inside its cooling-off window) can be cancelled',
+      'NOT_CANCELLABLE',
+      `Only pending requests in the cooling-off window can be cancelled (status=${row.status}).`,
       409,
     );
   }
+  const now = Date.now();
+  if (row.effectiveAt === null || row.effectiveAt <= now) {
+    throw new ErasureError(
+      'cannotCancelAfterCooldown',
+      'The cooling-off window has elapsed; the processor has already been dispatched. Use Retry on the resulting receipt instead.',
+      409,
+    );
+  }
+  if (reason.length < 10) {
+    throw new ErasureError(
+      'validation',
+      'cancellationReason must be at least 10 characters.',
+    );
+  }
+  await sql.begin(async (tx) => {
+    const cancelled = await tx<{ id: string }[]>`
+      UPDATE app.gdpr_erasure_requests SET
+        status = 'cancelled', cancelled_by = ${args.actorId},
+        cancellation_reason = ${reason}, finished_at_ms = ${now}
+      WHERE id = ${row.id} AND status = 'pending'
+      RETURNING id
+    `;
+    if (cancelled.length === 0) {
+      throw new ErasureError(
+        'NOT_CANCELLABLE',
+        'The request left the cancellable window while cancelling.',
+        409,
+      );
+    }
+    await createAuditLog(tx, {
+      organizationId: args.organizationId,
+      actorId: args.actorId,
+      actorType: 'user',
+      action: 'gdpr_erasure_cancelled',
+      category: 'admin',
+      resourceType: 'user',
+      resourceId: row.targetUserId,
+      status: 'success',
+      previousState: { status: row.status, effectiveAt: row.effectiveAt },
+      newState: {
+        status: 'cancelled',
+        cancellationReason: reason,
+        requestId: row.id,
+      },
+    });
+    await emitHintInTx(tx, {
+      orgId: args.organizationId,
+      entity: 'gdpr_erasure',
+      entityId: row.id,
+    });
+  });
 }
 
 /** Re-arm a blocked/partial/failed request (the operator released the hold
@@ -251,26 +382,53 @@ export async function retryErasure(
   const target = rows[0];
   if (!target) {
     throw new ErasureError(
-      'ERASURE_NOT_RETRYABLE',
+      'NOT_RETRIABLE',
       'Only blocked, partial, or failed requests retry',
       409,
     );
   }
-  if (holds.orgHeld || holds.userMembershipIds.has(target.targetUserId)) {
+  const userCustodianHeld = holds.userMembershipIds.has(target.targetUserId);
+  if (holds.orgHeld || userCustodianHeld) {
     throw new ErasureError(
       'LEGAL_HOLD_BLOCKS_ERASURE',
       'An active legal hold still blocks this erasure (Art 17(3)(e))',
       409,
+      {
+        requestId: args.requestId,
+        orgHeld: holds.orgHeld,
+        userCustodianHeld,
+      },
     );
   }
+  const effectiveAt = Date.now();
   await sql.begin(async (tx) => {
     await tx`
       UPDATE app.gdpr_erasure_requests SET status = 'pending',
-        effective_at_ms = ${Date.now()}
+        effective_at_ms = ${effectiveAt}
       WHERE id = ${args.requestId}
     `;
     await addJobInTx(tx, 'governance.process_erasure', {
       requestId: args.requestId,
+    });
+    await createAuditLog(tx, {
+      organizationId: args.organizationId,
+      actorId: 'system',
+      actorType: 'system',
+      action: 'gdpr_erasure_retried',
+      category: 'admin',
+      resourceType: 'user',
+      resourceId: target.targetUserId,
+      status: 'success',
+      newState: {
+        status: 'pending',
+        requestId: args.requestId,
+        effectiveAt,
+      },
+    });
+    await emitHintInTx(tx, {
+      orgId: args.organizationId,
+      entity: 'gdpr_erasure',
+      entityId: args.requestId,
     });
   });
 }
@@ -467,7 +625,9 @@ export async function processErasure(
       actorId: 'system',
       actorType: 'system',
       action:
-        status === 'done' ? 'gdpr_erasure_completed' : 'gdpr_erasure_partial',
+        status === 'done'
+          ? 'gdpr_erasure_executed'
+          : 'gdpr_erasure_cascade_attempts_exhausted',
       category: 'admin',
       resourceType: 'user',
       resourceId: targetUserId,
@@ -477,25 +637,41 @@ export async function processErasure(
   });
 }
 
+export interface ErasureRequestSummary {
+  _id: string;
+  organizationId: string;
+  targetUserId: string;
+  targetUserName: string;
+  reasonCode: string;
+  status: string;
+  requestedBy: string;
+  requestedByName: string;
+  requestedAt: number;
+  slaDeadlineAt: number;
+  effectiveAt?: number;
+  extensionDeadlineAt?: number;
+}
+
+/** The Data-subject-requests table (the 0.4 paginated `listErasureRequests`
+ * summaries: resolved names, optional status filter, keyset walk). */
 export async function listErasureRequests(
   sql: Sql,
   organizationId: string,
-): Promise<
-  Array<{
-    id: string;
-    targetUserId: string;
-    reasonCode: string;
-    status: string;
-    requestedBy: string;
-    requestedAt: number;
-    slaDeadlineAt: number;
-    effectiveAt: number | null;
-    finishedAt: number | null;
-    counts: Record<string, number> | null;
-  }>
-> {
-  return sql<
-    Array<{
+  args: {
+    statuses?: string[];
+    limit?: number;
+    cursor?: { ts: number; id: string };
+  } = {},
+): Promise<ErasureRequestSummary[]> {
+  const limit = Math.min(Math.max(1, args.limit ?? 100), 200);
+  const statuses =
+    args.statuses !== undefined && args.statuses.length > 0
+      ? args.statuses
+      : null;
+  const cursorTs = args.cursor?.ts ?? null;
+  const cursorId = args.cursor?.id ?? null;
+  const rows = await sql<
+    {
       id: string;
       targetUserId: string;
       reasonCode: string;
@@ -504,19 +680,330 @@ export async function listErasureRequests(
       requestedAt: number;
       slaDeadlineAt: number;
       effectiveAt: number | null;
-      finishedAt: number | null;
-      counts: Record<string, number> | null;
-    }>[number][]
+      extensionDeadlineAt: number | null;
+    }[]
   >`
     SELECT id, target_user_id AS "targetUserId", reason_code AS "reasonCode",
            status, requested_by AS "requestedBy",
            requested_at_ms::float8 AS "requestedAt",
            sla_deadline_at_ms::float8 AS "slaDeadlineAt",
            effective_at_ms::float8 AS "effectiveAt",
-           finished_at_ms::float8 AS "finishedAt", counts
+           extension_deadline_at_ms::float8 AS "extensionDeadlineAt"
     FROM app.gdpr_erasure_requests
     WHERE org_id = ${organizationId}
-    ORDER BY requested_at_ms DESC
-    LIMIT 200
+      AND (${statuses}::text[] IS NULL OR status = ANY(${statuses}))
+      AND (${cursorTs}::bigint IS NULL
+        OR (requested_at_ms, id) < (${cursorTs}, ${cursorId}))
+    ORDER BY requested_at_ms DESC, id DESC
+    LIMIT ${limit}
   `;
+  const userIds = [
+    ...new Set(rows.flatMap((row) => [row.targetUserId, row.requestedBy])),
+  ];
+  const nameOf = await userNames(sql, userIds);
+  return rows.map((row) => {
+    const summary: ErasureRequestSummary = {
+      _id: row.id,
+      organizationId,
+      targetUserId: row.targetUserId,
+      targetUserName: nameOf.get(row.targetUserId) ?? row.targetUserId,
+      reasonCode: row.reasonCode,
+      status: row.status,
+      requestedBy: row.requestedBy,
+      requestedByName: nameOf.get(row.requestedBy) ?? row.requestedBy,
+      requestedAt: row.requestedAt,
+      slaDeadlineAt: row.slaDeadlineAt,
+    };
+    if (row.effectiveAt !== null) summary.effectiveAt = row.effectiveAt;
+    if (row.extensionDeadlineAt !== null) {
+      summary.extensionDeadlineAt = row.extensionDeadlineAt;
+    }
+    return summary;
+  });
+}
+
+async function userNames(
+  sql: Sql,
+  userIds: string[],
+): Promise<Map<string, string | null>> {
+  if (userIds.length === 0) return new Map();
+  const users = await sql<{ id: string; name: string | null }[]>`
+    SELECT "id", "name" FROM "user" WHERE "id" = ANY(${userIds})
+  `;
+  return new Map(users.map((user) => [user.id, user.name] as const));
+}
+
+const MAX_EXTENSION_DAYS = 60;
+
+/**
+ * Grant the SINGLE Art 12(3) SLA extension (admin-only, once, before the
+ * original deadline lapses, terminal states refused). Returns the new
+ * effective deadline; the receipt keeps both stamps.
+ */
+export async function extendErasureDeadline(
+  sql: Sql,
+  auth: { organizationId: string; userId: string; email?: string },
+  args: { requestId: string; extraDays: number; extensionReason: string },
+): Promise<{ extensionDeadlineAt: number }> {
+  const extraDays = Math.trunc(args.extraDays);
+  if (
+    !Number.isFinite(extraDays) ||
+    extraDays < 1 ||
+    extraDays > MAX_EXTENSION_DAYS
+  ) {
+    throw new ErasureError(
+      'validation',
+      `extraDays must be an integer between 1 and ${MAX_EXTENSION_DAYS}.`,
+    );
+  }
+  const reason = args.extensionReason.trim();
+  if (reason.length < 10) {
+    throw new ErasureError(
+      'validation',
+      'extensionReason must be at least 10 characters.',
+    );
+  }
+  const rows = await sql<
+    {
+      id: string;
+      status: string;
+      targetUserId: string;
+      slaDeadlineAt: number;
+      extensionGrantedAt: number | null;
+    }[]
+  >`
+    SELECT id, status, target_user_id AS "targetUserId",
+           sla_deadline_at_ms::float8 AS "slaDeadlineAt",
+           extension_granted_at_ms::float8 AS "extensionGrantedAt"
+    FROM app.gdpr_erasure_requests
+    WHERE id = ${args.requestId} AND org_id = ${auth.organizationId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row) {
+    throw new ErasureError('REQUEST_NOT_FOUND', 'Request not found', 404);
+  }
+  if (row.extensionGrantedAt !== null) {
+    throw new ErasureError(
+      'ALREADY_EXTENDED',
+      'The single Art 12(3) extension was already granted.',
+    );
+  }
+  if (row.status === 'done' || row.status === 'failed') {
+    throw new ErasureError(
+      'NOT_EXTENDABLE',
+      `Request is in a terminal state (status=${row.status}).`,
+    );
+  }
+  const now = Date.now();
+  if (row.slaDeadlineAt < now) {
+    throw new ErasureError(
+      'DEADLINE_LAPSED',
+      'The original deadline already lapsed; an extension cannot be granted retroactively.',
+    );
+  }
+  const extensionDeadlineAt =
+    row.slaDeadlineAt + extraDays * 24 * 60 * 60 * 1000;
+  await sql.begin(async (tx) => {
+    await tx`
+      UPDATE app.gdpr_erasure_requests SET
+        extension_granted_at_ms = ${now},
+        extension_granted_by = ${auth.userId},
+        extension_reason = ${reason},
+        extension_deadline_at_ms = ${extensionDeadlineAt}
+      WHERE id = ${row.id}
+    `;
+    await createAuditLog(tx, {
+      organizationId: auth.organizationId,
+      actorId: auth.userId,
+      ...(auth.email !== undefined ? { actorEmail: auth.email } : {}),
+      actorType: 'user',
+      action: 'gdpr_erasure_extended',
+      category: 'admin',
+      resourceType: 'user',
+      resourceId: row.targetUserId,
+      status: 'success',
+      previousState: { slaDeadlineAt: row.slaDeadlineAt },
+      newState: {
+        requestId: row.id,
+        extraDays,
+        extensionReason: reason,
+        extensionDeadlineAt,
+      },
+    });
+    await emitHintInTx(tx, {
+      orgId: auth.organizationId,
+      entity: 'gdpr_erasure',
+      entityId: row.id,
+    });
+  });
+  return { extensionDeadlineAt };
+}
+
+/** One request's full receipt + its gdpr_erasure audit timeline (the 0.4
+ * detail read the drawer renders). `counts` maps onto the 0.4 per-pass
+ * fields where the cascades line up and rides whole as
+ * `perCategorySnapshot`. */
+export async function getErasureRequest(
+  sql: Sql,
+  organizationId: string,
+  requestId: string,
+): Promise<{
+  request: Record<string, unknown>;
+  auditEntries: Array<{
+    _id: string;
+    action: string;
+    timestamp: number;
+    errorMessage?: string;
+  }>;
+} | null> {
+  const rows = await sql<
+    {
+      id: string;
+      targetUserId: string;
+      reason: string;
+      reasonCode: string;
+      status: string;
+      requestedBy: string;
+      requestedAt: number;
+      slaDeadlineAt: number;
+      effectiveAt: number | null;
+      extensionGrantedAt: number | null;
+      extensionGrantedBy: string | null;
+      extensionReason: string | null;
+      extensionDeadlineAt: number | null;
+      startedAt: number | null;
+      finishedAt: number | null;
+      cancelledBy: string | null;
+      cancellationReason: string | null;
+      threadsTargeted: string[] | null;
+      counts: Record<string, number> | null;
+      error: string | null;
+    }[]
+  >`
+    SELECT id, target_user_id AS "targetUserId", reason,
+           reason_code AS "reasonCode", status,
+           requested_by AS "requestedBy",
+           requested_at_ms::float8 AS "requestedAt",
+           sla_deadline_at_ms::float8 AS "slaDeadlineAt",
+           effective_at_ms::float8 AS "effectiveAt",
+           extension_granted_at_ms::float8 AS "extensionGrantedAt",
+           extension_granted_by AS "extensionGrantedBy",
+           extension_reason AS "extensionReason",
+           extension_deadline_at_ms::float8 AS "extensionDeadlineAt",
+           started_at_ms::float8 AS "startedAt",
+           finished_at_ms::float8 AS "finishedAt",
+           cancelled_by AS "cancelledBy",
+           cancellation_reason AS "cancellationReason",
+           threads_targeted AS "threadsTargeted",
+           counts, error
+    FROM app.gdpr_erasure_requests
+    WHERE id = ${requestId} AND org_id = ${organizationId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (row === undefined) return null;
+  const userIds = [
+    ...new Set(
+      [
+        row.targetUserId,
+        row.requestedBy,
+        row.extensionGrantedBy,
+        row.cancelledBy,
+      ].filter((id): id is string => id !== null),
+    ),
+  ];
+  const nameOf = await userNames(sql, userIds);
+  const counts = row.counts;
+  const terminalAt = row.finishedAt;
+  const request: Record<string, unknown> = {
+    _id: row.id,
+    organizationId,
+    targetUserId: row.targetUserId,
+    targetUserName: nameOf.get(row.targetUserId) ?? row.targetUserId,
+    reason: row.reason,
+    reasonCode: row.reasonCode,
+    requestedBy: row.requestedBy,
+    requestedByName: nameOf.get(row.requestedBy) ?? row.requestedBy,
+    requestedAt: row.requestedAt,
+    slaDeadlineAt: row.slaDeadlineAt,
+    status: row.status,
+    ...(row.threadsTargeted !== null
+      ? { threadsTargeted: row.threadsTargeted }
+      : {}),
+    ...(counts?.threads !== undefined ? { threadsErased: counts.threads } : {}),
+    ...(counts?.documents !== undefined
+      ? { documentsErased: counts.documents }
+      : {}),
+    ...(counts !== null ? { perCategorySnapshot: counts } : {}),
+    ...(row.error !== null ? { errorMessage: row.error } : {}),
+    ...(row.startedAt !== null ? { startedAt: row.startedAt } : {}),
+    ...(row.status === 'cancelled'
+      ? {
+          ...(terminalAt !== null ? { cancelledAt: terminalAt } : {}),
+          ...(row.cancelledBy !== null
+            ? {
+                cancelledBy: row.cancelledBy,
+                cancelledByName: nameOf.get(row.cancelledBy) ?? row.cancelledBy,
+              }
+            : {}),
+          ...(row.cancellationReason !== null
+            ? { cancellationReason: row.cancellationReason }
+            : {}),
+        }
+      : terminalAt !== null
+        ? { completedAt: terminalAt }
+        : {}),
+    ...(row.effectiveAt !== null ? { effectiveAt: row.effectiveAt } : {}),
+    ...(row.extensionGrantedAt !== null
+      ? { extensionGrantedAt: row.extensionGrantedAt }
+      : {}),
+    ...(row.extensionGrantedBy !== null
+      ? {
+          extensionGrantedBy: row.extensionGrantedBy,
+          extensionGrantedByName:
+            nameOf.get(row.extensionGrantedBy) ?? row.extensionGrantedBy,
+        }
+      : {}),
+    ...(row.extensionReason !== null
+      ? { extensionReason: row.extensionReason }
+      : {}),
+    ...(row.extensionDeadlineAt !== null
+      ? { extensionDeadlineAt: row.extensionDeadlineAt }
+      : {}),
+  };
+  const audit = await sql<
+    {
+      id: string;
+      action: string;
+      timestamp: number;
+      errorMessage: string | null;
+    }[]
+  >`
+    SELECT id, action, ts::float8 AS "timestamp",
+           error_message AS "errorMessage"
+    FROM app.audit_logs
+    WHERE org_id = ${organizationId} AND resource_type = 'user'
+      AND resource_id = ${row.targetUserId}
+      AND action LIKE 'gdpr_erasure%'
+    ORDER BY ts ASC
+    LIMIT 500
+  `;
+  return {
+    request,
+    auditEntries: audit.map((entry) => {
+      const item: {
+        _id: string;
+        action: string;
+        timestamp: number;
+        errorMessage?: string;
+      } = {
+        _id: entry.id,
+        action: entry.action,
+        timestamp: entry.timestamp,
+      };
+      if (entry.errorMessage !== null) item.errorMessage = entry.errorMessage;
+      return item;
+    }),
+  };
 }

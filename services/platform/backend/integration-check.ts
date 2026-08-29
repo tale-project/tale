@@ -17,7 +17,14 @@
  * Better Auth tables, and app tables, and writes test rows.
  */
 
-import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -15694,7 +15701,7 @@ async function checkErasure(
     reasonCode: 'consent_withdrawn',
   });
   const filed = z
-    .object({ requestId: z.string(), status: z.string() })
+    .object({ requestId: z.string(), threadsTargeted: z.number() })
     .loose()
     .safeParse(
       await (
@@ -15778,18 +15785,25 @@ async function checkErasure(
     ) VALUES (${orgId}, 'userMembership', ${subjectThree}, 'itest',
               'erasure block probe', 'itest', ${Date.now()})
   `;
+  // The hold gate REFUSES (409 + the blocked receipt's id in the payload)
+  // while the receipt row itself lands as a durable 'blocked' record.
+  const blockedRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: subjectThree,
+    reason: 'Blocked probe',
+    reasonCode: 'objection',
+  });
   const filedThree = z
-    .object({ requestId: z.string(), status: z.string() })
+    .object({
+      error: z.string(),
+      requestId: z.string(),
+      userCustodianHeld: z.boolean(),
+    })
     .loose()
-    .safeParse(
-      await (
-        await post(`/api/app/erasure?orgId=${orgId}`, {
-          targetUserId: subjectThree,
-          reason: 'Blocked probe',
-          reasonCode: 'objection',
-        })
-      ).json(),
-    );
+    .safeParse(await blockedRes.json());
+  const blockedReceipt = await sql<{ status: string }[]>`
+    SELECT status FROM app.gdpr_erasure_requests
+    WHERE id = ${filedThree.success ? filedThree.data.requestId : ''}
+  `;
   await sql`
     UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
     WHERE org_id = ${orgId} AND target_id = ${subjectThree}
@@ -15820,9 +15834,926 @@ async function checkErasure(
       cancelled.data.ok &&
       twoIntact[0]?.count === '1' &&
       filedThree.success &&
-      filedThree.data.status === 'blocked' &&
+      blockedRes.status === 409 &&
+      filedThree.data.error === 'LEGAL_HOLD_BLOCKS_ERASURE' &&
+      filedThree.data.userCustodianHeld &&
+      blockedReceipt[0]?.status === 'blocked' &&
       threeStatus === 'done',
-    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${filedThree.success ? filedThree.data.status : 'ERR'} (want blocked), retried=${threeStatus}`,
+    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), retried=${threeStatus}`,
+  );
+}
+
+/**
+ * Inc-91 governance settings tail: legal matters (grouping + close fan-out),
+ * the full hold/release item views, the erasure receipt detail + extension
+ * guards, DSAR policy tighten/loosen staging, the retention shortening
+ * cooldown (staged pending + sweep still enforcing the OLD values), the
+ * bounds catalog/proposal OCC, the moderation secret store, and the
+ * chat-filter event listing.
+ */
+async function checkGovernanceSettingsTail(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const get = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, { headers: { cookie, origin: base } });
+
+  // --- A. Matters + hold item views + close fan-out + reject reason ------
+  const matter = z.object({ matterId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/legal-holds/matters?orgId=${orgId}`, {
+        name: 'Matter Alpha',
+        caseNumber: 'C-2026-01',
+      })
+    ).json(),
+  );
+  const matterId = matter.success ? matter.data.matterId : '';
+  const badRef = await post(`/api/app/legal-holds?orgId=${orgId}`, {
+    targetType: 'org',
+    targetId: orgId,
+    reason: 'bad matter ref probe',
+    matterRef: 'no-such-matter',
+  });
+  const holdTarget = await sql<{ id: string }[]>`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES ('tail-hold-user', 'Tail Hold', 'tail-hold@example.com', true,
+            ${new Date()}, ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+    RETURNING "id"
+  `;
+  void holdTarget;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES ('m-tail-hold-user', ${orgId}, 'tail-hold-user', 'member',
+            ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  const placed = z.object({ holdId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/legal-holds?orgId=${orgId}`, {
+        targetType: 'userMembership',
+        targetId: 'tail-hold-user',
+        reason: 'Matter Alpha preservation',
+        matterRef: matterId,
+      })
+    ).json(),
+  );
+  const holdId = placed.success ? placed.data.holdId : '';
+  const holdList = z
+    .object({
+      holds: z.array(
+        z
+          .object({
+            _id: z.string(),
+            targetId: z.string(),
+            matterRef: z.string().optional(),
+            matterName: z.string().optional(),
+            placedByName: z.string(),
+            targetLabel: z.string(),
+          })
+          .loose(),
+      ),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/legal-holds?orgId=${orgId}&status=active`)
+      ).json(),
+    );
+  const listedHold = holdList.success
+    ? holdList.data.holds.find((row) => row._id === holdId)
+    : undefined;
+  const matterList = z
+    .object({
+      matters: z.array(
+        z
+          .object({
+            _id: z.string(),
+            name: z.string(),
+            createdByName: z.string(),
+            linkedActiveHolds: z.number(),
+            status: z.string(),
+          })
+          .loose(),
+      ),
+    })
+    .safeParse(
+      await (await get(`/api/app/legal-holds/matters?orgId=${orgId}`)).json(),
+    );
+  const listedMatter = matterList.success
+    ? matterList.data.matters.find((row) => row._id === matterId)
+    : undefined;
+  const byTarget = z
+    .object({
+      hold: z
+        .object({
+          view: z.string(),
+          matterRef: z.string().optional(),
+          matterName: z.string().optional(),
+        })
+        .loose(),
+    })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/legal-holds/by-target?orgId=${orgId}&targetType=userMembership&targetId=tail-hold-user`,
+        )
+      ).json(),
+    );
+  const closed = z
+    .object({ releaseRequestsFiled: z.number() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/legal-holds/matters/${matterId}/close?orgId=${orgId}`,
+          { releaseReason: 'Matter Alpha resolved' },
+        )
+      ).json(),
+    );
+  const closedAgain = z
+    .object({ releaseRequestsFiled: z.number() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/legal-holds/matters/${matterId}/close?orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  const pendingReqs = z
+    .object({
+      requests: z.array(
+        z
+          .object({
+            _id: z.string(),
+            holdId: z.string(),
+            reason: z.string(),
+            requestedByName: z.string(),
+            targetType: z.string().optional(),
+          })
+          .loose(),
+      ),
+      nextCursor: z.union([
+        z.object({ ts: z.number(), id: z.string() }),
+        z.null(),
+      ]),
+    })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/legal-holds/release-requests?orgId=${orgId}&status=pending`,
+        )
+      ).json(),
+    );
+  const fanned = pendingReqs.success
+    ? pendingReqs.data.requests.find((row) => row.holdId === holdId)
+    : undefined;
+  const rejected = await post(
+    `/api/app/legal-holds/release-requests/${fanned?._id ?? ''}/reject?orgId=${orgId}`,
+    { reason: 'Keep preserving after all' },
+  );
+  const rejectedList = z
+    .object({
+      requests: z.array(
+        z
+          .object({
+            _id: z.string(),
+            rejectReason: z.string().optional(),
+            rejectedByName: z.string().optional(),
+          })
+          .loose(),
+      ),
+    })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/legal-holds/release-requests?orgId=${orgId}&status=rejected`,
+        )
+      ).json(),
+    );
+  const rejectedRow = rejectedList.success
+    ? rejectedList.data.requests.find((row) => row._id === fanned?._id)
+    : undefined;
+  // Keyset walk over ALL requests: page one of 1 hands a cursor whose next
+  // page starts strictly after it.
+  const pageOne = z
+    .object({
+      requests: z.array(z.object({ _id: z.string() }).loose()),
+      nextCursor: z.union([
+        z.object({ ts: z.number(), id: z.string() }),
+        z.null(),
+      ]),
+    })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/legal-holds/release-requests?orgId=${orgId}&limit=1`,
+        )
+      ).json(),
+    );
+  const cursor = pageOne.success ? pageOne.data.nextCursor : null;
+  const pageTwo = z
+    .object({ requests: z.array(z.object({ _id: z.string() }).loose()) })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/legal-holds/release-requests?orgId=${orgId}&limit=1&cursorTs=${cursor?.ts ?? 0}&cursorId=${encodeURIComponent(cursor?.id ?? '')}`,
+        )
+      ).json(),
+    );
+  const pagesDistinct =
+    pageOne.success &&
+    pageTwo.success &&
+    pageOne.data.requests[0] !== undefined &&
+    pageTwo.data.requests[0] !== undefined &&
+    pageOne.data.requests[0]._id !== pageTwo.data.requests[0]._id;
+  // Test hygiene: release the probe hold so later sweeps stay unfrozen.
+  await sql`
+    UPDATE app.legal_holds SET released_at_ms = ${Date.now()},
+      released_by = 'itest', release_reason = 'itest tail cleanup'
+    WHERE id = ${holdId}
+  `;
+  record(
+    'governance tail: matters + hold views + close fan-out + reject reason',
+    matter.success &&
+      badRef.status === 404 &&
+      placed.success &&
+      listedHold !== undefined &&
+      listedHold.matterRef === matterId &&
+      listedHold.matterName === 'Matter Alpha' &&
+      listedHold.placedByName.length > 0 &&
+      listedMatter !== undefined &&
+      listedMatter.linkedActiveHolds === 1 &&
+      listedMatter.createdByName.length > 0 &&
+      byTarget.success &&
+      byTarget.data.hold.view === 'admin' &&
+      byTarget.data.hold.matterRef === matterId &&
+      byTarget.data.hold.matterName === 'Matter Alpha' &&
+      closed.success &&
+      closed.data.releaseRequestsFiled === 1 &&
+      closedAgain.success &&
+      closedAgain.data.releaseRequestsFiled === 0 &&
+      fanned !== undefined &&
+      fanned.reason === 'Matter Alpha resolved' &&
+      fanned.requestedByName.length > 0 &&
+      fanned.targetType === 'userMembership' &&
+      rejected.status === 200 &&
+      rejectedRow !== undefined &&
+      rejectedRow.rejectReason === 'Keep preserving after all' &&
+      (rejectedRow.rejectedByName ?? '').length > 0 &&
+      pagesDistinct,
+    `matter=${matter.success}, badRef=${badRef.status} (want 404), hold=${placed.success}, listed=${listedHold !== undefined}/${listedHold?.matterName ?? '?'}, matterRow=${listedMatter?.linkedActiveHolds ?? '?'}, byTarget=${byTarget.success ? byTarget.data.hold.view : 'ERR'}, closed=${closed.success ? closed.data.releaseRequestsFiled : 'ERR'}+${closedAgain.success ? closedAgain.data.releaseRequestsFiled : 'ERR'}, fanned=${fanned?.reason ?? '?'}, reject=${rejected.status}/${rejectedRow?.rejectReason ?? '?'}, pages=${pagesDistinct}`,
+  );
+
+  // --- B. Erasure summaries + detail receipt + extension guards ----------
+  const summaries = z
+    .object({
+      requests: z.array(
+        z
+          .object({
+            _id: z.string(),
+            status: z.string(),
+            targetUserName: z.string(),
+            requestedByName: z.string(),
+            requestedAt: z.number(),
+          })
+          .loose(),
+      ),
+      nextCursor: z.union([
+        z.object({ ts: z.number(), id: z.string() }),
+        z.null(),
+      ]),
+    })
+    .safeParse(
+      await (await get(`/api/app/erasure?orgId=${orgId}&limit=2`)).json(),
+    );
+  const cancelledOnly = z
+    .object({ requests: z.array(z.object({ status: z.string() }).loose()) })
+    .safeParse(
+      await (
+        await get(`/api/app/erasure?orgId=${orgId}&statuses=cancelled`)
+      ).json(),
+    );
+  const doneRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.gdpr_erasure_requests
+    WHERE org_id = ${orgId} AND target_user_id = 'erasure-one' AND status = 'done'
+    LIMIT 1
+  `;
+  const doneId = doneRows[0]?.id ?? '';
+  const detail = z
+    .object({
+      request: z
+        .object({
+          _id: z.string(),
+          targetUserName: z.string(),
+          requestedByName: z.string(),
+          threadsTargeted: z.array(z.string()),
+          threadsErased: z.number(),
+          perCategorySnapshot: z.record(z.string(), z.number()),
+          completedAt: z.number(),
+        })
+        .loose(),
+      auditEntries: z.array(
+        z
+          .object({
+            _id: z.string(),
+            action: z.string(),
+            timestamp: z.number(),
+          })
+          .loose(),
+      ),
+    })
+    .safeParse(
+      await (await get(`/api/app/erasure/${doneId}?orgId=${orgId}`)).json(),
+    );
+  const auditActions = detail.success
+    ? detail.data.auditEntries.map((entry) => entry.action)
+    : [];
+  await sql`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES ('tail-dup-user', 'Tail Dup', 'tail-dup@example.com', true,
+            ${new Date()}, ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES ('m-tail-dup-user', ${orgId}, 'tail-dup-user', 'member',
+            ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  const filedDup = z
+    .object({ requestId: z.string(), threadsTargeted: z.number() })
+    .safeParse(
+      await (
+        await post(`/api/app/erasure?orgId=${orgId}`, {
+          targetUserId: 'tail-dup-user',
+          reason: 'Duplicate-guard probe',
+          reasonCode: 'consent_withdrawn',
+        })
+      ).json(),
+    );
+  const dupRequestId = filedDup.success ? filedDup.data.requestId : '';
+  const dupRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: 'tail-dup-user',
+    reason: 'Second filing must refuse',
+    reasonCode: 'consent_withdrawn',
+  });
+  const dupBody = z
+    .object({ error: z.string(), requestId: z.string() })
+    .loose()
+    .safeParse(await dupRes.json());
+  const extendShort = await post(
+    `/api/app/erasure/${dupRequestId}/extend?orgId=${orgId}`,
+    { extraDays: 90, extensionReason: 'Too long an extension window' },
+  );
+  const extended = z.object({ extensionDeadlineAt: z.number() }).safeParse(
+    await (
+      await post(`/api/app/erasure/${dupRequestId}/extend?orgId=${orgId}`, {
+        extraDays: 30,
+        extensionReason: 'Complex multi-system scope',
+      })
+    ).json(),
+  );
+  const extendTwice = z.object({ error: z.string() }).safeParse(
+    await (
+      await post(`/api/app/erasure/${dupRequestId}/extend?orgId=${orgId}`, {
+        extraDays: 10,
+        extensionReason: 'Second extension must refuse',
+      })
+    ).json(),
+  );
+  const dupCancelled = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await post(`/api/app/erasure/${dupRequestId}/cancel?orgId=${orgId}`, {
+        reason: 'No longer required by subject',
+      })
+    ).json(),
+  );
+  const cancelTwice = z.object({ error: z.string() }).safeParse(
+    await (
+      await post(`/api/app/erasure/${dupRequestId}/cancel?orgId=${orgId}`, {
+        reason: 'Cancelling twice must refuse',
+      })
+    ).json(),
+  );
+  const retryCancelled = z
+    .object({ error: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/erasure/${dupRequestId}/retry?orgId=${orgId}`)
+      ).json(),
+    );
+  record(
+    'governance tail: erasure summaries, receipt detail, extension guards',
+    summaries.success &&
+      summaries.data.requests.length === 2 &&
+      summaries.data.nextCursor !== null &&
+      summaries.data.requests.every((row) => row.targetUserName.length > 0) &&
+      cancelledOnly.success &&
+      cancelledOnly.data.requests.length >= 1 &&
+      cancelledOnly.data.requests.every((row) => row.status === 'cancelled') &&
+      detail.success &&
+      detail.data.request.threadsTargeted.length === 1 &&
+      detail.data.request.threadsErased === 1 &&
+      detail.data.request.targetUserName === 'Subject one' &&
+      auditActions.includes('gdpr_erasure_requested') &&
+      auditActions.includes('gdpr_erasure_executed') &&
+      filedDup.success &&
+      filedDup.data.threadsTargeted === 0 &&
+      dupRes.status === 409 &&
+      dupBody.success &&
+      dupBody.data.error === 'ALREADY_PENDING' &&
+      dupBody.data.requestId === dupRequestId &&
+      extendShort.status === 400 &&
+      extended.success &&
+      extendTwice.success &&
+      extendTwice.data.error === 'ALREADY_EXTENDED' &&
+      dupCancelled.success &&
+      dupCancelled.data.ok &&
+      cancelTwice.success &&
+      cancelTwice.data.error === 'NOT_CANCELLABLE' &&
+      retryCancelled.success &&
+      retryCancelled.data.error === 'NOT_RETRIABLE',
+    `page=${summaries.success ? summaries.data.requests.length : 'ERR'}+cursor=${summaries.success ? summaries.data.nextCursor !== null : '?'}, cancelledOnly=${cancelledOnly.success ? cancelledOnly.data.requests.length : 'ERR'}, detail=${detail.success ? `${detail.data.request.threadsErased}/${auditActions.join('+')}` : 'ERR'}, dup=${dupRes.status}/${dupBody.success ? dupBody.data.error : '?'}, extend=${extendShort.status}/${extended.success}/${extendTwice.success ? extendTwice.data.error : '?'}, cancel2=${cancelTwice.success ? cancelTwice.data.error : '?'}, retry=${retryCancelled.success ? retryCancelled.data.error : '?'}`,
+  );
+
+  // --- C. DSAR policy: read, tighten-now, loosen-staged, cancel ----------
+  const dsarRead = z
+    .object({
+      config: z.object({
+        coolingOffHours: z.number(),
+        requireDualApproval: z.boolean(),
+        dailyLimitPerAdmin: z.number(),
+      }),
+      pending: z.null(),
+      callerIsOwner: z.boolean(),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/governance/dsar/policy?orgId=${orgId}`)
+      ).json(),
+    );
+  const tightened = z
+    .object({ staged: z.boolean() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/governance/dsar/policy?orgId=${orgId}`, {
+          config: {
+            coolingOffHours: 2,
+            requireDualApproval: false,
+            dailyLimitPerAdmin: 5,
+          },
+        })
+      ).json(),
+    );
+  const loosened = z
+    .object({ staged: z.boolean(), effectiveAt: z.number() })
+    .safeParse(
+      await (
+        await post(`/api/app/governance/dsar/policy?orgId=${orgId}`, {
+          config: {
+            coolingOffHours: 1,
+            requireDualApproval: false,
+            dailyLimitPerAdmin: 5,
+          },
+        })
+      ).json(),
+    );
+  const pendingBlocks = await post(
+    `/api/app/governance/dsar/policy?orgId=${orgId}`,
+    {
+      config: {
+        coolingOffHours: 3,
+        requireDualApproval: false,
+        dailyLimitPerAdmin: 5,
+      },
+    },
+  );
+  const dsarPendingRead = z
+    .object({
+      config: z.object({ coolingOffHours: z.number() }).loose(),
+      pending: z
+        .object({
+          config: z.object({ coolingOffHours: z.number() }).loose(),
+          effectiveAt: z.number(),
+          proposedBy: z.string(),
+        })
+        .loose(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await get(`/api/app/governance/dsar/policy?orgId=${orgId}`)
+      ).json(),
+    );
+  const dsarCancelled = z
+    .object({ ok: z.boolean() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/governance/dsar/policy/cancel-pending?orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  const dsarAfterCancel = z
+    .object({ pending: z.null() })
+    .loose()
+    .safeParse(
+      await (
+        await get(`/api/app/governance/dsar/policy?orgId=${orgId}`)
+      ).json(),
+    );
+  record(
+    'governance tail: DSAR policy tighten-now / loosen-staged / cancel',
+    dsarRead.success &&
+      dsarRead.data.config.coolingOffHours === 1 &&
+      dsarRead.data.callerIsOwner &&
+      tightened.success &&
+      !tightened.data.staged &&
+      loosened.success &&
+      loosened.data.staged &&
+      pendingBlocks.status === 400 &&
+      dsarPendingRead.success &&
+      dsarPendingRead.data.config.coolingOffHours === 2 &&
+      dsarPendingRead.data.pending.config.coolingOffHours === 1 &&
+      dsarCancelled.success &&
+      dsarCancelled.data.ok &&
+      dsarAfterCancel.success,
+    `read=${dsarRead.success ? dsarRead.data.config.coolingOffHours : 'ERR'} (want 1), tighten=${tightened.success ? tightened.data.staged : 'ERR'} (want false), loosen=${loosened.success ? loosened.data.staged : 'ERR'} (want true), dupPending=${pendingBlocks.status} (want 400), pendingRead=${dsarPendingRead.success ? `${dsarPendingRead.data.config.coolingOffHours}/${dsarPendingRead.data.pending.config.coolingOffHours}` : 'ERR'}, cancel=${dsarCancelled.success}, after=${dsarAfterCancel.success}`,
+  );
+
+  // --- D. Moderation secret + offline test stub ---------------------------
+  const statusEmpty = z
+    .object({ masked: z.null() })
+    .safeParse(
+      await (
+        await get(`/api/app/governance/moderation/secret/status?orgId=${orgId}`)
+      ).json(),
+    );
+  const saved = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await post(`/api/app/governance/moderation/secret?orgId=${orgId}`, {
+        authHeader: 'Bearer itest-moderation-secret-value',
+      })
+    ).json(),
+  );
+  const statusMasked = z
+    .object({ masked: z.string() })
+    .safeParse(
+      await (
+        await get(`/api/app/governance/moderation/secret/status?orgId=${orgId}`)
+      ).json(),
+    );
+  const testRes = await post(
+    `/api/app/governance/moderation/test?orgId=${orgId}`,
+    { text: 'probe' },
+  );
+  const testBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await testRes.json());
+  record(
+    'governance tail: moderation secret masked status + offline test stub',
+    statusEmpty.success &&
+      saved.success &&
+      saved.data.ok &&
+      statusMasked.success &&
+      statusMasked.data.masked.startsWith('Bearer') &&
+      statusMasked.data.masked.includes('••') &&
+      testRes.status === 400 &&
+      testBody.success &&
+      testBody.data.error === 'MODERATION_TEST_OFFLINE',
+    `empty=${statusEmpty.success}, saved=${saved.success}, masked=${statusMasked.success ? statusMasked.data.masked.slice(0, 8) : 'ERR'}, test=${testRes.status}/${testBody.success ? testBody.data.error : '?'}`,
+  );
+
+  // --- E. Chat-filter events listing (admin telemetry) --------------------
+  const feNow = Date.now();
+  await sql`
+    INSERT INTO app.chat_filter_events (
+      org_id, sanitization_run_id, thread_id, filter_name, direction, kind,
+      category_ids, match_count, actor_type, created_at_ms
+    ) VALUES
+      (${orgId}, 'run-1', 'fe-th-1', 'pii', 'input', 'detected',
+       ${['iban']}::text[], 2, 'user', ${feNow - 1_000}),
+      (${orgId}, 'run-2', 'fe-th-2', 'moderation_provider', 'output',
+       'blocked', ${[]}::text[], NULL, 'agent', ${feNow})
+  `;
+  const allEvents = z
+    .object({
+      events: z.array(
+        z
+          .object({
+            sanitizationRunId: z.string(),
+            filterName: z.string(),
+            kind: z.string(),
+            categoryIds: z.array(z.string()),
+            actorType: z.string().nullable().optional(),
+            createdAt: z.number(),
+          })
+          .loose(),
+      ),
+    })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/governance/chat-filter-events?orgId=${orgId}&limit=50`,
+        )
+      ).json(),
+    );
+  const blockedOnly = z
+    .object({ events: z.array(z.object({ kind: z.string() }).loose()) })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/governance/chat-filter-events?orgId=${orgId}&kind=blocked`,
+        )
+      ).json(),
+    );
+  const piiOnly = z
+    .object({
+      events: z.array(z.object({ filterName: z.string() }).loose()),
+    })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/governance/chat-filter-events?orgId=${orgId}&filterName=pii`,
+        )
+      ).json(),
+    );
+  record(
+    'governance tail: chat-filter events listing + filters',
+    allEvents.success &&
+      allEvents.data.events.length === 2 &&
+      allEvents.data.events[0]?.sanitizationRunId === 'run-2' &&
+      allEvents.data.events[1]?.categoryIds[0] === 'iban' &&
+      blockedOnly.success &&
+      blockedOnly.data.events.length === 1 &&
+      blockedOnly.data.events[0]?.kind === 'blocked' &&
+      piiOnly.success &&
+      piiOnly.data.events.length === 1 &&
+      piiOnly.data.events[0]?.filterName === 'pii',
+    `all=${allEvents.success ? allEvents.data.events.length : 'ERR'}, newestFirst=${allEvents.success ? allEvents.data.events[0]?.sanitizationRunId : '?'}, blocked=${blockedOnly.success ? blockedOnly.data.events.length : 'ERR'}, pii=${piiOnly.success ? piiOnly.data.events.length : 'ERR'}`,
+  );
+
+  // --- F. Retention: catalog, shortening cooldown, bounds proposal OCC ----
+  const catalog = z
+    .object({
+      bounds: z.array(
+        z
+          .object({
+            category: z.string(),
+            min: z.number(),
+            max: z.number(),
+            default: z.number(),
+            unit: z.string(),
+            source: z.string(),
+          })
+          .loose(),
+      ),
+      retentionDisabled: z.boolean(),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/retention/bounds/catalog?orgId=${orgId}`)
+      ).json(),
+    );
+  const fullPolicy = (overrides: Record<string, unknown>) => ({
+    documentsEnabled: true,
+    documentsRetentionDays: 7,
+    chatHistoryEnabled: true,
+    chatHistoryRetentionDays: 7,
+    agentRunsEnabled: true,
+    agentRunsRetentionDays: 7,
+    auditLogEnabled: true,
+    auditLogRetentionDays: 365,
+    userTempEnabled: true,
+    userTempRetentionHours: 1,
+    usageLedgerEnabled: true,
+    usageLedgerRetentionDays: 30,
+    messageFeedbackEnabled: true,
+    messageFeedbackRetentionDays: 7,
+    notificationsEnabled: true,
+    notificationsRetentionDays: 7,
+    deletionGraceDays: 0,
+    ...overrides,
+  });
+  const noPending = z
+    .object({ pending: z.null() })
+    .safeParse(
+      await (
+        await get(`/api/app/retention/pending-change?orgId=${orgId}`)
+      ).json(),
+    );
+  // F1: shorten messageFeedback 7 → 2. The file flips immediately; the
+  // SWEEP must keep enforcing 7 until the cooldown elapses.
+  const savedShort = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await post(`/api/app/retention/policy?orgId=${orgId}`, {
+        config: fullPolicy({ messageFeedbackRetentionDays: 2 }),
+      })
+    ).json(),
+  );
+  const pendingRow = z
+    .object({
+      pending: z
+        .object({ id: z.string(), appliesAt: z.number(), summary: z.string() })
+        .loose(),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/retention/pending-change?orgId=${orgId}`)
+      ).json(),
+    );
+  const fourDaysAgo = Date.now() - 4 * 24 * 3_600_000;
+  await sql`
+    INSERT INTO app.message_feedback (
+      org_id, thread_id, message_id, user_id, rating, created_at_ms
+    ) VALUES (${orgId}, 'tail-th', 'tail-cooldown', ${userId}, 'positive',
+              ${fourDaysAgo})
+  `;
+  const { runRetentionCleanup: sweep } =
+    await import('./domains/retention/service.ts');
+  await sweep(sql);
+  const survivedCooldown = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.message_feedback
+    WHERE org_id = ${orgId} AND message_id = 'tail-cooldown'
+  `;
+  await sql`
+    UPDATE app.retention_policy_pending_changes
+    SET applies_at_ms = ${Date.now() - 1_000}
+    WHERE org_id = ${orgId}
+  `;
+  await sweep(sql);
+  const sweptAfterCooldown = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.message_feedback
+    WHERE org_id = ${orgId} AND message_id = 'tail-cooldown'
+  `;
+  const pendingDropped = z
+    .object({ pending: z.null() })
+    .safeParse(
+      await (
+        await get(`/api/app/retention/pending-change?orgId=${orgId}`)
+      ).json(),
+    );
+  // F2: a second shortening staged, then CANCELLED — the file reverts.
+  await post(`/api/app/retention/policy?orgId=${orgId}`, {
+    config: fullPolicy({
+      messageFeedbackRetentionDays: 2,
+      documentsRetentionDays: 3,
+    }),
+  });
+  const cancelPending = z
+    .object({ ok: z.boolean() })
+    .safeParse(
+      await (
+        await post(`/api/app/retention/pending-change/cancel?orgId=${orgId}`)
+      ).json(),
+    );
+  const revertedPolicy = z
+    .object({
+      policy: z
+        .object({
+          config: z.object({ documentsRetentionDays: z.number() }).loose(),
+        })
+        .loose()
+        .nullable(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await get(
+          `/api/app/governance/policies/retention_policy?orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  // Bounds proposal: raising the documents floor in retention.yml makes the
+  // effective hash diverge from the applied snapshot.
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const retentionYml = path.join(
+    configRoot,
+    orgSlug,
+    'governance',
+    'retention.yml',
+  );
+  const ymlBefore = await readFile(retentionYml, 'utf8');
+  const orgConfigLib = await import('./lib/org-config.ts');
+  const proposalBefore = z
+    .object({ proposal: z.null() })
+    .safeParse(
+      await (
+        await get(`/api/app/retention/bounds/proposal?orgId=${orgId}`)
+      ).json(),
+    );
+  await writeFile(
+    retentionYml,
+    ymlBefore.replace('documents:\n  min: 1', 'documents:\n  min: 2'),
+  );
+  orgConfigLib.clearOrgConfigCaches();
+  const proposal = z
+    .object({
+      proposal: z
+        .object({
+          firstApply: z.boolean(),
+          proposedHash: z.string(),
+          diff: z.unknown(),
+        })
+        .loose(),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/retention/bounds/proposal?orgId=${orgId}`)
+      ).json(),
+    );
+  const proposedHash = proposal.success
+    ? proposal.data.proposal.proposedHash
+    : '';
+  const staleApply = await post(
+    `/api/app/retention/bounds/apply?orgId=${orgId}`,
+    {
+      proposedHash: 'not-the-live-hash',
+    },
+  );
+  const rejectedProposal = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await post(`/api/app/retention/bounds/reject?orgId=${orgId}`, {
+        proposedHash,
+      })
+    ).json(),
+  );
+  const silencedAfterReject = z
+    .object({ proposal: z.null() })
+    .safeParse(
+      await (
+        await get(`/api/app/retention/bounds/proposal?orgId=${orgId}`)
+      ).json(),
+    );
+  await writeFile(
+    retentionYml,
+    ymlBefore.replace('documents:\n  min: 1', 'documents:\n  min: 3'),
+  );
+  orgConfigLib.clearOrgConfigCaches();
+  const proposalTwo = z
+    .object({ proposal: z.object({ proposedHash: z.string() }).loose() })
+    .safeParse(
+      await (
+        await get(`/api/app/retention/bounds/proposal?orgId=${orgId}`)
+      ).json(),
+    );
+  const appliedOcc = z.object({ bounds: z.object({}).loose() }).safeParse(
+    await (
+      await post(`/api/app/retention/bounds/apply?orgId=${orgId}`, {
+        proposedHash: proposalTwo.success
+          ? proposalTwo.data.proposal.proposedHash
+          : '',
+      })
+    ).json(),
+  );
+  const settledProposal = z
+    .object({ proposal: z.null() })
+    .safeParse(
+      await (
+        await get(`/api/app/retention/bounds/proposal?orgId=${orgId}`)
+      ).json(),
+    );
+  record(
+    'governance tail: retention catalog, shortening cooldown, bounds OCC',
+    catalog.success &&
+      catalog.data.bounds.length >= 13 &&
+      noPending.success &&
+      savedShort.success &&
+      savedShort.data.ok &&
+      pendingRow.success &&
+      pendingRow.data.pending.summary.includes('message feedback (7 → 2)') &&
+      survivedCooldown[0]?.count === '1' &&
+      sweptAfterCooldown[0]?.count === '0' &&
+      pendingDropped.success &&
+      cancelPending.success &&
+      cancelPending.data.ok &&
+      revertedPolicy.success &&
+      revertedPolicy.data.policy?.config.documentsRetentionDays === 7 &&
+      proposalBefore.success &&
+      proposal.success &&
+      !proposal.data.proposal.firstApply &&
+      staleApply.status === 409 &&
+      rejectedProposal.success &&
+      rejectedProposal.data.ok &&
+      silencedAfterReject.success &&
+      proposalTwo.success &&
+      appliedOcc.success &&
+      settledProposal.success,
+    `catalog=${catalog.success ? catalog.data.bounds.length : 'ERR'}, save=${savedShort.success}, pending=${pendingRow.success ? pendingRow.data.pending.summary.slice(0, 40) : 'ERR'}, cooldownSurvive=${survivedCooldown[0]?.count} (want 1), afterCooldown=${sweptAfterCooldown[0]?.count} (want 0), dropped=${pendingDropped.success}, cancel=${cancelPending.success}, reverted=${revertedPolicy.success ? revertedPolicy.data.policy?.config.documentsRetentionDays : 'ERR'} (want 7), proposalNull=${proposalBefore.success}, proposal=${proposal.success}, stale=${staleApply.status} (want 409), reject=${rejectedProposal.success}, silenced=${silencedAfterReject.success}, apply=${appliedOcc.success}, settled=${settledProposal.success}`,
   );
 }
 
@@ -16964,6 +17895,12 @@ async function main(): Promise<void> {
     await checkWebdav(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkApprovalsSurface(sql, baseUrl, authCtx);
     await checkGovernance(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkGovernanceSettingsTail(
+      sql,
+      baseUrl,
+      authCtx,
+      `itest-${orgSuffix}`,
+    );
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

@@ -11,6 +11,8 @@ import {
   listErasureRequests,
   requestErasure,
   retryErasure,
+  extendErasureDeadline,
+  getErasureRequest,
 } from './service.ts';
 
 /** /api/app/erasure — GDPR Art 17 receipts (admin-gated in the service). */
@@ -19,7 +21,10 @@ function handleError<E extends OrgEnv>(
   error: unknown,
 ): Response {
   if (error instanceof ErasureError) {
-    return c.json({ error: error.code, message: error.message }, error.status);
+    return c.json(
+      { ...error.data, error: error.code, message: error.message },
+      error.status,
+    );
   }
   throw error;
 }
@@ -32,8 +37,31 @@ export function createErasureRoutes(deps: {
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
 
   app.get('/', async (c) => {
+    const limitParam = Number(c.req.query('limit') ?? '100');
+    const limit = Number.isFinite(limitParam)
+      ? Math.min(Math.max(1, limitParam), 200)
+      : 100;
+    const statusesParam = c.req.query('statuses');
+    const statuses =
+      statusesParam !== undefined && statusesParam !== ''
+        ? statusesParam.split(',')
+        : undefined;
+    const cursorTs = Number(c.req.query('cursorTs') ?? Number.NaN);
+    const cursorId = c.req.query('cursorId');
+    const requests = await listErasureRequests(deps.sql, c.get('orgId'), {
+      limit,
+      ...(statuses !== undefined ? { statuses } : {}),
+      ...(Number.isFinite(cursorTs) && cursorId !== undefined
+        ? { cursor: { ts: cursorTs, id: cursorId } }
+        : {}),
+    });
+    const last = requests.at(-1);
     return c.json({
-      requests: await listErasureRequests(deps.sql, c.get('orgId')),
+      requests,
+      nextCursor:
+        requests.length === limit && last !== undefined
+          ? { ts: last.requestedAt, id: last._id }
+          : null,
     });
   });
 
@@ -88,6 +116,44 @@ export function createErasureRoutes(deps: {
         requestId: c.req.param('requestId'),
       });
       return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:requestId', async (c) => {
+    const detail = await getErasureRequest(
+      deps.sql,
+      c.get('orgId'),
+      c.req.param('requestId'),
+    );
+    if (detail === null) {
+      return c.json({ error: 'REQUEST_NOT_FOUND' }, 404);
+    }
+    return c.json(detail);
+  });
+
+  app.post('/:requestId/extend', async (c) => {
+    const body = z
+      .object({
+        extraDays: z.number(),
+        extensionReason: z.string().min(1).max(4000),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const session = c.get('sessionBundle');
+    try {
+      return c.json(
+        await extendErasureDeadline(
+          deps.sql,
+          {
+            organizationId: c.get('orgId'),
+            userId: session.user.id,
+            email: session.user.email,
+          },
+          { requestId: c.req.param('requestId'), ...body.data },
+        ),
+      );
     } catch (error) {
       return handleError(c, error);
     }
