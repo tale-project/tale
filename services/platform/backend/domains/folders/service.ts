@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { hasTeamAccess } from '../../../convex/lib/team_access.ts';
 import { checkProjectAccess } from '../../../convex/projects/access.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import {
   loadProjectOrThrow,
   type ProjectAuthContext,
@@ -215,10 +216,15 @@ export async function createFolder(
   if (!id) {
     throw new FolderError('FOLDER_CREATE_FAILED', 'Insert failed');
   }
+  await emitHintInTx(tx, {
+    orgId: auth.organizationId,
+    entity: 'folder',
+    entityId: id,
+  });
   return id;
 }
 
-async function assertFolderMutable(
+export async function assertFolderMutable(
   tx: TransactionSql | Sql,
   auth: ProjectAuthContext,
   folder: FolderRow,
@@ -267,6 +273,11 @@ export async function renameFolder(
     throw new FolderError('FOLDER_NAME_TAKEN', 'Folder name taken');
   }
   await tx`UPDATE app.folders SET name = ${trimmed} WHERE id = ${folderId}`;
+  await emitHintInTx(tx, {
+    orgId: auth.organizationId,
+    entity: 'folder',
+    entityId: folderId,
+  });
 }
 
 /**
@@ -439,4 +450,163 @@ export async function getOrCreateProjectFolder(
     ...(args.parentId !== undefined ? { parentId: args.parentId } : {}),
   });
   return { folderId, name, created: true };
+}
+
+/** Point-read with 0.4 semantics: null (not 404) on any access failure. */
+export async function getFolderView(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  folderId: string,
+): Promise<FolderRow | null> {
+  const rows = await sql<FolderRow[]>`
+    SELECT ${sql.unsafe(FOLDER_COLUMNS)} FROM app.folders
+    WHERE id = ${folderId} LIMIT 1
+  `;
+  const folder = rows[0];
+  if (!folder || folder.organizationId !== auth.organizationId) {
+    return null;
+  }
+  if (folder.projectId !== null) {
+    const project = await loadProjectOrThrow(sql, folder.projectId);
+    const access = checkProjectAccess(
+      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
+      auth.teamIds,
+      auth.role,
+    );
+    return access.canRead ? folder : null;
+  }
+  return hasTeamAccess(
+    { teamId: folder.teamId ?? undefined, teamTags: folder.teamTags },
+    auth.teamIds,
+  )
+    ? folder
+    : null;
+}
+
+export interface FolderTeamCascadeTouchedDoc {
+  id: string;
+  fileRef: string | null;
+  teamId: string | null;
+  teamTags: string[];
+  projectId: string | null;
+}
+
+/**
+ * Re-team a hub folder and cascade the new scope to every descendant folder
+ * and document (0.4 `updateFolderTeams`). Returns the file-backed documents
+ * the cascade rewrote so the caller can re-stamp their corpus scope rows
+ * post-commit (retrieval filters on them; scope-only, no re-embed).
+ */
+export async function updateFolderTeams(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: { folderId: string; teamIds: string[] },
+): Promise<FolderTeamCascadeTouchedDoc[]> {
+  const folder = await loadFolderOrThrow(tx, args.folderId);
+  if (folder.organizationId !== auth.organizationId) {
+    throw new FolderError('FOLDER_NOT_FOUND', 'Folder not found', 404);
+  }
+  // Team assignment is a hub concept — a project folder never carries teams.
+  if (folder.projectId !== null) {
+    throw new FolderError(
+      'FOLDER_SCOPE_CONFLICT',
+      'A project folder cannot be assigned to teams',
+    );
+  }
+  if (folder.parentId !== null) {
+    const parent = await loadFolderOrThrow(tx, folder.parentId);
+    if (parent.teamId) {
+      throw new FolderError(
+        'FOLDER_TEAM_INHERITED',
+        'Cannot change team: inherited from parent folder',
+      );
+    }
+  }
+  if (folder.teamId !== null || folder.teamTags.length > 0) {
+    if (
+      !hasTeamAccess(
+        { teamId: folder.teamId ?? undefined, teamTags: folder.teamTags },
+        auth.teamIds,
+      )
+    ) {
+      throw new FolderError('FOLDER_ACCESS_DENIED', 'Access denied', 403);
+    }
+  }
+  const memberTeams = new Set(auth.teamIds);
+  for (const teamId of args.teamIds) {
+    if (!memberTeams.has(teamId)) {
+      throw new FolderError(
+        'FOLDER_TEAM_FORBIDDEN',
+        'Cannot assign folder to a team you do not belong to',
+        403,
+      );
+    }
+  }
+  const teamId = args.teamIds[0] ?? null;
+  const teamTags = args.teamIds;
+  await tx`
+    WITH RECURSIVE subtree AS (
+      SELECT id FROM app.folders
+      WHERE id = ${args.folderId} AND org_id = ${auth.organizationId}
+      UNION ALL
+      SELECT f.id FROM app.folders f
+      JOIN subtree s ON f.parent_id = s.id
+      WHERE f.org_id = ${auth.organizationId}
+    )
+    UPDATE app.folders SET team_id = ${teamId}, team_tags = ${teamTags}
+    WHERE id IN (SELECT id FROM subtree)
+  `;
+  const touched = await tx<FolderTeamCascadeTouchedDoc[]>`
+    WITH RECURSIVE subtree AS (
+      SELECT id FROM app.folders
+      WHERE id = ${args.folderId} AND org_id = ${auth.organizationId}
+      UNION ALL
+      SELECT f.id FROM app.folders f
+      JOIN subtree s ON f.parent_id = s.id
+      WHERE f.org_id = ${auth.organizationId}
+    )
+    UPDATE app.documents SET team_id = ${teamId}, team_tags = ${teamTags},
+      updated_at_ms = ${Date.now()}
+    WHERE org_id = ${auth.organizationId}
+      AND folder_id IN (SELECT id FROM subtree)
+    RETURNING id, file_ref AS "fileRef", team_id AS "teamId",
+      team_tags AS "teamTags", project_id AS "projectId"
+  `;
+  await emitHintInTx(tx, {
+    orgId: auth.organizationId,
+    entity: 'folder',
+    entityId: args.folderId,
+  });
+  if (touched.length > 0) {
+    await emitHintInTx(tx, {
+      orgId: auth.organizationId,
+      entity: 'document',
+      entityId: args.folderId,
+    });
+  }
+  return touched.filter((doc) => doc.fileRef !== null);
+}
+
+/** Active cloud-sync config ids keyed by their hub item path (both
+ * providers) — the listing decoration that powers "stop syncing" + delete
+ * warnings on synced folders. */
+export async function listActiveSyncConfigIdsByPath(
+  sql: Sql,
+  organizationId: string,
+): Promise<Map<string, string>> {
+  const byPath = new Map<string, string>();
+  const onedrive = await sql<{ id: string; itemPath: string | null }[]>`
+    SELECT id, item_path AS "itemPath" FROM app.onedrive_sync_configs
+    WHERE org_id = ${organizationId} AND status = 'active'
+  `;
+  const google = await sql<{ id: string; itemPath: string | null }[]>`
+    SELECT id, item_path AS "itemPath" FROM app.google_drive_sync_configs
+    WHERE org_id = ${organizationId} AND status = 'active'
+  `;
+  for (const config of [...onedrive, ...google]) {
+    if (config.itemPath !== null && config.itemPath !== '') {
+      byPath.set(config.itemPath, config.id);
+    }
+  }
+  return byPath;
 }

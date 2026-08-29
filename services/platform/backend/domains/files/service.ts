@@ -310,3 +310,46 @@ export async function registerUploadedBytes(
   if (!fileId) throw new FileError('FILE_REGISTER_FAILED', 'Insert failed');
   return { fileId };
 }
+
+/**
+ * HEAD an org-scoped blob (upload landed but not yet registered): size for
+ * validation gates that must run BEFORE the metadata row exists. Null when
+ * the object is missing; throws on a ref outside the org's namespace.
+ */
+export async function statOrgBlob(
+  sql: Sql,
+  organizationId: string,
+  storageRef: string,
+): Promise<{ size: number } | null> {
+  const { orgSlug, store } = await requireOrgStore(sql, organizationId);
+  const key = requireOrgScopedKey(storageRef, orgSlug);
+  const head = await s3HeadObject(store, key);
+  return head === null ? null : { size: head.size };
+}
+
+/**
+ * Reclaim a blob whose upload was REJECTED after landing (policy refusal,
+ * unsupported type): the 0.4 `deleteRejectedUploadBlob` contract. Never
+ * touches a blob that became a real file; the org-namespace check on the
+ * key is the safety boundary for the unregistered case.
+ */
+export async function deleteRejectedUploadBlob(
+  sql: Sql,
+  organizationId: string,
+  storageRef: string,
+): Promise<{ deleted: boolean }> {
+  const linked = await sql<{ id: string }[]>`
+    SELECT id FROM app.file_metadata
+    WHERE org_id = ${organizationId} AND storage_ref = ${storageRef}
+    LIMIT 1
+  `;
+  if (linked[0]) return { deleted: false };
+  const { orgSlug, store } = await requireOrgStore(sql, organizationId);
+  const key = requireOrgScopedKey(storageRef, orgSlug);
+  try {
+    await s3DeleteObject(store, key);
+  } catch (error) {
+    console.warn(`[files] rejected-blob delete failed for ${key}:`, error);
+  }
+  return { deleted: true };
+}

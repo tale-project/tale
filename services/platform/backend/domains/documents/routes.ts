@@ -8,6 +8,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { FileError, getFileUrl } from '../files/service.ts';
 import { FolderError } from '../folders/service.ts';
+import { syncRagDocumentScope } from '../knowledge/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   getProjectAuthContext,
@@ -15,17 +16,28 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import {
+  approxCountDocumentsForOrg,
   attachDocumentToProject,
+  computeUploadUsageForUser,
+  createDocumentFromBlobUpload,
   createDocumentFromUpload,
+  deleteDocumentHard,
   detachDocumentFromProject,
   DocumentError,
+  getDocumentByExternalItemIdView,
   getDocumentById,
   listDocuments,
+  listDocumentVersionsView,
+  listHubDocumentsPaginated,
   listProjectDocuments,
+  loadDocumentOrThrow,
+  retryRagIndexingForDocument,
   searchDocumentsForMention,
+  searchDocumentsView,
   setDocumentTrashed,
   updateDocument,
 } from './service.ts';
+import { toDocumentItems } from './view.ts';
 
 const createFromUploadSchema = z.object({
   fileId: z.string().min(1),
@@ -40,14 +52,36 @@ const updateSchema = z.object({
   title: z.string().max(600).optional(),
   folderId: z.string().nullable().optional(),
   teamId: z.string().nullable().optional(),
+  teamIds: z.array(z.string().min(1)).max(64).optional(),
+});
+
+const createFromBlobUploadSchema = z.object({
+  storageRef: z.string().min(1),
+  fileName: z.string().min(1).max(512),
+  contentType: z.string().max(255).optional(),
+  contentHash: z.string().max(128).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  teamId: z.string().optional(),
+  projectId: z.string().optional(),
+  folderId: z.string().optional(),
+  skipRagIndexing: z.boolean().optional(),
 });
 
 function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
+  if (error instanceof DocumentError) {
+    return c.json(
+      {
+        error: error.code,
+        message: error.message,
+        ...(error.data !== undefined ? { data: error.data } : {}),
+      },
+      error.status,
+    );
+  }
   if (
-    error instanceof DocumentError ||
     error instanceof FolderError ||
     error instanceof FileError ||
     error instanceof ProjectError ||
@@ -83,10 +117,95 @@ export function createDocumentRoutes(deps: {
       const folderParam = c.req.query('folderId');
       const folderId =
         folderParam === undefined ? undefined : folderParam || null;
+      const rows = await listDocuments(deps.sql, auth, {
+        ...(folderId !== undefined ? { folderId } : {}),
+        includeTrashed: c.req.query('includeTrashed') === 'true',
+      });
       return c.json({
-        documents: await listDocuments(deps.sql, auth, {
-          ...(folderId !== undefined ? { folderId } : {}),
-          includeTrashed: c.req.query('includeTrashed') === 'true',
+        documents: await toDocumentItems(deps.sql, auth.organizationId, rows),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/paginated', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const numItems = Number(c.req.query('numItems') ?? '25');
+      const result = await listHubDocumentsPaginated(deps.sql, auth, {
+        cursor: c.req.query('cursor') ?? null,
+        numItems: Number.isFinite(numItems) ? numItems : 25,
+        ...(c.req.query('folderId') !== undefined
+          ? { folderId: c.req.query('folderId') }
+          : {}),
+        ...(c.req.query('sourceProvider') !== undefined
+          ? { sourceProvider: c.req.query('sourceProvider') }
+          : {}),
+        ...(c.req.query('extension') !== undefined
+          ? { extension: c.req.query('extension') }
+          : {}),
+      });
+      return c.json({
+        page: await toDocumentItems(deps.sql, auth.organizationId, result.page),
+        isDone: result.isDone,
+        continueCursor: result.continueCursor,
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/approx-count', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        count: await approxCountDocumentsForOrg(deps.sql, auth.organizationId),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/upload-usage', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await computeUploadUsageForUser(
+          deps.sql,
+          auth.organizationId,
+          auth.userId,
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/versions/:documentId', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        versions: await listDocumentVersionsView(
+          deps.sql,
+          auth,
+          c.req.param('documentId'),
+        ),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/by-external-item-id', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const externalItemId = c.req.query('externalItemId') ?? '';
+      const projectId = c.req.query('projectId');
+      return c.json({
+        document: await getDocumentByExternalItemIdView(deps.sql, auth, {
+          externalItemId,
+          ...(projectId !== undefined ? { projectId } : {}),
         }),
       });
     } catch (error) {
@@ -109,15 +228,31 @@ export function createDocumentRoutes(deps: {
     }
   });
 
-  app.get('/by-project/:projectId', async (c) => {
+  app.get('/search-hub', async (c) => {
     try {
       const auth = await authCtx(c);
       return c.json({
-        documents: await listProjectDocuments(
+        documents: await searchDocumentsView(
           deps.sql,
           auth,
-          c.req.param('projectId'),
+          c.req.query('q') ?? '',
         ),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/by-project/:projectId', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const rows = await listProjectDocuments(
+        deps.sql,
+        auth,
+        c.req.param('projectId'),
+      );
+      return c.json({
+        documents: await toDocumentItems(deps.sql, auth.organizationId, rows),
       });
     } catch (error) {
       return handleError(c, error);
@@ -140,16 +275,32 @@ export function createDocumentRoutes(deps: {
     }
   });
 
+  app.post('/from-blob-upload', async (c) => {
+    const body = createFromBlobUploadSchema.safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      const documentId = await transactSerializable(deps.sql, (tx) =>
+        createDocumentFromBlobUpload(deps.sql, tx, auth, body.data),
+      );
+      return c.json({ success: true, documentId });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.get('/:documentId', async (c) => {
     try {
       const auth = await authCtx(c);
-      return c.json({
-        document: await getDocumentById(
-          deps.sql,
-          auth,
-          c.req.param('documentId'),
-        ),
-      });
+      const doc = await getDocumentById(
+        deps.sql,
+        auth,
+        c.req.param('documentId'),
+      );
+      const items = await toDocumentItems(deps.sql, auth.organizationId, [doc]);
+      return c.json({ document: items[0] ?? null });
     } catch (error) {
       return handleError(c, error);
     }
@@ -184,12 +335,41 @@ export function createDocumentRoutes(deps: {
     }
     try {
       const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
-        updateDocument(tx, auth, {
-          documentId: c.req.param('documentId'),
-          ...body.data,
-        }),
+      const documentId = c.req.param('documentId');
+      const result = await transactSerializable(deps.sql, (tx) =>
+        updateDocument(tx, auth, { documentId, ...body.data }),
       );
+      // A team change is a corpus SCOPE change — re-stamp retrieval filters
+      // without re-embedding. Best-effort by contract (logged inside).
+      if (result.teamScopeChanged && result.fileRef !== null) {
+        const doc = await loadDocumentOrThrow(deps.sql, documentId);
+        await syncRagDocumentScope(deps.sql, auth.organizationId, doc);
+      }
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:documentId/retry-rag', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await retryRagIndexingForDocument(
+          deps.sql,
+          auth,
+          c.req.param('documentId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:documentId/delete', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      await deleteDocumentHard(deps.sql, auth, c.req.param('documentId'));
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);

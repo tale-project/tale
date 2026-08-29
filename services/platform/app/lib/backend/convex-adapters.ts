@@ -18,6 +18,11 @@ import { ConvexError } from 'convex/values';
 
 import { BackendApiError } from './api-client';
 import {
+  documentPaginatedAdapters,
+  documentReadAdapters,
+  documentWriteAdapters,
+} from './documents';
+import {
   projectActionQueryAdapters,
   projectReadAdapters,
   projectWriteAdapters,
@@ -83,9 +88,33 @@ export interface WriteAdapter {
   ) => void;
 }
 
+/** One fetched page on the adapted paginated lane (the 0.4 page envelope). */
+export interface AdaptedPage {
+  page: unknown[];
+  isDone: boolean;
+  continueCursor: string;
+}
+
+/** What an adapted PAGINATED read hands to the infinite-query lane. The
+ * queryKey must sit under `backendEntityPrefix` so hints invalidate it. */
+export interface AdaptedPaginatedOptions {
+  queryKey: readonly unknown[];
+  fetchPage: (cursor: string | null, numItems: number) => Promise<AdaptedPage>;
+}
+
+export type PaginatedAdapter = (
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+) => AdaptedPaginatedOptions | null;
+
 export const READ_ADAPTERS: Record<string, ReadAdapter> = {
+  ...documentReadAdapters,
   ...projectReadAdapters,
   ...taskReadAdapters,
+};
+
+export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
+  ...documentPaginatedAdapters,
 };
 
 export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {
@@ -93,6 +122,7 @@ export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {
 };
 
 export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
+  ...documentWriteAdapters,
   ...projectWriteAdapters,
   ...taskWriteAdapters,
 };

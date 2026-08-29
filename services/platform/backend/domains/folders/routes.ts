@@ -10,7 +10,9 @@ import {
   checkOrganizationRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
-import { deactivateSyncConfigsForPath } from '../onedrive/service.ts';
+import { deleteFolderCascade, DocumentError } from '../documents/service.ts';
+import { syncRagDocumentScope } from '../knowledge/service.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   getProjectAuthContext,
   ProjectError,
@@ -19,11 +21,13 @@ import {
 import { buildHubFolderPath } from './paths.ts';
 import {
   createFolder,
-  deleteFolder,
   FolderError,
   getFolderBreadcrumb,
+  getFolderView,
+  listActiveSyncConfigIdsByPath,
   listFolders,
   renameFolder,
+  updateFolderTeams,
 } from './service.ts';
 
 const createSchema = z.object({
@@ -39,6 +43,11 @@ function handleError<E extends OrgEnv>(
 ): Response {
   if (error instanceof FolderError || error instanceof ProjectError) {
     return c.json({ error: error.code }, error.status);
+  }
+  if (error instanceof DocumentError || error instanceof LegalHoldError) {
+    // The delete cascade surfaces document-side refusals (protected
+    // records, legal holds) with their message intact.
+    return c.json({ error: error.code, message: error.message }, error.status);
   }
   if (error instanceof RateLimitExceededError) {
     return c.json(
@@ -73,14 +82,78 @@ export function createFolderRoutes(deps: {
       const auth = await authCtx(c);
       const parentParam = c.req.query('parentId');
       const projectId = c.req.query('projectId');
+      const parentId =
+        parentParam !== undefined ? parentParam || null : undefined;
+      const folders = await listFolders(deps.sql, auth, {
+        ...(projectId !== undefined ? { projectId } : {}),
+        ...(parentId !== undefined ? { parentId } : {}),
+      });
+      // Hub rows carry the active sync-config id (path-keyed) so the UI can
+      // offer "stop syncing" and warn before delete; project trees never do.
+      let syncByPath = new Map<string, string>();
+      if (projectId === undefined) {
+        syncByPath = await listActiveSyncConfigIdsByPath(
+          deps.sql,
+          auth.organizationId,
+        );
+      }
+      const basePath =
+        syncByPath.size > 0 && parentId != null
+          ? await buildHubFolderPath(deps.sql, auth.organizationId, parentId)
+          : null;
       return c.json({
-        folders: await listFolders(deps.sql, auth, {
-          ...(projectId !== undefined ? { projectId } : {}),
-          ...(parentParam !== undefined
-            ? { parentId: parentParam || null }
-            : {}),
+        folders: folders.map((folder) => {
+          if (syncByPath.size === 0) return folder;
+          const path =
+            basePath !== null ? `${basePath}/${folder.name}` : folder.name;
+          const syncConfigId = syncByPath.get(path);
+          return syncConfigId === undefined
+            ? folder
+            : Object.assign(folder, { syncConfigId });
         }),
       });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:folderId', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        folder: await getFolderView(deps.sql, auth, c.req.param('folderId')),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:folderId/teams', async (c) => {
+    const body = z
+      .object({ teamIds: z.array(z.string().min(1)).max(64) })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      await checkOrganizationRateLimit(
+        deps.sql,
+        'folder:mutate',
+        auth.organizationId,
+      );
+      const touched = await transactSerializable(deps.sql, (tx) =>
+        updateFolderTeams(tx, auth, {
+          folderId: c.req.param('folderId'),
+          teamIds: body.data.teamIds,
+        }),
+      );
+      // The cascade re-scoped these documents — re-stamp their corpus rows
+      // (retrieval filters on team scope; scope-only, no re-embed).
+      for (const doc of touched) {
+        await syncRagDocumentScope(deps.sql, auth.organizationId, doc);
+      }
+      return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
     }
@@ -153,24 +226,9 @@ export function createFolderRoutes(deps: {
         'folder:mutate',
         auth.organizationId,
       );
-      await transactSerializable(deps.sql, async (tx) => {
-        // Deleting a synced hub folder means "stop syncing it" — resolve the
-        // path BEFORE the row goes, deactivate configs in the same tx, or
-        // the next sync run would recreate the folder just removed.
-        const folderPath = await buildHubFolderPath(
-          tx,
-          auth.organizationId,
-          c.req.param('folderId'),
-        );
-        await deleteFolder(tx, auth, c.req.param('folderId'));
-        if (folderPath !== null) {
-          await deactivateSyncConfigsForPath(
-            tx,
-            auth.organizationId,
-            folderPath,
-          );
-        }
-      });
+      // Cascade delete (0.4 contract): hold + protected-record pre-walks,
+      // sync deactivation, descendant document purge, then the subtree.
+      await deleteFolderCascade(deps.sql, auth, c.req.param('folderId'));
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);

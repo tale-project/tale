@@ -1767,10 +1767,11 @@ async function checkDocuments(
       folderId: child.success ? child.data.folderId : '',
     },
   );
-  const nonEmptyDelete = await send(
-    'DELETE',
-    `/api/app/folders/${rootId}?orgId=${orgId}`,
-  );
+  const folderGet = z
+    .object({
+      folder: z.object({ id: z.string(), name: z.string() }).nullable(),
+    })
+    .safeParse(await get(`/api/app/folders/${rootId}?orgId=${orgId}`));
   const crumb = z
     .object({ breadcrumb: z.array(z.object({ name: z.string() })) })
     .safeParse(
@@ -1779,15 +1780,16 @@ async function checkDocuments(
       ),
     );
   record(
-    'folder tree + clash + non-empty guard',
+    'folder tree + clash + point read',
     rootFolder.success &&
       clash.status === 400 &&
       child.success &&
       moved.ok &&
-      nonEmptyDelete.status === 400 &&
+      folderGet.success &&
+      folderGet.data.folder?.name === 'Contracts' &&
       crumb.success &&
       crumb.data.breadcrumb.map((f) => f.name).join('/') === 'Contracts/2026',
-    `clash → ${clash.status} (want 400), move → ${moved.status}, non-empty delete → ${nonEmptyDelete.status} (want 400), crumb=${crumb.success ? crumb.data.breadcrumb.map((f) => f.name).join('/') : 'ERR'}`,
+    `clash → ${clash.status} (want 400), move → ${moved.status}, get=${folderGet.success ? (folderGet.data.folder?.name ?? 'null') : 'ERR'}, crumb=${crumb.success ? crumb.data.breadcrumb.map((f) => f.name).join('/') : 'ERR'}`,
   );
 
   // Project attach flips the doc out of the hub; detach restores it.
@@ -1835,6 +1837,306 @@ async function checkDocuments(
       hubAfterTrash.success &&
       !hubAfterTrash.data.documents.some((d) => d.id === documentId),
     `attach → ${attach.status}, hubHidden=${hubAfterAttach.success ? !hubAfterAttach.data.documents.some((d) => d.id === documentId) : 'ERR'}, inProject=${projDocs.success ? projDocs.data.documents.some((d) => d.id === documentId) : 'ERR'}, trashHidden=${hubAfterTrash.success ? !hubAfterTrash.data.documents.some((d) => d.id === documentId) : 'ERR'}`,
+  );
+
+  // --- Hub wire views + session upload lane (inc 84) -----------------------
+
+  await send('POST', `/api/app/documents/${documentId}/restore?orgId=${orgId}`);
+  const itemShape = z
+    .object({
+      document: z.object({
+        id: z.string(),
+        name: z.string(),
+        type: z.string(),
+        url: z.string().url().optional(),
+        fileId: z.string().optional(),
+        sourceProvider: z.string(),
+        uploadedAt: z.number(),
+        ragStatus: z.string().optional(),
+      }),
+    })
+    .safeParse(await get(`/api/app/documents/${documentId}?orgId=${orgId}`));
+  record(
+    'document item view (name/url/rag projection)',
+    itemShape.success &&
+      itemShape.data.document.name === 'notes.txt' &&
+      itemShape.data.document.url !== undefined &&
+      itemShape.data.document.fileId !== undefined,
+    itemShape.success
+      ? `name=${itemShape.data.document.name}, url=${itemShape.data.document.url !== undefined}, rag=${itemShape.data.document.ragStatus ?? 'none'}`
+      : 'item view parse failed',
+  );
+
+  // Session upload lane: size-free presign → PUT → policy-validated bind.
+  const uploadDoc = async (fileName: string): Promise<string> => {
+    const presign = z
+      .object({
+        url: z.string().url(),
+        method: z.literal('PUT'),
+        s3Ref: z.string(),
+      })
+      .safeParse(
+        await (
+          await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+            contentType: 'text/plain',
+          })
+        ).json(),
+      );
+    if (!presign.success) return '';
+    await fetch(presign.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: `content of ${fileName}`,
+    });
+    const bound = z
+      .object({ success: z.boolean(), documentId: z.string() })
+      .safeParse(
+        await (
+          await send(
+            'POST',
+            `/api/app/documents/from-blob-upload?orgId=${orgId}`,
+            {
+              storageRef: presign.data.s3Ref,
+              fileName,
+              contentType: 'text/plain',
+            },
+          )
+        ).json(),
+      );
+    return bound.success ? bound.data.documentId : '';
+  };
+  const blobA = await uploadDoc('blob-a.txt');
+  const blobB = await uploadDoc('blob-b.txt');
+  const blobC = await uploadDoc('blob-c.txt');
+  record(
+    'blob-upload lane (presign → PUT → bind)',
+    blobA !== '' && blobB !== '' && blobC !== '',
+    `a=${blobA || 'ERR'}, b=${blobB || 'ERR'}, c=${blobC || 'ERR'}`,
+  );
+
+  // Keyset page walk: disjoint pages, all four docs, terminal isDone.
+  const pageSchema = z.object({
+    page: z.array(z.object({ id: z.string(), name: z.string() })),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+  });
+  const walked: string[] = [];
+  let cursor = '';
+  let walkDone = false;
+  for (let i = 0; i < 10 && !walkDone; i += 1) {
+    const page = pageSchema.safeParse(
+      await get(
+        `/api/app/documents/paginated?orgId=${orgId}&numItems=2${cursor === '' ? '' : `&cursor=${encodeURIComponent(cursor)}`}`,
+      ),
+    );
+    if (!page.success) break;
+    walked.push(...page.data.page.map((d) => d.id));
+    walkDone = page.data.isDone;
+    cursor = page.data.continueCursor;
+  }
+  const expectedIds = [documentId, blobA, blobB, blobC];
+  record(
+    'paginated hub walk (keyset, disjoint, exhausts)',
+    walkDone &&
+      new Set(walked).size === walked.length &&
+      expectedIds.every((id) => walked.includes(id)),
+    `pages walked=${walked.length} unique=${new Set(walked).size}, allFound=${expectedIds.every((id) => walked.includes(id))}, done=${walkDone}`,
+  );
+
+  const approx = z
+    .object({ count: z.number() })
+    .safeParse(await get(`/api/app/documents/approx-count?orgId=${orgId}`));
+  const usage = z
+    .object({
+      limited: z.boolean(),
+      usedBytes: z.number(),
+      limitBytes: z.number().nullable(),
+    })
+    .safeParse(await get(`/api/app/documents/upload-usage?orgId=${orgId}`));
+  const versions = z
+    .object({
+      versions: z
+        .object({
+          documentId: z.string(),
+          versions: z.array(
+            z.object({
+              storageId: z.string(),
+              isCurrent: z.boolean(),
+              fileName: z.string().optional(),
+            }),
+          ),
+        })
+        .nullable(),
+    })
+    .safeParse(
+      await get(`/api/app/documents/versions/${documentId}?orgId=${orgId}`),
+    );
+  const byExternal = z
+    .object({ document: z.unknown().nullable() })
+    .safeParse(
+      await get(
+        `/api/app/documents/by-external-item-id?orgId=${orgId}&externalItemId=missing-xyz`,
+      ),
+    );
+  const hubSearch = z
+    .object({
+      documents: z.array(
+        z.object({ documentId: z.string(), title: z.string() }),
+      ),
+    })
+    .safeParse(
+      await get(`/api/app/documents/search-hub?orgId=${orgId}&q=notes`),
+    );
+  record(
+    'hub reads: count + usage + versions + external-id + search',
+    approx.success &&
+      approx.data.count >= 4 &&
+      usage.success &&
+      !usage.data.limited &&
+      versions.success &&
+      versions.data.versions?.versions[0]?.isCurrent === true &&
+      versions.data.versions.versions[0].fileName === 'notes.txt' &&
+      byExternal.success &&
+      byExternal.data.document === null &&
+      hubSearch.success &&
+      hubSearch.data.documents.some((d) => d.documentId === documentId),
+    `count=${approx.success ? approx.data.count : 'ERR'}, limited=${usage.success ? usage.data.limited : 'ERR'}, versions=${versions.success ? (versions.data.versions?.versions.length ?? 'null') : 'ERR'}, extNull=${byExternal.success ? byExternal.data.document === null : 'ERR'}, search=${hubSearch.success ? hubSearch.data.documents.length : 'ERR'}`,
+  );
+
+  // Retry-rag answers the established { success, error? } wire (never a 5xx).
+  const retryRag = z
+    .object({ success: z.boolean(), error: z.string().optional() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${documentId}/retry-rag?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  // Folder team clear on a teamless folder is a no-op that must succeed.
+  const teamsClear = await send(
+    'POST',
+    `/api/app/folders/${rootId}/teams?orgId=${orgId}`,
+    { teamIds: [] },
+  );
+  record(
+    'retry-rag wire + folder teams endpoint',
+    retryRag.success && teamsClear.ok,
+    `retry={success:${retryRag.success ? retryRag.data.success : 'ERR'}${retryRag.success && retryRag.data.error !== undefined ? `, ${retryRag.data.error}` : ''}}, teams → ${teamsClear.status}`,
+  );
+
+  // Legacy POST lane: body → { storageId } (the 0.4 generateUploadUrl wire).
+  const directUpload = z.object({ storageId: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/app/files/upload?orgId=${orgId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain', cookie, origin: base },
+        body: 'direct post lane',
+      })
+    ).json(),
+  );
+  const directBound = z
+    .object({ success: z.boolean(), documentId: z.string() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/from-blob-upload?orgId=${orgId}`,
+          {
+            storageRef: directUpload.success ? directUpload.data.storageId : '',
+            fileName: 'direct-post.txt',
+            contentType: 'text/plain',
+          },
+        )
+      ).json(),
+    );
+  record(
+    'direct POST upload lane (0.4 generateUploadUrl wire)',
+    directUpload.success && directBound.success && directBound.data.success,
+    `storageId=${directUpload.success ? 'ok' : 'ERR'}, bound=${directBound.success ? directBound.data.documentId : 'ERR'}`,
+  );
+
+  // Rejected-upload reclaim: an unbound blob deletes; a bound ref refuses.
+  const orphanPresign = z
+    .object({ url: z.string().url(), s3Ref: z.string() })
+    .safeParse(
+      await (
+        await send('POST', `/api/app/files/blob-upload?orgId=${orgId}`, {
+          contentType: 'text/plain',
+        })
+      ).json(),
+    );
+  if (orphanPresign.success) {
+    await fetch(orphanPresign.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: 'reject me',
+    });
+  }
+  const rejectOrphan = z.object({ deleted: z.boolean() }).safeParse(
+    await (
+      await send('POST', `/api/app/files/reject-blob?orgId=${orgId}`, {
+        storageRef: orphanPresign.success ? orphanPresign.data.s3Ref : '',
+      })
+    ).json(),
+  );
+  const rejectBound = z.object({ deleted: z.boolean() }).safeParse(
+    await (
+      await send('POST', `/api/app/files/reject-blob?orgId=${orgId}`, {
+        storageRef: handoff.data.storageRef,
+      })
+    ).json(),
+  );
+  record(
+    'reject-blob reclaim (orphan deletes, bound refuses)',
+    rejectOrphan.success &&
+      rejectOrphan.data.deleted &&
+      rejectBound.success &&
+      !rejectBound.data.deleted,
+    `orphan=${rejectOrphan.success ? rejectOrphan.data.deleted : 'ERR'} (want true), bound=${rejectBound.success ? rejectBound.data.deleted : 'ERR'} (want false)`,
+  );
+
+  // Hard delete removes the row and the hub listing entry.
+  const hardDelete = await send(
+    'POST',
+    `/api/app/documents/${blobC}/delete?orgId=${orgId}`,
+    {},
+  );
+  const goneAfterDelete = await fetch(
+    `${base}/api/app/documents/${blobC}?orgId=${orgId}`,
+    { headers: { cookie } },
+  );
+  // Folder cascade: a folder with a doc inside deletes both.
+  const movedB = await send(
+    'POST',
+    `/api/app/documents/${blobB}?orgId=${orgId}`,
+    { folderId: child.success ? child.data.folderId : '' },
+  );
+  const cascade = await send(
+    'DELETE',
+    `/api/app/folders/${rootId}?orgId=${orgId}`,
+  );
+  const bGone = await fetch(
+    `${base}/api/app/documents/${blobB}?orgId=${orgId}`,
+    {
+      headers: { cookie },
+    },
+  );
+  const foldersAfter = z
+    .object({ folders: z.array(z.object({ id: z.string() })) })
+    .safeParse(await get(`/api/app/folders?orgId=${orgId}&parentId=`));
+  record(
+    'hard delete + folder cascade delete',
+    hardDelete.ok &&
+      goneAfterDelete.status === 404 &&
+      movedB.ok &&
+      cascade.ok &&
+      bGone.status === 404 &&
+      foldersAfter.success &&
+      !foldersAfter.data.folders.some((f) => f.id === rootId),
+    `delete → ${hardDelete.status}, gone → ${goneAfterDelete.status} (want 404), cascade → ${cascade.status}, memberGone → ${bGone.status} (want 404), rootListed=${foldersAfter.success ? foldersAfter.data.folders.some((f) => f.id === rootId) : 'ERR'}`,
   );
 }
 

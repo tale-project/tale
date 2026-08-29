@@ -12,11 +12,14 @@ import {
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
 import {
+  createRestUploadHandoff,
   createUploadHandoff,
   deleteFile,
+  deleteRejectedUploadBlob,
   FileError,
   getFileMetadata,
   getFileUrl,
+  putOrgBlobBytes,
   registerUpload,
 } from './service.ts';
 import {
@@ -59,6 +62,73 @@ function handleError<E extends OrgEnv>(
 export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+
+  /** Direct byte upload (the 0.4 Convex `generateUploadUrl` POST contract):
+   * the client POSTs the file body to this URL and gets `{ storageId }` —
+   * on pg that id IS the org-scoped blob ref. Serves every legacy POST-lane
+   * uploader without per-component surgery. */
+  app.post('/upload', async (c) => {
+    try {
+      const userId = c.get('sessionBundle').user.id;
+      await checkUserRateLimit(deps.sql, 'file:upload', userId);
+      const bytes = new Uint8Array(await c.req.arrayBuffer());
+      const storageId = await putOrgBlobBytes(deps.sql, c.get('orgId'), {
+        bytes,
+        contentType: c.req.header('content-type') ?? 'application/octet-stream',
+      });
+      return c.json({ storageId });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /** Session presign, size-free (the 0.4 `generateBlobUpload` wire): the
+   * bind step attests the landed object, so the ceiling is enforced there. */
+  app.post('/blob-upload', async (c) => {
+    const body = z
+      .object({ contentType: z.string().max(255).optional() })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const userId = c.get('sessionBundle').user.id;
+      await checkUserRateLimit(deps.sql, 'file:upload', userId);
+      const handoff = await createRestUploadHandoff(
+        deps.sql,
+        { organizationId: c.get('orgId') },
+        body.data,
+      );
+      return c.json({
+        url: handoff.uploadUrl,
+        method: 'PUT',
+        s3Ref: handoff.storageRef,
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /** Reclaim a landed-but-rejected upload blob (never a registered file). */
+  app.post('/reject-blob', async (c) => {
+    const body = z
+      .object({ storageRef: z.string().min(1).max(1024) })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      return c.json(
+        await deleteRejectedUploadBlob(
+          deps.sql,
+          c.get('orgId'),
+          body.data.storageRef,
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
 
   app.post('/upload-handoff', async (c) => {
     const body = handoffSchema.safeParse(await c.req.json());

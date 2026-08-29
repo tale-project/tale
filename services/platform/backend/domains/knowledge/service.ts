@@ -457,3 +457,47 @@ export async function markRagQueued(
     WHERE id = ${fileId} AND skip_rag_indexing IS DISTINCT FROM true
   `;
 }
+
+/**
+ * Re-stamp a document's corpus scope (team/project) after a scope-only edit —
+ * retrieval filters on these columns, and re-embedding would be wasted work.
+ * Best-effort by contract (0.4 parity): corpus failures log; the next
+ * re-index is the backstop.
+ */
+export async function syncRagDocumentScope(
+  sql: Sql,
+  organizationId: string,
+  doc: {
+    fileRef: string | null;
+    teamId: string | null;
+    teamTags: string[];
+    projectId: string | null;
+  },
+): Promise<void> {
+  if (doc.fileRef === null) return;
+  try {
+    const orgSlug = await requireOrgSlug(sql, organizationId);
+    const pool = await getKnowledgePoolForOrg(orgSlug);
+    const teamIds =
+      doc.teamTags.length > 0 ? doc.teamTags : doc.teamId ? [doc.teamId] : [];
+    // `team_ids` (retrieval matches ANY) + the deprecated single mirror.
+    await pool.unsafe(
+      `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+          SET team_ids = $3::text[], team_id = $4, project_id = $5,
+              updated_at = NOW()
+        WHERE org_slug = $1 AND file_id = $2
+          AND (team_ids IS DISTINCT FROM $3::text[]
+            OR team_id IS DISTINCT FROM $4
+            OR project_id IS DISTINCT FROM $5)`,
+      [
+        orgSlug,
+        doc.fileRef,
+        teamIds.length > 0 ? teamIds : null,
+        teamIds[0] ?? null,
+        doc.projectId,
+      ],
+    );
+  } catch (error) {
+    console.warn('[knowledge] corpus scope sync failed:', error);
+  }
+}
