@@ -1250,6 +1250,58 @@ async function checkTasks(
     `label=${bugLabelId || 'MISSING'}, in-use → ${inUse.status} (want 400), detach → ${detached.status}`,
   );
 
+  // Ops indicators (empty org: shape only), the subscription round-trip,
+  // the pending-review read (null), and cancel-live with no run.
+  const indicatorShape = z.object({
+    runningTaskIds: z.array(z.string()),
+    askingTaskIds: z.array(z.string()),
+    pendingReviews: z.array(z.object({ taskId: z.string() }).loose()),
+  });
+  const projectIndicators = indicatorShape.safeParse(
+    await get(
+      `/api/app/tasks/ops-indicators/by-project/${projectId}?orgId=${orgId}`,
+    ),
+  );
+  const orgIndicators = indicatorShape.safeParse(
+    await get(`/api/app/tasks/ops-indicators?orgId=${orgId}`),
+  );
+  await send(
+    'POST',
+    `/api/app/collab/tasks/${aId}/subscription?orgId=${orgId}`,
+    { subscribed: true, muted: true },
+  );
+  const subscription = z
+    .object({ subscribed: z.boolean(), muted: z.boolean() })
+    .safeParse(
+      await get(`/api/app/collab/tasks/${aId}/subscription?orgId=${orgId}`),
+    );
+  const reviewRead = z
+    .object({ review: z.null() })
+    .safeParse(await get(`/api/app/tasks/${aId}/review?orgId=${orgId}`));
+  const cancelLive = z
+    .object({ cancelled: z.boolean() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/tasks/${aId}/agent-runs/cancel-live?orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  record(
+    'task ops indicators + subscription + review read + cancel-live',
+    projectIndicators.success &&
+      projectIndicators.data.runningTaskIds.length === 0 &&
+      orgIndicators.success &&
+      subscription.success &&
+      subscription.data.subscribed &&
+      subscription.data.muted &&
+      reviewRead.success &&
+      cancelLive.success &&
+      !cancelLive.data.cancelled,
+    `indicators=${projectIndicators.success ? 'ok' : 'BAD'}/${orgIndicators.success ? 'ok' : 'BAD'}, sub=${subscription.success ? `${subscription.data.subscribed}/${subscription.data.muted}` : 'ERR'} (want true/true), review=${reviewRead.success ? 'null' : 'BAD'}, cancel-live=${cancelLive.success ? cancelLive.data.cancelled : 'ERR'} (want false)`,
+  );
+
   // Comments on the message store: add ×2 → list → edit → delete → count.
   const c1 = z
     .object({ messageId: z.string(), threadId: z.string() })

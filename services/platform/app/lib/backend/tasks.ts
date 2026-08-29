@@ -395,6 +395,108 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
         ),
     };
   },
+  'tasks/queries:getTaskOpsIndicators': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const projectId = args.projectId;
+    if (orgId === undefined || typeof projectId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'ops-indicators', projectId),
+      queryFn: () =>
+        backendFetch(
+          `/tasks/ops-indicators/by-project/${encodeURIComponent(projectId)}`,
+          { orgId },
+        ),
+    };
+  },
+  'tasks/queries:getTaskOpsIndicatorsForAccessibleProjects': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'ops-indicators-across'),
+      queryFn: () => backendFetch('/tasks/ops-indicators', { orgId }),
+    };
+  },
+  'tasks/queries:getPendingTaskReview': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const taskId = args.taskId;
+    if (orgId === undefined || typeof taskId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'pending-review', taskId),
+      queryFn: () =>
+        backendFetch<{
+          review: {
+            approvalId: string;
+            requestedFor: string | null;
+            agentSlug: string | null;
+            createdAt: number;
+          } | null;
+        }>(`/tasks/${encodeURIComponent(taskId)}/review`, { orgId }).then(
+          (body) => {
+            if (body.review === null) return null;
+            return {
+              approvalId: body.review.approvalId,
+              ...(body.review.agentSlug !== null
+                ? { agentSlug: body.review.agentSlug }
+                : {}),
+              ...(body.review.requestedFor !== null
+                ? { requestedFor: body.review.requestedFor }
+                : {}),
+              requestedAt: body.review.createdAt,
+            };
+          },
+        ),
+    };
+  },
+  'tasks/queries:listTaskAgentRuns': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const taskId = args.taskId;
+    if (orgId === undefined || typeof taskId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'agent-runs', taskId),
+      queryFn: () =>
+        backendFetch<{
+          runs: {
+            id: string;
+            agentId: string;
+            status: string;
+            error: string | null;
+            trigger: string | null;
+            startedAt: number;
+            launchedAt: number | null;
+            settledAt: number | null;
+          }[];
+        }>(`/tasks/${encodeURIComponent(taskId)}/agent-runs`, { orgId }).then(
+          (body) =>
+            body.runs.map((run) => ({
+              runId: run.id,
+              agentSlug: run.agentId,
+              trigger: run.trigger ?? 'manual',
+              status: run.status,
+              ...(run.error !== null ? { error: run.error } : {}),
+              startedAt: run.startedAt,
+              ...(run.launchedAt !== null && run.settledAt !== null
+                ? { durationMs: run.settledAt - run.launchedAt }
+                : {}),
+              // Per-run cost is not recorded on the pg run row (the task's
+              // totalCostCents aggregates) — 0 keeps the cost chip hidden.
+              costCents: 0,
+            })),
+        ),
+    };
+  },
+  'collab/subscriptions:isSubscribedToTask': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const taskId = args.taskId;
+    if (orgId === undefined || typeof taskId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'subscription', taskId),
+      queryFn: () =>
+        backendFetch<{ subscribed: boolean; muted: boolean }>(
+          `/collab/tasks/${encodeURIComponent(taskId)}/subscription`,
+          { orgId },
+        ),
+    };
+  },
   'tasks/queries:listTaskActivity': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const taskId = args.taskId;
@@ -680,6 +782,72 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
         body: { projectId: args.projectId },
         orgId,
       });
+      return null;
+    },
+    invalidate: taskWriteInvalidate,
+  },
+  'tasks/review_mutations:setTaskReviewer': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const taskId = requireString(args, 'taskId');
+      await backendFetch(`/tasks/${encodeURIComponent(taskId)}`, {
+        method: 'POST',
+        body: {
+          reviewerUserId:
+            typeof args.reviewerUserId === 'string'
+              ? args.reviewerUserId
+              : null,
+        },
+        orgId,
+      });
+      return null;
+    },
+    invalidate: taskWriteInvalidate,
+  },
+  'tasks/mutations:cancelTaskAgentRun': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const taskId = requireString(args, 'taskId');
+      await backendFetch(
+        `/tasks/${encodeURIComponent(taskId)}/agent-runs/cancel-live`,
+        { method: 'POST', body: {}, orgId },
+      );
+      return null;
+    },
+    invalidate: taskWriteInvalidate,
+  },
+  'collab/subscriptions:subscribeToTask': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const taskId = requireString(args, 'taskId');
+      await backendFetch(
+        `/collab/tasks/${encodeURIComponent(taskId)}/subscription`,
+        { method: 'POST', body: { subscribed: true }, orgId },
+      );
+      return null;
+    },
+    invalidate: taskWriteInvalidate,
+  },
+  'collab/subscriptions:unsubscribeFromTask': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const taskId = requireString(args, 'taskId');
+      await backendFetch(
+        `/collab/tasks/${encodeURIComponent(taskId)}/subscription`,
+        { method: 'POST', body: { subscribed: false }, orgId },
+      );
+      return null;
+    },
+    invalidate: taskWriteInvalidate,
+  },
+  'collab/subscriptions:setTaskMuted': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const taskId = requireString(args, 'taskId');
+      await backendFetch(
+        `/collab/tasks/${encodeURIComponent(taskId)}/subscription`,
+        { method: 'POST', body: { muted: args.muted === true }, orgId },
+      );
       return null;
     },
     invalidate: taskWriteInvalidate,

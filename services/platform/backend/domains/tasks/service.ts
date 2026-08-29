@@ -32,6 +32,7 @@ import {
 import { kickAgentRun } from './agent-runs.ts';
 import {
   closePendingTaskReviewOnStatusLeave,
+  collectPendingReviewsForProjects,
   requestTaskReview,
 } from './reviews.ts';
 
@@ -2132,6 +2133,128 @@ export async function listTaskActivity(
     ORDER BY created_at_ms DESC, id DESC
     LIMIT ${Math.min(limit, 500)}
   `;
+}
+
+// ---------------------------------------------------------------------------
+// Ops indicators (the board's working pulse / needs-answer / review chips)
+// ---------------------------------------------------------------------------
+
+const TASK_OPS_INDICATOR_CAP = 50;
+const TASK_OPS_RUN_SCAN_CAP = 100;
+
+export interface TaskOpsIndicators {
+  runningTaskIds: string[];
+  askingTaskIds: string[];
+  pendingReviews: {
+    taskId: string;
+    approvalId: string;
+    requestedFor?: string;
+  }[];
+}
+
+function projectPendingReviews(
+  rows: readonly {
+    taskId: string;
+    approvalId: string;
+    requestedFor: string | null;
+  }[],
+): TaskOpsIndicators['pendingReviews'] {
+  return rows.map((row) => ({
+    taskId: row.taskId,
+    approvalId: row.approvalId,
+    ...(row.requestedFor !== null ? { requestedFor: row.requestedFor } : {}),
+  }));
+}
+
+/**
+ * One project's ops indicators (the 0.4 walk): tasks with a RUNNING
+ * task-agent run, plus subject-linked live AUTOMATION runs (newest-first
+ * bounded scan; a run parked on an unanswered, unexpired ask flips the task
+ * into `askingTaskIds` — the viewer's move, not the agent's), plus the
+ * pending review gates.
+ */
+export async function getTaskOpsIndicators(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  projectId: string,
+): Promise<TaskOpsIndicators> {
+  const project = await loadProjectOrThrow(sql, projectId);
+  assertTaskReadable(project, auth);
+
+  const running = await sql<{ taskId: string }[]>`
+    SELECT DISTINCT task_id AS "taskId" FROM app.project_agent_runs
+    WHERE project_id = ${projectId} AND status = 'running'
+    LIMIT ${TASK_OPS_INDICATOR_CAP}
+  `;
+  const runningTaskIds = running.map((row) => row.taskId);
+  const seen = new Set(runningTaskIds);
+
+  const askingTaskIds: string[] = [];
+  const liveRuns = await sql<
+    { runId: string; taskId: string | null; hasPendingAsk: boolean }[]
+  >`
+    SELECT r.id AS "runId", r.input -> 'task' ->> 'id' AS "taskId",
+           EXISTS (
+             SELECT 1 FROM app.automation_human_asks a
+             WHERE a.run_id = r.id AND a.status = 'pending'
+               AND a.expires_at_ms >= ${Date.now()}
+           ) AS "hasPendingAsk"
+    FROM app.automation_runs r
+    WHERE r.org_id = ${auth.organizationId} AND r.project_id = ${projectId}
+      AND r.status IN ('queued', 'running', 'waiting')
+    ORDER BY r.started_at_ms DESC
+    LIMIT ${TASK_OPS_RUN_SCAN_CAP}
+  `;
+  for (const run of liveRuns) {
+    if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) break;
+    if (run.taskId === null || seen.has(run.taskId)) continue;
+    runningTaskIds.push(run.taskId);
+    seen.add(run.taskId);
+    if (run.hasPendingAsk) askingTaskIds.push(run.taskId);
+  }
+
+  const pending = await collectPendingReviewsForProjects(
+    sql,
+    auth.organizationId,
+    [projectId],
+  );
+  return {
+    runningTaskIds,
+    askingTaskIds,
+    pendingReviews: projectPendingReviews(pending),
+  };
+}
+
+/**
+ * All-projects sibling: running task-agent turns + pending reviews across
+ * every readable project. Automation-run indicators (and with them
+ * `askingTaskIds`) are omitted — the 0.4 aggregate makes the same call.
+ */
+export async function getTaskOpsIndicatorsForAccessibleProjects(
+  sql: Sql,
+  auth: ProjectAuthContext,
+): Promise<TaskOpsIndicators> {
+  const projects = await listProjects(sql, auth);
+  if (projects.length === 0) {
+    return { runningTaskIds: [], askingTaskIds: [], pendingReviews: [] };
+  }
+  const projectIds = projects.map((project) => project.id);
+  const running = await sql<{ taskId: string }[]>`
+    SELECT DISTINCT task_id AS "taskId" FROM app.project_agent_runs
+    WHERE org_id = ${auth.organizationId} AND status = 'running'
+      AND project_id = ANY(${projectIds})
+    LIMIT ${TASK_OPS_INDICATOR_CAP}
+  `;
+  const pending = await collectPendingReviewsForProjects(
+    sql,
+    auth.organizationId,
+    projectIds,
+  );
+  return {
+    runningTaskIds: running.map((row) => row.taskId),
+    askingTaskIds: [],
+    pendingReviews: projectPendingReviews(pending),
+  };
 }
 
 /**

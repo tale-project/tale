@@ -45,6 +45,8 @@ import {
   deleteTaskLabel,
   ensureDefaultProjectLabels,
   getTask,
+  getTaskOpsIndicators,
+  getTaskOpsIndicatorsForAccessibleProjects,
   listBoardViews,
   listSubtasks,
   listTaskActivity,
@@ -248,6 +250,30 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       const auth = await authCtx(c);
       return c.json(
         await listTasksForAccessibleProjects(deps.sql, auth, boardFilters(c)),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The board's ops chips: working pulse / needs-answer / pending reviews.
+  // Fixed paths sit BEFORE `/:taskId` so they never read as task ids.
+  app.get('/ops-indicators/by-project/:projectId', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await getTaskOpsIndicators(deps.sql, auth, c.req.param('projectId')),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/ops-indicators', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await getTaskOpsIndicatorsForAccessibleProjects(deps.sql, auth),
       );
     } catch (error) {
       return handleError(c, error);
@@ -613,6 +639,33 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         task.id,
       );
       return c.json({ runs });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Cancel the task's LIVE run (the 0.4 wire carries only the taskId).
+  app.post('/:taskId/agent-runs/cancel-live', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const project = await loadProjectOrThrow(deps.sql, task.projectId);
+      assertTaskWritable(project, auth);
+      const live = await deps.sql<{ id: string }[]>`
+        SELECT id FROM app.project_agent_runs
+        WHERE task_id = ${task.id} AND status IN ('queued', 'running')
+        ORDER BY started_at_ms DESC
+        LIMIT 1
+      `;
+      const runId = live[0]?.id;
+      const cancelled =
+        runId === undefined
+          ? false
+          : await cancelAgentRun(deps.sql, {
+              organizationId: auth.organizationId,
+              runId,
+            });
+      return c.json({ cancelled });
     } catch (error) {
       return handleError(c, error);
     }
