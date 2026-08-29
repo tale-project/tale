@@ -6270,6 +6270,314 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
  * decrypt seam handing an invocation its secrets/config/Basic header —
  * with disabled rows refusing coded.
  */
+async function checkConnectorOauth(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { createServer } = await import('node:http');
+
+  // A fake Slack token endpoint: the exchange is server-to-server, so the
+  // probe can assert exactly what the backend sends (PKCE verifier, the
+  // deployment-fixed redirect URI, the app credentials) and hand back the
+  // vendor shape — including `team.id`, which drives the workspace claim.
+  const seen: { body: string; auth: string | null }[] = [];
+  let denyExchange = false;
+  const vendor = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      seen.push({ body, auth: req.headers.authorization ?? null });
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        denyExchange
+          ? JSON.stringify({ ok: false, error: 'invalid_grant' })
+          : JSON.stringify({
+              ok: true,
+              access_token: 'xoxb-itest-access',
+              refresh_token: 'xoxe-itest-refresh',
+              expires_in: 3600,
+              scope: 'channels:read,chat:write',
+              team: { id: 'T-ITEST-1' },
+            }),
+      );
+    });
+  });
+  await new Promise<void>((resolve) => {
+    vendor.listen(0, '127.0.0.1', resolve);
+  });
+  const address = vendor.address();
+  const vendorPort =
+    address !== null && typeof address === 'object' ? address.port : 0;
+
+  const savedSiteUrl = process.env.SITE_URL;
+  const savedClientId = process.env.CONNECTOR_OAUTH_SLACK_CLIENT_ID;
+  const savedClientSecret = process.env.CONNECTOR_OAUTH_SLACK_CLIENT_SECRET;
+  try {
+    process.env.SITE_URL = base;
+    process.env.CONNECTOR_OAUTH_SLACK_CLIENT_ID = 'itest-client';
+    process.env.CONNECTOR_OAUTH_SLACK_CLIENT_SECRET = 'itest-secret';
+
+    const oauth = await import('./domains/connectors/oauth.ts');
+    const get = (route: string, withCookie = true): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        redirect: 'manual',
+        headers: withCookie ? { cookie, origin: base } : { origin: base },
+      });
+
+    // ---- start ----------------------------------------------------------
+    const anonymous = await get(
+      `/api/connectors/oauth2/start?connector=slack&organizationId=${orgId}`,
+      false,
+    );
+    const foreignOrg = await get(
+      '/api/connectors/oauth2/start?connector=slack&organizationId=org-not-yours',
+    );
+    const unknownConnector = await get(
+      `/api/connectors/oauth2/start?connector=not-a-connector&organizationId=${orgId}`,
+    );
+    const started = await get(
+      `/api/connectors/oauth2/start?connector=slack&organizationId=${orgId}`,
+    );
+    const location = started.headers.get('location') ?? '';
+    const authorize = location === '' ? null : new URL(location);
+    const state = authorize?.searchParams.get('state') ?? '';
+    const pendingRows = await sql<{ count: string; orgId: string }[]>`
+      SELECT count(*)::text AS count, min(org_id) AS "orgId"
+      FROM app.connector_oauth_states
+    `;
+    const startOk =
+      anonymous.status === 401 &&
+      foreignOrg.status === 403 &&
+      unknownConnector.status === 400 &&
+      started.status === 302 &&
+      authorize?.origin === 'https://slack.com' &&
+      authorize.searchParams.get('response_type') === 'code' &&
+      authorize.searchParams.get('client_id') === 'itest-client' &&
+      authorize.searchParams.get('code_challenge_method') === 'S256' &&
+      (authorize.searchParams.get('code_challenge') ?? '').length > 0 &&
+      authorize.searchParams.get('redirect_uri') ===
+        `${base}/api/connectors/oauth2/callback` &&
+      state.length > 0 &&
+      // The row stores only the HASH of the state the browser carries.
+      pendingRows[0]?.count === '1' &&
+      pendingRows[0]?.orgId === orgId;
+    const stateStored = await sql<{ stateHash: string }[]>`
+      SELECT state_hash AS "stateHash" FROM app.connector_oauth_states
+    `;
+    const storesHashOnly = (stateStored[0]?.stateHash ?? '') !== state;
+    record(
+      'connector oauth: start gates on session + role, mints a hashed state',
+      startOk && storesHashOnly,
+      `anon=${anonymous.status} (want 401), foreign=${foreignOrg.status} (want 403), unknown=${unknownConnector.status} (want 400), start=${started.status} host=${authorize?.host ?? 'none'} pkce=${authorize?.searchParams.get('code_challenge_method') ?? 'none'} redirect=${authorize?.searchParams.get('redirect_uri') ?? 'none'}, pending=${pendingRows[0]?.count}, hashedOnly=${storesHashOnly}`,
+    );
+
+    // ---- callback: forged and replayed states ---------------------------
+    const forged = await get(
+      '/api/connectors/oauth2/callback?state=nope&code=x',
+    );
+    const declined = await get(
+      `/api/connectors/oauth2/callback?state=${encodeURIComponent(state)}&error=access_denied`,
+    );
+    // The declined callback CONSUMED the state — a replay with a code must
+    // not exchange anything.
+    const replayed = await get(
+      `/api/connectors/oauth2/callback?state=${encodeURIComponent(state)}&code=abc`,
+    );
+    const afterReplay = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.connector_oauth_states
+    `;
+    record(
+      'connector oauth: a declined callback burns its state; replays cannot exchange',
+      forged.status === 400 &&
+        declined.status === 400 &&
+        replayed.status === 400 &&
+        afterReplay[0]?.count === '0' &&
+        seen.length === 0,
+      `forged=${forged.status}, declined=${declined.status}, replayed=${replayed.status} (all want 400), pendingLeft=${afterReplay[0]?.count}, vendorCalls=${seen.length} (want 0)`,
+    );
+
+    // ---- callback: the happy path, driven through the service -----------
+    // The vendor endpoint comes from the catalog, so the exchange is driven
+    // at the service seam with the fake token URL — the routes above already
+    // proved the HTTP shell.
+    const happyState = 'itest-oauth-state-value';
+    const { hashStateToken } =
+      await import('../convex/http_connectors/oauth_state.ts');
+    await oauth.createPendingAuthorization(sql, {
+      stateHash: await hashStateToken(happyState),
+      organizationId: orgId,
+      userId,
+      connectorSlug: 'slack',
+      codeVerifier: 'itest-verifier-value-000000000000000000000',
+      redirectUri: `${base}/api/connectors/oauth2/callback`,
+    });
+    // Point the catalog at a fixture whose slack `tokenUrl` is the fake
+    // vendor — `TALE_CONFIG_SYSTEM_DIR` is the catalog's own root override,
+    // so nothing in the shipped code grows a test seam.
+    const tokenUrl = `http://127.0.0.1:${vendorPort}/api/oauth.v2.access`;
+    const fixtureRoot = await mkdtemp(
+      path.join(tmpdir(), 'itest-connector-catalog-'),
+    );
+    const slackDir = path.join(fixtureRoot, 'connectors', 'slack');
+    await mkdir(slackDir, { recursive: true });
+    const realSlackYml = await readFile(
+      path.join(
+        process.env.TALE_CONFIG_SYSTEM_DIR ??
+          path.join(process.cwd(), '..', '..', 'configs', 'platform', 'system'),
+        'connectors',
+        'slack',
+        'connector.yml',
+      ),
+      'utf8',
+    );
+    await writeFile(
+      path.join(slackDir, 'connector.yml'),
+      realSlackYml.replace(
+        'tokenUrl: https://slack.com/api/oauth.v2.access',
+        'tokenUrl: https://slack.itest.invalid/api/oauth.v2.access',
+      ),
+    );
+    const savedSystemDir = process.env.TALE_CONFIG_SYSTEM_DIR;
+    process.env.TALE_CONFIG_SYSTEM_DIR = fixtureRoot;
+    // The reused exchange refuses a non-https token endpoint (a real guard —
+    // a plaintext exchange would put the client secret on the wire), so the
+    // catalog fixture keeps an https URL and the probe injects a fetch that
+    // redirects that host to the local fake vendor.
+    const vendorFetch = (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ): Promise<Response> =>
+      fetch(
+        (input instanceof Request ? input.url : input.toString()).replace(
+          'https://slack.itest.invalid/api/oauth.v2.access',
+          tokenUrl,
+        ),
+        init,
+      );
+    const completed = await oauth.completeOauth2(
+      sql,
+      { state: happyState, code: 'itest-auth-code', vendorError: null },
+      { fetchImpl: vendorFetch },
+    );
+    const credentialRows = await sql<
+      {
+        id: string;
+        authMethod: string;
+        name: string;
+        maskedPreview: string | null;
+        createdBy: string;
+      }[]
+    >`
+      SELECT id, auth_method AS "authMethod", name,
+             masked_preview AS "maskedPreview", created_by AS "createdBy"
+      FROM app.connector_credentials
+      WHERE org_id = ${orgId} AND connector_slug = 'slack'
+    `;
+    const route = await sql<{ orgId: string; credentialId: string }[]>`
+      SELECT org_id AS "orgId", credential_id AS "credentialId"
+      FROM app.connector_team_routes WHERE team_id = 'T-ITEST-1'
+    `;
+    const exchangeBody = seen[0]?.body ?? '';
+    const sentVerifier = exchangeBody.includes(
+      'code_verifier=itest-verifier-value-000000000000000000000',
+    );
+    const sentRedirect = exchangeBody.includes(
+      encodeURIComponent(`${base}/api/connectors/oauth2/callback`),
+    );
+    // The stored envelope must be encrypted — the raw token may never sit in
+    // a readable column.
+    const encrypted = await sql<{ leaks: string }[]>`
+      SELECT count(*)::text AS leaks FROM app.connector_credentials
+      WHERE org_id = ${orgId}
+        AND encrypted_data::text LIKE '%xoxb-itest-access%'
+    `;
+    record(
+      'connector oauth: exchange stores an encrypted credential and claims the workspace',
+      completed.kind === 'connected' &&
+        seen.length === 1 &&
+        sentVerifier &&
+        sentRedirect &&
+        credentialRows.length === 1 &&
+        credentialRows[0]?.authMethod === 'oauth2' &&
+        credentialRows[0]?.createdBy === userId &&
+        encrypted[0]?.leaks === '0' &&
+        route[0]?.orgId === orgId &&
+        route[0]?.credentialId === credentialRows[0]?.id,
+      `outcome=${completed.kind}, vendorCalls=${seen.length}, verifier=${sentVerifier} redirect=${sentRedirect}, credentials=${credentialRows.length}/${credentialRows[0]?.authMethod ?? '-'}, plaintextLeaks=${encrypted[0]?.leaks} (want 0), route=${route[0]?.orgId === orgId}/${route[0]?.credentialId === credentialRows[0]?.id}`,
+    );
+
+    // ---- one workspace, one organization --------------------------------
+    const claim = await oauth.claimTeamRoute(sql, {
+      teamId: 'T-ITEST-1',
+      organizationId: 'some-other-org',
+      credentialId: credentialRows[0]?.id ?? '',
+    });
+    const routeAfter = await sql<{ orgId: string }[]>`
+      SELECT org_id AS "orgId" FROM app.connector_team_routes
+      WHERE team_id = 'T-ITEST-1'
+    `;
+    const resolved = await oauth.resolveTeamRoute(sql, 'T-ITEST-1');
+    record(
+      'connector oauth: a workspace cannot be re-pointed at another organization',
+      !claim.ok &&
+        routeAfter[0]?.orgId === orgId &&
+        resolved?.organizationId === orgId,
+      `claim=${claim.ok ? 'ALLOWED' : 'refused'}, routeOwner=${routeAfter[0]?.orgId === orgId}, resolve=${resolved?.organizationId === orgId}`,
+    );
+
+    // ---- a rejected exchange writes nothing -----------------------------
+    denyExchange = true;
+    const denyState = 'itest-oauth-state-denied';
+    await oauth.createPendingAuthorization(sql, {
+      stateHash: await hashStateToken(denyState),
+      organizationId: orgId,
+      userId,
+      connectorSlug: 'slack',
+      codeVerifier: 'itest-verifier-value-111111111111111111111',
+      redirectUri: `${base}/api/connectors/oauth2/callback`,
+    });
+    const refused = await oauth.completeOauth2(
+      sql,
+      { state: denyState, code: 'itest-auth-code-2', vendorError: null },
+      { fetchImpl: vendorFetch },
+    );
+    if (savedSystemDir === undefined) {
+      delete process.env.TALE_CONFIG_SYSTEM_DIR;
+    } else {
+      process.env.TALE_CONFIG_SYSTEM_DIR = savedSystemDir;
+    }
+    const credentialsAfter = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.connector_credentials
+      WHERE org_id = ${orgId} AND connector_slug = 'slack'
+    `;
+    record(
+      'connector oauth: a vendor-rejected exchange stores no credential',
+      refused.kind === 'error' &&
+        (refused.kind === 'error' ? refused.error : '') === 'vendor_declined' &&
+        credentialsAfter[0]?.count === '1',
+      `outcome=${refused.kind}/${refused.kind === 'error' ? refused.error : '-'}, credentials=${credentialsAfter[0]?.count} (want 1, unchanged)`,
+    );
+  } finally {
+    vendor.close();
+    if (savedSiteUrl === undefined) delete process.env.SITE_URL;
+    else process.env.SITE_URL = savedSiteUrl;
+    if (savedClientId === undefined) {
+      delete process.env.CONNECTOR_OAUTH_SLACK_CLIENT_ID;
+    } else {
+      process.env.CONNECTOR_OAUTH_SLACK_CLIENT_ID = savedClientId;
+    }
+    if (savedClientSecret === undefined) {
+      delete process.env.CONNECTOR_OAUTH_SLACK_CLIENT_SECRET;
+    } else {
+      process.env.CONNECTOR_OAUTH_SLACK_CLIENT_SECRET = savedClientSecret;
+    }
+  }
+}
+
 async function checkConnectorCredentials(
   sql: Sql,
   base: string,
@@ -20285,6 +20593,7 @@ async function main(): Promise<void> {
     await checkSsoAdminSurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTrustedHeaders(sql, baseUrl);
     await checkConnectorCredentials(sql, baseUrl, authCtx);
+    await checkConnectorOauth(sql, baseUrl, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);
