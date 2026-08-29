@@ -22,6 +22,7 @@ import {
   projectReadAdapters,
   projectWriteAdapters,
 } from './projects';
+import { taskReadAdapters, taskWriteAdapters } from './tasks';
 
 export interface AdapterContext {
   /** The active org from the route (`$id`) — the org scope for rows whose
@@ -84,6 +85,7 @@ export interface WriteAdapter {
 
 export const READ_ADAPTERS: Record<string, ReadAdapter> = {
   ...projectReadAdapters,
+  ...taskReadAdapters,
 };
 
 export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {
@@ -92,6 +94,7 @@ export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {
 
 export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
   ...projectWriteAdapters,
+  ...taskWriteAdapters,
 };
 
 /**

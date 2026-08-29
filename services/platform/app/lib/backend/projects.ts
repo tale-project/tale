@@ -448,6 +448,19 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
         }).then((body) => body.secrets),
     };
   },
+  'projects/queries:listAccessibleUserIds': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const projectId = args.projectId;
+    if (orgId === undefined || typeof projectId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'project', 'accessible-users', projectId),
+      queryFn: () =>
+        backendFetch<{ orgWide: boolean; userIds: string[] }>(
+          `/projects/${encodeURIComponent(projectId)}/accessible-users`,
+          { orgId },
+        ),
+    };
+  },
   'projects/secrets/queries:listProjectSecrets': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const projectId = args.projectId;

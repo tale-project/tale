@@ -1000,18 +1000,66 @@ async function checkTasks(
   const childId = child.success ? child.data.taskId : '';
   const taskRead = z
     .object({
-      task: z.object({ number: z.number(), status: z.string() }),
-      labels: z.array(z.object({ name: z.string() })),
+      task: z
+        .object({
+          number: z.number(),
+          status: z.string(),
+          labels: z.array(z.object({ name: z.string(), color: z.string() })),
+          folderExists: z.boolean(),
+          hasFiles: z.boolean(),
+        })
+        .loose(),
+      canEdit: z.boolean(),
+      canClaim: z.boolean(),
+      canComment: z.boolean(),
     })
     .safeParse(await get(`/api/app/tasks/${parentId}?orgId=${orgId}`));
   record(
-    'task create + numbering + label resolve',
+    'task create + numbering + label resolve + detail envelope',
     parent.success &&
       child.success &&
       taskRead.success &&
       taskRead.data.task.number === 1 &&
-      taskRead.data.labels[0]?.name === 'bug',
-    `parent #${taskRead.success ? taskRead.data.task.number : 'ERR'}, labels=${taskRead.success ? taskRead.data.labels.map((l) => l.name).join(',') : 'ERR'}`,
+      taskRead.data.task.labels[0]?.name === 'bug' &&
+      // Not folder-bound → folderExists true by the 0.4 rule, no files.
+      taskRead.data.task.folderExists &&
+      !taskRead.data.task.hasFiles &&
+      taskRead.data.canEdit &&
+      taskRead.data.canComment,
+    `parent #${taskRead.success ? taskRead.data.task.number : 'ERR'}, labels=${taskRead.success ? taskRead.data.task.labels.map((l) => l.name).join(',') : 'ERR'}, flags=${taskRead.success ? `${taskRead.data.canEdit}/${taskRead.data.canClaim}/${taskRead.data.canComment}` : 'ERR'}`,
+  );
+
+  // Board filters + flags: only `todo` rows, truncated false, canEdit true;
+  // the all-projects board stamps each row with its project's key.
+  const filtered = z
+    .object({
+      tasks: z.array(z.object({ status: z.string() }).loose()),
+      truncated: z.boolean(),
+      canEdit: z.boolean(),
+    })
+    .safeParse(
+      await get(
+        `/api/app/tasks/by-project/${projectId}?statuses=todo&orgId=${orgId}`,
+      ),
+    );
+  const across = z
+    .object({
+      tasks: z.array(z.object({ projectKey: z.string().optional() }).loose()),
+      truncated: z.boolean(),
+      canEdit: z.boolean(),
+    })
+    .safeParse(await get(`/api/app/tasks?orgId=${orgId}`));
+  record(
+    'task board filters + across-projects projectKey stamp',
+    filtered.success &&
+      filtered.data.tasks.length === 2 &&
+      filtered.data.tasks.every((t) => t.status === 'todo') &&
+      !filtered.data.truncated &&
+      filtered.data.canEdit &&
+      across.success &&
+      across.data.tasks.length >= 2 &&
+      across.data.tasks.every((t) => (t.projectKey ?? '').length > 0),
+    `filtered=${filtered.success ? filtered.data.tasks.length : 'ERR'} (want 2 todo), across=${across.success ? across.data.tasks.length : 'ERR'} keys=${across.success ? across.data.tasks[0]?.projectKey : 'ERR'}`,
   );
 
   // Terminal parent while the child is open must be refused.
@@ -1079,10 +1127,39 @@ async function checkTasks(
     `/api/app/tasks/dependencies?orgId=${orgId}`,
     { blockerTaskId: bId, blockedTaskId: aId },
   );
-  const claim = await send(
-    'POST',
-    `/api/app/tasks/${aId}/claim?orgId=${orgId}`,
-  );
+  const claim = z
+    .object({ claimed: z.boolean(), reason: z.string().optional() })
+    .safeParse(
+      await (
+        await send('POST', `/api/app/tasks/${aId}/claim?orgId=${orgId}`)
+      ).json(),
+    );
+  // A contested claim is DATA, not an error (the loser sees the reason).
+  const claimAgain = z
+    .object({ claimed: z.boolean(), reason: z.string().optional() })
+    .safeParse(
+      await (
+        await send('POST', `/api/app/tasks/${aId}/claim?orgId=${orgId}`)
+      ).json(),
+    );
+  // Task dependencies answer FULL linked rows both ways (the 0.4 wire).
+  const depRows = z
+    .object({
+      blockedBy: z.array(z.object({ title: z.string() }).loose()),
+      blocks: z.array(z.object({ title: z.string() }).loose()),
+    })
+    .safeParse(await get(`/api/app/tasks/${bId}/dependencies?orgId=${orgId}`));
+  const projectEdges = z
+    .object({
+      edges: z.array(
+        z.object({ blockerTaskId: z.string(), blockedTaskId: z.string() }),
+      ),
+    })
+    .safeParse(
+      await get(
+        `/api/app/tasks/dependencies/by-project/${projectId}?orgId=${orgId}`,
+      ),
+    );
   const activity = z
     .object({ activity: z.array(z.object({ action: z.string() })) })
     .safeParse(await get(`/api/app/tasks/${aId}/activity?orgId=${orgId}`));
@@ -1090,13 +1167,87 @@ async function checkTasks(
     ? activity.data.activity.map((a) => a.action)
     : [];
   record(
-    'task dependencies + claim + activity',
+    'task dependencies (row wire) + claim-as-data + activity',
     dep.ok &&
       cycle.status === 400 &&
-      claim.ok &&
+      claim.success &&
+      claim.data.claimed &&
+      claimAgain.success &&
+      !claimAgain.data.claimed &&
+      claimAgain.data.reason === 'ALREADY_CLAIMED' &&
+      depRows.success &&
+      depRows.data.blockedBy[0]?.title === 'Dep A' &&
+      projectEdges.success &&
+      projectEdges.data.edges.length === 1 &&
       actions.includes('created') &&
       actions.includes('claimed'),
-    `dep → ${dep.status}, cycle → ${cycle.status} (want 400), claim → ${claim.status}, activity=${actions.join('/')}`,
+    `dep → ${dep.status}, cycle → ${cycle.status} (want 400), claim=${claim.success ? claim.data.claimed : 'ERR'} then ${claimAgain.success ? `${claimAgain.data.claimed}/${claimAgain.data.reason}` : 'ERR'}, blockedBy=${depRows.success ? depRows.data.blockedBy[0]?.title : 'ERR'}, edges=${projectEdges.success ? projectEdges.data.edges.length : 'ERR'}, activity=${actions.join('/')}`,
+  );
+
+  // Board drag by NEIGHBOUR CARDS (the 0.4 wire sends task ids) + tree
+  // delete: removing Dep A takes nothing else; a parent with a subtask
+  // reports the child in its count and both rows vanish.
+  const moved = await send(
+    'POST',
+    `/api/app/tasks/${aId}/move?orgId=${orgId}`,
+    { status: 'in_progress', afterTaskId: bId },
+  );
+  const treeParent = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Tree parent',
+      })
+    ).json(),
+  );
+  const treeParentId = treeParent.success ? treeParent.data.taskId : '';
+  await send('POST', `/api/app/tasks?orgId=${orgId}`, {
+    projectId,
+    title: 'Tree child',
+    parentTaskId: treeParentId,
+  });
+  const treeDeleted = z
+    .object({ deletedChildCount: z.number() })
+    .safeParse(
+      await (
+        await send('DELETE', `/api/app/tasks/${treeParentId}?orgId=${orgId}`)
+      ).json(),
+    );
+  const treeGone = await fetch(
+    `${base}/api/app/tasks/${treeParentId}?orgId=${orgId}`,
+    { headers: { cookie } },
+  );
+  record(
+    'task move-by-neighbour + subtree delete count',
+    moved.ok &&
+      treeDeleted.success &&
+      treeDeleted.data.deletedChildCount === 1 &&
+      treeGone.status === 404,
+    `move → ${moved.status}, delete=${treeDeleted.success ? treeDeleted.data.deletedChildCount : 'ERR'} children (want 1), read-after → ${treeGone.status} (want 404)`,
+  );
+
+  // Label lifecycle: in-use delete refused without detach, allowed with it.
+  const labelList = z
+    .object({ labels: z.array(z.object({ id: z.string(), name: z.string() })) })
+    .safeParse(await get(`/api/app/tasks/labels/${projectId}?orgId=${orgId}`));
+  const bugLabelId = labelList.success
+    ? (labelList.data.labels.find((l) => l.name === 'bug')?.id ?? '')
+    : '';
+  const inUse = await send(
+    'DELETE',
+    `/api/app/tasks/labels/${bugLabelId}?orgId=${orgId}`,
+  );
+  const detached = await send(
+    'DELETE',
+    `/api/app/tasks/labels/${bugLabelId}?detach=true&orgId=${orgId}`,
+  );
+  record(
+    'task label delete gate (in-use refused, detach allowed)',
+    labelList.success &&
+      bugLabelId.length > 0 &&
+      inUse.status === 400 &&
+      detached.ok,
+    `label=${bugLabelId || 'MISSING'}, in-use → ${inUse.status} (want 400), detach → ${detached.status}`,
   );
 
   // Comments on the message store: add ×2 → list → edit → delete → count.
@@ -1119,7 +1270,8 @@ async function checkTasks(
   );
   const listed = z
     .object({
-      comments: z.array(
+      threadId: z.string().nullable(),
+      messages: z.array(
         z.object({
           messageId: z.string(),
           body: z.string(),
@@ -1134,26 +1286,28 @@ async function checkTasks(
   );
   const afterDelete = z
     .object({
-      comments: z.array(z.object({ body: z.string() })),
+      threadId: z.string().nullable(),
+      messages: z.array(z.object({ body: z.string() })),
     })
     .safeParse(await get(`/api/app/tasks/${aId}/comments?orgId=${orgId}`));
   const taskAfter = z
-    .object({ task: z.object({ commentCount: z.number() }) })
+    .object({ task: z.object({ commentCount: z.number() }).loose() })
     .safeParse(await get(`/api/app/tasks/${aId}?orgId=${orgId}`));
   record(
-    'task comments (message store) add/edit/delete + count',
+    'task discussion (0.4 envelope) add/edit/delete + count',
     c1.success &&
       edited.ok &&
       listed.success &&
-      listed.data.comments.length === 2 &&
-      listed.data.comments[0]?.body === 'First comment (edited)' &&
-      listed.data.comments[0]?.editedAt !== null &&
+      listed.data.threadId !== null &&
+      listed.data.messages.length === 2 &&
+      listed.data.messages[0]?.body === 'First comment (edited)' &&
+      listed.data.messages[0]?.editedAt !== null &&
       removed.ok &&
       afterDelete.success &&
-      afterDelete.data.comments.length === 1 &&
+      afterDelete.data.messages.length === 1 &&
       taskAfter.success &&
       taskAfter.data.task.commentCount === 1,
-    `list=${listed.success ? listed.data.comments.length : 'ERR'}, first=${listed.success ? JSON.stringify(listed.data.comments[0]?.body) : 'ERR'}, afterDelete=${afterDelete.success ? afterDelete.data.comments.length : 'ERR'}, count=${taskAfter.success ? taskAfter.data.task.commentCount : 'ERR'}`,
+    `threadId=${listed.success ? String(listed.data.threadId !== null) : 'ERR'}, list=${listed.success ? listed.data.messages.length : 'ERR'}, first=${listed.success ? JSON.stringify(listed.data.messages[0]?.body) : 'ERR'}, afterDelete=${afterDelete.success ? afterDelete.data.messages.length : 'ERR'}, count=${taskAfter.success ? taskAfter.data.task.commentCount : 'ERR'}`,
   );
 }
 

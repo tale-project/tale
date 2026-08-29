@@ -43,13 +43,16 @@ import {
   deleteBoardView,
   deleteTask,
   deleteTaskLabel,
+  ensureDefaultProjectLabels,
   getTask,
   listBoardViews,
   listSubtasks,
   listTaskActivity,
   listTaskDependencies,
+  listProjectDependencies,
   listTaskLabels,
   listTasksByProject,
+  listTasksForAccessibleProjects,
   moveTask,
   removeTaskDependency,
   renameTaskLabel,
@@ -100,8 +103,8 @@ const updateTaskSchema = z.object({
 
 const moveSchema = z.object({
   status: statusSchema,
-  beforeRank: z.string().max(200).optional(),
-  afterRank: z.string().max(200).optional(),
+  beforeTaskId: z.string().max(128).optional(),
+  afterTaskId: z.string().max(128).optional(),
 });
 
 const assignSchema = z.object({
@@ -203,18 +206,49 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
+  /** The shared board filter set, straight off the query string. */
+  const boardFilters = (c: Context<OrgEnv>) => {
+    const statuses = c.req.query('statuses');
+    return {
+      includeArchived: c.req.query('includeArchived') === 'true',
+      ...(c.req.query('status') !== undefined
+        ? { status: c.req.query('status') }
+        : {}),
+      ...(statuses !== undefined && statuses.length > 0
+        ? { statuses: statuses.split(',') }
+        : {}),
+      ...(c.req.query('assigneeId') !== undefined
+        ? { assigneeId: c.req.query('assigneeId') }
+        : {}),
+      ...(c.req.query('externalSystem') !== undefined
+        ? { externalSystem: c.req.query('externalSystem') }
+        : {}),
+    };
+  };
+
   app.get('/by-project/:projectId', async (c) => {
     try {
       const auth = await authCtx(c);
-      const includeArchived = c.req.query('includeArchived') === 'true';
-      return c.json({
-        tasks: await listTasksByProject(
+      return c.json(
+        await listTasksByProject(
           deps.sql,
           auth,
           c.req.param('projectId'),
-          { includeArchived },
+          boardFilters(c),
         ),
-      });
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The all-projects board: every task in projects the caller can read.
+  app.get('/', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await listTasksForAccessibleProjects(deps.sql, auth, boardFilters(c)),
+      );
     } catch (error) {
       return handleError(c, error);
     }
@@ -277,8 +311,36 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     try {
       const auth = await authCtx(c);
       await transactSerializable(deps.sql, (tx) =>
-        deleteTaskLabel(tx, auth, c.req.param('labelId')),
+        deleteTaskLabel(tx, auth, {
+          labelId: c.req.param('labelId'),
+          detach: c.req.query('detach') === 'true',
+        }),
       );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Idempotent default-catalog seed (the 0.4 board bootstrap safeguard).
+  app.post('/labels/ensure-defaults', async (c) => {
+    const body = z
+      .object({ projectId: z.string().min(1) })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, async (tx) => {
+        const project = await loadProjectOrThrow(tx, body.data.projectId);
+        assertTaskWritable(project, auth);
+        await ensureDefaultProjectLabels(tx, {
+          organizationId: auth.organizationId,
+          projectId: body.data.projectId,
+          createdBy: auth.userId,
+        });
+      });
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
@@ -408,8 +470,12 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.get('/:taskId/comments', async (c) => {
     try {
       const auth = await authCtx(c);
+      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
       return c.json({
-        comments: await listTaskComments(deps.sql, auth, c.req.param('taskId')),
+        // The 0.4 discussion envelope: the lazily-created thread id (null =
+        // the threadless-task bootstrap) beside the ordered messages.
+        threadId: task.discussionThreadId,
+        messages: await listTaskComments(deps.sql, auth, c.req.param('taskId')),
       });
     } catch (error) {
       return handleError(c, error);
@@ -487,6 +553,21 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       const auth = await authCtx(c);
       return c.json({
         activity: await listTaskActivity(deps.sql, auth, c.req.param('taskId')),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/dependencies/by-project/:projectId', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        edges: await listProjectDependencies(
+          deps.sql,
+          auth,
+          c.req.param('projectId'),
+        ),
       });
     } catch (error) {
       return handleError(c, error);
@@ -651,10 +732,10 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/:taskId/claim', async (c) => {
     try {
       const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
+      const result = await transactSerializable(deps.sql, (tx) =>
         claimTask(tx, auth, c.req.param('taskId')),
       );
-      return c.json({ ok: true });
+      return c.json(result);
     } catch (error) {
       return handleError(c, error);
     }
@@ -687,10 +768,10 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.delete('/:taskId', async (c) => {
     try {
       const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
+      const result = await transactSerializable(deps.sql, (tx) =>
         deleteTask(tx, auth, c.req.param('taskId')),
       );
-      return c.json({ ok: true });
+      return c.json(result);
     } catch (error) {
       return handleError(c, error);
     }

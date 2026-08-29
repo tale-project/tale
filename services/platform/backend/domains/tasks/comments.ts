@@ -72,7 +72,11 @@ export async function addTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: { taskId: string; body: string; author?: CommentAuthor },
-): Promise<{ messageId: string; threadId: string }> {
+): Promise<{
+  messageId: string;
+  threadId: string;
+  unresolvedMentionTokens: string[];
+}> {
   const task = await loadTaskOrThrow(tx, args.taskId);
   const project = await loadProjectOrThrow(tx, task.projectId);
   // Commenting is READ-level (0.4 `addTaskComment*`): anyone who can see
@@ -159,7 +163,10 @@ export async function addTaskComment(
     entity: 'task',
     entityId: args.taskId,
   });
-  return { messageId, threadId };
+  // No mention directory yet (ledgered Tier B) — nothing parses, so nothing
+  // is unresolved; the wire field stays so the composer's toast contract
+  // (`result.unresolvedMentionTokens`) holds.
+  return { messageId, threadId, unresolvedMentionTokens: [] };
 }
 
 export interface TaskCommentItem {
@@ -169,6 +176,8 @@ export interface TaskCommentItem {
   body: string;
   createdAt: number;
   editedAt: number | null;
+  mentions: { type: string; id: string }[] | null;
+  bodyByLocale: Record<string, string> | null;
 }
 
 /** Ordered comment feed (message text joined with the lockstep meta). */
@@ -190,10 +199,13 @@ export async function listTaskComments(
       authorType: string;
       authorId: string;
       editedAt: number | null;
+      mentions: { type: string; id: string }[] | null;
+      bodyByLocale: Record<string, string> | null;
     }[]
   >`
     SELECT message_id AS "messageId", author_type AS "authorType",
-           author_id AS "authorId", edited_at_ms::float8 AS "editedAt"
+           author_id AS "authorId", edited_at_ms::float8 AS "editedAt",
+           mentions, body_by_locale AS "bodyByLocale"
     FROM app.task_discussion_message_meta
     WHERE task_id = ${taskId}
   `;
@@ -211,6 +223,8 @@ export async function listTaskComments(
         body: message.text ?? '',
         createdAt: message.createdAt,
         editedAt: m.editedAt,
+        mentions: m.mentions,
+        bodyByLocale: m.bodyByLocale,
       },
     ];
   });
