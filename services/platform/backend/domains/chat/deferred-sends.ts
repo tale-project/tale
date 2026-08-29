@@ -3,6 +3,11 @@ import type { Sql } from 'postgres';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { isBackendDraining } from '../control/service.ts';
+import {
+  bindJobsForDeferredSend,
+  buildBoundJobAttachments,
+  cancelDeferredJobs,
+} from '../video_links/service.ts';
 import { runChatTurn } from './service.ts';
 import { ChatThreadError, loadOwnedThread } from './threads.ts';
 
@@ -52,6 +57,8 @@ export interface DeferredSendRow {
   status: 'waiting' | 'claimed';
   createdAt: number;
   waitingSince: number;
+  /** Video-link jobs claimed for this send (the bind_for_send lane). */
+  videoJobIds: string[];
 }
 
 const ROW_COLUMNS = `
@@ -60,8 +67,14 @@ const ROW_COLUMNS = `
   model_id AS "modelId", model_selection AS "modelSelection",
   provider_slug AS "providerSlug", reasoning_effort AS "reasoningEffort",
   locale, status, created_at_ms::float8 AS "createdAt",
-  waiting_since_ms::float8 AS "waitingSince"
+  waiting_since_ms::float8 AS "waitingSince", video_job_ids AS "videoJobIds"
 `;
+
+function readVideoJobIds(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+}
 
 function readAttachments(value: unknown): DeferredAttachment[] {
   if (!Array.isArray(value)) return [];
@@ -100,7 +113,11 @@ async function loadRow(
   `;
   const row = rows[0];
   if (!row) return null;
-  return { ...row, attachments: readAttachments(row.attachments) };
+  return {
+    ...row,
+    attachments: readAttachments(row.attachments),
+    videoJobIds: readVideoJobIds(row.videoJobIds),
+  };
 }
 
 /** Park a send; the poller job rides the insert's transaction. */
@@ -112,6 +129,8 @@ export async function enqueueDeferredSend(
     threadId: string;
     userText: string;
     attachments?: DeferredAttachment[];
+    /** Video-link jobs to claim for this send (bind_for_send). */
+    videoJobIds?: string[];
     modelId?: string;
     modelSelection?: 'auto';
     providerSlug?: string;
@@ -132,10 +151,17 @@ export async function enqueueDeferredSend(
     throw new ChatThreadError('THREAD_NOT_FOUND', 'Thread not found', 404);
   }
   const trimmed = args.userText.trim();
-  if (trimmed.length === 0 && (args.attachments?.length ?? 0) === 0) {
+  if (
+    trimmed.length === 0 &&
+    (args.attachments?.length ?? 0) === 0 &&
+    (args.videoJobIds?.length ?? 0) === 0
+  ) {
     throw new ChatThreadError('EMPTY_MESSAGE', 'Nothing to send');
   }
-  if ((args.attachments?.length ?? 0) > MAX_ATTACHMENTS) {
+  if (
+    (args.attachments?.length ?? 0) + (args.videoJobIds?.length ?? 0) >
+    MAX_ATTACHMENTS
+  ) {
     throw new ChatThreadError('TOO_MANY_ATTACHMENTS', 'Too many attachments');
   }
   return sql.begin(async (tx) => {
@@ -171,19 +197,59 @@ export async function enqueueDeferredSend(
   });
 }
 
+/** The enqueue's video half, OUTSIDE the insert tx: claim the jobs, then
+ * stamp the claimed set on the row (the claim releases the composer chips;
+ * an unclaimable id — foreign, already bound, cancelled — is dropped, the
+ * 0.4 posture). */
+export async function claimDeferredSendVideos(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    userId: string;
+    threadId: string;
+    deferredSendId: string;
+    videoJobIds: readonly string[];
+  },
+): Promise<string[]> {
+  const claimed = await bindJobsForDeferredSend(sql, {
+    jobIds: args.videoJobIds,
+    userId: args.userId,
+    threadId: args.threadId,
+    organizationId: args.organizationId,
+  });
+  if (claimed.length > 0) {
+    await sql`
+      UPDATE app.deferred_sends
+      SET video_job_ids = ${claimed}
+      WHERE id = ${args.deferredSendId} AND org_id = ${args.organizationId}
+    `;
+  }
+  return claimed;
+}
+
 /** Abandon a waiting send. A `claimed` row is already running — too late,
  * refuse quietly. */
 export async function cancelDeferredSend(
   sql: Sql,
   args: { organizationId: string; userId: string; deferredSendId: string },
 ): Promise<boolean> {
-  const rows = await sql<{ id: string }[]>`
+  const rows = await sql<{ id: string; videoJobIds: unknown }[]>`
     DELETE FROM app.deferred_sends
     WHERE id = ${args.deferredSendId} AND org_id = ${args.organizationId}
       AND user_id = ${args.userId} AND status = 'waiting'
-    RETURNING id
+    RETURNING id, video_job_ids AS "videoJobIds"
   `;
-  return rows.length > 0;
+  const row = rows[0];
+  if (!row) return false;
+  // Cancelling the message cancels its claimed media too (the 0.4
+  // `cancelDeferredJobs` cascade) — the videos must not keep processing.
+  await cancelDeferredJobs(
+    sql,
+    args.organizationId,
+    readVideoJobIds(row.videoJobIds),
+    args.userId,
+  );
+  return true;
 }
 
 /** The thread's parked sends, oldest first — the tray above the composer. */
@@ -195,6 +261,7 @@ export async function listDeferredSends(
     deferredSendId: string;
     userText: string;
     attachments: DeferredAttachment[];
+    videoJobIds: string[];
     status: 'waiting' | 'claimed';
     createdAt: number;
   }>
@@ -211,11 +278,13 @@ export async function listDeferredSends(
       id: string;
       userText: string;
       attachments: unknown;
+      videoJobIds: unknown;
       status: 'waiting' | 'claimed';
       createdAt: number;
     }[]
   >`
     SELECT id, user_text AS "userText", attachments, status,
+           video_job_ids AS "videoJobIds",
            created_at_ms::float8 AS "createdAt"
     FROM app.deferred_sends
     WHERE thread_id = ${args.threadId}
@@ -225,6 +294,7 @@ export async function listDeferredSends(
     deferredSendId: row.id,
     userText: row.userText,
     attachments: readAttachments(row.attachments),
+    videoJobIds: readVideoJobIds(row.videoJobIds),
     status: row.status,
     createdAt: row.createdAt,
   }));
@@ -258,6 +328,34 @@ export async function isDeferredSendReady(
     if (meta.ragStatus === 'queued' || meta.ragStatus === 'running') {
       return false;
     }
+  }
+  // The video leg: a claimed job still ingesting/transcribing holds the
+  // send; a terminal job (completed, failed, skipped — and the Whisper
+  // handoff once its transcription settles) releases it. A VANISHED row
+  // reads as "erased — proceed" (the 0.4 posture).
+  for (const jobId of row.videoJobIds) {
+    const jobs = await sql<
+      { status: string; transcriptionStatus: string | null }[]
+    >`
+      SELECT j.status, m.transcription_status AS "transcriptionStatus"
+      FROM app.video_link_jobs j
+      LEFT JOIN app.file_metadata m ON m.id = j.file_metadata_id
+      WHERE j.id = ${jobId} AND j.org_id = ${row.organizationId}
+      LIMIT 1
+    `;
+    const job = jobs[0];
+    if (!job) continue;
+    if (job.status === 'completed' || job.status === 'failed') continue;
+    if (job.status === 'skipped') continue;
+    if (
+      job.status === 'transcribing_handoff' &&
+      job.transcriptionStatus !== null &&
+      job.transcriptionStatus !== 'queued' &&
+      job.transcriptionStatus !== 'running'
+    ) {
+      continue;
+    }
+    return false;
   }
   return true;
 }
@@ -315,12 +413,24 @@ export async function pollDeferredSend(
   if (claimed.length === 0) return 'gone';
 
   try {
+    // The claimed videos' transcripts join the send now (the 0.4
+    // `buildBoundJobAttachments` semantics — a job without a completed
+    // transcript is left out and the turn proceeds without it).
+    const videoAttachments =
+      row.videoJobIds.length > 0
+        ? await buildBoundJobAttachments(
+            sql,
+            row.organizationId,
+            row.videoJobIds,
+          )
+        : [];
+    const attachments = [...row.attachments, ...videoAttachments];
     const outcome = await runChatTurn(sql, {
       organizationId: row.organizationId,
       userId: row.userId,
       threadId: row.threadId,
       userText: row.userText,
-      ...(row.attachments.length > 0 ? { attachments: row.attachments } : {}),
+      ...(attachments.length > 0 ? { attachments } : {}),
       ...(row.modelId !== null ? { modelId: row.modelId } : {}),
       ...(row.modelSelection === 'auto'
         ? { modelSelection: 'auto' as const }

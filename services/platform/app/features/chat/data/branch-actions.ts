@@ -10,17 +10,16 @@
  * rejection — so callers toast without try/catch at every site.
  */
 
-import { useConvex } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
 import {
+  regenerateChatTurn,
   branchChatThread,
   branchChatThreadForEdit,
   branchChatThreadForRegenerate,
   invalidateChatThreads,
   setChatBranchSelection,
 } from '@/app/lib/backend/chat';
-import { api } from '@/convex/_generated/api';
 import type { ReasoningEffort } from '@/lib/chat/effort';
 
 import { useChatQueryClient } from './chat-backend';
@@ -65,7 +64,6 @@ export interface BranchActions {
 }
 
 export function useBranchActions(organizationId: string): BranchActions {
-  const convex = useConvex();
   const queryClient = useChatQueryClient();
 
   const branchForEdit = useCallback(
@@ -120,25 +118,20 @@ export function useBranchActions(organizationId: string): BranchActions {
         readonly reasoningEffort?: ReasoningEffort;
       },
     ): Promise<{ refused: boolean; reason?: string }> => {
-      if (!convex) return { refused: true };
       try {
-        const outcome = await convex.action(
-          api.chat.turn_action.regenerateTurn,
-          {
-            organizationId,
-            threadId,
-            ...(pick.modelId !== undefined ? { modelId: pick.modelId } : {}),
-            ...(pick.modelSelection !== undefined
-              ? { modelSelection: pick.modelSelection }
-              : {}),
-            ...(pick.providerSlug !== undefined
-              ? { providerSlug: pick.providerSlug }
-              : {}),
-            ...(pick.reasoningEffort !== undefined
-              ? { reasoningEffort: pick.reasoningEffort }
-              : {}),
-          },
-        );
+        const outcome = await regenerateChatTurn(organizationId, threadId, {
+          ...(pick.modelId !== undefined ? { modelId: pick.modelId } : {}),
+          ...(pick.modelSelection !== undefined
+            ? { modelSelection: pick.modelSelection }
+            : {}),
+          ...(pick.providerSlug !== undefined
+            ? { providerSlug: pick.providerSlug }
+            : {}),
+          ...(pick.reasoningEffort !== undefined
+            ? { reasoningEffort: pick.reasoningEffort }
+            : {}),
+        });
+        invalidateChatThreads(queryClient, organizationId);
         return outcome.status === 'refused'
           ? {
               refused: true,
@@ -150,7 +143,7 @@ export function useBranchActions(organizationId: string): BranchActions {
         return { refused: true };
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const select = useCallback(
@@ -195,13 +188,13 @@ export function useBranchActions(organizationId: string): BranchActions {
 
   return useMemo(
     () => ({
-      available: convex !== undefined,
+      available: true,
       branchForEdit,
       branchForRegenerate,
       regenerate,
       select,
       fork,
     }),
-    [convex, branchForEdit, branchForRegenerate, regenerate, select, fork],
+    [branchForEdit, branchForRegenerate, regenerate, select, fork],
   );
 }

@@ -934,6 +934,136 @@ export async function ingestVideoUrl(
 
 /** Cancel / dismiss (the 0.4 semantics): flip to `skipped`, propagate a
  * whisper-in-flight skip onto the file row, schedule cleanup. Uploader-only. */
+/** Enqueue-time claim for a deferred send (the 0.4 `bindJobsForDeferredSend`):
+ * stamp `message_bound_at_ms` (+ thread for welcome-page rows) on every
+ * claimable job — the stamp releases the chips from the composer and keeps
+ * the direct-send bind from double-taking them. Returns the ids claimed. */
+export async function bindJobsForDeferredSend(
+  sql: Sql,
+  args: {
+    jobIds: readonly string[];
+    userId: string;
+    threadId: string;
+    organizationId: string;
+  },
+): Promise<string[]> {
+  if (args.jobIds.length === 0) return [];
+  return sql.begin(async (tx) => {
+    const now = Date.now();
+    const claimed: string[] = [];
+    for (const jobId of args.jobIds) {
+      const rows = await tx<{ id: string }[]>`
+        UPDATE app.video_link_jobs
+        SET message_bound_at_ms = ${now},
+            thread_id = coalesce(thread_id, ${args.threadId})
+        WHERE id = ${jobId} AND org_id = ${args.organizationId}
+          AND uploaded_by = ${args.userId}
+          AND message_bound_at_ms IS NULL
+          AND status <> 'skipped'
+          AND lifecycle_status IS DISTINCT FROM 'trashed'
+        RETURNING id
+      `;
+      if (rows[0]) claimed.push(rows[0].id);
+    }
+    return claimed;
+  });
+}
+
+/** Fire-time payloads for a deferred send's claimed jobs (the 0.4
+ * `buildBoundJobAttachments`): the same shape the direct-send bind puts on
+ * attachments — `video/mp4` stays the routing sentinel. Jobs without a
+ * completed transcript by now are excluded; the turn proceeds without. */
+export async function buildBoundJobAttachments(
+  sql: Sql,
+  organizationId: string,
+  jobIds: readonly string[],
+): Promise<
+  { fileId: string; fileName: string; fileType: string; fileSize: number }[]
+> {
+  const out: {
+    fileId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }[] = [];
+  for (const jobId of jobIds) {
+    const rows = await sql<
+      {
+        storageRef: string | null;
+        videoTitle: string | null;
+        status: string;
+        transcriptionStatus: string | null;
+        size: number | null;
+      }[]
+    >`
+      SELECT j.storage_ref AS "storageRef", j.video_title AS "videoTitle",
+             j.status, m.transcription_status AS "transcriptionStatus",
+             m.size::float8 AS "size"
+      FROM app.video_link_jobs j
+      LEFT JOIN app.file_metadata m ON m.id = j.file_metadata_id
+      WHERE j.id = ${jobId} AND j.org_id = ${organizationId}
+      LIMIT 1
+    `;
+    const row = rows[0];
+    if (!row || row.storageRef === null || row.size === null) continue;
+    const transcriptReady =
+      row.status === 'completed' ||
+      (row.status === 'transcribing_handoff' &&
+        row.transcriptionStatus === 'completed');
+    if (!transcriptReady) continue;
+    out.push({
+      fileId: row.storageRef,
+      fileName: row.videoTitle ?? 'Video link',
+      fileType: 'video/mp4',
+      fileSize: row.size,
+    });
+  }
+  return out;
+}
+
+/** Delete-time cascade (the 0.4 `cancelDeferredJobs`): cancelling a waiting
+ * send cancels its claimed media too — unbind IN THE SAME update (the
+ * cleanup refuses message-bound rows), flip to skipped, propagate the
+ * Whisper early-exit, schedule cleanup. */
+export async function cancelDeferredJobs(
+  sql: Sql,
+  organizationId: string,
+  jobIds: readonly string[],
+  userId: string,
+): Promise<void> {
+  for (const jobId of jobIds) {
+    const job = await getJob(sql, jobId);
+    if (!job || job.organizationId !== organizationId) continue;
+    if (job.uploadedBy !== userId) continue;
+    if (job.status === 'skipped') {
+      if (job.messageBoundAt !== null) {
+        await sql`
+          UPDATE app.video_link_jobs SET message_bound_at_ms = NULL
+          WHERE id = ${jobId}
+        `;
+      }
+      continue;
+    }
+    await sql`
+      UPDATE app.video_link_jobs
+      SET message_bound_at_ms = NULL, status = 'skipped',
+          status_changed_at_ms = ${Date.now()}
+      WHERE id = ${jobId}
+    `;
+    if (
+      job.fileMetadataId !== null &&
+      job.storageRef !== null &&
+      job.status === 'transcribing_handoff'
+    ) {
+      await sql`
+        UPDATE app.file_metadata SET transcription_status = 'skipped'
+        WHERE storage_ref = ${job.storageRef}
+      `;
+    }
+    await cleanupCancelledVideoLink(sql, jobId);
+  }
+}
+
 export async function cancelVideoLink(
   sql: Sql,
   args: { organizationId: string; userId: string; jobId: string },

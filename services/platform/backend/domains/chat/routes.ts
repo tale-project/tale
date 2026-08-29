@@ -16,6 +16,7 @@ import {
   listProjectCapabilities,
 } from './composer.ts';
 import {
+  claimDeferredSendVideos,
   cancelDeferredSend,
   enqueueDeferredSend,
   listDeferredSends,
@@ -28,6 +29,7 @@ import {
 } from './memories.ts';
 import { runChatTurn } from './service.ts';
 import {
+  loadProjectSharedThread,
   branchForEdit,
   branchForRegenerate,
   branchThread,
@@ -155,6 +157,27 @@ async function ownedThread(
     JOIN app.thread_metadata tm ON tm.thread_id = t.id
     WHERE t.id = ${threadId} AND t.org_id = ${organizationId}
       AND t.user_id = ${userId} AND tm.status = 'active'
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+/** The same view by id alone — for a thread the caller may READ but does
+ * not own (`loadProjectSharedThread` proved the access). */
+async function threadViewById(
+  sql: Sql,
+  organizationId: string,
+  threadId: string,
+): Promise<ThreadView | null> {
+  const rows = await sql<ThreadView[]>`
+    SELECT t.id, t.title, tm.project_id AS "projectId",
+           tm.generation_status AS "generationStatus",
+           t.created_at_ms::float8 AS "createdAt",
+           t.updated_at_ms::float8 AS "updatedAt"
+    FROM app.threads t
+    JOIN app.thread_metadata tm ON tm.thread_id = t.id
+    WHERE t.id = ${threadId} AND t.org_id = ${organizationId}
+      AND tm.status = 'active'
     LIMIT 1
   `;
   return rows[0] ?? null;
@@ -784,6 +807,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           )
           .max(20)
           .optional(),
+        videoJobIds: z.array(z.string().min(1).max(128)).max(20).optional(),
         modelId: z.string().min(1).max(200).optional(),
         modelSelection: z.literal('auto').optional(),
         providerSlug: z.string().min(1).max(200).optional(),
@@ -796,33 +820,47 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     try {
-      return c.json(
-        await enqueueDeferredSend(deps.sql, {
+      const enqueued = await enqueueDeferredSend(deps.sql, {
+        organizationId,
+        userId,
+        threadId: c.req.param('threadId'),
+        userText: body.data.text,
+        ...(body.data.attachments !== undefined
+          ? { attachments: body.data.attachments }
+          : {}),
+        ...(body.data.videoJobIds !== undefined &&
+        body.data.videoJobIds.length > 0
+          ? { videoJobIds: body.data.videoJobIds }
+          : {}),
+        ...(body.data.modelId !== undefined
+          ? { modelId: body.data.modelId }
+          : {}),
+        ...(body.data.modelSelection !== undefined
+          ? { modelSelection: body.data.modelSelection }
+          : {}),
+        ...(body.data.providerSlug !== undefined
+          ? { providerSlug: body.data.providerSlug }
+          : {}),
+        ...(body.data.reasoningEffort !== undefined
+          ? { reasoningEffort: body.data.reasoningEffort }
+          : {}),
+        ...(body.data.locale !== undefined ? { locale: body.data.locale } : {}),
+      });
+      // The claim releases the composer chips + stamps the row's set — an
+      // unclaimable id (foreign, bound, cancelled) is dropped, 0.4 posture.
+      if (
+        body.data.videoJobIds !== undefined &&
+        body.data.videoJobIds.length > 0
+      ) {
+        await claimDeferredSendVideos(deps.sql, {
           organizationId,
           userId,
           threadId: c.req.param('threadId'),
-          userText: body.data.text,
-          ...(body.data.attachments !== undefined
-            ? { attachments: body.data.attachments }
-            : {}),
-          ...(body.data.modelId !== undefined
-            ? { modelId: body.data.modelId }
-            : {}),
-          ...(body.data.modelSelection !== undefined
-            ? { modelSelection: body.data.modelSelection }
-            : {}),
-          ...(body.data.providerSlug !== undefined
-            ? { providerSlug: body.data.providerSlug }
-            : {}),
-          ...(body.data.reasoningEffort !== undefined
-            ? { reasoningEffort: body.data.reasoningEffort }
-            : {}),
-          ...(body.data.locale !== undefined
-            ? { locale: body.data.locale }
-            : {}),
-        }),
-        201,
-      );
+          deferredSendId: enqueued.deferredSendId,
+          videoJobIds: body.data.videoJobIds,
+        });
+      }
+      return c.json(enqueued, 201);
     } catch (error) {
       return handleThreadError(c, error);
     }
@@ -865,12 +903,25 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
 
   app.get('/threads/:threadId/messages', async (c) => {
     const { organizationId, userId } = caller(c);
-    const thread = await ownedThread(
+    // Owner, or a conversation its owner shared with a project the caller
+    // can read (never write) — the 0.4 `listMessages` posture.
+    let thread = await ownedThread(
       deps.sql,
       organizationId,
       userId,
       c.req.param('threadId'),
     );
+    if (thread === null) {
+      const shared = await loadProjectSharedThread(
+        deps.sql,
+        organizationId,
+        userId,
+        c.req.param('threadId'),
+      );
+      if (shared !== null) {
+        thread = await threadViewById(deps.sql, organizationId, shared.id);
+      }
+    }
     if (thread === null) {
       return c.json({ error: 'thread not found' }, 404);
     }
@@ -990,6 +1041,23 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       let lastMessageId: string | null = null;
       let generating = false;
       let lastBeatAt = Date.now();
+      // Resolve the client's initial state IMMEDIATELY: an idle thread must
+      // not wait a heartbeat interval to learn nothing is running (the send
+      // affordance keys off this), and a live one paints on arrival.
+      try {
+        const initial = await readGeneration(
+          deps.sql,
+          organizationId,
+          thread.id,
+        );
+        if (initial === null) {
+          await stream.writeSSE({ event: 'idle', data: '' });
+          lastBeatAt = Date.now();
+        }
+        // A live row falls through: the loop's first pass ships `progress`.
+      } catch (error) {
+        console.warn('[chat] stream initial probe failed:', error);
+      }
       while (!stream.aborted) {
         try {
           const generation = await readGeneration(
@@ -1009,6 +1077,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
                   text: generation.text,
                   reasoning: generation.reasoning,
                   cancelRequested: generation.cancelRequested,
+                  serverNow: Date.now(),
                 }),
               });
               lastBeatAt = Date.now();

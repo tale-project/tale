@@ -1,6 +1,6 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 
-import { BackendApiError, backendFetch } from './api-client';
+import { BackendApiError, backendFetch, backendUrl } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 /**
@@ -352,5 +352,286 @@ export function invalidateChatThreads(
 ): void {
   void queryClient.invalidateQueries({
     queryKey: backendEntityPrefix(organizationId, 'chat_thread'),
+  });
+}
+
+// -------------------------------------------------------------- turn family
+
+/** One thread's messages — the rows already carry the view shape. */
+export function chatMessagesQuery(organizationId: string, threadId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'chat_message', threadId),
+    queryFn: ({ signal }) =>
+      backendFetch<{ messages: unknown[] }>(
+        `/chat/threads/${encodeURIComponent(threadId)}/messages`,
+        { signal, orgId: organizationId },
+      ).then((body) => body.messages),
+  });
+}
+
+/** One parked send as the tray renders it (the 0.4 list row). */
+export interface DeferredSendView {
+  deferredSendId: string;
+  userText: string;
+  attachments: {
+    fileId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }[];
+  videoJobIds: string[];
+  status: 'waiting' | 'claimed';
+  createdAt: number;
+}
+
+/** The thread's parked sends (the tray above the composer). */
+export function deferredSendsQuery(organizationId: string, threadId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'chat_deferred', threadId),
+    queryFn: ({ signal }) =>
+      backendFetch<{ sends: DeferredSendView[] }>(
+        `/chat/threads/${encodeURIComponent(threadId)}/deferred-sends`,
+        { signal, orgId: organizationId },
+      ).then((body) => body.sends),
+  });
+}
+
+/** One video-link job as the chips render it (the 0.4 projection). */
+export interface VideoLinkJobView {
+  jobId: string;
+  sourceUrl: string;
+  sourcePlatform: string;
+  pastedToken: string;
+  videoTitle?: string;
+  videoUploader?: string;
+  videoDurationSec?: number;
+  transcriptSource?: string;
+  captionLang?: string;
+  displayStatus: string;
+  progress?: string;
+  errorReasonCode?: string;
+  errorMessage?: string;
+  attempts?: number;
+  storageId?: string;
+  fileSize?: number;
+  lifecycleStatus?: string;
+  uploadedBy: string;
+  createdAt: number;
+}
+
+/** The thread's video-link jobs (the tray's live-status join). */
+export function videoJobsForThreadQuery(
+  organizationId: string,
+  threadId: string,
+) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'video_link', 'thread', threadId),
+    queryFn: ({ signal }) =>
+      backendFetch<{ jobs: VideoLinkJobView[] }>(
+        `/video-links/thread/${encodeURIComponent(threadId)}`,
+        { signal, orgId: organizationId },
+      ).then((body) => body.jobs),
+  });
+}
+
+export interface ChatTurnOutcome {
+  status: 'completed' | 'refused';
+  reason?: string;
+}
+
+/**
+ * Run one turn — the call RESOLVES when the turn settles (the 0.4 action
+ * contract); the reply streams through the thread's SSE lane meanwhile. A
+ * refusal arrives on a non-2xx WITH its reason in the body, so this uses a
+ * raw fetch: the shared client's error path would flatten it.
+ */
+export async function sendChatTurn(
+  organizationId: string,
+  threadId: string,
+  body: {
+    text: string;
+    modelId?: string;
+    modelSelection?: 'auto';
+    providerSlug?: string;
+    reasoningEffort?: string;
+    attachments?: readonly {
+      fileId: string;
+      fileName: string;
+      fileType: string;
+      fileSize: number;
+    }[];
+    resend?: boolean;
+  },
+): Promise<ChatTurnOutcome> {
+  const response = await fetch(
+    backendUrl(
+      `/chat/threads/${encodeURIComponent(threadId)}/messages`,
+      organizationId,
+    ),
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  );
+  const payload: unknown = await response.json().catch(() => null);
+  if (payload !== null && typeof payload === 'object' && 'status' in payload) {
+    const record = payload as { status: unknown; reason?: unknown };
+    if (record.status === 'completed') return { status: 'completed' };
+    if (record.status === 'refused') {
+      return {
+        status: 'refused',
+        ...(typeof record.reason === 'string' ? { reason: record.reason } : {}),
+      };
+    }
+  }
+  if (!response.ok) {
+    throw new BackendApiError(
+      response.status,
+      `Turn request failed with status ${response.status}`,
+    );
+  }
+  return { status: 'completed' };
+}
+
+/** Ask the thread's in-flight turn to stop (a no-op for an idle thread). */
+export async function cancelChatGeneration(
+  organizationId: string,
+  threadId: string,
+): Promise<void> {
+  await backendFetch(`/chat/threads/${encodeURIComponent(threadId)}/cancel`, {
+    method: 'POST',
+    body: {},
+    orgId: organizationId,
+  });
+}
+
+export interface EnqueueDeferredSendArgs {
+  organizationId: string;
+  threadId: string;
+  text: string;
+  attachments?: readonly {
+    fileId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  }[];
+  videoJobIds?: readonly string[];
+  modelId?: string;
+  modelSelection?: 'auto';
+  providerSlug?: string;
+  reasoningEffort?: string;
+  locale?: string;
+}
+
+/** Park a send until its media settle (the server-side watcher fires it). */
+export async function enqueueDeferredSendRequest(
+  args: EnqueueDeferredSendArgs,
+): Promise<{ deferredSendId: string }> {
+  const { organizationId, threadId, ...rest } = args;
+  return backendFetch<{ deferredSendId: string }>(
+    `/chat/threads/${encodeURIComponent(threadId)}/deferred-sends`,
+    {
+      method: 'POST',
+      body: {
+        ...rest,
+        ...(rest.attachments !== undefined
+          ? { attachments: [...rest.attachments] }
+          : {}),
+        ...(rest.videoJobIds !== undefined
+          ? { videoJobIds: [...rest.videoJobIds] }
+          : {}),
+      },
+      orgId: organizationId,
+    },
+  );
+}
+
+export async function cancelDeferredSendRequest(
+  organizationId: string,
+  deferredSendId: string,
+): Promise<boolean> {
+  const result = await backendFetch<{ ok: boolean }>(
+    `/chat/deferred-sends/${encodeURIComponent(deferredSendId)}/cancel`,
+    { method: 'POST', body: {}, orgId: organizationId },
+  );
+  return result.ok;
+}
+
+export interface BoundVideoAttachment {
+  fileId: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  pastedToken: string;
+  jobId: string;
+}
+
+/** Bind the thread's completed video jobs into an outgoing send. */
+export async function bindVideoJobsForSend(
+  organizationId: string,
+  threadId: string,
+): Promise<BoundVideoAttachment[]> {
+  const result = await backendFetch<{ attachments: BoundVideoAttachment[] }>(
+    '/video-links/bind',
+    { method: 'POST', body: { threadId }, orgId: organizationId },
+  );
+  return result.attachments;
+}
+
+/** Return video chips to the composer after a refused/failed send. */
+export async function unbindVideoJobsRequest(
+  organizationId: string,
+  jobIds: readonly string[],
+): Promise<void> {
+  await backendFetch('/video-links/unbind', {
+    method: 'POST',
+    body: { jobIds: [...jobIds] },
+    orgId: organizationId,
+  });
+}
+
+export async function retryVideoLinkRequest(
+  organizationId: string,
+  jobId: string,
+): Promise<void> {
+  await backendFetch(`/video-links/${encodeURIComponent(jobId)}/retry`, {
+    method: 'POST',
+    body: {},
+    orgId: organizationId,
+  });
+}
+
+/** Re-answer the trailing user message (the 0.4 `regenerateTurn`): the
+ * same turn door with `resend` — nothing is appended. */
+export function regenerateChatTurn(
+  organizationId: string,
+  threadId: string,
+  pick: {
+    modelId?: string;
+    modelSelection?: 'auto';
+    providerSlug?: string;
+    reasoningEffort?: string;
+  },
+): Promise<ChatTurnOutcome> {
+  return sendChatTurn(organizationId, threadId, {
+    text: '',
+    resend: true,
+    ...pick,
+  });
+}
+
+/** Nudge the message/deferred reads after a settle or a local write. */
+export function invalidateChatMessages(
+  queryClient: QueryClient,
+  organizationId: string,
+  threadId: string,
+): void {
+  void queryClient.invalidateQueries({
+    queryKey: backendKey(organizationId, 'chat_message', threadId),
+  });
+  void queryClient.invalidateQueries({
+    queryKey: backendKey(organizationId, 'chat_deferred', threadId),
   });
 }
