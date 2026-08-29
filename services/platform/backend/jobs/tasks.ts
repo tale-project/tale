@@ -110,6 +110,8 @@ export interface TaskPayloads {
   /** Daily central retention cleanup — every org with applied bounds and a
    * valid clamped policy sweeps its expired rows. */
   'governance.retention_cleanup': Record<string, never>;
+  /** Daily incremental audit-chain integrity walk (progress row per org). */
+  'audit.integrity_check': Record<string, never>;
   /** Daily: approved legal-hold releases past their cooldown take effect. */
   'governance.effect_hold_releases': Record<string, never>;
   /** 2-min backstops for the task-agent lane: deadline-fail overdue runs,
@@ -248,6 +250,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'automation.ask_resume': { retryLimit: 0, expireInSeconds: 43_200 },
   'governance.process_erasure': { retryLimit: 1, expireInSeconds: 1_800 },
   'governance.retention_cleanup': { retryLimit: 1, expireInSeconds: 1_500 },
+  'audit.integrity_check': { retryLimit: 1, expireInSeconds: 1_500 },
   'governance.effect_hold_releases': { retryLimit: 1, expireInSeconds: 300 },
   'watchdog.task_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.sandbox': { retryLimit: 1, expireInSeconds: 300 },

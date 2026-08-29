@@ -16758,6 +16758,285 @@ async function checkGovernanceSettingsTail(
 }
 
 /**
+ * Inc-92 audit surface: the summary roll-up, the keyset list + errors lane,
+ * the by-id read, chain verification (tamper -> firstBrokenAt -> restore),
+ * the scheduled integrity job (progress row, alert bell on break, clean-pass
+ * recovery), and the CSV export landing in the org object store behind a
+ * presigned GET.
+ */
+async function checkAuditSurface(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const get = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, { headers: { cookie, origin: base } });
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  const summary = z
+    .object({
+      totalActions: z.number(),
+      successCount: z.number(),
+      failureCount: z.number(),
+      deniedCount: z.number(),
+      byCategory: z.record(z.string(), z.number()),
+      topActors: z.array(
+        z.object({ actorId: z.string(), count: z.number() }).loose(),
+      ),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await get(`/api/app/audit-logs/summary?orgId=${orgId}&periodDays=90`)
+      ).json(),
+    );
+
+  const pageOne = z
+    .object({
+      items: z.array(z.object({ id: z.string() }).loose()),
+      nextCursor: z.union([
+        z.object({ ts: z.number(), id: z.string() }),
+        z.null(),
+      ]),
+    })
+    .safeParse(
+      await (await get(`/api/app/audit-logs?orgId=${orgId}&limit=2`)).json(),
+    );
+  const cursor = pageOne.success ? pageOne.data.nextCursor : null;
+  const pageTwo = z
+    .object({ items: z.array(z.object({ id: z.string() }).loose()) })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/audit-logs?orgId=${orgId}&limit=2&cursorTs=${cursor?.ts ?? 0}&cursorId=${encodeURIComponent(cursor?.id ?? '')}`,
+        )
+      ).json(),
+    );
+  const pagesDistinct =
+    pageOne.success &&
+    pageTwo.success &&
+    pageOne.data.items[0] !== undefined &&
+    pageTwo.data.items[0] !== undefined &&
+    pageOne.data.items[0].id !== pageTwo.data.items[0].id;
+
+  const errors = z
+    .object({ items: z.array(z.object({ status: z.string() }).loose()) })
+    .safeParse(
+      await (
+        await get(`/api/app/audit-logs/errors?orgId=${orgId}&limit=50`)
+      ).json(),
+    );
+  const errorsOnly =
+    errors.success &&
+    errors.data.items.length >= 1 &&
+    errors.data.items.every(
+      (row) => row.status === 'failure' || row.status === 'denied',
+    );
+
+  const anyId = pageOne.success ? (pageOne.data.items[0]?.id ?? '') : '';
+  const detail = z
+    .object({ log: z.object({ id: z.string(), action: z.string() }).loose() })
+    .safeParse(
+      await (await get(`/api/app/audit-logs/${anyId}?orgId=${orgId}`)).json(),
+    );
+  const missing = await get(`/api/app/audit-logs/no-such-row?orgId=${orgId}`);
+
+  record(
+    'audit surface: summary, keyset pages, errors lane, by-id',
+    summary.success &&
+      summary.data.totalActions > 0 &&
+      Object.keys(summary.data.byCategory).length > 0 &&
+      summary.data.topActors.length >= 1 &&
+      pageOne.success &&
+      pageOne.data.items.length === 2 &&
+      cursor !== null &&
+      pagesDistinct &&
+      errorsOnly &&
+      detail.success &&
+      detail.data.log.id === anyId &&
+      missing.status === 404,
+    `summary=${summary.success ? summary.data.totalActions : 'ERR'}/${summary.success ? Object.keys(summary.data.byCategory).length : '?'}cat, page=${pageOne.success ? pageOne.data.items.length : 'ERR'} distinct=${pagesDistinct}, errors=${errors.success ? errors.data.items.length : 'ERR'}/${errorsOnly}, detail=${detail.success}, missing=${missing.status} (want 404)`,
+  );
+
+  // --- Chain verify: intact -> tamper -> firstBrokenAt -> restore --------
+  const intact = z
+    .object({
+      valid: z.boolean(),
+      verifiedCount: z.number(),
+      truncated: z.boolean(),
+      unsignedScrubCount: z.number(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/audit-logs/integrity/verify?orgId=${orgId}`, {
+          maxEntries: 5000,
+        })
+      ).json(),
+    );
+  const victimRows = await sql<{ id: string; action: string }[]>`
+    SELECT id, action FROM app.audit_logs
+    WHERE org_id = ${orgId}
+    ORDER BY ts DESC LIMIT 1
+  `;
+  const victim = victimRows[0];
+  await sql`
+    UPDATE app.audit_logs SET action = 'tampered.by.itest'
+    WHERE id = ${victim?.id ?? ''}
+  `;
+  const broken = z
+    .object({
+      valid: z.boolean(),
+      firstBrokenAt: z.object({ logId: z.string() }).loose(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/audit-logs/integrity/verify?orgId=${orgId}`, {
+          maxEntries: 5000,
+        })
+      ).json(),
+    );
+  await sql`
+    UPDATE app.audit_logs SET action = ${victim?.action ?? ''}
+    WHERE id = ${victim?.id ?? ''}
+  `;
+  const restored = z
+    .object({ valid: z.boolean() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/audit-logs/integrity/verify?orgId=${orgId}`, {
+          maxEntries: 5000,
+        })
+      ).json(),
+    );
+  record(
+    'audit surface: chain verify walk (intact / tampered / restored)',
+    intact.success &&
+      intact.data.valid &&
+      intact.data.verifiedCount > 0 &&
+      !intact.data.truncated &&
+      intact.data.unsignedScrubCount === 0 &&
+      broken.success &&
+      !broken.data.valid &&
+      broken.data.firstBrokenAt.logId === victim?.id &&
+      restored.success &&
+      restored.data.valid,
+    `intact=${intact.success ? `${intact.data.valid}/${intact.data.verifiedCount}/scrubs=${intact.data.unsignedScrubCount}` : 'ERR'}, broken=${broken.success ? `${broken.data.valid}/${broken.data.firstBrokenAt.logId === victim?.id}` : 'ERR'}, restored=${restored.success ? restored.data.valid : 'ERR'}`,
+  );
+
+  // --- Scheduled job: progress to head, alert on break, recovery --------
+  const { listAuditedOrgIds, runScheduledIntegrityCheck } =
+    await import('./domains/audit_logs/verify.ts');
+  const fleet = await listAuditedOrgIds(sql);
+  let headReached = false;
+  for (let i = 0; i < 10 && !headReached; i++) {
+    await runScheduledIntegrityCheck(sql, orgId);
+    const status = await sql<{ headReached: boolean }[]>`
+      SELECT head_reached AS "headReached"
+      FROM app.audit_integrity_progress WHERE org_id = ${orgId}
+    `;
+    headReached = status[0]?.headReached ?? false;
+  }
+  const { createAuditLog } = await import('./domains/audit_logs/service.ts');
+  await sql.begin((tx) =>
+    createAuditLog(tx, {
+      organizationId: orgId,
+      actorId: 'itest',
+      actorType: 'system',
+      action: 'itest.integrity_probe',
+      category: 'admin',
+      resourceType: 'itest',
+      status: 'success',
+    }),
+  );
+  const probeRows = await sql<{ id: string; action: string }[]>`
+    SELECT id, action FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'itest.integrity_probe'
+    ORDER BY ts DESC LIMIT 1
+  `;
+  const probeRow = probeRows[0];
+  await sql`
+    UPDATE app.audit_logs SET action = 'itest.tampered_probe'
+    WHERE id = ${probeRow?.id ?? ''}
+  `;
+  const brokenRun = await runScheduledIntegrityCheck(sql, orgId);
+  const alertStatus = z
+    .object({ status: z.object({ alertActive: z.boolean() }).loose() })
+    .safeParse(
+      await (
+        await get(`/api/app/audit-logs/integrity/status?orgId=${orgId}`)
+      ).json(),
+    );
+  const bells = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.notifications
+    WHERE org_id = ${orgId} AND title_key = 'auditIntegrityFailed'
+  `;
+  await sql`
+    UPDATE app.audit_logs SET action = ${probeRow?.action ?? ''}
+    WHERE id = ${probeRow?.id ?? ''}
+  `;
+  let recovered = false;
+  for (let i = 0; i < 10 && !recovered; i++) {
+    const run = await runScheduledIntegrityCheck(sql, orgId);
+    const status = await sql<
+      { headReached: boolean; fingerprint: string | null }[]
+    >`
+      SELECT head_reached AS "headReached",
+             last_alerted_fingerprint AS fingerprint
+      FROM app.audit_integrity_progress WHERE org_id = ${orgId}
+    `;
+    recovered =
+      !run.broken &&
+      (status[0]?.headReached ?? false) &&
+      status[0]?.fingerprint === null;
+  }
+  record(
+    'audit surface: scheduled integrity job (head, alert bell, recovery)',
+    fleet.includes(orgId) &&
+      headReached &&
+      brokenRun.broken &&
+      alertStatus.success &&
+      alertStatus.data.status.alertActive &&
+      bells[0]?.count === '1' &&
+      recovered,
+    `fleet=${fleet.includes(orgId)}, head=${headReached}, broken=${brokenRun.broken}, alert=${alertStatus.success ? alertStatus.data.status.alertActive : 'ERR'}, bells=${bells[0]?.count} (want 1), recovered=${recovered}`,
+  );
+
+  // --- Export: CSV into the org store behind a presigned GET ------------
+  const exported = z
+    .object({ storageId: z.string(), fileName: z.string(), url: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/audit-logs/export?orgId=${orgId}`, {
+          format: 'csv',
+        })
+      ).json(),
+    );
+  let csvOk = false;
+  if (exported.success) {
+    const download = await fetch(exported.data.url);
+    const text = download.ok ? await download.text() : '';
+    csvOk =
+      download.ok &&
+      text.startsWith('timestamp,action,category,') &&
+      text.split('\n').length > 2;
+  }
+  record(
+    'audit surface: CSV export -> object store presigned download',
+    exported.success && exported.data.fileName.endsWith('.csv') && csvOk,
+    `export=${exported.success ? exported.data.fileName : 'ERR'}, csv=${csvOk}`,
+  );
+}
+
+/**
  * Two-factor enforcement: an enforced policy with zero grace flips the
  * sign-in response to the enrolment-wall shape; a grace policy anchors the
  * per-user clock once; the verify-endpoint lockout mirrors the password
@@ -17901,6 +18180,7 @@ async function main(): Promise<void> {
       authCtx,
       `itest-${orgSuffix}`,
     );
+    await checkAuditSurface(sql, baseUrl, authCtx);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

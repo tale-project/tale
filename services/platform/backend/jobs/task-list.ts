@@ -203,6 +203,24 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         console.log(`[retention] swept ${orgs} orgs`);
       }
     },
+    'audit.integrity_check': async () => {
+      const { listAuditedOrgIds, runScheduledIntegrityCheck } =
+        await import('../domains/audit_logs/verify.ts');
+      const orgIds = await listAuditedOrgIds(deps.sql);
+      let broken = 0;
+      for (const orgId of orgIds) {
+        // One org's walk failing must not starve the fleet.
+        try {
+          const result = await runScheduledIntegrityCheck(deps.sql, orgId);
+          if (result.broken) broken += 1;
+        } catch (error) {
+          console.error(`[audit-integrity] org ${orgId} walk failed:`, error);
+        }
+      }
+      if (broken > 0) {
+        console.error(`[audit-integrity] ${broken} org(s) with a broken chain`);
+      }
+    },
     'governance.effect_hold_releases': async () => {
       const { effectApprovedReleases } =
         await import('../domains/legal_holds/service.ts');

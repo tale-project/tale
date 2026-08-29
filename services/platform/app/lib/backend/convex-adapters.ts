@@ -16,6 +16,12 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { ConvexError } from 'convex/values';
 
+import {
+  adminActionQueryAdapters,
+  adminPaginatedAdapters,
+  adminReadAdapters,
+  adminWriteAdapters,
+} from './admin';
 import { BackendApiError } from './api-client';
 import {
   documentPaginatedAdapters,
@@ -114,6 +120,7 @@ export type PaginatedAdapter = (
 ) => AdaptedPaginatedOptions | null;
 
 export const READ_ADAPTERS: Record<string, ReadAdapter> = {
+  ...adminReadAdapters,
   ...documentReadAdapters,
   ...projectReadAdapters,
   ...settingsReadAdapters,
@@ -121,16 +128,19 @@ export const READ_ADAPTERS: Record<string, ReadAdapter> = {
 };
 
 export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
+  ...adminPaginatedAdapters,
   ...documentPaginatedAdapters,
   ...settingsPaginatedAdapters,
 };
 
 export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {
+  ...adminActionQueryAdapters,
   ...projectActionQueryAdapters,
   ...settingsActionQueryAdapters,
 };
 
 export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
+  ...adminWriteAdapters,
   ...documentWriteAdapters,
   ...projectWriteAdapters,
   ...settingsWriteAdapters,

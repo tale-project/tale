@@ -299,6 +299,8 @@ export async function listAuditLogs(
     filter?: AuditLogFilter;
     limit?: number;
     cursor?: { ts: number; id: string } | null;
+    /** Restrict to `failure`/`denied` rows (the Error-logs tab). */
+    onlyErrors?: boolean;
   } = {},
 ): Promise<{
   items: AuditLogRow[];
@@ -308,6 +310,7 @@ export async function listAuditLogs(
   const filter = options.filter ?? {};
   const cursor = options.cursor ?? null;
   const search = filter.search ? `%${filter.search}%` : null;
+  const onlyErrors = options.onlyErrors === true;
 
   const rows = await sql<AuditLogRow[]>`
     SELECT ${sql.unsafe(ROW_COLUMNS)} FROM app.audit_logs
@@ -317,6 +320,7 @@ export async function listAuditLogs(
       AND (${filter.resourceType ?? null}::text IS NULL OR resource_type = ${filter.resourceType ?? null})
       AND (${filter.resourceId ?? null}::text IS NULL OR resource_id = ${filter.resourceId ?? null})
       AND (${filter.status ?? null}::text IS NULL OR status = ${filter.status ?? null})
+      AND (${onlyErrors}::boolean IS NOT true OR status IN ('failure', 'denied'))
       AND (${filter.startDate ?? null}::bigint IS NULL OR ts >= ${filter.startDate ?? null})
       AND (${filter.endDate ?? null}::bigint IS NULL OR ts <= ${filter.endDate ?? null})
       AND (${search}::text IS NULL OR (
@@ -337,5 +341,161 @@ export async function listAuditLogs(
     items: page,
     nextCursor:
       rows.length > limit && last ? { ts: last.timestamp, id: last.id } : null,
+  };
+}
+
+/** One row by id (the detail dialog / deep link). */
+export async function getAuditLogById(
+  sql: Sql,
+  organizationId: string,
+  logId: string,
+): Promise<AuditLogRow | null> {
+  const rows = await sql<AuditLogRow[]>`
+    SELECT ${sql.unsafe(ROW_COLUMNS)} FROM app.audit_logs
+    WHERE org_id = ${organizationId} AND id = ${logId}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+export interface ActivitySummary {
+  totalActions: number;
+  successCount: number;
+  failureCount: number;
+  deniedCount: number;
+  byCategory: Record<string, number>;
+  byResourceType: Record<string, number>;
+  topActors: Array<{ actorId: string; actorEmail?: string; count: number }>;
+}
+
+/** The Logs page's activity roll-up over a trailing window (the 0.4
+ * `getActivitySummary`). */
+export async function getActivitySummary(
+  sql: Sql,
+  organizationId: string,
+  args: { periodDays?: number } = {},
+): Promise<ActivitySummary> {
+  const periodDays = Math.min(Math.max(1, args.periodDays ?? 7), 365);
+  const startDate = Date.now() - periodDays * 24 * 60 * 60 * 1000;
+  const totals = await sql<
+    { status: string; category: string; resourceType: string; count: number }[]
+  >`
+    SELECT status, category, resource_type AS "resourceType",
+           count(*)::int AS count
+    FROM app.audit_logs
+    WHERE org_id = ${organizationId} AND ts >= ${startDate}
+    GROUP BY status, category, resource_type
+  `;
+  const summary: ActivitySummary = {
+    totalActions: 0,
+    successCount: 0,
+    failureCount: 0,
+    deniedCount: 0,
+    byCategory: {},
+    byResourceType: {},
+    topActors: [],
+  };
+  for (const row of totals) {
+    summary.totalActions += row.count;
+    if (row.status === 'success') summary.successCount += row.count;
+    else if (row.status === 'failure') summary.failureCount += row.count;
+    else if (row.status === 'denied') summary.deniedCount += row.count;
+    summary.byCategory[row.category] =
+      (summary.byCategory[row.category] ?? 0) + row.count;
+    summary.byResourceType[row.resourceType] =
+      (summary.byResourceType[row.resourceType] ?? 0) + row.count;
+  }
+  const actors = await sql<
+    { actorId: string; actorEmail: string | null; count: number }[]
+  >`
+    SELECT actor_id AS "actorId", max(actor_email) AS "actorEmail",
+           count(*)::int AS count
+    FROM app.audit_logs
+    WHERE org_id = ${organizationId} AND ts >= ${startDate}
+    GROUP BY actor_id
+    ORDER BY count DESC
+    LIMIT 5
+  `;
+  summary.topActors = actors.map((row) => {
+    const actor: ActivitySummary['topActors'][number] = {
+      actorId: row.actorId,
+      count: row.count,
+    };
+    if (row.actorEmail !== null) actor.actorEmail = row.actorEmail;
+    return actor;
+  });
+  return summary;
+}
+
+const EXPORT_MAX_ROWS = 10_000;
+const EXPORT_CSV_HEADERS = [
+  'timestamp',
+  'action',
+  'category',
+  'actorEmail',
+  'actorId',
+  'actorType',
+  'actorRole',
+  'resourceType',
+  'resourceId',
+  'resourceName',
+  'status',
+  'errorMessage',
+] as const;
+
+function csvCell(value: unknown): string {
+  if (value == null) return '';
+  const str =
+    typeof value === 'string'
+      ? value
+      : typeof value === 'number' || typeof value === 'boolean'
+        ? String(value)
+        : JSON.stringify(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replaceAll('"', '""') + '"';
+  }
+  return str;
+}
+
+/** Build the export payload (the 0.4 `exportAuditLogs` formats, verbatim
+ * CSV column set). Rows walk newest-first up to the cap. */
+export async function buildAuditExport(
+  sql: Sql,
+  organizationId: string,
+  args: { format: 'csv' | 'json'; filter?: AuditLogFilter },
+): Promise<{ content: string; fileName: string; contentType: string }> {
+  const rows: AuditLogRow[] = [];
+  let cursor: { ts: number; id: string } | null = null;
+  while (rows.length < EXPORT_MAX_ROWS) {
+    const page = await listAuditLogs(sql, organizationId, {
+      ...(args.filter !== undefined ? { filter: args.filter } : {}),
+      limit: Math.min(200, EXPORT_MAX_ROWS - rows.length),
+      cursor,
+    });
+    rows.push(...page.items);
+    if (page.nextCursor === null) break;
+    cursor = page.nextCursor;
+  }
+  const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-');
+  if (args.format === 'json') {
+    return {
+      content: JSON.stringify(rows, null, 2),
+      fileName: `audit-logs-${timestamp}.json`,
+      contentType: 'application/json',
+    };
+  }
+  const lines = rows.map((row) =>
+    EXPORT_CSV_HEADERS.map((header) => {
+      const value = row[header];
+      if (header === 'timestamp' && typeof value === 'number') {
+        return new Date(value).toISOString();
+      }
+      return csvCell(value);
+    }).join(','),
+  );
+  return {
+    content: [EXPORT_CSV_HEADERS.join(','), ...lines].join('\n'),
+    fileName: `audit-logs-${timestamp}.csv`,
+    contentType: 'text/csv',
   };
 }
