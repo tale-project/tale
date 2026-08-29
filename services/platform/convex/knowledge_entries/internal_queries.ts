@@ -6,6 +6,8 @@ import {
   cursorPaginationOptsValidator,
   paginateWithFilter,
 } from '../lib/pagination';
+import { knowledgeEntriesSearchStrategy } from '../lib/search/strategies/knowledge_entries';
+import { matchesAnyWord } from '../lib/search/word_match';
 
 export const getEntryById = internalQuery({
   args: {
@@ -28,6 +30,12 @@ export const listEntriesForAgent = internalQuery({
     organizationId: v.string(),
     /** Case-insensitive contains-filter on the topic. */
     topic: v.optional(v.string()),
+    /**
+     * Also match individual WORDS of `topic`, not only the whole phrase. The
+     * chat leg passes a question rather than a topic, so the phrase alone
+     * matches nothing.
+     */
+    matchWords: v.optional(v.boolean()),
     paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
@@ -44,6 +52,7 @@ export const listEntriesForAgent = internalQuery({
   }),
   handler: async (ctx, args) => {
     const topicLower = args.topic?.trim().toLowerCase() || undefined;
+    const wordTerm = args.matchWords === true ? args.topic?.trim() : undefined;
     const result = await paginateWithFilter(
       ctx.db
         .query('knowledgeEntries')
@@ -57,6 +66,13 @@ export const listEntriesForAgent = internalQuery({
         filter: (entry) =>
           entry.deletedAt === undefined &&
           (topicLower === undefined ||
+            // Words first — the phrase checks below still decide on their own.
+            (wordTerm !== undefined &&
+              matchesAnyWord(
+                entry,
+                knowledgeEntriesSearchStrategy,
+                wordTerm,
+              )) ||
             entry.topic.toLowerCase().includes(topicLower) ||
             entry.topicKey.includes(topicLower)),
       },

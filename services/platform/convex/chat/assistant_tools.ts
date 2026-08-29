@@ -911,6 +911,9 @@ export function createChatToolExecutor(
           {
             organizationId: who.organizationId,
             topic: query,
+            // A question, not a topic — match its words too, or the whole
+            // phrase is compared as one string and nothing matches.
+            matchWords: true,
             paginationOpts: {
               numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
               cursor: null,
@@ -935,6 +938,8 @@ export function createChatToolExecutor(
           {
             organizationId: who.organizationId,
             searchTerm: query,
+            // A question, not a search term — match its words too.
+            matchWords: true,
             paginationOpts: {
               numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
               cursor: null,
@@ -959,6 +964,8 @@ export function createChatToolExecutor(
           {
             organizationId: who.organizationId,
             searchTerm: query,
+            // A question, not a search term — match its words too.
+            matchWords: true,
             paginationOpts: {
               numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
               cursor: null,

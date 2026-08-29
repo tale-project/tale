@@ -54,6 +54,9 @@ export const queryContacts = internalQuery({
     ),
     locale: v.optional(v.array(v.string())),
     searchTerm: v.optional(v.string()),
+    /** Match individual words of `searchTerm` as well as the whole phrase.
+     *  The chat leg passes a question, so the phrase alone matches nothing. */
+    matchWords: v.optional(v.boolean()),
     paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({

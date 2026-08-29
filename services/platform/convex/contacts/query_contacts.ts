@@ -12,6 +12,8 @@ import {
   paginateWithFilter,
   type CursorPaginatedResult,
 } from '../lib/pagination';
+import { contactsSearchStrategy } from '../lib/search/strategies/contacts';
+import { matchesAnyWord } from '../lib/search/word_match';
 import type { ContactSource } from './types';
 
 export interface QueryContactsArgs {
@@ -20,6 +22,12 @@ export interface QueryContactsArgs {
   source?: ContactSource | ContactSource[];
   locale?: string[];
   searchTerm?: string;
+  /**
+   * Also match individual WORDS of `searchTerm`, not only the whole phrase.
+   * Off by default, so the contacts page searches exactly as it does today.
+   * The chat leg opts in, because it passes a question rather than a term.
+   */
+  matchWords?: boolean;
   paginationOpts: {
     numItems: number;
     cursor: string | null;
@@ -58,6 +66,8 @@ export async function queryContacts(
   const needsExternalIdFilter =
     !('externalId' in indexedFields) && args.externalId !== undefined;
   const searchLower = args.searchTerm?.toLowerCase();
+  const wordTerm =
+    args.matchWords === true ? args.searchTerm?.trim() : undefined;
 
   const needsFilter =
     sourceSet || localeSet || needsExternalIdFilter || searchLower;
@@ -81,6 +91,14 @@ export async function queryContacts(
         }
 
         if (searchLower) {
+          // Words first — the cheaper test, and the one a question hits. The
+          // phrase checks below still run and still decide on their own.
+          if (
+            wordTerm !== undefined &&
+            matchesAnyWord(contact, contactsSearchStrategy, wordTerm)
+          ) {
+            return true;
+          }
           const nameMatch = contact.name?.toLowerCase().includes(searchLower);
           const emailMatch = contact.email?.toLowerCase().includes(searchLower);
           const externalIdMatch = contact.externalId

@@ -14,6 +14,8 @@ import {
   paginateWithFilter,
   type CursorPaginatedResult,
 } from '../lib/pagination';
+import { productsSearchStrategy } from '../lib/search/strategies/products';
+import { matchesAnyWord } from '../lib/search/word_match';
 import type { ProductStatus } from './types';
 
 export interface QueryProductsArgs {
@@ -26,6 +28,12 @@ export interface QueryProductsArgs {
    * externalId and translated name/description — the products counterpart of
    * `queryContacts`' searchTerm. */
   searchTerm?: string;
+  /**
+   * Also match individual WORDS of `searchTerm`, not only the whole phrase.
+   * Off by default, so the products page searches exactly as it does today.
+   * The chat leg opts in, because it passes a question rather than a term.
+   */
+  matchWords?: boolean;
   paginationOpts: {
     numItems: number;
     cursor: string | null;
@@ -35,7 +43,16 @@ export interface QueryProductsArgs {
 function matchesSearchTerm(
   product: Doc<'products'>,
   searchLower: string,
+  wordTerm?: string,
 ): boolean {
+  // Words first — the cheaper test, and the one a question usually hits. The
+  // phrase checks below still run, and they are what reach translations.
+  if (
+    wordTerm !== undefined &&
+    matchesAnyWord(product, productsSearchStrategy, wordTerm)
+  ) {
+    return true;
+  }
   if (product.name.toLowerCase().includes(searchLower)) return true;
   if (product.description?.toLowerCase().includes(searchLower)) return true;
   if (product.category?.toLowerCase().includes(searchLower)) return true;
@@ -148,8 +165,12 @@ export async function queryProducts(
       );
     }
     const arraySearchLower = args.searchTerm?.trim().toLowerCase();
+    const wordTerm =
+      args.matchWords === true ? args.searchTerm?.trim() : undefined;
     if (arraySearchLower) {
-      products = products.filter((p) => matchesSearchTerm(p, arraySearchLower));
+      products = products.filter((p) =>
+        matchesSearchTerm(p, arraySearchLower, wordTerm),
+      );
     }
 
     // Sort by creation time (newest first)
@@ -180,6 +201,8 @@ export async function queryProducts(
     !('category' in indexedFields) && args.category !== undefined;
   const needsMinStockFilter = args.minStock !== undefined;
   const searchLower = args.searchTerm?.trim().toLowerCase() || undefined;
+  const wordTerm =
+    args.matchWords === true ? args.searchTerm?.trim() : undefined;
   const needsFilter =
     needsStatusFilter ||
     needsCategoryFilter ||
@@ -200,7 +223,7 @@ export async function queryProducts(
             return false;
           }
         }
-        if (searchLower && !matchesSearchTerm(product, searchLower)) {
+        if (searchLower && !matchesSearchTerm(product, searchLower, wordTerm)) {
           return false;
         }
         return true;
