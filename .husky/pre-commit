@@ -1,25 +1,4 @@
-STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
-[ -z "$STAGED" ] && exit 0
-
-JS_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|json|jsonc|md|mdx|css|scss|yaml|yml|html)$' || true)
-PY_FILES=$(echo "$STAGED" | grep -E '\.py$' || true)
-
-if [ -n "$JS_FILES" ]; then
-  echo "$JS_FILES" | xargs bunx oxfmt -c .oxfmtrc.json --no-error-on-unmatched-pattern
-  echo "$JS_FILES" | xargs git add
-fi
-
-if [ -n "$PY_FILES" ]; then
-  echo "$PY_FILES" | xargs uv run ruff format
-  echo "$PY_FILES" | xargs git add
-fi
-
-# Strict SAST on staged code (fast, staged-only). Blocks the commit on a real
-# finding; skips silently if the pinned binary isn't cached yet (offline / first
-# run) so it never blocks on a download — CI runs the full, enforcing scan.
-SAST_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|py)$' || true)
-if [ -n "$SAST_FILES" ]; then
-  # Local-only: the fast vendored rules, no network pack fetch. The full pack
-  # set is the CI gate (.github/workflows/sast.yml).
-  echo "$SAST_FILES" | OPENGREP_SKIP_IF_UNCACHED=1 OPENGREP_LOCAL_ONLY=1 xargs bash tools/opengrep/run.sh
-fi
+# Staged-file formatting + fast SAST via lint-staged (config: package.json).
+# lint-staged owns the partially-staged-file problem the old hand-rolled
+# grep/xargs/git-add pipeline got wrong (it silently staged unstaged hunks).
+bunx lint-staged
