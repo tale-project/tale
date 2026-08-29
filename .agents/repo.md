@@ -34,6 +34,12 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   scoped and queried per organization. Per-org knowledge routing is
   `getKnowledgePoolForOrg(orgSlug)`, never the deployment-default `getKnowledgePool()`; introducing
   a new cross-org shared surface is a defect.
+- **A file under `convex/` that reaches a Node built-in declares `'use node'`** — Convex bundles
+  every file in that tree for its V8 runtime unless the file itself says otherwise, regardless of
+  who imports it, so an undeclared one fails the deploy with `Could not resolve "node:path"` and
+  the app stops starting. The reach is usually indirect, through a `lib/` barrel. `typecheck` runs
+  `check-convex-runtime` and prints the import chain; nothing else catches it, and in CI it
+  surfaces as every browser-test shard failing at once.
 - **A data-model or org-config schema change ships a migration** — versioned, reversible,
   idempotent; `migrations:check` fails without one. Scaffold with `bun run gen:migration` (the
   registries are generated — `migrations:sync`, never hand-edited) and follow the

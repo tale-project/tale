@@ -11,7 +11,7 @@
     "start": "bun --bun vite preview",
     "lint": "bunx oxlint --type-aware",
     "lint:fix": "bunx oxlint --type-aware --fix",
-    "typecheck": "bunx tsc --noEmit",
+    "typecheck": "bunx tsc --noEmit && bun scripts/check-convex-runtime.ts",
     "convex:dev": "CONVEX_AGENT_MODE=anonymous bunx convex dev",
     "convex:deploy": "CONVEX_AGENT_MODE=anonymous bunx convex deploy",
     "convex:codegen": "[ -z \"$CONVEX_DEPLOYMENT\" ] && echo 'Skipped convex codegen (no CONVEX_DEPLOYMENT)' || bunx convex codegen",
