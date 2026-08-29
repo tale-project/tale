@@ -158,6 +158,20 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         await import('../domains/erasure/service.ts');
       await recoverStuckErasureRequests(deps.sql);
     },
+    'governance.revoke_idle_sessions': async () => {
+      const { revokeIdleSessions } =
+        await import('../domains/governance/session-idle.ts');
+      await revokeIdleSessions(deps.sql);
+    },
+    'tts.gc_chunks': async () => {
+      const { gcExpiredTtsChunks } = await import('../domains/tts/service.ts');
+      await gcExpiredTtsChunks(deps.sql);
+    },
+    'tasks.enforce_dates': async () => {
+      const { enforceTaskDateNotifications } =
+        await import('../domains/tasks/date-notifications.ts');
+      await enforceTaskDateNotifications(deps.sql);
+    },
     'maintenance.rate_limit_gc': async () => {
       // Any row idle for 7 days is past every window/refill horizon.
       const cutoff = Date.now() - 7 * 24 * 3_600_000;

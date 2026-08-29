@@ -52,6 +52,12 @@ const SCHEDULES: CronSchedule[] = [
   { name: 'watchdog.transcriptions', cron: '*/5 * * * *' },
   { name: 'watchdog.rag_indexing', cron: '2-59/5 * * * *' },
   { name: 'watchdog.erasures', cron: '4-59/5 * * * *' },
+  // Session-idle enforcement: the control only exists if something revokes.
+  { name: 'governance.revoke_idle_sessions', cron: '*/5 * * * *' },
+  // Voice-chunk retention GC + the task date ladder (the 0.4 hourly crons),
+  // offset so the hour boundary is not a thundering herd.
+  { name: 'tts.gc_chunks', cron: '10 * * * *' },
+  { name: 'tasks.enforce_dates', cron: '25 * * * *' },
 ];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {

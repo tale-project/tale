@@ -6270,6 +6270,182 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
  * decrypt seam handing an invocation its secrets/config/Basic header —
  * with disabled rows refusing coded.
  */
+async function checkPolicySweeps(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const governanceDir = path.join(configRoot, orgSlug, 'governance');
+  await mkdir(governanceDir, { recursive: true });
+  const orgConfig = await import('./lib/org-config.ts');
+
+  // ---- idle-session revocation -----------------------------------------
+  await writeFile(
+    path.join(governanceDir, 'session-idle-timeout.yml'),
+    ['enabled: true', 'idleTimeoutMinutes: 15'].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+
+  const mkSession = async (
+    id: string,
+    updatedAgoMs: number,
+    expiresInMs: number,
+  ): Promise<void> => {
+    await sql`
+      INSERT INTO "session" ("id", "userId", "token", "createdAt",
+                             "updatedAt", "expiresAt")
+      VALUES (${id}, ${userId}, ${`tok-${id}`},
+              ${new Date(now - updatedAgoMs)},
+              ${new Date(now - updatedAgoMs)},
+              ${new Date(now + expiresInMs)})
+      ON CONFLICT ("id") DO NOTHING
+    `;
+  };
+  // Idle past the window, live: revoked. Fresh: kept. Idle but ALREADY
+  // expired: left alone — Better Auth's own expiry owns it, and revoking it
+  // again would write a misleading control event.
+  await mkSession('idle-revoke-1', 60 * 60_000, 24 * 3_600_000);
+  await mkSession('idle-fresh-1', 60_000, 24 * 3_600_000);
+  await mkSession('idle-expired-1', 60 * 60_000, -60_000);
+
+  const { revokeIdleSessions } =
+    await import('./domains/governance/session-idle.ts');
+  const idle = await revokeIdleSessions(sql);
+  const survivors = await sql<{ id: string }[]>`
+    SELECT "id" FROM "session"
+    WHERE "id" IN ('idle-revoke-1', 'idle-fresh-1', 'idle-expired-1')
+  `;
+  const surviving = new Set(survivors.map((row) => row.id));
+  const idleAudits = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'session.idle_revoked'
+  `;
+  record(
+    'sweeps: idle sessions revoke past the window, fresh and expired survive',
+    idle.orgsWithWindow >= 1 &&
+      idle.revoked >= 1 &&
+      !surviving.has('idle-revoke-1') &&
+      surviving.has('idle-fresh-1') &&
+      surviving.has('idle-expired-1') &&
+      Number(idleAudits[0]?.count ?? '0') >= 1,
+    `windows=${idle.orgsWithWindow} revoked=${idle.revoked}, idleGone=${!surviving.has('idle-revoke-1')} freshKept=${surviving.has('idle-fresh-1')} expiredUntouched=${surviving.has('idle-expired-1')}, audits=${idleAudits[0]?.count}`,
+  );
+  await writeFile(
+    path.join(governanceDir, 'session-idle-timeout.yml'),
+    'enabled: false\n',
+  );
+  orgConfig.clearOrgConfigCaches();
+
+  // ---- TTS chunk retention GC ------------------------------------------
+  const eightDaysAgo = now - 8 * 24 * 3_600_000;
+  await sql`
+    INSERT INTO app.tts_audio_chunks (
+      org_id, thread_id, message_id, chunk_index, user_id, status,
+      text, voice, model_id, provider_name, format, locale,
+      attempt_created_at_ms, created_at_ms
+    ) VALUES
+      (${orgId}, 'gc-thread-1', 'gc-msg-1', 0, ${userId}, 'ready',
+       'old chunk', 'alloy', 'tts-1', 'openai', 'mp3', 'en',
+       ${eightDaysAgo}, ${eightDaysAgo}),
+      (${orgId}, 'gc-thread-1', 'gc-msg-2', 0, ${userId}, 'ready',
+       'fresh chunk', 'alloy', 'tts-1', 'openai', 'mp3', 'en', ${now},
+       ${now})
+  `;
+  const { gcExpiredTtsChunks } = await import('./domains/tts/service.ts');
+  const gc = await gcExpiredTtsChunks(sql);
+  const chunkRows = await sql<{ messageId: string }[]>`
+    SELECT message_id AS "messageId" FROM app.tts_audio_chunks
+    WHERE thread_id = 'gc-thread-1'
+  `;
+  const remaining = chunkRows.map((row) => row.messageId);
+  record(
+    'sweeps: expired voice chunks are collected, fresh ones are not',
+    gc.deleted >= 1 &&
+      !remaining.includes('gc-msg-1') &&
+      remaining.includes('gc-msg-2'),
+    `deleted=${gc.deleted}, remaining=${remaining.join(',') || 'none'} (want gc-msg-2 only)`,
+  );
+
+  // ---- task date ladder -------------------------------------------------
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Date sweep project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const mkTask = async (
+    title: string,
+    dates: { start?: number; due?: number },
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.tasks (
+        org_id, project_id, title, status, rank, created_by,
+        created_by_type, assignee_type, assignee_id, start_date_ms,
+        due_date_ms, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${title}, 'todo', ${title}, ${userId},
+        'user', 'user', ${userId}, ${dates.start ?? null},
+        ${dates.due ?? null}, ${now}, ${now}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const startedId = await mkTask('Started task', { start: now - 60_000 });
+  const dueSoonId = await mkTask('Due soon task', { due: now + 3_600_000 });
+  const overdueId = await mkTask('Overdue task', { due: now - 3_600_000 });
+  const futureId = await mkTask('Future task', {
+    start: now + 86_400_000,
+    due: now + 86_400_000 * 5,
+  });
+
+  const { enforceTaskDatesForOrg } =
+    await import('./domains/tasks/date-notifications.ts');
+  const first = await enforceTaskDatesForOrg(sql, orgId);
+  // Re-running must announce NOTHING new: each rung stamps the row it claims
+  // in the same statement that selects it.
+  const second = await enforceTaskDatesForOrg(sql, orgId);
+  const taskRows = await sql<
+    { id: string; startNotified: number | null; slaLevel: number | null }[]
+  >`
+    SELECT id, start_notified_at_ms::float8 AS "startNotified",
+           sla_level AS "slaLevel"
+    FROM app.tasks WHERE id IN (${startedId}, ${dueSoonId}, ${overdueId},
+                                ${futureId})
+  `;
+  const byId = new Map(taskRows.map((row) => [row.id, row]));
+  const bells = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND type = 'task_deadline'
+  `;
+  // The first overdue rung posts an automated COMMENT on the task (a nudge
+  // where the work lives), not another bell — the 0.4 contract.
+  const nudge = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.messages
+    WHERE org_id = ${orgId} AND text LIKE '[automated]%'
+  `;
+  record(
+    'sweeps: the task date ladder fires each rung once and skips future work',
+    first.start === 1 &&
+      first.dueSoon === 1 &&
+      first.overdue === 1 &&
+      second.start === 0 &&
+      second.dueSoon === 0 &&
+      second.overdue === 0 &&
+      byId.get(startedId)?.startNotified !== null &&
+      byId.get(dueSoonId)?.slaLevel === 1 &&
+      byId.get(overdueId)?.slaLevel === 2 &&
+      byId.get(futureId)?.startNotified === null &&
+      byId.get(futureId)?.slaLevel === null &&
+      Number(bells[0]?.count ?? '0') >= 2 &&
+      Number(nudge[0]?.count ?? '0') >= 1,
+    `first=${JSON.stringify(first)}, second=${JSON.stringify(second)} (want all 0), started=${byId.get(startedId)?.startNotified !== null} dueSoon=${byId.get(dueSoonId)?.slaLevel} overdue=${byId.get(overdueId)?.slaLevel} futureUntouched=${byId.get(futureId)?.slaLevel === null}, bells=${bells[0]?.count} nudgeComments=${nudge[0]?.count}`,
+  );
+}
+
 async function checkRecoverySweeps(
   sql: Sql,
   ctx: { orgId: string; userId: string },
@@ -21019,6 +21195,7 @@ async function main(): Promise<void> {
     await checkConnectorOauth(sql, baseUrl, authCtx);
     await checkSlackInbound(sql, baseUrl, authCtx);
     await checkRecoverySweeps(sql, authCtx);
+    await checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);

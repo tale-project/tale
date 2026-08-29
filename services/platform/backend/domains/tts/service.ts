@@ -997,6 +997,55 @@ export async function runTtsCleanup(
   }
 }
 
+/**
+ * The fleet-wide chunk GC — the 0.5 twin of 0.4's `gcOrgTtsChunks` hourly
+ * cron, and the defence-in-depth the per-thread cleanup leans on: every
+ * cascade that deletes messages directly relies on SOMETHING eventually
+ * collecting the chunks it could not reach.
+ *
+ * Rule 5: 0.4 walked orgs behind a persisted cursor because a Convex
+ * mutation could not scan the table. Here the retention cutoff IS the query;
+ * a single bounded pass takes the oldest expired rows across the fleet, and
+ * the next tick takes the next page. No cursor row, no wrap-around
+ * bookkeeping, same bound on work per run.
+ */
+export async function gcExpiredTtsChunks(
+  sql: Sql,
+  options: { limit?: number; now?: number } = {},
+): Promise<{ deleted: number }> {
+  const cutoff = (options.now ?? Date.now()) - CHUNK_RETENTION_MS;
+  const rows = await sql<
+    { id: string; orgId: string; storageRef: string | null }[]
+  >`
+    SELECT id, org_id AS "orgId", storage_ref AS "storageRef"
+    FROM app.tts_audio_chunks
+    WHERE created_at_ms < ${cutoff}
+    ORDER BY created_at_ms
+    LIMIT ${options.limit ?? 500}
+  `;
+  let deleted = 0;
+  for (const row of rows) {
+    // Row-then-blob, one transaction each: a storage failure must not roll
+    // back a batch, and a row that survives its blob is the recoverable
+    // direction (the next tick retries it).
+    try {
+      await sql.begin(async (tx) => {
+        await tx`DELETE FROM app.tts_audio_chunks WHERE id = ${row.id}`;
+        if (row.storageRef !== null) {
+          await deleteOrgBlobRefs(tx, row.orgId, [row.storageRef]);
+        }
+      });
+      deleted += 1;
+    } catch (error) {
+      console.warn('[tts] chunk GC failed for one row:', error);
+    }
+  }
+  if (deleted > 0) {
+    console.info(`[tts] GC removed ${deleted} expired audio chunk(s)`);
+  }
+  return { deleted };
+}
+
 /** The watchdog job body: identity-gated failed flip for stuck pendings. */
 export async function runTtsWatchdog(
   sql: Sql,

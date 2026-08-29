@@ -32,6 +32,12 @@ export interface TaskPayloads {
   'watchdog.rag_indexing': Record<string, never>;
   /** Fail erasure runs whose processor never finished. */
   'watchdog.erasures': Record<string, never>;
+  /** Revoke sessions idle past their org's policy window. */
+  'governance.revoke_idle_sessions': Record<string, never>;
+  /** Fleet-wide GC of expired TTS audio chunks. */
+  'tts.gc_chunks': Record<string, never>;
+  /** Task start/due/overdue notification ladder (hourly). */
+  'tasks.enforce_dates': Record<string, never>;
   /** Daily sweep of idle rate-limit rows (cron). */
   'maintenance.rate_limit_gc': Record<string, never>;
   /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
@@ -254,6 +260,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'watchdog.transcriptions': { retryLimit: 1, expireInSeconds: 300 },
   'watchdog.rag_indexing': { retryLimit: 1, expireInSeconds: 600 },
   'watchdog.erasures': { retryLimit: 1, expireInSeconds: 300 },
+  'governance.revoke_idle_sessions': { retryLimit: 1, expireInSeconds: 300 },
+  'tts.gc_chunks': { retryLimit: 1, expireInSeconds: 600 },
+  'tasks.enforce_dates': { retryLimit: 1, expireInSeconds: 600 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
   'rag.index_file': {
