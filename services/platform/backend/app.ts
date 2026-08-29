@@ -20,6 +20,7 @@ import {
 import { createCollabRoutes } from './domains/collab/routes.ts';
 import { createConnectorCredentialRoutes } from './domains/connector_credentials/routes.ts';
 import { createConnectorOauthRoutes } from './domains/connectors/oauth-routes.ts';
+import { createSlackEventRoutes } from './domains/connectors/slack-events.ts';
 import { createContactRoutes } from './domains/contacts/routes.ts';
 import { createControlRoutes } from './domains/control/routes.ts';
 import { createConversationRoutes } from './domains/conversations/routes.ts';
@@ -127,6 +128,10 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     '/api/connectors/oauth2',
     createConnectorOauthRoutes({ sql: deps.sql, auth: deps.auth }),
   );
+
+  // Slack Events API — one deployment-wide Request URL for every connected
+  // workspace; authorized by the request signature, never a session.
+  app.route('/api/connectors/slack', createSlackEventRoutes({ sql: deps.sql }));
 
   // Automation webhook triggers — the token in the path is the credential.
   app.route('/api/automations/webhook', createWebhookRoutes({ sql: deps.sql }));

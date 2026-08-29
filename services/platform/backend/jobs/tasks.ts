@@ -15,6 +15,17 @@ export interface TaskPayloads {
   'org.scaffold': { orgSlug: string; cleanFirst?: boolean };
   /** Remove a deleted org's on-disk config subtree. */
   'org.cleanup_files': { orgSlug: string };
+  /** One verified, org-resolved Slack event (see domains/connectors). */
+  'connector.slack_event': {
+    organizationId: string;
+    credentialId: string;
+    teamId: string;
+    /** Slack's per-delivery id — the dedup key for its at-least-once retries. */
+    eventId?: string;
+    eventType?: string;
+    /** The verified `event` object, exactly as Slack sent it. */
+    event: Record<string, unknown>;
+  };
   /** Daily sweep of idle rate-limit rows (cron). */
   'maintenance.rate_limit_gc': Record<string, never>;
   /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
@@ -192,6 +203,14 @@ export interface TaskQueueOptions {
   retryBackoff?: boolean;
   /** Seconds a job may stay active before it is retried as expired. */
   expireInSeconds?: number;
+  /**
+   * pg-boss queue policy. The default (`standard`) treats `singletonKey` as a
+   * throttling label only — dedup by key needs `short` (at most ONE QUEUED
+   * job per key). Set it where an upstream retries a delivery we have already
+   * accepted, and give every job on that queue a key, or keyless jobs share
+   * the default key and shut each other out.
+   */
+  policy?: 'standard' | 'short' | 'singleton' | 'stately';
 }
 
 /** Per-queue delivery policy (inherited by that queue's jobs). */
@@ -208,6 +227,19 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'org.cleanup_files': {
     retryLimit: 10,
     retryDelay: 1,
+    retryBackoff: true,
+    expireInSeconds: 300,
+  },
+  'connector.slack_event': {
+    // Slack retries a delivery it thinks went unacknowledged; `short` +
+    // the per-delivery singleton key collapses that retry into the job
+    // already queued instead of replaying the conversation.
+    policy: 'short',
+    // The endpoint has already acknowledged Slack, so a failed handoff is
+    // ours to retry — but an event that cannot be handled after a few tries
+    // is stale conversation, not something to keep replaying for hours.
+    retryLimit: 3,
+    retryDelay: 5,
     retryBackoff: true,
     expireInSeconds: 300,
   },

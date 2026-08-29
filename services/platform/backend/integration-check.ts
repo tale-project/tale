@@ -6270,6 +6270,249 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
  * decrypt seam handing an invocation its secrets/config/Basic header —
  * with disabled rows refusing coded.
  */
+async function checkSlackInbound(
+  sql: Sql,
+  base: string,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const SIGNING_SECRET = 'itest-slack-signing-secret';
+  const saved = process.env.CONNECTOR_SLACK_SIGNING_SECRET;
+
+  /** Sign a body the way Slack does: `v0=HMAC(secret, v0:<ts>:<raw>)`. */
+  const sign = async (rawBody: string, timestamp: number): Promise<string> => {
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(SIGNING_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+    const mac = await crypto.subtle.sign(
+      'HMAC',
+      key,
+      new TextEncoder().encode(`v0:${timestamp}:${rawBody}`),
+    );
+    let hex = '';
+    for (const byte of new Uint8Array(mac)) {
+      hex += byte.toString(16).padStart(2, '0');
+    }
+    return `v0=${hex}`;
+  };
+
+  const post = async (
+    body: unknown,
+    options: {
+      signed?: boolean;
+      timestamp?: number;
+      signature?: string;
+    } = {},
+  ): Promise<Response> => {
+    const raw = JSON.stringify(body);
+    const timestamp = options.timestamp ?? Math.floor(Date.now() / 1000);
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      origin: base,
+    };
+    if (options.signature !== undefined) {
+      headers['X-Slack-Signature'] = options.signature;
+      headers['X-Slack-Request-Timestamp'] = String(timestamp);
+    } else if (options.signed !== false) {
+      headers['X-Slack-Signature'] = await sign(raw, timestamp);
+      headers['X-Slack-Request-Timestamp'] = String(timestamp);
+    }
+    return fetch(`${base}/api/connectors/slack/events`, {
+      method: 'POST',
+      headers,
+      body: raw,
+    });
+  };
+
+  try {
+    // Without the signing secret the endpoint stays SHUT — it must never
+    // process unauthenticated input just because it is unconfigured.
+    delete process.env.CONNECTOR_SLACK_SIGNING_SECRET;
+    const unconfigured = await post({
+      type: 'url_verification',
+      challenge: 'c',
+    });
+
+    process.env.CONNECTOR_SLACK_SIGNING_SECRET = SIGNING_SECRET;
+    const unsigned = await post({ type: 'event_callback' }, { signed: false });
+    const forged = await post(
+      { type: 'event_callback' },
+      { signature: `v0=${'0'.repeat(64)}` },
+    );
+    const stale = await post(
+      { type: 'event_callback' },
+      { timestamp: Math.floor(Date.now() / 1000) - 3600 },
+    );
+    record(
+      'slack inbound: refuses unconfigured, unsigned, forged and replayed deliveries',
+      unconfigured.status === 503 &&
+        (unsigned.status === 401 || unsigned.status === 429) &&
+        (forged.status === 401 || forged.status === 429) &&
+        (stale.status === 401 || stale.status === 429),
+      `unconfigured=${unconfigured.status} (want 503), unsigned=${unsigned.status}, forged=${forged.status}, stale=${stale.status} (want 401/429)`,
+    );
+
+    // The registration handshake echoes the challenge — after verification.
+    const handshake = await post({
+      type: 'url_verification',
+      challenge: 'itest-challenge-value',
+    });
+    const handshakeBody = z
+      .object({ challenge: z.string() })
+      .safeParse(await handshake.json());
+
+    // An unmapped workspace is refused rather than delivered to "the only
+    // organization" — the failure this endpoint exists to avoid.
+    const unmapped = await post({
+      type: 'event_callback',
+      team_id: 'T-NOT-CONNECTED',
+      event: { type: 'message', text: 'hi' },
+    });
+
+    // A verified delivery for a CONNECTED workspace enqueues exactly one job.
+    const oauth = await import('./domains/connectors/oauth.ts');
+    const credential = await sql<{ id: string }[]>`
+      SELECT id FROM app.connector_credentials
+      WHERE org_id = ${orgId} AND connector_slug = 'slack' LIMIT 1
+    `;
+    const credentialId = credential[0]?.id ?? '';
+    await oauth.claimTeamRoute(sql, {
+      teamId: 'T-INBOUND-1',
+      organizationId: orgId,
+      credentialId,
+    });
+    const jobsBefore = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'connector.slack_event'
+    `;
+    const delivered = await post({
+      type: 'event_callback',
+      team_id: 'T-INBOUND-1',
+      event_id: 'Ev-ITEST-1',
+      event: { type: 'app_mention', text: 'hello there', user: 'U-ITEST' },
+    });
+    // Slack retries an unacknowledged delivery; the same event id must
+    // collapse to ONE job rather than replaying the conversation.
+    const redelivered = await post({
+      type: 'event_callback',
+      team_id: 'T-INBOUND-1',
+      event_id: 'Ev-ITEST-1',
+      event: { type: 'app_mention', text: 'hello there', user: 'U-ITEST' },
+    });
+    const jobRows = await sql<{ data: unknown; singletonKey: string | null }[]>`
+      SELECT data, singleton_key AS "singletonKey" FROM pgboss.job
+      WHERE name = 'connector.slack_event'
+    `;
+    const enqueued = jobRows.length - Number(jobsBefore[0]?.count ?? '0');
+    // Both deliveries are acknowledged (Slack disables an endpoint that does
+    // not answer) and both carry the SAME per-delivery key.
+    const queued =
+      enqueued >= 1 &&
+      jobRows.every((row) => row.singletonKey === 'slack:Ev-ITEST-1');
+    const payload = jobRows[0]?.data;
+    const routedToOrg =
+      payload !== null &&
+      typeof payload === 'object' &&
+      'organizationId' in payload &&
+      payload.organizationId === orgId;
+    record(
+      'slack inbound: handshake echoes, unmapped refuses, a verified event routes once',
+      handshake.status === 200 &&
+        handshakeBody.success &&
+        handshakeBody.data.challenge === 'itest-challenge-value' &&
+        unmapped.status === 404 &&
+        delivered.status === 200 &&
+        redelivered.status === 200 &&
+        queued &&
+        routedToOrg,
+      `handshake=${handshake.status}/${handshakeBody.success ? handshakeBody.data.challenge : 'ERR'}, unmapped=${unmapped.status} (want 404), delivered=${delivered.status}/${redelivered.status}, enqueued=${enqueued} keyed=${jobRows.every((row) => row.singletonKey === 'slack:Ev-ITEST-1')}, routedToOrg=${routedToOrg}`,
+    );
+
+    // The dedup itself, deterministically: pg-boss's `short` policy allows at
+    // most ONE QUEUED job per key, so a retry that arrives while the original
+    // is still waiting collapses into it. (Over HTTP the worker often drains
+    // the first before the retry lands, which frees the key again — that is
+    // the intended behaviour, not a missed dedup, so the invariant is
+    // asserted at the enqueue seam where "still queued" is guaranteed.)
+
+    const retryPayload = {
+      organizationId: orgId,
+      credentialId,
+      teamId: 'T-INBOUND-1',
+      eventId: 'Ev-ITEST-RETRY',
+      eventType: 'app_mention',
+      event: { type: 'app_mention', text: 'retry me' },
+    };
+    // Both sends ride ONE transaction, so the first is still `created` when
+    // the second lands — the exact race Slack's retry creates, made
+    // deterministic (over HTTP a fast worker may drain the first, which frees
+    // the key again by design).
+    const [firstSend, secondSend] = await sql.begin(async (tx) => [
+      await addJobInTx(tx, 'connector.slack_event', retryPayload, {
+        singletonKey: 'slack:Ev-ITEST-RETRY',
+      }),
+      await addJobInTx(tx, 'connector.slack_event', retryPayload, {
+        singletonKey: 'slack:Ev-ITEST-RETRY',
+      }),
+    ]);
+    record(
+      'slack inbound: a retry of a still-queued delivery collapses into it',
+      firstSend !== null && secondSend === null,
+      `first=${firstSend === null ? 'refused' : 'queued'}, retry=${secondSend === null ? 'collapsed' : 'DUPLICATED'}`,
+    );
+
+    // ---- external identities --------------------------------------------
+    const identities = await import('./domains/identities/service.ts');
+    const ownerId = await identities.upsertExternalIdentity(sql, {
+      source: 'slack',
+      organizationId: orgId,
+      externalUserId: 'U-ITEST',
+      displayName: 'Slack Person',
+      handle: 'slackperson',
+    });
+    const firstRow = await sql<{ updatedAt: number }[]>`
+      SELECT updated_at_ms::float8 AS "updatedAt"
+      FROM app.external_identities WHERE owner_id = ${ownerId}
+    `;
+    // A refresh that fetched NOTHING must not touch updatedAt, or the next
+    // message would be suppressed for the whole freshness window.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await identities.upsertExternalIdentity(sql, {
+      source: 'slack',
+      organizationId: orgId,
+      externalUserId: 'U-ITEST',
+    });
+    const afterEmpty = await sql<{ updatedAt: number; displayName: string }[]>`
+      SELECT updated_at_ms::float8 AS "updatedAt",
+             display_name AS "displayName"
+      FROM app.external_identities WHERE owner_id = ${ownerId}
+    `;
+    const names = await identities.resolveExternalDisplayNames(sql, [
+      ownerId,
+      userId,
+      'slack:other-org:U-ELSEWHERE',
+    ]);
+    const detail = await identities.getExternalIdentity(sql, ownerId);
+    record(
+      'external identities: org-scoped owner id, empty refresh keeps freshness',
+      ownerId === `slack:${orgId}:U-ITEST` &&
+        afterEmpty[0]?.updatedAt === firstRow[0]?.updatedAt &&
+        afterEmpty[0]?.displayName === 'Slack Person' &&
+        names.get(ownerId) === 'Slack Person' &&
+        !names.has(userId) &&
+        detail?.handle === 'slackperson',
+      `ownerId=${ownerId}, freshnessKept=${afterEmpty[0]?.updatedAt === firstRow[0]?.updatedAt}, name=${afterEmpty[0]?.displayName}, resolved=${names.get(ownerId) ?? 'none'} internalIgnored=${!names.has(userId)}, handle=${detail?.handle ?? 'none'}`,
+    );
+  } finally {
+    if (saved === undefined) delete process.env.CONNECTOR_SLACK_SIGNING_SECRET;
+    else process.env.CONNECTOR_SLACK_SIGNING_SECRET = saved;
+  }
+}
+
 async function checkConnectorOauth(
   sql: Sql,
   base: string,
@@ -20594,6 +20837,7 @@ async function main(): Promise<void> {
     await checkTrustedHeaders(sql, baseUrl);
     await checkConnectorCredentials(sql, baseUrl, authCtx);
     await checkConnectorOauth(sql, baseUrl, authCtx);
+    await checkSlackInbound(sql, baseUrl, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);
