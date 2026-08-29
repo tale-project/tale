@@ -77,7 +77,12 @@ import {
   setChatThreadReasoningEffort,
   threadBranchesQuery,
   unbindVideoJobsRequest,
+  pendingQuestionQuery,
+  arenaPairQuery,
+  resolveQuestionRequest,
+  threadShareStatusQuery,
 } from '@/app/lib/backend/chat';
+import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ReasoningEffort } from '@/lib/chat/effort';
@@ -162,6 +167,12 @@ const HTTP_READS: Record<
     threadBranchesQuery(String(args.organizationId), String(args.rootThreadId)),
   'chat/search:searchChats': (args) =>
     chatSearchQuery(String(args.organizationId), String(args.query)),
+  'chat/threads:getThreadShareStatus': (args) =>
+    threadShareStatusQuery(String(args.organizationId), String(args.threadId)),
+  'chat/questions:getPendingQuestion': (args) =>
+    pendingQuestionQuery(String(args.organizationId), String(args.threadId)),
+  'chat/arena:getArenaPair': (args) =>
+    arenaPairQuery(String(args.organizationId), String(args.threadId)),
   'chat/messages:listMessages': (args) =>
     chatMessagesQuery(String(args.organizationId), String(args.threadId)),
   'feedback/queries:listThreadFeedback': (args) =>
@@ -988,24 +999,24 @@ export function useResolveQuestion(organizationId: string): {
     outcome: 'answered' | 'superseded',
   ) => Promise<void>;
 } {
-  const convex = useConvex();
+  const queryClient = useChatQueryClient();
 
   const resolve = useCallback(
     async (
       requestId: Id<'approvals'>,
       outcome: 'answered' | 'superseded',
     ): Promise<void> => {
-      if (!convex) throw new Error('The chat backend is not reachable.');
-      await convex.mutation(api.chat.questions.resolveQuestion, {
-        organizationId,
-        requestId,
-        outcome,
+      await resolveQuestionRequest(organizationId, String(requestId), outcome);
+      // The panel clears from this read — nudge it without waiting for the
+      // hint round-trip.
+      void queryClient.invalidateQueries({
+        queryKey: backendEntityPrefix(organizationId, 'chat_thread'),
       });
     },
-    [convex, organizationId],
+    [organizationId, queryClient],
   );
 
-  return { available: convex !== undefined, resolve };
+  return { available: true, resolve };
 }
 
 /**

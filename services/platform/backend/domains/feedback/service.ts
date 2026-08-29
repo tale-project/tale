@@ -41,7 +41,7 @@ export async function submitMessageFeedback(
       ${args.agentSlug ?? null}, ${args.model ?? null},
       ${args.provider ?? null}, ${now}
     )
-    ON CONFLICT (message_id, user_id) DO UPDATE SET
+    ON CONFLICT (message_id, user_id) WHERE metadata IS NULL DO UPDATE SET
       rating = ${args.rating},
       comment = ${args.comment ?? null},
       created_at_ms = ${now}

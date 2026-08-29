@@ -4,14 +4,15 @@ import { ConvexProvider, type ConvexReactClient } from 'convex/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { api } from '@/convex/_generated/api';
 import { render, screen } from '@/tests/utils/render';
 
 import {
   useChatGeneration,
+  useChatQuery,
   useChatSend,
   useChatThreads,
   useComposerModels,
-  usePendingQuestion,
 } from './chat-backend';
 import { storeComposerCatalog } from './composer-catalog-store';
 
@@ -42,11 +43,16 @@ function stubClient(result: unknown): {
 /** Re-renders on demand, passing a FRESH api reference and args each time —
  * exactly what the real callsites do. */
 function Probe() {
-  // The pending-question read still rides the websocket watch (that surface
-  // has not ported — the HTTP lane's stability twin is below).
-  const question = usePendingQuestion('org-1', 'thread-1');
+  // Every chat read has ported to the HTTP lane, so the watch machinery is
+  // pinned through a ref the seam has NOT migrated (any name outside
+  // HTTP_READS takes the websocket watch) — it stays the seam's fallback
+  // for whatever migrates last elsewhere.
+  const read = useChatQuery(api.chat_filter_events.queries.getGuardrailStats, {
+    organizationId: 'org-1',
+    periodDays: 7,
+  });
   const [, force] = useState(0);
-  return <button onClick={() => force((n) => n + 1)}>{question.status}</button>;
+  return <button onClick={() => force((n) => n + 1)}>{read.status}</button>;
 }
 
 describe('useChatQuery subscription stability', () => {
@@ -103,8 +109,14 @@ function ThreadsProbe({ org }: { org: string }) {
   return <output>{useChatThreads(org).status}</output>;
 }
 
-function QuestionProbe({ org, threadId }: { org: string; threadId?: string }) {
-  return <output>{usePendingQuestion(org, threadId).status}</output>;
+function WatchProbe({ org, threadId }: { org: string; threadId?: string }) {
+  // Same seam-unmigrated ref as `Probe` — the session-cache invariants pin
+  // the websocket lane, and the chat feature's own reads are all HTTP now.
+  const read = useChatQuery(
+    api.chat_filter_events.queries.getGuardrailStats,
+    threadId !== undefined ? { organizationId: org, periodDays: 7 } : 'skip',
+  );
+  return <output>{read.status}</output>;
 }
 
 function GenerationProbe({ org, threadId }: { org: string; threadId: string }) {
@@ -143,10 +155,10 @@ describe('useChatQuery HTTP lane (migrated thread family)', () => {
 describe('useChatQuery session cache', () => {
   it('serves the last answer across a remount, with a fresh watch live', () => {
     const { client, watchQuery, setLocalResult } = liveStubClient();
-    setLocalResult({ requestId: 'q-1', set: { questions: [] } });
+    setLocalResult({ byKind: [] });
     const first = render(
       <ConvexProvider client={client}>
-        <QuestionProbe org="org-remount" threadId="thread-1" />
+        <WatchProbe org="org-remount" threadId="thread-1" />
       </ConvexProvider>,
     );
     expect(screen.getByRole('status')).toHaveTextContent('ready');
@@ -157,7 +169,7 @@ describe('useChatQuery session cache', () => {
     setLocalResult(undefined);
     render(
       <ConvexProvider client={client}>
-        <QuestionProbe org="org-remount" threadId="thread-1" />
+        <WatchProbe org="org-remount" threadId="thread-1" />
       </ConvexProvider>,
     );
     expect(screen.getByRole('status')).toHaveTextContent('ready');
@@ -167,10 +179,10 @@ describe('useChatQuery session cache', () => {
 
   it('never serves the cache to a skipped read', () => {
     const { client, setLocalResult } = liveStubClient();
-    setLocalResult({ requestId: 'q-1', set: { questions: [] } });
+    setLocalResult({ byKind: [] });
     const first = render(
       <ConvexProvider client={client}>
-        <QuestionProbe org="org-skip" threadId="thread-1" />
+        <WatchProbe org="org-skip" threadId="thread-1" />
       </ConvexProvider>,
     );
     expect(screen.getByRole('status')).toHaveTextContent('ready');
@@ -179,7 +191,7 @@ describe('useChatQuery session cache', () => {
     // No thread selected: the read holds closed, cached messages or not.
     render(
       <ConvexProvider client={client}>
-        <QuestionProbe org="org-skip" />
+        <WatchProbe org="org-skip" />
       </ConvexProvider>,
     );
     expect(screen.getByRole('status')).toHaveTextContent('loading');

@@ -18407,6 +18407,421 @@ async function checkMetricsSurface(
   );
 }
 
+async function checkArenaAndQuestions(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const get = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, { headers: { cookie, origin: base } });
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const now = Date.now();
+
+  // ---- arena: ensure → pair → idempotent → settle(verdict) --------------
+  const created = z.object({ id: z.string() }).safeParse(
+    await (
+      await post(`/api/app/chat/threads?orgId=${orgId}`, {
+        kind: 'direct',
+        title: 'Arena probe',
+      })
+    ).json(),
+  );
+  const threadA = created.success ? created.data.id : '';
+  await sql`
+    INSERT INTO app.messages (
+      id, thread_id, org_id, "order", step_order, role, parts, text, model,
+      status, created_at_ms
+    ) VALUES
+      ('arena-m0', ${threadA}, ${orgId}, 0, 0, 'user',
+       ${sql.json([{ type: 'text', text: 'compare?' }])}, 'compare?', NULL,
+       'complete', ${now - 5000}),
+      ('arena-m1', ${threadA}, ${orgId}, 1, 0, 'assistant',
+       ${sql.json([{ type: 'text', text: 'sure' }])}, 'sure', 'model-a',
+       'complete', ${now - 4000})
+  `;
+  const ensured = z
+    .object({ threadIdB: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${threadA}/arena/ensure?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  const threadB = ensured.success ? ensured.data.threadIdB : '';
+  const bMeta = await sql<
+    { hidden: boolean | null; branchRootId: string | null; arena: unknown }[]
+  >`
+    SELECT hidden, branch_root_id AS "branchRootId", arena
+    FROM app.thread_metadata WHERE thread_id = ${threadB}
+  `;
+  const bArenaRaw = bMeta[0]?.arena;
+  const bArenaRole =
+    bArenaRaw !== null && typeof bArenaRaw === 'object' && 'role' in bArenaRaw
+      ? bArenaRaw.role
+      : undefined;
+  const bCopied = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.messages
+    WHERE thread_id = ${threadB}
+  `;
+  const pairRead = z
+    .object({
+      pair: z.object({
+        pairId: z.string(),
+        threadIdA: z.string(),
+        threadIdB: z.string(),
+        createdAt: z.number(),
+      }),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/chat/threads/${threadB}/arena?orgId=${orgId}`)
+      ).json(),
+    );
+  const again = z
+    .object({ threadIdB: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${threadA}/arena/ensure?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  record(
+    'arena: pair create + hidden copy + read-from-B + idempotent',
+    ensured.success &&
+      threadB !== '' &&
+      threadB !== threadA &&
+      (bMeta[0]?.hidden ?? false) &&
+      bMeta[0]?.branchRootId === threadA &&
+      bArenaRole === 'b' &&
+      bCopied[0]?.count === '2' &&
+      pairRead.success &&
+      pairRead.data.pair.threadIdA === threadA &&
+      pairRead.data.pair.threadIdB === threadB &&
+      again.success &&
+      again.data.threadIdB === threadB,
+    `ensure=${ensured.success}, hidden=${bMeta[0]?.hidden}, root=${bMeta[0]?.branchRootId === threadA}, copied=${bCopied[0]?.count}, pairFromB=${pairRead.success}, idempotent=${again.success && again.data.threadIdB === threadB}`,
+  );
+
+  // ---- arena turn: busy gate + per-side isolation ------------------------
+  await sql`
+    INSERT INTO app.generations (
+      thread_id, org_id, started_at_ms, heartbeat_at_ms, updated_at_ms
+    ) VALUES (${threadB}, ${orgId}, ${now}, ${now}, ${now})
+  `;
+  const busyBody = z
+    .object({
+      a: z.object({ status: z.string() }).loose(),
+      b: z.object({ status: z.string() }).loose(),
+    })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${threadA}/arena/turn?orgId=${orgId}`,
+          {
+            userText: 'hi',
+            modelIdA: 'model-a',
+            modelIdB: 'model-b',
+          },
+        )
+      ).json(),
+    );
+  await sql`DELETE FROM app.generations WHERE thread_id = ${threadB}`;
+  const fanned = z
+    .object({
+      a: z.object({ status: z.string() }).loose(),
+      b: z.object({ status: z.string() }).loose(),
+    })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${threadA}/arena/turn?orgId=${orgId}`,
+          {
+            userText: 'fan out',
+            modelIdA: 'no-such-model-a',
+            modelIdB: 'no-such-model-b',
+          },
+        )
+      ).json(),
+    );
+  record(
+    'arena: turn busy-gates both columns and isolates side failures',
+    busyBody.success &&
+      busyBody.data.a.status === 'refused' &&
+      busyBody.data.b.status === 'refused' &&
+      fanned.success &&
+      fanned.data.a.status === 'refused' &&
+      fanned.data.b.status === 'refused',
+    `busy=${busyBody.success ? `${busyBody.data.a.status}/${busyBody.data.b.status}` : 'shape-fail'}, fanned=${fanned.success ? `${fanned.data.a.status}/${fanned.data.b.status}` : 'shape-fail'}`,
+  );
+
+  // ---- settle with verdict → feedback row; repeat matchup stacks ---------
+  // Pin the newest assistant models on both sides so the synthetic
+  // message id is deterministic even after the failed-turn error rows.
+  await sql`
+    INSERT INTO app.messages (
+      id, thread_id, org_id, "order", step_order, role, parts, model,
+      status, created_at_ms
+    )
+    SELECT 'arena-pin-' || t.thread_id, t.thread_id, ${orgId},
+           coalesce((SELECT max("order") FROM app.messages m
+                     WHERE m.thread_id = t.thread_id), -1) + 1,
+           0, 'assistant', ${sql.json([{ type: 'text', text: 'pinned' }])},
+           t.model, 'complete', ${now}
+    FROM (VALUES (${threadA}, 'model-a'), (${threadB}, 'model-b'))
+      AS t (thread_id, model)
+  `;
+  const settled1 = z
+    .object({ continueThreadId: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${threadA}/arena/settle?orgId=${orgId}`,
+          { verdict: 'a_better' },
+        )
+      ).json(),
+    );
+  const afterSettle = await sql<
+    {
+      threadId: string;
+      hidden: boolean | null;
+      archived: boolean;
+      arena: unknown;
+    }[]
+  >`
+    SELECT thread_id AS "threadId", hidden, archived, arena
+    FROM app.thread_metadata
+    WHERE thread_id IN (${threadA}, ${threadB})
+  `;
+  const rowA = afterSettle.find((row) => row.threadId === threadA);
+  const rowB = afterSettle.find((row) => row.threadId === threadB);
+  const verdictRows1 = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.message_feedback
+    WHERE org_id = ${orgId} AND message_id = 'arena:model-a:model-b'
+      AND user_id = ${userId}
+  `;
+  // Second run of the SAME matchup — a fresh pair, same models, same user.
+  const ensured2 = z
+    .object({ threadIdB: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${threadA}/arena/ensure?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  const threadB2 = ensured2.success ? ensured2.data.threadIdB : '';
+  await sql`
+    UPDATE app.messages SET model = 'model-b'
+    WHERE thread_id = ${threadB2} AND role = 'assistant' AND model = 'model-a'
+  `;
+  const settled2 = z
+    .object({ continueThreadId: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${threadA}/arena/settle?orgId=${orgId}`,
+          { verdict: 'both_bad' },
+        )
+      ).json(),
+    );
+  const verdictRows2 = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.message_feedback
+    WHERE org_id = ${orgId} AND message_id = 'arena:model-a:model-b'
+      AND user_id = ${userId}
+  `;
+  const settleAgain = z
+    .object({ refused: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/chat/threads/${threadA}/arena/settle?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  record(
+    'arena: settle picks A, verdicts stack per run, resettle refused',
+    settled1.success &&
+      settled1.data.continueThreadId === threadA &&
+      (rowB?.hidden ?? false) &&
+      (rowB?.archived ?? false) &&
+      rowB?.arena === null &&
+      rowA?.arena === null &&
+      verdictRows1[0]?.count === '1' &&
+      settled2.success &&
+      settled2.data.continueThreadId === threadA &&
+      verdictRows2[0]?.count === '2' &&
+      settleAgain.success &&
+      settleAgain.data.refused === 'not_found',
+    `settle=${settled1.success && settled1.data.continueThreadId === threadA}, loser=${rowB?.hidden}/${rowB?.archived}, verdicts=${verdictRows1[0]?.count}→${verdictRows2[0]?.count}, resettle=${settleAgain.success ? settleAgain.data.refused : 'shape-fail'}`,
+  );
+
+  // ---- vote upsert regression (partial-unique keeps the vote lane) -------
+  await post(`/api/app/feedback?orgId=${orgId}`, {
+    threadId: threadA,
+    messageId: 'arena-m1',
+    rating: 'positive',
+  });
+  await post(`/api/app/feedback?orgId=${orgId}`, {
+    threadId: threadA,
+    messageId: 'arena-m1',
+    rating: 'negative',
+  });
+  const voteRows = await sql<{ rating: string }[]>`
+    SELECT rating FROM app.message_feedback
+    WHERE org_id = ${orgId} AND message_id = 'arena-m1' AND user_id = ${userId}
+  `;
+  record(
+    'feedback: the vote lane still upserts after the arena split',
+    voteRows.length === 1 && voteRows[0]?.rating === 'negative',
+    `rows=${voteRows.length} rating=${voteRows[0]?.rating}`,
+  );
+
+  // ---- questions: pending → moved-on → newest wins → resolve stamps ------
+  const questionSet = {
+    intro: 'Before I draft this',
+    questions: [
+      {
+        id: 'tone',
+        question: 'Which tone should the draft take?',
+        options: [{ label: 'Formal', recommended: true }, { label: 'Casual' }],
+      },
+    ],
+  };
+  const insertQuestion = async (
+    id: string,
+    requestedAt: number,
+  ): Promise<void> => {
+    await sql`
+      INSERT INTO app.approvals (
+        id, org_id, status, resource_type, resource_id, thread_id, priority,
+        metadata, created_at_ms
+      ) VALUES (
+        ${id}, ${orgId}, 'pending', 'human_input_request', ${threadA},
+        ${threadA}, 'medium',
+        ${sql.json({ set: questionSet, requestedAt })}, ${requestedAt}
+      )
+    `;
+  };
+  await insertQuestion('probe-q1', now + 1000);
+  const q1 = z
+    .object({
+      question: z.object({ requestId: z.string(), set: z.object({}).loose() }),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/chat/threads/${threadA}/question?orgId=${orgId}`)
+      ).json(),
+    );
+  await sql`
+    INSERT INTO app.messages (
+      id, thread_id, org_id, "order", step_order, role, parts, text, status,
+      created_at_ms
+    ) VALUES (
+      'probe-q-answer', ${threadA}, ${orgId},
+      (SELECT coalesce(max("order"), -1) + 1 FROM app.messages
+       WHERE thread_id = ${threadA}),
+      0, 'user', ${sql.json([{ type: 'text', text: 'formal please' }])},
+      'formal please', 'complete', ${now + 2000}
+    )
+  `;
+  const q1Moved = z
+    .object({ question: z.null() })
+    .safeParse(
+      await (
+        await get(`/api/app/chat/threads/${threadA}/question?orgId=${orgId}`)
+      ).json(),
+    );
+  await insertQuestion('probe-q2', now + 3000);
+  await sql`
+    INSERT INTO app.messages (
+      id, thread_id, org_id, "order", step_order, role, parts, status,
+      created_at_ms
+    ) VALUES (
+      'probe-q2-part', ${threadA}, ${orgId},
+      (SELECT coalesce(max("order"), -1) + 1 FROM app.messages
+       WHERE thread_id = ${threadA}),
+      0, 'assistant',
+      ${sql.json([{ type: 'human-input', requestId: 'probe-q2', set: questionSet }])},
+      'complete', ${now + 3500}
+    )
+  `;
+  const q2 = z
+    .object({ question: z.object({ requestId: z.string() }).loose() })
+    .safeParse(
+      await (
+        await get(`/api/app/chat/threads/${threadA}/question?orgId=${orgId}`)
+      ).json(),
+    );
+  const resolved = z
+    .object({ ok: z.boolean() })
+    .safeParse(
+      await (
+        await post(`/api/app/chat/questions/probe-q2/resolve?orgId=${orgId}`, {
+          outcome: 'answered',
+        })
+      ).json(),
+    );
+  const q2Row = await sql<{ status: string; approvedBy: string | null }[]>`
+    SELECT status, approved_by AS "approvedBy" FROM app.approvals
+    WHERE id = 'probe-q2'
+  `;
+  const stamped = await sql<{ parts: unknown }[]>`
+    SELECT parts FROM app.messages WHERE id = 'probe-q2-part'
+  `;
+  const stampedFirst: unknown = Array.isArray(stamped[0]?.parts)
+    ? stamped[0].parts[0]
+    : undefined;
+  const stampedOutcome =
+    stampedFirst !== null &&
+    typeof stampedFirst === 'object' &&
+    'outcome' in stampedFirst
+      ? stampedFirst.outcome
+      : undefined;
+  const afterResolve = z
+    .object({ question: z.null() })
+    .safeParse(
+      await (
+        await get(`/api/app/chat/threads/${threadA}/question?orgId=${orgId}`)
+      ).json(),
+    );
+  const doubleResolve = z
+    .object({ ok: z.boolean() })
+    .safeParse(
+      await (
+        await post(`/api/app/chat/questions/probe-q2/resolve?orgId=${orgId}`, {
+          outcome: 'superseded',
+        })
+      ).json(),
+    );
+  record(
+    'questions: pending set, moved-on derivation, resolve stamps the part',
+    q1.success &&
+      q1.data.question.requestId === 'probe-q1' &&
+      q1Moved.success &&
+      q2.success &&
+      q2.data.question.requestId === 'probe-q2' &&
+      resolved.success &&
+      q2Row[0]?.status === 'completed' &&
+      q2Row[0]?.approvedBy === userId &&
+      stampedOutcome === 'answered' &&
+      afterResolve.success &&
+      doubleResolve.success,
+    `q1=${q1.success}, movedOn=${q1Moved.success}, q2=${q2.success}, resolved=${q2Row[0]?.status}/${q2Row[0]?.approvedBy === userId}, stamp=${String(stampedOutcome)}, cleared=${afterResolve.success}, doubleOk=${doubleResolve.success}`,
+  );
+}
+
 async function checkTwoFactor(
   sql: Sql,
   base: string,
@@ -19551,6 +19966,7 @@ async function main(): Promise<void> {
     await checkLibrarySurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkEngagementSurface(sql, baseUrl, authCtx);
     await checkMetricsSurface(sql, baseUrl, authCtx);
+    await checkArenaAndQuestions(sql, baseUrl, authCtx);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

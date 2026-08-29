@@ -3,6 +3,11 @@ import { streamSSE } from 'hono/streaming';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { sanitizeError } from '../../../convex/lib/utils/sanitize_secrets.ts';
+import {
+  classifyChatErrorCode,
+  encodeChatError,
+} from '../../../lib/shared/chat-errors.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -10,6 +15,12 @@ import { requireSession } from '../../auth/session.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { isBackendDraining } from '../control/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
+import {
+  ensureArenaPair,
+  getArenaPair,
+  hasLiveGeneration,
+  settleArenaPair,
+} from './arena.ts';
 import {
   listAutomationCapabilities,
   listComposerModels,
@@ -28,7 +39,9 @@ import {
   saveMemory,
   searchApprovedMemories,
 } from './memories.ts';
+import { getPendingQuestion, resolveQuestion } from './questions.ts';
 import { runChatTurn } from './service.ts';
+import { appendMessageRow } from './store.ts';
 import {
   loadProjectSharedThread,
   branchForEdit,
@@ -83,6 +96,18 @@ const createThreadSchema = z.object({
   harness: z.string().max(100).optional(),
   capabilities: capabilitiesSchema.optional(),
   reasoningEffort: z.enum(['low', 'medium', 'high', 'extra', 'max']).optional(),
+});
+
+const arenaTurnSchema = z.object({
+  userText: z.string().max(200_000),
+  modelIdA: z.string().min(1).max(200),
+  modelIdB: z.string().min(1).max(200),
+  providerSlugA: z.string().min(1).max(200).optional(),
+  providerSlugB: z.string().min(1).max(200).optional(),
+  /** One pick for the whole comparison — BOTH columns run with it, so the
+   * two replies differ by model alone. */
+  reasoningEffort: z.enum(['low', 'medium', 'high', 'extra', 'max']).optional(),
+  locale: z.string().max(35).optional(),
 });
 
 const sendSchema = z.object({
@@ -949,6 +974,214 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       thread.id,
     );
     return c.json({ thread, messages });
+  });
+
+  /** The pending clarifying question for a thread (the 0.4
+   * `getPendingQuestion` — owner-only; null clears the panel). */
+  app.get('/threads/:threadId/question', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const question = await getPendingQuestion(deps.sql, {
+      organizationId,
+      userId,
+      threadId: c.req.param('threadId'),
+    });
+    return c.json({ question });
+  });
+
+  /** Close a pending question — answered or superseded; double-submits are
+   * no-ops. */
+  app.post('/questions/:requestId/resolve', async (c) => {
+    const body = z
+      .object({ outcome: z.enum(['answered', 'superseded']) })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    await resolveQuestion(deps.sql, {
+      organizationId,
+      userId,
+      requestId: c.req.param('requestId'),
+      outcome: body.data.outcome,
+    });
+    return c.json({ ok: true });
+  });
+
+  /** Create (or return) the arena pair for a conversation. */
+  app.post('/threads/:threadId/arena/ensure', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const result = await ensureArenaPair(deps.sql, {
+      organizationId,
+      userId,
+      threadId: c.req.param('threadId'),
+    });
+    if (!('refused' in result)) {
+      await hintThread(c, c.req.param('threadId'));
+    }
+    return c.json(result);
+  });
+
+  /** The live pair as seen from either column (null = not in a pair). */
+  app.get('/threads/:threadId/arena', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const pair = await getArenaPair(deps.sql, {
+      organizationId,
+      userId,
+      threadId: c.req.param('threadId'),
+    });
+    return c.json({ pair });
+  });
+
+  /** Settle the pair — the verdict picks the surviving thread. */
+  app.post('/threads/:threadId/arena/settle', async (c) => {
+    const body = z
+      .object({
+        verdict: z.enum(['a_better', 'b_better', 'tie', 'both_bad']).optional(),
+      })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    const result = await settleArenaPair(deps.sql, {
+      organizationId,
+      userId,
+      threadId: c.req.param('threadId'),
+      ...(body.data.verdict !== undefined
+        ? { verdict: body.data.verdict }
+        : {}),
+    });
+    if (!('refused' in result)) {
+      await hintThread(c, c.req.param('threadId'));
+    }
+    return c.json(result);
+  });
+
+  /** One prompt fanned into BOTH columns, each running the ordinary direct
+   * turn with its own model (the 0.4 `startArenaTurn`). The two turns run
+   * concurrently and are deliberately isolated: a failure on one side —
+   * even before its pipeline starts — records an assistant error row on ITS
+   * thread and leaves the other column streaming. */
+  app.post('/threads/:threadId/arena/turn', async (c) => {
+    const body = arenaTurnSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const { organizationId, userId } = caller(c);
+    const thread = await ownedThread(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+    );
+    if (thread === null) {
+      return c.json({ error: 'thread not found' }, 404);
+    }
+    const pair = await getArenaPair(deps.sql, {
+      organizationId,
+      userId,
+      threadId: thread.id,
+    });
+    if (pair === null) {
+      return c.json(
+        {
+          code: 'not_found',
+          error: 'This conversation is not in an arena pair.',
+        },
+        404,
+      );
+    }
+    if (await isBackendDraining(deps.sql)) {
+      return c.json(
+        {
+          status: 'refused',
+          reason:
+            'The backend is restarting for an upgrade — send again in a moment.',
+        },
+        503,
+      );
+    }
+    // Busy-gates BOTH sides up front — a half-sent prompt would
+    // desynchronize the comparison.
+    if (
+      (await hasLiveGeneration(deps.sql, organizationId, pair.threadIdA)) ||
+      (await hasLiveGeneration(deps.sql, organizationId, pair.threadIdB))
+    ) {
+      const busy = {
+        status: 'refused' as const,
+        reason: 'This conversation is already generating a response.',
+      };
+      return c.json({ a: busy, b: busy });
+    }
+
+    const shared = {
+      organizationId,
+      userId,
+      userText: body.data.userText,
+      ...(body.data.reasoningEffort !== undefined
+        ? { reasoningEffort: body.data.reasoningEffort }
+        : {}),
+      locale: body.data.locale ?? 'en',
+    };
+    const runSide = async (side: {
+      threadId: string;
+      modelId: string;
+      providerSlug?: string;
+    }): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
+      try {
+        const outcome = await runChatTurn(deps.sql, {
+          ...shared,
+          threadId: side.threadId,
+          modelId: side.modelId,
+          ...(side.providerSlug !== undefined
+            ? { providerSlug: side.providerSlug }
+            : {}),
+        });
+        return outcome.status === 'completed'
+          ? { status: 'completed' }
+          : {
+              status: 'refused',
+              ...(outcome.reason !== undefined
+                ? { reason: outcome.reason }
+                : {}),
+            };
+      } catch (err) {
+        // A pre-pipeline throw (model resolution, credential) left nothing
+        // in the transcript — write the error row here so the column
+        // explains itself instead of sitting silently half-empty.
+        const reason = sanitizeError(err);
+        try {
+          await appendMessageRow(deps.sql, {
+            organizationId,
+            threadId: side.threadId,
+            role: 'assistant',
+            parts: [],
+            model: side.modelId,
+            error: encodeChatError({
+              code: classifyChatErrorCode(err),
+              model: side.modelId,
+              raw: reason,
+            }),
+          });
+        } catch (writeErr) {
+          console.error('[arena] could not record side failure', writeErr);
+        }
+        return { status: 'refused', reason };
+      }
+    };
+    const [a, b] = await Promise.all([
+      runSide({
+        threadId: pair.threadIdA,
+        modelId: body.data.modelIdA,
+        ...(body.data.providerSlugA !== undefined
+          ? { providerSlug: body.data.providerSlugA }
+          : {}),
+      }),
+      runSide({
+        threadId: pair.threadIdB,
+        modelId: body.data.modelIdB,
+        ...(body.data.providerSlugB !== undefined
+          ? { providerSlug: body.data.providerSlugB }
+          : {}),
+      }),
+    ]);
+    return c.json({ a, b });
   });
 
   app.post('/threads/:threadId/messages', async (c) => {

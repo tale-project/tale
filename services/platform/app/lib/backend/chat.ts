@@ -1022,3 +1022,133 @@ export async function reportPerceivedWaitRequest(
     { method: 'POST', body: { perceivedWaitMs }, orgId: organizationId },
   );
 }
+
+// ---------------------------------------------------------------- questions + arena
+
+/** The pending clarifying question a thread is waiting on (null clears the
+ * panel). Keyed under `chat_thread` so thread hints refresh it. */
+export function pendingQuestionQuery(organizationId: string, threadId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'chat_thread', 'question', threadId),
+    queryFn: ({ signal }) =>
+      backendFetch<{
+        question: { requestId: string; set: unknown } | null;
+      }>(`/chat/threads/${encodeURIComponent(threadId)}/question`, {
+        signal,
+        orgId: organizationId,
+      }).then((body) => body.question),
+  });
+}
+
+/** Close a pending question — answered or superseded. Double-submits are
+ * server-side no-ops. */
+export async function resolveQuestionRequest(
+  organizationId: string,
+  requestId: string,
+  outcome: 'answered' | 'superseded',
+): Promise<void> {
+  await backendFetch(
+    `/chat/questions/${encodeURIComponent(requestId)}/resolve`,
+    { method: 'POST', body: { outcome }, orgId: organizationId },
+  );
+}
+
+/** The live arena pair as seen from either column (null = not in a pair —
+ * ABSENCE IS THE SIGNAL, so the read is never session-cached). */
+export function arenaPairQuery(organizationId: string, threadId: string) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'chat_thread', 'arena', threadId),
+    queryFn: ({ signal }) =>
+      backendFetch<{
+        pair: {
+          pairId: string;
+          threadIdA: string;
+          threadIdB: string;
+          createdAt: number;
+        } | null;
+      }>(`/chat/threads/${encodeURIComponent(threadId)}/arena`, {
+        signal,
+        orgId: organizationId,
+      }).then((body) => body.pair),
+  });
+}
+
+export async function ensureArenaPairRequest(
+  organizationId: string,
+  threadId: string,
+): Promise<{ threadIdB: string } | { refused: string }> {
+  return backendFetch<{ threadIdB: string } | { refused: string }>(
+    `/chat/threads/${encodeURIComponent(threadId)}/arena/ensure`,
+    { method: 'POST', body: {}, orgId: organizationId },
+  );
+}
+
+export async function settleArenaPairRequest(
+  organizationId: string,
+  threadId: string,
+  verdict?: string,
+): Promise<{ continueThreadId: string } | { refused: string }> {
+  return backendFetch<{ continueThreadId: string } | { refused: string }>(
+    `/chat/threads/${encodeURIComponent(threadId)}/arena/settle`,
+    {
+      method: 'POST',
+      body: verdict !== undefined ? { verdict } : {},
+      orgId: organizationId,
+    },
+  );
+}
+
+export async function startArenaTurnRequest(
+  organizationId: string,
+  threadId: string,
+  body: {
+    userText: string;
+    modelIdA: string;
+    modelIdB: string;
+    providerSlugA?: string;
+    providerSlugB?: string;
+    reasoningEffort?: string;
+    locale?: string;
+  },
+): Promise<{
+  a: { status: 'completed' | 'refused'; reason?: string };
+  b: { status: 'completed' | 'refused'; reason?: string };
+}> {
+  return backendFetch(
+    `/chat/threads/${encodeURIComponent(threadId)}/arena/turn`,
+    { method: 'POST', body, orgId: organizationId },
+  );
+}
+
+/** A thread's share-link status (owner-only; null when unreadable). */
+export function threadShareStatusQuery(
+  organizationId: string,
+  threadId: string,
+) {
+  return queryOptions({
+    queryKey: backendKey(
+      organizationId,
+      'chat_thread',
+      'share-status',
+      threadId,
+    ),
+    queryFn: ({ signal }) =>
+      backendFetch<{
+        isShared: boolean;
+        shareToken: string | null;
+        sharedAt: number | null;
+        isShareable: boolean;
+      }>(`/chat/threads/${encodeURIComponent(threadId)}/share-status`, {
+        signal,
+        orgId: organizationId,
+      }).then(
+        (body) => body,
+        (error: unknown) => {
+          if (error instanceof BackendApiError && error.status === 404) {
+            return null;
+          }
+          throw error;
+        },
+      ),
+  });
+}

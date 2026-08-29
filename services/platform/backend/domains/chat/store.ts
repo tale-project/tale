@@ -25,7 +25,7 @@ async function notifyThread(sql: Sql, threadId: string): Promise<void> {
   await sql.notify(CHAT_STREAM_CHANNEL, threadId);
 }
 
-async function appendMessageRow(
+export async function appendMessageRow(
   sql: Sql,
   message: {
     organizationId: string;
