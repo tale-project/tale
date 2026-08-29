@@ -22,6 +22,7 @@ import {
   getPendingAskForRun,
   getRun,
   listAutomations,
+  listAutomationsForApp,
   listRuns,
   listTriggers,
   listVersions,
@@ -111,6 +112,17 @@ export function createAutomationRoutes(deps: {
   app.get('/', async (c) => {
     return c.json({
       automations: await listAutomations(deps.sql, c.get('orgId')),
+    });
+  });
+
+  // The APP listing (0.4 wire): deployed-version behaviour fields + scope.
+  app.get('/listing', async (c) => {
+    const projectId = c.req.query('projectId');
+    return c.json({
+      automations: await listAutomationsForApp(deps.sql, c.get('orgId'), {
+        ...(projectId !== undefined ? { projectId } : {}),
+        includeProjectBound: c.req.query('includeProjectBound') === 'true',
+      }),
     });
   });
 

@@ -481,3 +481,45 @@ export async function startWorkflowForTask(
     return null;
   }
 }
+
+/** The 0.4 live-run wire for the task modal's inline automation banner. */
+export interface LiveAutomationRunForTask {
+  runId: string;
+  name: string;
+  status: string;
+  version: number;
+  detail?: string;
+}
+
+/** The subject-linked live automation run operating this task, if any. */
+export async function findLiveAutomationRunForTask(
+  sql: Sql,
+  args: { organizationId: string; projectId: string; taskId: string },
+): Promise<LiveAutomationRunForTask | null> {
+  const rows = await sql<
+    {
+      id: string;
+      name: string;
+      status: string;
+      version: number;
+      detail: string | null;
+    }[]
+  >`
+    SELECT id, name, status, version, detail
+    FROM app.automation_runs
+    WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+      AND status IN ('queued', 'running', 'waiting')
+      AND input -> 'task' ->> 'id' = ${args.taskId}
+    ORDER BY started_at_ms DESC
+    LIMIT 1
+  `;
+  const run = rows[0];
+  if (!run) return null;
+  return {
+    runId: run.id,
+    name: run.name,
+    status: run.status,
+    version: run.version,
+    ...(run.detail !== null ? { detail: run.detail } : {}),
+  };
+}

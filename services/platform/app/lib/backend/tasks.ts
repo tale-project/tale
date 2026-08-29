@@ -484,6 +484,119 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
         ),
     };
   },
+  'tasks/search:searchTasks': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const query = typeof args.query === 'string' ? args.query : '';
+    if (orgId === undefined) return null;
+    const projectId =
+      typeof args.projectId === 'string' ? args.projectId : undefined;
+    const params = new URLSearchParams({
+      q: query,
+      ...(projectId !== undefined ? { projectId } : {}),
+    });
+    return {
+      queryKey: backendKey(orgId, 'task', 'search', projectId ?? '', query),
+      queryFn: () =>
+        backendFetch<{ results: unknown[] }>(
+          `/tasks/search?${params.toString()}`,
+          { orgId },
+        ).then((body) => body.results),
+    };
+  },
+  'tasks/queries:mentionTriggerPreview': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const slugs = Array.isArray(args.slugs)
+      ? args.slugs.filter((slug): slug is string => typeof slug === 'string')
+      : [];
+    const taskId = typeof args.taskId === 'string' ? args.taskId : undefined;
+    const projectId =
+      typeof args.projectId === 'string' ? args.projectId : undefined;
+    if (taskId === undefined && projectId === undefined) return null;
+    const params = new URLSearchParams({
+      slugs: slugs.join(','),
+      ...(taskId !== undefined ? { taskId } : {}),
+      ...(projectId !== undefined ? { projectId } : {}),
+    });
+    return {
+      queryKey: backendKey(
+        orgId,
+        'task',
+        'mention-preview',
+        taskId ?? projectId ?? '',
+        slugs.join(','),
+      ),
+      queryFn: () =>
+        backendFetch<{ previews: unknown[] }>(
+          `/tasks/mention-preview?${params.toString()}`,
+          { orgId },
+        ).then((body) => body.previews),
+    };
+  },
+  'tasks/queries:getLatestTaskAgentRunForTask': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const taskId = args.taskId;
+    if (orgId === undefined || typeof taskId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'latest-run', taskId),
+      queryFn: () =>
+        backendFetch<{ run: unknown }>(
+          `/tasks/${encodeURIComponent(taskId)}/agent-runs/latest`,
+          { orgId },
+        ).then((body) => body.run),
+    };
+  },
+  'tasks/queries:getTaskAgentRunSandboxOp': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    if (orgId === undefined || typeof runId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'run-sandbox-op', runId),
+      queryFn: () =>
+        backendFetch<{ op: unknown }>(
+          `/tasks/agent-runs/${encodeURIComponent(runId)}/sandbox-op`,
+          { orgId },
+        ).then((body) => body.op),
+    };
+  },
+  'automations/queries:getLiveRunForTask': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const taskId = args.taskId;
+    if (orgId === undefined || typeof taskId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'live-automation-run', taskId),
+      queryFn: () =>
+        backendFetch<{ run: unknown }>(
+          `/tasks/${encodeURIComponent(taskId)}/live-automation-run`,
+          { orgId },
+        ).then((body) => body.run),
+    };
+  },
+  'automations/queries:listAutomations': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const projectId =
+      typeof args.projectId === 'string' ? args.projectId : undefined;
+    const includeProjectBound = args.includeProjectBound === true;
+    const params = new URLSearchParams({
+      ...(projectId !== undefined ? { projectId } : {}),
+      ...(includeProjectBound ? { includeProjectBound: 'true' } : {}),
+    });
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation',
+        'listing',
+        projectId ?? '',
+        includeProjectBound,
+      ),
+      queryFn: () =>
+        backendFetch<{ automations: unknown[] }>(
+          `/automations/listing?${params.toString()}`,
+          { orgId },
+        ).then((body) => body.automations),
+    };
+  },
   'collab/subscriptions:isSubscribedToTask': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const taskId = args.taskId;
@@ -783,6 +896,67 @@ export const taskWriteAdapters: Record<string, WriteAdapter> = {
         orgId,
       });
       return null;
+    },
+    invalidate: taskWriteInvalidate,
+  },
+  'tasks/mutations:bulkUpdateTasks': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const { organizationId: _org, ...body } = args;
+      return backendFetch<{ updated: number; skipped: number }>('/tasks/bulk', {
+        method: 'POST',
+        body,
+        orgId,
+      });
+    },
+    invalidate: taskWriteInvalidate,
+  },
+  'tasks/mutations:startTaskAgentRun': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const taskId = requireString(args, 'taskId');
+      return backendFetch<{ started: boolean; reason?: string }>(
+        `/tasks/${encodeURIComponent(taskId)}/agent-runs/start`,
+        { method: 'POST', body: {}, orgId },
+      );
+    },
+    invalidate: taskWriteInvalidate,
+  },
+  'tasks/public_actions:startTaskWorkflow': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const taskId = requireString(args, 'taskId');
+      return backendFetch(
+        `/tasks/${encodeURIComponent(taskId)}/workflow/start`,
+        {
+          method: 'POST',
+          body: { workflowSlug: args.workflowSlug },
+          orgId,
+        },
+      );
+    },
+    invalidate: taskWriteInvalidate,
+  },
+  'tasks/public_actions:cancelTaskWorkflow': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const taskId = requireString(args, 'taskId');
+      return backendFetch(
+        `/tasks/${encodeURIComponent(taskId)}/workflow/cancel`,
+        { method: 'POST', body: {}, orgId },
+      );
+    },
+    invalidate: taskWriteInvalidate,
+  },
+  'tasks/public_actions:createTaskFromExternalIssue': {
+    run: async (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const { organizationId: _org, ...body } = args;
+      return backendFetch('/tasks/from-external-issue', {
+        method: 'POST',
+        body,
+        orgId,
+      });
     },
     invalidate: taskWriteInvalidate,
   },

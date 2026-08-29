@@ -270,6 +270,92 @@ export async function listAutomations(
   );
 }
 
+/** The 0.4 APP listing row: behaviour fields answer for the DEPLOYED
+ * version (the board must never choreograph against a draft); the display
+ * half comes from the newest version when nothing is deployed. */
+export interface AutomationAppListing {
+  name: string;
+  latest: number;
+  projectIds: string[];
+  deployedVersion?: number;
+  taskContract?: unknown;
+  settings?: unknown;
+  presentation?: unknown;
+}
+
+export async function listAutomationsForApp(
+  sql: Sql,
+  organizationId: string,
+  options: { projectId?: string; includeProjectBound?: boolean } = {},
+): Promise<AutomationAppListing[]> {
+  const rows = await sql<
+    {
+      name: string;
+      latest: number;
+      deployedVersion: number | null;
+      taskContract: unknown;
+      settings: unknown;
+      presentation: unknown;
+    }[]
+  >`
+    SELECT a.name, max(a.version) AS latest, d.version AS "deployedVersion",
+           (array_agg(a.task_contract ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
+             AS "taskContract",
+           (array_agg(a.settings ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
+             AS settings,
+           (array_agg(a.presentation ORDER BY a.version = d.version DESC NULLS LAST, a.version DESC))[1]
+             AS presentation
+    FROM app.automations a
+    LEFT JOIN app.automation_deployments d
+      ON d.org_id = a.org_id AND d.name = a.name
+    WHERE a.org_id = ${organizationId}
+    GROUP BY a.name, d.version
+    ORDER BY a.name
+  `;
+  const bindings = await sql<{ automationName: string; projectId: string }[]>`
+    SELECT automation_name AS "automationName", project_id AS "projectId"
+    FROM app.automation_project_bindings
+    WHERE org_id = ${organizationId}
+  `;
+  const byName = new Map<string, string[]>();
+  for (const binding of bindings) {
+    const list = byName.get(binding.automationName) ?? [];
+    list.push(binding.projectId);
+    byName.set(binding.automationName, list);
+  }
+  return rows.flatMap((row) => {
+    const projectIds = byName.get(row.name) ?? [];
+    // Scope: a project's automations / org-level only / everything.
+    if (options.projectId !== undefined) {
+      if (!projectIds.includes(options.projectId)) return [];
+    } else if (options.includeProjectBound !== true && projectIds.length > 0) {
+      return [];
+    }
+    const deployed = row.deployedVersion !== null;
+    return [
+      {
+        name: row.name,
+        latest: row.latest,
+        projectIds,
+        ...(deployed && row.deployedVersion !== null
+          ? { deployedVersion: row.deployedVersion }
+          : {}),
+        // Behaviour fields only answer once DEPLOYED (the 0.4 rule); the
+        // aggregate already prefers the deployed version's row.
+        ...(deployed && row.taskContract !== null
+          ? { taskContract: row.taskContract }
+          : {}),
+        ...(deployed && row.settings !== null
+          ? { settings: row.settings }
+          : {}),
+        ...(row.presentation !== null
+          ? { presentation: row.presentation }
+          : {}),
+      },
+    ];
+  });
+}
+
 export async function listVersions(
   sql: Sql,
   organizationId: string,

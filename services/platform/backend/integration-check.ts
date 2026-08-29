@@ -1361,6 +1361,155 @@ async function checkTasks(
       taskAfter.data.task.commentCount === 1,
     `threadId=${listed.success ? String(listed.data.threadId !== null) : 'ERR'}, list=${listed.success ? listed.data.messages.length : 'ERR'}, first=${listed.success ? JSON.stringify(listed.data.messages[0]?.body) : 'ERR'}, afterDelete=${afterDelete.success ? afterDelete.data.messages.length : 'ERR'}, count=${taskAfter.success ? taskAfter.data.task.commentCount : 'ERR'}`,
   );
+
+  // Search (fields + comment fallback), mention preview, the run-card /
+  // sandbox-op / live-automation-run null answers, the automations app
+  // listing, bulk, workflow start/cancel, and the folder-bound create.
+  const searchFields = z
+    .object({
+      results: z.array(
+        z
+          .object({
+            taskId: z.string(),
+            title: z.string(),
+            snippet: z.string(),
+          })
+          .loose(),
+      ),
+    })
+    .safeParse(await get(`/api/app/tasks/search?q=dep&orgId=${orgId}`));
+  const searchComment = z
+    .object({ results: z.array(z.object({ snippet: z.string() }).loose()) })
+    .safeParse(
+      await get(`/api/app/tasks/search?q=second+comment&orgId=${orgId}`),
+    );
+  const mentionPreview = z
+    .object({
+      previews: z.array(
+        z.object({
+          slug: z.string(),
+          willTrigger: z.boolean(),
+          reason: z.string(),
+        }),
+      ),
+    })
+    .safeParse(
+      await get(
+        `/api/app/tasks/mention-preview?slugs=helper&projectId=${projectId}&orgId=${orgId}`,
+      ),
+    );
+  const latestRun = z
+    .object({ run: z.null() })
+    .safeParse(
+      await get(`/api/app/tasks/${aId}/agent-runs/latest?orgId=${orgId}`),
+    );
+  const liveAutomation = z
+    .object({ run: z.null() })
+    .safeParse(
+      await get(`/api/app/tasks/${aId}/live-automation-run?orgId=${orgId}`),
+    );
+  const appListing = z
+    .object({ automations: z.array(z.unknown()) })
+    .safeParse(await get(`/api/app/automations/listing?orgId=${orgId}`));
+  const bulk = z.object({ updated: z.number(), skipped: z.number() }).safeParse(
+    await (
+      await send('POST', `/api/app/tasks/bulk?orgId=${orgId}`, {
+        taskIds: [aId, bId, '00000000-0000-0000-0000-000000000000'],
+        priority: 'p1',
+      })
+    ).json(),
+  );
+  const wfStart = z
+    .object({
+      started: z.literal(false),
+      reason: z.literal('not_started'),
+      executionId: z.null(),
+    })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/tasks/${bId}/workflow/start?orgId=${orgId}`,
+          {
+            workflowSlug: 'no-such-automation',
+          },
+        )
+      ).json(),
+    );
+  const wfCancel = z
+    .object({
+      taskCancelled: z.literal(true),
+      executionCancelled: z.literal(false),
+      executionId: z.null(),
+    })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/tasks/${bId}/workflow/cancel?orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  const bCancelled = z
+    .object({ task: z.object({ status: z.literal('cancelled') }).loose() })
+    .safeParse(await get(`/api/app/tasks/${bId}?orgId=${orgId}`));
+  const fromIssue = z
+    .object({
+      taskId: z.string(),
+      created: z.literal(true),
+      folderId: z.string(),
+    })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/tasks/from-external-issue?orgId=${orgId}`,
+          {
+            projectId,
+            externalSystem: 'folder-desk',
+            ensureFolder: { name: 'Q3 Delivery' },
+            title: 'Process Q3 delivery',
+          },
+        )
+      ).json(),
+    );
+  const folderBound = fromIssue.success
+    ? z
+        .object({
+          task: z
+            .object({
+              folderExists: z.literal(true),
+              hasFiles: z.literal(false),
+            })
+            .loose(),
+        })
+        .safeParse(
+          await get(`/api/app/tasks/${fromIssue.data.taskId}?orgId=${orgId}`),
+        )
+    : { success: false as const };
+  record(
+    'task search + mention preview + run reads + bulk + workflow + folder create',
+    searchFields.success &&
+      searchFields.data.results.some((hit) => hit.title.startsWith('Dep')) &&
+      searchComment.success &&
+      searchComment.data.results.some((hit) =>
+        hit.snippet.includes('Second comment'),
+      ) &&
+      mentionPreview.success &&
+      mentionPreview.data.previews[0]?.willTrigger &&
+      latestRun.success &&
+      liveAutomation.success &&
+      appListing.success &&
+      bulk.success &&
+      bulk.data.updated === 2 &&
+      bulk.data.skipped === 1 &&
+      wfStart.success &&
+      wfCancel.success &&
+      bCancelled.success &&
+      fromIssue.success &&
+      folderBound.success,
+    `search=${searchFields.success ? searchFields.data.results.length : 'ERR'}, comment-hit=${searchComment.success ? searchComment.data.results.length : 'ERR'}, mention=${mentionPreview.success ? JSON.stringify(mentionPreview.data.previews[0]) : 'ERR'}, latest=${latestRun.success}, live=${liveAutomation.success}, listing=${appListing.success}, bulk=${bulk.success ? `${bulk.data.updated}/${bulk.data.skipped}` : 'ERR'} (want 2/1), wf=${wfStart.success}/${wfCancel.success}/${bCancelled.success}, fromIssue=${fromIssue.success ? 'ok' : 'ERR'}, folderBound=${folderBound.success}`,
+  );
 }
 
 /**

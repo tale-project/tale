@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
+import { AUTO_RETRY_MAX_ATTEMPTS } from '../../../convex/tasks/task_auto_retry.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 
 /**
@@ -316,4 +317,164 @@ export async function listOverdueAgentRuns(
     ORDER BY deadline_at_ms
     LIMIT ${limit}
   `;
+}
+
+// ---------------------------------------------------------------------------
+// Detail-sheet reads (the run card + the live sandbox transcript)
+// ---------------------------------------------------------------------------
+
+/** The 0.4 run-card wire: the task's NEWEST run with its agent's name. */
+export interface TaskAgentRunCard {
+  _id: string;
+  status: string;
+  agentId: string;
+  agentName?: string;
+  harness: string;
+  model: string;
+  error?: string;
+  resultText?: string;
+  waitingForCapacity?: boolean;
+  trigger?: string;
+  autoRetryAttempt?: number;
+  autoRetryMax: number;
+  startedAt: number;
+  settledAt?: number;
+}
+
+export async function getLatestAgentRunCardForTask(
+  sql: Sql,
+  organizationId: string,
+  taskId: string,
+): Promise<TaskAgentRunCard | null> {
+  const rows = await sql<
+    {
+      id: string;
+      status: string;
+      agentId: string;
+      agentName: string | null;
+      harness: string;
+      model: string;
+      error: string | null;
+      resultText: string | null;
+      waitingForCapacityAt: number | null;
+      trigger: string | null;
+      autoRetryAttempt: number | null;
+      startedAt: number;
+      settledAt: number | null;
+    }[]
+  >`
+    SELECT r.id, r.status, r.agent_id AS "agentId", a.name AS "agentName",
+           r.harness, r.model, r.error, r.result_text AS "resultText",
+           r.waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
+           r.trigger, r.auto_retry_attempt AS "autoRetryAttempt",
+           r.started_at_ms::float8 AS "startedAt",
+           r.settled_at_ms::float8 AS "settledAt"
+    FROM app.project_agent_runs r
+    LEFT JOIN app.project_agents a ON a.id = r.agent_id
+    WHERE r.org_id = ${organizationId} AND r.task_id = ${taskId}
+    ORDER BY r.started_at_ms DESC
+    LIMIT 1
+  `;
+  const run = rows[0];
+  if (!run) return null;
+  return {
+    _id: run.id,
+    status: run.status,
+    agentId: run.agentId,
+    ...(run.agentName !== null ? { agentName: run.agentName } : {}),
+    harness: run.harness,
+    model: run.model,
+    ...(run.error !== null ? { error: run.error } : {}),
+    ...(run.resultText !== null ? { resultText: run.resultText } : {}),
+    ...(run.waitingForCapacityAt !== null ? { waitingForCapacity: true } : {}),
+    ...(run.trigger !== null ? { trigger: run.trigger } : {}),
+    ...(run.autoRetryAttempt !== null
+      ? { autoRetryAttempt: run.autoRetryAttempt }
+      : {}),
+    autoRetryMax: AUTO_RETRY_MAX_ATTEMPTS,
+    startedAt: run.startedAt,
+    ...(run.settledAt !== null ? { settledAt: run.settledAt } : {}),
+  };
+}
+
+/** The 0.4 sandbox-op wire for one run's live transcript. */
+export interface TaskAgentRunSandboxOp {
+  execId: string;
+  status: string;
+  progressText?: string;
+  liveTimeline?: unknown;
+  modelRef?: string;
+  visionModelRef?: string;
+  startedAt: number;
+  finishedAt?: number;
+  lastEventAt?: number;
+}
+
+/**
+ * What a task's agent run is DOING inside the sandbox: the run's own op row
+ * (its exec, plus `-`-suffixed derived incarnations) on the agent's STANDING
+ * session — never a sibling run's op. Fail-closed null.
+ */
+export async function getAgentRunSandboxOp(
+  sql: Sql,
+  organizationId: string,
+  runId: string,
+): Promise<{ projectId: string; op: TaskAgentRunSandboxOp | null } | null> {
+  const runs = await sql<
+    { projectId: string; sessionId: string; execId: string }[]
+  >`
+    SELECT project_id AS "projectId", session_id AS "sessionId",
+           exec_id AS "execId"
+    FROM app.project_agent_runs
+    WHERE id = ${runId} AND org_id = ${organizationId}
+    LIMIT 1
+  `;
+  const run = runs[0];
+  if (!run) return null;
+  const ops = await sql<
+    {
+      execId: string;
+      status: string;
+      progressText: string | null;
+      liveTimeline: unknown;
+      modelRef: string | null;
+      visionModelRef: string | null;
+      startedAt: number;
+      finishedAt: number | null;
+      lastEventAt: number | null;
+    }[]
+  >`
+    SELECT exec_id AS "execId", status, progress_text AS "progressText",
+           live_timeline AS "liveTimeline", model_ref AS "modelRef",
+           vision_model_ref AS "visionModelRef",
+           started_at_ms::float8 AS "startedAt",
+           finished_at_ms::float8 AS "finishedAt",
+           last_event_at_ms::float8 AS "lastEventAt"
+    FROM app.sandbox_session_ops
+    WHERE org_id = ${organizationId} AND session_id = ${run.sessionId}
+      AND kind = 'task-agent'
+      AND (exec_id = ${run.execId} OR exec_id LIKE ${`${run.execId}-%`})
+    ORDER BY started_at_ms DESC
+    LIMIT 1
+  `;
+  const op = ops[0];
+  if (!op) return { projectId: run.projectId, op: null };
+  return {
+    projectId: run.projectId,
+    op: {
+      execId: op.execId,
+      status: op.status,
+      ...(op.progressText !== null ? { progressText: op.progressText } : {}),
+      ...(op.liveTimeline !== null && op.liveTimeline !== undefined
+        ? { liveTimeline: op.liveTimeline }
+        : {}),
+      ...(op.modelRef !== null ? { modelRef: op.modelRef } : {}),
+      ...(op.visionModelRef !== null
+        ? { visionModelRef: op.visionModelRef }
+        : {}),
+      startedAt: op.startedAt,
+      ...(op.finishedAt !== null ? { finishedAt: op.finishedAt } : {}),
+      ...(op.lastEventAt !== null ? { lastEventAt: op.lastEventAt } : {}),
+    },
+  };
 }

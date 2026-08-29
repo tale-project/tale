@@ -12,14 +12,22 @@ import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
+import { cancelRun } from '../automations/store.ts';
+import { getOrCreateProjectFolder } from '../folders/service.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
   getProjectAuthContext,
+  listProjects,
   loadProjectOrThrow,
   ProjectError,
   type ProjectAuthContext,
 } from '../projects/service.ts';
-import { cancelAgentRun, listAgentRunsForTask } from './agent-runs.ts';
+import {
+  cancelAgentRun,
+  getAgentRunSandboxOp,
+  getLatestAgentRunCardForTask,
+  listAgentRunsForTask,
+} from './agent-runs.ts';
 import {
   addTaskComment,
   deleteTaskComment,
@@ -27,6 +35,11 @@ import {
   listTaskComments,
   TASK_COMMENT_MAX,
 } from './comments.ts';
+import {
+  findLiveAutomationRunForTask,
+  startWorkflowForTask,
+  upsertTaskByExternalRef,
+} from './external-ref.ts';
 import {
   collectPendingReviewsForProjects,
   getPendingReviewForTask,
@@ -58,8 +71,12 @@ import {
   moveTask,
   removeTaskDependency,
   renameTaskLabel,
+  bulkUpdateTasks,
+  mentionTriggerPreview,
   restoreTask,
   saveBoardView,
+  searchTasks,
+  startTaskAgentRunManual,
   TaskError,
   updateTask,
   updateTaskStatus,
@@ -275,6 +292,260 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       return c.json(
         await getTaskOpsIndicatorsForAccessibleProjects(deps.sql, auth),
       );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Token-AND search over fields + a comment fallback (palette + toolbar).
+  app.get('/search', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const projectId = c.req.query('projectId');
+      return c.json({
+        results: await searchTasks(deps.sql, auth, {
+          query: c.req.query('q') ?? '',
+          ...(projectId !== undefined ? { projectId } : {}),
+        }),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Per mentioned agent slug: would saving put it to work — and if not, why.
+  app.get('/mention-preview', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const taskId = c.req.query('taskId');
+      const projectId = c.req.query('projectId');
+      const slugs = (c.req.query('slugs') ?? '')
+        .split(',')
+        .map((slug) => slug.trim())
+        .filter((slug) => slug.length > 0);
+      return c.json({
+        previews: await mentionTriggerPreview(deps.sql, auth, {
+          ...(taskId !== undefined ? { taskId } : {}),
+          ...(projectId !== undefined ? { projectId } : {}),
+          slugs,
+        }),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The multi-select bar: one patch over many tasks, per-task skips.
+  app.post('/bulk', async (c) => {
+    const body = z
+      .object({
+        taskIds: z.array(z.string().min(1)).max(200),
+        status: statusSchema.optional(),
+        priority: prioritySchema.nullable().optional(),
+        assigneeType: assigneeTypeSchema.optional(),
+        assigneeId: z.string().optional(),
+        clearAssignee: z.boolean().optional(),
+        archived: z.boolean().optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      const result = await transactSerializable(deps.sql, (tx) =>
+        bulkUpdateTasks(tx, auth, body.data),
+      );
+      return c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Template create: materialize a task from an external subject (the desk
+  // flow) — optionally minting the subject ROOT FOLDER in the same gesture.
+  app.post('/from-external-issue', async (c) => {
+    const body = z
+      .object({
+        projectId: z.string().min(1).optional(),
+        externalSystem: z.string().min(1).max(100),
+        externalId: z.string().max(512).optional(),
+        ensureFolder: z
+          .object({
+            name: z.string().min(1).max(255),
+            setupFolderName: z.string().max(255).optional(),
+          })
+          .optional(),
+        title: z.string().min(1).max(500),
+        externalUrl: z.string().max(2048).optional(),
+        description: z.string().max(50_000).optional(),
+        labels: z.array(z.string()).max(100).optional(),
+        runWorkflowSlug: z.string().max(200).optional(),
+        automationSlug: z.string().max(200).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    const args = body.data;
+    if (!args.externalId === !args.ensureFolder) {
+      return c.json(
+        {
+          error: 'INVALID_ARGUMENTS',
+          message: 'Provide exactly one of externalId or ensureFolder',
+        },
+        400,
+      );
+    }
+    if (args.ensureFolder && !args.projectId) {
+      return c.json(
+        {
+          error: 'INVALID_ARGUMENTS',
+          message: 'ensureFolder requires an explicit projectId',
+        },
+        400,
+      );
+    }
+    try {
+      const auth = await authCtx(c);
+      // Project-scoped apps pass their bound project; without one, fall back
+      // to the org-wide project (warned) — never silently guess a user one.
+      let projectId: string;
+      if (args.projectId !== undefined) {
+        const project = await loadProjectOrThrow(deps.sql, args.projectId);
+        assertTaskReadable(project, auth);
+        projectId = project.id;
+      } else {
+        const projects = await listProjects(deps.sql, auth);
+        const fallback =
+          projects.find((project) => project.isOrgWide) ?? projects[0];
+        if (!fallback) {
+          return c.json(
+            { error: 'NO_PROJECT', message: 'Create a project first' },
+            400,
+          );
+        }
+        console.warn(
+          '[create-task] no projectId supplied; falling back to org-wide project',
+          { organizationId: auth.organizationId, projectId: fallback.id },
+        );
+        projectId = fallback.id;
+      }
+
+      const result = await transactSerializable(deps.sql, async (tx) => {
+        // Folder-driven flow: the folder IS the external subject; the setup
+        // folder's id rides externalUrl (the desks' binding convention) and
+        // its absence fails closed.
+        let externalId = args.externalId;
+        let externalUrl = args.externalUrl;
+        let ensuredFolderId: string | undefined;
+        if (args.ensureFolder) {
+          const folder = await getOrCreateProjectFolder(tx, auth, {
+            projectId,
+            name: args.ensureFolder.name,
+          });
+          externalId = folder.folderId;
+          ensuredFolderId = folder.folderId;
+          const setupName = args.ensureFolder.setupFolderName;
+          if (setupName !== undefined && externalUrl === undefined) {
+            const setup = await tx<{ id: string }[]>`
+              SELECT id FROM app.folders
+              WHERE org_id = ${auth.organizationId}
+                AND project_id = ${projectId}
+                AND parent_id IS NULL
+                AND lower(name) = ${setupName.trim().toLowerCase()}
+              LIMIT 1
+            `;
+            if (setup.length === 0) {
+              throw new TaskError(
+                'SETUP_FOLDER_MISSING',
+                `Folder "${setupName}" does not exist in this project yet`,
+              );
+            }
+            externalUrl = setup[0]?.id;
+          }
+        }
+        if (externalId === undefined) {
+          throw new TaskError(
+            'INVALID_ARGUMENTS',
+            'externalId did not resolve',
+          );
+        }
+        const upserted = await upsertTaskByExternalRef(tx, {
+          organizationId: auth.organizationId,
+          actorId: auth.userId,
+          projectId,
+          externalSystem: args.externalSystem,
+          externalId,
+          title: args.title,
+          ...(externalUrl !== undefined ? { externalUrl } : {}),
+          ...(args.description !== undefined
+            ? { description: args.description }
+            : {}),
+          ...(args.labels !== undefined ? { labels: args.labels } : {}),
+          externalState: 'open',
+          // The authenticated member is the CREATOR; the owning automation
+          // becomes the ASSIGNEE (the upsert's worker-class attribution).
+          creatorType: 'user',
+          ...(args.runWorkflowSlug !== undefined
+            ? { runWorkflowSlug: args.runWorkflowSlug }
+            : {}),
+          ...(args.automationSlug !== undefined
+            ? { automationSlug: args.automationSlug }
+            : {}),
+          dedupeScope: args.projectId !== undefined ? 'project' : 'org',
+        });
+        return { upserted, ensuredFolderId };
+      });
+      const taskId = result.upserted.taskId;
+      if (taskId === null) {
+        return c.json(
+          { error: 'TASK_CREATE_FAILED', message: 'Task did not materialize' },
+          400,
+        );
+      }
+      let executionId: string | null | undefined;
+      if (args.runWorkflowSlug !== undefined && result.upserted.created) {
+        const task = await loadTaskOrThrow(deps.sql, taskId);
+        const started = await startWorkflowForTask(deps.sql, {
+          organizationId: auth.organizationId,
+          task,
+          workflowSlug: args.runWorkflowSlug,
+          startedByUserId: auth.userId,
+        });
+        executionId = started?.runId ?? null;
+      }
+      return c.json({
+        taskId,
+        created: result.upserted.created,
+        ...(executionId !== undefined ? { executionId } : {}),
+        ...(result.ensuredFolderId !== undefined
+          ? { folderId: result.ensuredFolderId }
+          : {}),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The run card's live sandbox transcript — fail-closed null (0.4 wire).
+  app.get('/agent-runs/:runId/sandbox-op', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const loaded = await getAgentRunSandboxOp(
+        deps.sql,
+        auth.organizationId,
+        c.req.param('runId'),
+      );
+      if (loaded === null) return c.json({ op: null });
+      try {
+        const project = await loadProjectOrThrow(deps.sql, loaded.projectId);
+        assertTaskReadable(project, auth);
+      } catch (error) {
+        console.warn('[tasks] agent-run op access refused', error);
+        return c.json({ op: null });
+      }
+      return c.json({ op: loaded.op });
     } catch (error) {
       return handleError(c, error);
     }
@@ -639,6 +910,133 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         task.id,
       );
       return c.json({ runs });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The detail sheet's newest-run card — null when no run has ever kicked.
+  app.get('/:taskId/agent-runs/latest', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const project = await loadProjectOrThrow(deps.sql, task.projectId);
+      assertTaskReadable(project, auth);
+      return c.json({
+        run: await getLatestAgentRunCardForTask(
+          deps.sql,
+          auth.organizationId,
+          task.id,
+        ),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The subject-linked live automation run banner.
+  app.get('/:taskId/live-automation-run', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const project = await loadProjectOrThrow(deps.sql, task.projectId);
+      assertTaskReadable(project, auth);
+      return c.json({
+        run: await findLiveAutomationRunForTask(deps.sql, {
+          organizationId: auth.organizationId,
+          projectId: task.projectId,
+          taskId: task.id,
+        }),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // The manual "Run agent" kick — refusals answer as data (0.4 wire).
+  app.post('/:taskId/agent-runs/start', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const result = await transactSerializable(deps.sql, (tx) =>
+        startTaskAgentRunManual(tx, auth, c.req.param('taskId')),
+      );
+      return c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Start a DEPLOYED automation with this task as its subject (desk Start).
+  app.post('/:taskId/workflow/start', async (c) => {
+    const body = z
+      .object({ workflowSlug: z.string().min(1).max(200) })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const project = await loadProjectOrThrow(deps.sql, task.projectId);
+      assertTaskReadable(project, auth);
+      const started = await startWorkflowForTask(deps.sql, {
+        organizationId: auth.organizationId,
+        task,
+        workflowSlug: body.data.workflowSlug,
+        startedByUserId: auth.userId,
+      });
+      if (started === null) {
+        return c.json({
+          started: false,
+          reason: 'not_started',
+          executionId: null,
+        });
+      }
+      if (started.alreadyRunning) {
+        return c.json({
+          started: false,
+          reason: 'already_running',
+          executionId: started.runId,
+        });
+      }
+      return c.json({ started: true, executionId: started.runId });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Cancel the in-flight subject-linked run (if any), then park the task at
+  // `cancelled` so desk Start can re-trigger. Idempotent when idle.
+  app.post('/:taskId/workflow/cancel', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const project = await loadProjectOrThrow(deps.sql, task.projectId);
+      assertTaskReadable(project, auth);
+      const live = await findLiveAutomationRunForTask(deps.sql, {
+        organizationId: auth.organizationId,
+        projectId: task.projectId,
+        taskId: task.id,
+      });
+      let executionCancelled = false;
+      if (live !== null) {
+        const cancelled = await cancelRun(
+          deps.sql,
+          auth.organizationId,
+          live.runId,
+        );
+        executionCancelled = cancelled.cancelled;
+      }
+      if (task.status !== 'cancelled') {
+        await transactSerializable(deps.sql, (tx) =>
+          updateTaskStatus(tx, auth, task.id, 'cancelled'),
+        );
+      }
+      return c.json({
+        taskCancelled: true,
+        executionCancelled,
+        executionId: live?.runId ?? null,
+      });
     } catch (error) {
       return handleError(c, error);
     }

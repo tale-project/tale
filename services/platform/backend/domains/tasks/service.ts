@@ -10,11 +10,13 @@ import {
   TASK_RESOURCE_TYPE,
 } from '../../../convex/tasks/audit_actions.ts';
 import { initialRank, rankBetween } from '../../../convex/tasks/rank.ts';
+import { REVIEW_POLICY_REFUSAL_CODES } from '../../../convex/tasks/review_shared.ts';
 import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
 } from '../../../lib/shared/task-label-colors.ts';
 import { toJson } from '../../db/sql.ts';
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
@@ -2133,6 +2135,500 @@ export async function listTaskActivity(
     ORDER BY created_at_ms DESC, id DESC
     LIMIT ${Math.min(limit, 500)}
   `;
+}
+
+// ---------------------------------------------------------------------------
+// Search (the palette + the tasks toolbar)
+// ---------------------------------------------------------------------------
+
+const SEARCH_MAX_RESULTS = 25;
+const SEARCH_SNIPPET_MAX = 600;
+
+export interface TaskSearchHit {
+  taskId: string;
+  projectId: string;
+  title: string;
+  snippet: string;
+  updatedAt: number;
+  number?: number;
+  projectKey?: string;
+}
+
+/**
+ * Token-AND search over the field haystack (title + description +
+ * externalId + `KEY-number`), with a comment-body fallback for tasks whose
+ * fields don't match (the 0.4 walk; unbounded here — SQL searches the whole
+ * visible set instead of the newest-80 window Convex's read limits forced).
+ */
+export async function searchTasks(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  args: { query: string; projectId?: string },
+): Promise<TaskSearchHit[]> {
+  const tokens = args.query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((token) => token.length > 0);
+  if (tokens.length === 0) return [];
+  const patterns = tokens.map(
+    (token) => `%${token.replaceAll(/([%_\\])/g, String.raw`\$1`)}%`,
+  );
+
+  let projectIds: string[];
+  const projectKeys = new Map<string, string | null>();
+  if (args.projectId !== undefined) {
+    const project = await loadProjectOrThrow(sql, args.projectId);
+    if (project.archivedAt !== null) return [];
+    assertTaskReadable(project, auth);
+    projectIds = [project.id];
+    projectKeys.set(project.id, project.key);
+  } else {
+    const projects = await listProjects(sql, auth);
+    projectIds = projects.map((project) => project.id);
+    for (const project of projects) projectKeys.set(project.id, project.key);
+  }
+  if (projectIds.length === 0) return [];
+
+  interface FieldHit {
+    taskId: string;
+    projectId: string;
+    title: string;
+    description: string | null;
+    updatedAt: number;
+    number: number | null;
+  }
+  const fieldHits = await sql<FieldHit[]>`
+    SELECT t.id AS "taskId", t.project_id AS "projectId", t.title,
+           t.description, t.updated_at_ms::float8 AS "updatedAt", t.number
+    FROM app.tasks t
+    JOIN app.projects p ON p.id = t.project_id
+    WHERE t.org_id = ${auth.organizationId}
+      AND t.project_id = ANY(${projectIds})
+      AND t.archived_at_ms IS NULL
+      AND lower(
+        t.title || ' ' || coalesce(t.description, '') || ' ' ||
+        coalesce(t.external_id, '') || ' ' ||
+        coalesce(p.key || '-' || t.number::text, '')
+      ) LIKE ALL(${patterns})
+    ORDER BY t.updated_at_ms DESC
+    LIMIT ${SEARCH_MAX_RESULTS}
+  `;
+  const seen = new Set(fieldHits.map((hit) => hit.taskId));
+
+  const toHit = (hit: FieldHit, snippetSource: string): TaskSearchHit => {
+    const key = projectKeys.get(hit.projectId) ?? null;
+    const row: TaskSearchHit = {
+      taskId: hit.taskId,
+      projectId: hit.projectId,
+      title: hit.title,
+      snippet: snippetSource.trim().slice(0, SEARCH_SNIPPET_MAX),
+      updatedAt: hit.updatedAt,
+    };
+    if (hit.number !== null) row.number = hit.number;
+    if (key !== null) row.projectKey = key;
+    return row;
+  };
+  const results: TaskSearchHit[] = fieldHits.map((hit) =>
+    toHit(hit, hit.description ?? hit.title),
+  );
+
+  if (results.length < SEARCH_MAX_RESULTS) {
+    const commentHits = await sql<(FieldHit & { body: string })[]>`
+      SELECT DISTINCT ON (t.updated_at_ms, t.id)
+             t.id AS "taskId", t.project_id AS "projectId", t.title,
+             t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
+             m.text AS body
+      FROM app.task_discussion_message_meta meta
+      JOIN app.messages m ON m.id = meta.message_id
+      JOIN app.tasks t ON t.id = meta.task_id
+      WHERE meta.org_id = ${auth.organizationId}
+        AND t.project_id = ANY(${projectIds})
+        AND t.archived_at_ms IS NULL
+        AND lower(coalesce(m.text, '')) LIKE ALL(${patterns})
+      ORDER BY t.updated_at_ms DESC, t.id, m.created_at_ms DESC
+      LIMIT ${SEARCH_MAX_RESULTS}
+    `;
+    for (const hit of commentHits) {
+      if (results.length >= SEARCH_MAX_RESULTS) break;
+      if (seen.has(hit.taskId)) continue;
+      seen.add(hit.taskId);
+      results.push(toHit(hit, hit.body));
+    }
+    results.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Mention trigger preview (the composers' @-mention hint)
+// ---------------------------------------------------------------------------
+
+export interface MentionTriggerPreviewRow {
+  slug: string;
+  willTrigger: boolean;
+  reason: 'ok' | 'not_mentionable' | 'pack_disabled' | 'breaker_paused';
+}
+
+/**
+ * Per mentioned agent slug: would saving put it to work — and if not, why.
+ * The 0.4 gate set minus the run-breaker leg (`breaker_paused` stays in the
+ * union for shape stability; the pg task row has no pause bookkeeping yet).
+ */
+export async function mentionTriggerPreview(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  args: { taskId?: string; projectId?: string; slugs: string[] },
+): Promise<MentionTriggerPreviewRow[]> {
+  const slugs = [...new Set(args.slugs)].slice(0, 10);
+  if (slugs.length === 0) return [];
+
+  let project: ProjectRow;
+  if (args.taskId !== undefined) {
+    const task = await loadTaskOrThrow(sql, args.taskId);
+    project = await loadProjectOrThrow(sql, task.projectId);
+  } else if (args.projectId !== undefined) {
+    project = await loadProjectOrThrow(sql, args.projectId);
+  } else {
+    throw new TaskError('INVALID_ARGUMENTS', 'taskId or projectId required');
+  }
+  assertTaskReadable(project, auth);
+
+  const restricted = (project.agentMode ?? 'all') === 'restricted';
+  const allowed = new Set(project.allowedAgentSlugs);
+  const automationPolicy = await readGovernancePolicyForOrg(
+    sql,
+    auth.organizationId,
+    'task_automation',
+  );
+  const packEnabled = automationPolicy?.enabled !== false;
+
+  return slugs.map((slug) => {
+    if (restricted && !allowed.has(slug)) {
+      return { slug, willTrigger: false, reason: 'not_mentionable' as const };
+    }
+    if (!packEnabled) {
+      return { slug, willTrigger: false, reason: 'pack_disabled' as const };
+    }
+    return { slug, willTrigger: true, reason: 'ok' as const };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Bulk board ops (the multi-select bar)
+// ---------------------------------------------------------------------------
+
+const BULK_UPDATE_MAX = 100;
+
+/**
+ * Apply one patch to many tasks with the 0.4 skip semantics: per-task
+ * failures SKIP (missing row, read-only project, archived content edit,
+ * open-subtask terminal close, review-policy refusal, live-run assignee
+ * transfer, assignee without project access) instead of aborting the batch.
+ */
+export async function bulkUpdateTasks(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  args: {
+    taskIds: string[];
+    status?: TaskStatus;
+    priority?: TaskPriority | null;
+    assigneeType?: TaskAssigneeType;
+    assigneeId?: string;
+    clearAssignee?: boolean;
+    archived?: boolean;
+  },
+): Promise<{ updated: number; skipped: number }> {
+  if (args.taskIds.length === 0) return { updated: 0, skipped: 0 };
+  if (args.taskIds.length > BULK_UPDATE_MAX) {
+    throw new TaskError('TASK_BULK_TOO_LARGE', 'Too many tasks');
+  }
+  const assignee = args.clearAssignee
+    ? null
+    : normalizeAssignee({
+        ...(args.assigneeType !== undefined
+          ? { assigneeType: args.assigneeType }
+          : {}),
+        ...(args.assigneeId !== undefined
+          ? { assigneeId: args.assigneeId }
+          : {}),
+      });
+
+  let updated = 0;
+  let skipped = 0;
+  const now = Date.now();
+  const canEditByProject = new Map<string, boolean>();
+  const assigneeAllowedByProject = new Map<string, boolean>();
+  const projectById = new Map<string, ProjectRow>();
+
+  for (const taskId of args.taskIds) {
+    const rows = await tx<TaskRow[]>`
+      SELECT ${tx.unsafe(TASK_COLUMNS)} FROM app.tasks
+      WHERE id = ${taskId} AND org_id = ${auth.organizationId} LIMIT 1
+    `;
+    const task = rows[0];
+    if (!task) {
+      skipped += 1;
+      continue;
+    }
+    let project = projectById.get(task.projectId);
+    if (project === undefined) {
+      try {
+        project = await loadProjectOrThrow(tx, task.projectId);
+      } catch (error) {
+        console.warn(
+          '[tasks] bulkUpdate: project load failed, skipping',
+          error,
+        );
+        skipped += 1;
+        continue;
+      }
+      projectById.set(task.projectId, project);
+    }
+    let canEdit = canEditByProject.get(task.projectId);
+    if (canEdit === undefined) {
+      canEdit = checkProjectAccess(
+        {
+          teamId: project.teamId,
+          sharedWithTeamIds: project.sharedWithTeamIds,
+        },
+        auth.teamIds,
+        auth.role,
+      ).canEdit;
+      canEditByProject.set(task.projectId, canEdit);
+    }
+    if (!canEdit) {
+      skipped += 1;
+      continue;
+    }
+    // Archived rows are read-only unless this bulk op is itself an
+    // archive/restore — never mutate their content.
+    if (task.archivedAt !== null && args.archived === undefined) {
+      skipped += 1;
+      continue;
+    }
+
+    const statusChanged =
+      args.status !== undefined && args.status !== task.status;
+    const sets: string[] = [];
+    // oxlint-disable-next-line typescript/no-explicit-any -- positional params for a closed column list
+    const values: any[] = [];
+    const push = (column: string, value: unknown): void => {
+      sets.push(column);
+      values.push(value);
+    };
+
+    if (args.status !== undefined) {
+      if (
+        TERMINAL_STATUSES.has(args.status) &&
+        (await hasOpenChildren(tx, taskId))
+      ) {
+        skipped += 1;
+        continue;
+      }
+      if (statusChanged) {
+        // A bulk leave from `in_review` closes the gate like the single-card
+        // paths; a `review_policy` refusal skips the task instead of
+        // aborting (the close validates before writing).
+        try {
+          await closePendingTaskReviewOnStatusLeave(tx, {
+            task,
+            toStatus: args.status,
+            actor: {
+              kind: 'user',
+              userId: auth.userId,
+              ...(auth.email !== undefined ? { email: auth.email } : {}),
+            },
+          });
+        } catch (error) {
+          if (!isReviewPolicyRefusalError(error)) throw error;
+          skipped += 1;
+          continue;
+        }
+      }
+      push('status', args.status);
+      push('rank', await computeEndRank(tx, task.projectId, args.status));
+      push(
+        'completed_at_ms',
+        TERMINAL_STATUSES.has(args.status) ? (task.completedAt ?? now) : null,
+      );
+      if (statusChanged) push('status_changed_at_ms', now);
+    }
+    if (args.priority !== undefined) {
+      push('priority', args.priority);
+    }
+    const assigneeChanged =
+      (args.clearAssignee === true || assignee !== null) &&
+      task.assigneeId !== (assignee?.assigneeId ?? null);
+    if (assigneeChanged && (await taskHasLiveRun(tx, task))) {
+      // Same live-run transfer gate as `assignTask`, applied as a skip.
+      skipped += 1;
+      continue;
+    }
+    if (args.clearAssignee === true || assignee !== null) {
+      if (assignee !== null) {
+        let allowed = assigneeAllowedByProject.get(task.projectId);
+        if (allowed === undefined) {
+          try {
+            await assertAssigneeValid(tx, { project, auth, assignee });
+            allowed = true;
+          } catch (error) {
+            if (!(error instanceof TaskError)) throw error;
+            allowed = false;
+          }
+          assigneeAllowedByProject.set(task.projectId, allowed);
+        }
+        if (!allowed) {
+          skipped += 1;
+          continue;
+        }
+      }
+      push('assignee_type', assignee?.assigneeType ?? null);
+      push('assignee_id', assignee?.assigneeId ?? null);
+    }
+    if (args.archived !== undefined) {
+      const nowArchived = task.archivedAt !== null;
+      if (args.archived !== nowArchived) {
+        push('archived_at_ms', args.archived ? now : null);
+      }
+    }
+    if (sets.length === 0) {
+      skipped += 1;
+      continue;
+    }
+    push('updated_at_ms', now);
+
+    const previousBucket = taskCountBucket(task);
+    const assignments = sets
+      .map((column, index) => `${column} = $${index + 1}`)
+      .join(', ');
+    await tx.unsafe(
+      `UPDATE app.tasks SET ${assignments} WHERE id = $${sets.length + 1}`,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- positional params for a column list closed over literals
+      [...values, taskId] as never[],
+    );
+    const nextBucket = taskCountBucket({
+      status: args.status ?? task.status,
+      archivedAt:
+        args.archived !== undefined
+          ? args.archived
+            ? now
+            : null
+          : task.archivedAt,
+    });
+    if (previousBucket !== nextBucket) {
+      await applyTaskCountTransition(
+        tx,
+        task.projectId,
+        previousBucket,
+        nextBucket,
+      );
+    }
+    if (statusChanged) {
+      await recordActivity(tx, {
+        task,
+        actorType: 'user',
+        actorId: auth.userId,
+        action: 'status.changed',
+        fromValue: task.status,
+        // args.status is defined whenever statusChanged is true.
+        toValue: args.status ?? task.status,
+      });
+    } else {
+      await emitHintInTx(tx, {
+        orgId: auth.organizationId,
+        entity: 'task',
+        entityId: taskId,
+      });
+    }
+    updated += 1;
+  }
+  return { updated, skipped };
+}
+
+/** Whether any run family holds this task live (agent turn or automation). */
+async function taskHasLiveRun(
+  tx: TransactionSql,
+  task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>,
+): Promise<boolean> {
+  const agent = await tx<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs
+    WHERE task_id = ${task.id} AND status IN ('queued', 'running')
+    LIMIT 1
+  `;
+  if (agent.length > 0) return true;
+  const automation = await tx<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE org_id = ${task.organizationId} AND project_id = ${task.projectId}
+      AND status IN ('queued', 'running', 'waiting')
+      AND input -> 'task' ->> 'id' = ${task.id}
+    LIMIT 1
+  `;
+  return automation.length > 0;
+}
+
+/** The pg twin of the 0.4 `isReviewPolicyRefusal` batch-skip check. */
+function isReviewPolicyRefusalError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    REVIEW_POLICY_REFUSAL_CODES.includes(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to string just above
+      error.code as (typeof REVIEW_POLICY_REFUSAL_CODES)[number],
+    )
+  );
+}
+
+/**
+ * The manual "Run agent" kick: the task's ASSIGNED agent starts (or reuses)
+ * a run — a contested/ineligible state answers as DATA (the 0.4 wire).
+ */
+export async function startTaskAgentRunManual(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  taskId: string,
+): Promise<{ started: boolean; reason?: string }> {
+  const task = await loadTaskOrThrow(tx, taskId);
+  const project = await loadProjectOrThrow(tx, task.projectId);
+  assertTaskWritable(project, auth);
+  assertTaskNotArchived(task);
+  if (task.assigneeType !== 'agent' || task.assigneeId === null) {
+    return { started: false, reason: 'no_agent_assignee' };
+  }
+  const agents = await tx<
+    {
+      id: string;
+      harness: string;
+      model: string;
+      modelProvider: string | null;
+    }[]
+  >`
+    SELECT id, harness, model, model_provider AS "modelProvider"
+    FROM app.project_agents
+    WHERE id = ${task.assigneeId} AND org_id = ${auth.organizationId}
+    LIMIT 1
+  `;
+  const agent = agents[0];
+  if (!agent) {
+    return { started: false, reason: 'agent_missing' };
+  }
+  const kicked = await kickAgentRun(tx, {
+    organizationId: auth.organizationId,
+    projectId: task.projectId,
+    taskId,
+    agentId: agent.id,
+    harness: agent.harness,
+    model: agent.model,
+    ...(agent.modelProvider !== null
+      ? { modelProvider: agent.modelProvider }
+      : {}),
+    startedBy: auth.userId,
+    trigger: 'manual',
+  });
+  if (kicked.reused) {
+    return { started: false, reason: 'already_running' };
+  }
+  return { started: true };
 }
 
 // ---------------------------------------------------------------------------
