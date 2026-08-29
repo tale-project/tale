@@ -1,23 +1,23 @@
 'use client';
 
 /**
- * Share and unshare mutations for chat threads.
- *
- * Like the reads in `chat-backend`, these go through the live Convex client
- * (`useConvex`) rather than the app's `useConvexMutation` wrapper: the wrapper
- * needs the query-client context, which a chat component rendered outside the
- * provider tree does not have, and `useConvex()` returns `undefined` there
- * instead of throwing. Failures resolve to `null`/`false` — never a rejection
- * — so a caller shows its failure toast without wrapping every call site.
+ * Share and unshare mutations for chat threads — served by the 0.5
+ * backend. Failures resolve to `null`/`false` — never a rejection — so a
+ * caller shows its failure toast without wrapping every call site.
  */
 
-import { useConvex } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import {
+  invalidateChatThreads,
+  shareChatThread,
+  unshareChatThread,
+} from '@/app/lib/backend/chat';
+
+import { useChatQueryClient } from './chat-backend';
 
 export interface ThreadSharing {
-  /** False when there is no Convex client to talk to — hide the controls. */
+  /** Kept for the control-hiding contract; the HTTP lane is always there. */
   readonly available: boolean;
   /**
    * Publish (or re-publish) the thread as an org-internal snapshot link.
@@ -30,44 +30,35 @@ export interface ThreadSharing {
 }
 
 export function useThreadSharing(organizationId: string): ThreadSharing {
-  const convex = useConvex();
+  const queryClient = useChatQueryClient();
 
   const share = useCallback(
     async (threadId: string): Promise<string | null> => {
-      if (!convex) return null;
       try {
-        const result = await convex.mutation(api.chat.threads.shareThread, {
-          organizationId,
-          threadId,
-        });
-        return result?.shareToken ?? null;
+        const result = await shareChatThread(organizationId, threadId);
+        invalidateChatThreads(queryClient, organizationId);
+        return result.shareToken;
       } catch (error) {
         console.error('[chat] sharing the thread failed', error);
         return null;
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const unshare = useCallback(
     async (threadId: string): Promise<boolean> => {
-      if (!convex) return false;
       try {
-        await convex.mutation(api.chat.threads.unshareThread, {
-          organizationId,
-          threadId,
-        });
-        return true;
+        const ok = await unshareChatThread(organizationId, threadId);
+        if (ok) invalidateChatThreads(queryClient, organizationId);
+        return ok;
       } catch (error) {
         console.error('[chat] unsharing the thread failed', error);
         return false;
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
-  return useMemo(
-    () => ({ available: convex !== undefined, share, unshare }),
-    [convex, share, unshare],
-  );
+  return useMemo(() => ({ available: true, share, unshare }), [share, unshare]);
 }

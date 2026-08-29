@@ -43,9 +43,11 @@ function stubClient(result: unknown): {
 /** Re-renders on demand, passing a FRESH api reference and args each time —
  * exactly what the real callsites do. */
 function Probe() {
-  const threads = useChatThreads('org-1');
+  // Messages still ride the websocket watch (the thread LIST moved to the
+  // HTTP lane in the shell migration — its stability twin is below).
+  const messages = useChatMessages('org-1', 'thread-1');
   const [, force] = useState(0);
-  return <button onClick={() => force((n) => n + 1)}>{threads.status}</button>;
+  return <button onClick={() => force((n) => n + 1)}>{messages.status}</button>;
 }
 
 describe('useChatQuery subscription stability', () => {
@@ -110,13 +112,42 @@ function GenerationProbe({ org, threadId }: { org: string; threadId: string }) {
   return <output>{useChatGeneration(org, threadId).status}</output>;
 }
 
+describe('useChatQuery HTTP lane (migrated thread family)', () => {
+  it('serves ready from the backend with a steady status and ONE fetch', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ threads: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    try {
+      const { client } = stubClient(undefined);
+      render(
+        <ConvexProvider client={client}>
+          <ThreadsProbe org="org-http" />
+        </ConvexProvider>,
+      );
+      await screen.findByText('ready');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const firstUrl = fetchSpy.mock.calls[0]?.[0];
+      expect(typeof firstUrl === 'string' ? firstUrl : '').toContain(
+        '/api/app/chat/threads',
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
 describe('useChatQuery session cache', () => {
   it('serves the last answer across a remount, with a fresh watch live', () => {
     const { client, watchQuery, setLocalResult } = liveStubClient();
-    setLocalResult(['thread-1']);
+    setLocalResult(['message-1']);
     const first = render(
       <ConvexProvider client={client}>
-        <ThreadsProbe org="org-remount" />
+        <MessagesProbe org="org-remount" threadId="thread-1" />
       </ConvexProvider>,
     );
     expect(screen.getByRole('status')).toHaveTextContent('ready');
@@ -127,7 +158,7 @@ describe('useChatQuery session cache', () => {
     setLocalResult(undefined);
     render(
       <ConvexProvider client={client}>
-        <ThreadsProbe org="org-remount" />
+        <MessagesProbe org="org-remount" threadId="thread-1" />
       </ConvexProvider>,
     );
     expect(screen.getByRole('status')).toHaveTextContent('ready');

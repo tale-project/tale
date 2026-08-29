@@ -13,8 +13,17 @@
 import { useConvex } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
+import {
+  branchChatThread,
+  branchChatThreadForEdit,
+  branchChatThreadForRegenerate,
+  invalidateChatThreads,
+  setChatBranchSelection,
+} from '@/app/lib/backend/chat';
 import { api } from '@/convex/_generated/api';
 import type { ReasoningEffort } from '@/lib/chat/effort';
+
+import { useChatQueryClient } from './chat-backend';
 
 export interface BranchActions {
   readonly available: boolean;
@@ -57,25 +66,27 @@ export interface BranchActions {
 
 export function useBranchActions(organizationId: string): BranchActions {
   const convex = useConvex();
+  const queryClient = useChatQueryClient();
 
   const branchForEdit = useCallback(
     async (
       threadId: string,
       editedMessageId: string,
     ): Promise<string | null> => {
-      if (!convex) return null;
       try {
-        return await convex.mutation(api.chat.branches.branchForEdit, {
+        const id = await branchChatThreadForEdit(
           organizationId,
           threadId,
           editedMessageId,
-        });
+        );
+        invalidateChatThreads(queryClient, organizationId);
+        return id;
       } catch (error) {
         console.error('[chat] branching for the edit failed', error);
         return null;
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const branchForRegenerate = useCallback(
@@ -83,19 +94,20 @@ export function useBranchActions(organizationId: string): BranchActions {
       threadId: string,
       assistantMessageId: string,
     ): Promise<string | null> => {
-      if (!convex) return null;
       try {
-        return await convex.mutation(api.chat.branches.branchForRegenerate, {
+        const id = await branchChatThreadForRegenerate(
           organizationId,
           threadId,
           assistantMessageId,
-        });
+        );
+        invalidateChatThreads(queryClient, organizationId);
+        return id;
       } catch (error) {
         console.error('[chat] branching for the regenerate failed', error);
         return null;
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const regenerate = useCallback(
@@ -143,20 +155,19 @@ export function useBranchActions(organizationId: string): BranchActions {
 
   const select = useCallback(
     (rootThreadId: string, forkKey: string, selectedThreadId: string): void => {
-      if (!convex) return;
-      convex
-        .mutation(api.chat.branches.setBranchSelection, {
-          organizationId,
-          rootThreadId,
-          forkKey,
-          selectedThreadId,
-        })
+      setChatBranchSelection(
+        organizationId,
+        rootThreadId,
+        forkKey,
+        selectedThreadId,
+      )
+        .then(() => invalidateChatThreads(queryClient, organizationId))
         .catch((error: unknown) => {
           // A lost write costs one re-flip after reload, never a broken view.
           console.warn('[chat] saving the branch selection failed', error);
         });
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const fork = useCallback(
@@ -165,20 +176,21 @@ export function useBranchActions(organizationId: string): BranchActions {
       fromMessageId: string,
       title: string,
     ): Promise<string | null> => {
-      if (!convex) return null;
       try {
-        return await convex.mutation(api.chat.threads.branchThread, {
+        const id = await branchChatThread(
           organizationId,
           threadId,
           fromMessageId,
           title,
-        });
+        );
+        invalidateChatThreads(queryClient, organizationId);
+        return id;
       } catch (error) {
         console.error('[chat] forking the thread failed', error);
         return null;
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   return useMemo(

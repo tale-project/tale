@@ -7,6 +7,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { isBackendDraining } from '../control/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
@@ -233,6 +234,22 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     userId: c.get('sessionBundle').user.id,
   });
 
+  /** A thread-family write happened for this caller — nudge THEIR
+   * `['backend', orgId, 'chat_thread']` reads (user-targeted hint; other
+   * members' views of shared threads refetch on their own cadence). */
+  const hintThread = async (
+    c: Context<OrgEnv>,
+    threadId: string,
+  ): Promise<void> => {
+    const { organizationId, userId } = caller(c);
+    await emitHintInTx(deps.sql, {
+      orgId: organizationId,
+      userId,
+      entity: 'chat_thread',
+      entityId: threadId,
+    });
+  };
+
   app.post('/threads', async (c) => {
     const body = createThreadSchema.safeParse(await c.req.json());
     if (!body.success) {
@@ -261,6 +278,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           ? { reasoningEffort: body.data.reasoningEffort }
           : {}),
       });
+      await hintThread(c, threadId);
       return c.json({ id: threadId }, 201);
     } catch (error) {
       return handleThreadError(c, error);
@@ -343,15 +361,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     try {
-      return c.json({
-        ok: await setThreadCapabilities(
-          deps.sql,
-          organizationId,
-          userId,
-          c.req.param('threadId'),
-          body.data,
-        ),
-      });
+      const ok = await setThreadCapabilities(
+        deps.sql,
+        organizationId,
+        userId,
+        c.req.param('threadId'),
+        body.data,
+      );
+      if (ok) await hintThread(c, c.req.param('threadId'));
+      return c.json({ ok });
     } catch (error) {
       return handleThreadError(c, error);
     }
@@ -367,15 +385,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
-    return c.json({
-      ok: await setThreadReasoningEffort(
-        deps.sql,
-        organizationId,
-        userId,
-        c.req.param('threadId'),
-        body.data.reasoningEffort,
-      ),
-    });
+    const ok = await setThreadReasoningEffort(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+      body.data.reasoningEffort,
+    );
+    if (ok) await hintThread(c, c.req.param('threadId'));
+    return c.json({ ok });
   });
 
   app.post('/threads/:threadId/project', async (c) => {
@@ -385,15 +403,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     try {
-      return c.json({
-        ok: await moveThreadToProject(
-          deps.sql,
-          organizationId,
-          userId,
-          c.req.param('threadId'),
-          body.data.projectId,
-        ),
-      });
+      const ok = await moveThreadToProject(
+        deps.sql,
+        organizationId,
+        userId,
+        c.req.param('threadId'),
+        body.data.projectId,
+      );
+      if (ok) await hintThread(c, c.req.param('threadId'));
+      return c.json({ ok });
     } catch (error) {
       return handleThreadError(c, error);
     }
@@ -405,15 +423,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
-    return c.json({
-      ok: await renameThread(
-        deps.sql,
-        organizationId,
-        userId,
-        c.req.param('threadId'),
-        body.data.title,
-      ),
-    });
+    const ok = await renameThread(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+      body.data.title,
+    );
+    if (ok) await hintThread(c, c.req.param('threadId'));
+    return c.json({ ok });
   });
 
   app.post('/threads/:threadId/pin', async (c) => {
@@ -422,15 +440,15 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
-    return c.json({
-      ok: await setThreadPinned(
-        deps.sql,
-        organizationId,
-        userId,
-        c.req.param('threadId'),
-        body.data.pinned,
-      ),
-    });
+    const ok = await setThreadPinned(
+      deps.sql,
+      organizationId,
+      userId,
+      c.req.param('threadId'),
+      body.data.pinned,
+    );
+    if (ok) await hintThread(c, c.req.param('threadId'));
+    return c.json({ ok });
   });
 
   app.post('/threads/:threadId/read', async (c) => {
@@ -446,6 +464,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       c.req.param('threadId'),
       body.data.read !== false,
     );
+    await hintThread(c, c.req.param('threadId'));
     return c.json({ ok: true });
   });
 
@@ -455,18 +474,18 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
-    return c.json({
-      ok: await setThreadArchived(
-        deps.sql,
-        {
-          organizationId,
-          userId,
-          email: c.get('sessionBundle').user.email,
-        },
-        c.req.param('threadId'),
-        body.data.archived,
-      ),
-    });
+    const ok = await setThreadArchived(
+      deps.sql,
+      {
+        organizationId,
+        userId,
+        email: c.get('sessionBundle').user.email,
+      },
+      c.req.param('threadId'),
+      body.data.archived,
+    );
+    if (ok) await hintThread(c, c.req.param('threadId'));
+    return c.json({ ok });
   });
 
   app.post('/threads/:threadId/share-project', async (c) => {
@@ -476,18 +495,18 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const { organizationId, userId } = caller(c);
     try {
-      return c.json({
-        ok: await setThreadSharedWithProject(
-          deps.sql,
-          {
-            organizationId,
-            userId,
-            email: c.get('sessionBundle').user.email,
-          },
-          c.req.param('threadId'),
-          body.data.shared,
-        ),
-      });
+      const ok = await setThreadSharedWithProject(
+        deps.sql,
+        {
+          organizationId,
+          userId,
+          email: c.get('sessionBundle').user.email,
+        },
+        c.req.param('threadId'),
+        body.data.shared,
+      );
+      if (ok) await hintThread(c, c.req.param('threadId'));
+      return c.json({ ok });
     } catch (error) {
       return handleThreadError(c, error);
     }
@@ -501,9 +520,9 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       userId,
       c.req.param('threadId'),
     );
-    return share === null
-      ? c.json({ error: 'thread not found' }, 404)
-      : c.json(share);
+    if (share === null) return c.json({ error: 'thread not found' }, 404);
+    await hintThread(c, c.req.param('threadId'));
+    return c.json(share);
   });
 
   app.post('/threads/:threadId/unshare', async (c) => {
@@ -514,6 +533,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       userId,
       c.req.param('threadId'),
     );
+    await hintThread(c, c.req.param('threadId'));
     return c.json({ ok: true });
   });
 
@@ -534,9 +554,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       body.data.fromMessageId,
       body.data.title,
     );
-    return branchId === null
-      ? c.json({ error: 'thread or message not found' }, 404)
-      : c.json({ id: branchId }, 201);
+    if (branchId === null) {
+      return c.json({ error: 'thread or message not found' }, 404);
+    }
+    await hintThread(c, branchId);
+    return c.json({ id: branchId }, 201);
   });
 
   // Edit / regenerate sibling branches + the fork-point selection map.
@@ -553,9 +575,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       c.req.param('threadId'),
       body.data.editedMessageId,
     );
-    return branchId === null
-      ? c.json({ error: 'thread or message not found' }, 404)
-      : c.json({ id: branchId }, 201);
+    if (branchId === null) {
+      return c.json({ error: 'thread or message not found' }, 404);
+    }
+    await hintThread(c, branchId);
+    return c.json({ id: branchId }, 201);
   });
 
   app.post('/threads/:threadId/branch-regenerate', async (c) => {
@@ -571,9 +595,11 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       c.req.param('threadId'),
       body.data.assistantMessageId,
     );
-    return branchId === null
-      ? c.json({ error: 'thread or message not found' }, 404)
-      : c.json({ id: branchId }, 201);
+    if (branchId === null) {
+      return c.json({ error: 'thread or message not found' }, 404);
+    }
+    await hintThread(c, branchId);
+    return c.json({ id: branchId }, 201);
   });
 
   app.get('/threads/:threadId/branches', async (c) => {
@@ -605,32 +631,14 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       body.data.forkKey,
       body.data.selectedThreadId,
     );
+    await hintThread(c, c.req.param('threadId'));
     return c.json({ ok: true });
   });
 
   app.post('/threads/:threadId/trash', async (c) => {
     const { organizationId, userId } = caller(c);
     try {
-      return c.json({
-        ok: await trashThread(
-          deps.sql,
-          {
-            organizationId,
-            userId,
-            email: c.get('sessionBundle').user.email,
-          },
-          c.req.param('threadId'),
-        ),
-      });
-    } catch (error) {
-      return handleThreadError(c, error);
-    }
-  });
-
-  app.post('/threads/:threadId/restore', async (c) => {
-    const { organizationId, userId } = caller(c);
-    return c.json({
-      ok: await restoreThread(
+      const ok = await trashThread(
         deps.sql,
         {
           organizationId,
@@ -638,8 +646,27 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           email: c.get('sessionBundle').user.email,
         },
         c.req.param('threadId'),
-      ),
-    });
+      );
+      if (ok) await hintThread(c, c.req.param('threadId'));
+      return c.json({ ok });
+    } catch (error) {
+      return handleThreadError(c, error);
+    }
+  });
+
+  app.post('/threads/:threadId/restore', async (c) => {
+    const { organizationId, userId } = caller(c);
+    const ok = await restoreThread(
+      deps.sql,
+      {
+        organizationId,
+        userId,
+        email: c.get('sessionBundle').user.email,
+      },
+      c.req.param('threadId'),
+    );
+    if (ok) await hintThread(c, c.req.param('threadId'));
+    return c.json({ ok });
   });
 
   // The composer surface: the model picker + capability menus.

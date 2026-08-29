@@ -27,6 +27,12 @@
  * the live generation alone opts out, because its absence IS its signal.
  */
 
+import {
+  keepPreviousData,
+  QueryClient,
+  QueryClientContext,
+  useQuery,
+} from '@tanstack/react-query';
 import { useConvex } from 'convex/react';
 import {
   getFunctionName,
@@ -36,6 +42,7 @@ import {
 } from 'convex/server';
 import {
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -43,6 +50,16 @@ import {
   useSyncExternalStore,
 } from 'react';
 
+import {
+  archivedThreadsQuery,
+  chatSearchQuery,
+  chatThreadQuery,
+  chatThreadsQuery,
+  invalidateChatThreads,
+  moveChatThreadToProject,
+  setChatThreadReasoningEffort,
+  threadBranchesQuery,
+} from '@/app/lib/backend/chat';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ReasoningEffort } from '@/lib/chat/effort';
@@ -100,6 +117,46 @@ const liveResultCache = new Map<string, unknown>();
  * closed — for a read that has no argument to run on yet, like a thread view
  * with no thread selected.
  */
+/**
+ * The reads whose family has MIGRATED to the 0.5 backend, keyed by the 0.4
+ * function name `useChatQuery` already keys its watches on. An adapted read
+ * runs over HTTP (react-query + the org hint stream) instead of a Convex
+ * watch; everything else keeps its websocket subscription until its family
+ * migrates. The client-side twin of the backend's name-keyed ctx shim.
+ */
+// oxlint-disable-next-line typescript/no-explicit-any -- the seam's callers type the result via FunctionReturnType; the table is the untyped boundary
+type HttpReadOptions = { queryKey: readonly unknown[]; queryFn?: any };
+const HTTP_READS: Record<
+  string,
+  (args: Record<string, unknown>) => HttpReadOptions
+> = {
+  'chat/threads:listThreads': (args) =>
+    chatThreadsQuery(String(args.organizationId)),
+  'chat/threads:listArchivedThreads': (args) =>
+    archivedThreadsQuery(
+      String(args.organizationId),
+      typeof args.cursor === 'number' ? args.cursor : undefined,
+    ),
+  'chat/threads:getThread': (args) =>
+    chatThreadQuery(String(args.organizationId), String(args.threadId)),
+  'chat/branches:listThreadBranches': (args) =>
+    threadBranchesQuery(String(args.organizationId), String(args.rootThreadId)),
+  'chat/search:searchChats': (args) =>
+    chatSearchQuery(String(args.organizationId), String(args.query)),
+};
+
+/** Provider-less renders (the seam's degrade case) still get a working
+ * HTTP lane through a module-level client — better than `unavailable`. */
+const fallbackChatQueryClient = new QueryClient();
+
+/** The query client the seam's HTTP lane actually uses in this render —
+ * the context one, or the module fallback for provider-less renders. The
+ * action hooks invalidate through THIS so they always hit the same cache
+ * the reads populate. */
+export function useChatQueryClient(): QueryClient {
+  return useContext(QueryClientContext) ?? fallbackChatQueryClient;
+}
+
 export function useChatQuery<Ref extends FunctionReference<'query'>>(
   fnRef: Ref,
   args: FunctionArgs<Ref> | 'skip',
@@ -117,8 +174,31 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
   const fnKey = getFunctionName(fnRef);
   const argsKey = skip ? 'skip' : JSON.stringify(args);
 
+  // The HTTP lane: adapted families fetch the backend; the options are
+  // rebuilt only when the (function, args) identity changes.
+  const httpOptions = useMemo(() => {
+    if (skip) return undefined;
+    const adapt = HTTP_READS[fnKey];
+    return adapt?.(args);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- args tracked by argsKey (see the watch memo's rationale)
+  }, [fnKey, argsKey, skip]);
+  const contextQueryClient = useContext(QueryClientContext);
+  const httpQuery = useQuery(
+    {
+      queryKey: httpOptions?.queryKey ?? ['backend', 'chat-http', 'disabled'],
+      // oxlint-disable-next-line typescript/no-unsafe-assignment -- the adapter table is the untyped boundary
+      queryFn: httpOptions?.queryFn ?? (async () => null),
+      enabled: httpOptions !== undefined,
+      placeholderData: keepPreviousData,
+    },
+    contextQueryClient ?? fallbackChatQueryClient,
+  );
+
   const watch = useMemo(
-    () => (convex && !skip ? convex.watchQuery(fnRef, args) : undefined),
+    () =>
+      convex && !skip && HTTP_READS[fnKey] === undefined
+        ? convex.watchQuery(fnRef, args)
+        : undefined,
     // `fnRef` and `args` are intentionally tracked by their stable keys
     // (`fnKey`, `argsKey`) — see above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -152,7 +232,10 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
     }
   }, [watch]);
 
-  const data = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const wsData = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  // oxlint-disable-next-line typescript/no-unsafe-assignment -- the adapter serves the same wire shape the 0.4 query declared; the seam's own projection guarantees it
+  const data: FunctionReturnType<Ref> | undefined =
+    httpOptions !== undefined ? httpQuery.data : wsData;
 
   // Render-phase cache maintenance, mirroring useCachedPaginatedQuery: the
   // write is idempotent, and the value must be current for this render's own
@@ -185,6 +268,12 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
     [value],
   );
 
+  if (httpOptions !== undefined) {
+    // An HTTP read needs no Convex client; a hard error (after the cache
+    // fallback above) degrades to `unavailable` like a missing client did.
+    if (value === undefined && httpQuery.isError) return UNAVAILABLE;
+    return result;
+  }
   if (!convex) return UNAVAILABLE;
   return result;
 }
@@ -877,21 +966,21 @@ export function useThreadProjectMove(organizationId: string): {
     projectId: string | null,
   ) => Promise<boolean>;
 } {
-  const convex = useConvex();
-
+  const queryClient = useChatQueryClient();
   const move = useCallback(
     async (threadId: string, projectId: string | null): Promise<boolean> => {
-      if (!convex) throw new Error('The chat backend is not reachable.');
-      return await convex.mutation(api.chat.threads.moveThreadToProject, {
+      const ok = await moveChatThreadToProject(
         organizationId,
         threadId,
         projectId,
-      });
+      );
+      if (ok) invalidateChatThreads(queryClient, organizationId);
+      return ok;
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
-  return { available: convex !== undefined, move };
+  return { available: true, move };
 }
 
 /**
@@ -905,35 +994,30 @@ export function useThreadReasoningEffort(organizationId: string): {
   readonly available: boolean;
   readonly save: (threadId: string, effort: ReasoningEffort | null) => void;
 } {
-  const convex = useConvex();
-
   const save = useCallback(
     (threadId: string, effort: ReasoningEffort | null) => {
-      if (!convex) return;
-      convex
-        .mutation(api.chat.threads.setThreadReasoningEffort, {
-          organizationId,
-          threadId,
-          // An absent arg clears the stored pick server-side.
-          ...(effort !== null ? { reasoningEffort: effort } : {}),
-        })
-        .then(
-          (owned) => {
-            if (!owned) {
-              console.warn(
-                '[chat] effort save skipped: the thread is not the caller’s',
-              );
-            }
-          },
-          (error: unknown) => {
-            console.warn('[chat] could not save the effort pick', error);
-          },
-        );
+      setChatThreadReasoningEffort(
+        organizationId,
+        threadId,
+        // An absent arg clears the stored pick server-side.
+        effort ?? undefined,
+      ).then(
+        (owned) => {
+          if (!owned) {
+            console.warn(
+              '[chat] effort save skipped: the thread is not the caller’s',
+            );
+          }
+        },
+        (error: unknown) => {
+          console.warn('[chat] could not save the effort pick', error);
+        },
+      );
     },
-    [convex, organizationId],
+    [organizationId],
   );
 
-  return { available: convex !== undefined, save };
+  return { available: true, save };
 }
 
 /**
