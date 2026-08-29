@@ -1,8 +1,13 @@
+'use node';
+
 /**
  * Pure file store for the org's SSO connection — the read/snapshot/write
  * mechanics shared by the 0.4 `'use node'` file actions and the 0.5
  * backend's admin surface. No ctx: callers own the configCache mirror
- * (0.4) and the audit row.
+ * (0.4) and the audit row. The pragma matters to the CONVEX bundler only
+ * (every file under convex/ is an entry point, partitioned by its own
+ * pragma — a pragma-less file with `node:*` imports breaks the V8 bundle);
+ * the 0.5 node-loader treats it as inert.
  *
  * Layout (files are the source of truth):
  *   <orgSlug>/governance/sso/connection.yml           (non-secret config)
