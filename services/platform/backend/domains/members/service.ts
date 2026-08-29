@@ -547,3 +547,169 @@ export async function updateMemberDisplayName(
     newState: { name: trimmed },
   });
 }
+
+/** User id for a registered email (0.4 `getUserIdByEmail`; null = none). */
+export async function getUserIdByEmail(
+  sql: Sql,
+  email: string,
+): Promise<string | null> {
+  const rows = await sql<{ id: string }[]>`
+    SELECT "id" FROM "user"
+    WHERE lower("email") = ${email.trim().toLowerCase()}
+    LIMIT 1
+  `;
+  return rows[0]?.id ?? null;
+}
+
+/** Admin guard shared by the member 2FA/passkey admin ops: caller must be
+ * owner/admin in the target's org; an OWNER target is only touchable by a
+ * DIFFERENT owner (self-service goes through account settings). */
+async function requireMemberAdminTarget(
+  sql: Sql,
+  actor: { userId: string; email?: string },
+  memberId: string,
+  opts: { ownerNeedsOtherOwner: boolean },
+): Promise<MemberRow> {
+  const member = await findMemberById(sql, memberId);
+  if (!member) {
+    throw new MemberServiceError('MEMBER_NOT_FOUND', 'Member not found', 404);
+  }
+  const caller = await findOrganizationMember(
+    sql,
+    member.organizationId,
+    actor.userId,
+  );
+  const callerRole = caller?.role.toLowerCase() ?? '';
+  if (!caller || !(callerRole === 'owner' || callerRole === 'admin')) {
+    throw new MemberServiceError('FORBIDDEN', 'Admin role required', 403);
+  }
+  if (
+    opts.ownerNeedsOtherOwner &&
+    member.role.toLowerCase() === 'owner' &&
+    (callerRole !== 'owner' || actor.userId === member.userId)
+  ) {
+    throw new MemberServiceError('FORBIDDEN', 'Cannot act on this member', 403);
+  }
+  return member;
+}
+
+export interface MemberPasskeyItem {
+  id: string;
+  name: string | null;
+  deviceType: string;
+  backedUp: boolean;
+  createdAt: number | null;
+}
+
+/** A member's registered passkeys (admin view, #1508 wire). */
+export async function listPasskeysForMember(
+  sql: Sql,
+  actor: { userId: string; email?: string },
+  memberId: string,
+): Promise<MemberPasskeyItem[]> {
+  const member = await requireMemberAdminTarget(sql, actor, memberId, {
+    ownerNeedsOtherOwner: false,
+  });
+  const rows = await sql<
+    {
+      id: string;
+      name: string | null;
+      deviceType: string;
+      backedUp: boolean;
+      createdAt: string | null;
+    }[]
+  >`
+    SELECT "id", "name", "deviceType", "backedUp", "createdAt"::text
+      AS "createdAt"
+    FROM "passkey" WHERE "userId" = ${member.userId}
+    ORDER BY "createdAt" ASC NULLS LAST
+    LIMIT 50
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    deviceType: row.deviceType,
+    backedUp: row.backedUp,
+    createdAt:
+      row.createdAt === null ? null : new Date(row.createdAt).getTime(),
+  }));
+}
+
+/** Admin passkey revocation: the credential must belong to the target
+ * (IDOR guard), every session dies with it, and the act is audited. */
+export async function revokePasskeyForMember(
+  sql: Sql,
+  actor: { userId: string; email?: string },
+  args: { memberId: string; passkeyId: string },
+): Promise<void> {
+  const member = await requireMemberAdminTarget(sql, actor, args.memberId, {
+    ownerNeedsOtherOwner: true,
+  });
+  const deleted = await sql<{ id: string }[]>`
+    DELETE FROM "passkey"
+    WHERE "id" = ${args.passkeyId} AND "userId" = ${member.userId}
+    RETURNING "id"
+  `;
+  if (!deleted[0]) {
+    throw new MemberServiceError('PASSKEY_NOT_FOUND', 'Passkey not found', 404);
+  }
+  await sql`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
+  await sql.begin(async (tx) => {
+    await logSuccess(tx, {
+      auditCtx: {
+        organizationId: member.organizationId,
+        actor: {
+          id: actor.userId,
+          ...(actor.email !== undefined ? { email: actor.email } : {}),
+          type: 'user',
+        },
+      },
+      action: 'passkey.revoked_by_admin',
+      category: 'auth',
+      resourceType: 'user',
+      resourceId: member.userId,
+      metadata: { memberId: args.memberId, passkeyId: args.passkeyId },
+    });
+  });
+}
+
+/** Admin 2FA reset: clear TOTP enrolment + grace + lockout counters, kill
+ * sessions — a clean slate to enrol fresh. */
+export async function resetTwoFactorForMember(
+  sql: Sql,
+  actor: { userId: string; email?: string },
+  memberId: string,
+): Promise<void> {
+  const member = await requireMemberAdminTarget(sql, actor, memberId, {
+    ownerNeedsOtherOwner: true,
+  });
+  await sql`DELETE FROM "twoFactor" WHERE "userId" = ${member.userId}`;
+  await sql`
+    UPDATE "user" SET "twoFactorEnabled" = false
+    WHERE "id" = ${member.userId}
+  `;
+  await sql`
+    DELETE FROM app.two_factor_grace WHERE user_id = ${member.userId}
+  `;
+  await sql`
+    DELETE FROM app.two_factor_attempts WHERE user_id = ${member.userId}
+  `;
+  await sql`DELETE FROM "session" WHERE "userId" = ${member.userId}`;
+  await sql.begin(async (tx) => {
+    await logSuccess(tx, {
+      auditCtx: {
+        organizationId: member.organizationId,
+        actor: {
+          id: actor.userId,
+          ...(actor.email !== undefined ? { email: actor.email } : {}),
+          type: 'user',
+        },
+      },
+      action: '2fa_reset_by_admin',
+      category: 'auth',
+      resourceType: 'user',
+      resourceId: member.userId,
+      metadata: { memberId },
+    });
+  });
+}

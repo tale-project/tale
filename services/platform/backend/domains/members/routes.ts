@@ -9,9 +9,13 @@ import { requireSession, type AuthEnv } from '../../auth/session.ts';
 import {
   addMember,
   getCurrentMemberContext,
+  getUserIdByEmail,
   listByOrganization,
+  listPasskeysForMember,
   MemberServiceError,
   removeMember,
+  resetTwoFactorForMember,
+  revokePasskeyForMember,
   transferOwnership,
   updateMemberDisplayName,
   updateMemberRole,
@@ -93,7 +97,61 @@ export function createMemberRoutes(deps: {
       return handleError(c, error);
     }
   });
+  orgScoped.get('/user-id-by-email', async (c) => {
+    const email = c.req.query('email') ?? '';
+    if (email.trim() === '') {
+      return c.json({ error: 'invalid email' }, 400);
+    }
+    return c.json({ userId: await getUserIdByEmail(deps.sql, email) });
+  });
   app.route('/', orgScoped);
+
+  // Member 2FA/passkey administration (org derived from the member row).
+  app.get('/:memberId/passkeys', async (c) => {
+    const session = c.get('sessionBundle');
+    try {
+      return c.json({
+        passkeys: await listPasskeysForMember(
+          deps.sql,
+          { userId: session.user.id, email: session.user.email },
+          c.req.param('memberId'),
+        ),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:memberId/passkeys/:passkeyId/revoke', async (c) => {
+    const session = c.get('sessionBundle');
+    try {
+      await revokePasskeyForMember(
+        deps.sql,
+        { userId: session.user.id, email: session.user.email },
+        {
+          memberId: c.req.param('memberId'),
+          passkeyId: c.req.param('passkeyId'),
+        },
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:memberId/two-factor/reset', async (c) => {
+    const session = c.get('sessionBundle');
+    try {
+      await resetTwoFactorForMember(
+        deps.sql,
+        { userId: session.user.id, email: session.user.email },
+        c.req.param('memberId'),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
 
   app.post('/:memberId/role', async (c) => {
     const body = updateRoleSchema.safeParse(await c.req.json());

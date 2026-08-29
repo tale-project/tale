@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { isAdmin } from '../../../convex/lib/rls/helpers/role_helpers.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -64,6 +65,55 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           row.createdAt === null ? null : new Date(row.createdAt).getTime(),
       })),
     });
+  });
+
+  // Org teams listing (0.4 `listOrgTeams`): admins see EVERY team, other
+  // members their own — the settings Teams page's read.
+  app.get('/', async (c) => {
+    const role = c.get('orgMember').role;
+    const userId = c.get('sessionBundle').user.id;
+    const admin = isAdmin(role);
+    const rows = await deps.sql<
+      {
+        id: string;
+        name: string;
+        memberCount: string;
+        createdAt: string | null;
+      }[]
+    >`
+      SELECT t."id", t."name",
+             (SELECT count(*) FROM "teamMember" c WHERE c."teamId" = t."id")::text
+               AS "memberCount",
+             t."createdAt"::text AS "createdAt"
+      FROM "team" t
+      WHERE t."organizationId" = ${c.get('orgId')}
+        AND (${admin} OR EXISTS (
+          SELECT 1 FROM "teamMember" tm
+          WHERE tm."teamId" = t."id" AND tm."userId" = ${userId}
+        ))
+      ORDER BY t."name" ASC
+    `;
+    return c.json({
+      teams: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        memberCount: Number(row.memberCount),
+        createdAt:
+          row.createdAt === null ? null : new Date(row.createdAt).getTime(),
+      })),
+    });
+  });
+
+  /** The caller's team count (0.4 `approxCountMyTeams` — a cheap gate). */
+  app.get('/count/mine', async (c) => {
+    const rows = await deps.sql<{ count: string }[]>`
+      SELECT count(*)::text AS count
+      FROM "teamMember" tm
+      JOIN "team" t ON t."id" = tm."teamId"
+      WHERE t."organizationId" = ${c.get('orgId')}
+        AND tm."userId" = ${c.get('sessionBundle').user.id}
+    `;
+    return c.json({ count: Number(rows[0]?.count ?? '0') });
   });
 
   app.get('/:teamId/members', async (c) => {
@@ -151,6 +201,31 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       entityId: team.id,
     });
     return c.json({ id, alreadyMember: false }, 201);
+  });
+
+  /** Remove by the teamMember ROW id (the 0.4 `removeMember` wire — the
+   * settings table rows carry `_id`, not (team,user) pairs). */
+  app.delete('/members/by-id/:teamMemberId', async (c) => {
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'Only admins can remove team members' }, 403);
+    }
+    const removed = await deps.sql<{ id: string; teamId: string }[]>`
+      DELETE FROM "teamMember" tm
+      USING "team" t
+      WHERE tm."id" = ${c.req.param('teamMemberId')}
+        AND t."id" = tm."teamId"
+        AND t."organizationId" = ${c.get('orgId')}
+      RETURNING tm."id", tm."teamId" AS "teamId"
+    `;
+    const row = removed[0];
+    if (row !== undefined) {
+      await emitHintInTx(deps.sql, {
+        orgId: c.get('orgId'),
+        entity: 'team',
+        entityId: row.teamId,
+      });
+    }
+    return c.json({ removed: row !== undefined });
   });
 
   app.delete('/:teamId/members/:userId', async (c) => {

@@ -14354,6 +14354,85 @@ async function checkBrandingAndTeams(
       memberHints[0]?.count === '3',
     `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, mine=${mineHit}, hints=${hintsAfterAdd[0]?.count}→${hintsAfterRemove[0]?.count} (want 1→2), memberHints=${memberHints[0]?.count} (want 3), removed=${removed.success ? removed.data.removed : 'ERR'}`,
   );
+
+  // --- Org/Teams settings tail (inc 87) ------------------------------------
+
+  const orgTeams = z
+    .object({
+      teams: z.array(
+        z.object({ id: z.string(), name: z.string(), memberCount: z.number() }),
+      ),
+    })
+    .safeParse(await get(`/api/app/teams?orgId=${orgId}`));
+  const countMine = z
+    .object({ count: z.number() })
+    .safeParse(await get(`/api/app/teams/count/mine?orgId=${orgId}`));
+  const callerEmailRows = await sql<{ email: string }[]>`
+    SELECT u."email" FROM "user" u
+    JOIN "member" m ON m."userId" = u."id"
+    WHERE m."organizationId" = ${orgId} AND lower(m."role") = 'owner'
+    LIMIT 1
+  `;
+  const emailHit = z
+    .object({ userId: z.string().nullable() })
+    .safeParse(
+      await get(
+        `/api/app/members/user-id-by-email?orgId=${orgId}&email=${encodeURIComponent(callerEmailRows[0]?.email ?? '')}`,
+      ),
+    );
+  const emailMiss = z
+    .object({ userId: z.string().nullable() })
+    .safeParse(
+      await get(
+        `/api/app/members/user-id-by-email?orgId=${orgId}&email=nobody%40nowhere.test`,
+      ),
+    );
+  record(
+    'org teams listing + count + user-id-by-email',
+    orgTeams.success &&
+      orgTeams.data.teams.some((team) => team.id === teamId) &&
+      countMine.success &&
+      emailHit.success &&
+      typeof emailHit.data.userId === 'string' &&
+      emailMiss.success &&
+      emailMiss.data.userId === null,
+    `teams=${orgTeams.success ? orgTeams.data.teams.length : 'ERR'}, countMine=${countMine.success ? countMine.data.count : 'ERR'}, hit=${emailHit.success ? typeof emailHit.data.userId : 'ERR'}, miss=${emailMiss.success ? String(emailMiss.data.userId) : 'ERR'}`,
+  );
+
+  // Member 2FA/passkey admin: the caller is the org's ONLY owner, so a
+  // reset/revoke on THEMSELF must refuse (owner needs a DIFFERENT owner);
+  // the passkey listing answers (empty) for an admin caller.
+  const ownMemberRows = await sql<{ id: string }[]>`
+    SELECT m."id" FROM "member" m
+    JOIN "user" u ON u."id" = m."userId"
+    WHERE m."organizationId" = ${orgId} AND lower(m."role") = 'owner'
+    LIMIT 1
+  `;
+  const ownerMemberId = ownMemberRows[0]?.id ?? '';
+  const ownPasskeys = z
+    .object({ passkeys: z.array(z.unknown()) })
+    .safeParse(
+      await get(`/api/app/members/${ownerMemberId}/passkeys?orgId=${orgId}`),
+    );
+  const selfReset = await post(
+    `/api/app/members/${ownerMemberId}/two-factor/reset?orgId=${orgId}`,
+    {},
+  );
+  const removeByRowIdMissing = await fetch(
+    `${base}/api/app/teams/members/by-id/does-not-exist?orgId=${orgId}`,
+    { method: 'DELETE', headers: { cookie, origin: base } },
+  );
+  const removeByRowIdMissingBody = z
+    .object({ removed: z.boolean() })
+    .safeParse(await removeByRowIdMissing.json());
+  record(
+    'member 2FA admin guards + passkey listing + row-id remove',
+    ownPasskeys.success &&
+      selfReset.status === 403 &&
+      removeByRowIdMissingBody.success &&
+      !removeByRowIdMissingBody.data.removed,
+    `passkeys=${ownPasskeys.success ? ownPasskeys.data.passkeys.length : 'ERR'}, selfReset → ${selfReset.status} (want 403), removeMissing=${removeByRowIdMissingBody.success ? removeByRowIdMissingBody.data.removed : 'ERR'} (want false)`,
+  );
 }
 
 /**

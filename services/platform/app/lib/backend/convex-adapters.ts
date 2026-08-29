@@ -27,6 +27,7 @@ import {
   projectReadAdapters,
   projectWriteAdapters,
 } from './projects';
+import { settingsReadAdapters, settingsWriteAdapters } from './settings';
 import { taskReadAdapters, taskWriteAdapters } from './tasks';
 
 export interface AdapterContext {
@@ -110,6 +111,7 @@ export type PaginatedAdapter = (
 export const READ_ADAPTERS: Record<string, ReadAdapter> = {
   ...documentReadAdapters,
   ...projectReadAdapters,
+  ...settingsReadAdapters,
   ...taskReadAdapters,
 };
 
@@ -124,6 +126,7 @@ export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {
 export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
   ...documentWriteAdapters,
   ...projectWriteAdapters,
+  ...settingsWriteAdapters,
   ...taskWriteAdapters,
 };
 
