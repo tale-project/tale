@@ -19,15 +19,18 @@ Tale bringt keinen Log-Shipper mit. Der Driver-Tausch ist der unterstützte Conn
 
 ## Metriken
 
-Der Caddy-Proxy exponiert drei Metric-Pfade, gegated von einem einzigen Bearer-Token:
+Der Caddy-Proxy exponiert bis zu vier Metric-Pfade, gegated von einem einzigen Bearer-Token:
 
 | Pfad                 | Quelle          | Was drinsteckt                                                                |
 | -------------------- | --------------- | ----------------------------------------------------------------------------- |
 | `/metrics/platform`  | `tale-platform` | HTTP-Latenz, Route-Counter, Node-Prozessmetriken, Antwortzeit-SLA-Ziel-Gauges |
 | `/metrics/convex`    | `tale-convex`   | 261 eingebaute Convex-Metriken, plus die RAG- und Crawl-Timings               |
 | `/metrics/sla-rules` | `tale-platform` | Generierte Prometheus-Recording- + Alerting-Rules für die Antwortzeit-SLAs    |
+| `/metrics/backend`   | `tale-backend-api` | Prozess-Metriken, HTTP-Counter und Latenz pro Routen-Klasse, Queue-Tiefe je Job-Status, laufende Chat-Generierungen, offene Hint-Streams, Drain-Zustand und dieselben SLA-Ziel-Gauges |
 
 Wissens-Arbeit (RAG-Suche, Dokument-Ingestion, Web-Crawling) läuft jetzt im Convex-Backend, also reiten ihre Timings auf der `/metrics/convex`-Reihe statt auf einem separaten Endpoint. Setze `METRICS_BEARER_TOKEN` in `.env`, um diese Endpoints zu aktivieren; lass es unset, damit sie jeder Anfrage 401 zurückgeben. Der `/metrics/sla-rules`-Pfad ist eine schreibgeschützte YAML-Rules-Datei, die du in Prometheus lädst, kein Scrape-Target — die Schwellen darin sind in [Operations](/de/self-hosted/operate/observability/operations) dokumentiert. Alles ausser den gelisteten Pfaden gibt ebenfalls 401 zurück, damit ein fehlgerouteter Scraper die internen Health-Endpoints der Plattform nicht versehentlich sieht.
+
+`/metrics/backend` gibt es erst, wenn ein Deployment auf das Postgres-Backend umgestellt ist (`BACKEND_UPSTREAM` in der `.env` gesetzt). Vorher antwortet der Pfad mit 404, statt still die Zahlen eines anderen Dienstes unter dem Namen des Backends auszuliefern — ein zu früh eingetragenes Scrape-Target scheitert also sichtbar, statt den falschen Prozess zu plotten.
 
 Eine funktionierende Prometheus-Scrape-Stanza:
 

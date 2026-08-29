@@ -215,11 +215,17 @@
 	# ============================================================================
 
 	@metricsAuth {
-		path /metrics/platform /metrics/convex /metrics/sla-rules
+		path /metrics/platform /metrics/convex /metrics/sla-rules /metrics/backend
 		expression `"{$METRICS_BEARER_TOKEN:}" != ""`
 		header Authorization "Bearer {$METRICS_BEARER_TOKEN:}"
 	}
 	handle @metricsAuth {
+		# The entrypoint replaces this with the `/metrics/backend` scrape lane
+		# once BACKEND_UPSTREAM is set; unset, the path falls through to the
+		# 401 block below rather than silently serving another service's
+		# numbers under the backend's name.
+		# BACKEND_METRICS_PLACEHOLDER
+
 		handle /metrics/platform {
 			rewrite * /metrics
 			reverse_proxy platform:3000
@@ -230,6 +236,15 @@
 		}
 		handle /metrics/sla-rules {
 			reverse_proxy platform:3000
+		}
+
+		# Any gated metrics path with no lane on THIS deployment (e.g.
+		# /metrics/backend before the cutover) answers 404. Without this the
+		# request falls out of the block into the platform catch-all below
+		# and serves the platform's numbers under another service's name —
+		# observed live while building the backend lane.
+		handle {
+			respond "Not Found" 404
 		}
 	}
 

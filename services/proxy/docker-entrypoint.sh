@@ -181,9 +181,24 @@ EOF
     /# BACKEND_PLACEHOLDER/ { print block; next }
     { print }
   ' "$CADDYFILE" > "${CADDYFILE}.tmp" && mv "${CADDYFILE}.tmp" "$CADDYFILE"
+  # The Prometheus scrape lane lives inside the token-gated metrics block,
+  # so it is templated separately (injecting it with the routes above would
+  # put it ahead of the auth matcher and expose the numbers unauthenticated).
+  BACKEND_METRICS_BLOCK=$(cat <<EOF
+		handle /metrics/backend {
+			rewrite * /metrics
+			reverse_proxy ${BACKEND_UPSTREAM}
+		}
+EOF
+)
+  awk -v block="$BACKEND_METRICS_BLOCK" '
+    /# BACKEND_METRICS_PLACEHOLDER/ { print block; next }
+    { print }
+  ' "$CADDYFILE" > "${CADDYFILE}.tmp" && mv "${CADDYFILE}.tmp" "$CADDYFILE"
 else
   echo "Backend routing: off (BACKEND_UPSTREAM unset — all lanes stay on Convex)"
   sed -i "/# BACKEND_PLACEHOLDER/d" "$CADDYFILE"
+  sed -i "/# BACKEND_METRICS_PLACEHOLDER/d" "$CADDYFILE"
 fi
 
 # The WebDAV door moves with the backend too. Its handle keeps the body cap

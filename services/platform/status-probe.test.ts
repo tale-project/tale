@@ -37,6 +37,9 @@ beforeEach(() => {
   // The node-lane probe self-activates on ADMIN_KEY; a developer shell that
   // exports one must not change which components these tests see.
   vi.stubEnv('ADMIN_KEY', '');
+  // The 0.5 backend component self-activates on TALE_BACKEND_URL; keep the
+  // default set of components stable for every test that doesn't opt in.
+  vi.stubEnv('TALE_BACKEND_URL', '');
 });
 
 afterEach(() => {
@@ -370,5 +373,50 @@ describe('renderStatusPage', () => {
     const dots = html.match(/<span class="dot"[^>]*>/g) ?? [];
     expect(dots.length).toBe(1);
     for (const dot of dots) expect(dot).toContain('aria-hidden="true"');
+  });
+});
+
+describe('0.5 backend component', () => {
+  test('is absent on a deployment that has not cut over', async () => {
+    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
+    const result = await probeServices(doFetch as unknown as typeof fetch);
+    expect(result.components.map((c) => c.id)).toEqual(['convex']);
+  });
+
+  test('probes /ping and joins the feed once TALE_BACKEND_URL is set', async () => {
+    vi.stubEnv('TALE_BACKEND_URL', 'http://backend-api:3005/');
+    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
+    const result = await probeServices(doFetch as unknown as typeof fetch);
+    expect(result.components.map((c) => c.id)).toEqual(['convex', 'backend']);
+    expect(result.overall).toBe('operational');
+    const urls = doFetch.mock.calls.map((call: unknown[]) => String(call[0]));
+    // Trailing slash normalized — never `//ping`.
+    expect(urls).toContain('http://backend-api:3005/ping');
+  });
+
+  test('a down backend degrades the page rather than hiding it', async () => {
+    vi.stubEnv('TALE_BACKEND_URL', 'http://backend-api:3005');
+    const doFetch = vi.fn((url: unknown) =>
+      Promise.resolve(
+        String(url).includes('/ping') ? downResponse() : okResponse(),
+      ),
+    );
+    const result = await probeServices(doFetch as unknown as typeof fetch);
+    expect(result.overall).toBe('degraded');
+    expect(result.components.find((c) => c.id === 'backend')?.up).toBe(false);
+  });
+
+  test('renders a stack-free label in every shipped locale', () => {
+    const feed = buildStatusFeed({
+      overall: 'degraded',
+      components: [
+        { id: 'convex', up: true },
+        { id: 'backend', up: false },
+      ],
+      checkedAt: new Date(0).toISOString(),
+    });
+    expect(renderStatusPage(feed, 'en')).toContain('Application services');
+    expect(renderStatusPage(feed, 'de')).toContain('Anwendungsdienste');
+    expect(renderStatusPage(feed, 'fr')).toContain('Services applicatifs');
   });
 });

@@ -7,6 +7,7 @@ import {
   requireOrganizationMember,
 } from '../auth/membership.ts';
 import type { AuthEnv } from '../auth/session.ts';
+import { hintStreamClosed, hintStreamOpened } from '../telemetry.ts';
 import { coalesceHints } from './hints.ts';
 import { latestOutboxId, readHintsAfter } from './outbox.ts';
 
@@ -45,44 +46,51 @@ export function createEventsHandler(sql: Sql) {
     const resumeFrom = c.req.header('Last-Event-ID') ?? null;
 
     return streamSSE(c, async (stream) => {
+      hintStreamOpened();
       let cursor =
         resumeFrom !== null && /^\d+$/.test(resumeFrom)
           ? resumeFrom
           : await latestOutboxId(sql);
       let lastBeatAt = Date.now();
 
-      while (!stream.aborted) {
-        try {
-          const rows = await readHintsAfter(sql, cursor, { orgId, userId });
-          if (rows.length > 0) {
-            const lastRow = rows[rows.length - 1];
-            if (lastRow !== undefined) {
-              cursor = lastRow.id;
+      try {
+        while (!stream.aborted) {
+          try {
+            const rows = await readHintsAfter(sql, cursor, { orgId, userId });
+            if (rows.length > 0) {
+              const lastRow = rows[rows.length - 1];
+              if (lastRow !== undefined) {
+                cursor = lastRow.id;
+              }
+              for (const hint of coalesceHints(rows)) {
+                await stream.writeSSE({
+                  event: 'hint',
+                  id: hint.id,
+                  data: JSON.stringify({
+                    entity: hint.entity,
+                    entityId: hint.entityId,
+                  }),
+                });
+              }
+              lastBeatAt = Date.now();
+            } else if (Date.now() - lastBeatAt >= HEARTBEAT_INTERVAL_MS) {
+              await stream.writeSSE({ event: 'heartbeat', data: '' });
+              lastBeatAt = Date.now();
             }
-            for (const hint of coalesceHints(rows)) {
-              await stream.writeSSE({
-                event: 'hint',
-                id: hint.id,
-                data: JSON.stringify({
-                  entity: hint.entity,
-                  entityId: hint.entityId,
-                }),
-              });
+          } catch (error) {
+            if (stream.aborted) {
+              break;
             }
-            lastBeatAt = Date.now();
-          } else if (Date.now() - lastBeatAt >= HEARTBEAT_INTERVAL_MS) {
-            await stream.writeSSE({ event: 'heartbeat', data: '' });
-            lastBeatAt = Date.now();
+            console.error('[backend] /events poll failed, backing off:', error);
+            await stream.sleep(ERROR_BACKOFF_MS);
+            continue;
           }
-        } catch (error) {
-          if (stream.aborted) {
-            break;
-          }
-          console.error('[backend] /events poll failed, backing off:', error);
-          await stream.sleep(ERROR_BACKOFF_MS);
-          continue;
+          await stream.sleep(POLL_INTERVAL_MS);
         }
-        await stream.sleep(POLL_INTERVAL_MS);
+      } finally {
+        // Paired with the open above — an aborted stream decrements too, or
+        // the gauge climbs forever on client churn.
+        hintStreamClosed();
       }
     });
   };

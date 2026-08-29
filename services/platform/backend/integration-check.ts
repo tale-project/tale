@@ -7801,6 +7801,41 @@ async function checkControlDrain(
   const queued =
     Number(jobsAfter[0]?.count ?? '0') - Number(jobsBefore[0]?.count ?? '0');
 
+  // Observability: the Prometheus scrape carries process defaults, the SLA
+  // budget gauges (shared with the platform's own /metrics) and the
+  // backend-only collectors — and it needs no bearer of its own because the
+  // proxy exposes it exclusively through the token-gated /metrics/backend.
+  const metricsRes = await fetch(`${base}/metrics`);
+  const metricsBody = await metricsRes.text();
+  const hasProcess = metricsBody.includes('process_cpu_seconds_total');
+  const hasSla = metricsBody.includes('tale_sla_target_seconds');
+  const hasJobs = metricsBody.includes('tale_backend_jobs');
+  const hasGenerations = metricsBody.includes(
+    'tale_backend_generations_inflight',
+  );
+  const hasStreams = metricsBody.includes('tale_backend_hint_streams_open');
+  const hasDrain = metricsBody.includes('tale_backend_drain_active');
+  const hasHttp = metricsBody.includes('tale_backend_http_requests_total');
+  // The route label must be the bounded class, never a path with ids in it.
+  const labelledByClass = /route="\/api\/app\/[a-z_-]+"/.test(metricsBody);
+  const noIdsInLabels = !/route="[^"]*[0-9a-f]{8}-[0-9a-f]{4}/.test(
+    metricsBody,
+  );
+  record(
+    'observability: backend /metrics carries process, SLA and backend series',
+    metricsRes.status === 200 &&
+      hasProcess &&
+      hasSla &&
+      hasJobs &&
+      hasGenerations &&
+      hasStreams &&
+      hasDrain &&
+      hasHttp &&
+      labelledByClass &&
+      noIdsInLabels,
+    `status=${metricsRes.status}, process=${hasProcess} sla=${hasSla} jobs=${hasJobs} generations=${hasGenerations} streams=${hasStreams} drain=${hasDrain} http=${hasHttp}, routeClass=${labelledByClass} noIds=${noIdsInLabels}`,
+  );
+
   record(
     'deploy control plane: provision door queues one org.scaffold per org',
     provisionUnauthorized.status === 401 &&

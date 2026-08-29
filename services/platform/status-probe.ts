@@ -28,13 +28,25 @@ const NODE_PROBE_TIMEOUT_MS = 8000;
 // for V8 execution; the node-action lane gets its own probe below.
 const CONVEX_URL = process.env.CONVEX_URL || 'http://127.0.0.1:3210';
 
+// The 0.5 Postgres backend, once a deployment has cut over. Absent on a
+// stack that hasn't: the component then simply does not appear in the feed,
+// so an un-migrated deployment never reads as "degraded" for a service it
+// does not run. `/ping` is the backend's own liveness route (the same one
+// its container healthcheck uses).
+// Read lazily, never frozen at import: the module is imported before the
+// process env is fully assembled in some entry paths, and a test must be
+// able to stub it.
+function backendUrl(): string {
+  return (process.env.TALE_BACKEND_URL ?? '').replace(/\/+$/, '');
+}
+
 export type OverallStatus = 'operational' | 'degraded' | 'outage';
 // Two facets of the one backend: `convex` is V8/HTTP liveness (the
 // `/version` fetch), `convexNodeActions` is the `'use node'` executor lane —
 // which can wedge on its own. Observed on demo v0.3.8 (2026-07-18): every
 // node action failed with "fetch failed" for hours after an upgrade restart
 // while `/version` stayed green and this page said "operational".
-export type ComponentId = 'convex' | 'convexNodeActions';
+export type ComponentId = 'convex' | 'convexNodeActions' | 'backend';
 
 // Binary today because each probe is just `fetch.ok`. The wider
 // `OverallStatus` vocabulary leaves room for a future `'degraded'`
@@ -146,6 +158,10 @@ function buildProbes(): Probe[] {
   const probes: Probe[] = [
     { id: 'convex', run: (f) => probeUrl(`${CONVEX_URL}/version`, f) },
   ];
+  const backend = backendUrl();
+  if (backend !== '') {
+    probes.push({ id: 'backend', run: (f) => probeUrl(`${backend}/ping`, f) });
+  }
   const adminKey = process.env.ADMIN_KEY;
   if (nodeLaneProbeOverride) {
     const override = nodeLaneProbeOverride;
@@ -285,6 +301,7 @@ const STRINGS = {
     components: {
       convex: 'Application',
       convexNodeActions: 'Background processing',
+      backend: 'Application services',
     },
   },
   de: {
@@ -299,6 +316,7 @@ const STRINGS = {
     components: {
       convex: 'Anwendung',
       convexNodeActions: 'Hintergrundverarbeitung',
+      backend: 'Anwendungsdienste',
     },
   },
   fr: {
@@ -313,6 +331,7 @@ const STRINGS = {
     components: {
       convex: 'Application',
       convexNodeActions: 'Traitements en arrière-plan',
+      backend: 'Services applicatifs',
     },
   },
 } as const;

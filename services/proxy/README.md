@@ -20,7 +20,7 @@ Routes (defined in `Caddyfile`):
 - `convex:3210` — WebSocket sync (`/ws_api/*`, `/api/*/sync`), admin API, actions, storage
 - `convex:3211` — Convex HTTP actions and `/api/*` site proxy
 - `convex:6791` — Convex Dashboard at `/convex-dashboard`
-- `platform:3000`, `convex` — `/metrics/*` (token-gated)
+- `platform:3000`, `convex` — `/metrics/*` (token-gated); `/metrics/backend` joins them once `BACKEND_UPSTREAM` is set, and 404s before that
 
 `maintenance.html` is served on backend 5xx.
 

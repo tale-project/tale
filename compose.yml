@@ -379,6 +379,11 @@ services:
     # CLI generator (create-platform-service.ts).
     environment:
       SANDBOX_BROWSER_VIEW: ${SANDBOX_BROWSER_VIEW:-}
+      # Where the public `/status` page probes the 0.5 backend. Derived from
+      # the cutover switch so the component appears exactly on a migrated
+      # stack (unset → the page shows only the Convex components, never a
+      # red row for a service this deployment does not run).
+      TALE_BACKEND_URL: ${BACKEND_UPSTREAM:+http://${BACKEND_UPSTREAM}}
 
     # Restart policy
     # Automatically restart the container if it crashes

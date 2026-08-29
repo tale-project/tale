@@ -11,6 +11,7 @@ import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
+import { initBackendTelemetry } from './telemetry.ts';
 
 async function main(): Promise<void> {
   const env = loadEnv();
@@ -39,6 +40,10 @@ async function main(): Promise<void> {
     databaseUrl: env.DATABASE_URL,
     ...(auth ? { authOptions: auth.options } : {}),
   });
+
+  // Metrics collectors need the pool and read app tables, so they register
+  // once per process AFTER the schema is known to exist.
+  initBackendTelemetry(sql);
 
   // pg-boss migrates its own `pgboss` schema on start (advisory-locked).
   // Every role sends jobs, so every role starts an instance; queue

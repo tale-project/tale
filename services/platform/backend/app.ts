@@ -68,6 +68,13 @@ import {
 import { createWebsiteRoutes } from './domains/websites/routes.ts';
 import { createEventsHandler } from './realtime/sse.ts';
 import { createRestV1Routes } from './rest/v1.ts';
+import {
+  backendMetricsResponse,
+  httpDuration,
+  httpRequests,
+  initBackendTelemetry,
+  routeClass,
+} from './telemetry.ts';
 
 export interface AppDeps {
   sql: Sql;
@@ -76,7 +83,35 @@ export interface AppDeps {
 
 export function createApp(deps: AppDeps): Hono<AuthEnv> {
   const app = new Hono<AuthEnv>();
+  // Idempotent (guarded by the module's own flag): `main.ts` already
+  // initializes at boot for every role, and this covers hosts that build the
+  // app directly — an app with a `/metrics` route that renders an empty
+  // registry is worse than no route at all.
+  initBackendTelemetry(deps.sql);
   app.get('/ping', (c) => c.json({ ok: true, service: 'backend' }));
+  // Prometheus scrape. Reachable publicly only through the proxy's
+  // token-gated `/metrics/backend` lane; inside the network it is the plain
+  // pull endpoint every sidecar expects.
+  app.get('/metrics', () => backendMetricsResponse());
+  // Request counters/histograms for everything below, labelled by a BOUNDED
+  // route class (never the raw path — ids would make the label set
+  // unbounded). Declared before the routes so it wraps them all.
+  app.use(async (c, next) => {
+    const started = performance.now();
+    const route = routeClass(c.req.path);
+    const method = c.req.method;
+    try {
+      await next();
+    } finally {
+      const seconds = (performance.now() - started) / 1000;
+      httpDuration.observe({ method, route }, seconds);
+      httpRequests.inc({
+        method,
+        route,
+        status: `${Math.floor(c.res.status / 100)}xx`,
+      });
+    }
+  });
   // Better Auth owns everything under its basePath (sign-up/in/out, session,
   // organization plugin endpoints, api-key/two-factor/passkey, …).
   app.on(['GET', 'POST'], '/api/auth/*', (c) => deps.auth.handler(c.req.raw));
