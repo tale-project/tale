@@ -11,6 +11,7 @@ describe('selectDefaultServices', () => {
       isFirstDeploy: false,
       stop: false,
       isStopGatedRunning: ALL_RUNNING,
+      backendEnabled: false,
     });
     expect(sel.rotatable).toEqual(['platform']);
     // The sandbox tier is a single container (blue-green dropped) and rolls
@@ -28,6 +29,7 @@ describe('selectDefaultServices', () => {
       isFirstDeploy: false,
       stop: false,
       isStopGatedRunning: ALL_RUNNING,
+      backendEnabled: false,
     });
     expect(sel.leftRunning).toEqual(['db', 'proxy']);
     expect(sel.stateful).not.toContain('db');
@@ -39,6 +41,7 @@ describe('selectDefaultServices', () => {
       isFirstDeploy: false,
       stop: true,
       isStopGatedRunning: ALL_RUNNING,
+      backendEnabled: false,
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toEqual([
@@ -56,6 +59,7 @@ describe('selectDefaultServices', () => {
       isFirstDeploy: false,
       stop: false,
       isStopGatedRunning: NONE_RUNNING,
+      backendEnabled: false,
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toContain('db');
@@ -67,6 +71,7 @@ describe('selectDefaultServices', () => {
       isFirstDeploy: false,
       stop: false,
       isStopGatedRunning: (s) => s === 'db', // db running, proxy stopped
+      backendEnabled: false,
     });
     expect(sel.leftRunning).toEqual(['db']);
     expect(sel.stateful).toContain('proxy');
@@ -78,6 +83,7 @@ describe('selectDefaultServices', () => {
       isFirstDeploy: true,
       stop: false,
       isStopGatedRunning: ALL_RUNNING,
+      backendEnabled: false,
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toEqual([
@@ -88,5 +94,29 @@ describe('selectDefaultServices', () => {
       'db',
       'proxy',
     ]);
+  });
+});
+
+describe('the Postgres backend tier', () => {
+  test('is deployed only on a stack that has cut over', () => {
+    const migrated = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: false,
+      isStopGatedRunning: () => true,
+      backendEnabled: true,
+    });
+    expect(migrated.stateful).toContain('backend-api');
+    expect(migrated.stateful).toContain('backend-worker');
+
+    const notMigrated = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: false,
+      isStopGatedRunning: () => true,
+      backendEnabled: false,
+    });
+    expect(notMigrated.stateful).not.toContain('backend-api');
+    expect(notMigrated.stateful).not.toContain('backend-worker');
+    // The 0.4 always-roll tier is untouched either way.
+    expect(notMigrated.stateful).toContain('convex');
   });
 });

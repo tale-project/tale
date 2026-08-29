@@ -110,6 +110,90 @@ sed -i "s|^[[:space:]]*#[[:space:]]*TLS_PLACEHOLDER[[:space:]]*\$|\\t${TLS_CONFI
 sed -i "s|{[\$]SITE_ORIGIN:[^}]*}|${SITE_URL}|" "$CADDYFILE"
 sed -i "s|{[\$]DOCS_ORIGIN:[^}]*}|${DOCS_URL}|" "$CADDYFILE"
 
+# ============================================================================
+# 0.5 backend-api routing (the Convex→Postgres cutover)
+# ============================================================================
+# BACKEND_UPSTREAM (host:port, e.g. `backend-api:3005`) turns on the migrated
+# lanes. Everything the pg backend owns is listed here explicitly — auth, the
+# app API, the hint stream, both machine doors, SSO/SCIM/trusted-headers on
+# BOTH their 0.5-native and 0.4 `/http_api/...` paths (registered IdP redirect
+# URIs carry the old ones), the control channel the CLI drains through, the
+# cloud-import OAuth callbacks and the WebDAV protocol door. Anything not
+# named keeps flowing to Convex, so the cutover stays reversible: unset the
+# variable and the stack is back on 0.4 lanes.
+if [ -n "${BACKEND_UPSTREAM:-}" ]; then
+  echo "Backend routing: 0.5 lanes → ${BACKEND_UPSTREAM}"
+  BACKEND_BLOCK=$(cat <<EOF
+	handle /api/auth/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /api/app/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /events {
+		reverse_proxy ${BACKEND_UPSTREAM} {
+			flush_interval -1
+		}
+	}
+	handle /api/tools/* {
+		log_skip
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /api/automations/webhook/* {
+		log_skip
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /api/v1/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /api/control/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /api/sso/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /http_api/api/sso/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /scim/v2/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /http_api/scim/v2/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /api/trusted-headers/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /http_api/api/trusted-headers/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /api/cloud-import/oauth2/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /http_api/api/cloud-import/oauth2/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+EOF
+)
+  # `awk` (not sed): the block is multi-line and carries the tabs Caddy's
+  # formatter expects, which sed's replacement escaping would mangle.
+  awk -v block="$BACKEND_BLOCK" '
+    /# BACKEND_PLACEHOLDER/ { print block; next }
+    { print }
+  ' "$CADDYFILE" > "${CADDYFILE}.tmp" && mv "${CADDYFILE}.tmp" "$CADDYFILE"
+else
+  echo "Backend routing: off (BACKEND_UPSTREAM unset — all lanes stay on Convex)"
+  sed -i "/# BACKEND_PLACEHOLDER/d" "$CADDYFILE"
+fi
+
+# The WebDAV door moves with the backend too. Its handle keeps the body cap
+# and only swaps upstream, through Caddy's own env placeholder — one export
+# here so the two stay in sync without a second templating pass.
+if [ -n "${BACKEND_UPSTREAM:-}" ]; then
+  WEBDAV_UPSTREAM="${BACKEND_UPSTREAM}"
+  export WEBDAV_UPSTREAM
+fi
+
 # Inject base path stripping for subpath deployments
 if [ -n "$BASE_PATH" ]; then
   sed -i "s|# BASE_PATH_PLACEHOLDER|uri strip_prefix ${BASE_PATH}|" "$CADDYFILE"

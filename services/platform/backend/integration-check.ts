@@ -7776,6 +7776,40 @@ async function checkControlDrain(
     UPDATE app.backend_control SET draining = false WHERE key = 'singleton'
   `;
 
+  // `tale migrate` on a cut-over stack: the provision door queues one
+  // idempotent `org.scaffold` job per organization (schema migrations run at
+  // boot, so they are deliberately NOT part of this door).
+  const orgCount = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "organization"
+  `;
+  const provisionUnauthorized = await control('/provision', {
+    method: 'POST',
+  });
+  const jobsBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job WHERE name = 'org.scaffold'
+  `;
+  const provisioned = z
+    .object({ organizations: z.number() })
+    .safeParse(
+      await (
+        await control('/provision', { method: 'POST', bearer: token })
+      ).json(),
+    );
+  const jobsAfter = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job WHERE name = 'org.scaffold'
+  `;
+  const queued =
+    Number(jobsAfter[0]?.count ?? '0') - Number(jobsBefore[0]?.count ?? '0');
+
+  record(
+    'deploy control plane: provision door queues one org.scaffold per org',
+    provisionUnauthorized.status === 401 &&
+      provisioned.success &&
+      provisioned.data.organizations === Number(orgCount[0]?.count ?? '-1') &&
+      queued === provisioned.data.organizations,
+    `unauthorized=${provisionUnauthorized.status} (want 401), orgs=${provisioned.success ? provisioned.data.organizations : 'ERR'} (db=${orgCount[0]?.count}), queued=${queued}`,
+  );
+
   record(
     'deploy drain control plane (token door, send gate, expiry)',
     noBearer.status === 401 &&

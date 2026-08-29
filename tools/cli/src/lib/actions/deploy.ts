@@ -37,6 +37,11 @@ import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
+import {
+  backendApiContainer,
+  drainBackend,
+  endDrainBackend,
+} from './drain-backend';
 import { drainConvex, endDrainConvex } from './drain-convex';
 import { drainSandbox } from './drain-sandbox';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
@@ -226,6 +231,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           isFirstDeploy,
           stop,
           isStopGatedRunning: (s) => runningState.get(s) ?? false,
+          backendEnabled: env.BACKEND_UPSTREAM !== '',
         });
         rotatableToUpdate = selection.rotatable;
         statefulToUpdate = selection.stateful;
@@ -409,6 +415,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
             (await getContainerVersion(`${getProjectId()}-convex`)) !==
               version);
 
+        // Same question for the pg backend tier on a migrated stack: it ships
+        // the platform image, so a version change recreates it and cuts the
+        // in-flight turns its api container is streaming.
+        const backendWillRecreate =
+          !isFirstDeploy &&
+          statefulToUpdate.includes('backend-api') &&
+          (Boolean(options.forceRecreate) ||
+            (await getContainerVersion(backendApiContainer())) !== version);
+
         // Will this deploy actually recreate the sandbox spawner? Same logic as
         // convex: drain in-flight one-shot executions only when the single
         // sandbox container's image version is changing (or a forced recreate),
@@ -423,6 +438,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
         if (dryRun) {
           if (convexWillRecreate) {
             await drainConvex({ dryRun: true });
+          }
+          if (backendWillRecreate) {
+            await drainBackend({ dryRun: true });
           }
           if (sandboxWillRecreate) {
             await drainSandbox({ dryRun: true });
@@ -444,6 +462,13 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // finalizes anything that outlasts the drain budget.
           if (convexWillRecreate) {
             await drainConvex({ dryRun: false });
+          }
+
+          // The pg backend's own chat-turn drain — the migrated twin of the
+          // convex lane above (the two never both run: a cut-over stack
+          // serves chat from the backend tier).
+          if (backendWillRecreate) {
+            await drainBackend({ dryRun: false });
           }
 
           // Drain in-flight sandbox executions before the single spawner is
@@ -495,6 +520,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
           // anyway if this fails (see drain-convex.ts).
           if (convexWillRecreate) {
             await endDrainConvex();
+          }
+          if (backendWillRecreate) {
+            await endDrainBackend();
           }
 
           // The controller is a non-critical opt-in sidecar. Bring it up in its

@@ -20,8 +20,10 @@
 
 import * as logger from '../../utils/logger';
 import { redactAdminKey, stripConvexBannerLines } from '../docker/convex-run';
+import { docker } from '../docker/docker';
 import { exec } from '../docker/exec';
 import { findPlatformContainer } from '../docker/find-platform-container';
+import { backendApiContainer, isBackendTierRunning } from './drain-backend';
 
 interface RunMigrationsOptions {
   dryRun: boolean;
@@ -65,6 +67,15 @@ export async function runMigrations(
   options: RunMigrationsOptions,
 ): Promise<void> {
   const { dryRun } = options;
+
+  // A stack that has cut over to Postgres has no Convex runners to call:
+  // schema migrations apply themselves at backend boot (advisory-locked), so
+  // `tale migrate` there means "re-seed every org's provisioned content" —
+  // the control door's idempotent provision step.
+  if (await isBackendTierRunning()) {
+    await runBackendProvisioning({ dryRun });
+    return;
+  }
 
   if (dryRun) {
     logger.blank();
@@ -118,4 +129,56 @@ export async function runMigrations(
     logger.info(redactAdminKey(logs));
   }
   logger.success('Migrations complete.');
+}
+
+/**
+ * The Postgres lane's `tale migrate`: POST the control door's provision
+ * step from inside the api container (the token never leaves it), then
+ * report how many organizations were queued. Schema migrations are
+ * deliberately absent — the backend runs them at boot.
+ */
+async function runBackendProvisioning(options: {
+  dryRun: boolean;
+}): Promise<void> {
+  const container = backendApiContainer();
+  if (options.dryRun) {
+    logger.blank();
+    logger.info(
+      `[DRY-RUN] Would re-provision every organization via POST /api/control/provision in ${container} ` +
+        '(schema migrations run at backend boot).',
+    );
+    return;
+  }
+
+  logger.blank();
+  logger.step('Re-provisioning built-in defaults for every organization...');
+  const res = await docker(
+    'exec',
+    container,
+    'sh',
+    '-c',
+    'curl -fsS -X POST -H "Authorization: Bearer $TALE_CONTROL_TOKEN" http://localhost:3005/api/control/provision',
+  );
+  if (!res.success) {
+    throw new Error(
+      `tale migrate failed: the control door refused in ${container}. ` +
+        `${res.stderr.trim().slice(0, 200)} — the step is idempotent, so ` +
+        `re-run after addressing the failure.`,
+    );
+  }
+  let organizations: number | null = null;
+  try {
+    const parsed: unknown = JSON.parse(res.stdout);
+    if (typeof parsed === 'object' && parsed !== null) {
+      const value = (parsed as Record<string, unknown>).organizations;
+      if (typeof value === 'number') organizations = value;
+    }
+  } catch (err) {
+    logger.debug(`provision response parse failed: ${String(err)}`);
+  }
+  logger.success(
+    organizations === null
+      ? 'Provisioning queued.'
+      : `Provisioning queued for ${organizations} organization(s).`,
+  );
 }

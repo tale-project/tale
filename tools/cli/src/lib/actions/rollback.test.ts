@@ -91,6 +91,7 @@ mock.module('../../utils/logger', () => ({
   debug: mock(),
 }));
 const env: DeploymentEnv = {
+  BACKEND_UPSTREAM: '',
   GHCR_REGISTRY: 'ghcr.io/tale-project/tale',
   SITE_URL: 'https://localhost',
   HEALTH_CHECK_TIMEOUT: 1,

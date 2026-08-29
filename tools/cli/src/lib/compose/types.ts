@@ -79,6 +79,12 @@ export const STATEFUL_SERVICES = [
   // ALWAYS_ROLL_SERVICES); a serialized /v1/drain (drainSandbox) runs first.
   'sandbox',
   'sandbox-egress',
+  // 0.5 Postgres backend tier. Profile-gated in compose (`backend`), so a
+  // stack that has not cut over never starts one; naming a service
+  // explicitly starts it regardless of its profile, which is exactly how
+  // the migrated deployments roll it.
+  'backend-api',
+  'backend-worker',
 ] as const;
 export const ALL_SERVICES = [
   ...ROTATABLE_SERVICES,
@@ -110,7 +116,20 @@ export const ALWAYS_ROLL_SERVICES = [
   'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',
+  // The pg backend ships the SAME image as platform and shares its wire
+  // contracts, so it must never version-skew from it: rolled in place on
+  // every deploy of a migrated stack, drained first (drain-backend.ts).
+  // Deploy filters these out when the stack has not cut over.
+  'backend-api',
+  'backend-worker',
 ] as const;
+
+/**
+ * The 0.5 Postgres backend tier — deployed only on a stack that has cut over
+ * (see `selectDefaultServices`). Named once here so the deploy filter and the
+ * drain lane can't drift apart.
+ */
+export const BACKEND_TIER_SERVICES = ['backend-api', 'backend-worker'] as const;
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];

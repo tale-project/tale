@@ -11,6 +11,14 @@ export interface DeploymentEnv {
   HEALTH_CHECK_TIMEOUT: number;
   DRAIN_TIMEOUT: number;
   DEPLOY_DIR: string;
+  /**
+   * Has this deployment cut over to the Postgres backend? `BACKEND_UPSTREAM`
+   * is the proxy's cutover switch (`backend-api:3005`), and it is the ONE
+   * source of truth: set it and the proxy routes the migrated lanes there,
+   * `tale deploy` rolls the backend tier, and the drain runs against its
+   * control door instead of convex's.
+   */
+  BACKEND_UPSTREAM: string;
 }
 
 const DEFAULT_REGISTRY = 'ghcr.io/tale-project/tale';
@@ -86,5 +94,6 @@ export function loadEnv(deployDir: string): DeploymentEnv {
       DEFAULT_DRAIN_TIMEOUT,
     ),
     DEPLOY_DIR: deployDir,
+    BACKEND_UPSTREAM: process.env.BACKEND_UPSTREAM ?? '',
   };
 }

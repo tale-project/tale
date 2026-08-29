@@ -575,6 +575,14 @@ services:
       - path: .env
         required: false
 
+    environment:
+      # The Convex→Postgres cutover switch. Set (with the `backend` profile
+      # running) it routes auth, the app API, the hint stream, both machine
+      # doors, SSO/SCIM/trusted-headers, the control channel, cloud-import
+      # OAuth and WebDAV to the pg backend; unset, every lane stays on
+      # Convex. `tale deploy` writes it into .env once a stack is migrated.
+      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-}
+
     # Restart policy
     # Automatically restart the container if it crashes
     restart: unless-stopped

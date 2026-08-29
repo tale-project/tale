@@ -1,5 +1,7 @@
 import type { Sql } from 'postgres';
 
+import { addJobInTx } from '../../jobs/enqueue.ts';
+
 /**
  * Deploy DRAIN control plane — the 0.5 twin of `convex/control/drain.ts`.
  * `tale deploy` restarts the backend on a version change, killing every
@@ -80,4 +82,26 @@ export async function drainStatus(
     draining: await isBackendDraining(sql),
     inFlight: await countActiveGenerations(sql),
   };
+}
+
+/**
+ * Re-run provisioning for every organization — the 0.5 twin of `tale
+ * migrate`'s Convex `provisioning:provisionAll` step. SCHEMA migrations need
+ * no door: the backend applies them under an advisory lock at boot, so a
+ * deployed image is always at its own schema. What stays operator-triggered
+ * is the idempotent per-org seeding (default automation packs + starter
+ * content), which rides the same `org.scaffold` job the create path uses —
+ * one job per org so a slow or failing org retries on its own without
+ * blocking the rest, and the CLI returns as soon as they are queued.
+ */
+export async function provisionAllOrganizations(
+  sql: Sql,
+): Promise<{ organizations: number }> {
+  const orgs = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" ORDER BY "slug"
+  `;
+  for (const org of orgs) {
+    await addJobInTx(sql, 'org.scaffold', { orgSlug: org.slug });
+  }
+  return { organizations: orgs.length };
 }

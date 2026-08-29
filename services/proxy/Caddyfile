@@ -100,6 +100,17 @@
 	}
 
 	# ============================================================================
+	# 0.5 backend-api lanes (the Convex→Postgres cutover)
+	# ============================================================================
+	# The entrypoint replaces the placeholder below with the `handle` blocks
+	# routing the migrated surface to `backend-api` when BACKEND_UPSTREAM is
+	# set (the `backend` compose profile), and deletes the line otherwise —
+	# so an un-migrated stack keeps flowing entirely to Convex. Declared
+	# BEFORE the Convex handles because Caddy takes the first matching
+	# `handle` in file order.
+	# BACKEND_PLACEHOLDER
+
+	# ============================================================================
 	# Direct Convex Proxies (bypass Express for better WebSocket stability)
 	# ============================================================================
 
@@ -246,7 +257,10 @@
 		request_body {
 			max_size {$WEBDAV_MAX_PUT_BYTES:5GB}
 		}
-		reverse_proxy platform:3000 {
+		# The entrypoint exports WEBDAV_UPSTREAM = BACKEND_UPSTREAM once the
+		# 0.5 lanes are on; the default keeps un-migrated stacks on the
+		# platform's own WebDAV handler.
+		reverse_proxy {$WEBDAV_UPSTREAM:platform:3000} {
 			# Forward the real client IP. The WebDAV failed-auth throttle
 			# keys its per-IP bucket on the first X-Forwarded-For hop, so an
 			# attacker is rate-limited by their own source rather than locking

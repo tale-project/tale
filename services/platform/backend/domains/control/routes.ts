@@ -3,7 +3,12 @@ import { timingSafeEqual } from 'node:crypto';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 
-import { beginDrain, drainStatus, endDrain } from './service.ts';
+import {
+  beginDrain,
+  drainStatus,
+  endDrain,
+  provisionAllOrganizations,
+} from './service.ts';
 
 /**
  * /api/control — the deploy-time machine door (`tale deploy` drains chat
@@ -51,6 +56,13 @@ export function createControlRoutes(deps: { sql: Sql }): Hono {
 
   app.get('/drain-status', async (c) => {
     return c.json(await drainStatus(deps.sql));
+  });
+
+  /** `tale migrate` — re-seed every org's provisioned content (idempotent).
+   * Schema migrations are not here on purpose: the backend applies them at
+   * boot under its advisory lock. */
+  app.post('/provision', async (c) => {
+    return c.json(await provisionAllOrganizations(deps.sql));
   });
 
   return app;
