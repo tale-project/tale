@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { listConnectorSummaries } from '../../../convex/connector_credentials/connector_catalog.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -71,6 +72,14 @@ export function createConnectorCredentialRoutes(deps: {
     }
     return null;
   };
+
+  /** The connector CATALOG (settings rows) — pure file read; developer
+   * gate matching the 0.4 action. */
+  app.get('/catalog', async (c) => {
+    const denied = requireDeveloper(c);
+    if (denied) return denied;
+    return c.json({ connectors: listConnectorSummaries() });
+  });
 
   app.get('/', async (c) => {
     const connectorSlug = c.req.query('connector') ?? undefined;

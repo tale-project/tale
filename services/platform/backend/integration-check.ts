@@ -699,6 +699,66 @@ async function checkIdentityDomains(
     `plain → ${envPlain.status}, secret → ${envSecret.status}, badKey → ${envBadKey.status} (want 400), masked=${secretRow?.maskedValue !== undefined && secretRow.value === undefined}, deleted=${envAfterDelete.success ? !envAfterDelete.data.env.some((row) => row.key === 'MY_REGION') : 'ERR'}`,
   );
 
+  // Providers/connectors/sandbox settings surfaces (inc 89) — shape-level:
+  // catalogs depend on the deploy's config tree, so counts stay untested.
+  const provCatalogs = z
+    .object({ catalogs: z.array(z.object({ name: z.string() })) })
+    .safeParse(await get(`/api/app/providers/catalogs?orgId=${orgId}`));
+  const harnessStatus = z
+    .object({ statuses: z.array(z.object({ slug: z.string() })) })
+    .safeParse(await get(`/api/app/providers/harness-status?orgId=${orgId}`));
+  const visionPick = z
+    .object({ pick: z.unknown().nullable() })
+    .safeParse(await get(`/api/app/providers/vision-model?orgId=${orgId}`));
+  const connectorCatalog = z
+    .object({ connectors: z.array(z.object({ slug: z.string() })) })
+    .safeParse(
+      await get(`/api/app/connector-credentials/catalog?orgId=${orgId}`),
+    );
+  const quotaUsage = z
+    .object({
+      usage: z.array(
+        z.object({
+          budget: z.string(),
+          used: z.number(),
+          cap: z.number(),
+          atLimit: z.boolean(),
+        }),
+      ),
+    })
+    .safeParse(await get(`/api/app/sandbox/quota-usage?orgId=${orgId}`));
+  const harnessHealth = z
+    .object({ health: z.array(z.unknown()) })
+    .safeParse(await get(`/api/app/sandbox/harness-health?orgId=${orgId}`));
+  const sessionsView = z
+    .object({ sessions: z.array(z.unknown()) })
+    .safeParse(await get(`/api/app/sandbox/sessions/view?orgId=${orgId}`));
+  const reconcile = z
+    .object({ healed: z.number() })
+    .safeParse(
+      await (
+        await post(`/api/app/sandbox/reconcile?orgId=${orgId}`, {})
+      ).json(),
+    );
+  const stopMissing = await post(
+    `/api/app/sandbox/sessions/nope/stop-task?orgId=${orgId}`,
+    {},
+  );
+  record(
+    'providers/connectors/sandbox settings surfaces',
+    provCatalogs.success &&
+      harnessStatus.success &&
+      visionPick.success &&
+      connectorCatalog.success &&
+      quotaUsage.success &&
+      quotaUsage.data.usage.length === 3 &&
+      harnessHealth.success &&
+      sessionsView.success &&
+      reconcile.success &&
+      stopMissing.status === 404,
+    `catalogs=${provCatalogs.success ? provCatalogs.data.catalogs.length : 'ERR'}, harness=${harnessStatus.success ? harnessStatus.data.statuses.length : 'ERR'}, vision=${visionPick.success ? 'ok' : 'ERR'}, connectors=${connectorCatalog.success ? connectorCatalog.data.connectors.length : 'ERR'}, quota=${quotaUsage.success ? quotaUsage.data.usage.length : 'ERR'} (want 3), health=${harnessHealth.success ? 'ok' : 'ERR'}, view=${sessionsView.success ? sessionsView.data.sessions.length : 'ERR'}, reconcile=${reconcile.success ? reconcile.data.healed : 'ERR'}, stop404=${stopMissing.status}`,
+  );
+
   const audits = z
     .object({ items: z.array(z.object({ action: z.string() })) })
     .safeParse(await get(`/api/app/audit-logs?orgId=${orgId}`));

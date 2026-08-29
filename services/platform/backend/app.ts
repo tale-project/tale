@@ -38,6 +38,7 @@ import { createOrganizationRoutes } from './domains/organizations/routes.ts';
 import { createProductRoutes } from './domains/products/routes.ts';
 import { createProjectRoutes } from './domains/projects/routes.ts';
 import { createProviderCredentialRoutes } from './domains/provider_credentials/routes.ts';
+import { createProviderSettingRoutes } from './domains/providers/routes.ts';
 import { createRetentionRoutes } from './domains/retention/routes.ts';
 import { createToolDispatchRoutes } from './domains/sandbox/dispatch-routes.ts';
 import { createSandboxRoutes } from './domains/sandbox/routes.ts';
@@ -152,6 +153,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/products', createProductRoutes(deps));
   app.route('/api/app/projects', createProjectRoutes(deps));
   app.route('/api/app/retention', createRetentionRoutes(deps));
+  app.route('/api/app/providers', createProviderSettingRoutes(deps));
   app.route(
     '/api/app/provider-credentials',
     createProviderCredentialRoutes(deps),

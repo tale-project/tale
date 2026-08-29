@@ -300,16 +300,19 @@ export async function createCredential(
   return id;
 }
 
-/** Status / default / allowlist edits (never the secret — recreate instead). */
+/** Name / status / default / allowlist / secret-rotation edits. */
 export async function updateCredential(
   tx: TransactionSql,
   scope: CredentialScope,
   credentialId: string,
   patch: {
+    name?: string;
     status?: 'active' | 'disabled';
     isDefault?: boolean;
     modelAllowlist?: string[] | null;
     endpointUrl?: string | null;
+    /** Rotate the stored secret (api-key/subscription-key/broker JSON). */
+    secret?: string;
   },
 ): Promise<void> {
   assertCredentialAdmin(scope);
@@ -338,12 +341,31 @@ export async function updateCredential(
         AND is_default AND id <> ${credentialId}
     `;
   }
+  const name = patch.name?.trim();
+  if (name !== undefined && (name.length === 0 || name.length > 120)) {
+    throw new CredentialAdminError('CREDENTIAL_NAME_INVALID', 'Invalid name');
+  }
+  let rotated: EncryptedSecret | undefined;
+  let rotatedPreview: string | undefined;
+  if (patch.secret !== undefined) {
+    if (patch.secret.trim().length === 0) {
+      throw new CredentialAdminError(
+        'CREDENTIAL_SECRET_INVALID',
+        'Secret must not be empty',
+      );
+    }
+    rotated = encryptSecret(patch.secret);
+    rotatedPreview = maskSecret(patch.secret);
+  }
   await tx`
     UPDATE app.provider_credentials SET
+      name = coalesce(${name ?? null}, name),
       status = coalesce(${patch.status ?? null}, status),
       is_default = coalesce(${patch.isDefault ?? null}, is_default),
       model_allowlist = ${patch.modelAllowlist === undefined ? tx`model_allowlist` : (patch.modelAllowlist ?? null)},
       endpoint_url = ${patch.endpointUrl === undefined ? tx`endpoint_url` : patch.endpointUrl},
+      encrypted_data = ${rotated === undefined ? tx`encrypted_data` : tx.json(toJson(rotated))},
+      masked_preview = coalesce(${rotatedPreview ?? null}, masked_preview),
       updated_at_ms = ${Date.now()}
     WHERE id = ${credentialId}
   `;

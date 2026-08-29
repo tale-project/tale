@@ -12,6 +12,7 @@ import type { api } from '@/convex/_generated/api';
 
 import { backendFetch } from './api-client';
 import type {
+  ActionQueryAdapter,
   AdapterContext,
   ReadAdapter,
   WriteAdapter,
@@ -45,6 +46,66 @@ type AppPasswordItem = FunctionReturnType<
 type CreateAppPasswordResult = FunctionReturnType<
   typeof api.webdav.app_password_mutations.createAppPassword
 >;
+type ProviderCatalogItem = FunctionReturnType<
+  typeof api.lib.providers.catalog_actions.listProviderCatalogs
+>[number];
+type RefreshCatalogsResult = FunctionReturnType<
+  typeof api.lib.providers.catalog_actions.refreshProviderCatalogs
+>;
+type HarnessStatusItem = FunctionReturnType<
+  typeof api.lib.providers.harness_status.listHarnessStatus
+>[number];
+type VisionModelPickResult = FunctionReturnType<
+  typeof api.lib.providers.vision_actions.getResolvedVisionModel
+>;
+type ConnectorSummaryItem = FunctionReturnType<
+  typeof api.connector_credentials.connector_catalog.listConnectors
+>[number];
+type HarnessHealthResult = FunctionReturnType<
+  typeof api.sandbox.session_queries_public.getHarnessHealth
+>;
+type QuotaUsageResult = FunctionReturnType<
+  typeof api.sandbox.session_queries_public.getSandboxQuotaUsage
+>;
+type SandboxListResult = FunctionReturnType<
+  typeof api.sandbox.session_queries_public.listSandboxesForOrg
+>;
+type ProviderCredentialItem = FunctionReturnType<
+  typeof api.provider_credentials.queries.listCredentials
+>[number];
+type ConnectorCredentialItem = FunctionReturnType<
+  typeof api.connector_credentials.queries.listCredentials
+>[number];
+type CreateProviderCredentialResult = FunctionReturnType<
+  typeof api.provider_credentials.actions.createCredential
+>;
+type CreateConnectorCredentialResult = FunctionReturnType<
+  typeof api.connector_credentials.actions.createCredential
+>;
+
+const CONNECTOR_SECRET_KEYS = [
+  'token',
+  'username',
+  'password',
+  'smtpUsername',
+  'smtpPassword',
+  'accessToken',
+  'refreshToken',
+  'expiresAt',
+  'scopes',
+] as const;
+
+/** The 0.4 connector actions carry secret fields FLAT; the pg routes take a
+ * nested `secret` object — restructure without ever logging values. */
+function connectorSecretOf(
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  const secret: Record<string, unknown> = {};
+  for (const key of CONNECTOR_SECRET_KEYS) {
+    if (args[key] !== undefined) secret[key] = args[key];
+  }
+  return secret;
+}
 
 function orgOf(
   args: Record<string, unknown>,
@@ -186,6 +247,80 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         }).then((body) => body.env),
     };
   },
+  'provider_credentials/queries:listCredentials': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'provider_credential', 'list'),
+      queryFn: () =>
+        backendFetch<{ credentials: ProviderCredentialItem[] }>(
+          '/provider-credentials',
+          { orgId },
+        ).then((body) => body.credentials),
+    };
+  },
+  'connector_credentials/queries:listCredentials': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const connectorSlug =
+      typeof args.connectorSlug === 'string' ? args.connectorSlug : undefined;
+    return {
+      queryKey: backendKey(
+        orgId,
+        'connector_credential',
+        'list',
+        connectorSlug ?? null,
+      ),
+      queryFn: () =>
+        backendFetch<{ credentials: ConnectorCredentialItem[] }>(
+          connectorSlug === undefined
+            ? '/connector-credentials'
+            : `/connector-credentials?connector=${encodeURIComponent(connectorSlug)}`,
+          { orgId },
+        ).then((body) => body.credentials),
+    };
+  },
+  'sandbox/session_queries_public:getHarnessHealth': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'sandbox_session', 'harness-health'),
+      queryFn: () =>
+        backendFetch<{ health: HarnessHealthResult }>(
+          '/sandbox/harness-health',
+          { orgId },
+        ).then((body) => body.health),
+    };
+  },
+  'sandbox/session_queries_public:getSandboxQuotaUsage': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'sandbox_session', 'quota-usage'),
+      queryFn: () =>
+        backendFetch<{ usage: QuotaUsageResult }>('/sandbox/quota-usage', {
+          orgId,
+        }).then(
+          (body) => body.usage,
+          () => null,
+        ),
+    };
+  },
+  'sandbox/session_queries_public:listSandboxesForOrg': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'sandbox_session', 'list'),
+      queryFn: () =>
+        backendFetch<{ sessions: SandboxListResult }>(
+          '/sandbox/sessions/view',
+          {
+            orgId,
+          },
+        ).then((body) => body.sessions),
+      refetchInterval: 15_000,
+    };
+  },
   'webdav/app_password_queries:listAppPasswords': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -210,6 +345,43 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
           { orgId },
         ).then((body) => body.passkeys),
     };
+  },
+};
+
+export const settingsActionQueryAdapters: Record<string, ActionQueryAdapter> = {
+  'lib/providers/catalog_actions:listProviderCatalogs': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<{ catalogs: ProviderCatalogItem[] }>('/providers/catalogs', {
+        orgId,
+      }).then((body) => body.catalogs);
+  },
+  'lib/providers/harness_status:listHarnessStatus': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<{ statuses: HarnessStatusItem[] }>(
+        '/providers/harness-status',
+        { orgId },
+      ).then((body) => body.statuses);
+  },
+  'lib/providers/vision_actions:getResolvedVisionModel': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<{ pick: VisionModelPickResult }>('/providers/vision-model', {
+        orgId,
+      }).then((body) => body.pick);
+  },
+  'connector_credentials/connector_catalog:listConnectors': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<{ connectors: ConnectorSummaryItem[] }>(
+        '/connector-credentials/catalog',
+        { orgId },
+      ).then((body) => body.connectors);
   },
 };
 
@@ -246,6 +418,42 @@ function invalidateUserEnv(
   if (orgId === undefined) return;
   void client.invalidateQueries({
     queryKey: backendEntityPrefix(orgId, 'sandbox_user_env'),
+  });
+}
+
+function invalidateProviderCredentials(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'provider_credential'),
+  });
+}
+
+function invalidateConnectorCredentials(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'connector_credential'),
+  });
+}
+
+function invalidateSandboxSessions(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'sandbox_session'),
   });
 }
 
@@ -470,6 +678,163 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), body: {} },
       ).then(() => null),
     invalidate: invalidateWebdav,
+  },
+  'provider_credentials/actions:createCredential': {
+    run: (args, ctx) =>
+      backendFetch<CreateProviderCredentialResult>('/provider-credentials', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          providerSlug: stringArg(args, 'providerSlug'),
+          authMethod: stringArg(args, 'authMethod'),
+          name: stringArg(args, 'name'),
+          ...(typeof args.secret === 'string' ? { secret: args.secret } : {}),
+          ...(args.broker !== undefined
+            ? { secret: JSON.stringify(args.broker) }
+            : {}),
+          ...(typeof args.envName === 'string'
+            ? { envName: args.envName }
+            : {}),
+          ...(typeof args.endpointUrl === 'string'
+            ? { endpointUrl: args.endpointUrl }
+            : {}),
+          ...(Array.isArray(args.modelAllowlist)
+            ? { modelAllowlist: args.modelAllowlist }
+            : {}),
+        },
+      }),
+    invalidate: invalidateProviderCredentials,
+  },
+  'provider_credentials/actions:updateCredential': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: {
+            ...(typeof args.name === 'string' ? { name: args.name } : {}),
+            ...(typeof args.status === 'string' ? { status: args.status } : {}),
+            ...(args.modelAllowlist !== undefined
+              ? { modelAllowlist: args.modelAllowlist }
+              : {}),
+            ...(typeof args.secret === 'string' ? { secret: args.secret } : {}),
+          },
+        },
+      ).then(() => null),
+    invalidate: invalidateProviderCredentials,
+  },
+  'provider_credentials/mutations:deleteCredential': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null),
+    invalidate: invalidateProviderCredentials,
+  },
+  'provider_credentials/mutations:setDefaultCredential': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}`,
+        { orgId: requireOrg(args, ctx), body: { isDefault: true } },
+      ).then(() => null),
+    invalidate: invalidateProviderCredentials,
+  },
+  'connector_credentials/actions:createCredential': {
+    run: (args, ctx) =>
+      backendFetch<CreateConnectorCredentialResult>('/connector-credentials', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          connectorSlug: stringArg(args, 'connectorSlug'),
+          authMethod: stringArg(args, 'authMethod'),
+          name: stringArg(args, 'name'),
+          secret: connectorSecretOf(args),
+          ...(typeof args.endpointUrl === 'string'
+            ? { endpointUrl: args.endpointUrl }
+            : {}),
+          ...(args.config !== undefined ? { config: args.config } : {}),
+          ...(args.isDefault === true ? { isDefault: true } : {}),
+        },
+      }),
+    invalidate: invalidateConnectorCredentials,
+  },
+  'connector_credentials/actions:updateCredential': {
+    run: (args, ctx) => {
+      const secret = connectorSecretOf(args);
+      return backendFetch<{ ok: boolean }>(
+        `/connector-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          method: 'PATCH',
+          body: {
+            ...(typeof args.name === 'string' ? { name: args.name } : {}),
+            ...(Object.keys(secret).length > 0 ? { secret } : {}),
+            ...(typeof args.endpointUrl === 'string'
+              ? { endpointUrl: args.endpointUrl }
+              : {}),
+            ...(args.config !== undefined ? { config: args.config } : {}),
+            ...(typeof args.status === 'string' ? { status: args.status } : {}),
+          },
+        },
+      ).then(() => null);
+    },
+    invalidate: invalidateConnectorCredentials,
+  },
+  'connector_credentials/mutations:deleteCredential': {
+    run: (args, ctx) =>
+      backendFetch<undefined>(
+        `/connector-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null),
+    invalidate: invalidateConnectorCredentials,
+  },
+  'connector_credentials/mutations:setDefaultCredential': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/connector-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}/set-default`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then(() => null),
+    invalidate: invalidateConnectorCredentials,
+  },
+  'lib/providers/catalog_actions:refreshProviderCatalogs': {
+    run: (args, ctx) =>
+      backendFetch<{ results: RefreshCatalogsResult }>(
+        '/providers/catalogs/refresh',
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then((body) => body.results),
+  },
+  'node_only/sandbox/session_admin_actions:stopSandboxTask': {
+    run: (args, ctx) =>
+      backendFetch<{ cancelled: number }>(
+        `/sandbox/sessions/${encodeURIComponent(stringArg(args, 'sessionId'))}/stop-task`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ),
+    invalidate: invalidateSandboxSessions,
+  },
+  'node_only/sandbox/session_admin_actions:destroySandbox': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/sandbox/sessions/${encodeURIComponent(stringArg(args, 'sessionId'))}/destroy`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then(() => null),
+    invalidate: invalidateSandboxSessions,
+  },
+  'node_only/sandbox/session_admin_actions:setSandboxPinned': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/sandbox/sessions/${encodeURIComponent(stringArg(args, 'sessionId'))}/pin`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: { pinned: args.pinned === true },
+        },
+      ).then(() => null),
+    invalidate: invalidateSandboxSessions,
+  },
+  'node_only/sandbox/session_admin_actions:reconcileOrgSessions': {
+    run: (args, ctx) =>
+      backendFetch<{ healed: number }>('/sandbox/reconcile', {
+        orgId: requireOrg(args, ctx),
+        body: {},
+      }),
+    invalidate: invalidateSandboxSessions,
   },
   'team_members/mutations:removeMember': {
     run: (args, ctx) =>

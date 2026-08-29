@@ -31,10 +31,12 @@ const createSchema = z.object({
 });
 
 const updateSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
   status: z.enum(['active', 'disabled']).optional(),
   isDefault: z.boolean().optional(),
   modelAllowlist: z.array(z.string().max(200)).max(200).nullable().optional(),
   endpointUrl: z.string().max(2048).nullable().optional(),
+  secret: z.string().max(100_000).optional(),
 });
 
 function handleError<E extends OrgEnv>(

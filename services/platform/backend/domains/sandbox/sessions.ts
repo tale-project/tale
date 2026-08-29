@@ -911,3 +911,135 @@ export async function deleteAgentCheckpoint(
     WHERE session_id = ${sessionId} AND org_id = ${organizationId}
   `;
 }
+
+export interface SandboxCurrentOpView {
+  threadId?: string;
+  execId: string;
+  status: string;
+  continuationCount?: number;
+  spentCents?: number;
+  pausedReason?: string;
+  progressText?: string;
+  startedAt: number;
+  heartbeatAt?: number;
+}
+
+export interface SandboxSessionView {
+  sessionId: string;
+  ownerType: string;
+  createdBy: string;
+  ownerName?: string | null;
+  ownerEmail?: string | null;
+  agentKind: string | null;
+  pinned: boolean;
+  createdAt: number;
+  lastActivityAt: number | null;
+  status: string;
+  busy: boolean;
+  currentOp: SandboxCurrentOpView | null;
+  totalSpentCents: number;
+}
+
+interface SessionOpViewRow {
+  sessionId: string;
+  threadId: string | null;
+  execId: string;
+  status: string;
+  continuationCount: number | null;
+  spentCents: number | null;
+  pausedReason: string | null;
+  progressText: string | null;
+  startedAt: number;
+  heartbeatAt: number | null;
+  finalizedAt: number | null;
+}
+
+/**
+ * The Sandboxes settings page's rows (the 0.4 `listSandboxesForOrg` view):
+ * live sessions with owner names, busy state, the current op, and the
+ * incarnation's lifetime spend — busy first, then newest.
+ */
+export async function listSandboxViewsForOrg(
+  sql: Sql,
+  organizationId: string,
+): Promise<SandboxSessionView[]> {
+  const sessions = await listSessionsForOrg(sql, organizationId);
+  if (sessions.length === 0) return [];
+  const sessionIds = sessions.map((session) => session.sessionId);
+  const ops = await sql<SessionOpViewRow[]>`
+    SELECT session_id AS "sessionId", thread_id AS "threadId",
+           exec_id AS "execId", status,
+           continuation_count AS "continuationCount",
+           spent_cents AS "spentCents", paused_reason AS "pausedReason",
+           progress_text AS "progressText",
+           started_at_ms::float8 AS "startedAt",
+           heartbeat_at_ms::float8 AS "heartbeatAt",
+           finalized_at_ms::float8 AS "finalizedAt"
+    FROM app.sandbox_session_ops
+    WHERE org_id = ${organizationId} AND session_id = ANY(${sessionIds})
+  `;
+  const userIds = [...new Set(sessions.map((session) => session.createdBy))];
+  const users = await sql<
+    { id: string; name: string | null; email: string | null }[]
+  >`
+    SELECT "id", "name", "email" FROM "user" WHERE "id" = ANY(${userIds})
+  `;
+  const userById = new Map(users.map((user) => [user.id, user] as const));
+
+  const views = sessions.map((session): SandboxSessionView => {
+    let current: SandboxCurrentOpView | null = null;
+    let currentRunning = false;
+    let busy = false;
+    let totalSpentCents = 0;
+    for (const op of ops) {
+      if (op.sessionId !== session.sessionId) continue;
+      totalSpentCents += op.spentCents ?? 0;
+      // finalizedAt is the authoritative done-signal — a recovered turn
+      // whose status never flipped must not read as "busy".
+      const isRunning = op.status === 'running' && op.finalizedAt === null;
+      if (isRunning) busy = true;
+      const wins =
+        current === null ||
+        (isRunning && !currentRunning) ||
+        (isRunning === currentRunning && op.startedAt > current.startedAt);
+      if (!wins) continue;
+      currentRunning = isRunning;
+      current = {
+        execId: op.execId,
+        status: op.status,
+        startedAt: op.startedAt,
+        ...(op.threadId !== null ? { threadId: op.threadId } : {}),
+        ...(op.continuationCount !== null
+          ? { continuationCount: op.continuationCount }
+          : {}),
+        ...(op.spentCents !== null ? { spentCents: op.spentCents } : {}),
+        ...(op.pausedReason !== null ? { pausedReason: op.pausedReason } : {}),
+        ...(op.progressText !== null
+          ? { progressText: op.progressText.slice(-280) }
+          : {}),
+        ...(op.heartbeatAt !== null ? { heartbeatAt: op.heartbeatAt } : {}),
+      };
+    }
+    const owner = userById.get(session.createdBy);
+    return {
+      sessionId: session.sessionId,
+      ownerType: session.ownerType,
+      createdBy: session.createdBy,
+      ownerName: owner?.name ?? null,
+      ownerEmail: owner?.email ?? null,
+      agentKind: session.agentKind,
+      pinned: session.pinned,
+      createdAt: session.createdAt,
+      lastActivityAt: session.lastActivityAt,
+      status: session.status,
+      busy,
+      currentOp: current,
+      totalSpentCents,
+    };
+  });
+  views.sort((a, b) => {
+    if (a.busy !== b.busy) return a.busy ? -1 : 1;
+    return b.createdAt - a.createdAt;
+  });
+  return views;
+}

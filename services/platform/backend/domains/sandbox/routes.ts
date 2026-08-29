@@ -3,12 +3,24 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { sessionCancelExec } from '../../../convex/node_only/sandbox/helpers/session_client.ts';
+import {
+  DEFAULT_SANDBOX_QUOTA,
+  sessionBudgetForOwnerType,
+  sessionCapFor,
+  type SessionBudget,
+} from '../../../convex/sandbox/quota_policy.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { pinSession, teardownSession } from './service.ts';
-import { listRunningOpsBySession, listSessionsForOrg } from './sessions.ts';
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { pinSession, reconcileSession, teardownSession } from './service.ts';
+import {
+  listRunningOpsBySession,
+  listSandboxViewsForOrg,
+  listSessionsForOrg,
+} from './sessions.ts';
 import {
   deleteMyEnvVar,
   listMyEnv,
@@ -80,6 +92,91 @@ export function createSandboxRoutes(deps: {
     );
   });
 
+  /** Per-budget quota pressure (the 0.4 `getSandboxQuotaUsage` wire). */
+  app.get('/quota-usage', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    const organizationId = c.get('orgId');
+    const policy = await readGovernancePolicyForOrg(
+      deps.sql,
+      organizationId,
+      'sandbox_quota',
+    );
+    const quota = policy ?? DEFAULT_SANDBOX_QUOTA;
+    const rows = await deps.sql<{ ownerType: string; count: string }[]>`
+      SELECT owner_type AS "ownerType", count(*)::text AS count
+      FROM app.sandbox_sessions
+      WHERE org_id = ${organizationId} AND status IN ('creating', 'active')
+      GROUP BY owner_type
+    `;
+    const used: Record<SessionBudget, number> = {
+      project: 0,
+      workflow: 0,
+      render: 0,
+    };
+    for (const row of rows) {
+      const budget = sessionBudgetForOwnerType(row.ownerType);
+      if (budget !== null) used[budget] += Number(row.count);
+    }
+    const budgets: SessionBudget[] = ['project', 'workflow', 'render'];
+    return c.json({
+      usage: budgets.map((budget) => {
+        const cap = sessionCapFor(budget, quota);
+        const u = used[budget];
+        return {
+          budget,
+          used: u,
+          cap,
+          atLimit: u >= cap,
+          nearLimit: cap > 0 && u / cap >= 0.8,
+        };
+      }),
+    });
+  });
+
+  /** Recent per-harness failure ratios (the 0.4 `getHarnessHealth` hint) —
+   * pg derives it from settled agent ops joined to their session's kind. */
+  app.get('/harness-health', async (c) => {
+    const organizationId = c.get('orgId');
+    const since = Date.now() - 30 * 60 * 1000;
+    const rows = await deps.sql<
+      { harness: string; total: string; failures: string }[]
+    >`
+      SELECT s.agent_kind AS harness, count(*)::text AS total,
+             count(*) FILTER (WHERE o.status = 'failed')::text AS failures
+      FROM app.sandbox_session_ops o
+      JOIN app.sandbox_sessions s ON s.session_id = o.session_id
+      WHERE o.org_id = ${organizationId}
+        AND o.kind = 'agent-run'
+        AND o.started_at_ms >= ${since}
+        AND o.status IN ('completed', 'failed')
+        AND s.agent_kind IS NOT NULL
+      GROUP BY s.agent_kind
+      LIMIT 20
+    `;
+    return c.json({
+      health: rows.map((row) => {
+        const total = Number(row.total);
+        const failures = Number(row.failures);
+        return {
+          harness: row.harness,
+          recentTotal: total,
+          recentFailures: failures,
+          degraded: total >= 3 && failures / total >= 0.5,
+        };
+      }),
+    });
+  });
+
+  /** The settings page's computed rows (the 0.4 `listSandboxesForOrg`). */
+  app.get('/sessions/view', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    return c.json({
+      sessions: await listSandboxViewsForOrg(deps.sql, c.get('orgId')),
+    });
+  });
+
   app.get('/sessions', async (c) => {
     const denied = requireAdmin(c);
     if (denied) return denied;
@@ -98,6 +195,58 @@ export function createSandboxRoutes(deps: {
       ),
     );
     return c.json({ sessions: withOps });
+  });
+
+  /** Cancel every running op on one session (the 0.4 `stopSandboxTask`). */
+  app.post('/sessions/:sessionId/stop-task', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    const sessionId = c.req.param('sessionId');
+    const owned = await deps.sql<{ id: string }[]>`
+      SELECT id FROM app.sandbox_sessions
+      WHERE session_id = ${sessionId} AND org_id = ${c.get('orgId')}
+      LIMIT 1
+    `;
+    if (!owned[0]) return c.json({ error: 'SESSION_NOT_FOUND' }, 404);
+    const ops = await listRunningOpsBySession(deps.sql, sessionId);
+    let cancelled = 0;
+    for (const op of ops) {
+      try {
+        await sessionCancelExec(sessionId, op.execId);
+        cancelled += 1;
+      } catch (error) {
+        console.warn(
+          `[sandbox] cancel exec ${op.execId} on ${sessionId} failed:`,
+          error,
+        );
+      }
+    }
+    return c.json({ cancelled });
+  });
+
+  /** Reconcile the org's live rows with the spawner (the mount-time probe
+   * that keeps the fleet view honest — the 0.4 `reconcileOrgSessions`). */
+  app.post('/reconcile', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    const organizationId = c.get('orgId');
+    const sessions = await listSessionsForOrg(deps.sql, organizationId);
+    let healed = 0;
+    for (const session of sessions.slice(0, 25)) {
+      try {
+        const outcome = await reconcileSession(deps.sql, {
+          organizationId,
+          sessionId: session.sessionId,
+        });
+        if (outcome === 'healed') healed += 1;
+      } catch (error) {
+        console.warn(
+          `[sandbox] reconcile ${session.sessionId} failed (left as live):`,
+          error,
+        );
+      }
+    }
+    return c.json({ healed });
   });
 
   app.post('/sessions/:sessionId/pin', async (c) => {
