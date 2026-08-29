@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { logSuccess } from '../audit_logs/service.ts';
 
 /**
@@ -249,6 +250,11 @@ export async function addMember(
     resourceName: targetEmail ?? args.userId,
     newState: { userId: args.userId, role },
   });
+  await emitHintInTx(tx, {
+    orgId: args.organizationId,
+    entity: 'member',
+    entityId: args.userId,
+  });
   return memberId;
 }
 
@@ -309,6 +315,11 @@ export async function removeMember(
     resourceId: memberId,
     resourceName: targetEmail ?? member.userId,
     previousState: { userId: member.userId, role: member.role },
+  });
+  await emitHintInTx(tx, {
+    orgId: member.organizationId,
+    entity: 'member',
+    entityId: member.userId,
   });
 }
 
@@ -413,6 +424,11 @@ export async function updateMemberRole(
     resourceName: targetEmail ?? member.userId,
     previousState: { role: previousRole },
     newState: { role: newRole },
+  });
+  await emitHintInTx(tx, {
+    orgId: member.organizationId,
+    entity: 'member',
+    entityId: member.userId,
   });
 }
 

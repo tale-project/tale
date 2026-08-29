@@ -8,6 +8,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 
 /**
  * /api/app/teams — team MEMBERSHIP over the Better Auth tables (the 0.5
@@ -144,6 +145,11 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
       VALUES (${id}, ${team.id}, ${body.data.userId}, ${new Date()})
     `;
+    await emitHintInTx(deps.sql, {
+      orgId: c.get('orgId'),
+      entity: 'team',
+      entityId: team.id,
+    });
     return c.json({ id, alreadyMember: false }, 201);
   });
 
@@ -158,6 +164,13 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       WHERE "teamId" = ${team.id} AND "userId" = ${c.req.param('userId')}
       RETURNING "id"
     `;
+    if (removed.length > 0) {
+      await emitHintInTx(deps.sql, {
+        orgId: c.get('orgId'),
+        entity: 'team',
+        entityId: team.id,
+      });
+    }
     return c.json({ removed: removed.length > 0 });
   });
 

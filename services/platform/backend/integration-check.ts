@@ -13072,6 +13072,61 @@ async function checkBrandingAndTeams(
       ),
     })
     .safeParse(await get(`/api/app/teams/${teamId}/members?orgId=${orgId}`));
+  // Member lifecycle hints: add → role change → remove each land a
+  // 'member' outbox hint (what invalidates the shell's member context).
+  const hintUserRes = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `hints-${Date.now()}@example.com`,
+      password: 'itest-password-1',
+      name: 'Hint Target',
+    }),
+  });
+  const hintUser = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await hintUserRes.json());
+  const hintUserId = hintUser.success ? hintUser.data.user.id : '';
+  const memberAdded = z.object({ memberId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/members?orgId=${orgId}`, {
+        userId: hintUserId,
+        role: 'member',
+      })
+    ).json(),
+  );
+  const hintMemberId = memberAdded.success ? memberAdded.data.memberId : '';
+  await post(`/api/app/members/${hintMemberId}/role?orgId=${orgId}`, {
+    role: 'developer',
+  });
+  await fetch(`${base}/api/app/members/${hintMemberId}?orgId=${orgId}`, {
+    method: 'DELETE',
+    headers: { cookie, origin: base },
+  });
+  const memberHints = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'member'
+      AND entity_id = ${hintUserId}
+  `;
+
+  // While the caller is on the team: /teams/mine (the boot chain's team
+  // filter read) sees it, and the add landed a 'team' outbox hint.
+  const mine = z
+    .object({
+      teams: z.array(
+        z.object({ id: z.string(), name: z.string(), memberCount: z.number() }),
+      ),
+    })
+    .safeParse(await get(`/api/app/teams/mine?orgId=${orgId}`));
+  const mineHit =
+    mine.success &&
+    mine.data.teams.some(
+      (team) => team.id === teamId && team.memberCount === 1,
+    );
+  const hintsAfterAdd = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'team' AND entity_id = ${teamId}
+  `;
   const removed = z
     .object({ removed: z.boolean() })
     .safeParse(
@@ -13082,6 +13137,10 @@ async function checkBrandingAndTeams(
         )
       ).json(),
     );
+  const hintsAfterRemove = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'team' AND entity_id = ${teamId}
+  `;
   record(
     'teams: add/dedupe/list/remove membership, outsiders refused',
     added.success &&
@@ -13094,8 +13153,13 @@ async function checkBrandingAndTeams(
       listed.data.members[0]?.userId === userId &&
       typeof listed.data.members[0]?.email === 'string' &&
       removed.success &&
-      removed.data.removed,
-    `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, removed=${removed.success ? removed.data.removed : 'ERR'}`,
+      removed.data.removed &&
+      mineHit &&
+      hintsAfterAdd[0]?.count === '1' &&
+      hintsAfterRemove[0]?.count === '2' &&
+      memberAdded.success &&
+      memberHints[0]?.count === '3',
+    `add=${added.success ? added.data.alreadyMember : 'ERR'} (want false), dup=${dup.success ? dup.data.alreadyMember : 'ERR'} (want true), outsider=${outsider.status} (want 400), listed=${listed.success ? listed.data.members.length : 'ERR'}, mine=${mineHit}, hints=${hintsAfterAdd[0]?.count}→${hintsAfterRemove[0]?.count} (want 1→2), memberHints=${memberHints[0]?.count} (want 3), removed=${removed.success ? removed.data.removed : 'ERR'}`,
   );
 }
 

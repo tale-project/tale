@@ -40,6 +40,7 @@ import {
   myTeamsQuery,
   recordOrgSwitch,
 } from '@/app/lib/backend/org';
+import { useBackendHints } from '@/app/lib/backend/use-backend-hints';
 import {
   cacheMemberContext,
   clearMemberContextCache,
@@ -89,6 +90,9 @@ function DashboardLayout() {
   // The session probe, not the websocket — the member context and the
   // persisted-role hydration only need to know WHO the caller is.
   const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
+  // The org's /events hint stream: invalidates ['backend', orgId, entity]
+  // reads when the backend's outbox announces a change (Tier-2 realtime).
+  useBackendHints(organizationId);
   const {
     data: memberContext,
     isLoading: isQueryLoading,
