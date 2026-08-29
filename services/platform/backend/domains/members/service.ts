@@ -3,6 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { logSuccess } from '../audit_logs/service.ts';
+import { assertNotHeld } from '../legal_holds/service.ts';
 
 /**
  * Members domain — org-membership management with the 0.4 guard semantics.
@@ -12,8 +13,9 @@ import { logSuccess } from '../audit_logs/service.ts';
  * rows committed atomically in the same transaction. The entire mirror
  * machinery is gone (see auth/membership.ts).
  *
- * Ledger note: the legal-hold guard on member removal (`assertNotHeld`)
- * lands with the governance domain.
+ * The legal-hold guard on member removal (`assertNotHeld`) refuses when the
+ * org is halted or the member is a held custodian — removal wipes their
+ * per-org preferences, which a hold must preserve.
  */
 
 export const MEMBER_ROLES = [
@@ -288,7 +290,17 @@ export async function removeMember(
       400,
     );
   }
-  // TODO(governance): assertNotHeld(userMembership) once legal holds land.
+  // Removal cascades into the member's per-org preferences — an admin must
+  // not be able to wipe a held custodian's footprint. Org-level 'nuclear
+  // halt' holds refuse too (the 0.4 round-2 P0-11 gate).
+  await assertNotHeld(
+    tx,
+    member.organizationId,
+    'userMembership',
+    member.userId,
+    undefined,
+    member.userId,
+  );
 
   const targetEmail = await userEmail(tx, member.userId);
   await tx`DELETE FROM "member" WHERE "id" = ${memberId}`;

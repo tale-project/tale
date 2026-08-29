@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   addMember,
   getCurrentMemberContext,
@@ -44,6 +45,10 @@ function handleError<E extends AuthEnv>(
 ): Response {
   if (error instanceof MemberServiceError) {
     return c.json({ error: error.code }, error.status);
+  }
+  // The legal-hold gate refuses destructive paths with its own 409.
+  if (error instanceof LegalHoldError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
   }
   throw error;
 }

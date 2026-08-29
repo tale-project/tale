@@ -3,6 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { hasTeamAccess } from '../../../convex/lib/team_access.ts';
 import { checkProjectAccess } from '../../../convex/projects/access.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { assertNotHeld } from '../legal_holds/service.ts';
 import {
   loadProjectOrThrow,
   type ProjectAuthContext,
@@ -284,7 +285,9 @@ export async function renameFolder(
  * Delete a folder subtree. Conservative Tier-A rule: refuses while ANY
  * document lives in the subtree (`FOLDER_NOT_EMPTY`) — the trash-cascade
  * arrives with the documents lifecycle port. Child folders die by FK.
- * TODO(governance): legal-hold + controlled-record descendant guards;
+ * The org-level legal-hold gate refuses the delete up front; per-document
+ * descendant guards (hold + controlled record) are moot while the delete
+ * refuses on any descendant document at all.
  * TODO(onedrive/google_drive): sync-config deactivation for the path.
  */
 export async function deleteFolder(
@@ -294,6 +297,10 @@ export async function deleteFolder(
 ): Promise<void> {
   const folder = await loadFolderOrThrow(tx, folderId);
   await assertFolderMutable(tx, auth, folder);
+  // Org-level hold gate, up front. The per-document descendant walk the 0.4
+  // cascade needed is moot here: the delete refuses on ANY descendant
+  // document below, so an empty folder can hold nothing held.
+  await assertNotHeld(tx, auth.organizationId, 'folder', folderId);
   const docs = await tx<{ id: string }[]>`
     WITH RECURSIVE subtree AS (
       SELECT id FROM app.folders WHERE id = ${folderId}

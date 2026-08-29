@@ -4,6 +4,7 @@ import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { pokeParkedRun } from '../automations/store.ts';
+import { confirmAndScheduleErasure } from '../erasure/service.ts';
 
 /**
  * The approvals INBOX surface — the 0.5 twin of the 0.4 read/decide half of
@@ -186,17 +187,6 @@ export async function decideApproval(
         409,
       );
     }
-    // The 0.4 erasure approve dispatches the cooling-off schedule; the 0.5
-    // erasure domain schedules at request time and its dual-approval lane
-    // has not been ported — no writer mints these rows yet, so a decision
-    // on one is refused loudly rather than half-handled.
-    if (approval.resourceType === 'erasure') {
-      throw new ApprovalError(
-        'APPROVAL_LANE_NOT_PORTED',
-        'Erasure dual-approval is not available yet on this deployment.',
-        501,
-      );
-    }
     if (approval.status !== 'pending') {
       throw new ApprovalError(
         'ALREADY_RESOLVED',
@@ -245,6 +235,17 @@ export async function decideApproval(
       },
       status: 'success',
     });
+    // GDPR Art 17 dispatch: approving an erasure row starts its cooling-off
+    // window and schedules the processor. Filer ≠ approver is re-enforced
+    // there and throws, rolling the decision back with it — an approval the
+    // policy forbids must not stand.
+    if (args.status === 'executing' && approval.resourceType === 'erasure') {
+      await confirmAndScheduleErasure(tx, {
+        requestId: approval.resourceId,
+        approverId: args.actor.userId,
+        organizationId: args.organizationId,
+      });
+    }
     await emitHintInTx(tx, {
       orgId: args.organizationId,
       entity: 'approval',

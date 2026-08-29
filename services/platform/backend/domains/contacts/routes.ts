@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   CONTACT_SOURCES,
   ContactError,
@@ -38,6 +39,10 @@ function handleError<E extends OrgEnv>(
 ): Response {
   if (error instanceof ContactError) {
     return c.json({ error: error.code }, error.status);
+  }
+  // The legal-hold gate refuses destructive paths with its own 409.
+  if (error instanceof LegalHoldError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
   }
   throw error;
 }

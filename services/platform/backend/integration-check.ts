@@ -18764,15 +18764,13 @@ async function checkArenaAndQuestions(
         await get(`/api/app/chat/threads/${threadA}/question?orgId=${orgId}`)
       ).json(),
     );
-  const resolved = z
-    .object({ ok: z.boolean() })
-    .safeParse(
-      await (
-        await post(`/api/app/chat/questions/probe-q2/resolve?orgId=${orgId}`, {
-          outcome: 'answered',
-        })
-      ).json(),
-    );
+  const resolved = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await post(`/api/app/chat/questions/probe-q2/resolve?orgId=${orgId}`, {
+        outcome: 'answered',
+      })
+    ).json(),
+  );
   const q2Row = await sql<{ status: string; approvedBy: string | null }[]>`
     SELECT status, approved_by AS "approvedBy" FROM app.approvals
     WHERE id = 'probe-q2'
@@ -18796,15 +18794,13 @@ async function checkArenaAndQuestions(
         await get(`/api/app/chat/threads/${threadA}/question?orgId=${orgId}`)
       ).json(),
     );
-  const doubleResolve = z
-    .object({ ok: z.boolean() })
-    .safeParse(
-      await (
-        await post(`/api/app/chat/questions/probe-q2/resolve?orgId=${orgId}`, {
-          outcome: 'superseded',
-        })
-      ).json(),
-    );
+  const doubleResolve = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await post(`/api/app/chat/questions/probe-q2/resolve?orgId=${orgId}`, {
+        outcome: 'superseded',
+      })
+    ).json(),
+  );
   record(
     'questions: pending set, moved-on derivation, resolve stamps the part',
     q1.success &&
@@ -18820,6 +18816,283 @@ async function checkArenaAndQuestions(
       doubleResolve.success,
     `q1=${q1.success}, movedOn=${q1Moved.success}, q2=${q2.success}, resolved=${q2Row[0]?.status}/${q2Row[0]?.approvedBy === userId}, stamp=${String(stampedOutcome)}, cleared=${afterResolve.success}, doubleOk=${doubleResolve.success}`,
   );
+}
+
+async function checkGovernanceEnforcement(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const del = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'DELETE',
+      headers: { cookie, origin: base },
+    });
+  const now = Date.now();
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const governanceDir = path.join(configRoot, orgSlug, 'governance');
+  await mkdir(governanceDir, { recursive: true });
+  const orgConfig = await import('./lib/org-config.ts');
+
+  // ---- DSAR dual approval ------------------------------------------------
+  await writeFile(
+    path.join(governanceDir, 'dsar-governance.yml'),
+    ['coolingOffHours: 0', 'requireDualApproval: true'].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+
+  const subjectId = 'dual-subject-one';
+  await sql`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES (${subjectId}, 'Dual Subject', ${`${subjectId}@example.com`}, true,
+            ${new Date()}, ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${`m-${subjectId}`}, ${orgId}, ${subjectId}, 'member',
+            ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+
+  // The erasure suite already spent this admin's 5/day DSAR filings; the
+  // limiter is per (key, subject) so clearing its row restores the budget
+  // rather than waiting a day.
+  await sql`
+    DELETE FROM app.rate_limits
+    WHERE name = 'governance:dsar_request' AND key LIKE ${`org:${orgId}:%`}
+  `;
+  const filedRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: subjectId,
+    reason: 'dual approval probe',
+    reasonCode: 'consent_withdrawn',
+  });
+  const filedBody: unknown = await filedRes.json().catch(() => ({}));
+  const filed = z
+    .object({ requestId: z.string() })
+    .loose()
+    .safeParse(filedBody);
+  const requestId = filed.success ? filed.data.requestId : '';
+  const parked = await sql<{ status: string; effectiveAt: number | null }[]>`
+    SELECT status, effective_at_ms::float8 AS "effectiveAt"
+    FROM app.gdpr_erasure_requests WHERE id = ${requestId}
+  `;
+  const approvalRows = await sql<
+    { id: string; status: string; priority: string; metadata: unknown }[]
+  >`
+    SELECT id, status, priority, metadata FROM app.approvals
+    WHERE org_id = ${orgId} AND resource_type = 'erasure'
+      AND resource_id = ${requestId}
+  `;
+  const approvalId = approvalRows[0]?.id ?? '';
+  const jobsBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'governance.process_erasure'
+      AND data->>'requestId' = ${requestId}
+  `;
+  const bell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.notifications
+    WHERE org_id = ${orgId} AND title_key = 'dsarApprovalNeeded'
+  `;
+
+  // The FILER cannot approve their own request — the hard refusal, and the
+  // decision must roll back with it.
+  const selfApprove =
+    approvalId === ''
+      ? new Response('{}', {
+          status: 500,
+          headers: { 'content-type': 'application/json' },
+        })
+      : await post(`/api/app/approvals/${approvalId}/decide?orgId=${orgId}`, {
+          status: 'executing',
+        });
+  const selfApproveBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await selfApprove.json().catch(() => ({})));
+  const stillPending = await sql<{ status: string }[]>`
+    SELECT status FROM app.approvals WHERE id = ${approvalId}
+  `;
+
+  // A SECOND admin approves: cooling-off starts and the processor is queued.
+  const otherAdmin = 'dual-approver-one';
+  await sql`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES (${otherAdmin}, 'Second Admin', ${`${otherAdmin}@example.com`},
+            true, ${new Date()}, ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${`m-${otherAdmin}`}, ${orgId}, ${otherAdmin}, 'admin',
+            ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  // Approve through the service directly with the second admin's identity —
+  // the route's cookie belongs to the filer (one browser session per run).
+  const approvals = await import('./domains/approvals/service.ts');
+  let secondApproveOk = false;
+  try {
+    if (approvalId === '') throw new Error('no approval row was minted');
+    await approvals.decideApproval(sql, {
+      organizationId: orgId,
+      approvalId,
+      status: 'executing',
+      actor: { userId: otherAdmin, email: `${otherAdmin}@example.com` },
+    });
+    secondApproveOk = true;
+  } catch (error) {
+    console.error('[itest] second-admin approval failed', error);
+  }
+  const scheduled = await sql<{ status: string; effectiveAt: number | null }[]>`
+    SELECT status, effective_at_ms::float8 AS "effectiveAt"
+    FROM app.gdpr_erasure_requests WHERE id = ${requestId}
+  `;
+  const jobsAfter = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'governance.process_erasure'
+      AND data->>'requestId' = ${requestId}
+  `;
+  record(
+    'governance: DSAR dual approval parks, refuses the filer, schedules on the second admin',
+    filed.success &&
+      parked[0]?.status === 'pending' &&
+      parked[0]?.effectiveAt === null &&
+      approvalRows.length === 1 &&
+      approvalRows[0]?.priority === 'high' &&
+      jobsBefore[0]?.count === '0' &&
+      Number(bell[0]?.count ?? '0') >= 1 &&
+      selfApprove.status === 403 &&
+      selfApproveBody.success &&
+      selfApproveBody.data.error === 'dualApprovalRequired' &&
+      stillPending[0]?.status === 'pending' &&
+      secondApproveOk &&
+      scheduled[0]?.effectiveAt !== null &&
+      jobsAfter[0]?.count === '1',
+    `filed=${filed.success}(${filedRes.status}:${JSON.stringify(filedBody).slice(0, 120)}), parked=${parked[0]?.status}/${parked[0]?.effectiveAt === null}, approvalRow=${approvalRows.length}, jobsBefore=${jobsBefore[0]?.count}, bell=${bell[0]?.count}, selfApprove=${selfApprove.status}/${selfApproveBody.success ? selfApproveBody.data.error : 'ERR'}, rolledBack=${stillPending[0]?.status}, second=${secondApproveOk}, scheduled=${scheduled[0]?.effectiveAt !== null}, jobsAfter=${jobsAfter[0]?.count}`,
+  );
+  await writeFile(
+    path.join(governanceDir, 'dsar-governance.yml'),
+    'coolingOffHours: 0\n',
+  );
+  orgConfig.clearOrgConfigCaches();
+
+  // ---- legal-hold guards on member / contact / folder deletes ------------
+  const heldMember = 'held-custodian-one';
+  await sql`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES (${heldMember}, 'Held Custodian', ${`${heldMember}@example.com`},
+            true, ${new Date()}, ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${`m-${heldMember}`}, ${orgId}, ${heldMember}, 'member',
+            ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  const contactRows = await sql<{ id: string }[]>`
+    INSERT INTO app.contacts (org_id, name, source, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Hold probe contact', 'manual', ${now}, ${now})
+    RETURNING id
+  `;
+  const contactId = contactRows[0]?.id ?? '';
+  const folderRows = await sql<{ id: string }[]>`
+    INSERT INTO app.folders (org_id, name, created_by, created_at_ms)
+    VALUES (${orgId}, 'Hold probe folder', ${userId}, ${now})
+    RETURNING id
+  `;
+  const folderId = folderRows[0]?.id ?? '';
+
+  const heldPlaced = await post(`/api/app/legal-holds?orgId=${orgId}`, {
+    targetType: 'userMembership',
+    targetId: heldMember,
+    reason: 'Custodian hold probe',
+  });
+  const removeHeld = await del(
+    `/api/app/members/m-${heldMember}?orgId=${orgId}`,
+  );
+  const removeHeldBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await removeHeld.json());
+  const memberStillThere = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "member"
+    WHERE "id" = ${`m-${heldMember}`}
+  `;
+
+  // An ORG-level hold blocks the contact and folder deletes too.
+  const orgHold = await post(`/api/app/legal-holds?orgId=${orgId}`, {
+    targetType: 'org',
+    targetId: orgId,
+    reason: 'Org halt probe',
+  });
+  const contactDel = await del(`/api/app/contacts/${contactId}?orgId=${orgId}`);
+  const contactBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await contactDel.json());
+  const folderDel = await del(`/api/app/folders/${folderId}?orgId=${orgId}`);
+  const folderBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await folderDel.json());
+  const survivors = await sql<{ contacts: string; folders: string }[]>`
+    SELECT
+      (SELECT count(*)::text FROM app.contacts
+       WHERE id = ${contactId} AND lifecycle_status IS DISTINCT FROM 'trashed')
+        AS contacts,
+      (SELECT count(*)::text FROM app.folders WHERE id = ${folderId})
+        AS folders
+  `;
+  record(
+    'governance: legal holds refuse member removal, contact and folder deletes',
+    heldPlaced.status === 201 &&
+      removeHeld.status === 409 &&
+      removeHeldBody.success &&
+      removeHeldBody.data.error === 'LEGAL_HOLD_ACTIVE' &&
+      memberStillThere[0]?.count === '1' &&
+      orgHold.status === 201 &&
+      contactDel.status === 409 &&
+      contactBody.success &&
+      contactBody.data.error === 'LEGAL_HOLD_ACTIVE' &&
+      folderDel.status === 409 &&
+      folderBody.success &&
+      folderBody.data.error === 'LEGAL_HOLD_ACTIVE' &&
+      survivors[0]?.contacts === '1' &&
+      survivors[0]?.folders === '1',
+    `holdPlaced=${heldPlaced.status}, member=${removeHeld.status}/${removeHeldBody.success ? removeHeldBody.data.error : 'ERR'} kept=${memberStillThere[0]?.count}, orgHold=${orgHold.status}, contact=${contactDel.status}/${contactBody.success ? contactBody.data.error : 'ERR'}, folder=${folderDel.status}/${folderBody.success ? folderBody.data.error : 'ERR'}, survivors=${survivors[0]?.contacts}/${survivors[0]?.folders}`,
+  );
+
+  // Leave the org as we found it: an active 'nuclear halt' refuses every
+  // later suite's deletes, and the seeded memberships shift other suites'
+  // fan-out counts.
+  await sql`
+    UPDATE app.legal_holds
+    SET released_at_ms = ${Date.now()}, released_by = ${userId},
+        release_reason = 'itest cleanup'
+    WHERE org_id = ${orgId} AND released_at_ms IS NULL
+      AND target_id IN (${orgId}, ${heldMember})
+  `;
+  await sql`
+    DELETE FROM "member" WHERE "id" IN (${`m-${heldMember}`},
+                                        ${`m-${otherAdmin}`})
+  `;
 }
 
 async function checkTwoFactor(
@@ -19967,6 +20240,12 @@ async function main(): Promise<void> {
     await checkEngagementSurface(sql, baseUrl, authCtx);
     await checkMetricsSurface(sql, baseUrl, authCtx);
     await checkArenaAndQuestions(sql, baseUrl, authCtx);
+    await checkGovernanceEnforcement(
+      sql,
+      baseUrl,
+      authCtx,
+      `itest-${orgSuffix}`,
+    );
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

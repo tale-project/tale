@@ -5,6 +5,7 @@ import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { emitEvent } from '../events/emit.ts';
+import { assertNotHeld } from '../legal_holds/service.ts';
 
 /**
  * Contacts — the per-org correspondent directory (0.4's unified
@@ -246,6 +247,9 @@ export async function deleteContact(
   contactId: string,
 ): Promise<void> {
   assertContactAccess(scope, 'write');
+  // Contacts carry no per-row hold; this blocks on the org-level 'nuclear
+  // halt' only (the 0.4 posture).
+  await assertNotHeld(tx, scope.organizationId, 'contact', contactId);
   const updated = await tx`
     UPDATE app.contacts SET
       lifecycle_status = 'trashed', status_changed_at_ms = ${Date.now()},

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { ErasureError } from '../erasure/service.ts';
 import {
   ApprovalError,
   countApprovalsByStatus,
@@ -24,6 +25,11 @@ function handleError<E extends OrgEnv>(
   error: unknown,
 ): Response {
   if (error instanceof ApprovalError) {
+    return c.json({ error: error.code, message: error.message }, error.status);
+  }
+  // The erasure dispatch enforces filer ≠ approver at the write; surface its
+  // refusal with the 0.4 code instead of a 500.
+  if (error instanceof ErasureError) {
     return c.json({ error: error.code, message: error.message }, error.status);
   }
   throw error;

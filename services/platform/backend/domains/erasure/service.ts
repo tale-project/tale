@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { isAdminRole } from '../../auth/membership.ts';
 import { toJson } from '../../db/sql.ts';
@@ -8,6 +8,7 @@ import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
+import { writeNotificationForOrgs } from '../notifications/service.ts';
 
 /**
  * GDPR Art 17 erasure — the 0.5 twin of `convex/governance/erasure*`:
@@ -56,7 +57,7 @@ export const ERASURE_REASON_CODES = [
   'contract_termination',
 ] as const;
 
-async function dsarPolicy(sql: Sql, organizationId: string) {
+async function dsarPolicy(sql: Sql | TransactionSql, organizationId: string) {
   const config = await readGovernancePolicyForOrg(
     sql,
     organizationId,
@@ -65,6 +66,7 @@ async function dsarPolicy(sql: Sql, organizationId: string) {
   return {
     coolingOffHours: config?.coolingOffHours ?? 24,
     dailyLimitPerAdmin: config?.dailyLimitPerAdmin ?? 5,
+    requireDualApproval: config?.requireDualApproval ?? false,
   };
 }
 
@@ -202,17 +204,58 @@ export async function requestErasure(
           holdBlock: { orgHeld: holds.orgHeld, userCustodianHeld },
         };
       }
-      const effectiveAt = now + policy.coolingOffHours * HOUR_MS;
-      await tx`
+      if (policy.requireDualApproval) {
+        // Dual-approval path: the row is filed but NOT scheduled. A second
+        // admin (≠ filer) must approve it in the Approvals inbox; their
+        // decision runs `confirmAndScheduleErasure`, which sets
+        // `effective_at_ms` and enqueues the cooling-off processor.
+        await tx`
+          INSERT INTO app.approvals (
+            org_id, status, resource_type, resource_id, priority, metadata,
+            created_at_ms
+          ) VALUES (
+            ${args.organizationId}, 'pending', 'erasure', ${id}, 'high',
+            ${tx.json(
+              toJson({
+                subjectUserId: args.targetUserId,
+                requestedBy: args.actorId,
+                reason: args.reason.trim(),
+                reasonCode: args.reasonCode,
+                threadsTargetedCount: threadIds.length,
+              }),
+            )},
+            ${now}
+          )
+        `;
+        await writeNotificationForOrgs(tx, {
+          organizationIds: [args.organizationId],
+          category: 'security',
+          severity: 'warning',
+          titleKey: 'dsarApprovalNeeded',
+          bodyKey: 'dsarApprovalNeededBody',
+          params: {
+            subjectUserId: args.targetUserId,
+            requestedBy: args.actorId,
+            requestId: id,
+          },
+          subjectUserId: args.targetUserId,
+          link: { kind: 'dsar' },
+        });
+      } else {
+        // Default cooling-off path: the row stays `pending` until
+        // `effective_at_ms`; any admin may cancel within the window.
+        const effectiveAt = now + policy.coolingOffHours * HOUR_MS;
+        await tx`
       UPDATE app.gdpr_erasure_requests SET effective_at_ms = ${effectiveAt}
       WHERE id = ${id}
     `;
-      await addJobInTx(
-        tx,
-        'governance.process_erasure',
-        { requestId: id },
-        { startAfter: new Date(effectiveAt) },
-      );
+        await addJobInTx(
+          tx,
+          'governance.process_erasure',
+          { requestId: id },
+          { startAfter: new Date(effectiveAt) },
+        );
+      }
       await createAuditLog(tx, {
         organizationId: args.organizationId,
         actorId: args.actorId,
@@ -1006,4 +1049,88 @@ export async function getErasureRequest(
       return item;
     }),
   };
+}
+
+/**
+ * The dual-approval hand-off: a SECOND admin approved the erasure row, so
+ * the cooling-off window starts now and the processor is scheduled (the 0.4
+ * `confirmAndScheduleErasure`). Filer ≠ approver is a HARD refusal here, not
+ * just a UI gate — the approvals inbox enforces it above, this enforces it
+ * again at the write. An already-scheduled or no-longer-pending row is a
+ * no-op: approving twice is a double-submit, not an error.
+ */
+export async function confirmAndScheduleErasure(
+  tx: TransactionSql,
+  args: { requestId: string; approverId: string; organizationId: string },
+): Promise<void> {
+  const rows = await tx<
+    {
+      id: string;
+      organizationId: string;
+      targetUserId: string;
+      requestedBy: string;
+      status: string;
+      effectiveAt: number | null;
+    }[]
+  >`
+    SELECT id, org_id AS "organizationId",
+           target_user_id AS "targetUserId", requested_by AS "requestedBy",
+           status, effective_at_ms::float8 AS "effectiveAt"
+    FROM app.gdpr_erasure_requests
+    WHERE id = ${args.requestId} AND org_id = ${args.organizationId}
+    FOR UPDATE
+  `;
+  const row = rows[0];
+  if (row === undefined) return;
+  if (row.status !== 'pending' || row.effectiveAt !== null) return;
+  if (args.approverId === row.requestedBy) {
+    throw new ErasureError(
+      'dualApprovalRequired',
+      'The filer of an erasure request cannot also approve it. Ask another admin.',
+      403,
+    );
+  }
+
+  const policy = await dsarPolicy(tx, row.organizationId);
+  const effectiveAt = Date.now() + policy.coolingOffHours * HOUR_MS;
+  await tx`
+    UPDATE app.gdpr_erasure_requests SET effective_at_ms = ${effectiveAt}
+    WHERE id = ${row.id}
+  `;
+  await addJobInTx(
+    tx,
+    'governance.process_erasure',
+    { requestId: row.id },
+    { startAfter: new Date(effectiveAt) },
+  );
+  await createAuditLog(tx, {
+    organizationId: row.organizationId,
+    actorId: args.approverId,
+    actorType: 'user',
+    action: 'gdpr_erasure_requested',
+    category: 'admin',
+    resourceType: 'user',
+    resourceId: row.targetUserId,
+    status: 'success',
+    newState: {
+      requestId: row.id,
+      dualApproval: true,
+      approvedBy: args.approverId,
+      effectiveAt,
+    },
+  });
+  await writeNotificationForOrgs(tx, {
+    organizationIds: [row.organizationId],
+    category: 'security',
+    severity: 'warning',
+    titleKey: 'dsarScheduled',
+    bodyKey: 'dsarScheduledBody',
+    params: {
+      subjectUserId: row.targetUserId,
+      requestedBy: row.requestedBy,
+      requestId: row.id,
+    },
+    subjectUserId: row.targetUserId,
+    link: { kind: 'dsar' },
+  });
 }
