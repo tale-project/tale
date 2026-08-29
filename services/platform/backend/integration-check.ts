@@ -17037,6 +17037,448 @@ async function checkAuditSurface(
 }
 
 /**
+ * Inc-93 data residency: the instance-level DEPLOYMENT config (read view /
+ * editor-allowlist write gate / optimistic hash / secret merge with masked
+ * preview / probe stub / restart-not-configured), the org OBJECT-STORAGE
+ * connection (file + sidecar, stored-key probe, and the 0.5 blob BACKFILL:
+ * dry-run counts, real run copies default-store objects into the BYO
+ * bucket), and the KNOWLEDGE connection/embedding admin files.
+ */
+async function checkDataResidency(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const get = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, { headers: { cookie, origin: base } });
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const del = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'DELETE',
+      headers: { cookie, origin: base },
+    });
+  process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+
+  // --- Deployment: read view, editor gate, hash OCC, secrets ------------
+  const readFresh = z
+    .object({
+      config: z.object({ version: z.number() }).loose(),
+      hash: z.null(),
+      canEdit: z.boolean(),
+      secrets: z.record(z.string(), z.object({ present: z.boolean() }).loose()),
+    })
+    .loose()
+    .safeParse(await (await get('/api/app/deployment/config')).json());
+  delete process.env.TALE_DEPLOYMENT_CONFIG_ADMINS;
+  const writeDenied = await post('/api/app/deployment/config', {
+    config: { version: 1 },
+  });
+  process.env.TALE_DEPLOYMENT_CONFIG_ADMINS = `itest-${orgSlug.replace('itest-', '')}@example.com`;
+  const saved = z
+    .object({ hash: z.string() })
+    .safeParse(
+      await (
+        await post('/api/app/deployment/config', { config: { version: 1 } })
+      ).json(),
+    );
+  const readBack = z
+    .object({ hash: z.string(), canEdit: z.boolean() })
+    .loose()
+    .safeParse(await (await get('/api/app/deployment/config')).json());
+  const staleSave = await post('/api/app/deployment/config', {
+    config: { version: 1 },
+    expectedHash: 'not-the-hash',
+  });
+  const secretSaved = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await post('/api/app/deployment/secrets', {
+        secrets: {
+          'dataStores.convexStorage.accessKeyId': 'AKITEST1234567890',
+        },
+      })
+    ).json(),
+  );
+  const badSecret = await post('/api/app/deployment/secrets', {
+    secrets: { 'not.a.known.key': 'x' },
+  });
+  const readSecrets = z
+    .object({
+      secrets: z.record(
+        z.string(),
+        z.object({ present: z.boolean(), masked: z.string().optional() }),
+      ),
+    })
+    .loose()
+    .safeParse(await (await get('/api/app/deployment/config')).json());
+  const maskedPreview = readSecrets.success
+    ? readSecrets.data.secrets['dataStores.convexStorage.accessKeyId']
+    : undefined;
+  const localProbe = z.object({ ok: z.boolean(), hint: z.string() }).safeParse(
+    await (
+      await post('/api/app/deployment/test', {
+        target: 'convexStorage',
+        config: { mode: 'local' },
+      })
+    ).json(),
+  );
+  const restart = z
+    .object({ configured: z.boolean(), ok: z.boolean() })
+    .loose()
+    .safeParse(await (await post('/api/app/deployment/restart')).json());
+  record(
+    'data residency: deployment config view, editor gate, OCC, secrets',
+    readFresh.success &&
+      !readFresh.data.canEdit &&
+      writeDenied.status === 403 &&
+      saved.success &&
+      readBack.success &&
+      readBack.data.hash === saved.data.hash &&
+      readBack.data.canEdit &&
+      staleSave.status === 409 &&
+      secretSaved.success &&
+      badSecret.status === 400 &&
+      maskedPreview !== undefined &&
+      maskedPreview.present &&
+      maskedPreview.masked?.startsWith('AKITES') === true &&
+      localProbe.success &&
+      localProbe.data.ok &&
+      restart.success &&
+      !restart.data.configured,
+    `fresh=${readFresh.success ? `edit=${readFresh.data.canEdit}` : 'ERR'}, denied=${writeDenied.status} (want 403), saved=${saved.success}, hashMatch=${readBack.success && saved.success ? readBack.data.hash === saved.data.hash : '?'}, stale=${staleSave.status} (want 409), secret=${secretSaved.success}/${badSecret.status}/${maskedPreview?.masked?.slice(0, 6) ?? '?'}, probe=${localProbe.success ? localProbe.data.ok : 'ERR'}, restart=${restart.success ? restart.data.configured : 'ERR'} (want false)`,
+  );
+
+  // --- Object storage: connection files + probe + blob backfill ---------
+  const endpoint = process.env.ITEST_S3_ENDPOINT ?? '';
+  const accessKeyId = process.env.ITEST_S3_ACCESS_KEY ?? '';
+  const secretAccessKey = process.env.ITEST_S3_SECRET_KEY ?? '';
+  const byoBucket = 'itest-byo';
+  // Create the BYO bucket directly (MinIO: signed PUT on the bucket URL).
+  const { buildS3ObjectStore } =
+    await import('../convex/lib/storage/object_store.ts');
+  const byoStore = buildS3ObjectStore(
+    {
+      region: 'us-east-1',
+      endpoint,
+      forcePathStyle: true,
+      bucket: byoBucket,
+    },
+    { accessKeyId, secretAccessKey },
+  );
+  const mkBucket = await byoStore.client.fetch(
+    `${endpoint.replace(/\/+$/, '')}/${byoBucket}`,
+    { method: 'PUT' },
+  );
+  const bucketReady = mkBucket.ok || mkBucket.status === 409;
+
+  const osFresh = z
+    .object({ configured: z.boolean() })
+    .loose()
+    .safeParse(
+      await (
+        await get(`/api/app/object-storage/connection?orgId=${orgId}`)
+      ).json(),
+    );
+  const osNoCreds = await post(
+    `/api/app/object-storage/connection?orgId=${orgId}`,
+    { region: 'us-east-1', endpoint, forcePathStyle: true, bucket: byoBucket },
+  );
+  const osSaved = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await post(`/api/app/object-storage/connection?orgId=${orgId}`, {
+        region: 'us-east-1',
+        endpoint,
+        forcePathStyle: true,
+        bucket: byoBucket,
+        accessKeyId,
+        secretAccessKey,
+      })
+    ).json(),
+  );
+  const osView = z
+    .object({
+      configured: z.boolean(),
+      bucket: z.string(),
+      hasCredentials: z.boolean(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await get(`/api/app/object-storage/connection?orgId=${orgId}`)
+      ).json(),
+    );
+  // Stored-key probe (no creds in the request — the sidecar answers).
+  const osProbe = z
+    .object({ ok: z.boolean() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/object-storage/connection/test?orgId=${orgId}`, {
+          region: 'us-east-1',
+          endpoint,
+          forcePathStyle: true,
+          bucket: byoBucket,
+        })
+      ).json(),
+    );
+
+  const dryStart = z.object({ runId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/object-storage/backfill?orgId=${orgId}`, {
+        dryRun: true,
+      })
+    ).json(),
+  );
+  let dryStatus: {
+    status: string;
+    candidates: number;
+    migrated: number;
+  } | null = null;
+  for (let i = 0; i < 60; i++) {
+    const res = z
+      .object({
+        status: z.union([
+          z
+            .object({
+              runId: z.string(),
+              status: z.string(),
+              candidates: z.number(),
+              migrated: z.number(),
+            })
+            .loose(),
+          z.null(),
+        ]),
+      })
+      .safeParse(
+        await (
+          await get(`/api/app/object-storage/backfill/status?orgId=${orgId}`)
+        ).json(),
+      );
+    if (
+      res.success &&
+      res.data.status !== null &&
+      res.data.status.runId === (dryStart.success ? dryStart.data.runId : '') &&
+      res.data.status.status !== 'running'
+    ) {
+      dryStatus = res.data.status;
+      break;
+    }
+    await sleep(250);
+  }
+  const realStart = z
+    .object({ runId: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/object-storage/backfill?orgId=${orgId}`)
+      ).json(),
+    );
+  let realStatus: {
+    status: string;
+    migrated: number;
+    bytesMigrated: number;
+    sample: Array<{ ref: string }>;
+  } | null = null;
+  for (let i = 0; i < 120; i++) {
+    const res = z
+      .object({
+        status: z.union([
+          z
+            .object({
+              runId: z.string(),
+              status: z.string(),
+              migrated: z.number(),
+              bytesMigrated: z.number(),
+              sample: z.array(z.object({ ref: z.string() }).loose()),
+            })
+            .loose(),
+          z.null(),
+        ]),
+      })
+      .safeParse(
+        await (
+          await get(`/api/app/object-storage/backfill/status?orgId=${orgId}`)
+        ).json(),
+      );
+    if (
+      res.success &&
+      res.data.status !== null &&
+      res.data.status.runId ===
+        (realStart.success ? realStart.data.runId : '') &&
+      res.data.status.status !== 'running'
+    ) {
+      realStatus = res.data.status;
+      break;
+    }
+    await sleep(250);
+  }
+  // A migrated object is REALLY in the BYO bucket now.
+  let landed = false;
+  if (realStatus !== null && realStatus.sample.length > 0) {
+    const { parseBlobRef } = await import('../convex/lib/storage/blob_ref.ts');
+    const { s3HeadObject } =
+      await import('../convex/lib/storage/object_store.ts');
+    const sampleRef = realStatus.sample[0]?.ref ?? '';
+    try {
+      const parsed = parseBlobRef(sampleRef);
+      if (parsed.backend === 's3') {
+        landed = (await s3HeadObject(byoStore, parsed.key)) !== null;
+      }
+    } catch (error) {
+      console.warn('[itest] byo sample head failed:', error);
+    }
+  }
+  record(
+    'data residency: object storage connection + blob backfill to BYO',
+    bucketReady &&
+      osFresh.success &&
+      !osFresh.data.configured &&
+      osNoCreds.status === 400 &&
+      osSaved.success &&
+      osView.success &&
+      osView.data.configured &&
+      osView.data.bucket === byoBucket &&
+      osView.data.hasCredentials &&
+      osProbe.success &&
+      osProbe.data.ok &&
+      dryStart.success &&
+      dryStatus !== null &&
+      dryStatus.status === 'completed' &&
+      dryStatus.candidates > 0 &&
+      dryStatus.migrated === 0 &&
+      realStart.success &&
+      realStatus !== null &&
+      realStatus.status === 'completed' &&
+      realStatus.migrated > 0 &&
+      realStatus.bytesMigrated > 0 &&
+      landed,
+    `bucket=${bucketReady}, fresh=${osFresh.success ? osFresh.data.configured : 'ERR'}, noCreds=${osNoCreds.status} (want 400), saved=${osSaved.success}, view=${osView.success ? `${osView.data.bucket}/${osView.data.hasCredentials}` : 'ERR'}, probe=${osProbe.success ? osProbe.data.ok : 'ERR'}, dry=${dryStatus?.status ?? 'timeout'}/${dryStatus?.candidates ?? '?'}c/${dryStatus?.migrated ?? '?'}m, real=${realStatus?.status ?? 'timeout'}/${realStatus?.migrated ?? '?'}m/${realStatus?.bytesMigrated ?? '?'}B, landed=${landed}`,
+  );
+
+  // --- Knowledge: connection + embedding admin files --------------------
+  const dbUrl = new URL(process.env.DATABASE_URL ?? '');
+  const knFresh = z
+    .object({ configured: z.boolean() })
+    .loose()
+    .safeParse(
+      await (await get(`/api/app/knowledge/connection?orgId=${orgId}`)).json(),
+    );
+  const knSaved = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await post(`/api/app/knowledge/connection?orgId=${orgId}`, {
+        host: dbUrl.hostname,
+        port: Number(dbUrl.port || '5432'),
+        database: dbUrl.pathname.replace(/^\//, ''),
+        user: decodeURIComponent(dbUrl.username),
+        sslmode: 'prefer',
+        password: decodeURIComponent(dbUrl.password),
+      })
+    ).json(),
+  );
+  const knView = z
+    .object({
+      configured: z.boolean(),
+      host: z.string(),
+      hasPassword: z.boolean(),
+    })
+    .loose()
+    .safeParse(
+      await (await get(`/api/app/knowledge/connection?orgId=${orgId}`)).json(),
+    );
+  // Stored-password probe against the live itest PG.
+  const knProbe = z
+    .object({ ok: z.boolean() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/knowledge/connection/test?orgId=${orgId}`, {
+          host: dbUrl.hostname,
+          port: Number(dbUrl.port || '5432'),
+          database: dbUrl.pathname.replace(/^\//, ''),
+          user: decodeURIComponent(dbUrl.username),
+          sslmode: 'prefer',
+        })
+      ).json(),
+    );
+  const embSaved = z.object({ ok: z.boolean() }).safeParse(
+    await (
+      await post(`/api/app/knowledge/embedding?orgId=${orgId}`, {
+        providerSlug: 'openai',
+        model: 'text-embedding-3-small',
+        dimensions: 1536,
+      })
+    ).json(),
+  );
+  const embView = z
+    .object({
+      configured: z.boolean(),
+      providerSlug: z.string(),
+      dimensions: z.number(),
+    })
+    .loose()
+    .safeParse(
+      await (await get(`/api/app/knowledge/embedding?orgId=${orgId}`)).json(),
+    );
+  const recs = z
+    .object({ recommendations: z.array(z.object({}).loose()) })
+    .safeParse(
+      await (
+        await get(`/api/app/knowledge/embedding/recommendations?orgId=${orgId}`)
+      ).json(),
+    );
+  const embGone = z
+    .object({ configured: z.boolean() })
+    .loose()
+    .safeParse(
+      await (
+        await del(`/api/app/knowledge/embedding?orgId=${orgId}`)
+      )
+        .json()
+        .then(() => get(`/api/app/knowledge/embedding?orgId=${orgId}`))
+        .then((res) => res.json()),
+    );
+  const knGone = z
+    .object({ configured: z.boolean() })
+    .loose()
+    .safeParse(
+      await (
+        await del(`/api/app/knowledge/connection?orgId=${orgId}`)
+      )
+        .json()
+        .then(() => get(`/api/app/knowledge/connection?orgId=${orgId}`))
+        .then((res) => res.json()),
+    );
+  record(
+    'data residency: knowledge connection + embedding admin files',
+    knFresh.success &&
+      !knFresh.data.configured &&
+      knSaved.success &&
+      knView.success &&
+      knView.data.configured &&
+      knView.data.host === dbUrl.hostname &&
+      knView.data.hasPassword &&
+      knProbe.success &&
+      knProbe.data.ok &&
+      embSaved.success &&
+      embView.success &&
+      embView.data.configured &&
+      embView.data.providerSlug === 'openai' &&
+      embView.data.dimensions === 1536 &&
+      recs.success &&
+      embGone.success &&
+      !embGone.data.configured &&
+      knGone.success &&
+      !knGone.data.configured,
+    `fresh=${knFresh.success ? knFresh.data.configured : 'ERR'}, saved=${knSaved.success}, view=${knView.success ? `${knView.data.host}/${knView.data.hasPassword}` : 'ERR'}, probe=${knProbe.success ? knProbe.data.ok : 'ERR'}, emb=${embSaved.success}/${embView.success ? `${embView.data.providerSlug}:${embView.data.dimensions}` : 'ERR'}, recs=${recs.success ? recs.data.recommendations.length : 'ERR'}, gone=${embGone.success ? !embGone.data.configured : '?'}/${knGone.success ? !knGone.data.configured : '?'}`,
+  );
+}
+
+/**
  * Two-factor enforcement: an enforced policy with zero grace flips the
  * sign-in response to the enrolment-wall shape; a grace policy anchors the
  * per-user clock once; the verify-endpoint lockout mirrors the password
@@ -18181,6 +18623,7 @@ async function main(): Promise<void> {
       `itest-${orgSuffix}`,
     );
     await checkAuditSurface(sql, baseUrl, authCtx);
+    await checkDataResidency(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

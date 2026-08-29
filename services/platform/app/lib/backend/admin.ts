@@ -53,6 +53,42 @@ type ParseIdpMetadataResult = FunctionReturnType<
 type RegenerateScimResult = FunctionReturnType<
   typeof api.scim.mutations.regenerateToken
 >;
+type DeploymentConfigViewResult = FunctionReturnType<
+  typeof api.deployment.file_actions.readDeploymentConfig
+>;
+type SaveDeploymentConfigResult = FunctionReturnType<
+  typeof api.deployment.file_actions.saveDeploymentConfig
+>;
+type DeploymentTestResult = FunctionReturnType<
+  typeof api.deployment.file_actions.testDeploymentConnection
+>;
+type RequestRestartResult = FunctionReturnType<
+  typeof api.deployment.file_actions.requestRestart
+>;
+type ObjectStorageViewResult = FunctionReturnType<
+  typeof api.object_storage.actions.getObjectStorageConnection
+>;
+type ObjectStorageProbeResult = FunctionReturnType<
+  typeof api.object_storage.actions.testObjectStorageConnection
+>;
+type BackfillStartResult = FunctionReturnType<
+  typeof api.object_storage.actions.startObjectStorageBlobBackfill
+>;
+type BackfillStatusResult = FunctionReturnType<
+  typeof api.object_storage.backfill_queries.getObjectStorageBackfillStatus
+>;
+type KnowledgeConnectionViewResult = FunctionReturnType<
+  typeof api.knowledge.actions.getKnowledgeConnection
+>;
+type KnowledgeProbeResult = FunctionReturnType<
+  typeof api.knowledge.actions.testKnowledgeConnection
+>;
+type KnowledgeEmbeddingViewResult = FunctionReturnType<
+  typeof api.knowledge.actions.getKnowledgeEmbedding
+>;
+type EmbeddingRecommendationsResult = FunctionReturnType<
+  typeof api.knowledge.recommendations.listEmbeddingRecommendations
+>;
 
 /** One audit row on the pg wire (superset of the 0.4 doc; `id` not `_id`). */
 type AuditLogWire = Record<string, unknown> & { id: string };
@@ -201,6 +237,23 @@ export const adminReadAdapters: Record<string, ReadAdapter> = {
         }),
     };
   },
+  'object_storage/backfill_queries:getObjectStorageBackfillStatus': (
+    args,
+    ctx,
+  ) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'object_storage', 'backfill-status'),
+      queryFn: () =>
+        backendFetch<{ status: BackfillStatusResult }>(
+          '/object-storage/backfill/status',
+          { orgId },
+        ).then((body) => body.status),
+      // The engine stamps progress per batch; poll while the page watches.
+      refetchInterval: 4_000,
+    };
+  },
   'enterprise_sso/config/queries:get': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -220,6 +273,49 @@ export const adminActionQueryAdapters: Record<string, ActionQueryAdapter> = {
         '/branding',
         orgId !== undefined ? { orgId } : {},
       );
+  },
+};
+
+export const adminDataResidencyActionQueries: Record<
+  string,
+  ActionQueryAdapter
+> = {
+  'deployment/file_actions:readDeploymentConfig': () => {
+    return () =>
+      backendFetch<DeploymentConfigViewResult>('/deployment/config', {});
+  },
+  'object_storage/actions:getObjectStorageConnection': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<ObjectStorageViewResult>('/object-storage/connection', {
+        orgId,
+      });
+  },
+  'knowledge/actions:getKnowledgeConnection': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<KnowledgeConnectionViewResult>('/knowledge/connection', {
+        orgId,
+      });
+  },
+  'knowledge/actions:getKnowledgeEmbedding': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<KnowledgeEmbeddingViewResult>('/knowledge/embedding', {
+        orgId,
+      });
+  },
+  'knowledge/recommendations:listEmbeddingRecommendations': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<{ recommendations: EmbeddingRecommendationsResult }>(
+        '/knowledge/embedding/recommendations',
+        { orgId },
+      ).then((body) => body.recommendations);
   },
 };
 
@@ -443,4 +539,146 @@ export const adminWriteAdapters: Record<string, WriteAdapter> = {
       }).then(() => null),
     invalidate: invalidateSso,
   },
+  'deployment/file_actions:saveDeploymentConfig': {
+    run: (args) =>
+      backendFetch<SaveDeploymentConfigResult>('/deployment/config', {
+        body: {
+          config: args.config,
+          ...(typeof args.expectedHash === 'string'
+            ? { expectedHash: args.expectedHash }
+            : {}),
+        },
+      }),
+    invalidate: invalidateDeployment,
+  },
+  'deployment/file_actions:saveDeploymentSecret': {
+    run: (args) =>
+      backendFetch<{ ok: boolean }>('/deployment/secrets', {
+        body: {
+          secrets: args.secrets,
+          ...(args.force === true ? { force: true } : {}),
+        },
+      }).then(() => null),
+    invalidate: invalidateDeployment,
+  },
+  'deployment/file_actions:testDeploymentConnection': {
+    run: (args) =>
+      backendFetch<DeploymentTestResult>('/deployment/test', {
+        body: {
+          target: stringArg(args, 'target'),
+          config: args.config,
+          ...(typeof args.password === 'string'
+            ? { password: args.password }
+            : {}),
+        },
+      }),
+  },
+  'deployment/file_actions:requestRestart': {
+    run: (args) =>
+      backendFetch<RequestRestartResult>('/deployment/restart', {
+        body: Array.isArray(args.services) ? { services: args.services } : {},
+      }),
+  },
+  'object_storage/actions:saveObjectStorageConnection': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/object-storage/connection', {
+        orgId: requireOrg(args, ctx),
+        body: bodyOf(args),
+      }).then(() => null),
+    invalidate: invalidateObjectStorage,
+  },
+  'object_storage/actions:deleteObjectStorageConnection': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/object-storage/connection', {
+        orgId: requireOrg(args, ctx),
+        method: 'DELETE',
+      }).then(() => null),
+    invalidate: invalidateObjectStorage,
+  },
+  'object_storage/actions:testObjectStorageConnection': {
+    run: (args, ctx) =>
+      backendFetch<ObjectStorageProbeResult>(
+        '/object-storage/connection/test',
+        {
+          orgId: requireOrg(args, ctx),
+          body: bodyOf(args),
+        },
+      ),
+  },
+  'object_storage/actions:startObjectStorageBlobBackfill': {
+    run: (args, ctx) =>
+      backendFetch<BackfillStartResult>('/object-storage/backfill', {
+        orgId: requireOrg(args, ctx),
+        body: args.dryRun === true ? { dryRun: true } : {},
+      }),
+    invalidate: invalidateObjectStorage,
+  },
+  'knowledge/actions:saveKnowledgeConnection': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/knowledge/connection', {
+        orgId: requireOrg(args, ctx),
+        body: bodyOf(args),
+      }).then(() => null),
+    invalidate: invalidateKnowledgeConfig,
+  },
+  'knowledge/actions:deleteKnowledgeConnection': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/knowledge/connection', {
+        orgId: requireOrg(args, ctx),
+        method: 'DELETE',
+      }).then(() => null),
+    invalidate: invalidateKnowledgeConfig,
+  },
+  'knowledge/actions:testKnowledgeConnection': {
+    run: (args, ctx) =>
+      backendFetch<KnowledgeProbeResult>('/knowledge/connection/test', {
+        orgId: requireOrg(args, ctx),
+        body: bodyOf(args),
+      }),
+  },
+  'knowledge/actions:saveKnowledgeEmbedding': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/knowledge/embedding', {
+        orgId: requireOrg(args, ctx),
+        body: bodyOf(args),
+      }).then(() => null),
+    invalidate: invalidateKnowledgeConfig,
+  },
+  'knowledge/actions:deleteKnowledgeEmbedding': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/knowledge/embedding', {
+        orgId: requireOrg(args, ctx),
+        method: 'DELETE',
+      }).then(() => null),
+    invalidate: invalidateKnowledgeConfig,
+  },
 };
+
+function invalidateDeployment(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+): void {
+  void client.invalidateQueries({ queryKey: ['config', 'deployment'] });
+}
+
+function invalidateObjectStorage(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({ queryKey: ['config', 'org-object-storage'] });
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'object_storage'),
+  });
+}
+
+function invalidateKnowledgeConfig(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+): void {
+  void client.invalidateQueries({ queryKey: ['config', 'org-knowledge'] });
+  void client.invalidateQueries({ queryKey: ['config', 'org-embedding'] });
+  void client.invalidateQueries({
+    queryKey: ['config', 'org-embedding-recommendations'],
+  });
+}

@@ -21,6 +21,7 @@ import {
   adminPaginatedAdapters,
   adminReadAdapters,
   adminWriteAdapters,
+  adminDataResidencyActionQueries,
 } from './admin';
 import { BackendApiError } from './api-client';
 import {
@@ -135,6 +136,7 @@ export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
 
 export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {
   ...adminActionQueryAdapters,
+  ...adminDataResidencyActionQueries,
   ...projectActionQueryAdapters,
   ...settingsActionQueryAdapters,
 };

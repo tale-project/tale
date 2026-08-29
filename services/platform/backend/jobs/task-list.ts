@@ -203,6 +203,17 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         console.log(`[retention] swept ${orgs} orgs`);
       }
     },
+    'object_storage.backfill': async (payload) => {
+      const input = z
+        .object({
+          runId: z.string().min(1),
+          organizationId: z.string().min(1),
+        })
+        .parse(payload);
+      const { runBackfill } =
+        await import('../domains/object_storage/service.ts');
+      await runBackfill(deps.sql, input);
+    },
     'audit.integrity_check': async () => {
       const { listAuditedOrgIds, runScheduledIntegrityCheck } =
         await import('../domains/audit_logs/verify.ts');

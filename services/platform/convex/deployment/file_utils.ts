@@ -82,3 +82,20 @@ export function parseDeploymentSecrets(
   }
   return result.data;
 }
+
+/** Mask an IDENTIFIER for "configured?" display: first 6 + last 4. */
+export function maskDeploymentSecret(value: string): string {
+  if (value.length <= 10) return '••••••••••';
+  return `${value.slice(0, 6)} … ${value.slice(-4)}`;
+}
+
+/**
+ * Keys whose value is an IDENTIFIER (not a credential) and may show a short
+ * first6/last4 preview. Everything else (passwords, secretAccessKey) returns
+ * presence-only — a partial preview of a lower-entropy DB password would leak
+ * usable material to any read-only instance-admin (the read path is NOT gated
+ * by the editor allowlist).
+ */
+export const PREVIEWABLE_DEPLOYMENT_SECRET_KEYS = new Set<string>([
+  'dataStores.convexStorage.accessKeyId',
+]);

@@ -58,6 +58,8 @@ import {
   resolveDeploymentSecretsPath,
   resolveLegacyDeploymentConfigPath,
   serializeDeploymentConfig,
+  maskDeploymentSecret,
+  PREVIEWABLE_DEPLOYMENT_SECRET_KEYS,
 } from './file_utils';
 import {
   UndecryptableExistingSecretError,
@@ -71,23 +73,6 @@ import {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Mask an IDENTIFIER for "configured?" display: first 6 + last 4. */
-function maskSecret(value: string): string {
-  if (value.length <= 10) return '••••••••••';
-  return `${value.slice(0, 6)} … ${value.slice(-4)}`;
-}
-
-/**
- * Keys whose value is an IDENTIFIER (not a credential) and may show a short
- * first6/last4 preview. Everything else (passwords, secretAccessKey) returns
- * presence-only — a partial preview of a lower-entropy DB password would leak
- * usable material to any read-only instance-admin (the read path is NOT gated
- * by the editor allowlist).
- */
-const PREVIEWABLE_SECRET_KEYS = new Set<string>([
-  'dataStores.convexStorage.accessKeyId',
-]);
 
 function isErrnoCode(err: unknown, code: string): boolean {
   return err instanceof Error && 'code' in err && err.code === code;
@@ -210,8 +195,8 @@ export const readDeploymentConfig = action({
         const val = parsed[key];
         if (!val) {
           secrets[key] = { present: false };
-        } else if (PREVIEWABLE_SECRET_KEYS.has(key)) {
-          secrets[key] = { present: true, masked: maskSecret(val) };
+        } else if (PREVIEWABLE_DEPLOYMENT_SECRET_KEYS.has(key)) {
+          secrets[key] = { present: true, masked: maskDeploymentSecret(val) };
         } else {
           // Credential: presence only, no substring of the value.
           secrets[key] = { present: true };

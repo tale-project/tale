@@ -22,6 +22,7 @@ import { createConnectorCredentialRoutes } from './domains/connector_credentials
 import { createContactRoutes } from './domains/contacts/routes.ts';
 import { createControlRoutes } from './domains/control/routes.ts';
 import { createConversationRoutes } from './domains/conversations/routes.ts';
+import { createDeploymentRoutes } from './domains/deployment/routes.ts';
 import { createDocumentRoutes } from './domains/documents/routes.ts';
 import { createErasureRoutes } from './domains/erasure/routes.ts';
 import { createFeedbackRoutes } from './domains/feedback/routes.ts';
@@ -34,6 +35,7 @@ import { createKnowledgeEntryRoutes } from './domains/knowledge_entries/routes.t
 import { createLegalHoldRoutes } from './domains/legal_holds/routes.ts';
 import { createMemberRoutes } from './domains/members/routes.ts';
 import { createNotificationRoutes } from './domains/notifications/routes.ts';
+import { createObjectStorageRoutes } from './domains/object_storage/routes.ts';
 import { createOneDriveRoutes } from './domains/onedrive/routes.ts';
 import { createOrganizationRoutes } from './domains/organizations/routes.ts';
 import { createProductRoutes } from './domains/products/routes.ts';
@@ -112,6 +114,8 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/agents', createAgentRoutes(deps));
   app.route('/api/app/audit-logs', createAuditLogRoutes(deps));
   app.route('/api/app/branding', createBrandingRoutes(deps));
+  app.route('/api/app/deployment', createDeploymentRoutes(deps));
+  app.route('/api/app/object-storage', createObjectStorageRoutes(deps));
   app.route('/api/app/browser-sessions', createBrowserSessionRoutes(deps));
   app.route('/api/app/automations', createAutomationRoutes(deps));
   app.route('/api/app/chat', createChatRoutes(deps));
