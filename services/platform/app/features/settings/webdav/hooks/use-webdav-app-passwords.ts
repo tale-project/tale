@@ -1,5 +1,5 @@
-import { useMutation, useQuery } from 'convex/react';
-
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 
@@ -7,17 +7,21 @@ export function useWebdavAppPasswords(organizationId: string) {
   // Return `undefined` while loading so the UI can distinguish skeleton vs
   // empty-state. Coercing to `[]` here would collapse both into the empty
   // path and flash "No app-passwords yet." on first paint.
-  return useQuery(api.webdav.app_password_queries.listAppPasswords, {
-    organizationId,
-  });
+  const { data } = useConvexQuery(
+    api.webdav.app_password_queries.listAppPasswords,
+    { organizationId },
+  );
+  return data;
 }
 
 export function useCreateWebdavAppPassword() {
-  return useMutation(api.webdav.app_password_mutations.createAppPassword);
+  return useConvexMutation(api.webdav.app_password_mutations.createAppPassword)
+    .mutateAsync;
 }
 
 export function useRevokeWebdavAppPassword() {
-  return useMutation(api.webdav.app_password_mutations.revokeAppPassword);
+  return useConvexMutation(api.webdav.app_password_mutations.revokeAppPassword)
+    .mutateAsync;
 }
 
 export type WebdavAppPasswordRow = NonNullable<

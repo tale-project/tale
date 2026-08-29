@@ -643,6 +643,62 @@ async function checkIdentityDomains(
     `set → ${setPrefs.status}, read=${prefs.success ? JSON.stringify(prefs.data.preferences?.customInstructions) : 'ERR'}`,
   );
 
+  // Sandbox user-env (inc 88): plain + secret upsert, masked listing,
+  // key validation, delete.
+  const envPlain = await post(`/api/app/sandbox/user-env?orgId=${orgId}`, {
+    key: 'MY_REGION',
+    value: 'eu-central-1',
+    isSecret: false,
+  });
+  const envSecret = await post(`/api/app/sandbox/user-env?orgId=${orgId}`, {
+    key: 'MY_TOKEN',
+    value: 'tok-super-secret',
+    isSecret: true,
+  });
+  const envBadKey = await post(`/api/app/sandbox/user-env?orgId=${orgId}`, {
+    key: '9bad',
+    value: 'x',
+    isSecret: false,
+  });
+  const envList = z
+    .object({
+      env: z.array(
+        z.object({
+          key: z.string(),
+          isSecret: z.boolean(),
+          value: z.string().optional(),
+          maskedValue: z.string().optional(),
+        }),
+      ),
+    })
+    .safeParse(await get(`/api/app/sandbox/user-env?orgId=${orgId}`));
+  const plainRow = envList.success
+    ? envList.data.env.find((row) => row.key === 'MY_REGION')
+    : undefined;
+  const secretRow = envList.success
+    ? envList.data.env.find((row) => row.key === 'MY_TOKEN')
+    : undefined;
+  const envDelete = await fetch(
+    `${base}/api/app/sandbox/user-env/MY_REGION?orgId=${orgId}`,
+    { method: 'DELETE', headers: { cookie, origin: base } },
+  );
+  const envAfterDelete = z
+    .object({ env: z.array(z.object({ key: z.string() })) })
+    .safeParse(await get(`/api/app/sandbox/user-env?orgId=${orgId}`));
+  record(
+    'sandbox user-env CRUD (masked secrets, key validation)',
+    envPlain.ok &&
+      envSecret.ok &&
+      envBadKey.status === 400 &&
+      plainRow?.value === 'eu-central-1' &&
+      secretRow?.maskedValue !== undefined &&
+      secretRow.value === undefined &&
+      envDelete.ok &&
+      envAfterDelete.success &&
+      !envAfterDelete.data.env.some((row) => row.key === 'MY_REGION'),
+    `plain → ${envPlain.status}, secret → ${envSecret.status}, badKey → ${envBadKey.status} (want 400), masked=${secretRow?.maskedValue !== undefined && secretRow.value === undefined}, deleted=${envAfterDelete.success ? !envAfterDelete.data.env.some((row) => row.key === 'MY_REGION') : 'ERR'}`,
+  );
+
   const audits = z
     .object({ items: z.array(z.object({ action: z.string() })) })
     .safeParse(await get(`/api/app/audit-logs?orgId=${orgId}`));

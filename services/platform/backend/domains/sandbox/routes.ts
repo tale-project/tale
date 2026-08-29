@@ -1,3 +1,4 @@
+import { transactSerializable } from '@tale/shared/db/serializable';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -8,6 +9,12 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { pinSession, teardownSession } from './service.ts';
 import { listRunningOpsBySession, listSessionsForOrg } from './sessions.ts';
+import {
+  deleteMyEnvVar,
+  listMyEnv,
+  upsertMyEnvVar,
+  UserEnvError,
+} from './user-env.ts';
 
 /**
  * /api/app/sandbox — the sandbox-management surface: the org's live
@@ -32,6 +39,46 @@ export function createSandboxRoutes(deps: {
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+
+  const envScope = (c: Context<OrgEnv>) => ({
+    organizationId: c.get('orgId'),
+    userId: c.get('sessionBundle').user.id,
+  });
+
+  // User-level env/secrets (always self-scoped; secrets write-only).
+  app.get('/user-env', async (c) => {
+    return c.json({ env: await listMyEnv(deps.sql, envScope(c)) });
+  });
+
+  app.post('/user-env', async (c) => {
+    const body = z
+      .object({
+        key: z.string().min(1).max(128),
+        value: z.string().max(8192),
+        isSecret: z.boolean(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      await transactSerializable(deps.sql, (tx) =>
+        upsertMyEnvVar(tx, envScope(c), body.data),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      if (error instanceof UserEnvError) {
+        return c.json({ error: error.code, message: error.message }, 400);
+      }
+      throw error;
+    }
+  });
+
+  app.delete('/user-env/:key', async (c) => {
+    return c.json(
+      await deleteMyEnvVar(deps.sql, envScope(c), c.req.param('key')),
+    );
+  });
 
   app.get('/sessions', async (c) => {
     const denied = requireAdmin(c);

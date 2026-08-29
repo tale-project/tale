@@ -1,7 +1,12 @@
 import { convexQuery } from '@convex-dev/react-query';
 import type { FunctionArgs, FunctionReference } from 'convex/server';
+import { getFunctionName } from 'convex/server';
 import { ConvexError } from 'convex/values';
 
+import {
+  activeOrganizationId,
+  READ_ADAPTERS,
+} from '@/app/lib/backend/convex-adapters';
 import type { RouterContext } from '@/app/router';
 import { api } from '@/convex/_generated/api';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
@@ -25,6 +30,22 @@ export function ensureConvexQuery<Func extends FunctionReference<'query'>>(
   func: Func,
   ...[args]: QueryArgs<Func>
 ) {
+  // A family migrated to the 0.5 backend warms the SAME react-query entry
+  // its hook's adapter row reads — a convex prefetch would either error on
+  // the dead WS (post-swap) or warm a key nobody consumes.
+  const adapter = READ_ADAPTERS[getFunctionName(func)];
+  if (adapter !== undefined) {
+    const organizationId = activeOrganizationId();
+    const adapted = adapter(
+      args ?? {},
+      organizationId !== undefined ? { organizationId } : {},
+    );
+    if (adapted === null) return Promise.resolve(undefined);
+    return context.queryClient.ensureQueryData({
+      queryKey: adapted.queryKey,
+      queryFn: adapted.queryFn,
+    });
+  }
   return context.queryClient.ensureQueryData(convexQuery(func, args ?? {}));
 }
 

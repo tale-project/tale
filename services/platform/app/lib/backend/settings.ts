@@ -30,6 +30,21 @@ type MemberPasskeyItem = FunctionReturnType<
 type CreateMemberResult = FunctionReturnType<
   typeof api.users.mutations.createMember
 >;
+type MyPreferencesResult = FunctionReturnType<
+  typeof api.user_preferences.queries.getMyPreferences
+>;
+type NotificationPrefsResult = FunctionReturnType<
+  typeof api.collab.preferences.getNotificationPreferences
+>;
+type MyEnvItem = FunctionReturnType<
+  typeof api.sandbox.user_env.listMyEnv
+>[number];
+type AppPasswordItem = FunctionReturnType<
+  typeof api.webdav.app_password_queries.listAppPasswords
+>[number];
+type CreateAppPasswordResult = FunctionReturnType<
+  typeof api.webdav.app_password_mutations.createAppPassword
+>;
 
 function orgOf(
   args: Record<string, unknown>,
@@ -57,6 +72,12 @@ function stringArg(args: Record<string, unknown>, key: string): string {
     throw new Error(`Missing ${key} for adapted write`);
   }
   return value;
+}
+
+/** Like `stringArg` but an empty string is a legal value (clearing a field). */
+function stringArgOrEmpty(args: Record<string, unknown>, key: string): string {
+  const value = args[key];
+  return typeof value === 'string' ? value : '';
 }
 
 /** One team-member row as the pg backend returns it. */
@@ -131,6 +152,52 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         ),
     };
   },
+  'user_preferences/queries:getMyPreferences': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'user_preference', 'mine'),
+      queryFn: () =>
+        backendFetch<{ preferences: MyPreferencesResult }>(
+          '/user-preferences',
+          { orgId },
+        ).then((body) => body.preferences),
+    };
+  },
+  'collab/preferences:getNotificationPreferences': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'notification_preference', 'mine'),
+      queryFn: () =>
+        backendFetch<NotificationPrefsResult>('/collab/preferences', {
+          orgId,
+        }),
+    };
+  },
+  'sandbox/user_env:listMyEnv': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'sandbox_user_env', 'mine'),
+      queryFn: () =>
+        backendFetch<{ env: MyEnvItem[] }>('/sandbox/user-env', {
+          orgId,
+        }).then((body) => body.env),
+    };
+  },
+  'webdav/app_password_queries:listAppPasswords': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'webdav_app_password', 'mine'),
+      queryFn: () =>
+        backendFetch<{ appPasswords: AppPasswordItem[] }>(
+          '/webdav/app-passwords',
+          { orgId },
+        ).then((body) => body.appPasswords),
+    };
+  },
   'two_factor/queries:listPasskeysForMember': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const memberId = args.memberId;
@@ -155,6 +222,42 @@ function invalidateMembers(
   if (orgId === undefined) return;
   void client.invalidateQueries({
     queryKey: backendEntityPrefix(orgId, 'member'),
+  });
+}
+
+function invalidateUserPrefs(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'user_preference'),
+  });
+}
+
+function invalidateUserEnv(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'sandbox_user_env'),
+  });
+}
+
+function invalidateWebdav(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'webdav_app_password'),
   });
 }
 
@@ -266,6 +369,107 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         },
       ).then(() => null),
     invalidate: invalidateTeams,
+  },
+  'user_preferences/mutations:upsertMyPreferences': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/user-preferences/custom-instructions', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          customInstructions: stringArgOrEmpty(args, 'customInstructions'),
+        },
+      }).then(() => null),
+    invalidate: invalidateUserPrefs,
+  },
+  'user_preferences/mutations:setMemoriesEnabled': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/user-preferences/memories-enabled', {
+        orgId: requireOrg(args, ctx),
+        body: { enabled: args.enabled === true },
+      }).then(() => null),
+    invalidate: invalidateUserPrefs,
+  },
+  'user_preferences/mutations:setCustomInstructionsEnabled': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        '/user-preferences/custom-instructions-enabled',
+        {
+          orgId: requireOrg(args, ctx),
+          body: { enabled: args.enabled === true },
+        },
+      ).then(() => null),
+    invalidate: invalidateUserPrefs,
+  },
+  'collab/preferences:setNotificationPreferences': {
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const { organizationId: _organizationId, ...prefs } = args;
+      return backendFetch<{ ok: boolean }>('/collab/preferences', {
+        orgId,
+        body: prefs,
+      }).then(() => null);
+    },
+    invalidate: (client, args, ctx) => {
+      const orgId = orgOf(args, ctx);
+      if (orgId === undefined) return;
+      void client.invalidateQueries({
+        queryKey: backendEntityPrefix(orgId, 'notification_preference'),
+      });
+    },
+  },
+  'users/mutations:updateUserName': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/users/update-name', {
+        orgId: requireOrg(args, ctx),
+        body: { name: stringArg(args, 'name') },
+      }).then(() => null),
+  },
+  'users/mutations:updateUserPassword': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/users/update-password', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          ...(typeof args.currentPassword === 'string'
+            ? { currentPassword: args.currentPassword }
+            : {}),
+          newPassword: stringArg(args, 'newPassword'),
+        },
+      }).then(() => null),
+  },
+  'sandbox/user_env_actions:upsertMyEnvVar': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/sandbox/user-env', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          key: stringArg(args, 'key'),
+          value: typeof args.value === 'string' ? args.value : '',
+          isSecret: args.isSecret === true,
+        },
+      }).then(() => null),
+    invalidate: invalidateUserEnv,
+  },
+  'sandbox/user_env:deleteMyEnvVar': {
+    run: (args, ctx) =>
+      backendFetch<{ deleted: boolean }>(
+        `/sandbox/user-env/${encodeURIComponent(stringArg(args, 'key'))}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null),
+    invalidate: invalidateUserEnv,
+  },
+  'webdav/app_password_mutations:createAppPassword': {
+    run: (args, ctx) =>
+      backendFetch<CreateAppPasswordResult>('/webdav/app-passwords', {
+        orgId: requireOrg(args, ctx),
+        body: { label: stringArg(args, 'label') },
+      }),
+    invalidate: invalidateWebdav,
+  },
+  'webdav/app_password_mutations:revokeAppPassword': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/webdav/app-passwords/${encodeURIComponent(stringArg(args, 'id'))}/revoke`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then(() => null),
+    invalidate: invalidateWebdav,
   },
   'team_members/mutations:removeMember': {
     run: (args, ctx) =>
