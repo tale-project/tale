@@ -26,6 +26,12 @@ export interface TaskPayloads {
     /** The verified `event` object, exactly as Slack sent it. */
     event: Record<string, unknown>;
   };
+  /** Fail transcriptions whose runner died; cascade to their video jobs. */
+  'watchdog.transcriptions': Record<string, never>;
+  /** Reconcile stalled RAG rows against the knowledge corpus. */
+  'watchdog.rag_indexing': Record<string, never>;
+  /** Fail erasure runs whose processor never finished. */
+  'watchdog.erasures': Record<string, never>;
   /** Daily sweep of idle rate-limit rows (cron). */
   'maintenance.rate_limit_gc': Record<string, never>;
   /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
@@ -243,6 +249,11 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     retryBackoff: true,
     expireInSeconds: 300,
   },
+  // Recovery sweeps: a tick that fails is retried once, then waits for the
+  // next schedule — piling up retries of a sweep just delays the sweep.
+  'watchdog.transcriptions': { retryLimit: 1, expireInSeconds: 300 },
+  'watchdog.rag_indexing': { retryLimit: 1, expireInSeconds: 600 },
+  'watchdog.erasures': { retryLimit: 1, expireInSeconds: 300 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
   'rag.index_file': {

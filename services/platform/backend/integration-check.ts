@@ -6270,6 +6270,186 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
  * decrypt seam handing an invocation its secrets/config/Basic header —
  * with disabled rows refusing coded.
  */
+async function checkRecoverySweeps(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const stale = now - 40 * 60 * 1000;
+
+  // ---- transcriptions: stuck run fails and cascades to its video job ----
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      transcription_status, transcription_started_at_ms,
+      transcription_run_id, created_at_ms
+    ) VALUES
+      (${orgId}, 'stuck.mp3', 'audio/mpeg', 10, 's3:stuck-audio-1',
+       ${userId}, 'running', ${stale}, 'run-dead', ${stale}),
+      (${orgId}, 'fresh.mp3', 'audio/mpeg', 10, 's3:fresh-audio-1',
+       ${userId}, 'running', ${now}, 'run-live', ${now})
+  `;
+  await sql`
+    INSERT INTO app.video_link_jobs (
+      org_id, source_url, source_url_hash, source_platform, pasted_token,
+      status, status_changed_at_ms, storage_ref, uploaded_by, created_at_ms
+    ) VALUES (
+      ${orgId}, 'https://example.test/v', 'hash-stuck-1', 'youtube',
+      'https://example.test/v', 'transcribing_handoff', ${stale},
+      's3:stuck-audio-1', ${userId}, ${stale}
+    )
+  `;
+  const { recoverStuckTranscriptions } =
+    await import('./domains/file_metadata/watchdogs.ts');
+  const transcriptions = await recoverStuckTranscriptions(sql);
+  const transcriptionRows = await sql<
+    { fileName: string; status: string; error: string | null }[]
+  >`
+    SELECT file_name AS "fileName", transcription_status AS status,
+           transcription_error AS error
+    FROM app.file_metadata WHERE org_id = ${orgId}
+      AND file_name IN ('stuck.mp3', 'fresh.mp3')
+  `;
+  const stuckRow = transcriptionRows.find(
+    (row) => row.fileName === 'stuck.mp3',
+  );
+  const freshRow = transcriptionRows.find(
+    (row) => row.fileName === 'fresh.mp3',
+  );
+  const videoRow = await sql<{ status: string; code: string | null }[]>`
+    SELECT status, error_reason_code AS code FROM app.video_link_jobs
+    WHERE source_url_hash = 'hash-stuck-1'
+  `;
+  record(
+    'watchdog: a dead transcription fails and cascades to its video job',
+    transcriptions.failed === 1 &&
+      transcriptions.cascaded === 1 &&
+      stuckRow?.status === 'failed' &&
+      (stuckRow.error ?? '').includes('watchdog') &&
+      // The live run is untouched — a watchdog that fails fresh work is worse
+      // than none at all.
+      freshRow?.status === 'running' &&
+      videoRow[0]?.status === 'failed' &&
+      videoRow[0]?.code === 'whisperFailed',
+    `failed=${transcriptions.failed} cascaded=${transcriptions.cascaded}, stuck=${stuckRow?.status}, freshUntouched=${freshRow?.status === 'running'}, video=${videoRow[0]?.status}/${videoRow[0]?.code}`,
+  );
+
+  // ---- RAG: adopt / fail / leave-alone against the corpus ---------------
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      rag_status, rag_queued_at_ms, created_at_ms
+    ) VALUES
+      (${orgId}, 'rag-stale.pdf', 'application/pdf', 10, 's3:rag-stale-1',
+       ${userId}, 'running', ${stale}, ${stale}),
+      (${orgId}, 'rag-fresh.pdf', 'application/pdf', 10, 's3:rag-fresh-1',
+       ${userId}, 'running', ${now}, ${now})
+  `;
+  // A THIRD row whose indexing actually SUCCEEDED corpus-side but whose
+  // status write was lost — the rule that matters most: never fail work that
+  // finished.
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      rag_status, rag_queued_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, 'rag-done.pdf', 'application/pdf', 10, 's3:rag-done-1',
+      ${userId}, 'running', ${stale}, ${stale}
+    )
+  `;
+  const orgSlugRow = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId} LIMIT 1
+  `;
+  const { getKnowledgePoolForOrg, PRIVATE_KNOWLEDGE_SCHEMA } =
+    await import('../convex/knowledge/pool.ts');
+  let corpusSeeded = false;
+  try {
+    const pool = await getKnowledgePoolForOrg(orgSlugRow[0]?.slug ?? '');
+    await pool.unsafe(
+      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+         (org_slug, file_id, filename, status, updated_at)
+       VALUES ($1, $2, $3, 'completed', now())
+       ON CONFLICT DO NOTHING`,
+      [orgSlugRow[0]?.slug ?? '', 's3:rag-done-1', 'rag-done.pdf'],
+    );
+    corpusSeeded = true;
+  } catch (error) {
+    console.warn('[itest] corpus seed skipped:', error);
+  }
+
+  const { recoverStuckRagIndexing } =
+    await import('./domains/file_metadata/watchdogs.ts');
+  const ragOutcome = await recoverStuckRagIndexing(sql);
+  const ragRows = await sql<
+    { fileName: string; status: string; error: string | null }[]
+  >`
+    SELECT file_name AS "fileName", rag_status AS status,
+           rag_error AS error
+    FROM app.file_metadata WHERE org_id = ${orgId}
+      AND file_name IN ('rag-stale.pdf', 'rag-fresh.pdf', 'rag-done.pdf')
+  `;
+  const ragStale = ragRows.find((row) => row.fileName === 'rag-stale.pdf');
+  const ragFresh = ragRows.find((row) => row.fileName === 'rag-fresh.pdf');
+  const ragDone = ragRows.find((row) => row.fileName === 'rag-done.pdf');
+  record(
+    'watchdog: rag reconcile adopts finished work and fails only dead rows',
+    // Never ingested + past the stale window → failed with the interrupted
+    // text (not silently left running).
+    ragStale?.status === 'failed' &&
+      (ragStale.error ?? '').includes('interrupted') &&
+      // Still inside the window → untouched.
+      ragFresh?.status === 'running' &&
+      // Corpus says completed → ADOPTED, never failed.
+      (!corpusSeeded || ragDone?.status === 'completed') &&
+      ragOutcome.failed >= 1,
+    `outcome=${JSON.stringify(ragOutcome)}, stale=${ragStale?.status} fresh=${ragFresh?.status} done=${ragDone?.status} (corpusSeeded=${corpusSeeded})`,
+  );
+
+  // ---- erasure: a stuck run fails and becomes non-retriable -------------
+  const erasureRows = await sql<{ id: string }[]>`
+    INSERT INTO app.gdpr_erasure_requests (
+      org_id, target_user_id, reason, reason_code, requested_by,
+      requested_at_ms, sla_deadline_at_ms, status, started_at_ms,
+      threads_targeted
+    ) VALUES (
+      ${orgId}, 'sweep-subject-1', 'watchdog probe', 'consent_withdrawn',
+      ${userId}, ${stale}, ${now + 86_400_000}, 'running', ${stale},
+      ARRAY[]::text[]
+    ) RETURNING id
+  `;
+  const erasureId = erasureRows[0]?.id ?? '';
+  const { recoverStuckErasureRequests, retryErasure } =
+    await import('./domains/erasure/service.ts');
+  const swept = await recoverStuckErasureRequests(sql);
+  const erasureAfter = await sql<{ status: string; error: string | null }[]>`
+    SELECT status, error FROM app.gdpr_erasure_requests WHERE id = ${erasureId}
+  `;
+  const auditRow = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'gdpr_erasure_watchdog_failed'
+  `;
+  let retryRefused = false;
+  try {
+    await retryErasure(sql, {
+      organizationId: orgId,
+      requestId: erasureId,
+    });
+  } catch (error) {
+    retryRefused =
+      error instanceof Error && error.message.includes('timed out mid-erasure');
+  }
+  record(
+    'watchdog: a stuck erasure fails, is audited, and refuses a retry',
+    swept.recovered >= 1 &&
+      erasureAfter[0]?.status === 'failed' &&
+      (erasureAfter[0]?.error ?? '').includes('watchdog') &&
+      Number(auditRow[0]?.count ?? '0') >= 1 &&
+      retryRefused,
+    `recovered=${swept.recovered}, status=${erasureAfter[0]?.status}, audits=${auditRow[0]?.count}, retryRefused=${retryRefused}`,
+  );
+}
+
 async function checkSlackInbound(
   sql: Sql,
   base: string,
@@ -20838,6 +21018,7 @@ async function main(): Promise<void> {
     await checkConnectorCredentials(sql, baseUrl, authCtx);
     await checkConnectorOauth(sql, baseUrl, authCtx);
     await checkSlackInbound(sql, baseUrl, authCtx);
+    await checkRecoverySweeps(sql, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);

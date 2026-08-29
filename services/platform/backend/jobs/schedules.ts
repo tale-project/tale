@@ -45,6 +45,13 @@ const SCHEDULES: CronSchedule[] = [
   { name: 'video.watchdog', cron: '*/5 * * * *' },
   // Browser-session pool upkeep (the 0.4 10-min cron).
   { name: 'browser.sweep', cron: '*/10 * * * *' },
+  // The file-pipeline and erasure recovery sweeps (the 0.4 5-min crons).
+  // Each is its own entry so a throw in one can never disable another —
+  // the isolation rationale 0.4 learned when a piggy-backed sweep took its
+  // host down with it.
+  { name: 'watchdog.transcriptions', cron: '*/5 * * * *' },
+  { name: 'watchdog.rag_indexing', cron: '2-59/5 * * * *' },
+  { name: 'watchdog.erasures', cron: '4-59/5 * * * *' },
 ];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {

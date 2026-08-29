@@ -47,6 +47,13 @@ export class ErasureError extends Error {
   }
 }
 
+/**
+ * The watchdog's verdict text. Load-bearing beyond the message: the retry
+ * path refuses a receipt carrying it (see `retryErasureRequest`).
+ */
+export const ERASURE_WATCHDOG_TIMEOUT_MESSAGE =
+  'Erasure timed out and was stopped by the watchdog. File a new request.';
+
 export const ERASURE_REASON_CODES = [
   'consent_withdrawn',
   'no_longer_necessary',
@@ -415,8 +422,8 @@ export async function retryErasure(
   args: { organizationId: string; requestId: string },
 ): Promise<void> {
   const holds = await loadActiveHolds(sql, args.organizationId);
-  const rows = await sql<{ targetUserId: string }[]>`
-    SELECT target_user_id AS "targetUserId"
+  const rows = await sql<{ targetUserId: string; error: string | null }[]>`
+    SELECT target_user_id AS "targetUserId", error
     FROM app.gdpr_erasure_requests
     WHERE id = ${args.requestId} AND org_id = ${args.organizationId}
       AND status IN ('blocked', 'partial', 'failed')
@@ -427,6 +434,16 @@ export async function retryErasure(
     throw new ErasureError(
       'NOT_RETRIABLE',
       'Only blocked, partial, or failed requests retry',
+      409,
+    );
+  }
+  // A watchdog-failed receipt is NOT retriable: the run timed out mid-cascade
+  // and its partial state is unknown, so the next attempt must be a FRESH
+  // request rather than a resume (the 0.4 rule).
+  if (target.error === ERASURE_WATCHDOG_TIMEOUT_MESSAGE) {
+    throw new ErasureError(
+      'NOT_RETRIABLE',
+      'This request timed out mid-erasure. File a new request instead.',
       409,
     );
   }
@@ -1133,4 +1150,66 @@ export async function confirmAndScheduleErasure(
     subjectUserId: row.targetUserId,
     link: { kind: 'dsar' },
   });
+}
+
+/**
+ * An erasure whose processor died mid-run — the 0.4
+ * `recoverStuckErasureRequests` window. Beyond it the cascade is not coming
+ * back on its own.
+ */
+const ERASURE_WATCHDOG_TIMEOUT_MS = 35 * 60 * 1000;
+
+/**
+ * Fail erasure requests whose processor never finished.
+ *
+ * A receipt stuck at `running` is worse than a failed one: the subject's data
+ * is partly gone, the SLA clock is running, and nothing will move it. The
+ * sweep settles it as failed with a message the retry path deliberately
+ * refuses to act on (the run timed out mid-cascade — the next attempt must
+ * be a FRESH request, not a resume of an unknown partial state).
+ */
+export async function recoverStuckErasureRequests(
+  sql: Sql,
+  options: { staleMs?: number } = {},
+): Promise<{ recovered: number }> {
+  const now = Date.now();
+  const cutoff = now - (options.staleMs ?? ERASURE_WATCHDOG_TIMEOUT_MS);
+  const rows = await sql<
+    { id: string; organizationId: string; targetUserId: string }[]
+  >`
+    UPDATE app.gdpr_erasure_requests SET
+      status = 'failed',
+      error = ${ERASURE_WATCHDOG_TIMEOUT_MESSAGE},
+      finished_at_ms = ${now}
+    WHERE status = 'running'
+      AND coalesce(started_at_ms, requested_at_ms) < ${cutoff}
+    RETURNING id, org_id AS "organizationId",
+              target_user_id AS "targetUserId"
+  `;
+  for (const row of rows) {
+    // One audit row per recovered receipt, each in its own transaction: a
+    // single bad row must not roll back the whole sweep.
+    await sql.begin((tx) =>
+      createAuditLog(tx, {
+        organizationId: row.organizationId,
+        actorId: 'system',
+        actorEmail: 'system@tale.so',
+        actorType: 'system',
+        action: 'gdpr_erasure_watchdog_failed',
+        category: 'admin',
+        resourceType: 'user',
+        resourceId: row.targetUserId,
+        resourceName: row.targetUserId,
+        status: 'failure',
+        errorMessage: ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
+        newState: { requestId: row.id, cutoff },
+      }),
+    );
+  }
+  if (rows.length > 0) {
+    console.warn(
+      `[watchdog] failed ${rows.length} stuck erasure request(s) past the timeout`,
+    );
+  }
+  return { recovered: rows.length };
 }

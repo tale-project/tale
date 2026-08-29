@@ -143,6 +143,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       });
       return Promise.resolve();
     },
+    'watchdog.transcriptions': async () => {
+      const { recoverStuckTranscriptions } =
+        await import('../domains/file_metadata/watchdogs.ts');
+      await recoverStuckTranscriptions(deps.sql);
+    },
+    'watchdog.rag_indexing': async () => {
+      const { recoverStuckRagIndexing } =
+        await import('../domains/file_metadata/watchdogs.ts');
+      await recoverStuckRagIndexing(deps.sql);
+    },
+    'watchdog.erasures': async () => {
+      const { recoverStuckErasureRequests } =
+        await import('../domains/erasure/service.ts');
+      await recoverStuckErasureRequests(deps.sql);
+    },
     'maintenance.rate_limit_gc': async () => {
       // Any row idle for 7 days is past every window/refill horizon.
       const cutoff = Date.now() - 7 * 24 * 3_600_000;
