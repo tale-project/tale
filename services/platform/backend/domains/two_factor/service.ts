@@ -1,3 +1,4 @@
+import { symmetricDecrypt } from 'better-auth/crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { mergeStrictestTwoFactorPolicy } from '../../../convex/governance/helpers.ts';
@@ -128,6 +129,9 @@ export interface TwoFactorEnforcement {
   decision: 'ok' | 'grace' | 'blocked';
   graceUntilToSet: number | null;
   graceDeadline: number | null;
+  /** The merged (strictest) policy the decision came from — the status
+   * surface forwards these to the UI. */
+  policy: { enforced: boolean; exemptSsoUsers: boolean };
 }
 
 /**
@@ -154,22 +158,41 @@ export async function evaluateTwoFactorEnforcement(
     policies.length === 0
       ? { ...DEFAULT_TWO_FACTOR_POLICY }
       : mergeStrictestTwoFactorPolicy(policies);
+  const wire = {
+    enforced: policy.enforced,
+    exemptSsoUsers: policy.exemptSsoUsers,
+  };
 
   if (!policy.enforced) {
-    return { decision: 'ok', graceUntilToSet: null, graceDeadline: null };
+    return {
+      decision: 'ok',
+      graceUntilToSet: null,
+      graceDeadline: null,
+      policy: wire,
+    };
   }
   const users = await db<{ twoFactorEnabled: boolean | null }[]>`
     SELECT "twoFactorEnabled" FROM "user" WHERE "id" = ${userId} LIMIT 1
   `;
   if (users[0]?.twoFactorEnabled === true) {
-    return { decision: 'ok', graceUntilToSet: null, graceDeadline: null };
+    return {
+      decision: 'ok',
+      graceUntilToSet: null,
+      graceDeadline: null,
+      policy: wire,
+    };
   }
   // A registered passkey is a phishing-resistant second factor.
   const passkeys = await db<{ id: string }[]>`
     SELECT "id" FROM "passkey" WHERE "userId" = ${userId} LIMIT 1
   `;
   if (passkeys.length > 0) {
-    return { decision: 'ok', graceUntilToSet: null, graceDeadline: null };
+    return {
+      decision: 'ok',
+      graceUntilToSet: null,
+      graceDeadline: null,
+      policy: wire,
+    };
   }
   if (policy.exemptSsoUsers) {
     const accounts = await db<{ providerId: string }[]>`
@@ -179,11 +202,21 @@ export async function evaluateTwoFactorEnforcement(
       (account) => account.providerId === 'credential',
     );
     if (!hasCredential) {
-      return { decision: 'ok', graceUntilToSet: null, graceDeadline: null };
+      return {
+        decision: 'ok',
+        graceUntilToSet: null,
+        graceDeadline: null,
+        policy: wire,
+      };
     }
   }
   if (policy.gracePeriodDays === 0) {
-    return { decision: 'blocked', graceUntilToSet: null, graceDeadline: null };
+    return {
+      decision: 'blocked',
+      graceUntilToSet: null,
+      graceDeadline: null,
+      policy: wire,
+    };
   }
   const now = Date.now();
   const cap = now + policy.gracePeriodDays * 24 * 60 * 60 * 1000;
@@ -200,12 +233,14 @@ export async function evaluateTwoFactorEnforcement(
       decision: 'blocked',
       graceUntilToSet: null,
       graceDeadline: deadline,
+      policy: wire,
     };
   }
   return {
     decision: 'grace',
     graceUntilToSet: anchor === null ? cap : null,
     graceDeadline: deadline,
+    policy: wire,
   };
 }
 
@@ -223,6 +258,84 @@ export async function setGraceUntilIfAbsent(
 }
 
 /** The settings/status read: the enforcement posture for one user. */
+/** The 0.4 `TwoFactorStatus` wire shape (`two_factor/queries.ts`) — what
+ * the dashboard gate, the enroll page, and the settings surface consume. */
+export type TwoFactorWireStatus =
+  | { authenticated: false }
+  | {
+      authenticated: true;
+      twoFactorEnabled: boolean;
+      hasPasskey: boolean;
+      enforced: boolean;
+      decision: 'ok' | 'grace' | 'blocked';
+      graceUntil: number | null;
+      hasCredential: boolean;
+      exemptSsoUsers: boolean;
+      backupCodesRemaining: number | null;
+    };
+
+/** Count the remaining backup codes by decrypting the Better Auth
+ * `twoFactor.backupCodes` payload with `BETTER_AUTH_SECRET` (the same key
+ * `symmetricEncrypt` used on write). Null on any failure — the UI's
+ * low-codes banner treats null as "unknown" and stays hidden. */
+async function countBackupCodes(encrypted: string): Promise<number | null> {
+  const key = process.env.BETTER_AUTH_SECRET;
+  if (!key) return null;
+  try {
+    const decrypted = await symmetricDecrypt({ key, data: encrypted });
+    const parsed: unknown = JSON.parse(decrypted);
+    return Array.isArray(parsed) ? parsed.length : null;
+  } catch (error) {
+    console.warn('[two-factor] backup-code count failed', error);
+    return null;
+  }
+}
+
+/** The status payload for the current user — the 0.4 `getStatus` twin. */
+export async function getTwoFactorWireStatus(
+  db: Db,
+  userId: string,
+): Promise<TwoFactorWireStatus> {
+  const [users, passkeys, accounts, enforcement] = await Promise.all([
+    db<{ twoFactorEnabled: boolean | null }[]>`
+      SELECT "twoFactorEnabled" FROM "user" WHERE "id" = ${userId} LIMIT 1
+    `,
+    db<{ id: string }[]>`
+      SELECT "id" FROM "passkey" WHERE "userId" = ${userId} LIMIT 1
+    `,
+    db<{ providerId: string }[]>`
+      SELECT "providerId" FROM "account" WHERE "userId" = ${userId}
+    `,
+    evaluateTwoFactorEnforcement(db, userId),
+  ]);
+  const twoFactorEnabled = users[0]?.twoFactorEnabled === true;
+  let backupCodesRemaining: number | null = null;
+  if (twoFactorEnabled) {
+    const rows = await db<{ backupCodes: string }[]>`
+      SELECT "backupCodes" FROM "twoFactor" WHERE "userId" = ${userId} LIMIT 1
+    `;
+    const encrypted = rows[0]?.backupCodes;
+    if (encrypted !== undefined) {
+      backupCodesRemaining = await countBackupCodes(encrypted);
+    }
+  }
+  return {
+    authenticated: true,
+    twoFactorEnabled,
+    hasPasskey: passkeys.length > 0,
+    enforced: enforcement.policy.enforced,
+    decision: enforcement.decision,
+    // The EFFECTIVE deadline (policy-capped), not the raw stored anchor —
+    // an admin tightening must move the UI countdown too.
+    graceUntil: enforcement.graceDeadline,
+    hasCredential: accounts.some(
+      (account) => account.providerId === 'credential',
+    ),
+    exemptSsoUsers: enforcement.policy.exemptSsoUsers,
+    backupCodesRemaining,
+  };
+}
+
 export async function getTwoFactorStatus(
   db: Db,
   userId: string,

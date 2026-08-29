@@ -53,6 +53,7 @@ import { createSupportCaseRoutes } from './domains/support_cases/routes.ts';
 import { createTaskRoutes } from './domains/tasks/routes.ts';
 import { createTeamRoutes } from './domains/teams/routes.ts';
 import { createTtsRoutes } from './domains/tts/routes.ts';
+import { createTwoFactorRoutes } from './domains/two_factor/routes.ts';
 import { createUserPreferenceRoutes } from './domains/user_preferences/routes.ts';
 import { createUserRoutes } from './domains/users/routes.ts';
 import { createVideoLinkRoutes } from './domains/video_links/routes.ts';
@@ -160,6 +161,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/support-cases', createSupportCaseRoutes(deps));
   app.route('/api/app/tasks', createTaskRoutes(deps));
   app.route('/api/app/teams', createTeamRoutes(deps));
+  app.route('/api/app/two-factor', createTwoFactorRoutes(deps));
   app.route('/api/app/video-links', createVideoLinkRoutes(deps));
   app.route('/api/app/user-preferences', createUserPreferenceRoutes(deps));
   app.route('/api/app/users', createUserRoutes(deps));

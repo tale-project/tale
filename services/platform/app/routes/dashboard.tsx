@@ -1,4 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
 import {
   Outlet,
   createFileRoute,
@@ -13,7 +12,10 @@ import { AccountBootstrapProvider } from '@/app/context/account-bootstrap-provid
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useSessionIdleWatchdog } from '@/app/hooks/use-session-idle-watchdog';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
-import { api } from '@/convex/_generated/api';
+import {
+  passwordExpiryQuery,
+  twoFactorStatusQuery,
+} from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 
@@ -35,18 +37,12 @@ export const Route = createFileRoute('/dashboard')({
     return { user: session.data.user };
   },
   loader: ({ context }) => {
-    // Warm the 2FA / password-expiry gate during the navigation phase so the
-    // queries overlap the websocket auth handshake instead of running only
-    // after the provider mounts. Without this the 2FA overlay holds content
-    // for one extra round-trip past auth; with it the overlay lifts as soon as
-    // auth completes (the provider reads the warm cache). Fire-and-forget so a
-    // slow gate can't stall the transition.
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.two_factor.queries.getStatus, {}),
-    );
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.users.queries.getPasswordExpiryStatus, {}),
-    );
+    // Warm the 2FA / password-expiry gate during the navigation phase — the
+    // 0.5 backend serves both on the session cookie, so the reads overlap
+    // route-chunk loading and the provider mounts onto a warm cache.
+    // Fire-and-forget so a slow gate can't stall the transition.
+    void context.queryClient.prefetchQuery(twoFactorStatusQuery());
+    void context.queryClient.prefetchQuery(passwordExpiryQuery());
   },
   component: DashboardRedirect,
 });

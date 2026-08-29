@@ -1,10 +1,14 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
 import type { FunctionReturnType } from 'convex/server';
 import { createContext, useContext } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import {
+  passwordExpiryQuery,
+  twoFactorStatusQuery,
+} from '@/app/lib/backend/account';
+import type { api } from '@/convex/_generated/api';
 
 // These used to derive from the single `getAccountBootstrap` batch query,
 // which was retired with the rest of the bootstrap module; the two underlying
@@ -43,18 +47,17 @@ function useAccountBootstrapContext(): AccountBootstrapContextValue | null {
 
 /**
  * 2FA status for the current user. Reads the shared bootstrap result when under
- * {@link AccountBootstrapProvider}; otherwise falls back to its own
- * `getStatus` subscription (e.g. settings pages reused outside the dashboard).
- * The fallback query is disabled while on-context so there is no double-fetch.
+ * {@link AccountBootstrapProvider}; otherwise falls back to its own backend
+ * fetch (e.g. settings pages reused outside the dashboard). The fallback
+ * query is disabled while on-context so there is no double-fetch.
  * Returns `undefined` until the source resolves.
  */
 export function useTwoFactorStatus(): TwoFactorStatus | undefined {
   const ctx = useAccountBootstrapContext();
-  const fallback = useConvexQuery(
-    api.two_factor.queries.getStatus,
-    {},
-    { enabled: ctx === null },
-  );
+  const fallback = useQuery({
+    ...twoFactorStatusQuery(),
+    enabled: ctx === null,
+  });
   return ctx ? ctx.twoFactor : fallback.data;
 }
 
@@ -64,10 +67,9 @@ export function useTwoFactorStatus(): TwoFactorStatus | undefined {
  */
 export function usePasswordExpiry(): PasswordExpiryStatus | undefined {
   const ctx = useAccountBootstrapContext();
-  const fallback = useConvexQuery(
-    api.users.queries.getPasswordExpiryStatus,
-    {},
-    { enabled: ctx === null },
-  );
+  const fallback = useQuery({
+    ...passwordExpiryQuery(),
+    enabled: ctx === null,
+  });
   return ctx ? ctx.passwordExpiry : fallback.data;
 }

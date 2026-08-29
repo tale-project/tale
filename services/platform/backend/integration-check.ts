@@ -14193,6 +14193,28 @@ async function checkTwoFactor(
     FROM app.two_factor_grace WHERE user_id = ${userId}
   `;
 
+  // The status surface (the 0.4 `getStatus` wire shape) under the live
+  // grace policy — what the dashboard gate and enroll page will read.
+  const wireStatus = z
+    .object({
+      authenticated: z.literal(true),
+      twoFactorEnabled: z.literal(false),
+      hasPasskey: z.boolean(),
+      enforced: z.literal(true),
+      decision: z.literal('grace'),
+      graceUntil: z.number(),
+      hasCredential: z.literal(true),
+      exemptSsoUsers: z.boolean(),
+      backupCodesRemaining: z.null(),
+    })
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/two-factor/status`, {
+          headers: { cookie },
+        })
+      ).json(),
+    );
+
   // The verify lockout: five failures lock; the verify endpoint answers
   // 429 while locked; success clears.
   const { recordTwoFactorFailure, recordTwoFactorSuccess } =
@@ -14239,9 +14261,10 @@ async function checkTwoFactor(
       anchor1.length === 1 &&
       anchor2[0]?.graceUntil === anchor1[0]?.graceUntil &&
       lockedUntil !== null &&
+      wireStatus.success &&
       (verifyWhileLocked.status === 429 || verifyWhileLocked.status === 400) &&
       stateAfter[0]?.count === '0',
-    `blocked=${blockedRes.status}/${blockedBody.success ? blockedBody.data.enrollRequired : 'ERR'} (want true), grace=${graceBody.success ? graceBody.data.enrollRequired !== true : 'ERR'}, anchored=${anchor1.length === 1 && anchor2[0]?.graceUntil === anchor1[0]?.graceUntil}, locked=${lockedUntil !== null}, verify=${verifyWhileLocked.status}, cleared=${stateAfter[0]?.count}`,
+    `blocked=${blockedRes.status}/${blockedBody.success ? blockedBody.data.enrollRequired : 'ERR'} (want true), grace=${graceBody.success ? graceBody.data.enrollRequired !== true : 'ERR'}, anchored=${anchor1.length === 1 && anchor2[0]?.graceUntil === anchor1[0]?.graceUntil}, status=${wireStatus.success ? wireStatus.data.decision : 'ERR'}, locked=${lockedUntil !== null}, verify=${verifyWhileLocked.status}, cleared=${stateAfter[0]?.count}`,
   );
 }
 
