@@ -287,6 +287,35 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.documents),
     };
   },
+  'cloud_import/queries:getAuthorizationStatus': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const provider = args.provider;
+    if (orgId === undefined || typeof provider !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'cloud_authorization', 'status', provider),
+      queryFn: () =>
+        backendFetch<{
+          authorizations: {
+            provider: string;
+            status: 'active' | 'needs-reauth' | 'revoked';
+            scopes: string[];
+            accountLabel: string | null;
+          }[];
+        }>('/cloud-import/authorizations', { orgId }).then((body) => {
+          const row = body.authorizations.find(
+            (auth) => auth.provider === provider,
+          );
+          if (row === undefined) return null;
+          return {
+            status: row.status,
+            ...(row.accountLabel !== null
+              ? { accountLabel: row.accountLabel }
+              : {}),
+            scopes: row.scopes,
+          };
+        }),
+    };
+  },
   'members/queries:listByOrganization': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -681,6 +710,77 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
     },
     invalidate: invalidateDocuments,
   },
+  'documents/record_actions:beginControlledDocumentReplacementUpload': {
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const documentId = stringArg(args, 'documentId');
+      return backendFetch<{
+        intentId: string;
+        url: string;
+        method: 'PUT';
+        uploadContentType: string;
+        uploadExpiresAt: number;
+      }>(
+        `/documents/${encodeURIComponent(documentId)}/replacement-upload/begin`,
+        {
+          orgId,
+          body: {
+            expectedRecordState: stringArg(args, 'expectedRecordState'),
+            expectedVersion: args.expectedVersion,
+            expectedFileId: stringArg(args, 'expectedFileId'),
+            fileName: stringArg(args, 'fileName'),
+            ...(typeof args.contentType === 'string'
+              ? { contentType: args.contentType }
+              : {}),
+            ...(typeof args.lastModified === 'number'
+              ? { lastModified: args.lastModified }
+              : {}),
+          },
+        },
+      );
+    },
+  },
+  'documents/record_actions:finalizeControlledDocumentReplacementUpload': {
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const intentId = stringArg(args, 'intentId');
+      return backendFetch<{ version: number }>(
+        `/documents/replacement-uploads/${encodeURIComponent(intentId)}/finalize`,
+        { orgId, body: {} },
+      );
+    },
+    invalidate: invalidateDocuments,
+  },
+  'documents/record_actions:reconcileControlledDocumentReplacementUpload': {
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const intentId = stringArg(args, 'intentId');
+      return backendFetch<{
+        state: string;
+        resultVersion?: number;
+        cleanupPending: boolean;
+        lastError?: string;
+        updatedAt: number;
+      }>(
+        `/documents/replacement-uploads/${encodeURIComponent(intentId)}/status`,
+        { orgId },
+      );
+    },
+    invalidate: invalidateDocuments,
+  },
+  'documents/replacement_uploads:cancelControlledDocumentReplacementUpload': {
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const intentId = stringArg(args, 'intentId');
+      return backendFetch<{
+        state: 'bound' | 'cancelled';
+        resultVersion?: number;
+      }>(
+        `/documents/replacement-uploads/${encodeURIComponent(intentId)}/cancel`,
+        { orgId, body: {} },
+      );
+    },
+  },
   'files/mutations:generateUploadUrl': {
     // The legacy POST lane: the 0.4 mutation answers an upload URL the
     // caller POSTs the file to and reads `{ storageId }` back. The pg twin
@@ -710,6 +810,115 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
       return backendFetch<{ deleted: boolean }>('/files/reject-blob', {
         orgId,
         body: { storageRef: stringArg(args, 'storageId') },
+      });
+    },
+  },
+  // --- Cloud import (list/import/sync-cancel/revoke ride the pg doors) ----
+  'onedrive/actions:listFiles': {
+    run: (args, ctx) =>
+      backendFetch('/onedrive/list-files', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          ...(typeof args.folderId === 'string'
+            ? { folderId: args.folderId }
+            : {}),
+          ...(typeof args.search === 'string' ? { search: args.search } : {}),
+        },
+      }),
+  },
+  'onedrive/actions:listSharePointSites': {
+    run: (args, ctx) =>
+      backendFetch('/onedrive/sharepoint/sites', {
+        orgId: requireOrg(args, ctx),
+        body: typeof args.search === 'string' ? { search: args.search } : {},
+      }),
+  },
+  'onedrive/actions:listSharePointDrives': {
+    run: (args, ctx) =>
+      backendFetch('/onedrive/sharepoint/drives', {
+        orgId: requireOrg(args, ctx),
+        body: { siteId: stringArg(args, 'siteId') },
+      }),
+  },
+  'onedrive/actions:listSharePointFiles': {
+    run: (args, ctx) =>
+      backendFetch('/onedrive/sharepoint/files', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          siteId: stringArg(args, 'siteId'),
+          driveId: stringArg(args, 'driveId'),
+          ...(typeof args.folderId === 'string'
+            ? { folderId: args.folderId }
+            : {}),
+          ...(typeof args.search === 'string' ? { search: args.search } : {}),
+        },
+      }),
+  },
+  'onedrive/actions:importFiles': {
+    run: (args, ctx) =>
+      backendFetch('/onedrive/import', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          items: args.items,
+          importType: stringArg(args, 'importType'),
+          ...(typeof args.teamId === 'string' ? { teamId: args.teamId } : {}),
+        },
+      }),
+    invalidate: invalidateDocuments,
+  },
+  'google_drive/actions:listFiles': {
+    run: (args, ctx) =>
+      backendFetch('/google-drive/list-files', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          ...(typeof args.folderId === 'string'
+            ? { folderId: args.folderId }
+            : {}),
+          ...(typeof args.search === 'string' ? { search: args.search } : {}),
+        },
+      }),
+  },
+  'google_drive/actions:importFiles': {
+    run: (args, ctx) =>
+      backendFetch('/google-drive/import', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          items: args.items,
+          importType: stringArg(args, 'importType'),
+          ...(typeof args.teamId === 'string' ? { teamId: args.teamId } : {}),
+        },
+      }),
+    invalidate: invalidateDocuments,
+  },
+  'onedrive/mutations:cancelSyncConfig': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/onedrive/sync-configs/${encodeURIComponent(stringArg(args, 'configId'))}/cancel`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then(() => null),
+    invalidate: invalidateFolders,
+  },
+  'google_drive/mutations:cancelSyncConfig': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/google-drive/sync-configs/${encodeURIComponent(stringArg(args, 'configId'))}/cancel`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then(() => null),
+    invalidate: invalidateFolders,
+  },
+  'cloud_import/mutations:revokeAuthorization': {
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      return backendFetch<{ ok: boolean }>(
+        `/cloud-import/authorizations/${encodeURIComponent(stringArg(args, 'provider'))}/revoke`,
+        { orgId, body: {} },
+      ).then(() => null);
+    },
+    invalidate: (client, args, ctx) => {
+      const orgId = orgOf(args, ctx);
+      if (orgId === undefined) return;
+      void client.invalidateQueries({
+        queryKey: backendEntityPrefix(orgId, 'cloud_authorization'),
       });
     },
   },

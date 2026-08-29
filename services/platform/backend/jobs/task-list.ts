@@ -327,6 +327,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         console.log(`[watchdog] chat: cleared ${cleared} stale generations`);
       }
     },
+    'documents.replacement_cleanup': async () => {
+      const { runReplacementCleanup } =
+        await import('../domains/documents/replacement.ts');
+      const cleaned = await runReplacementCleanup(deps.sql);
+      if (cleaned > 0) {
+        console.log(
+          `[documents] replacement cleanup reclaimed ${cleaned} intent(s)`,
+        );
+      }
+    },
     'onedrive.sync_scan': async () => {
       await runOneDriveSyncScan(deps.sql);
     },

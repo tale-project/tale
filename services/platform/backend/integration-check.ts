@@ -2286,6 +2286,192 @@ async function checkDocuments(
     `resubmitFresh=${resubmit.success && submit.success ? resubmit.data.approvalId !== submit.data.approvalId : 'ERR'}, approve=${approve.success ? 'ok' : 'ERR'}, badge=${approvedItem.success ? `${approvedItem.data.document.record.state}/${approvedItem.data.document.record.hasApprovedVersions}` : 'ERR'}, deleteApproved → ${deleteApproved.status} (want 400), revision=${revision.success ? revision.data.version : 'ERR'}, deleteRetained → ${deleteRetained.status} (want 400)`,
   );
 
+  // --- Replacement uploads (inc 86) ----------------------------------------
+
+  const recordItemNow = z
+    .object({ document: z.object({ fileId: z.string() }) })
+    .safeParse(await get(`/api/app/documents/${recordDocId}?orgId=${orgId}`));
+  const currentFileId = recordItemNow.success
+    ? recordItemNow.data.document.fileId
+    : '';
+  const beginWrongVersion = await send(
+    'POST',
+    `/api/app/documents/${recordDocId}/replacement-upload/begin?orgId=${orgId}`,
+    {
+      expectedRecordState: 'draft',
+      expectedVersion: 99,
+      expectedFileId: currentFileId,
+      fileName: 'direct-post.txt',
+      contentType: 'text/plain',
+    },
+  );
+  const begin = z
+    .object({
+      intentId: z.string(),
+      url: z.string().url(),
+      method: z.literal('PUT'),
+      uploadContentType: z.string(),
+    })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${recordDocId}/replacement-upload/begin?orgId=${orgId}`,
+          {
+            expectedRecordState: 'draft',
+            expectedVersion: 2,
+            expectedFileId: currentFileId,
+            fileName: 'direct-post.txt',
+            contentType: 'text/plain',
+          },
+        )
+      ).json(),
+    );
+  if (begin.success) {
+    await fetch(begin.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: 'replacement content v2',
+    });
+  }
+  const finalize = z
+    .object({ version: z.number() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/replacement-uploads/${begin.success ? begin.data.intentId : ''}/finalize?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  const finalizeReplay = z
+    .object({ version: z.number() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/replacement-uploads/${begin.success ? begin.data.intentId : ''}/finalize?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  const afterReplace = z
+    .object({
+      document: z.object({
+        fileId: z.string(),
+        record: z.object({ state: z.string(), version: z.number() }),
+      }),
+    })
+    .safeParse(await get(`/api/app/documents/${recordDocId}?orgId=${orgId}`));
+  const versionsAfter = z
+    .object({
+      versions: z
+        .object({ versions: z.array(z.object({ storageId: z.string() })) })
+        .nullable(),
+    })
+    .safeParse(
+      await get(`/api/app/documents/versions/${recordDocId}?orgId=${orgId}`),
+    );
+  record(
+    'replacement upload: begin guard + attest/promote/bind + replay',
+    beginWrongVersion.status === 400 &&
+      begin.success &&
+      finalize.success &&
+      finalize.data.version === 2 &&
+      finalizeReplay.success &&
+      finalizeReplay.data.version === 2 &&
+      afterReplace.success &&
+      afterReplace.data.document.fileId !== currentFileId &&
+      afterReplace.data.document.record.state === 'draft' &&
+      afterReplace.data.document.record.version === 2 &&
+      versionsAfter.success &&
+      (versionsAfter.data.versions?.versions.length ?? 0) >= 2,
+    `wrongVersion → ${beginWrongVersion.status} (want 400), finalize=${finalize.success ? finalize.data.version : 'ERR'}, replay=${finalizeReplay.success ? finalizeReplay.data.version : 'ERR'}, swapped=${afterReplace.success ? afterReplace.data.document.fileId !== currentFileId : 'ERR'}, versions=${versionsAfter.success ? (versionsAfter.data.versions?.versions.length ?? 0) : 'ERR'}`,
+  );
+
+  // Unchanged-content refusal + cancel lane.
+  const fileIdAfter = afterReplace.success
+    ? afterReplace.data.document.fileId
+    : '';
+  const beginSame = z
+    .object({ intentId: z.string(), url: z.string().url() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${recordDocId}/replacement-upload/begin?orgId=${orgId}`,
+          {
+            expectedRecordState: 'draft',
+            expectedVersion: 2,
+            expectedFileId: fileIdAfter,
+            fileName: 'direct-post.txt',
+            contentType: 'text/plain',
+          },
+        )
+      ).json(),
+    );
+  if (beginSame.success) {
+    await fetch(beginSame.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: 'replacement content v2',
+    });
+  }
+  const finalizeSame = await send(
+    'POST',
+    `/api/app/documents/replacement-uploads/${beginSame.success ? beginSame.data.intentId : ''}/finalize?orgId=${orgId}`,
+    {},
+  );
+  const beginCancel = z.object({ intentId: z.string() }).safeParse(
+    await (
+      await send(
+        'POST',
+        `/api/app/documents/${recordDocId}/replacement-upload/begin?orgId=${orgId}`,
+        {
+          expectedRecordState: 'draft',
+          expectedVersion: 2,
+          expectedFileId: fileIdAfter,
+          fileName: 'direct-post.txt',
+          contentType: 'text/plain',
+        },
+      )
+    ).json(),
+  );
+  const cancelled = z
+    .object({ state: z.literal('cancelled') })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/replacement-uploads/${beginCancel.success ? beginCancel.data.intentId : ''}/cancel?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  const finalizeCancelled = await send(
+    'POST',
+    `/api/app/documents/replacement-uploads/${beginCancel.success ? beginCancel.data.intentId : ''}/finalize?orgId=${orgId}`,
+    {},
+  );
+  const statusRead = z
+    .object({ state: z.string(), cleanupPending: z.boolean() })
+    .safeParse(
+      await get(
+        `/api/app/documents/replacement-uploads/${beginCancel.success ? beginCancel.data.intentId : ''}/status?orgId=${orgId}`,
+      ),
+    );
+  record(
+    'replacement upload: unchanged refusal + cancel + status',
+    finalizeSame.status === 400 &&
+      beginCancel.success &&
+      cancelled.success &&
+      finalizeCancelled.status === 400 &&
+      statusRead.success &&
+      statusRead.data.state === 'cancelled',
+    `unchanged → ${finalizeSame.status} (want 400), cancel=${cancelled.success ? 'ok' : 'ERR'}, finalizeCancelled → ${finalizeCancelled.status} (want 400), status=${statusRead.success ? statusRead.data.state : 'ERR'}`,
+  );
+
   // Hard delete removes the row and the hub listing entry.
   const hardDelete = await send(
     'POST',

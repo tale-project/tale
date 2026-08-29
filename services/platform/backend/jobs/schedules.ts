@@ -31,6 +31,9 @@ const SCHEDULES: CronSchedule[] = [
   { name: 'watchdog.task_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.sandbox', cron: '*/5 * * * *' },
   { name: 'watchdog.chat_generations', cron: '*/2 * * * *' },
+  // Replacement-upload blob reclaim backstop (event-driven enqueues cover
+  // the common paths; this drains expiry/crash leftovers).
+  { name: 'documents.replacement_cleanup', cron: '*/10 * * * *' },
   // OneDrive / Google Drive mirrors refresh on a 15-minute cadence,
   // staggered so the two vendors' scans don't land on the same tick.
   { name: 'onedrive.sync_scan', cron: '*/15 * * * *' },

@@ -25,6 +25,12 @@ import {
   submitRecordForReview,
 } from './records.ts';
 import {
+  beginReplacementUpload,
+  cancelReplacementUpload,
+  finalizeReplacementUpload,
+  getReplacementUploadStatus,
+} from './replacement.ts';
+import {
   approxCountDocumentsForOrg,
   attachDocumentToProject,
   computeUploadUsageForUser,
@@ -268,7 +274,48 @@ export function createDocumentRoutes(deps: {
     }
   });
 
-  // Fixed prefix, registered before the `/:documentId` family.
+  // Fixed prefixes, registered before the `/:documentId` family.
+  app.post('/replacement-uploads/:intentId/finalize', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await finalizeReplacementUpload(
+          deps.sql,
+          auth,
+          c.req.param('intentId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/replacement-uploads/:intentId/cancel', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await cancelReplacementUpload(deps.sql, auth, c.req.param('intentId')),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/replacement-uploads/:intentId/status', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await getReplacementUploadStatus(
+          deps.sql,
+          auth,
+          c.req.param('intentId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.post('/records/reviews/:approvalId/respond', async (c) => {
     const body = z
       .object({
@@ -428,6 +475,33 @@ export function createDocumentRoutes(deps: {
           c.req.param('documentId'),
         ),
       });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:documentId/replacement-upload/begin', async (c) => {
+    const body = z
+      .object({
+        expectedRecordState: z.enum(['draft', 'approved']),
+        expectedVersion: z.number().int().min(1),
+        expectedFileId: z.string().min(1),
+        fileName: z.string().min(1).max(512),
+        contentType: z.string().max(255).optional(),
+        lastModified: z.number().optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await beginReplacementUpload(deps.sql, auth, {
+          documentId: c.req.param('documentId'),
+          ...body.data,
+        }),
+      );
     } catch (error) {
       return handleError(c, error);
     }
