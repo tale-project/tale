@@ -1102,3 +1102,98 @@ export async function notifyConversationAssignedTeam(
     });
   }
 }
+
+// ------------------------------------------------------------- attention
+
+/** Cap on every list this summary walks — the badge is a nudge, not a
+ * report, and an unbounded count would make the return loop the most
+ * expensive query on the page. */
+const ATTENTION_LIST_CAP = 100;
+
+export interface AttentionSummary {
+  unreadActionableCount: number;
+  unreadTotalCount: number;
+  waitingOnMeTaskIds: string[];
+  pendingReviewCount: number;
+}
+
+/**
+ * "What needs me back in Tale?" — the 0.4 `getMyAttentionSummary`.
+ *
+ * Three sources, deliberately different in kind: unread notifications split
+ * into actionable vs total (the shared `isActionableNotificationType` decides
+ * which, so the badge and the list can never disagree), task reviews waiting
+ * on THIS person, and their own open assignments. Reviews and assignments
+ * merge into one task-id set because a task that is both should count once.
+ */
+export async function getMyAttentionSummary(
+  sql: Sql,
+  args: { organizationId: string; userId: string; projectId?: string },
+): Promise<AttentionSummary> {
+  const unread = await sql<{ type: string }[]>`
+    SELECT type FROM app.user_notifications
+    WHERE user_id = ${args.userId} AND org_id = ${args.organizationId}
+      AND read = false
+    LIMIT ${ATTENTION_LIST_CAP}
+  `;
+  let unreadActionableCount = 0;
+  for (const row of unread) {
+    if (isActionableNotificationType(row.type)) unreadActionableCount += 1;
+  }
+
+  const waitingOnMe = new Set<string>();
+  const reviews = await sql<{ taskId: string; metadata: unknown }[]>`
+    SELECT a.resource_id AS "taskId", a.metadata
+    FROM app.approvals a
+    WHERE a.org_id = ${args.organizationId} AND a.status = 'pending'
+      AND a.resource_type = 'task_review'
+    LIMIT ${ATTENTION_LIST_CAP}
+  `;
+  let pendingReviewCount = 0;
+  for (const review of reviews) {
+    const metadata = review.metadata;
+    if (metadata === null || typeof metadata !== 'object') continue;
+    if (
+      !('requestedFor' in metadata) ||
+      metadata.requestedFor !== args.userId
+    ) {
+      continue;
+    }
+    const taskId =
+      'taskId' in metadata && typeof metadata.taskId === 'string'
+        ? metadata.taskId
+        : review.taskId;
+    if (args.projectId !== undefined) {
+      const owned = await sql<{ one: number }[]>`
+        SELECT 1 AS one FROM app.tasks
+        WHERE id = ${taskId} AND project_id = ${args.projectId} LIMIT 1
+      `;
+      if (owned.length === 0) continue;
+    }
+    waitingOnMe.add(taskId);
+    pendingReviewCount += 1;
+    if (waitingOnMe.size >= ATTENTION_LIST_CAP) break;
+  }
+
+  const assigned = await sql<{ id: string }[]>`
+    SELECT id FROM app.tasks
+    WHERE org_id = ${args.organizationId}
+      AND assignee_type = 'user' AND assignee_id = ${args.userId}
+      AND archived_at_ms IS NULL
+      AND status IN ('todo', 'in_progress', 'in_review')
+      AND (${args.projectId ?? null}::text IS NULL
+           OR project_id = ${args.projectId ?? null})
+    LIMIT ${ATTENTION_LIST_CAP}
+  `;
+  for (const task of assigned) {
+    if (waitingOnMe.size >= ATTENTION_LIST_CAP) break;
+    waitingOnMe.add(task.id);
+  }
+
+  return {
+    unreadActionableCount,
+    unreadTotalCount: unread.length,
+    waitingOnMeTaskIds: [...waitingOnMe],
+    pendingReviewCount,
+  };
+}

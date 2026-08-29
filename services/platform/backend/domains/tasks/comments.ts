@@ -4,6 +4,7 @@ import { TASK_AUDIT_ACTIONS } from '../../../convex/tasks/audit_actions.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
 import { notifyTaskComment } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
 import {
@@ -30,10 +31,15 @@ import {
  * in the task's `task_discussion` thread with a lockstep meta row (author,
  * mentions, editedAt, locale snapshots) — the 0.4 unified-surface design.
  *
- * Ledger: the mention DIRECTORY (agents + automations rosters) and the
- * fan-outs it powers (notify subscribers, @automation run trigger, steer
- * into a live run) land with collab/agents/automations. Until then mentions
- * persist as an empty list and `comment.created` rides the no-op event seam.
+ * The mention directory (`collab/mention-directory.ts`) resolves `@handle`
+ * against the people who can open the task plus its agents and deployed
+ * automations; the resolved list drives the notification fan-out
+ * (`notifyTaskComment`) and rides the meta row, while tokens that matched
+ * nobody go back to the composer so the author is told rather than
+ * silently ignored.
+ *
+ * Ledger: the @automation RUN TRIGGER and steering a mention into a live
+ * agent run stay with the automations/agents lanes.
  */
 
 export const TASK_COMMENT_MAX = 10_000;
@@ -92,8 +98,15 @@ export async function addTaskComment(
   };
 
   const threadId = await ensureTaskDiscussionThread(tx, task);
-  // TODO(collab/agents/automations): mention directory + extraction.
-  const mentions: { type: string; id: string }[] = [];
+  // Who this comment names. The directory is project-scoped, so only people
+  // who can actually open the task are mentionable, and an unclaimed token
+  // on a permissive project reads as an agent handle.
+  const resolved = await resolveSurfaceMentions(tx, {
+    organizationId: auth.organizationId,
+    body,
+    projectId: task.projectId,
+  });
+  const mentions = resolved.mentions;
   const { messageId } = await saveMessage(tx, {
     threadId,
     organizationId: auth.organizationId,
@@ -163,10 +176,13 @@ export async function addTaskComment(
     entity: 'task',
     entityId: args.taskId,
   });
-  // No mention directory yet (ledgered Tier B) — nothing parses, so nothing
-  // is unresolved; the wire field stays so the composer's toast contract
-  // (`result.unresolvedMentionTokens`) holds.
-  return { messageId, threadId, unresolvedMentionTokens: [] };
+  // Tokens that matched nobody ride back so the composer can tell the
+  // author "@nobody did not match anyone" instead of silently dropping it.
+  return {
+    messageId,
+    threadId,
+    unresolvedMentionTokens: resolved.unresolvedMentionTokens,
+  };
 }
 
 export interface TaskCommentItem {

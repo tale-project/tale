@@ -6270,6 +6270,190 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
  * decrypt seam handing an invocation its secrets/config/Basic header —
  * with disabled rows refusing coded.
  */
+async function checkCollabMentions(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const now = Date.now();
+  const api = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}${route}${route.includes('?') ? '&' : '?'}orgId=${orgId}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+
+  // A second member who can be mentioned, and one who cannot see the project.
+  const teammate = 'mention-teammate-1';
+  const outsider = 'mention-outsider-1';
+  for (const [id, name] of [
+    [teammate, 'Mention Teammate'],
+    [outsider, 'Mention Outsider'],
+  ]) {
+    await sql`
+      INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                          "updatedAt")
+      VALUES (${id}, ${name}, ${`${id}@example.com`}, true, ${new Date()},
+              ${new Date()})
+      ON CONFLICT ("id") DO NOTHING
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (${`m-${id}`}, ${orgId}, ${id}, 'member', ${new Date()})
+      ON CONFLICT ("id") DO NOTHING
+    `;
+  }
+
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, agent_mode,
+                              allowed_agent_slugs, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Mentions project', ${userId}, 'restricted',
+            ARRAY['researcher'], ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const agentRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agents (
+      org_id, project_id, name, harness, model, created_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'PR Reviewer', 'claude-code', 'itest-model',
+      ${userId}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const agentInstanceId = agentRows[0]?.id ?? '';
+
+  const { buildMentionDirectory, resolveSurfaceMentions } =
+    await import('./domains/collab/mention-directory.ts');
+  const directory = await buildMentionDirectory(sql, {
+    organizationId: orgId,
+    projectId,
+  });
+  const handleOwners = new Map<string, string>();
+  for (const entry of directory.entries) {
+    for (const handle of entry.handles) {
+      handleOwners.set(handle, `${entry.type}:${entry.id}`);
+    }
+  }
+  // The instance goes LAST so its handle shadows the same-named slug.
+  const instanceShadows =
+    handleOwners.get('pr.reviewer') === `agent:${agentInstanceId}`;
+
+  const resolved = await resolveSurfaceMentions(sql, {
+    organizationId: orgId,
+    body: '@mention-teammate-1 and @pr.reviewer please look; @nobody-here too',
+    projectId,
+  });
+  const mentionKeys = resolved.mentions.map(
+    (mention) => `${mention.type}:${mention.id}`,
+  );
+  record(
+    'mentions: the directory scopes to the project and instances shadow slugs',
+    directory.entries.some(
+      (entry) => entry.type === 'user' && entry.id === teammate,
+    ) &&
+      instanceShadows &&
+      mentionKeys.includes(`user:${teammate}`) &&
+      mentionKeys.includes(`agent:${agentInstanceId}`) &&
+      // `restricted` mode is NOT permissive: an unclaimed token is reported
+      // back rather than silently treated as an agent.
+      resolved.unresolvedMentionTokens.includes('nobody-here'),
+    `entries=${directory.entries.length} permissive=${directory.permissiveAgents}, instanceShadows=${instanceShadows}, mentions=${mentionKeys.join(',') || 'none'}, unresolved=${resolved.unresolvedMentionTokens.join(',') || 'none'}`,
+  );
+
+  // A comment through the door: the mention notifies, the miss comes back.
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Mention task', 'todo', 'a0', ${userId},
+      'user', ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+  const commented = z
+    .object({ unresolvedMentionTokens: z.array(z.string()) })
+    .loose()
+    .safeParse(
+      await (
+        await api(`/api/app/tasks/${taskId}/comments`, {
+          body: { body: '@mention-teammate-1 can you review? @ghost-user' },
+        })
+      ).json(),
+    );
+  const bell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${teammate} AND type = 'mention'
+  `;
+  const subscription = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.task_subscriptions
+    WHERE task_id = ${taskId} AND subscriber_id = ${teammate}
+      AND reason = 'mention'
+  `;
+  record(
+    'mentions: a task comment notifies the named teammate and reports misses',
+    commented.success &&
+      commented.data.unresolvedMentionTokens.includes('ghost-user') &&
+      Number(bell[0]?.count ?? '0') >= 1 &&
+      Number(subscription[0]?.count ?? '0') >= 1,
+    `unresolved=${commented.success ? commented.data.unresolvedMentionTokens.join(',') : 'ERR'}, mentionBells=${bell[0]?.count}, autoSubscribed=${subscription[0]?.count}`,
+  );
+
+  // ---- attention summary ------------------------------------------------
+  await sql`
+    UPDATE app.tasks SET assignee_type = 'user', assignee_id = ${userId}
+    WHERE id = ${taskId}
+  `;
+  await sql`
+    INSERT INTO app.approvals (
+      org_id, status, resource_type, resource_id, priority, metadata,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'pending', 'task_review', ${taskId}, 'medium',
+      ${sql.json({ requestedFor: userId, taskId })}, ${now}
+    )
+  `;
+  const summary = z
+    .object({
+      unreadActionableCount: z.number(),
+      unreadTotalCount: z.number(),
+      waitingOnMeTaskIds: z.array(z.string()),
+      pendingReviewCount: z.number(),
+    })
+    .safeParse(await (await api('/api/app/collab/attention')).json());
+  const scoped = z
+    .object({ waitingOnMeTaskIds: z.array(z.string()) })
+    .loose()
+    .safeParse(
+      await (
+        await api(`/api/app/collab/attention?projectId=${projectId}`)
+      ).json(),
+    );
+  record(
+    'attention: the return loop counts reviews and assignments once, scoped',
+    summary.success &&
+      summary.data.pendingReviewCount >= 1 &&
+      // The task is BOTH a pending review and an assignment — it must appear
+      // exactly once.
+      summary.data.waitingOnMeTaskIds.filter((id) => id === taskId).length ===
+        1 &&
+      summary.data.unreadTotalCount >= summary.data.unreadActionableCount &&
+      scoped.success &&
+      scoped.data.waitingOnMeTaskIds.includes(taskId),
+    `reviews=${summary.success ? summary.data.pendingReviewCount : 'ERR'}, waiting=${summary.success ? summary.data.waitingOnMeTaskIds.length : 'ERR'} onceOnly=${summary.success ? summary.data.waitingOnMeTaskIds.filter((id) => id === taskId).length === 1 : 'ERR'}, unread=${summary.success ? `${summary.data.unreadActionableCount}/${summary.data.unreadTotalCount}` : 'ERR'}, scoped=${scoped.success ? scoped.data.waitingOnMeTaskIds.includes(taskId) : 'ERR'}`,
+  );
+
+  await sql`DELETE FROM "member" WHERE "id" IN (${`m-${teammate}`},
+                                                ${`m-${outsider}`})`;
+}
+
 async function checkPolicySweeps(
   sql: Sql,
   ctx: { orgId: string; userId: string },
@@ -21196,6 +21380,7 @@ async function main(): Promise<void> {
     await checkSlackInbound(sql, baseUrl, authCtx);
     await checkRecoverySweeps(sql, authCtx);
     await checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`);
+    await checkCollabMentions(sql, baseUrl, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);
