@@ -6464,6 +6464,66 @@ async function checkRunProvenance(
     `settled=${settled}/${settledTwice} (want true/false), entries=${entries.length}, model=${JSON.stringify(model)}, gateway=${JSON.stringify(gateway)}, outputs=${outputs.length}, reads=${knowledgeReads.join(',') || 'none'}, reviewer=${review?.reviewerUserId === userId}`,
   );
 
+  // ---- a mention of the RUNNING agent steers the live turn -------------
+  const steerRunRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agent_runs (
+      org_id, task_id, project_id, agent_id, session_id, exec_id, harness,
+      model, trigger, started_by, status, started_at_ms, deadline_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${taskId}, ${projectId}, ${agentId}, 'steer-session-1',
+      'steer-exec-1', 'claude-code', 'itest-model', 'manual', ${userId},
+      'running', ${Date.now()}, ${Date.now() + 3_600_000}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const steerRunId = steerRunRows[0]?.id ?? '';
+  const jobsBeforeSteer = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'task.agent_steer'
+  `;
+  const { addTaskComment } = await import('./domains/tasks/comments.ts');
+  const auth = {
+    organizationId: orgId,
+    userId,
+    role: 'owner',
+    teamIds: [] as string[],
+  };
+  // A mention of a DIFFERENT actor must not steer.
+  await sql.begin((tx) =>
+    addTaskComment(tx, auth, { taskId, body: 'no agent named here' }),
+  );
+  const jobsAfterPlain = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'task.agent_steer'
+  `;
+  // Naming the RUNNING instance steers.
+  await sql.begin((tx) =>
+    addTaskComment(tx, auth, {
+      taskId,
+      body: `@${agentId} please also check the second file`,
+    }),
+  );
+  const steerJobs = await sql<{ data: unknown }[]>`
+    SELECT data FROM pgboss.job WHERE name = 'task.agent_steer'
+  `;
+  const steerPayload = objectAt(steerJobs[0]?.data ?? null, '');
+  record(
+    'steer: a comment naming the running agent enqueues a live-turn steer',
+    Number(jobsAfterPlain[0]?.count ?? '0') ===
+      Number(jobsBeforeSteer[0]?.count ?? '0') &&
+      steerJobs.length === Number(jobsBeforeSteer[0]?.count ?? '0') + 1 &&
+      steerPayload?.runId === steerRunId &&
+      steerPayload.execId === 'steer-exec-1' &&
+      steerPayload.attempt === 0 &&
+      typeof steerPayload.feedback === 'string' &&
+      steerPayload.feedback.includes('second file'),
+    `plainComment=${jobsAfterPlain[0]?.count} (unchanged from ${jobsBeforeSteer[0]?.count}), steerJobs=${steerJobs.length}, run=${steerPayload?.runId === steerRunId}, exec=${String(steerPayload?.execId)}, attempt=${String(steerPayload?.attempt)}`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled'
+    WHERE id = ${steerRunId}
+  `;
+
   // ---- deleting a task closes the approvals that named it --------------
   const strayApproval = await sql<{ id: string }[]>`
     INSERT INTO app.approvals (

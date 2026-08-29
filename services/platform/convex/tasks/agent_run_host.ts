@@ -1702,6 +1702,345 @@ const STEER_MAX_ATTEMPTS = 15;
  * itself posted long ago; this action only decides HOW it reaches the
  * agent.
  */
+/** The steer's full argument shape — `turnArgs` plus the comment. */
+export interface SteerTaskAgentTurnArgs extends TurnKeys {
+  model: string;
+  modelProvider?: string;
+  instructions?: string;
+  skills: string[];
+  connectors: string[];
+  tools: string[];
+  secrets: string[];
+  feedback: string;
+  author: string;
+  authorId: string;
+  attempt: number;
+}
+
+/**
+ * The steer as a PLAIN exported function — the internalAction below wraps
+ * it, and the 0.5 backend's `task.agent_steer` job runs it on the ctx shim
+ * (same pattern as `startTaskAgentTurnImpl`).
+ */
+export async function steerTaskAgentTurnImpl(
+  ctx: ActionCtx,
+  args: SteerTaskAgentTurnArgs,
+): Promise<null> {
+  const retry = async (execId: string): Promise<null> => {
+    if (args.attempt >= STEER_MAX_ATTEMPTS) {
+      console.warn(
+        `[task-agent] steer for ${args.execId} gave up after ${String(args.attempt)} attempts — the comment stays in the discussion for the next run`,
+      );
+      return null;
+    }
+    await ctx.scheduler.runAfter(
+      args.attempt < STEER_TIGHT_ATTEMPTS
+        ? STEER_RETRY_TIGHT_MS
+        : STEER_RETRY_COARSE_MS,
+      internal.tasks.agent_run_host.steerTaskAgentTurn,
+      { ...args, execId, attempt: args.attempt + 1 },
+    );
+    return null;
+  };
+  const kickFallback = async (): Promise<null> => {
+    await ctx.runMutation(
+      internal.tasks.mutations.kickMentionRunAfterSteerMiss,
+      {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
+        taskId: args.taskId,
+        authorId: args.authorId,
+        feedback: args.feedback,
+      },
+    );
+    return null;
+  };
+
+  const run: {
+    status: string;
+    execId: string;
+    sessionId: string;
+    organizationId: string;
+  } | null = await ctx.runQuery(
+    internal.tasks.agent_runs.getTaskAgentRunForDrive,
+    {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
+      runId: args.runId,
+    },
+  );
+  if (run === null) return null;
+  if (
+    run.status === 'settled' ||
+    run.status === 'failed' ||
+    run.status === 'cancelled'
+  ) {
+    // The engine settled while the comment was in flight — the mention now
+    // means what it means with no live run: a fresh run carrying it.
+    return await kickFallback();
+  }
+  if (run.status !== 'running') {
+    // Still queued (capacity-parked or start in flight): the start reads
+    // the brief AFTER the comment posted, so the turn opens with it.
+    return null;
+  }
+  if (run.execId !== args.execId) {
+    // A sibling steer rotated the exec under us — re-aim at the current
+    // incarnation.
+    return await retry(run.execId);
+  }
+  if (Date.now() > args.deadlineAt) return null; // the drive's deadline cut owns this turn
+
+  const op = await ctx.runQuery(
+    internal.sandbox.session_queries.getOpSteerState,
+    { sessionId: args.sessionId, execId: args.execId },
+  );
+  if (op === null || op.status !== 'running' || op.finalized) {
+    // The turn is settling (its result exists; nobody reads new input) —
+    // wait for the run to go terminal, then the fallback above kicks.
+    return await retry(args.execId);
+  }
+
+  if (steerLaneForHarness(args.harness) === 'stdin') {
+    const line = buildStdinUserMessage(
+      buildSteerCommentText(args.author, args.feedback),
+    );
+    try {
+      // buildStdinUserMessage is already newline-terminated, and runnerd
+      // fail-closes on anything but exactly one \n-terminated JSON line
+      // (a malformed line kills Claude Code's stream-json reader).
+      const wrote = await sessionWriteExecStdin(args.sessionId, args.execId, {
+        dataBase64: Buffer.from(line, 'utf8').toString('base64'),
+      });
+      if (!wrote.ok) {
+        throw new Error(`stdin write refused: ${wrote.reason ?? 'unknown'}`);
+      }
+    } catch (err) {
+      // Exec just ended, daemon blip — the run re-read on the retry sorts
+      // live (re-inject) from settled (fresh kick).
+      console.warn('[task-agent] stdin steer failed, retrying:', err);
+      return await retry(args.execId);
+    }
+    console.warn(
+      `[task-agent] steered live turn ${args.execId} with a task comment (stdin)`,
+    );
+    return null;
+  }
+
+  // RESTART lane: rotate the run onto a fresh incarnation (the
+  // single-winner claim), kill the old exec, and continue the conversation
+  // with the comment in hand. The superseded chain orphans itself: its
+  // settle marks are exec-guarded and the slot release refuses while the
+  // incarnation's op runs.
+  const rotated = await ctx.runMutation(
+    internal.tasks.agent_runs.rotateTaskAgentRunExec,
+    {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
+      runId: args.runId,
+      fromExecId: args.execId,
+    },
+  );
+  if (rotated === null) return await retry(args.execId); // raced a settle/cancel/steer
+  const execId = rotated.execId;
+  await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
+    console.warn('[task-agent] steer kill of the old exec failed:', err),
+  );
+  try {
+    // Same order as the fresh start: resolve early, mint late — and the
+    // SAME lanes, so a steer restart of a subscription turn re-redeems
+    // the vendor token instead of manufacturing a gateway key.
+    const resolved = await resolveTaskServing(ctx, {
+      organizationId: args.organizationId,
+      model: args.model,
+      ...(args.modelProvider !== undefined
+        ? { modelProvider: args.modelProvider }
+        : {}),
+      harness: args.harness,
+    });
+    const projectScope = await ctx.runQuery(
+      internal.projects.internal_queries.getProjectAgentSkillScope,
+      {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
+        agentId: args.agentId,
+      },
+    );
+    const skillsAddendum = await stageWorkflowSkills(
+      ctx,
+      args.organizationId,
+      args.sessionId,
+      args.skills,
+      projectScope === null
+        ? { kind: 'org' }
+        : { kind: 'project', teamIds: projectScope.teamIds },
+    );
+    const prepared = await mintTurnServing(ctx, args, resolved);
+    if (prepared.brokerTokenHash !== undefined) {
+      // Same stamp as the fresh start — but fenced on the ROTATED execId:
+      // rotateTaskAgentRunExec already moved the run off args.execId, so
+      // the old id would make this stamp a silent no-op.
+      await ctx.runMutation(
+        internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
+        {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
+          runId: args.runId,
+          execId,
+          brokerTokenHash: prepared.brokerTokenHash,
+        },
+      );
+    }
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.insertSessionToken,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        tokenHash: prepared.tokenHash,
+        ...(prepared.mintedKeyId !== undefined
+          ? { llmGatewayKeyId: prepared.mintedKeyId }
+          : {}),
+        scope: {
+          agentKind: args.harness,
+          allowedModels: prepared.allowedModels,
+          connectorGrants: [...args.connectors],
+          budgetCents: prepared.budgetCents,
+          // Baseline knowledge retrieval + configured tool grants — same
+          // grant set as the first start.
+          toolGrants: [
+            ...KNOWLEDGE_READ_TOOLS,
+            ...normalizeToolGrants(args.tools),
+          ],
+        },
+        expiresAt: args.deadlineAt,
+      },
+    );
+
+    const outputDir = taskOutputDir(args.taskId);
+    // Same handle hygiene as the kick lane: the id is parsed CLI stdout, so
+    // a forged value must never reach an argv — an invalid one downgrades
+    // to the fresh-restart branch below.
+    const resume =
+      op.agentSessionId !== undefined && isValidResumeHandle(op.agentSessionId)
+        ? op.agentSessionId
+        : undefined;
+    let prompt: string;
+    if (resume !== undefined) {
+      prompt = buildResumeSteerPrompt(args.author, args.feedback);
+    } else {
+      // Killed before the harness announced its conversation id — restart
+      // as a fresh conversation over the rebuilt brief; the standing
+      // workspace still holds the interrupted attempt's state.
+      const brief = await ctx.runQuery(
+        internal.tasks.agent_runs.getTaskBriefForAgentRun,
+        {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
+          taskId: args.taskId,
+        },
+      );
+      if (brief === null) throw new Error('the task no longer exists');
+      const inputs = await stageTaskInputs(ctx, {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        taskId: args.taskId,
+        attachments: brief.attachments,
+        outputs: brief.outputs,
+      });
+      prompt = [
+        FRESH_RESTART_NOTE,
+        buildTaskPrompt(brief, args.feedback, outputDir, inputs),
+      ].join('\n\n');
+    }
+
+    await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId,
+      kind: 'task-agent',
+      status: 'running',
+      modelRef: prepared.modelRef,
+      deadlineMs: args.deadlineAt,
+      heartbeatAt: Date.now(),
+      ...(prepared.mintedKeyId !== undefined
+        ? { mintedKeyId: prepared.mintedKeyId }
+        : {}),
+      // Carry the handle forward so a SECOND restart can resume too.
+      ...(resume !== undefined ? { agentSessionId: resume } : {}),
+    });
+
+    const toolsGuidance = grantedToolsGuidance(normalizeToolGrants(args.tools));
+    const instructions = [
+      ...(args.instructions !== undefined && args.instructions !== ''
+        ? [args.instructions]
+        : []),
+      ...(skillsAddendum !== '' ? [skillsAddendum] : []),
+      `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
+      `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
+      KNOWLEDGE_TOOLS_GUIDANCE,
+      ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+      ...secretsGuidance(args.secrets),
+    ].join('\n\n');
+
+    const extraEnv = await resolveTurnEquipmentEnv(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      connectors: args.connectors,
+      secrets: args.secrets,
+    });
+
+    const exec = buildExternalTurnExec({
+      harness: args.harness,
+      gatewayModel: prepared.execModel,
+      serving: prepared.serving,
+      instructions,
+      prompt,
+      execId,
+      ...(resume !== undefined ? { resume } : {}),
+      // Always mounted: the knowledge pair rides the bridge, so every
+      // task turn gets the shim even when the agent has no connectors.
+      bridgeUrl: connectorsBridgeUrlForSessions(),
+      ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
+      ...(prepared.visionModelRef !== undefined
+        ? { vision: { model: prepared.visionModelRef } }
+        : {}),
+    });
+
+    console.warn(
+      `[task-agent] restarted turn ${args.execId} as ${execId} to take a task comment (${resume !== undefined ? 'resumed conversation' : 'fresh conversation'})`,
+    );
+    const keys = { ...args, execId };
+    const progress = liveProgressSink(
+      ctx,
+      keys,
+      'task-agent',
+      prepared.visionModelRef,
+    );
+    const window = await drainHarnessWindow({
+      sessionId: args.sessionId,
+      execId,
+      harness: args.harness,
+      start: exec,
+      onText: progress.onText,
+      onTimeline: progress.onTimeline,
+    });
+    await progress.flush();
+    await continueOrSettle(ctx, keys, window);
+  } catch (err) {
+    // A restart that failed to LAUNCH must not strand the run at `running`
+    // with no engine: settle it under the NEW exec (first-wins,
+    // exec-guarded), so Retry works and the comment heads the next brief.
+    console.error('[task-agent] steer restart failed:', err);
+    await settleTaskAgentTurn(
+      ctx,
+      { ...args, execId },
+      {
+        errored: true,
+        reason: `the run could not be restarted to take a new comment: ${err instanceof Error ? err.message : String(err)}`,
+        text: '',
+        // Retryable: the retry run's resume prompt carries the comment via
+        // the discussion delta, so the steer is not lost with the restart.
+        failureCode: 'steer_restart_failed',
+      },
+    );
+  }
+  return null;
+}
+
 export const steerTaskAgentTurn = internalAction({
   args: {
     ...turnArgs,
@@ -1722,325 +2061,6 @@ export const steerTaskAgentTurn = internalAction({
   // The explicit return type breaks the inference cycle: the mention door in
   // `tasks/mutations.ts` schedules this action, and this action's fallback
   // calls back into that module's internal kick.
-  handler: async (ctx, args): Promise<null> => {
-    const retry = async (execId: string): Promise<null> => {
-      if (args.attempt >= STEER_MAX_ATTEMPTS) {
-        console.warn(
-          `[task-agent] steer for ${args.execId} gave up after ${String(args.attempt)} attempts — the comment stays in the discussion for the next run`,
-        );
-        return null;
-      }
-      await ctx.scheduler.runAfter(
-        args.attempt < STEER_TIGHT_ATTEMPTS
-          ? STEER_RETRY_TIGHT_MS
-          : STEER_RETRY_COARSE_MS,
-        internal.tasks.agent_run_host.steerTaskAgentTurn,
-        { ...args, execId, attempt: args.attempt + 1 },
-      );
-      return null;
-    };
-    const kickFallback = async (): Promise<null> => {
-      await ctx.runMutation(
-        internal.tasks.mutations.kickMentionRunAfterSteerMiss,
-        {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-          taskId: args.taskId,
-          authorId: args.authorId,
-          feedback: args.feedback,
-        },
-      );
-      return null;
-    };
-
-    const run: {
-      status: string;
-      execId: string;
-      sessionId: string;
-      organizationId: string;
-    } | null = await ctx.runQuery(
-      internal.tasks.agent_runs.getTaskAgentRunForDrive,
-      {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-        runId: args.runId,
-      },
-    );
-    if (run === null) return null;
-    if (
-      run.status === 'settled' ||
-      run.status === 'failed' ||
-      run.status === 'cancelled'
-    ) {
-      // The engine settled while the comment was in flight — the mention now
-      // means what it means with no live run: a fresh run carrying it.
-      return await kickFallback();
-    }
-    if (run.status !== 'running') {
-      // Still queued (capacity-parked or start in flight): the start reads
-      // the brief AFTER the comment posted, so the turn opens with it.
-      return null;
-    }
-    if (run.execId !== args.execId) {
-      // A sibling steer rotated the exec under us — re-aim at the current
-      // incarnation.
-      return await retry(run.execId);
-    }
-    if (Date.now() > args.deadlineAt) return null; // the drive's deadline cut owns this turn
-
-    const op = await ctx.runQuery(
-      internal.sandbox.session_queries.getOpSteerState,
-      { sessionId: args.sessionId, execId: args.execId },
-    );
-    if (op === null || op.status !== 'running' || op.finalized) {
-      // The turn is settling (its result exists; nobody reads new input) —
-      // wait for the run to go terminal, then the fallback above kicks.
-      return await retry(args.execId);
-    }
-
-    if (steerLaneForHarness(args.harness) === 'stdin') {
-      const line = buildStdinUserMessage(
-        buildSteerCommentText(args.author, args.feedback),
-      );
-      try {
-        // buildStdinUserMessage is already newline-terminated, and runnerd
-        // fail-closes on anything but exactly one \n-terminated JSON line
-        // (a malformed line kills Claude Code's stream-json reader).
-        const wrote = await sessionWriteExecStdin(args.sessionId, args.execId, {
-          dataBase64: Buffer.from(line, 'utf8').toString('base64'),
-        });
-        if (!wrote.ok) {
-          throw new Error(`stdin write refused: ${wrote.reason ?? 'unknown'}`);
-        }
-      } catch (err) {
-        // Exec just ended, daemon blip — the run re-read on the retry sorts
-        // live (re-inject) from settled (fresh kick).
-        console.warn('[task-agent] stdin steer failed, retrying:', err);
-        return await retry(args.execId);
-      }
-      console.warn(
-        `[task-agent] steered live turn ${args.execId} with a task comment (stdin)`,
-      );
-      return null;
-    }
-
-    // RESTART lane: rotate the run onto a fresh incarnation (the
-    // single-winner claim), kill the old exec, and continue the conversation
-    // with the comment in hand. The superseded chain orphans itself: its
-    // settle marks are exec-guarded and the slot release refuses while the
-    // incarnation's op runs.
-    const rotated = await ctx.runMutation(
-      internal.tasks.agent_runs.rotateTaskAgentRunExec,
-      {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-        runId: args.runId,
-        fromExecId: args.execId,
-      },
-    );
-    if (rotated === null) return await retry(args.execId); // raced a settle/cancel/steer
-    const execId = rotated.execId;
-    await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
-      console.warn('[task-agent] steer kill of the old exec failed:', err),
-    );
-    try {
-      // Same order as the fresh start: resolve early, mint late — and the
-      // SAME lanes, so a steer restart of a subscription turn re-redeems
-      // the vendor token instead of manufacturing a gateway key.
-      const resolved = await resolveTaskServing(ctx, {
-        organizationId: args.organizationId,
-        model: args.model,
-        ...(args.modelProvider !== undefined
-          ? { modelProvider: args.modelProvider }
-          : {}),
-        harness: args.harness,
-      });
-      const projectScope = await ctx.runQuery(
-        internal.projects.internal_queries.getProjectAgentSkillScope,
-        {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-          agentId: args.agentId,
-        },
-      );
-      const skillsAddendum = await stageWorkflowSkills(
-        ctx,
-        args.organizationId,
-        args.sessionId,
-        args.skills,
-        projectScope === null
-          ? { kind: 'org' }
-          : { kind: 'project', teamIds: projectScope.teamIds },
-      );
-      const prepared = await mintTurnServing(ctx, args, resolved);
-      if (prepared.brokerTokenHash !== undefined) {
-        // Same stamp as the fresh start — but fenced on the ROTATED execId:
-        // rotateTaskAgentRunExec already moved the run off args.execId, so
-        // the old id would make this stamp a silent no-op.
-        await ctx.runMutation(
-          internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
-          {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-            runId: args.runId,
-            execId,
-            brokerTokenHash: prepared.brokerTokenHash,
-          },
-        );
-      }
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.insertSessionToken,
-        {
-          organizationId: args.organizationId,
-          sessionId: args.sessionId,
-          tokenHash: prepared.tokenHash,
-          ...(prepared.mintedKeyId !== undefined
-            ? { llmGatewayKeyId: prepared.mintedKeyId }
-            : {}),
-          scope: {
-            agentKind: args.harness,
-            allowedModels: prepared.allowedModels,
-            connectorGrants: [...args.connectors],
-            budgetCents: prepared.budgetCents,
-            // Baseline knowledge retrieval + configured tool grants — same
-            // grant set as the first start.
-            toolGrants: [
-              ...KNOWLEDGE_READ_TOOLS,
-              ...normalizeToolGrants(args.tools),
-            ],
-          },
-          expiresAt: args.deadlineAt,
-        },
-      );
-
-      const outputDir = taskOutputDir(args.taskId);
-      // Same handle hygiene as the kick lane: the id is parsed CLI stdout, so
-      // a forged value must never reach an argv — an invalid one downgrades
-      // to the fresh-restart branch below.
-      const resume =
-        op.agentSessionId !== undefined &&
-        isValidResumeHandle(op.agentSessionId)
-          ? op.agentSessionId
-          : undefined;
-      let prompt: string;
-      if (resume !== undefined) {
-        prompt = buildResumeSteerPrompt(args.author, args.feedback);
-      } else {
-        // Killed before the harness announced its conversation id — restart
-        // as a fresh conversation over the rebuilt brief; the standing
-        // workspace still holds the interrupted attempt's state.
-        const brief = await ctx.runQuery(
-          internal.tasks.agent_runs.getTaskBriefForAgentRun,
-          {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
-            taskId: args.taskId,
-          },
-        );
-        if (brief === null) throw new Error('the task no longer exists');
-        const inputs = await stageTaskInputs(ctx, {
-          organizationId: args.organizationId,
-          sessionId: args.sessionId,
-          taskId: args.taskId,
-          attachments: brief.attachments,
-          outputs: brief.outputs,
-        });
-        prompt = [
-          FRESH_RESTART_NOTE,
-          buildTaskPrompt(brief, args.feedback, outputDir, inputs),
-        ].join('\n\n');
-      }
-
-      await ctx.runMutation(
-        internal.sandbox.session_mutations.upsertSessionOp,
-        {
-          organizationId: args.organizationId,
-          sessionId: args.sessionId,
-          execId,
-          kind: 'task-agent',
-          status: 'running',
-          modelRef: prepared.modelRef,
-          deadlineMs: args.deadlineAt,
-          heartbeatAt: Date.now(),
-          ...(prepared.mintedKeyId !== undefined
-            ? { mintedKeyId: prepared.mintedKeyId }
-            : {}),
-          // Carry the handle forward so a SECOND restart can resume too.
-          ...(resume !== undefined ? { agentSessionId: resume } : {}),
-        },
-      );
-
-      const toolsGuidance = grantedToolsGuidance(
-        normalizeToolGrants(args.tools),
-      );
-      const instructions = [
-        ...(args.instructions !== undefined && args.instructions !== ''
-          ? [args.instructions]
-          : []),
-        ...(skillsAddendum !== '' ? [skillsAddendum] : []),
-        `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
-        `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
-        KNOWLEDGE_TOOLS_GUIDANCE,
-        ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
-        ...secretsGuidance(args.secrets),
-      ].join('\n\n');
-
-      const extraEnv = await resolveTurnEquipmentEnv(ctx, {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        connectors: args.connectors,
-        secrets: args.secrets,
-      });
-
-      const exec = buildExternalTurnExec({
-        harness: args.harness,
-        gatewayModel: prepared.execModel,
-        serving: prepared.serving,
-        instructions,
-        prompt,
-        execId,
-        ...(resume !== undefined ? { resume } : {}),
-        // Always mounted: the knowledge pair rides the bridge, so every
-        // task turn gets the shim even when the agent has no connectors.
-        bridgeUrl: connectorsBridgeUrlForSessions(),
-        ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
-        ...(prepared.visionModelRef !== undefined
-          ? { vision: { model: prepared.visionModelRef } }
-          : {}),
-      });
-
-      console.warn(
-        `[task-agent] restarted turn ${args.execId} as ${execId} to take a task comment (${resume !== undefined ? 'resumed conversation' : 'fresh conversation'})`,
-      );
-      const keys = { ...args, execId };
-      const progress = liveProgressSink(
-        ctx,
-        keys,
-        'task-agent',
-        prepared.visionModelRef,
-      );
-      const window = await drainHarnessWindow({
-        sessionId: args.sessionId,
-        execId,
-        harness: args.harness,
-        start: exec,
-        onText: progress.onText,
-        onTimeline: progress.onTimeline,
-      });
-      await progress.flush();
-      await continueOrSettle(ctx, keys, window);
-    } catch (err) {
-      // A restart that failed to LAUNCH must not strand the run at `running`
-      // with no engine: settle it under the NEW exec (first-wins,
-      // exec-guarded), so Retry works and the comment heads the next brief.
-      console.error('[task-agent] steer restart failed:', err);
-      await settleTaskAgentTurn(
-        ctx,
-        { ...args, execId },
-        {
-          errored: true,
-          reason: `the run could not be restarted to take a new comment: ${err instanceof Error ? err.message : String(err)}`,
-          text: '',
-          // Retryable: the retry run's resume prompt carries the comment via
-          // the discussion delta, so the steer is not lost with the restart.
-          failureCode: 'steer_restart_failed',
-        },
-      );
-    }
-    return null;
-  },
+  handler: async (ctx, args): Promise<null> =>
+    steerTaskAgentTurnImpl(ctx, args),
 });

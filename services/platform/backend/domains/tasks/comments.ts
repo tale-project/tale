@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { TASK_AUDIT_ACTIONS } from '../../../convex/tasks/audit_actions.ts';
 import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
@@ -129,6 +130,19 @@ export async function addTaskComment(
       comment_count = comment_count + 1, updated_at_ms = ${Date.now()}
     WHERE id = ${args.taskId}
   `;
+  // A comment that @-mentions the agent CURRENTLY running this task steers
+  // the live turn instead of being dropped: the steer host injects it over
+  // the harness's held-open stdin, or restarts the exec around it. A queued
+  // (capacity-parked) run needs nothing — its start reads the brief after
+  // this comment posted.
+  await maybeSteerLiveRun(tx, {
+    organizationId: auth.organizationId,
+    taskId: args.taskId,
+    mentions,
+    authorType: author.actorType,
+    authorId: author.actorId,
+    feedback: body,
+  });
   await notifyTaskComment(tx, {
     task,
     commentId: messageId,
@@ -354,5 +368,105 @@ export async function deleteTaskComment(
     orgId: auth.organizationId,
     entity: 'task',
     entityId: meta.taskId,
+  });
+}
+
+/**
+ * Enqueue a steer when the comment names the agent instance that owns a
+ * LIVE run on this task.
+ *
+ * Only a `running` run is steerable: a queued one has not read its brief
+ * yet (the comment is already in the discussion it will read), and a
+ * settled one is handled by the steer host's own fallback. Only a HUMAN's
+ * comment steers — an agent's own comment naming itself would loop.
+ */
+async function maybeSteerLiveRun(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    taskId: string;
+    mentions: { type: string; id: string }[];
+    authorType: string;
+    authorId: string;
+    feedback: string;
+  },
+): Promise<void> {
+  if (args.authorType !== 'user') return;
+  const mentionedAgentIds = new Set(
+    args.mentions
+      .filter((mention) => mention.type === 'agent')
+      .map((mention) => mention.id),
+  );
+  if (mentionedAgentIds.size === 0) return;
+
+  const runs = await tx<
+    {
+      id: string;
+      agentId: string;
+      execId: string;
+      sessionId: string;
+      harness: string;
+      model: string;
+      modelProvider: string | null;
+      deadlineAt: number;
+    }[]
+  >`
+    SELECT id, agent_id AS "agentId", exec_id AS "execId",
+           session_id AS "sessionId", harness, model,
+           model_provider AS "modelProvider",
+           deadline_at_ms::float8 AS "deadlineAt"
+    FROM app.project_agent_runs
+    WHERE task_id = ${args.taskId} AND org_id = ${args.organizationId}
+      AND status = 'running'
+    LIMIT 1
+  `;
+  const run = runs[0];
+  if (run === undefined || !mentionedAgentIds.has(run.agentId)) return;
+
+  const agents = await tx<
+    {
+      instructions: string | null;
+      skills: string[];
+      connectors: string[];
+      tools: string[];
+      secrets: string[];
+    }[]
+  >`
+    SELECT instructions, skills, connectors, tools, secrets
+    FROM app.project_agents WHERE id = ${run.agentId} LIMIT 1
+  `;
+  const agent = agents[0];
+  if (agent === undefined) return;
+
+  const authors = await tx<{ name: string | null; email: string | null }[]>`
+    SELECT "name", "email" FROM "user" WHERE "id" = ${args.authorId} LIMIT 1
+  `;
+  const author =
+    (authors[0]?.name ?? '').trim() ||
+    (authors[0]?.email ?? '').trim() ||
+    'a teammate';
+
+  await addJobInTx(tx, 'task.agent_steer', {
+    organizationId: args.organizationId,
+    runId: run.id,
+    taskId: args.taskId,
+    agentId: run.agentId,
+    execId: run.execId,
+    sessionId: run.sessionId,
+    harness: run.harness,
+    deadlineAt: run.deadlineAt,
+    model: run.model,
+    ...(run.modelProvider !== null ? { modelProvider: run.modelProvider } : {}),
+    ...(agent.instructions !== null
+      ? { instructions: agent.instructions }
+      : {}),
+    skills: agent.skills,
+    connectors: agent.connectors,
+    tools: agent.tools,
+    secrets: agent.secrets,
+    feedback: args.feedback,
+    author,
+    authorId: args.authorId,
+    attempt: 0,
   });
 }

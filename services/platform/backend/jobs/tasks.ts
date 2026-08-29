@@ -40,6 +40,28 @@ export interface TaskPayloads {
   'tasks.enforce_dates': Record<string, never>;
   /** Recompute drifted project rollup counters from their source rows. */
   'projects.repair_rollups': Record<string, never>;
+  /** Steer a LIVE task-agent turn with a comment (stdin or exec restart). */
+  'task.agent_steer': {
+    organizationId: string;
+    runId: string;
+    taskId: string;
+    agentId: string;
+    execId: string;
+    sessionId: string;
+    harness: string;
+    deadlineAt: number;
+    model: string;
+    modelProvider?: string;
+    instructions?: string;
+    skills: string[];
+    connectors: string[];
+    tools: string[];
+    secrets: string[];
+    feedback: string;
+    author: string;
+    authorId: string;
+    attempt: number;
+  };
   /** Daily sweep of idle rate-limit rows (cron). */
   'maintenance.rate_limit_gc': Record<string, never>;
   /** Daily loginAttempts 30-day TTL + block-counter 90-day TTL (cron). */
@@ -266,6 +288,11 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'tts.gc_chunks': { retryLimit: 1, expireInSeconds: 600 },
   'tasks.enforce_dates': { retryLimit: 1, expireInSeconds: 600 },
   'projects.repair_rollups': { retryLimit: 1, expireInSeconds: 600 },
+  // The steer owns its OWN retry ladder (it re-enqueues itself with an
+  // attempt counter, tight then coarse), so pg-boss must not add a second
+  // one on top: a failed job is a lost steer, and the comment is still in
+  // the discussion for the next run.
+  'task.agent_steer': { retryLimit: 0, expireInSeconds: 300 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
   'rag.index_file': {

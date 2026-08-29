@@ -8,7 +8,10 @@ import {
 import { stepRunImpl } from '../../convex/automations/stepper.ts';
 import { generateThreadTitleImpl } from '../../convex/chat/generate_title.ts';
 import { removeOrgSubtree } from '../../convex/organizations/scaffold.ts';
-import { startTaskAgentTurnImpl } from '../../convex/tasks/agent_run_host.ts';
+import {
+  startTaskAgentTurnImpl,
+  steerTaskAgentTurnImpl,
+} from '../../convex/tasks/agent_run_host.ts';
 import { resolveAutoRetryBudget } from '../../convex/tasks/task_auto_retry.ts';
 import {
   automationShimHandlers,
@@ -64,6 +67,28 @@ const orgScaffoldSchema = z.object({
 
 const orgCleanupSchema = z.object({
   orgSlug: z.string().min(1),
+});
+
+const steerSchema = z.object({
+  organizationId: z.string().min(1),
+  runId: z.string().min(1),
+  taskId: z.string().min(1),
+  agentId: z.string().min(1),
+  execId: z.string().min(1),
+  sessionId: z.string().min(1),
+  harness: z.string().min(1),
+  deadlineAt: z.number(),
+  model: z.string().min(1),
+  modelProvider: z.string().optional(),
+  instructions: z.string().optional(),
+  skills: z.array(z.string()),
+  connectors: z.array(z.string()),
+  tools: z.array(z.string()),
+  secrets: z.array(z.string()),
+  feedback: z.string(),
+  author: z.string(),
+  authorId: z.string(),
+  attempt: z.number(),
 });
 
 const slackEventSchema = z.object({
@@ -521,6 +546,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         .parse(payload);
       await runTranscribeJob(deps.sql, input);
     },
+    'task.agent_steer': async (payload) => {
+      const input = steerSchema.parse(payload);
+      // The REUSED 0.4 steer host on the ctx shim. It owns the whole
+      // decision — stdin injection vs exec rotation, the retry ladder, and
+      // the settled-turn fallback that turns the comment into a fresh
+      // mention run.
+      const shim = createCtxShim(agentTurnShimHandlers(deps.sql));
+      await steerTaskAgentTurnImpl(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by agentTurnShimHandlers
+        shim as unknown as Parameters<typeof steerTaskAgentTurnImpl>[0],
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- row ids are the branded Convex Id types' runtime shape (strings)
+        input as unknown as Parameters<typeof steerTaskAgentTurnImpl>[1],
+      );
+    },
+
     'task.agent_turn': async (payload) => {
       const input = z
         .object({

@@ -14,6 +14,7 @@ import {
   WaitFifoError,
 } from '../sandbox/sessions.ts';
 import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
+import { kickAgentRun } from './agent-runs.ts';
 import {
   agentRecordTaskOutputsTrusted,
   agentUpdateTaskStatusTrusted,
@@ -29,10 +30,9 @@ import {
  * the host's park branch matches on — that mapping is what makes
  * capacity parking work at all.
  *
- * Deliberately ABSENT (fail-loud): the steer lane
- * (`rotateTaskAgentRunExec`, `getOpSteerState`,
- * `kickMentionRunAfterSteerMiss`) and the auto-retry scheduler — they land
- * with the steering/retry increments.
+ * The STEER lane is answered here too (`getOpSteerState`,
+ * `rotateTaskAgentRunExec`, `kickMentionRunAfterSteerMiss`) — see the
+ * block below for what each guarantees.
  */
 
 function quotaAsConvexError(error: unknown): never {
@@ -167,6 +167,125 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         }
       });
       return null;
+    },
+
+    /**
+     * The STEER lane's three refs. Steering a live turn means one of two
+     * things depending on the harness: push the comment down the held-open
+     * stdin of the running exec, or ROTATE the run onto a fresh incarnation
+     * and replay the conversation with the comment in hand. Both need the
+     * same two facts from this side — is the exec still taking input, and
+     * can this steer claim the rotation — plus a fallback kick when the
+     * steer missed the turn entirely.
+     */
+    'sandbox/session_queries:getOpSteerState': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { sessionId: string; execId: string };
+      const rows = await sql<
+        {
+          status: string;
+          finalized: boolean;
+          agentSessionId: string | null;
+        }[]
+      >`
+        SELECT status, finalized_at_ms IS NOT NULL AS finalized,
+               agent_session_id AS "agentSessionId"
+        FROM app.sandbox_session_ops
+        WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
+        LIMIT 1
+      `;
+      const row = rows[0];
+      if (row === undefined) return null;
+      return {
+        status: row.status,
+        finalized: row.finalized,
+        ...(row.agentSessionId !== null
+          ? { agentSessionId: row.agentSessionId }
+          : {}),
+      };
+    },
+
+    'tasks/agent_runs:rotateTaskAgentRunExec': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { runId: string; fromExecId: string };
+      // The SINGLE-WINNER claim: guarded on (running, fromExecId), so two
+      // concurrent steers cannot both rotate — the loser re-reads and sees
+      // the new incarnation. The superseded chain orphans itself because
+      // every settle mark is exec-guarded.
+      const execId = `${args.fromExecId}-2`;
+      const rows = await sql<{ id: string }[]>`
+        UPDATE app.project_agent_runs SET
+          exec_id = ${execId}, updated_at_ms = ${Date.now()}
+        WHERE id = ${args.runId} AND status = 'running'
+          AND exec_id = ${args.fromExecId}
+        RETURNING id
+      `;
+      return rows.length === 0 ? null : { execId };
+    },
+
+    'tasks/mutations:kickMentionRunAfterSteerMiss': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        taskId: string;
+        authorId: string;
+        feedback: string;
+      };
+      // The steer arrived after the turn settled: the comment becomes a
+      // FRESH mention run instead of vanishing. An unavailable task is a
+      // refusal, never a throw — the steer path is best-effort by design.
+      const tasks = await sql<
+        {
+          projectId: string;
+          assigneeType: string | null;
+          assigneeId: string | null;
+        }[]
+      >`
+        SELECT project_id AS "projectId", assignee_type AS "assigneeType",
+               assignee_id AS "assigneeId"
+        FROM app.tasks
+        WHERE id = ${args.taskId} AND org_id = ${args.organizationId}
+          AND archived_at_ms IS NULL
+        LIMIT 1
+      `;
+      const task = tasks[0];
+      if (task === undefined) {
+        return { started: false, reason: 'task_unavailable' };
+      }
+      if (task.assigneeType !== 'agent' || task.assigneeId === null) {
+        return { started: false, reason: 'no_agent_assignee' };
+      }
+      const agents = await sql<
+        { harness: string; model: string; modelProvider: string | null }[]
+      >`
+        SELECT harness, model, model_provider AS "modelProvider"
+        FROM app.project_agents
+        WHERE id = ${task.assigneeId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      const agent = agents[0];
+      if (agent === undefined) {
+        return { started: false, reason: 'agent_unavailable' };
+      }
+      const kicked = await transactSerializable(sql, (tx) =>
+        kickAgentRun(tx, {
+          organizationId: args.organizationId,
+          projectId: task.projectId,
+          taskId: args.taskId,
+          agentId: task.assigneeId ?? '',
+          harness: agent.harness,
+          model: agent.model,
+          ...(agent.modelProvider !== null
+            ? { modelProvider: agent.modelProvider }
+            : {}),
+          trigger: 'mention',
+          feedback: args.feedback,
+          startedBy: args.authorId,
+        }),
+      );
+      // A reused live run means another turn is already carrying this work;
+      // the comment rides that one rather than starting a second.
+      return { started: !kicked.reused };
     },
 
     'tasks/agent_runs:parkTaskAgentRunForCapacity': async (raw) => {
