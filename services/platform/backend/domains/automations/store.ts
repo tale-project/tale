@@ -430,6 +430,39 @@ export async function setAutomationProjects(
   });
 }
 
+/** Idempotent add of ONE project binding (the 0.4 `storeBindProject`). */
+export async function bindProject(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    name: string;
+    projectId: string;
+    actor: string;
+  },
+): Promise<{ bound: boolean }> {
+  const owned = await sql<{ id: string }[]>`
+    SELECT id FROM app.projects
+    WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
+  `;
+  if (owned.length === 0) {
+    throw new AutomationError(
+      'AUTOMATION_PROJECT_UNKNOWN',
+      'The project does not exist in this organization.',
+      404,
+    );
+  }
+  const inserted = await sql`
+    INSERT INTO app.automation_project_bindings (
+      org_id, automation_name, project_id, bound_at_ms, bound_by
+    ) VALUES (
+      ${args.organizationId}, ${args.name}, ${args.projectId}, ${Date.now()},
+      ${args.actor}
+    )
+    ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
+  `;
+  return { bound: inserted.count > 0 };
+}
+
 export async function bindingProjectIds(
   sql: Sql | TransactionSql,
   organizationId: string,
@@ -619,7 +652,7 @@ export async function getRun(
 export async function listRuns(
   sql: Sql,
   organizationId: string,
-  options: { name?: string; limit?: number } = {},
+  options: { name?: string; limit?: number; projectId?: string } = {},
 ): Promise<RunRow[]> {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
   return sql<RunRow[]>`
@@ -627,6 +660,8 @@ export async function listRuns(
     WHERE org_id = ${organizationId}
       AND (${options.name ?? null}::text IS NULL
            OR name = ${options.name ?? null})
+      AND (${options.projectId ?? null}::text IS NULL
+           OR project_id = ${options.projectId ?? null})
     ORDER BY started_at_ms DESC
     LIMIT ${limit}
   `;

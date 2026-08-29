@@ -74,6 +74,7 @@ import type * as automations_stepper from "../automations/stepper.js";
 import type * as automations_store from "../automations/store.js";
 import type * as automations_triggers from "../automations/triggers.js";
 import type * as automations_upload_action from "../automations/upload_action.js";
+import type * as automations_upload_impl from "../automations/upload_impl.js";
 import type * as automations_upload_mutations from "../automations/upload_mutations.js";
 import type * as automations_webhook_token from "../automations/webhook_token.js";
 import type * as automations_builder_actions from "../automations_builder/actions.js";
@@ -1094,6 +1095,7 @@ declare const fullApi: ApiFromModules<{
   "automations/store": typeof automations_store;
   "automations/triggers": typeof automations_triggers;
   "automations/upload_action": typeof automations_upload_action;
+  "automations/upload_impl": typeof automations_upload_impl;
   "automations/upload_mutations": typeof automations_upload_mutations;
   "automations/webhook_token": typeof automations_webhook_token;
   "automations_builder/actions": typeof automations_builder_actions;

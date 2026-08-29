@@ -17479,6 +17479,276 @@ async function checkDataResidency(
 }
 
 /**
+ * Inc-94 automations UI surface: the 0.4-shaped detail read (version param,
+ * unpinned-agent warning off the DEPLOYED document), the projects-binding
+ * listing, run-log projectId filter, the node-type catalog, org run
+ * metrics (window/prev-window/series/top buckets), and the package-upload
+ * lane (text file + staged-zip via the org byte lane, with the impl shared
+ * with 0.4 verbatim).
+ */
+async function checkAutomationsSurface(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const get = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, { headers: { cookie, origin: base } });
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  // --- Detail read: 0.4 shape, version param, unpinned-agent warning ----
+  const surfaceDoc = {
+    version: 1,
+    name: 'ops/surface-probe',
+    nodes: [
+      {
+        id: 'agentless',
+        type: 'transform',
+        input: { who: '{{ input.who }}' },
+        code: 'return { hi: input.who }',
+      },
+      {
+        id: 'helper',
+        type: 'agent',
+        model: 'itest-llm',
+        prompt: 'Say hi to {{ nodes.agentless.output.hi }}',
+      },
+    ],
+  };
+  const savedV1 = z.object({ name: z.string(), version: z.number() }).safeParse(
+    await (
+      await post(`/api/app/automations/ops/surface-probe/save?orgId=${orgId}`, {
+        document: surfaceDoc,
+      })
+    ).json(),
+  );
+  await post(`/api/app/automations/ops/surface-probe/save?orgId=${orgId}`, {
+    document: { ...surfaceDoc, nodes: [surfaceDoc.nodes[0]] },
+  });
+  await post(`/api/app/automations/ops/surface-probe/deploy?orgId=${orgId}`, {
+    version: 1,
+  });
+  const latestDetail = z
+    .object({
+      name: z.string(),
+      version: z.number(),
+      deployedVersion: z.number(),
+      deployedUnpinnedAgentNodes: z.array(z.string()),
+      createdBy: z.string(),
+      createdAt: z.number(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await get(`/api/app/automations/ops/surface-probe?orgId=${orgId}`)
+      ).json(),
+    );
+  const pinnedRead = z
+    .object({ version: z.number() })
+    .loose()
+    .safeParse(
+      await (
+        await get(
+          `/api/app/automations/ops/surface-probe?orgId=${orgId}&version=1`,
+        )
+      ).json(),
+    );
+  const bindings = z
+    .object({ projectIds: z.array(z.string()) })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/automations/ops/surface-probe/projects?orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  record(
+    'automations surface: 0.4 detail shape + version pin + bindings',
+    savedV1.success &&
+      savedV1.data.version === 1 &&
+      latestDetail.success &&
+      latestDetail.data.version === 2 &&
+      latestDetail.data.deployedVersion === 1 &&
+      latestDetail.data.deployedUnpinnedAgentNodes.includes('helper') &&
+      pinnedRead.success &&
+      pinnedRead.data.version === 1 &&
+      bindings.success &&
+      bindings.data.projectIds.length === 0,
+    `saved=${savedV1.success}, latest=${latestDetail.success ? `${latestDetail.data.version}/dep${latestDetail.data.deployedVersion}/unpinned=${latestDetail.data.deployedUnpinnedAgentNodes.join('+')}` : 'ERR'}, pinned=${pinnedRead.success ? pinnedRead.data.version : 'ERR'}, bindings=${bindings.success ? bindings.data.projectIds.length : 'ERR'}`,
+  );
+
+  // --- Node-type catalog + metrics ---------------------------------------
+  const catalog = z
+    .object({
+      nodeTypes: z.array(
+        z
+          .object({
+            type: z.string(),
+            kind: z.literal('connector'),
+            allowedFields: z.array(z.string()),
+            hasEffect: z.boolean(),
+          })
+          .loose(),
+      ),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/automations/catalog/node-types?orgId=${orgId}`)
+      ).json(),
+    );
+  const metrics = z
+    .object({
+      summary: z
+        .object({
+          total: z.number(),
+          success: z.number(),
+          capped: z.boolean(),
+        })
+        .loose(),
+      previousSummary: z.object({ total: z.number() }).loose(),
+      series: z.array(
+        z.object({
+          dateKey: z.string(),
+          success: z.number(),
+          failed: z.number(),
+          running: z.number(),
+        }),
+      ),
+      topAutomations: z.array(
+        z.object({ name: z.string(), total: z.number() }).loose(),
+      ),
+    })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/automations/metrics?orgId=${orgId}&periodDays=7&mode=mock`,
+        )
+      ).json(),
+    );
+  const metricsHaveRuns =
+    metrics.success &&
+    metrics.data.summary.total > 0 &&
+    metrics.data.series.length === 7 &&
+    metrics.data.topAutomations.length > 0;
+  record(
+    'automations surface: node-type catalog + run metrics',
+    catalog.success &&
+      catalog.data.nodeTypes.length > 0 &&
+      catalog.data.nodeTypes.every((row) => row.type.includes('.')) &&
+      metricsHaveRuns,
+    `catalog=${catalog.success ? catalog.data.nodeTypes.length : 'ERR'}, metrics=${metrics.success ? `${metrics.data.summary.total}t/${metrics.data.series.length}d/${metrics.data.topAutomations.length}top` : 'ERR'}`,
+  );
+
+  // --- Upload lane: text file + staged zip -------------------------------
+  const textUpload = z
+    .object({ ok: z.literal(true), name: z.string(), version: z.number() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/automations/upload?orgId=${orgId}`, {
+          files: [
+            {
+              name: 'workflow.yml',
+              content: [
+                'version: 1',
+                'name: uploaded-text',
+                'nodes:',
+                '  - id: shape',
+                '    type: transform',
+                "    input: { who: '{{ input.who }}' }",
+                "    code: 'return { hi: input.who }'",
+              ].join('\n'),
+            },
+          ],
+        })
+      ).json(),
+    );
+  // Zip lane: stage the pack through the org byte lane, then install it.
+  const { default: JSZip } = await import('jszip');
+  const zip = new JSZip();
+  zip.file(
+    'workflow.yml',
+    [
+      'version: 1',
+      'name: uploaded-zip',
+      'nodes:',
+      '  - id: shape',
+      '    type: transform',
+      "    input: { who: '{{ input.who }}' }",
+      "    code: 'return { hi: input.who }'",
+    ].join('\n'),
+  );
+  const zipBytes = await zip.generateAsync({ type: 'blob' });
+  const stagedRes = await fetch(`${base}/api/app/files/upload?orgId=${orgId}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/zip',
+      cookie,
+      origin: base,
+    },
+    body: zipBytes,
+  });
+  const staged = z
+    .object({ storageId: z.string() })
+    .safeParse(await stagedRes.json());
+  const zipUploadRaw: unknown = await (
+    await post(`/api/app/automations/upload?orgId=${orgId}`, {
+      storageId: staged.success ? staged.data.storageId : '',
+    })
+  ).json();
+  const zipUpload = z
+    .object({ ok: z.literal(true), name: z.string(), version: z.number() })
+    .loose()
+    .safeParse(zipUploadRaw);
+  if (!zipUpload.success) {
+    console.log('[itest] zip upload raw:', JSON.stringify(zipUploadRaw));
+  }
+  const bothNeither = await post(
+    `/api/app/automations/upload?orgId=${orgId}`,
+    {},
+  );
+  record(
+    'automations surface: package upload (text + staged zip lanes)',
+    textUpload.success &&
+      textUpload.data.name === 'uploaded-text' &&
+      textUpload.data.version === 1 &&
+      staged.success &&
+      zipUpload.success &&
+      zipUpload.data.name === 'uploaded-zip' &&
+      bothNeither.status === 400,
+    `text=${textUpload.success ? textUpload.data.name : 'ERR'}, staged=${staged.success}, zip=${zipUpload.success ? zipUpload.data.name : 'ERR'}, neither=${bothNeither.status} (want 400)`,
+  );
+
+  // --- listRuns projectId filter -----------------------------------------
+  const projectRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.projects WHERE org_id = ${orgId} LIMIT 1
+  `;
+  const someProject = projectRows[0]?.id ?? 'no-project';
+  const filteredRuns = z
+    .object({
+      runs: z.array(z.object({ projectId: z.string().nullable() }).loose()),
+    })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/automations/runs?orgId=${orgId}&projectId=${encodeURIComponent(someProject)}&limit=50`,
+        )
+      ).json(),
+    );
+  record(
+    'automations surface: run log projectId filter',
+    filteredRuns.success &&
+      filteredRuns.data.runs.every((run) => run.projectId === someProject),
+    `filter=${filteredRuns.success ? filteredRuns.data.runs.length : 'ERR'} rows, allMatch=${filteredRuns.success ? filteredRuns.data.runs.every((run) => run.projectId === someProject) : '?'}`,
+  );
+}
+
+/**
  * Two-factor enforcement: an enforced policy with zero grace flips the
  * sign-in response to the enrolment-wall shape; a grace policy anchors the
  * per-user clock once; the verify-endpoint lockout mirrors the password
@@ -18624,6 +18894,7 @@ async function main(): Promise<void> {
     );
     await checkAuditSurface(sql, baseUrl, authCtx);
     await checkDataResidency(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkAutomationsSurface(sql, baseUrl, authCtx);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

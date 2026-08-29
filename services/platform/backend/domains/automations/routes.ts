@@ -1,16 +1,22 @@
+import { ConvexError } from 'convex/values';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { runSessionWithStore } from '../../../convex/automations_builder/run_session.ts';
+import { loadConnectorDefinitions } from '../../../convex/connector_credentials/connector_catalog.ts';
 import { resolveWorkflowAgentServing } from '../../../convex/lib/providers/agent_serving.ts';
+import { registerConnector } from '../../../lib/connectors/registry.ts';
+import { nodeTypes } from '../../../lib/engine/core/slots.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { createCtxShim } from '../../lib/convex-shim.ts';
+import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
+import { getOrgAutomationMetrics } from './metrics.ts';
 import {
   AutomationError,
   answerAsk,
@@ -31,7 +37,9 @@ import {
   setTrigger,
   versionRow,
   deployedVersion,
+  bindingProjectIds,
 } from './store.ts';
+import { uploadAutomationPg } from './upload.ts';
 
 /**
  * /api/app/automations — the automation store surface: immutable versions,
@@ -67,6 +75,16 @@ const projectsSchema = z.object({
 
 const answerSchema = z.object({ answer: z.string().min(1).max(20_000) });
 
+const uploadSchema = z.object({
+  projectId: z.string().min(1).max(128).optional(),
+  files: z
+    .array(z.object({ name: z.string().max(300), content: z.string() }))
+    .max(8)
+    .optional(),
+  storageId: z.string().min(1).max(2_000).optional(),
+  overwriteSkills: z.array(z.string().max(200)).max(50).optional(),
+});
+
 const startSchema = z.object({
   input: z.unknown().optional(),
   mode: z.enum(['mock', 'live']).optional(),
@@ -94,7 +112,55 @@ function handleError<E extends OrgEnv>(
   if (error instanceof AutomationError) {
     return c.json({ error: error.code, message: error.message }, error.status);
   }
+  // The shared upload lane refuses with the 0.4 `ConvexError({code,message})`
+  // contract — surface it as the structured 4xx the dialog maps.
+  if (error instanceof ConvexError) {
+    const data: unknown = error.data;
+    if (data !== null && typeof data === 'object') {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object; string-typeof guards gate the reads
+      const record = data as Record<string, unknown>;
+      return c.json(
+        {
+          error: typeof record.code === 'string' ? record.code : 'REFUSED',
+          message:
+            typeof record.message === 'string'
+              ? record.message
+              : 'The request was refused.',
+        },
+        400,
+      );
+    }
+  }
   throw error;
+}
+
+/** Agent nodes whose `model` is set but `modelProvider` is not — the
+ * serving-preview banner's subjects (the 0.4 `unpinnedAgentNodeIds`). */
+function unpinnedAgentNodeIds(document: unknown): string[] {
+  if (
+    document === null ||
+    typeof document !== 'object' ||
+    !('nodes' in document) ||
+    !Array.isArray(document.nodes)
+  ) {
+    return [];
+  }
+  const ids: string[] = [];
+  for (const node of document.nodes as unknown[]) {
+    if (node === null || typeof node !== 'object') continue;
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object; per-field typeof guards gate every read
+    const record = node as Record<string, unknown>;
+    if (record.type !== 'agent') continue;
+    if (typeof record.model !== 'string' || record.model === '') continue;
+    if (
+      typeof record.modelProvider === 'string' &&
+      record.modelProvider !== ''
+    ) {
+      continue;
+    }
+    if (typeof record.id === 'string') ids.push(record.id);
+  }
+  return ids;
 }
 
 export function createAutomationRoutes(deps: {
@@ -163,6 +229,75 @@ export function createAutomationRoutes(deps: {
     }
   });
 
+  /** Node-type catalog (the 0.4 `catalog.listNodeTypes` — connector types
+   * only; the editor folds its own core floor over these). */
+  app.get('/catalog/node-types', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    for (const connector of loadConnectorDefinitions()) {
+      registerConnector(connector);
+    }
+    const summaries = [];
+    for (const def of nodeTypes().values()) {
+      if (def.kind !== 'connector') continue;
+      summaries.push({
+        type: def.type,
+        kind: def.kind,
+        description: def.description,
+        allowedFields: [...def.allowedFields],
+        requiredFields: [...def.requiredFields],
+        outputKind: def.outputKind,
+        hasEffect: def.connector?.hasEffect ?? false,
+      });
+    }
+    summaries.sort((a, b) => a.type.localeCompare(b.type));
+    return c.json({ nodeTypes: summaries });
+  });
+
+  /** Run KPIs for the metrics page (member-readable, like the 0.4 query). */
+  app.get('/metrics', async (c) => {
+    const periodRaw = Number(c.req.query('periodDays') ?? '7');
+    const periodDays =
+      periodRaw === 30
+        ? (30 as const)
+        : periodRaw === 90
+          ? (90 as const)
+          : (7 as const);
+    const modeRaw = c.req.query('mode');
+    return c.json(
+      await getOrgAutomationMetrics(deps.sql, c.get('orgId'), {
+        periodDays,
+        ...(modeRaw === 'mock' || modeRaw === 'live' ? { mode: modeRaw } : {}),
+      }),
+    );
+  });
+
+  /** The manual package upload (text or staged-zip lane). */
+  app.post('/upload', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = uploadSchema.safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const orgSlug = await resolveOrgSlug(deps.sql, c.get('orgId'));
+    if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+    try {
+      return c.json(
+        await uploadAutomationPg(
+          deps.sql,
+          {
+            organizationId: c.get('orgId'),
+            orgSlug,
+            userId: c.get('sessionBundle').user.id,
+            role: c.get('orgMember').role,
+          },
+          body.data,
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   // The automation name is a '/'-separated path — it rides as a wildcard
   // suffix on every per-automation route, split from the trailing verb.
   const nameFrom = (c: Context<OrgEnv>, suffix: string): string => {
@@ -216,10 +351,12 @@ export function createAutomationRoutes(deps: {
 
   app.get('/runs', async (c) => {
     const name = c.req.query('name');
+    const projectId = c.req.query('projectId');
     const limitRaw = Number(c.req.query('limit') ?? '50');
     return c.json({
       runs: await listRuns(deps.sql, c.get('orgId'), {
         ...(name !== undefined ? { name } : {}),
+        ...(projectId !== undefined ? { projectId } : {}),
         ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
       }),
     });
@@ -466,6 +603,16 @@ export function createAutomationRoutes(deps: {
     });
   });
 
+  app.get('/:name{.+}/projects', async (c) => {
+    return c.json({
+      projectIds: await bindingProjectIds(
+        deps.sql,
+        c.get('orgId'),
+        nameFrom(c, 'projects'),
+      ),
+    });
+  });
+
   app.delete('/:name{.+}', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
@@ -477,27 +624,47 @@ export function createAutomationRoutes(deps: {
     return c.json({ deleted: true });
   });
 
+  // The 0.4 `getAutomation`: version omitted = the LATEST saved one (never
+  // silently the deployed one); the unpinned-agent warning reads the
+  // DEPLOYED version's document, which need not be the loaded one.
   app.get('/:name{.+}', async (c) => {
     const name = nameFrom(c, '');
     const orgId = c.get('orgId');
-    const deployed = await deployedVersion(deps.sql, orgId, name);
-    const latest = (await listVersions(deps.sql, orgId, name))[0];
-    if (!latest) {
-      return c.json({ error: 'automation not found' }, 404);
-    }
-    const version = await versionRow(
+    const versionParam = Number(c.req.query('version') ?? Number.NaN);
+    const row = await versionRow(
       deps.sql,
       orgId,
       name,
-      deployed ?? latest.version,
+      Number.isFinite(versionParam) ? versionParam : undefined,
     );
+    if (!row) {
+      return c.json({ error: 'automation not found' }, 404);
+    }
+    const deployed = await deployedVersion(deps.sql, orgId, name);
+    const deployedRow =
+      deployed === null
+        ? null
+        : deployed === row.version
+          ? row
+          : await versionRow(deps.sql, orgId, name, deployed);
+    const unpinned =
+      deployedRow === null ? [] : unpinnedAgentNodeIds(deployedRow.document);
     return c.json({
-      name,
-      latestVersion: latest.version,
-      deployedVersion: deployed ?? null,
-      document: version?.document ?? null,
-      presentation: version?.presentation ?? null,
-      settings: version?.settings ?? null,
+      name: row.name,
+      version: row.version,
+      document: row.document,
+      ...(row.message !== null ? { message: row.message } : {}),
+      ...(row.testsPassed !== null ? { testsPassed: row.testsPassed } : {}),
+      ...(row.presentation !== null && row.presentation !== undefined
+        ? { presentation: row.presentation }
+        : {}),
+      ...(row.settings !== null && row.settings !== undefined
+        ? { settings: row.settings }
+        : {}),
+      ...(deployed !== null ? { deployedVersion: deployed } : {}),
+      ...(unpinned.length > 0 ? { deployedUnpinnedAgentNodes: unpinned } : {}),
+      createdBy: row.createdBy,
+      createdAt: row.createdAt,
     });
   });
 

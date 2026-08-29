@@ -6,7 +6,6 @@ import { Field } from '@tale/ui/field';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAction, useMutation } from 'convex/react';
 import {
   FileArchive,
   FileText,
@@ -22,6 +21,7 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Select } from '@/app/components/ui/forms/select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { configKeys } from '@/app/hooks/config-query-keys';
+import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -84,11 +84,17 @@ export function UploadAutomationDialog({
   const deploy = useDeployAutomation();
 
   const { projects } = useProjects(organizationId);
-  const upload = useAction(api.automations.upload_action.uploadAutomation);
-  const generateUploadUrl = useMutation(
+  const client = useConvexClient();
+  const upload = client.action.bind(
+    client,
+    api.automations.upload_action.uploadAutomation,
+  );
+  const generateUploadUrl = client.mutation.bind(
+    client,
     api.automations.upload_mutations.generateAutomationUploadUrl,
   );
-  const recordIntent = useMutation(
+  const recordIntent = client.mutation.bind(
+    client,
     api.automations.upload_mutations.recordAutomationUploadIntent,
   );
 

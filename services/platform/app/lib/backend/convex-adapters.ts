@@ -25,6 +25,11 @@ import {
 } from './admin';
 import { BackendApiError } from './api-client';
 import {
+  automationActionQueryAdapters,
+  automationReadAdapters,
+  automationWriteAdapters,
+} from './automations';
+import {
   documentPaginatedAdapters,
   documentReadAdapters,
   documentWriteAdapters,
@@ -122,6 +127,7 @@ export type PaginatedAdapter = (
 
 export const READ_ADAPTERS: Record<string, ReadAdapter> = {
   ...adminReadAdapters,
+  ...automationReadAdapters,
   ...documentReadAdapters,
   ...projectReadAdapters,
   ...settingsReadAdapters,
@@ -137,12 +143,14 @@ export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
 export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {
   ...adminActionQueryAdapters,
   ...adminDataResidencyActionQueries,
+  ...automationActionQueryAdapters,
   ...projectActionQueryAdapters,
   ...settingsActionQueryAdapters,
 };
 
 export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
   ...adminWriteAdapters,
+  ...automationWriteAdapters,
   ...documentWriteAdapters,
   ...projectWriteAdapters,
   ...settingsWriteAdapters,
