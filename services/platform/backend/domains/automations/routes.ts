@@ -2,10 +2,14 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { runSessionWithStore } from '../../../convex/automations_builder/run_session.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { createCtxShim } from '../../lib/convex-shim.ts';
+import { knowledgeShimHandlers } from '../knowledge/service.ts';
+import { pgAutomationStore } from './dispatch-store.ts';
 import {
   AutomationError,
   answerAsk,
@@ -67,6 +71,19 @@ const startSchema = z.object({
   version: z.number().int().min(1).optional(),
   projectId: z.string().optional(),
 });
+
+const builderSessionSchema = z.object({
+  goal: z.string(),
+  model: z.object({ providerSlug: z.string(), modelId: z.string() }),
+  projectId: z.string().optional(),
+  maxTurns: z.number().optional(),
+});
+
+/** A goal is one instruction, not a document (the 0.4 bound). */
+const MAX_GOAL_CHARS = 4000;
+
+/** Hard ceiling on the caller's turn budget (the policy default is 14). */
+const MAX_TURNS_CAP = 30;
 
 function handleError<E extends OrgEnv>(
   c: Context<E>,
@@ -156,6 +173,77 @@ export function createAutomationRoutes(deps: {
         ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
       }),
     });
+  });
+
+  /**
+   * Author an automation from a goal, autonomously — the 0.4
+   * `startBuilderSession`. Returns when the session ends (minutes, not
+   * milliseconds); the versions it saves appear in the listing long before
+   * the summary resolves. The session authors against the deterministic
+   * mocks — `runSessionWithStore` never enables live execution — and a
+   * `projectId` pins the first save to that project via the store scope.
+   */
+  app.post('/builder/sessions', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = builderSessionSchema.safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const goal = body.data.goal.trim();
+    if (goal.length === 0 || goal.length > MAX_GOAL_CHARS) {
+      return c.json(
+        {
+          error: `Describe the automation in 1 to ${MAX_GOAL_CHARS} characters.`,
+        },
+        400,
+      );
+    }
+    const maxTurns = body.data.maxTurns;
+    if (
+      maxTurns !== undefined &&
+      (!Number.isInteger(maxTurns) || maxTurns < 1 || maxTurns > MAX_TURNS_CAP)
+    ) {
+      return c.json(
+        {
+          error: `maxTurns must be an integer between 1 and ${MAX_TURNS_CAP}.`,
+        },
+        400,
+      );
+    }
+    if (body.data.projectId !== undefined) {
+      const projects = await deps.sql<{ id: string }[]>`
+        SELECT id FROM app.projects
+        WHERE id = ${body.data.projectId} AND org_id = ${c.get('orgId')}
+        LIMIT 1
+      `;
+      if (projects.length === 0) {
+        return c.json({ error: 'project not found' }, 404);
+      }
+    }
+    try {
+      const store = pgAutomationStore(deps.sql, {
+        organizationId: c.get('orgId'),
+        actor: c.get('sessionBundle').user.id,
+        ...(body.data.projectId !== undefined
+          ? { projectId: body.data.projectId }
+          : {}),
+      });
+      const shim = createCtxShim(knowledgeShimHandlers(deps.sql));
+      const outcome = await runSessionWithStore(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the session touches ctx only through the handlers above
+        shim as unknown as Parameters<typeof runSessionWithStore>[0],
+        {
+          organizationId: c.get('orgId'),
+          actorId: c.get('sessionBundle').user.id,
+          goal,
+          model: body.data.model,
+          ...(maxTurns !== undefined ? { maxTurns } : {}),
+        },
+        store,
+      );
+      return c.json({ outcome });
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.post('/:name{.+}/save', async (c) => {

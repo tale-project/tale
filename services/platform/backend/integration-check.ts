@@ -17,7 +17,7 @@
  * Better Auth tables, and app tables, and writes test rows.
  */
 
-import { mkdir, mkdtemp, rename, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -2727,6 +2727,529 @@ async function checkAutomations(
       `save=${saved.success}, deploy=${deployed.status}, gate → ${gate.status} (want 409), run=${runView.success ? runView.data.run.status : 'ERR'} output=${runView.success ? JSON.stringify(runView.data.run.output) : 'ERR'} (want "LGTM-42"), audit=${auditRows[0]?.count}, sweep=${swept}/settled=${orphanSettled}, webhook(mint=${minted.success}, keep=${JSON.stringify(rebound) === '{}'}, rotate=${rotated.success && rotated.data.token !== (minted.success ? minted.data.token : '')}, fire → ${hookRes.status}/settled=${hookSettled}, bad → ${hookBadToken.status}), schedule(fired=${scan.fired}), event(fired=${eventFired}), tombstone=${tombstoned[0]?.count}→${cleared[0]?.count}`,
     );
   } finally {
+    await new Promise<void>((resolve) => {
+      llmServer.close(() => resolve());
+    });
+  }
+}
+
+/**
+ * The platform MCP endpoint (/api/v1/mcp): the 0.4 protocol layer
+ * (`handleMcpRequest`) reused whole over two pg-backed handlers — the engine
+ * dispatch (org store, live) and the capability surface. Proves the frames
+ * (initialize, notification → 202, batch → -32600, unknown method → -32601,
+ * GET → 405), the engine lane end-to-end (save → deploy → start_run, which
+ * runs LIVE at this endpoint and settles through the durable stepper — the
+ * input routes around the llm node), the developer gate answering a
+ * member-role key with refusal-as-DATA while read tools stay open, and the
+ * capability lane (search_capabilities sees the automation the engine lane
+ * just saved; get_knowledge answers as data in both of its shapes).
+ */
+async function checkMcp(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
+
+  const mintKey = async (ownCookie: string, name: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: ownCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const apiKey = await mintKey(cookie, 'itest-mcp');
+
+  const rpc = async (
+    message: unknown,
+    key = apiKey,
+  ): Promise<{ status: number; body: unknown }> => {
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'x-organization-slug': orgSlug,
+      },
+      body: JSON.stringify(message),
+    });
+    const text = await res.text();
+    return {
+      status: res.status,
+      body: text === '' ? null : (JSON.parse(text) as unknown),
+    };
+  };
+  /** Unwrap one MCP tool result: `{content: [{text}], isError}` → the JSON
+   * the text carries (refusals are data on this endpoint, never errors). */
+  const toolValue = (body: unknown): { isError: boolean; value: unknown } => {
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z
+            .array(z.object({ type: z.string(), text: z.string() }))
+            .min(1),
+          isError: z.boolean(),
+        }),
+      })
+      .safeParse(body);
+    if (!parsed.success) return { isError: true, value: undefined };
+    return {
+      isError: parsed.data.result.isError,
+      value: JSON.parse(
+        parsed.data.result.content[0]?.text ?? 'null',
+      ) as unknown,
+    };
+  };
+
+  // Protocol frames.
+  const init = await rpc({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {},
+  });
+  const initOk = z
+    .object({ result: z.object({ protocolVersion: z.literal('2025-03-26') }) })
+    .safeParse(init.body).success;
+  const note = await rpc({
+    jsonrpc: '2.0',
+    method: 'notifications/initialized',
+  });
+  const batch = await rpc([{ jsonrpc: '2.0', id: 2, method: 'ping' }]);
+  const batchCode = z
+    .object({ error: z.object({ code: z.number() }) })
+    .safeParse(batch.body);
+  const unknownMethod = await rpc({
+    jsonrpc: '2.0',
+    id: 3,
+    method: 'resources/list',
+  });
+  const unknownCode = z
+    .object({ error: z.object({ code: z.number() }) })
+    .safeParse(unknownMethod.body);
+  const getRes = await fetch(`${base}/api/v1/mcp`, {
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      'x-organization-slug': orgSlug,
+    },
+  });
+
+  // Inventory: the engine method table and the capability tools on one list.
+  const listed = await rpc({ jsonrpc: '2.0', id: 4, method: 'tools/list' });
+  const tools = z
+    .object({
+      result: z.object({ tools: z.array(z.object({ name: z.string() })) }),
+    })
+    .safeParse(listed.body);
+  const toolNames = tools.success
+    ? tools.data.result.tools.map((tool) => tool.name)
+    : [];
+
+  // Engine lane: save → deploy → start_run (live here) → settle → get_run.
+  const doc = { ...DOC_EXAMPLE.automation, name: 'mcp-example' };
+  const saved = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 5,
+        method: 'tools/call',
+        params: {
+          name: 'save_automation',
+          arguments: { automation: doc, message: 'via mcp' },
+        },
+      })
+    ).body,
+  );
+  const savedShape = z
+    .object({ name: z.literal('mcp-example'), version: z.number() })
+    .safeParse(saved.value);
+  const deployed = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 6,
+        method: 'tools/call',
+        params: {
+          name: 'deploy_automation',
+          arguments: {
+            name: 'mcp-example',
+            version: savedShape.success ? savedShape.data.version : 1,
+          },
+        },
+      })
+    ).body,
+  );
+  const deployedShape = z
+    .object({ deployed: z.object({ version: z.number() }) })
+    .safeParse(deployed.value);
+  // count 0 → the llm node's `when` is false → the elseOf transform runs, so
+  // a LIVE run settles without any model call.
+  const started = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 7,
+        method: 'tools/call',
+        params: {
+          name: 'start_run',
+          arguments: {
+            name: 'mcp-example',
+            input: { min_total: 5, orders: [] },
+          },
+        },
+      })
+    ).body,
+  );
+  const startedShape = z
+    .object({ runId: z.string(), mode: z.literal('live') })
+    .safeParse(started.value);
+  const runId = startedShape.success ? startedShape.data.runId : '';
+  const settled = await waitFor(async () => {
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.automation_runs WHERE id = ${runId}
+    `;
+    return rows[0]?.status === 'success';
+  }, 30_000);
+  const runView = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 8,
+        method: 'tools/call',
+        params: { name: 'get_run', arguments: { runId } },
+      })
+    ).body,
+  );
+  const runShape = z
+    .object({ run: z.object({ status: z.literal('success') }) })
+    .safeParse(runView.value);
+
+  // The developer gate: a member-role key gets the refusal as DATA on the
+  // persisting tools while every read tool keeps answering.
+  const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `mcp-member-${orgSlug}@example.com`,
+      password: 'itest-password-1',
+      name: 'MCP Member',
+    }),
+  });
+  const memberCookie = cookieHeaderFrom(memberSignUp);
+  const memberBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await memberSignUp.json());
+  const memberId = memberBody.success ? memberBody.data.user.id : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member', ${new Date()})
+  `;
+  const memberKey = await mintKey(memberCookie, 'itest-mcp-member');
+  const refusal = toolValue(
+    (
+      await rpc(
+        {
+          jsonrpc: '2.0',
+          id: 9,
+          method: 'tools/call',
+          params: {
+            name: 'save_automation',
+            arguments: { automation: doc, message: 'should refuse' },
+          },
+        },
+        memberKey,
+      )
+    ).body,
+  );
+  const refusalShape = z.object({ error: z.string() }).safeParse(refusal.value);
+  const memberList = toolValue(
+    (
+      await rpc(
+        {
+          jsonrpc: '2.0',
+          id: 10,
+          method: 'tools/call',
+          params: { name: 'list_automations', arguments: {} },
+        },
+        memberKey,
+      )
+    ).body,
+  );
+  const memberListShape = z
+    .object({ automations: z.array(z.object({ name: z.string() })) })
+    .safeParse(memberList.value);
+
+  // Capability lane: the automation just saved is a searchable capability,
+  // and get_knowledge answers as data in both of its shapes.
+  const capabilities = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 11,
+        method: 'tools/call',
+        params: {
+          name: 'search_capabilities',
+          arguments: { query: 'mcp-example' },
+        },
+      })
+    ).body,
+  );
+  const capShape = z
+    .object({ capabilities: z.array(z.looseObject({ id: z.string() })) })
+    .safeParse(capabilities.value);
+  const capHit = capShape.success
+    ? capShape.data.capabilities.some(
+        (cap) => cap.id === 'automation.mcp-example',
+      )
+    : false;
+  const knowledge = toolValue(
+    (
+      await rpc({
+        jsonrpc: '2.0',
+        id: 12,
+        method: 'tools/call',
+        params: {
+          name: 'get_knowledge',
+          arguments: { query: 'order report totals' },
+        },
+      })
+    ).body,
+  );
+  const knowledgeShape = z
+    .object({ status: z.enum(['ok', 'unavailable']) })
+    .safeParse(knowledge.value);
+
+  record(
+    'platform MCP endpoint (/api/v1/mcp)',
+    initOk &&
+      note.status === 202 &&
+      batch.status === 400 &&
+      batchCode.success &&
+      batchCode.data.error.code === -32600 &&
+      unknownCode.success &&
+      unknownCode.data.error.code === -32601 &&
+      getRes.status === 405 &&
+      toolNames.includes('save_automation') &&
+      toolNames.includes('search_capabilities') &&
+      toolNames.includes('get_knowledge') &&
+      !saved.isError &&
+      savedShape.success &&
+      savedShape.data.version === 1 &&
+      !deployed.isError &&
+      deployedShape.success &&
+      startedShape.success &&
+      settled &&
+      runShape.success &&
+      !refusal.isError &&
+      refusalShape.success &&
+      refusalShape.data.error.includes('refused for this key') &&
+      memberListShape.success &&
+      capHit &&
+      !knowledge.isError &&
+      knowledgeShape.success,
+    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchCode.success ? batchCode.data.error.code : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
+  );
+  // This check spent ~16 requests of the shared `rest:api` token bucket the
+  // three REST checks right after it live off — hand the bucket back (an
+  // absent row re-initializes at full capacity).
+  await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+}
+
+/**
+ * The automation builder session (POST /api/app/automations/builder/sessions
+ * — the 0.4 `startBuilderSession`): the pure session loop and the engine run
+ * against the pg store with a scripted OpenAI-format model behind an org
+ * custom provider. The script tests then saves the SAME document, so the
+ * session's own save gate passes and the outcome is `succeeded` at version
+ * 1 — and the `projectId` handed to the route pins that first save to the
+ * project (the store-scope install contract). Also probes the goal bound.
+ */
+async function checkBuilderSession(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
+
+  const doc = { ...DOC_EXAMPLE.automation, name: 'builder-fake-greeter' };
+  const fence = (method: string, params: unknown): string =>
+    'On it.\n```yaml\n' + JSON.stringify({ method, params }) + '\n```';
+  const script = [
+    fence('test_automation', { automation: doc }),
+    fence('save_automation', { automation: doc, message: 'itest builder' }),
+  ];
+  let calls = 0;
+
+  const llmServer = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      res.setHeader('content-type', 'application/json');
+      const url = req.url ?? '';
+      if (req.method === 'GET' && url.endsWith('/models')) {
+        res.end(
+          JSON.stringify({
+            object: 'list',
+            data: [{ id: 'builder-fake', object: 'model' }],
+          }),
+        );
+        return;
+      }
+      if (url.endsWith('/chat/completions')) {
+        const content = script[calls] ?? script.at(-1) ?? '';
+        calls += 1;
+        res.end(
+          JSON.stringify({
+            id: `b${calls}`,
+            object: 'chat.completion',
+            choices: [
+              {
+                index: 0,
+                message: { role: 'assistant', content },
+                finish_reason: 'stop',
+              },
+            ],
+            usage: { prompt_tokens: 10, completion_tokens: 5 },
+          }),
+        );
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+  });
+  await new Promise<void>((resolve) => {
+    llmServer.listen(0, '127.0.0.1', resolve);
+  });
+  const llmAddress = llmServer.address();
+  const llmPort =
+    llmAddress !== null && typeof llmAddress === 'object' ? llmAddress.port : 0;
+
+  try {
+    process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS = '1';
+    const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+    const providersDir = path.join(configRoot, orgSlug, 'providers');
+    await mkdir(providersDir, { recursive: true });
+    await writeFile(
+      path.join(providersDir, 'builderllm.yml'),
+      [
+        'name: builderllm',
+        'displayName: Builder LLM',
+        'apiFormat: openai',
+        `baseUrl: http://127.0.0.1:${llmPort}/v1`,
+        'catalog:',
+        '  source: models-endpoint',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    const post = (route: string, body: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify(body),
+      });
+    await post(`/api/app/provider-credentials?orgId=${orgId}`, {
+      providerSlug: 'builderllm',
+      authMethod: 'api-key',
+      name: 'Builder LLM key',
+      secret: 'sk-itest-builder',
+    });
+    const proj = z.object({ projectId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, {
+          name: 'Builder Target',
+        })
+      ).json(),
+    );
+    const projectId = proj.success ? proj.data.projectId : '';
+
+    // The goal bound refuses before any wire is touched.
+    const emptyGoal = await post(
+      `/api/app/automations/builder/sessions?orgId=${orgId}`,
+      {
+        goal: '   ',
+        model: { providerSlug: 'builderllm', modelId: 'builder-fake' },
+      },
+    );
+
+    const sessionRes = await post(
+      `/api/app/automations/builder/sessions?orgId=${orgId}`,
+      {
+        goal: 'greet qualifying orders for the itest team',
+        model: { providerSlug: 'builderllm', modelId: 'builder-fake' },
+        projectId,
+        maxTurns: 8,
+      },
+    );
+    const outcome = z
+      .object({
+        outcome: z.object({
+          status: z.literal('succeeded'),
+          saved: z.object({
+            name: z.literal('builder-fake-greeter'),
+            version: z.number(),
+          }),
+          turns: z.number(),
+        }),
+      })
+      .safeParse(await sessionRes.json());
+
+    const bound = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automation_project_bindings
+      WHERE org_id = ${orgId}
+        AND automation_name = 'builder-fake-greeter'
+        AND project_id = ${projectId}
+    `;
+
+    record(
+      'automation builder session (scripted model, pg store)',
+      emptyGoal.status === 400 &&
+        sessionRes.status === 200 &&
+        outcome.success &&
+        outcome.data.outcome.saved.version === 1 &&
+        outcome.data.outcome.turns === 2 &&
+        calls === 2 &&
+        bound[0]?.count === '1',
+      `emptyGoal→${emptyGoal.status} (want 400), session→${sessionRes.status}, outcome=${outcome.success ? `${outcome.data.outcome.status}@v${outcome.data.outcome.saved.version} in ${outcome.data.outcome.turns} turns` : 'ERR'}, modelCalls=${calls}, projectBinding=${bound[0]?.count}`,
+    );
+  } finally {
+    // Leave no dead provider behind: an unreachable models-endpoint costs
+    // every later model walk 3 fetch attempts with 2s/4s backoff sleeps
+    // (nothing is cached on failure), which is enough to starve the REST
+    // chat leg and the task-agent lanes downstream.
+    await rm(
+      path.join(
+        process.env.TALE_CONFIG_DIR ?? '',
+        orgSlug,
+        'providers',
+        'builderllm.yml',
+      ),
+      { force: true },
+    );
+    await sql`
+      DELETE FROM app.provider_credentials
+      WHERE org_id = ${orgId} AND provider_slug = 'builderllm'
+    `;
+    (await import('./lib/org-config.ts')).clearOrgConfigCaches();
     await new Promise<void>((resolve) => {
       llmServer.close(() => resolve());
     });
@@ -14705,6 +15228,8 @@ async function main(): Promise<void> {
       `itest-${orgSuffix}`,
     );
     await checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkBuilderSession(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkRestDoor(sql, baseUrl, authCtx);
     await checkRestMachineJourney(sql, baseUrl, authCtx);
     await checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

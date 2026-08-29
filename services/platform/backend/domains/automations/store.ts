@@ -63,6 +63,12 @@ export interface SaveVersionArgs {
   name: string;
   document: unknown;
   actor: string;
+  /** Install target for a NEW automation — the first version binds the name
+   * to this project atomically with the insert (the 0.4 `storeSave`
+   * contract). Saves of an existing name ignore it: membership is managed
+   * via `setAutomationProjects`, so saving a version cannot move an
+   * automation between surfaces. */
+  projectId?: string;
   message?: string;
   testsPassed?: boolean;
   taskContract?: unknown;
@@ -100,6 +106,29 @@ export async function saveVersion(
       DELETE FROM app.automation_tombstones
       WHERE org_id = ${args.organizationId} AND name = ${name}
     `;
+    if (version === 1 && args.projectId !== undefined) {
+      const owned = await tx<{ id: string }[]>`
+        SELECT id FROM app.projects
+        WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
+        LIMIT 1
+      `;
+      if (owned.length === 0) {
+        throw new AutomationError(
+          'AUTOMATION_PROJECT_UNKNOWN',
+          'One of the projects does not exist in this organization.',
+          404,
+        );
+      }
+      await tx`
+        INSERT INTO app.automation_project_bindings (
+          org_id, automation_name, project_id, bound_at_ms, bound_by
+        ) VALUES (
+          ${args.organizationId}, ${name}, ${args.projectId}, ${Date.now()},
+          ${args.actor}
+        )
+        ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
+      `;
+    }
     return { name, version };
   });
 }

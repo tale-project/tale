@@ -8,6 +8,7 @@ import { RateLimitExceededError, checkIpRateLimit } from '../lib/rate-limit.ts';
 import type { RestEnv } from './shared.ts';
 import { createAutomationRestRoutes } from './v1-automations.ts';
 import { createCoreRoutes } from './v1-core.ts';
+import { createRestMcpRoutes } from './v1-mcp.ts';
 import { createProjectRestRoutes } from './v1-projects.ts';
 import { createTaskRestRoutes } from './v1-tasks.ts';
 import { createThreadRestRoutes } from './v1-threads.ts';
@@ -30,9 +31,9 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * this door: v1-core (contacts, products, documents, knowledge, agents,
  * skills), v1-automations (+ runs), v1-projects (folders, uploads, files),
  * v1-tasks (external-ref intake, comments, start), v1-threads (chat).
- * Not present by design: `/websites` rides the crawler family and
- * `/api/v1/mcp` rides automations_builder — both unported; the automation
- * webhook trigger lives at `/api/automations/webhook/:token` (app.ts).
+ * `/websites` rides the crawler family (v1-websites) and `/api/v1/mcp`
+ * rides automations_builder (v1-mcp); the automation webhook trigger
+ * lives at `/api/automations/webhook/:token` (app.ts).
  */
 
 export function createRestV1Routes(deps: {
@@ -121,6 +122,7 @@ export function createRestV1Routes(deps: {
   app.route('/', createThreadRestRoutes({ sql: deps.sql }));
   app.route('/', createAutomationRestRoutes({ sql: deps.sql }));
   app.route('/', createRestWebsiteRoutes({ sql: deps.sql }));
+  app.route('/', createRestMcpRoutes({ sql: deps.sql }));
 
   return app;
 }
