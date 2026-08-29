@@ -1526,6 +1526,24 @@ export async function deleteTask(
   if (threadIds.length > 0) {
     await tx`DELETE FROM app.threads WHERE id = ANY(${threadIds})`;
   }
+  // Pending approvals that named these tasks die with them. Leaving them
+  // would show a reviewer an inbox row for work that no longer exists —
+  // undecidable, because every decision path resolves the task first. They
+  // are REJECTED rather than deleted so the audit trail keeps the fact that
+  // a review was once requested (0.4 orphaned them; this is the fix, not a
+  // port of the shortcoming).
+  await tx`
+    UPDATE app.approvals SET
+      status = 'rejected', reviewed_at_ms = ${Date.now()},
+      metadata = coalesce(metadata, '{}'::jsonb)
+        || jsonb_build_object('closedReason', 'task_deleted')
+    WHERE org_id = ${auth.organizationId} AND status = 'pending'
+      AND (
+        (resource_type IN ('task_review', 'document_record_review')
+          AND resource_id = ANY(${ids}))
+        OR metadata->>'taskId' = ANY(${ids})
+      )
+  `;
   await tx`DELETE FROM app.tasks WHERE id = ANY(${ids})`;
   await createAuditLog(
     tx,

@@ -6464,6 +6464,51 @@ async function checkRunProvenance(
     `settled=${settled}/${settledTwice} (want true/false), entries=${entries.length}, model=${JSON.stringify(model)}, gateway=${JSON.stringify(gateway)}, outputs=${outputs.length}, reads=${knowledgeReads.join(',') || 'none'}, reviewer=${review?.reviewerUserId === userId}`,
   );
 
+  // ---- deleting a task closes the approvals that named it --------------
+  const strayApproval = await sql<{ id: string }[]>`
+    INSERT INTO app.approvals (
+      org_id, status, resource_type, resource_id, priority, metadata,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'pending', 'task_review', ${taskId}, 'medium',
+      ${sql.json({ taskId, requestedFor: userId })}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const otherOrgTask = 'some-other-task-id';
+  const untouched = await sql<{ id: string }[]>`
+    INSERT INTO app.approvals (
+      org_id, status, resource_type, resource_id, priority, metadata,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'pending', 'task_review', ${otherOrgTask}, 'medium',
+      ${sql.json({ taskId: otherOrgTask })}, ${Date.now()}
+    ) RETURNING id
+  `;
+  const { deleteTask } = await import('./domains/tasks/service.ts');
+  await sql.begin((tx) =>
+    deleteTask(
+      tx,
+      { organizationId: orgId, userId, role: 'owner', teamIds: [] },
+      taskId,
+    ),
+  );
+  const closed = await sql<{ status: string; metadata: unknown }[]>`
+    SELECT status, metadata FROM app.approvals
+    WHERE id = ${strayApproval[0]?.id ?? ''}
+  `;
+  const survivor = await sql<{ status: string }[]>`
+    SELECT status FROM app.approvals WHERE id = ${untouched[0]?.id ?? ''}
+  `;
+  const closedMeta = objectAt(closed[0]?.metadata ?? null, '');
+  record(
+    'approvals: deleting a task closes the reviews that named it',
+    closed[0]?.status === 'rejected' &&
+      closedMeta?.closedReason === 'task_deleted' &&
+      // Another task's review is untouched.
+      survivor[0]?.status === 'pending',
+    `closed=${closed[0]?.status}/${String(closedMeta?.closedReason)}, otherTaskReview=${survivor[0]?.status} (want pending)`,
+  );
+
   // Release the seeded session: an `active` project session holds one of the
   // org's sandbox slots, and a later suite would hit the quota instead of
   // the behaviour it is testing.
