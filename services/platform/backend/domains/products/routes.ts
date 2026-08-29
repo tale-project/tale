@@ -71,6 +71,11 @@ export function createProductRoutes(deps: {
       const statusParsed = z
         .enum(PRODUCT_STATUSES)
         .safeParse(c.req.query('status'));
+      const cursorUpdatedAt = Number(
+        c.req.query('cursorUpdatedAt') ?? Number.NaN,
+      );
+      const cursorId = c.req.query('cursorId');
+      const limitRaw = Number(c.req.query('limit') ?? Number.NaN);
       return c.json(
         await listProducts(deps.sql, scopeOf(c), {
           ...(c.req.query('search') !== undefined
@@ -80,6 +85,11 @@ export function createProductRoutes(deps: {
           ...(c.req.query('category') !== undefined
             ? { category: c.req.query('category') ?? '' }
             : {}),
+          cursor:
+            Number.isFinite(cursorUpdatedAt) && cursorId !== undefined
+              ? { updatedAt: cursorUpdatedAt, id: cursorId }
+              : null,
+          ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
         }),
       );
     } catch (error) {

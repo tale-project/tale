@@ -17851,6 +17851,230 @@ async function checkLibrarySurface(
 }
 
 /**
+ * Inc-96 engagement paginated lanes: every entity table\'s keyset walk in
+ * the exact shape the frontend rows send — products (new cursor params),
+ * contacts, knowledge entries (numeric cursor), conversations + websites
+ * (envelope pass-through), and both notification bells (page + unread +
+ * mark-read/mark-all).
+ */
+async function checkEngagementSurface(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const get = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, { headers: { cookie, origin: base } });
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const now = Date.now();
+
+  // Seed two of each so limit=1 walks paginate.
+  for (const index of [1, 2]) {
+    await sql`
+      INSERT INTO app.products (
+        org_id, name, status, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${`Pager product ${index}`}, 'active',
+        ${now + index}, ${now + index}
+      )
+    `;
+    await sql`
+      INSERT INTO app.knowledge_entries (
+        org_id, topic, topic_key, content, source, status, created_by,
+        created_at_ms
+      ) VALUES (
+        ${orgId}, ${`pager-topic-${index}`}, ${`pager-topic-${index}`},
+        'pager content', 'manual', 'active', ${userId}, ${now + index}
+      )
+    `;
+  }
+
+  const productsOne = z
+    .object({
+      items: z.array(z.object({ id: z.string() }).loose()),
+      nextCursor: z.union([
+        z.object({ updatedAt: z.number(), id: z.string() }),
+        z.null(),
+      ]),
+    })
+    .safeParse(
+      await (await get(`/api/app/products?orgId=${orgId}&limit=1`)).json(),
+    );
+  const productsCursor = productsOne.success
+    ? productsOne.data.nextCursor
+    : null;
+  const productsTwo = z
+    .object({ items: z.array(z.object({ id: z.string() }).loose()) })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/products?orgId=${orgId}&limit=1&cursorUpdatedAt=${productsCursor?.updatedAt ?? 0}&cursorId=${encodeURIComponent(productsCursor?.id ?? '')}`,
+        )
+      ).json(),
+    );
+  const productPagesDistinct =
+    productsOne.success &&
+    productsTwo.success &&
+    productsOne.data.items[0]?.id !== productsTwo.data.items[0]?.id;
+
+  const entriesOne = z
+    .object({
+      rows: z.array(z.object({ id: z.string() }).loose()),
+      nextCursor: z.union([z.number(), z.null()]),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/knowledge-entries?orgId=${orgId}&limit=1`)
+      ).json(),
+    );
+  const entriesTwo = z
+    .object({ rows: z.array(z.object({ id: z.string() }).loose()) })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/knowledge-entries?orgId=${orgId}&limit=1&cursor=${entriesOne.success ? (entriesOne.data.nextCursor ?? 0) : 0}`,
+        )
+      ).json(),
+    );
+  const entryPagesDistinct =
+    entriesOne.success &&
+    entriesTwo.success &&
+    entriesOne.data.rows[0]?.id !== entriesTwo.data.rows[0]?.id;
+
+  const conversationsPage = z
+    .object({
+      page: z.array(z.object({ id: z.string() }).loose()),
+      isDone: z.boolean(),
+      continueCursor: z.string(),
+    })
+    .safeParse(
+      await (await get(`/api/app/conversations?orgId=${orgId}&limit=1`)).json(),
+    );
+  const websitesPage = z
+    .object({
+      page: z.array(z.object({}).loose()),
+      isDone: z.boolean(),
+      continueCursor: z.string(),
+    })
+    .safeParse(
+      await (await get(`/api/app/websites?orgId=${orgId}&limit=1`)).json(),
+    );
+  const contactsPage = z
+    .object({
+      items: z.array(z.object({ id: z.string() }).loose()),
+      nextCursor: z.union([
+        z.object({ updatedAt: z.number(), id: z.string() }),
+        z.null(),
+      ]),
+    })
+    .safeParse(
+      await (await get(`/api/app/contacts?orgId=${orgId}&limit=1`)).json(),
+    );
+  record(
+    'engagement: entity keyset walks in the row shapes',
+    productsOne.success &&
+      productsCursor !== null &&
+      productPagesDistinct &&
+      entriesOne.success &&
+      entriesOne.data.nextCursor !== null &&
+      entryPagesDistinct &&
+      conversationsPage.success &&
+      websitesPage.success &&
+      contactsPage.success,
+    `products=${productsOne.success}/${productPagesDistinct}, entries=${entriesOne.success}/${entryPagesDistinct}, conversations=${conversationsPage.success}, websites=${websitesPage.success}, contacts=${contactsPage.success}`,
+  );
+
+  // Both bells: page + unread + mark flows.
+  const orgBellBefore = z
+    .object({ count: z.number() })
+    .safeParse(
+      await (
+        await get(`/api/app/notifications/unread-count?orgId=${orgId}`)
+      ).json(),
+    );
+  const orgBellPage = z
+    .object({
+      items: z.array(z.object({ id: z.string(), read: z.boolean() }).loose()),
+      nextCursor: z.union([
+        z.object({ createdAt: z.number(), id: z.string() }),
+        z.null(),
+      ]),
+    })
+    .safeParse(
+      await (await get(`/api/app/notifications?orgId=${orgId}&limit=5`)).json(),
+    );
+  const firstUnread = orgBellPage.success
+    ? orgBellPage.data.items.find((row) => !row.read)
+    : undefined;
+  const orgMarked =
+    firstUnread === undefined
+      ? null
+      : await post(
+          `/api/app/notifications/${firstUnread.id}/read?orgId=${orgId}`,
+        );
+  const orgAll = z
+    .object({ ok: z.boolean() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/notifications/read-all?orgId=${orgId}`)
+      ).json(),
+    );
+  const orgBellAfter = z
+    .object({ count: z.number() })
+    .safeParse(
+      await (
+        await get(`/api/app/notifications/unread-count?orgId=${orgId}`)
+      ).json(),
+    );
+
+  const myBellPage = z
+    .object({
+      rows: z.array(z.object({ id: z.string() }).loose()),
+      nextCursor: z.union([z.number(), z.null()]),
+    })
+    .safeParse(
+      await (
+        await get(`/api/app/collab/notifications?orgId=${orgId}&limit=5`)
+      ).json(),
+    );
+  const myAll = z
+    .object({ marked: z.number() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/collab/notifications/read-all?orgId=${orgId}`)
+      ).json(),
+    );
+  const myUnread = z
+    .object({ count: z.number() })
+    .safeParse(
+      await (
+        await get(`/api/app/collab/notifications/unread-count?orgId=${orgId}`)
+      ).json(),
+    );
+  record(
+    'engagement: both notification bells (page, unread, mark flows)',
+    orgBellBefore.success &&
+      orgBellPage.success &&
+      (orgMarked === null || orgMarked.status === 200) &&
+      orgAll.success &&
+      orgBellAfter.success &&
+      orgBellAfter.data.count === 0 &&
+      myBellPage.success &&
+      myAll.success &&
+      myUnread.success &&
+      myUnread.data.count === 0,
+    `orgBell=${orgBellBefore.success ? orgBellBefore.data.count : 'ERR'}→${orgBellAfter.success ? orgBellAfter.data.count : 'ERR'} (want 0), page=${orgBellPage.success ? orgBellPage.data.items.length : 'ERR'}, mark=${orgMarked?.status ?? 'skip'}, myBell=${myBellPage.success ? myBellPage.data.rows.length : 'ERR'}, myUnread=${myUnread.success ? myUnread.data.count : 'ERR'} (want 0)`,
+  );
+}
+
+/**
  * Two-factor enforcement: an enforced policy with zero grace flips the
  * sign-in response to the enrolment-wall shape; a grace policy anchors the
  * per-user clock once; the verify-endpoint lockout mirrors the password
@@ -18998,6 +19222,7 @@ async function main(): Promise<void> {
     await checkDataResidency(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationsSurface(sql, baseUrl, authCtx);
     await checkLibrarySurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkEngagementSurface(sql, baseUrl, authCtx);
     await checkTaskAgentRuns(sql, baseUrl, authCtx);
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

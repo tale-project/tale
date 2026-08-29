@@ -34,6 +34,11 @@ import {
   documentReadAdapters,
   documentWriteAdapters,
 } from './documents';
+import {
+  engagementPaginatedAdapters,
+  engagementReadAdapters,
+  engagementWriteAdapters,
+} from './engagement';
 import { libraryActionQueryAdapters, libraryWriteAdapters } from './library';
 import {
   projectActionQueryAdapters,
@@ -129,6 +134,7 @@ export type PaginatedAdapter = (
 export const READ_ADAPTERS: Record<string, ReadAdapter> = {
   ...adminReadAdapters,
   ...automationReadAdapters,
+  ...engagementReadAdapters,
   ...documentReadAdapters,
   ...projectReadAdapters,
   ...settingsReadAdapters,
@@ -137,6 +143,7 @@ export const READ_ADAPTERS: Record<string, ReadAdapter> = {
 
 export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
   ...adminPaginatedAdapters,
+  ...engagementPaginatedAdapters,
   ...documentPaginatedAdapters,
   ...settingsPaginatedAdapters,
 };
@@ -154,6 +161,7 @@ export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
   ...adminWriteAdapters,
   ...automationWriteAdapters,
   ...libraryWriteAdapters,
+  ...engagementWriteAdapters,
   ...documentWriteAdapters,
   ...projectWriteAdapters,
   ...settingsWriteAdapters,
