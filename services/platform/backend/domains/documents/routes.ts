@@ -16,6 +16,15 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import {
+  getLastDocumentRecordReview,
+  getPendingDocumentRecordReview,
+  listEligibleDocumentReviewerIds,
+  markControlled,
+  openRecordRevision,
+  respondToDocumentRecordReview,
+  submitRecordForReview,
+} from './records.ts';
+import {
   approxCountDocumentsForOrg,
   attachDocumentToProject,
   computeUploadUsageForUser,
@@ -259,6 +268,34 @@ export function createDocumentRoutes(deps: {
     }
   });
 
+  // Fixed prefix, registered before the `/:documentId` family.
+  app.post('/records/reviews/:approvalId/respond', async (c) => {
+    const body = z
+      .object({
+        decision: z.enum(['approve', 'request_changes']),
+        feedback: z.string().max(8000).optional(),
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      const result = await transactSerializable(deps.sql, (tx) =>
+        respondToDocumentRecordReview(tx, auth, {
+          approvalId: c.req.param('approvalId'),
+          decision: body.data.decision,
+          ...(body.data.feedback !== undefined
+            ? { feedback: body.data.feedback }
+            : {}),
+        }),
+      );
+      return c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.post('/from-upload', async (c) => {
     const body = createFromUploadSchema.safeParse(await c.req.json());
     if (!body.success) {
@@ -346,6 +383,96 @@ export function createDocumentRoutes(deps: {
         await syncRagDocumentScope(deps.sql, auth.organizationId, doc);
       }
       return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:documentId/record/eligible-reviewer-ids', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        userIds: await listEligibleDocumentReviewerIds(
+          deps.sql,
+          auth,
+          c.req.param('documentId'),
+        ),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:documentId/record/pending-review', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        review: await getPendingDocumentRecordReview(
+          deps.sql,
+          auth,
+          c.req.param('documentId'),
+        ),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:documentId/record/last-review', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        review: await getLastDocumentRecordReview(
+          deps.sql,
+          auth,
+          c.req.param('documentId'),
+        ),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:documentId/record/mark-controlled', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        markControlled(tx, auth, c.req.param('documentId')),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:documentId/record/submit', async (c) => {
+    const body = z
+      .object({ reviewerUserId: z.string().min(1) })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      const auth = await authCtx(c);
+      const result = await transactSerializable(deps.sql, (tx) =>
+        submitRecordForReview(tx, auth, {
+          documentId: c.req.param('documentId'),
+          reviewerUserId: body.data.reviewerUserId,
+        }),
+      );
+      return c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:documentId/record/open-revision', async (c) => {
+    try {
+      const auth = await authCtx(c);
+      const result = await transactSerializable(deps.sql, (tx) =>
+        openRecordRevision(tx, auth, c.req.param('documentId')),
+      );
+      return c.json(result);
     } catch (error) {
       return handleError(c, error);
     }

@@ -2098,6 +2098,194 @@ async function checkDocuments(
     `orphan=${rejectOrphan.success ? rejectOrphan.data.deleted : 'ERR'} (want true), bound=${rejectBound.success ? rejectBound.data.deleted : 'ERR'} (want false)`,
   );
 
+  // --- Controlled-record lifecycle (inc 85) --------------------------------
+
+  const recordDocId = directBound.success ? directBound.data.documentId : '';
+  const mark = await send(
+    'POST',
+    `/api/app/documents/${recordDocId}/record/mark-controlled?orgId=${orgId}`,
+    {},
+  );
+  const markAgain = await send(
+    'POST',
+    `/api/app/documents/${recordDocId}/record/mark-controlled?orgId=${orgId}`,
+    {},
+  );
+  const controlledItem = z
+    .object({
+      document: z.object({
+        record: z.object({
+          state: z.string(),
+          version: z.number(),
+          hasApprovedVersions: z.boolean(),
+        }),
+      }),
+    })
+    .safeParse(await get(`/api/app/documents/${recordDocId}?orgId=${orgId}`));
+  const eligible = z
+    .object({ userIds: z.array(z.string()) })
+    .safeParse(
+      await get(
+        `/api/app/documents/${recordDocId}/record/eligible-reviewer-ids?orgId=${orgId}`,
+      ),
+    );
+  record(
+    'record mark-controlled + double-control guard + eligibility',
+    mark.ok &&
+      markAgain.status === 400 &&
+      controlledItem.success &&
+      controlledItem.data.document.record.state === 'draft' &&
+      controlledItem.data.document.record.version === 1 &&
+      eligible.success &&
+      eligible.data.userIds.length >= 1,
+    `mark → ${mark.status}, again → ${markAgain.status} (want 400), badge=${controlledItem.success ? `${controlledItem.data.document.record.state} v${controlledItem.data.document.record.version}` : 'ERR'}, eligible=${eligible.success ? eligible.data.userIds.length : 'ERR'}`,
+  );
+
+  const reviewerId = eligible.success ? (eligible.data.userIds[0] ?? '') : '';
+  const submit = z
+    .object({ approvalId: z.string() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${recordDocId}/record/submit?orgId=${orgId}`,
+          { reviewerUserId: reviewerId },
+        )
+      ).json(),
+    );
+  const pendingReview = z
+    .object({
+      review: z
+        .object({
+          approvalId: z.string(),
+          version: z.number(),
+          requestedFor: z.string().nullable(),
+        })
+        .nullable(),
+    })
+    .safeParse(
+      await get(
+        `/api/app/documents/${recordDocId}/record/pending-review?orgId=${orgId}`,
+      ),
+    );
+  const trashWhileInReview = await send(
+    'POST',
+    `/api/app/documents/${recordDocId}/trash?orgId=${orgId}`,
+  );
+  const noFeedback = await send(
+    'POST',
+    `/api/app/documents/records/reviews/${submit.success ? submit.data.approvalId : ''}/respond?orgId=${orgId}`,
+    { decision: 'request_changes' },
+  );
+  const changes = z
+    .object({ state: z.literal('draft'), version: z.number() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/records/reviews/${submit.success ? submit.data.approvalId : ''}/respond?orgId=${orgId}`,
+          { decision: 'request_changes', feedback: 'Tighten section 2.' },
+        )
+      ).json(),
+    );
+  const lastReview = z
+    .object({
+      review: z
+        .object({
+          decision: z.string(),
+          feedback: z.string().optional(),
+          respondedBy: z.string(),
+        })
+        .nullable(),
+    })
+    .safeParse(
+      await get(
+        `/api/app/documents/${recordDocId}/record/last-review?orgId=${orgId}`,
+      ),
+    );
+  record(
+    'record submit → in_review guardrails → request-changes round trip',
+    submit.success &&
+      pendingReview.success &&
+      pendingReview.data.review?.approvalId === submit.data.approvalId &&
+      trashWhileInReview.status === 400 &&
+      noFeedback.status === 400 &&
+      changes.success &&
+      lastReview.success &&
+      lastReview.data.review?.decision === 'request_changes' &&
+      lastReview.data.review.feedback === 'Tighten section 2.',
+    `submit=${submit.success ? 'ok' : 'ERR'}, pendingMatch=${pendingReview.success ? pendingReview.data.review?.approvalId === (submit.success ? submit.data.approvalId : '') : 'ERR'}, trash → ${trashWhileInReview.status} (want 400), noFeedback → ${noFeedback.status} (want 400), changes=${changes.success ? changes.data.state : 'ERR'}, last=${lastReview.success ? (lastReview.data.review?.decision ?? 'null') : 'ERR'}`,
+  );
+
+  const resubmit = z
+    .object({ approvalId: z.string() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${recordDocId}/record/submit?orgId=${orgId}`,
+          { reviewerUserId: reviewerId },
+        )
+      ).json(),
+    );
+  const approve = z
+    .object({ state: z.literal('approved'), version: z.number() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/records/reviews/${resubmit.success ? resubmit.data.approvalId : ''}/respond?orgId=${orgId}`,
+          { decision: 'approve' },
+        )
+      ).json(),
+    );
+  const approvedItem = z
+    .object({
+      document: z.object({
+        record: z.object({
+          state: z.string(),
+          hasApprovedVersions: z.boolean(),
+        }),
+      }),
+    })
+    .safeParse(await get(`/api/app/documents/${recordDocId}?orgId=${orgId}`));
+  const deleteApproved = await send(
+    'POST',
+    `/api/app/documents/${recordDocId}/delete?orgId=${orgId}`,
+    {},
+  );
+  const revision = z
+    .object({ version: z.number() })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/${recordDocId}/record/open-revision?orgId=${orgId}`,
+          {},
+        )
+      ).json(),
+    );
+  const deleteRetained = await send(
+    'POST',
+    `/api/app/documents/${recordDocId}/delete?orgId=${orgId}`,
+    {},
+  );
+  record(
+    'record approve snapshot + protection + revision',
+    resubmit.success &&
+      submit.success &&
+      resubmit.data.approvalId !== submit.data.approvalId &&
+      approve.success &&
+      approvedItem.success &&
+      approvedItem.data.document.record.state === 'approved' &&
+      approvedItem.data.document.record.hasApprovedVersions &&
+      deleteApproved.status === 400 &&
+      revision.success &&
+      revision.data.version === 2 &&
+      deleteRetained.status === 400,
+    `resubmitFresh=${resubmit.success && submit.success ? resubmit.data.approvalId !== submit.data.approvalId : 'ERR'}, approve=${approve.success ? 'ok' : 'ERR'}, badge=${approvedItem.success ? `${approvedItem.data.document.record.state}/${approvedItem.data.document.record.hasApprovedVersions}` : 'ERR'}, deleteApproved → ${deleteApproved.status} (want 400), revision=${revision.success ? revision.data.version : 'ERR'}, deleteRetained → ${deleteRetained.status} (want 400)`,
+  );
+
   // Hard delete removes the row and the hub listing entry.
   const hardDelete = await send(
     'POST',

@@ -44,6 +44,34 @@ type DocumentSearchHit = FunctionReturnType<
 type ProjectDocumentItem = FunctionReturnType<
   typeof api.projects.queries.listProjectDocuments
 >[number];
+type PendingRecordReviewResult = FunctionReturnType<
+  typeof api.documents.records.getPendingDocumentRecordReview
+>;
+type LastRecordReviewResult = FunctionReturnType<
+  typeof api.documents.records.getLastDocumentRecordReview
+>;
+type RespondToRecordReviewResult = FunctionReturnType<
+  typeof api.documents.records.respondToDocumentRecordReview
+>;
+type SubmitRecordResult = FunctionReturnType<
+  typeof api.documents.records.submitRecordForReview
+>;
+type MemberListItem = FunctionReturnType<
+  typeof api.members.queries.listByOrganization
+>[number];
+
+/** One member row as the pg backend returns it (`GET /members`). */
+interface MemberListWire {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: string;
+  createdAt: string;
+  displayName: string | null;
+  email: string | null;
+  twoFactorEnabled: boolean;
+  passkeyCount: number;
+}
 type ProjectFolderItem = FunctionReturnType<
   typeof api.projects.queries.listProjectFolders
 >[number];
@@ -257,6 +285,74 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
           `/documents/search-hub?q=${encodeURIComponent(query)}`,
           { orgId },
         ).then((body) => body.documents),
+    };
+  },
+  'members/queries:listByOrganization': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'member', 'list'),
+      queryFn: () =>
+        backendFetch<{ members: MemberListWire[] }>('/members', {
+          orgId,
+        }).then((body) =>
+          body.members.map(
+            (row): MemberListItem =>
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for Convex ids on the 0.4 wire shape
+              ({
+                _id: row.id,
+                organizationId: row.organizationId,
+                userId: row.userId,
+                role: row.role,
+                createdAt: Date.parse(row.createdAt) || 0,
+                ...(row.displayName !== null
+                  ? { displayName: row.displayName }
+                  : {}),
+                ...(row.email !== null ? { email: row.email } : {}),
+                twoFactorEnabled: row.twoFactorEnabled,
+                passkeyCount: row.passkeyCount,
+              }) as MemberListItem,
+          ),
+        ),
+    };
+  },
+  'documents/records:getPendingDocumentRecordReview': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const documentId = args.documentId;
+    if (orgId === undefined || typeof documentId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'document', 'pending-review', documentId),
+      queryFn: () =>
+        backendFetch<{ review: PendingRecordReviewResult }>(
+          `/documents/${encodeURIComponent(documentId)}/record/pending-review`,
+          { orgId },
+        ).then((body) => body.review),
+    };
+  },
+  'documents/records:getLastDocumentRecordReview': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const documentId = args.documentId;
+    if (orgId === undefined || typeof documentId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'document', 'last-review', documentId),
+      queryFn: () =>
+        backendFetch<{ review: LastRecordReviewResult }>(
+          `/documents/${encodeURIComponent(documentId)}/record/last-review`,
+          { orgId },
+        ).then((body) => body.review),
+    };
+  },
+  'documents/records:listEligibleDocumentReviewerIds': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const documentId = args.documentId;
+    if (orgId === undefined || typeof documentId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'document', 'eligible-reviewers', documentId),
+      queryFn: () =>
+        backendFetch<{ userIds: string[] }>(
+          `/documents/${encodeURIComponent(documentId)}/record/eligible-reviewer-ids`,
+          { orgId },
+        ).then((body) => body.userIds),
     };
   },
   'folders/queries:listFolders': (args, ctx) => {
@@ -518,6 +614,58 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
             ...(args.skipRagIndexing === true ? { skipRagIndexing: true } : {}),
           },
         },
+      );
+    },
+    invalidate: invalidateDocuments,
+  },
+  'documents/records:markControlled': {
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const documentId = stringArg(args, 'documentId');
+      return backendFetch<{ ok: boolean }>(
+        `/documents/${encodeURIComponent(documentId)}/record/mark-controlled`,
+        { orgId, body: {} },
+      ).then(() => null);
+    },
+    invalidate: invalidateDocuments,
+  },
+  'documents/records:submitRecordForReview': {
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const documentId = stringArg(args, 'documentId');
+      return backendFetch<SubmitRecordResult>(
+        `/documents/${encodeURIComponent(documentId)}/record/submit`,
+        { orgId, body: { reviewerUserId: stringArg(args, 'reviewerUserId') } },
+      );
+    },
+    invalidate: invalidateDocuments,
+  },
+  'documents/records:respondToDocumentRecordReview': {
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const approvalId = stringArg(args, 'approvalId');
+      return backendFetch<RespondToRecordReviewResult>(
+        `/documents/records/reviews/${encodeURIComponent(approvalId)}/respond`,
+        {
+          orgId,
+          body: {
+            decision: stringArg(args, 'decision'),
+            ...(typeof args.feedback === 'string'
+              ? { feedback: args.feedback }
+              : {}),
+          },
+        },
+      );
+    },
+    invalidate: invalidateDocuments,
+  },
+  'documents/records:openRecordRevision': {
+    run: (args, ctx) => {
+      const orgId = requireOrg(args, ctx);
+      const documentId = stringArg(args, 'documentId');
+      return backendFetch<{ version: number }>(
+        `/documents/${encodeURIComponent(documentId)}/record/open-revision`,
+        { orgId, body: {} },
       );
     },
     invalidate: invalidateDocuments,
