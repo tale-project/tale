@@ -9,6 +9,7 @@ import { stepRunImpl } from '../../convex/automations/stepper.ts';
 import { generateThreadTitleImpl } from '../../convex/chat/generate_title.ts';
 import { removeOrgSubtree } from '../../convex/organizations/scaffold.ts';
 import {
+  driveTaskAgentTurnImpl,
   startTaskAgentTurnImpl,
   steerTaskAgentTurnImpl,
 } from '../../convex/tasks/agent_run_host.ts';
@@ -67,6 +68,17 @@ const orgScaffoldSchema = z.object({
 
 const orgCleanupSchema = z.object({
   orgSlug: z.string().min(1),
+});
+
+const driveSchema = z.object({
+  organizationId: z.string().min(1),
+  runId: z.string().min(1),
+  taskId: z.string().min(1),
+  agentId: z.string().min(1),
+  execId: z.string().min(1),
+  sessionId: z.string().min(1),
+  harness: z.string().min(1),
+  deadlineAt: z.number(),
 });
 
 const steerSchema = z.object({
@@ -324,6 +336,17 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       }
     },
     'watchdog.task_agents': async () => {
+      // Re-attach BEFORE the deadline pass: a turn whose chain died is
+      // still doing work, and failing it for a stale heartbeat would throw
+      // away a live agent's output.
+      const { recoverStalledTaskAgentTurns } =
+        await import('../domains/tasks/reattach.ts');
+      const reattached = await recoverStalledTaskAgentTurns(deps.sql);
+      if (reattached.resumed > 0) {
+        console.log(
+          `[watchdog] task agents: re-attached ${reattached.resumed} of ${reattached.examined} abandoned turn(s)`,
+        );
+      }
       const result = await runTaskAgentWatchdog(deps.sql);
       if (result.failed > 0 || result.woken > 0) {
         console.log(
@@ -546,6 +569,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         .parse(payload);
       await runTranscribeJob(deps.sql, input);
     },
+    'task.agent_drive': async (payload) => {
+      const input = driveSchema.parse(payload);
+      // The REUSED 0.4 drive window on the ctx shim: it replays the exec's
+      // ring buffer, streams the turn, and runs the settle choreography —
+      // the same code a fresh start reaches after launching its exec, which
+      // is exactly why re-attaching is safe.
+      const shim = createCtxShim(agentTurnShimHandlers(deps.sql));
+      await driveTaskAgentTurnImpl(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by agentTurnShimHandlers
+        shim as unknown as Parameters<typeof driveTaskAgentTurnImpl>[0],
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- row ids are the branded Convex Id types' runtime shape (strings)
+        input as unknown as Parameters<typeof driveTaskAgentTurnImpl>[1],
+      );
+    },
+
     'task.agent_steer': async (payload) => {
       const input = steerSchema.parse(payload);
       // The REUSED 0.4 steer host on the ctx shim. It owns the whole

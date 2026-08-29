@@ -57,6 +57,20 @@ const noopPayloadSchema = z.object({
 
 const results: { name: string; ok: boolean; detail: string }[] = [];
 
+/** Read one nested object out of an untyped JSON blob (job payloads, audit
+ * metadata). `key: ''` returns the blob itself. */
+function objectAt(value: unknown, key: string): Record<string, unknown> | null {
+  if (value === null || typeof value !== 'object') return null;
+  const nested =
+    key === '' ? value : Object.entries(value).find(([k]) => k === key)?.[1];
+  if (nested === null || typeof nested !== 'object' || Array.isArray(nested)) {
+    return null;
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(nested)) out[k] = v;
+  return out;
+}
+
 function record(name: string, ok: boolean, detail: string): void {
   results.push({ name, ok, detail });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name} — ${detail}`);
@@ -6270,6 +6284,161 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
  * decrypt seam handing an invocation its secrets/config/Basic header —
  * with disabled rows refusing coded.
  */
+async function checkTurnReattach(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Reattach project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Reattach task', 'in_progress', 'a0',
+      ${userId}, 'user', ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+  const agentRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agents (
+      org_id, project_id, name, harness, model, created_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Reattach Agent', 'claude-code', 'itest-model',
+      ${userId}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const agentId = agentRows[0]?.id ?? '';
+
+  const mkRun = async (
+    suffix: string,
+    opts: { withOp: boolean; heartbeatAgoMs?: number; opStatus?: string },
+  ): Promise<{ runId: string; sessionId: string; execId: string }> => {
+    const sessionId = `reattach-session-${suffix}`;
+    const execId = `reattach-exec-${suffix}`;
+    await sql`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        agent_kind, created_at_ms, expires_at_ms
+      ) VALUES (${orgId}, ${sessionId}, 'active', 'project_agent',
+                ${agentId}, ${userId}, 'claude-code', ${now},
+                ${now + 3_600_000})
+      ON CONFLICT DO NOTHING
+    `;
+    if (opts.withOp) {
+      await sql`
+        INSERT INTO app.sandbox_session_ops (
+          org_id, session_id, exec_id, kind, status, heartbeat_at_ms,
+          started_at_ms
+        ) VALUES (
+          ${orgId}, ${sessionId}, ${execId}, 'agent-run',
+          ${opts.opStatus ?? 'running'},
+          ${now - (opts.heartbeatAgoMs ?? 0)}, ${now - 600_000}
+        )
+      `;
+    }
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.project_agent_runs (
+        org_id, task_id, project_id, agent_id, session_id, exec_id, harness,
+        model, trigger, started_by, status, started_at_ms, deadline_at_ms,
+        updated_at_ms
+      ) VALUES (
+        ${orgId}, ${taskId}, ${projectId}, ${agentId}, ${sessionId},
+        ${execId}, 'claude-code', 'itest-model', 'manual', ${userId},
+        'running', ${now - 600_000}, ${now + 3_600_000}, ${now - 600_000}
+      ) RETURNING id
+    `;
+    return { runId: rows[0]?.id ?? '', sessionId, execId };
+  };
+
+  // Three shapes: an abandoned turn (stale lease), a LIVE one (fresh
+  // heartbeat), and a start that died before writing its op row.
+  const abandoned = await mkRun('stale', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const live = await mkRun('live', { withOp: true, heartbeatAgoMs: 5_000 });
+  const noOp = await mkRun('noop', { withOp: false });
+
+  const { recoverStalledTaskAgentTurns } =
+    await import('./domains/tasks/reattach.ts');
+  const jobsBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'task.agent_drive'
+  `;
+  // An unreachable spawner must leave everything for the next sweep — a
+  // transport hiccup is not evidence of a dead agent.
+  const unreachable = await recoverStalledTaskAgentTurns(sql, {
+    probe: () => Promise.reject(new Error('spawner unreachable')),
+  });
+  const jobsAfterUnreachable = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'task.agent_drive'
+  `;
+
+  // Reachable: the abandoned turn and the op-less one re-attach; the live
+  // one is refused by the claim.
+  const recovered = await recoverStalledTaskAgentTurns(sql, {
+    probe: () => Promise.resolve({ state: 'running' as const }),
+  });
+  const driveJobs = await sql<{ data: unknown }[]>`
+    SELECT data FROM pgboss.job WHERE name = 'task.agent_drive'
+  `;
+  const drivenRunIds = new Set(
+    driveJobs.map((job) => {
+      const data = objectAt(job.data, '');
+      return typeof data?.runId === 'string' ? data.runId : '';
+    }),
+  );
+  const createdOp = await sql<{ resumedBy: string | null; status: string }[]>`
+    SELECT resumed_by AS "resumedBy", status FROM app.sandbox_session_ops
+    WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
+  `;
+  const bumpedOp = await sql<{ resumedBy: string | null }[]>`
+    SELECT resumed_by AS "resumedBy" FROM app.sandbox_session_ops
+    WHERE session_id = ${abandoned.sessionId} AND exec_id = ${abandoned.execId}
+  `;
+  record(
+    're-attach: abandoned turns resume, live ones are left alone',
+    unreachable.resumed === 0 &&
+      jobsAfterUnreachable[0]?.count === jobsBefore[0]?.count &&
+      recovered.resumed === 2 &&
+      drivenRunIds.has(abandoned.runId) &&
+      drivenRunIds.has(noOp.runId) &&
+      !drivenRunIds.has(live.runId) &&
+      // The missing op row was CREATED by the claim (the run row is the
+      // durable proof the turn exists).
+      createdOp[0]?.resumedBy === 'watchdog' &&
+      createdOp[0]?.status === 'running' &&
+      bumpedOp[0]?.resumedBy === 'watchdog',
+    `unreachable=${unreachable.resumed} (want 0, jobs ${jobsBefore[0]?.count}→${jobsAfterUnreachable[0]?.count}), resumed=${recovered.resumed} (want 2), abandoned=${drivenRunIds.has(abandoned.runId)} opless=${drivenRunIds.has(noOp.runId)} liveUntouched=${!drivenRunIds.has(live.runId)}, createdOp=${createdOp[0]?.resumedBy}/${createdOp[0]?.status}`,
+  );
+
+  // Leave nothing behind: live sessions hold sandbox slots, and settled
+  // `agent-run` ops are counted by the external-turn metrics fold.
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled'
+    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+  `;
+  await sql`
+    DELETE FROM app.sandbox_session_ops
+    WHERE org_id = ${orgId} AND session_id LIKE 'reattach-session-%'
+  `;
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'destroyed',
+                                    destroyed_at_ms = ${Date.now()}
+    WHERE org_id = ${orgId} AND session_id LIKE 'reattach-session-%'
+  `;
+}
+
 async function checkRunProvenance(
   sql: Sql,
   ctx: { orgId: string; userId: string },
@@ -6410,25 +6579,6 @@ async function checkRunProvenance(
     WHERE org_id = ${orgId} AND action = 'agent.run_settled'
       AND resource_id = ${runId}
   `;
-  /** Read one nested object out of the untyped audit metadata blob. */
-  const objectAt = (
-    value: unknown,
-    key: string,
-  ): Record<string, unknown> | null => {
-    if (value === null || typeof value !== 'object') return null;
-    const nested =
-      key === '' ? value : Object.entries(value).find(([k]) => k === key)?.[1];
-    if (
-      nested === null ||
-      typeof nested !== 'object' ||
-      Array.isArray(nested)
-    ) {
-      return null;
-    }
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(nested)) out[k] = v;
-    return out;
-  };
   const metadata = objectAt(entries[0]?.metadata ?? null, '');
   const model = objectAt(metadata, 'model');
   const gateway = objectAt(metadata, 'gateway');
@@ -21803,6 +21953,7 @@ async function main(): Promise<void> {
     await checkCollabMentions(sql, baseUrl, authCtx);
     await checkProjectTail(sql, baseUrl, authCtx);
     await checkRunProvenance(sql, authCtx);
+    await checkTurnReattach(sql, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);

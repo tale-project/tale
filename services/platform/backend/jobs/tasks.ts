@@ -40,6 +40,17 @@ export interface TaskPayloads {
   'tasks.enforce_dates': Record<string, never>;
   /** Recompute drifted project rollup counters from their source rows. */
   'projects.repair_rollups': Record<string, never>;
+  /** Re-attach the drive chain of an abandoned (but still live) turn. */
+  'task.agent_drive': {
+    organizationId: string;
+    runId: string;
+    taskId: string;
+    agentId: string;
+    execId: string;
+    sessionId: string;
+    harness: string;
+    deadlineAt: number;
+  };
   /** Steer a LIVE task-agent turn with a comment (stdin or exec restart). */
   'task.agent_steer': {
     organizationId: string;
@@ -293,6 +304,10 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // one on top: a failed job is a lost steer, and the comment is still in
   // the discussion for the next run.
   'task.agent_steer': { retryLimit: 0, expireInSeconds: 300 },
+  // The drive window is long (a turn can run for hours) and the recovery
+  // sweep re-enqueues on its own cadence, so no pg-boss retry on top: a
+  // second drive of the same exec would replay the ring buffer twice.
+  'task.agent_drive': { retryLimit: 0, expireInSeconds: 43_200 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
   'rag.index_file': {
