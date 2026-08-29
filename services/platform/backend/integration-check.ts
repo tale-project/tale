@@ -759,6 +759,124 @@ async function checkIdentityDomains(
     `catalogs=${provCatalogs.success ? provCatalogs.data.catalogs.length : 'ERR'}, harness=${harnessStatus.success ? harnessStatus.data.statuses.length : 'ERR'}, vision=${visionPick.success ? 'ok' : 'ERR'}, connectors=${connectorCatalog.success ? connectorCatalog.data.connectors.length : 'ERR'}, quota=${quotaUsage.success ? quotaUsage.data.usage.length : 'ERR'} (want 3), health=${harnessHealth.success ? 'ok' : 'ERR'}, view=${sessionsView.success ? sessionsView.data.sessions.length : 'ERR'}, reconcile=${reconcile.success ? reconcile.data.healed : 'ERR'}, stop404=${stopMissing.status}`,
   );
 
+  // Governance core (inc 90): policy save/read round trip + guards, the
+  // caller's resolved flags, budget status, model filter, trash lanes.
+  const savePolicy = await post(
+    `/api/app/governance/policies/session_idle_timeout?orgId=${orgId}`,
+    { config: { enabled: true, idleTimeoutMinutes: 45 } },
+  );
+  const readPolicy = z
+    .object({
+      policy: z
+        .object({ key: z.string(), config: z.record(z.string(), z.unknown()) })
+        .nullable(),
+    })
+    .safeParse(
+      await get(
+        `/api/app/governance/policies/session_idle_timeout?orgId=${orgId}`,
+      ),
+    );
+  const unknownPolicy = await post(
+    `/api/app/governance/policies/nonsense?orgId=${orgId}`,
+    { config: {} },
+  );
+  const specialPolicy = await post(
+    `/api/app/governance/policies/retention_policy?orgId=${orgId}`,
+    { config: { enabled: false } },
+  );
+  const myFlags = z
+    .object({
+      flags: z.object({ inputGuardrailsActive: z.boolean() }).loose(),
+    })
+    .safeParse(
+      await get(`/api/app/governance/my/feature-flags?orgId=${orgId}`),
+    );
+  const budget = z
+    .object({ status: z.unknown().nullable() })
+    .safeParse(
+      await get(`/api/app/governance/my/budget-status?orgId=${orgId}`),
+    );
+  const models = z.object({ models: z.array(z.string()) }).safeParse(
+    await (
+      await post(`/api/app/governance/models/accessible?orgId=${orgId}`, {
+        modelIds: ['fake/model-a', 'fake/model-b'],
+      })
+    ).json(),
+  );
+  record(
+    'governance core: policy write/read + guards + flags/budget/models',
+    savePolicy.ok &&
+      readPolicy.success &&
+      readPolicy.data.policy?.config.idleTimeoutMinutes === 45 &&
+      unknownPolicy.status === 400 &&
+      specialPolicy.status === 400 &&
+      myFlags.success &&
+      budget.success &&
+      models.success &&
+      models.data.models.length === 2,
+    `save → ${savePolicy.status}, read=${readPolicy.success ? JSON.stringify(readPolicy.data.policy?.config.idleTimeoutMinutes) : 'ERR'}, unknown → ${unknownPolicy.status} (want 400), special → ${specialPolicy.status} (want 400), flags=${myFlags.success ? myFlags.data.flags.inputGuardrailsActive : 'ERR'}, budget=${budget.success ? 'ok' : 'ERR'}, models=${models.success ? models.data.models.length : 'ERR'}`,
+  );
+
+  // Trash: a trashed contact appears in the admin listing and restores live.
+  const trashContact = z.object({ contactId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/contacts?orgId=${orgId}`, {
+        name: 'Trash Probe',
+        source: 'manual_import',
+      })
+    ).json(),
+  );
+  const trashProbeId = trashContact.success ? trashContact.data.contactId : '';
+  await fetch(`${base}/api/app/contacts/${trashProbeId}?orgId=${orgId}`, {
+    method: 'DELETE',
+    headers: { cookie, origin: base },
+  });
+  const trashList = z
+    .object({
+      rows: z.array(
+        z.object({
+          resourceType: z.string(),
+          id: z.string(),
+          status: z.string(),
+        }),
+      ),
+      nextCursor: z.string().nullable(),
+    })
+    .safeParse(
+      await get(
+        `/api/app/governance/trash?orgId=${orgId}&resourceTypes=contact`,
+      ),
+    );
+  const restore = await post(
+    `/api/app/governance/trash/restore?orgId=${orgId}`,
+    {
+      resourceType: 'contact',
+      id: trashProbeId,
+    },
+  );
+  const trashAfter = z
+    .object({ rows: z.array(z.object({ id: z.string() })) })
+    .safeParse(
+      await get(
+        `/api/app/governance/trash?orgId=${orgId}&resourceTypes=contact`,
+      ),
+    );
+  const restoreMissing = await post(
+    `/api/app/governance/trash/restore?orgId=${orgId}`,
+    { resourceType: 'contact', id: trashProbeId },
+  );
+  record(
+    'governance trash: list + restore + idempotence guard',
+    trashContact.success &&
+      trashList.success &&
+      trashList.data.rows.some((row) => row.id === trashProbeId) &&
+      restore.ok &&
+      trashAfter.success &&
+      !trashAfter.data.rows.some((row) => row.id === trashProbeId) &&
+      restoreMissing.status === 404,
+    `listed=${trashList.success ? trashList.data.rows.some((row) => row.id === trashProbeId) : 'ERR'}, restore → ${restore.status}, gone=${trashAfter.success ? !trashAfter.data.rows.some((row) => row.id === trashProbeId) : 'ERR'}, again → ${restoreMissing.status} (want 404)`,
+  );
+
   const audits = z
     .object({ items: z.array(z.object({ action: z.string() })) })
     .safeParse(await get(`/api/app/audit-logs?orgId=${orgId}`));

@@ -82,6 +82,18 @@ type CreateProviderCredentialResult = FunctionReturnType<
 type CreateConnectorCredentialResult = FunctionReturnType<
   typeof api.connector_credentials.actions.createCredential
 >;
+type GovernancePolicyResult = FunctionReturnType<
+  typeof api.governance.queries.getPolicy
+>;
+type MyFeatureFlagsResult = FunctionReturnType<
+  typeof api.governance.queries.getMyFeatureFlags
+>;
+type MyBudgetStatusResult = FunctionReturnType<
+  typeof api.governance.queries.getMyBudgetStatus
+>;
+type TrashListResult = FunctionReturnType<
+  typeof api.governance.queries.listTrashedRows
+>;
 
 const CONNECTOR_SECRET_KEYS = [
   'token',
@@ -245,6 +257,154 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{ env: MyEnvItem[] }>('/sandbox/user-env', {
           orgId,
         }).then((body) => body.env),
+    };
+  },
+  'governance/queries:getPolicy': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const policyType = args.policyType;
+    if (orgId === undefined || typeof policyType !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'governance_policy', policyType),
+      queryFn: () =>
+        backendFetch<{ policy: GovernancePolicyResult }>(
+          `/governance/policies/${encodeURIComponent(policyType)}`,
+          { orgId },
+        ).then((body) => body.policy),
+    };
+  },
+  'governance/queries:getMyFeatureFlags': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'governance_policy', 'my-flags'),
+      queryFn: () =>
+        backendFetch<{ flags: MyFeatureFlagsResult }>(
+          '/governance/my/feature-flags',
+          { orgId },
+        ).then((body) => body.flags),
+    };
+  },
+  'governance/queries:getMyBudgetStatus': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const selectedTeamId =
+      typeof args.selectedTeamId === 'string' ? args.selectedTeamId : null;
+    return {
+      queryKey: backendKey(orgId, 'usage', 'my-budget-status', selectedTeamId),
+      queryFn: () =>
+        backendFetch<{ status: MyBudgetStatusResult }>(
+          selectedTeamId === null
+            ? '/governance/my/budget-status'
+            : `/governance/my/budget-status?selectedTeamId=${encodeURIComponent(selectedTeamId)}`,
+          { orgId },
+        ).then((body) => body.status),
+    };
+  },
+  'governance/queries:getAccessibleModelsForUser': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined || !Array.isArray(args.modelIds)) return null;
+    const modelIds = args.modelIds.filter(
+      (id): id is string => typeof id === 'string',
+    );
+    return {
+      queryKey: backendKey(
+        orgId,
+        'governance_policy',
+        'accessible-models',
+        modelIds.join('|'),
+      ),
+      queryFn: () =>
+        backendFetch<{ models: string[] }>('/governance/models/accessible', {
+          orgId,
+          body: { modelIds },
+        }).then((body) => body.models),
+    };
+  },
+  'governance/queries:listTrashedRows': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    // The 0.4 cursor is {ts,id}; the pg walk needs the resource type too, so
+    // the composite rides INSIDE the id ("type|rowId") — opaque round-trip.
+    const cursor = args.cursor;
+    let cursorParam: string | undefined;
+    if (
+      cursor !== null &&
+      cursor !== undefined &&
+      typeof cursor === 'object' &&
+      'ts' in cursor &&
+      'id' in cursor &&
+      typeof cursor.ts === 'number' &&
+      typeof cursor.id === 'string'
+    ) {
+      const splitAt = cursor.id.indexOf('|');
+      if (splitAt > 0) {
+        cursorParam = btoa(
+          JSON.stringify({
+            resourceType: cursor.id.slice(0, splitAt),
+            statusChangedAt: cursor.ts,
+            id: cursor.id.slice(splitAt + 1),
+          }),
+        )
+          .replaceAll('+', '-')
+          .replaceAll('/', '_')
+          .replaceAll('=', '');
+      }
+    }
+    const resourceTypes = Array.isArray(args.resourceTypes)
+      ? args.resourceTypes.filter(
+          (type): type is string => typeof type === 'string',
+        )
+      : undefined;
+    const query = new URLSearchParams();
+    if (cursorParam !== undefined) query.set('cursor', cursorParam);
+    if (resourceTypes !== undefined && resourceTypes.length > 0) {
+      query.set('resourceTypes', resourceTypes.join(','));
+    }
+    if (typeof args.limit === 'number') {
+      query.set('limit', String(args.limit));
+    }
+    const suffix = query.size > 0 ? `?${query.toString()}` : '';
+    return {
+      queryKey: backendKey(
+        orgId,
+        'governance_trash',
+        resourceTypes?.join(',') ?? null,
+        cursorParam ?? null,
+        typeof args.limit === 'number' ? args.limit : null,
+      ),
+      queryFn: () =>
+        backendFetch<{ rows: unknown[]; nextCursor: string | null }>(
+          `/governance/trash${suffix}`,
+          { orgId },
+        ).then((body): TrashListResult => {
+          let nextCursor: TrashListResult['nextCursor'] = null;
+          if (body.nextCursor !== null) {
+            try {
+              const restored: unknown = JSON.parse(
+                atob(body.nextCursor.replaceAll('-', '+').replaceAll('_', '/')),
+              );
+              if (
+                restored !== null &&
+                typeof restored === 'object' &&
+                'resourceType' in restored &&
+                'statusChangedAt' in restored &&
+                'id' in restored &&
+                typeof restored.resourceType === 'string' &&
+                typeof restored.statusChangedAt === 'number' &&
+                typeof restored.id === 'string'
+              ) {
+                nextCursor = {
+                  ts: restored.statusChangedAt,
+                  id: `${restored.resourceType}|${restored.id}`,
+                };
+              }
+            } catch (error) {
+              console.warn('bad trash cursor from backend', error);
+            }
+          }
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the pg rows carry the 0.4 trash-row wire shape
+          return { rows: body.rows, nextCursor } as TrashListResult;
+        }),
     };
   },
   'provider_credentials/queries:listCredentials': (args, ctx) => {
@@ -793,6 +953,37 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), body: {} },
       ).then(() => null),
     invalidate: invalidateConnectorCredentials,
+  },
+  'governance/file_actions:saveGovernancePolicy': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/governance/policies/${encodeURIComponent(stringArg(args, 'policyType'))}`,
+        { orgId: requireOrg(args, ctx), body: { config: args.config } },
+      ).then(() => null),
+    invalidate: (client, args, ctx) => {
+      const orgId = orgOf(args, ctx);
+      if (orgId === undefined) return;
+      void client.invalidateQueries({
+        queryKey: backendEntityPrefix(orgId, 'governance_policy'),
+      });
+    },
+  },
+  'governance/restore:restoreSoftDeletedRow': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/governance/trash/restore', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          resourceType: stringArg(args, 'resourceType'),
+          id: stringArg(args, 'id'),
+        },
+      }).then(() => null),
+    invalidate: (client, args, ctx) => {
+      const orgId = orgOf(args, ctx);
+      if (orgId === undefined) return;
+      void client.invalidateQueries({
+        queryKey: backendEntityPrefix(orgId, 'governance_trash'),
+      });
+    },
   },
   'lib/providers/catalog_actions:refreshProviderCatalogs': {
     run: (args, ctx) =>

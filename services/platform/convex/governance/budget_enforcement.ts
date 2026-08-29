@@ -435,7 +435,7 @@ export function checkRuleAgainstUsage(
  * request warnings are unchanged because no caller plumbs prospective
  * tokens or requests.
  */
-function collectWarnings(
+export function collectWarnings(
   limits: EffectiveLimits,
   usage: UsageTotals,
   period: string,

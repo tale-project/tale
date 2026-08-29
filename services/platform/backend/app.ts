@@ -28,6 +28,7 @@ import { createFeedbackRoutes } from './domains/feedback/routes.ts';
 import { createFileRoutes } from './domains/files/routes.ts';
 import { createFolderRoutes } from './domains/folders/routes.ts';
 import { createGoogleDriveRoutes } from './domains/google_drive/routes.ts';
+import { createGovernanceRoutes } from './domains/governance/routes.ts';
 import { createKnowledgeRoutes } from './domains/knowledge/routes.ts';
 import { createKnowledgeEntryRoutes } from './domains/knowledge_entries/routes.ts';
 import { createLegalHoldRoutes } from './domains/legal_holds/routes.ts';
@@ -147,6 +148,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route('/api/app/knowledge-entries', createKnowledgeEntryRoutes(deps));
   app.route('/api/app/members', createMemberRoutes(deps));
   app.route('/api/app/google-drive', createGoogleDriveRoutes(deps));
+  app.route('/api/app/governance', createGovernanceRoutes(deps));
   app.route('/api/app/notifications', createNotificationRoutes(deps));
   app.route('/api/app/onedrive', createOneDriveRoutes(deps));
   app.route('/api/app/organizations', createOrganizationRoutes(deps));
