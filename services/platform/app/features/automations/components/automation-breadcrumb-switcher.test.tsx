@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
@@ -11,7 +10,7 @@ const mockNavigate = vi.fn();
 type AutomationRow = {
   name: string;
   latest: number;
-  projectIds: Id<'projects'>[];
+  projectIds: string[];
   presentation?: unknown;
 };
 
@@ -30,9 +29,9 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useNavigate: () => mockNavigate,
 }));
 
-const PROJECT_ID = 'proj-1' as Id<'projects'>;
+const PROJECT_ID = 'proj-1';
 
-function renderSwitcher(props: { projectId?: Id<'projects'> } = {}) {
+function renderSwitcher(props: { projectId?: string } = {}) {
   return render(
     <AutomationBreadcrumbSwitcher
       organizationId="org-1"
