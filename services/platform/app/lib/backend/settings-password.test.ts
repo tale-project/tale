@@ -11,7 +11,7 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 function jsonBody(init: RequestInit | undefined): unknown {
-  return typeof init?.body === 'string' ? JSON.parse(init.body) : init.body;
+  return typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body;
 }
 
 beforeEach(() => {
