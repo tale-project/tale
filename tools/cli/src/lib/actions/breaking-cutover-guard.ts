@@ -45,16 +45,17 @@ function refusalMessage(runningVersion: string | null): string {
     `  - Stay on 0.4.x for this instance: use a 0.4.x CLI; hotfixes ship from the release/0.4 branch.`,
     `  - Move to 0.5: create a FRESH deployment (new project directory via \`tale init\`, new volumes) and re-onboard users and content.`,
     `Docs: self-hosted → operate → upgrades → "0.4 → 0.5: breaking cutover".`,
-    `Expert override: --accept-data-loss (CLI) / TALE_ACCEPT_DATA_LOSS=1 (container) — the existing data will NOT be readable afterwards.`,
+    `Expert override: tale deploy --accept-data-loss — the existing data will NOT be readable afterwards.`,
   ].join('\n');
 }
 
 /**
  * Refuse a cross-baseline in-place deploy BEFORE anything is touched (no
- * image pull, no snapshot, no recreate). A container-side backstop with the
- * same semantics lives in docker-entrypoint.sh for non-CLI operators
- * (`[migrations][breaking-cutover]` marker); this guard exists to turn that
- * late, opaque failure into an immediate, explained refusal.
+ * image pull, no snapshot, no recreate). This CLI guard is the ONLY
+ * enforcement point: the 0.4-era container-side backstop
+ * (`[migrations][breaking-cutover]` in docker-entrypoint.sh) retired with
+ * the Convex runtime it inspected — a non-CLI operator who hand-rolls
+ * compose over pre-0.5 volumes gets an empty database, not a refusal.
  *
  * Detection is the running (or last-deployed) platform version, not the
  * migration ledger: every pre-0.4 install replayed the migration chain on

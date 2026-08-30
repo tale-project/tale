@@ -1,14 +1,14 @@
 import { getProjectId } from '../../../utils/load-env';
 import { EXTRA_HOSTS } from '../generators/constants';
 import type { ComposeService, ServiceConfig } from '../types';
-import { DEFAULT_LOGGING } from '../types';
+import { DEFAULT_LOGGING, imageRef } from '../types';
 
 export function createProxyService(
   config: ServiceConfig,
   hostAlias: string,
 ): ComposeService {
   return {
-    image: `${config.registry}/tale-proxy:${config.version}`,
+    image: imageRef(config, 'proxy'),
     container_name: `${getProjectId()}-proxy`,
     ports: ['80:80', '443:443'],
     volumes: ['caddy-data:/data', 'caddy-config:/config'],

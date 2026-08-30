@@ -111,22 +111,25 @@ sed -i "s|{[\$]SITE_ORIGIN:[^}]*}|${SITE_URL}|" "$CADDYFILE"
 sed -i "s|{[\$]DOCS_ORIGIN:[^}]*}|${DOCS_URL}|" "$CADDYFILE"
 
 # ============================================================================
-# 0.5 backend-api routing (the Convex→Postgres cutover)
+# Backend-api routing
 # ============================================================================
-# BACKEND_UPSTREAM (host:port, e.g. `backend-api:3005`) turns on the migrated
-# lanes. Everything the pg backend owns is listed here explicitly — auth, the
-# app API, the hint stream, both machine doors, SSO/SCIM/trusted-headers on
-# BOTH their 0.5-native and 0.4 `/http_api/...` paths (registered IdP redirect
+# Everything the pg backend owns is listed here explicitly — auth, the app
+# API, the hint stream, both machine doors, SSO/SCIM/trusted-headers on BOTH
+# their 0.5-native and 0.4 `/http_api/...` paths (registered IdP redirect
 # URIs carry the old ones), the control channel the CLI drains through, the
-# cloud-import OAuth callbacks and the WebDAV protocol door. Anything not
-# named keeps flowing to Convex, so the cutover stays reversible: unset the
-# variable and the stack is back on 0.4 lanes.
+# cloud-import OAuth callbacks and the WebDAV protocol door.
+#
+# BACKEND_UPSTREAM began life as the cutover's reversibility switch (unset ⇒
+# lanes fall back to Convex). The Convex runtime is gone, so an unset value
+# no longer means "0.4 lanes" — it means uploads, live updates and every
+# machine door 404 (v0.5.0 shipped that way). The lanes are therefore ALWAYS
+# injected; the variable remains an override for split deployments.
 OBJECT_STORE_BUCKET="${OBJECT_STORE_BUCKET:-tale-blobs}"
 OBJECT_STORE_UPSTREAM="${OBJECT_STORE_UPSTREAM:-object-store:9000}"
+BACKEND_UPSTREAM="${BACKEND_UPSTREAM:-backend-api:3005}"
 
-if [ -n "${BACKEND_UPSTREAM:-}" ]; then
-  echo "Backend routing: 0.5 lanes → ${BACKEND_UPSTREAM}"
-  BACKEND_BLOCK=$(cat <<EOF
+echo "Backend routing: 0.5 lanes → ${BACKEND_UPSTREAM}"
+BACKEND_BLOCK=$(cat <<EOF
 	handle /api/auth/* {
 		reverse_proxy ${BACKEND_UPSTREAM}
 	}
@@ -242,19 +245,12 @@ EOF
     /# BACKEND_METRICS_PLACEHOLDER/ { print block; next }
     { print }
   ' "$CADDYFILE" > "${CADDYFILE}.tmp" && mv "${CADDYFILE}.tmp" "$CADDYFILE"
-else
-  echo "Backend routing: off (BACKEND_UPSTREAM unset — all lanes stay on Convex)"
-  sed -i "/# BACKEND_PLACEHOLDER/d" "$CADDYFILE"
-  sed -i "/# BACKEND_METRICS_PLACEHOLDER/d" "$CADDYFILE"
-fi
 
 # The WebDAV door moves with the backend too. Its handle keeps the body cap
 # and only swaps upstream, through Caddy's own env placeholder — one export
 # here so the two stay in sync without a second templating pass.
-if [ -n "${BACKEND_UPSTREAM:-}" ]; then
-  WEBDAV_UPSTREAM="${BACKEND_UPSTREAM}"
-  export WEBDAV_UPSTREAM
-fi
+WEBDAV_UPSTREAM="${BACKEND_UPSTREAM}"
+export WEBDAV_UPSTREAM
 
 # Inject base path stripping for subpath deployments
 if [ -n "$BASE_PATH" ]; then

@@ -83,6 +83,10 @@ const BACKEND_TIER_SERVICES = ['backend-api', 'backend-worker'] as const;
 
 export const STATEFUL_SERVICES = [
   'db',
+  // The blob store: S3 is the only blob backend, so a deployment without one
+  // refuses every upload. Left out of this list, `tale deploy`'s explicit
+  // `up -d <services…>` never started it at all.
+  'object-store',
   'proxy',
   'sandbox-llm-gateway',
   // Sandbox tier — the single spawner and its egress proxy. Rolled in place
@@ -107,7 +111,7 @@ export const ALL_SERVICES = [
  * because recreating Postgres / the proxy means an availability blip that a
  * routine app-tier roll shouldn't incur.
  */
-export const STOP_GATED_SERVICES = ['db', 'proxy'] as const;
+export const STOP_GATED_SERVICES = ['db', 'object-store', 'proxy'] as const;
 /**
  * Always-roll-in-place tier — deployed via the stateful compose on EVERY
  * default deploy. `sandbox-llm-gateway` is a singleton that owns the single
@@ -142,4 +146,40 @@ export function isRotatableService(name: string): name is RotatableService {
 
 export function isStatefulService(name: string): name is StatefulService {
   return (STATEFUL_SERVICES as readonly string[]).includes(name);
+}
+
+/**
+ * Services that run a pinned THIRD-PARTY image instead of a `tale-*` one from
+ * our registry. The pin lives here — the single source the compose creators
+ * and the deploy pull list share.
+ */
+export const THIRD_PARTY_IMAGES = {
+  'object-store': 'minio/minio:RELEASE.2025-04-22T22-12-26Z',
+} as const satisfies Partial<Record<ServiceName, string>>;
+
+/**
+ * The `tale-*` image repository a service runs, without the registry prefix.
+ * Every service ships its own `tale-<service>` image EXCEPT the backend tier,
+ * which runs the platform image (`TALE_ROLE` picks api/worker at boot) —
+ * deriving the repository mechanically from the service name invents images
+ * that were never built. Callers wanting a pullable reference use `imageRef`,
+ * which also covers the third-party services this function does not.
+ */
+export function imageRepoForService(
+  service: Exclude<ServiceName, keyof typeof THIRD_PARTY_IMAGES>,
+): string {
+  return (BACKEND_TIER_SERVICES as readonly string[]).includes(service)
+    ? 'tale-platform'
+    : `tale-${service}`;
+}
+
+/** The full image reference a service runs under the given registry+version. */
+export function imageRef(
+  config: Pick<ServiceConfig, 'registry' | 'version'>,
+  service: ServiceName,
+): string {
+  if (service in THIRD_PARTY_IMAGES) {
+    return THIRD_PARTY_IMAGES[service as keyof typeof THIRD_PARTY_IMAGES];
+  }
+  return `${config.registry}/${imageRepoForService(service as Exclude<ServiceName, keyof typeof THIRD_PARTY_IMAGES>)}:${config.version}`;
 }

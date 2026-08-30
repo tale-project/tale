@@ -1,14 +1,14 @@
 import { getProjectId } from '../../../utils/load-env';
 import { EXTRA_HOSTS } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
-import { DEFAULT_LOGGING } from '../types';
+import { DEFAULT_LOGGING, imageRef } from '../types';
 
 export function createPlatformService(
   config: ServiceConfig,
   color: DeploymentColor,
 ): ComposeService {
   return {
-    image: `${config.registry}/tale-platform:${config.version}`,
+    image: imageRef(config, 'platform'),
     container_name: `${getProjectId()}-platform-${color}`,
     // Phase 2 (split): /app/data lives in convex-data, mounted read-only so
     // server.ts can watch config files and serve branding images. Platform

@@ -452,9 +452,23 @@ COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
 # below. They are plain .sql text; the `knowledge-db` container applies the
 # same tree with dbmate for the default database it owns.
 COPY --chown=app:app services/db/migrations/knowledge-db ./db/migrations/knowledge-db
+# The shipped config catalogs, baked into THIS image since 0.5 — the retired
+# convex image used to carry them (its Dockerfile did these COPYs), and the
+# teardown left no image doing so: v0.5.0 500s on every provider read and
+# seeds no org catalog. system/ = the org-independent registries
+# (providers/models/harnesses/connectors) at TALE_CONFIG_SYSTEM_DIR;
+# builtin/ = the per-org seed catalog at TALE_CONFIG_BUILTIN_DIR.
+COPY --chown=app:app configs/platform/system/ /app/system/
+COPY --chown=app:app configs/platform/custom/ /app/builtin/
 COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/env.sh ./
 
-RUN chmod +x ./docker-entrypoint.sh
+# /app/data is the org-config volume's mount point; owning it here makes a
+# NEW named volume initialize app-writable for the backend roles. The
+# entrypoint re-asserts ownership for volumes that already exist root-owned
+# (everything a v0.5.0 image ever booted against).
+RUN chmod +x ./docker-entrypoint.sh \
+    && mkdir -p /app/data \
+    && chown app:app /app/data
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1

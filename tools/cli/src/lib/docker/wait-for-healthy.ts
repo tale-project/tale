@@ -103,6 +103,15 @@ export async function waitForHealthy(
         return true;
       }
 
+      // A container with NO configured healthcheck can never report
+      // 'healthy' — running is the strongest signal it has. The worker tier
+      // disables its check deliberately (no HTTP surface), and waiting on it
+      // burned the full timeout on every deploy.
+      if (health === 'none') {
+        logger.success(`${containerName} is running (no healthcheck defined)`);
+        return true;
+      }
+
       logger.debug(`${containerName} health status: ${health}`);
 
       if (emitHeartbeat && Date.now() - lastHeartbeat >= HEARTBEAT_MS) {

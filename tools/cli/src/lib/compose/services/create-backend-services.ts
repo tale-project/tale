@@ -1,16 +1,20 @@
 import { getProjectId } from '../../../utils/load-env';
 import { EXTRA_HOSTS } from '../generators/constants';
 import type { ComposeService, ServiceConfig } from '../types';
-import { DEFAULT_LOGGING } from '../types';
+import { DEFAULT_LOGGING, imageRef } from '../types';
 
 /** The api's container port — the proxy's `BACKEND_UPSTREAM` target. */
 const BACKEND_API_PORT = 3005;
 
-function backendBase(config: ServiceConfig): ComposeService {
+function backendBase(
+  config: ServiceConfig,
+  service: 'backend-api' | 'backend-worker',
+): ComposeService {
   return {
-    // The SAME image as platform: the backend and the web tier share their
-    // wire contracts, so they must never version-skew.
-    image: `${config.registry}/tale-platform:${config.version}`,
+    // The SAME image as platform (imageRepoForService maps the backend tier
+    // to it): the backend and the web tier share their wire contracts, so
+    // they must never version-skew.
+    image: imageRef(config, service),
     // NET_ADMIN: the entrypoint installs the SSRF egress firewall (iptables
     // REJECT for IMDS + link-local + RFC1918) before dropping privileges.
     // This tier opens sockets outside the pinned-IP fetch path (yt-dlp,
@@ -33,6 +37,9 @@ function backendBase(config: ServiceConfig): ComposeService {
     restart: 'unless-stopped',
     depends_on: {
       db: { condition: 'service_healthy' },
+      // Both roles seed the deployment-default blob connection at boot —
+      // without the store they crash-loop on ENOTFOUND. Mirrors compose.yml.
+      'object-store': { condition: 'service_healthy' },
     },
     logging: DEFAULT_LOGGING,
     extra_hosts: EXTRA_HOSTS,
@@ -50,11 +57,18 @@ function backendBase(config: ServiceConfig): ComposeService {
  */
 export function createBackendApiService(config: ServiceConfig): ComposeService {
   return {
-    ...backendBase(config),
+    ...backendBase(config, 'backend-api'),
     container_name: `${getProjectId()}-backend-api`,
     environment: {
       TALE_ROLE: 'api',
       PORT: String(BACKEND_API_PORT),
+      // The application store. Interpolated by docker compose from the
+      // project .env at up-time: `tale init` generates DB_PASSWORD; the
+      // tale-db image's init scripts own the `tale` role and `tale_app`
+      // database. `:?` fails the up on a missing password instead of booting
+      // against a guessed default (mirrors the object-store key below).
+      DATABASE_URL:
+        'postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${APP_DB_NAME:-tale_app}',
       TALE_CONFIG_DIR: '/app/data',
       SANDBOX_HTTP_API_BASE_URL: `http://backend-api:${BACKEND_API_PORT}`,
       // The bundled blob store the backend seeds the deployment default
@@ -94,10 +108,13 @@ export function createBackendWorkerService(
   config: ServiceConfig,
 ): ComposeService {
   return {
-    ...backendBase(config),
+    ...backendBase(config, 'backend-worker'),
     container_name: `${getProjectId()}-backend-worker`,
     environment: {
       TALE_ROLE: 'worker',
+      // Same store as the api — see createBackendApiService.
+      DATABASE_URL:
+        'postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${APP_DB_NAME:-tale_app}',
       TALE_CONFIG_DIR: '/app/data',
       SANDBOX_HTTP_API_BASE_URL: `http://backend-api:${BACKEND_API_PORT}`,
       // The bundled blob store the backend seeds the deployment default

@@ -110,9 +110,9 @@ export async function runDeploy(options: RunDeployOptions): Promise<void> {
     );
   }
 
-  // Refuse a cross-baseline in-place deploy (a pre-0.4 instance under a
-  // >= 0.4 CLI) before pulling images or snapshotting volumes — there is no
-  // upgrade path across the 0.4 baseline reset.
+  // Refuse a cross-baseline in-place deploy (a pre-baseline instance under a
+  // post-baseline CLI) before pulling images or snapshotting volumes — there
+  // is no upgrade path across BREAKING_BASELINE (0.5.0: Convex → Postgres).
   await checkBreakingCutover({
     deployDir: projectDir,
     targetVersion: version,
