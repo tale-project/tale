@@ -6614,6 +6614,100 @@ async function checkRunProvenance(
     `settled=${settled}/${settledTwice} (want true/false), entries=${entries.length}, model=${JSON.stringify(model)}, gateway=${JSON.stringify(gateway)}, outputs=${outputs.length}, reads=${knowledgeReads.join(',') || 'none'}, reviewer=${review?.reviewerUserId === userId}`,
   );
 
+  // ---- @-ing the OWNING automation starts its task workflow ------------
+  const automationName = 'itest-owning-automation';
+  await sql`
+    INSERT INTO app.automations (
+      org_id, name, version, document, task_contract, created_by,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, ${automationName}, 1,
+      ${sql.json({ steps: [] })},
+      ${sql.json({ externalSystem: 'itest-tracker' })}, ${userId},
+      ${Date.now()}
+    )
+    ON CONFLICT DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.automation_deployments (
+      org_id, name, version, deployed_by, deployed_at_ms
+    ) VALUES (${orgId}, ${automationName}, 1, ${userId}, ${Date.now()})
+    ON CONFLICT (org_id, name) DO UPDATE SET version = 1
+  `;
+  // An APP-assigned task is owned by the automation it names.
+  const ownedRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      assignee_type, assignee_id, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Automation-owned task', 'todo', 'b0',
+      ${userId}, 'user', 'app', ${automationName}, ${Date.now()},
+      ${Date.now()}
+    ) RETURNING id
+  `;
+  const ownedTaskId = ownedRows[0]?.id ?? '';
+  const runsBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = ${automationName}
+  `;
+  const commentAuth = {
+    organizationId: orgId,
+    userId,
+    role: 'owner',
+    teamIds: [] as string[],
+  };
+  const { addTaskComment: addComment } =
+    await import('./domains/tasks/comments.ts');
+  // A plain comment starts nothing.
+  await sql.begin((tx) =>
+    addComment(tx, commentAuth, {
+      taskId: ownedTaskId,
+      body: 'just a comment',
+    }),
+  );
+  const runsAfterPlain = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = ${automationName}
+  `;
+  // Mentioning ANOTHER automation starts nothing either.
+  await sql.begin((tx) =>
+    addComment(tx, commentAuth, {
+      taskId: ownedTaskId,
+      body: '@not-my-automation please run',
+    }),
+  );
+  const runsAfterForeign = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = ${automationName}
+  `;
+  // @-ing the OWNER starts its task workflow.
+  await sql.begin((tx) =>
+    addComment(tx, commentAuth, {
+      taskId: ownedTaskId,
+      body: `@${automationName} please pick this up`,
+    }),
+  );
+  // The start is ENQUEUED (the comment commits first); give the worker a
+  // moment, then assert the run itself.
+  let startedRuns: { id: string; input: unknown }[] = [];
+  for (let attempt = 0; attempt < 40; attempt++) {
+    startedRuns = await sql<{ id: string; input: unknown }[]>`
+      SELECT id, input FROM app.automation_runs
+      WHERE org_id = ${orgId} AND name = ${automationName}
+    `;
+    if (startedRuns.length > Number(runsBefore[0]?.count ?? '0')) break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  const runInput = objectAt(startedRuns[0]?.input ?? null, 'task');
+  record(
+    'automations: @-ing the owning automation starts its task workflow',
+    runsAfterPlain[0]?.count === runsBefore[0]?.count &&
+      runsAfterForeign[0]?.count === runsBefore[0]?.count &&
+      startedRuns.length === Number(runsBefore[0]?.count ?? '0') + 1 &&
+      runInput?.id === ownedTaskId,
+    `plain=${runsAfterPlain[0]?.count} foreign=${runsAfterForeign[0]?.count} (both want ${runsBefore[0]?.count}), afterMention=${startedRuns.length}, subject=${runInput?.id === ownedTaskId}`,
+  );
+
   // ---- a mention of the RUNNING agent steers the live turn -------------
   const steerRunRows = await sql<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (

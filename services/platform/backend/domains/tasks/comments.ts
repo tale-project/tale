@@ -1,10 +1,12 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { TASK_AUDIT_ACTIONS } from '../../../convex/tasks/audit_actions.ts';
+import { parseTaskSubjectContract } from '../../../lib/shared/schemas/task_contract.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { deployedVersion, versionRow } from '../automations/store.ts';
 import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
 import { notifyTaskComment } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
@@ -130,19 +132,29 @@ export async function addTaskComment(
       comment_count = comment_count + 1, updated_at_ms = ${Date.now()}
     WHERE id = ${args.taskId}
   `;
+  // @-ing the automation that OWNS this task starts its task workflow — the
+  // counterpart of the agent lane's steer. Runs before the steer check so a
+  // task can only ever have one engine start per comment.
+  const automationStarted = await maybeTriggerOwningAutomation(tx, {
+    auth,
+    task,
+    mentions,
+  });
   // A comment that @-mentions the agent CURRENTLY running this task steers
   // the live turn instead of being dropped: the steer host injects it over
   // the harness's held-open stdin, or restarts the exec around it. A queued
   // (capacity-parked) run needs nothing — its start reads the brief after
   // this comment posted.
-  await maybeSteerLiveRun(tx, {
-    organizationId: auth.organizationId,
-    taskId: args.taskId,
-    mentions,
-    authorType: author.actorType,
-    authorId: author.actorId,
-    feedback: body,
-  });
+  if (!automationStarted) {
+    await maybeSteerLiveRun(tx, {
+      organizationId: auth.organizationId,
+      taskId: args.taskId,
+      mentions,
+      authorType: author.actorType,
+      authorId: author.actorId,
+      feedback: body,
+    });
+  }
   await notifyTaskComment(tx, {
     task,
     commentId: messageId,
@@ -469,4 +481,130 @@ async function maybeSteerLiveRun(
     authorId: args.authorId,
     attempt: 0,
   });
+}
+
+/**
+ * Start the task's OWNING automation when the comment @-mentions it.
+ *
+ * A plain comment on an automation's task is just a comment; @-ing the
+ * automation that owns it starts its task workflow, which re-reads the
+ * timeline (this comment included) as its feedback. Mentioning any OTHER
+ * automation starts nothing — a task runs only the workflow it belongs to.
+ *
+ * Refusals are deliberately quiet (the comment has already posted) and the
+ * gate is WRITE access: commenting is read-level, but running a workflow is
+ * an edit, so a read-only member's `@` stays a plain mention. One engine per
+ * task across BOTH lanes — a task with a live agent run or a live automation
+ * run keeps it; `startWorkflowForTask`'s own duplicate guard backstops the
+ * pre-check.
+ *
+ * Returns whether a start was scheduled, so the caller can skip the steer
+ * lane for the same comment.
+ */
+async function maybeTriggerOwningAutomation(
+  tx: TransactionSql,
+  args: {
+    auth: ProjectAuthContext;
+    task: TaskRow;
+    mentions: { type: string; id: string }[];
+  },
+): Promise<boolean> {
+  const mentioned = args.mentions.find(
+    (mention) => mention.type === 'automation',
+  );
+  if (mentioned === undefined) return false;
+  if (args.task.archivedAt !== null) return false;
+  const project = await loadProjectOrThrow(tx, args.task.projectId);
+  try {
+    // Running a workflow is an EDIT: a read-only member's `@` stays a plain
+    // mention rather than a start (commenting itself is read-level).
+    assertTaskWritable(project, args.auth);
+  } catch {
+    return false;
+  }
+  if (!(await ownsTask(tx, args.task, mentioned.id))) {
+    console.warn(
+      `[tasks] automation mention "${mentioned.id}" ignored: it does not own task ${args.task.id}`,
+    );
+    return false;
+  }
+  const liveAgentRun = await tx<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs
+    WHERE task_id = ${args.task.id} AND status IN ('queued', 'running')
+    LIMIT 1
+  `;
+  if (liveAgentRun.length > 0) return false;
+
+  // ENQUEUED, not started inline: the comment must commit first (the
+  // workflow re-reads the timeline including it), and the start needs a
+  // pool connection of its own — 0.4 scheduled it for exactly this reason.
+  await addJobInTx(tx, 'task.start_workflow', {
+    organizationId: args.auth.organizationId,
+    taskId: args.task.id,
+    workflowSlug: mentioned.id,
+    startedByUserId: args.auth.userId,
+  });
+  return true;
+}
+
+/**
+ * Does this automation OWN the task? Three ownership shapes, in the 0.4
+ * order: an app-assigned task names its automation directly, an
+ * app-created one names its creator, and an externally-mirrored one matches
+ * through its deployed version's task contract. A task with a human or agent
+ * assignee is owned by nobody on this lane.
+ */
+async function ownsTask(
+  tx: TransactionSql,
+  task: TaskRow,
+  name: string,
+): Promise<boolean> {
+  if (task.assigneeType === 'app') return task.assigneeId === name;
+  if (task.assigneeType !== null) return false;
+  if (task.createdByType === 'app') return task.createdBy === name;
+  if (task.externalSystem === null || task.externalSystem === '') return false;
+  const version = await deployedVersion(tx, task.organizationId, name);
+  if (version === undefined) return false;
+  const row = await versionRow(tx, task.organizationId, name, version);
+  const contract =
+    row === null ? null : parseTaskSubjectContract(row.taskContract);
+  return contract?.externalSystem === task.externalSystem;
+}
+
+/** The task fields `startWorkflowForTask` needs, read outside the comment's
+ * transaction by the job that actually starts the run. */
+export async function loadTaskForWorkflowStart(
+  sql: Sql,
+  organizationId: string,
+  taskId: string,
+): Promise<Pick<
+  TaskRow,
+  | 'id'
+  | 'title'
+  | 'status'
+  | 'projectId'
+  | 'externalSystem'
+  | 'externalId'
+  | 'externalUrl'
+> | null> {
+  const rows = await sql<
+    {
+      id: string;
+      title: string;
+      status: TaskRow['status'];
+      projectId: string;
+      externalSystem: string | null;
+      externalId: string | null;
+      externalUrl: string | null;
+    }[]
+  >`
+    SELECT id, title, status, project_id AS "projectId",
+           external_system AS "externalSystem",
+           external_id AS "externalId", external_url AS "externalUrl"
+    FROM app.tasks
+    WHERE id = ${taskId} AND org_id = ${organizationId}
+      AND archived_at_ms IS NULL
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
 }

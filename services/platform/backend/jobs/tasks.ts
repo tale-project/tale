@@ -40,6 +40,13 @@ export interface TaskPayloads {
   'tasks.enforce_dates': Record<string, never>;
   /** Recompute drifted project rollup counters from their source rows. */
   'projects.repair_rollups': Record<string, never>;
+  /** Start a task's owning automation (the comment-@mention trigger). */
+  'task.start_workflow': {
+    organizationId: string;
+    taskId: string;
+    workflowSlug: string;
+    startedByUserId: string;
+  };
   /** Re-attach the drive chain of an abandoned (but still live) turn. */
   'task.agent_drive': {
     organizationId: string;
@@ -308,6 +315,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // sweep re-enqueues on its own cadence, so no pg-boss retry on top: a
   // second drive of the same exec would replay the ring buffer twice.
   'task.agent_drive': { retryLimit: 0, expireInSeconds: 43_200 },
+  // The start is idempotent per (automation, task) — its own live-run guard
+  // refuses a second one — so a transient failure is safe to retry.
+  'task.start_workflow': { retryLimit: 3, retryDelay: 5, expireInSeconds: 300 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
   'rag.index_file': {

@@ -70,6 +70,13 @@ const orgCleanupSchema = z.object({
   orgSlug: z.string().min(1),
 });
 
+const startWorkflowSchema = z.object({
+  organizationId: z.string().min(1),
+  taskId: z.string().min(1),
+  workflowSlug: z.string().min(1),
+  startedByUserId: z.string().min(1),
+});
+
 const driveSchema = z.object({
   organizationId: z.string().min(1),
   runId: z.string().min(1),
@@ -569,6 +576,31 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         .parse(payload);
       await runTranscribeJob(deps.sql, input);
     },
+    'task.start_workflow': async (payload) => {
+      const input = startWorkflowSchema.parse(payload);
+      const { startWorkflowForTask } =
+        await import('../domains/tasks/external-ref.ts');
+      const { loadTaskForWorkflowStart } =
+        await import('../domains/tasks/comments.ts');
+      const task = await loadTaskForWorkflowStart(
+        deps.sql,
+        input.organizationId,
+        input.taskId,
+      );
+      if (task === null) {
+        console.warn(
+          `[task-workflow] start skipped — task ${input.taskId} is gone`,
+        );
+        return;
+      }
+      await startWorkflowForTask(deps.sql, {
+        organizationId: input.organizationId,
+        task,
+        workflowSlug: input.workflowSlug,
+        startedByUserId: input.startedByUserId,
+      });
+    },
+
     'task.agent_drive': async (payload) => {
       const input = driveSchema.parse(payload);
       // The REUSED 0.4 drive window on the ctx shim: it replays the exec's
