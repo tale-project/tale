@@ -4,6 +4,7 @@ import {
   finishLoginWithConvexAuth,
   type FinishLogin,
 } from '../login/finish_login';
+import { recordSsoLoginFailure } from '../login/login_audit';
 import { mapSamlIdentity } from './attributes';
 import { samlEndpoints } from './metadata_handler';
 
@@ -31,6 +32,25 @@ export async function samlAcsHandler(
   },
 ): Promise<Response> {
   const origin = new URL(req.url).origin;
+  // Known only once the assertion's connection resolves; every refusal after
+  // that point is audited (the OIDC callback's posture — a rejected assertion
+  // is exactly the event an operator investigating a locked-out user, or a
+  // forged-assertion attempt, needs to see).
+  let resolvedOrganizationId: string | undefined;
+  let attemptedEmail: string | undefined;
+  const auditFailure = async (
+    errorMessage: string,
+    errorKey?: string,
+  ): Promise<void> => {
+    await recordSsoLoginFailure(ctx, {
+      organizationId: resolvedOrganizationId,
+      stage: 'callback',
+      errorMessage,
+      ...(errorKey !== undefined ? { errorKey } : {}),
+      ...(attemptedEmail !== undefined ? { attemptedEmail } : {}),
+      providerId: 'saml',
+    });
+  };
   try {
     const body = await req.text();
     const params = new URLSearchParams(body);
@@ -54,6 +74,7 @@ export async function samlAcsHandler(
       return loginRedirect(origin, 'SAML is not configured');
     }
 
+    resolvedOrganizationId = config.organizationId;
     const { spEntityId, acsUrl } = samlEndpoints();
     const secrets = await ctx.runAction(
       internal.enterprise_sso.config.file_actions.getConnectionSecrets,
@@ -76,10 +97,9 @@ export async function samlAcsHandler(
     );
     if (!validation.ok) {
       console.error('[SSO] SAML validation failed:', validation.error);
-      return loginRedirect(
-        origin,
-        validation.error || 'SAML validation failed',
-      );
+      const message = validation.error || 'SAML validation failed';
+      await auditFailure(message);
+      return loginRedirect(origin, message);
     }
 
     const identity = mapSamlIdentity(
@@ -88,8 +108,10 @@ export async function samlAcsHandler(
       config.attributeMappings,
     );
     if ('error' in identity) {
+      await auditFailure(identity.error);
       return loginRedirect(origin, identity.error);
     }
+    attemptedEmail = identity.email;
 
     const result = await ctx.runAction(
       internal.enterprise_sso.internal_actions.handleSsoLogin,
@@ -105,7 +127,9 @@ export async function samlAcsHandler(
       },
     );
     if (!result.success || !result.sessionToken) {
-      return loginRedirect(origin, result.error || 'SAML login failed');
+      const message = result.error || 'SAML login failed';
+      await auditFailure(message);
+      return loginRedirect(origin, message);
     }
 
     return await deps.finishLogin(ctx, {
@@ -114,6 +138,10 @@ export async function samlAcsHandler(
     });
   } catch (error) {
     console.error('[SSO] SAML ACS error:', error);
+    await auditFailure(
+      error instanceof Error ? error.message : String(error),
+      'sso.errors.serverError',
+    );
     return loginRedirect(origin, 'Internal server error');
   }
 }

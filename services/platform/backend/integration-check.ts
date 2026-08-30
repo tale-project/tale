@@ -5735,6 +5735,7 @@ async function checkSsoLogin(
   // --- fake OIDC IdP -------------------------------------------------------
   let seenChallenge = '';
   let pkceVerified = false;
+  let tokenEndpointFails = false;
   let userinfoGroups = ['Ops', 'Everyone'];
   const idp = createServer((req, res) => {
     let body = '';
@@ -5756,6 +5757,11 @@ async function checkSsoLogin(
         return;
       }
       if (url.includes('/token')) {
+        if (tokenEndpointFails) {
+          res.writeHead(500, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: 'invalid_client' }));
+          return;
+        }
         const params = new URLSearchParams(body);
         const verifier = params.get('code_verifier') ?? '';
         const challenge = createHash('sha256')
@@ -5933,6 +5939,40 @@ async function checkSsoLogin(
       WHERE "organizationId" = ${orgId} AND "name" = 'Ops'
     `;
 
+    // --- third round: the IdP breaks mid-exchange --------------------------
+    // A failed sign-in is invisible by construction — the handler catches,
+    // redirects, and answers 302 — so the audit row is the ONLY durable trace
+    // an operator has when a tenant reports "SSO stopped working".
+    tokenEndpointFails = true;
+    const broken = await loginRound();
+    tokenEndpointFails = false;
+    const loginFailures = await sql<
+      {
+        category: string;
+        status: string;
+        metadata: Record<string, unknown> | null;
+        errorMessage: string | null;
+      }[]
+    >`
+      SELECT category, status, metadata,
+             error_message AS "errorMessage"
+      FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sso_login_failed'
+    `;
+    record(
+      'a failed SSO callback leaves a durable audit row',
+      broken.callbackStatus === 302 &&
+        broken.location.includes('/log-in') &&
+        !broken.cookie.includes('better-auth.session_token=') &&
+        loginFailures.length === 1 &&
+        loginFailures[0]?.category === 'auth' &&
+        loginFailures[0].status === 'failure' &&
+        loginFailures[0].metadata?.stage === 'callback' &&
+        loginFailures[0].metadata.providerId === 'generic-oidc' &&
+        (loginFailures[0].errorMessage ?? '') !== '',
+      `callback=${broken.callbackStatus}→${broken.location.includes('/log-in') ? 'log-in' : broken.location}, cookie=${broken.cookie === '' ? 'none' : 'SET'}, rows=${loginFailures.length} ${loginFailures[0]?.category}/${loginFailures[0]?.status}/${JSON.stringify(loginFailures[0]?.metadata)}`,
+    );
+
     // --- the 0.4 proxy-path alias serves the same handlers -----------------
     const aliasRes = await fetch(
       `${base}/http_api/api/sso/authorize?organizationId=${orgId}`,
@@ -5965,6 +6005,305 @@ async function checkSsoLogin(
     );
   } finally {
     idp.close();
+  }
+}
+
+/**
+ * SAML 2.0 sign-in end to end against a fixture IdP whose signing key is
+ * MINTED PER RUN: SP metadata → SP-initiated AuthnRequest → a signed
+ * assertion POSTed to the ACS → session cookie + provisioning; then the two
+ * refusals that matter (a tampered assertion, an expired one), each landing a
+ * durable `sso_login_failed` row.
+ *
+ * The fixture signs by hand (canonical XML + `node:crypto`) rather than
+ * pulling an XML-signature library in for one probe, and the "certificate" is
+ * a bare public-key PEM: node-saml's `keyInfoToPem` accepts any RFC 7468 PEM,
+ * so the verification path is byte-identical to a real X.509 one — and a
+ * committed test cert would mean a committed private key.
+ */
+async function checkSamlLogin(
+  sql: Sql,
+  base: string,
+  orgId: string,
+  orgSlug: string,
+): Promise<void> {
+  const { createHash, createSign, generateKeyPairSync } =
+    await import('node:crypto');
+  const { serializeSsoConnectionYaml, resolveSsoDir } =
+    await import('../convex/enterprise_sso/file_utils.ts');
+
+  const ssoDir = resolveSsoDir(orgSlug);
+  const connectionPath = path.join(ssoDir, 'connection.yml');
+  // The OIDC probe left this org's connection behind; put it back afterwards
+  // so the later admin-surface probes see the world they expect.
+  const previousConnection = await readFile(connectionPath, 'utf8').catch(
+    () => null,
+  );
+  const savedSiteUrl = process.env.SITE_URL;
+  process.env.SITE_URL = base;
+
+  try {
+    const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+    });
+    await mkdir(ssoDir, { recursive: true });
+    await writeFile(
+      connectionPath,
+      serializeSsoConnectionYaml({
+        enabled: true,
+        protocol: 'saml',
+        displayName: 'Itest SAML IdP',
+        saml: {
+          idpEntityId: 'https://idp.saml.itest/entity',
+          idpSsoUrl: 'https://idp.saml.itest/sso',
+          idpCertificate: publicKey
+            .export({ type: 'spki', format: 'pem' })
+            .toString(),
+          wantAssertionsSigned: true,
+        },
+        provisioning: {
+          autoProvisionRole: true,
+          defaultRole: 'member',
+          roleMappingRules: [
+            { source: 'group', pattern: 'SamlOps', targetRole: 'developer' },
+          ],
+          autoProvisionTeam: true,
+          excludeGroups: ['Everyone'],
+        },
+      }),
+    );
+
+    // ---- the SP publishes what the IdP must target ----------------------
+    const metadataRes = await fetch(
+      `${base}/api/sso/saml/metadata?org=${orgId}`,
+    );
+    const metadataXml = await metadataRes.text();
+    const spEntityId = /entityID="([^"]+)"/.exec(metadataXml)?.[1] ?? '';
+    const acsUrl =
+      /AssertionConsumerService[^>]*Location="([^"]+)"/.exec(
+        metadataXml,
+      )?.[1] ?? '';
+
+    // ---- SP-initiated: 302 to the IdP carrying the org as RelayState ----
+    const loginRes = await fetch(`${base}/api/sso/saml/login?org=${orgId}`, {
+      redirect: 'manual',
+    });
+    const loginLocation = loginRes.headers.get('location') ?? '';
+    const loginUrl = loginLocation === '' ? null : new URL(loginLocation);
+
+    record(
+      'SAML: SP metadata + AuthnRequest redirect',
+      metadataRes.status === 200 &&
+        spEntityId === `${base}/http_api/api/sso/saml/metadata` &&
+        acsUrl === `${base}/http_api/api/sso/saml/acs` &&
+        metadataXml.includes('WantAssertionsSigned="true"') &&
+        loginRes.status === 302 &&
+        loginUrl?.origin === 'https://idp.saml.itest' &&
+        (loginUrl?.searchParams.get('SAMLRequest') ?? '') !== '' &&
+        loginUrl?.searchParams.get('RelayState') === orgId,
+      `metadata=${metadataRes.status} entityId=${spEntityId} acs=${acsUrl}, login=${loginRes.status}→${loginUrl?.origin ?? loginLocation} relay=${loginUrl?.searchParams.get('RelayState') === orgId} request=${(loginUrl?.searchParams.get('SAMLRequest') ?? '') !== ''}`,
+    );
+
+    // ---- the fixture IdP: a canonical, signed assertion -------------------
+    const iso = (ms: number): string => new Date(ms).toISOString();
+    const buildResponse = (opts: {
+      id: string;
+      email: string;
+      groups: string[];
+      notOnOrAfterMs: number;
+      tamper?: boolean;
+    }): string => {
+      const now = Date.now();
+      // Group membership is ONE multi-valued attribute (the shape Entra,
+      // Okta and ADFS all emit) — repeating the element instead would leave
+      // the parser with only the last value.
+      const attributes =
+        `<saml:Attribute Name="http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"><saml:AttributeValue>${opts.email}</saml:AttributeValue></saml:Attribute>` +
+        `<saml:Attribute Name="http://schemas.microsoft.com/ws/2008/06/identity/claims/groups">` +
+        opts.groups
+          .map((group) => `<saml:AttributeValue>${group}</saml:AttributeValue>`)
+          .join('') +
+        `</saml:Attribute>`;
+      // Written in exclusive-c14n form already (attributes in canonical
+      // order, no self-closing tags), so the digest below is over exactly
+      // what the verifier will re-canonicalize.
+      const assertion =
+        `<saml:Assertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="${opts.id}" IssueInstant="${iso(now)}" Version="2.0">` +
+        `<saml:Issuer>https://idp.saml.itest/entity</saml:Issuer>` +
+        `<saml:Subject><saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">${opts.email}</saml:NameID>` +
+        `<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">` +
+        `<saml:SubjectConfirmationData NotOnOrAfter="${iso(opts.notOnOrAfterMs)}" Recipient="${acsUrl}"></saml:SubjectConfirmationData>` +
+        `</saml:SubjectConfirmation></saml:Subject>` +
+        `<saml:Conditions NotBefore="${iso(now - 60_000)}" NotOnOrAfter="${iso(opts.notOnOrAfterMs)}">` +
+        `<saml:AudienceRestriction><saml:Audience>${spEntityId}</saml:Audience></saml:AudienceRestriction>` +
+        `</saml:Conditions>` +
+        `<saml:AuthnStatement AuthnInstant="${iso(now)}" SessionIndex="${opts.id}">` +
+        `<saml:AuthnContext><saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef></saml:AuthnContext>` +
+        `</saml:AuthnStatement>` +
+        `<saml:AttributeStatement>${attributes}</saml:AttributeStatement>` +
+        `</saml:Assertion>`;
+      const digest = createHash('sha256')
+        .update(assertion, 'utf8')
+        .digest('base64');
+      const signedInfo =
+        `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">` +
+        `<ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></ds:CanonicalizationMethod>` +
+        `<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"></ds:SignatureMethod>` +
+        `<ds:Reference URI="#${opts.id}"><ds:Transforms>` +
+        `<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform>` +
+        `<ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></ds:Transform>` +
+        `</ds:Transforms>` +
+        `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"></ds:DigestMethod>` +
+        `<ds:DigestValue>${digest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
+      const signatureValue = createSign('RSA-SHA256')
+        .update(signedInfo, 'utf8')
+        .sign(privateKey, 'base64');
+      const signature =
+        `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">${signedInfo}` +
+        `<ds:SignatureValue>${signatureValue}</ds:SignatureValue></ds:Signature>`;
+      const signed = assertion.replace(
+        '</saml:Issuer>',
+        `</saml:Issuer>${signature}`,
+      );
+      const body = opts.tamper
+        ? signed.replace(
+            `>${opts.email}</saml:NameID>`,
+            '>impostor@door.test</saml:NameID>',
+          )
+        : signed;
+      return Buffer.from(
+        `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp${opts.id}" IssueInstant="${iso(now)}" Version="2.0" Destination="${acsUrl}">` +
+          `<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"></samlp:StatusCode></samlp:Status>` +
+          body +
+          `</samlp:Response>`,
+      ).toString('base64');
+    };
+
+    const postAssertion = (samlResponse: string): Promise<Response> =>
+      fetch(`${base}/api/sso/saml/acs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        redirect: 'manual',
+        body: new URLSearchParams({
+          SAMLResponse: samlResponse,
+          RelayState: orgId,
+        }).toString(),
+      });
+
+    const okRes = await postAssertion(
+      buildResponse({
+        id: '_itestsaml1',
+        email: 'saml.user@door.test',
+        groups: ['SamlOps', 'Everyone'],
+        notOnOrAfterMs: Date.now() + 300_000,
+      }),
+    );
+    const cookie = (okRes.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const session = z
+      .looseObject({
+        user: z.looseObject({ email: z.string() }).nullable().optional(),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/auth/get-session`, {
+            headers: { cookie, origin: base },
+          })
+        ).json(),
+      );
+    const provisioned = await sql<{ role: string; teams: string | null }[]>`
+      SELECT m."role",
+             (SELECT string_agg(t."name", ',' ORDER BY t."name")
+              FROM "teamMember" tm JOIN "team" t ON t."id" = tm."teamId"
+              WHERE tm."userId" = u."id") AS teams
+      FROM "user" u
+      JOIN "member" m ON m."userId" = u."id"
+        AND m."organizationId" = ${orgId}
+      WHERE u."email" = 'saml.user@door.test'
+    `;
+    record(
+      'SAML: a signed assertion signs the user in and provisions them',
+      okRes.status === 302 &&
+        (okRes.headers.get('location') ?? '').includes('/dashboard') &&
+        cookie.includes('better-auth.session_token=') &&
+        session.success &&
+        session.data.user?.email === 'saml.user@door.test' &&
+        // The mapped group decides the role; `Everyone` is excluded from teams.
+        provisioned[0]?.role === 'developer' &&
+        provisioned[0].teams === 'SamlOps',
+      `acs=${okRes.status}→${okRes.headers.get('location') ?? ''}, cookie=${cookie.includes('better-auth.session_token=')}, session=${session.success ? (session.data.user?.email ?? 'none') : 'ERR'}, role/teams=${provisioned[0]?.role}/${provisioned[0]?.teams} (want developer/SamlOps)`,
+    );
+
+    // ---- the two refusals, each audited ---------------------------------
+    const auditsBefore = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sso_login_failed'
+        AND metadata ->> 'providerId' = 'saml'
+    `;
+    const tamperedRes = await postAssertion(
+      buildResponse({
+        id: '_itestsaml2',
+        email: 'saml.user@door.test',
+        groups: ['SamlOps'],
+        notOnOrAfterMs: Date.now() + 300_000,
+        tamper: true,
+      }),
+    );
+    const expiredRes = await postAssertion(
+      buildResponse({
+        id: '_itestsaml3',
+        email: 'saml.user@door.test',
+        groups: ['SamlOps'],
+        notOnOrAfterMs: Date.now() - 60_000,
+      }),
+    );
+    const noBodyRes = await fetch(`${base}/api/sso/saml/acs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      redirect: 'manual',
+      body: '',
+    });
+    const impostor = await sql<{ id: string }[]>`
+      SELECT "id" FROM "user" WHERE "email" = 'impostor@door.test'
+    `;
+    const failures = await sql<
+      {
+        metadata: Record<string, unknown> | null;
+        category: string;
+        status: string;
+      }[]
+    >`
+      SELECT metadata, category, status FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sso_login_failed'
+        AND metadata ->> 'providerId' = 'saml'
+      ORDER BY ts
+    `;
+    record(
+      'SAML: a tampered or expired assertion is refused and audited',
+      tamperedRes.status === 302 &&
+        (tamperedRes.headers.get('location') ?? '').includes('/log-in') &&
+        (tamperedRes.headers.get('set-cookie') ?? '') === '' &&
+        // The forged name never becomes an account.
+        impostor.length === 0 &&
+        expiredRes.status === 302 &&
+        (expiredRes.headers.get('set-cookie') ?? '') === '' &&
+        // No connection resolves without an assertion, so there is no org to
+        // hang an audit row on — the redirect is the whole answer.
+        noBodyRes.status === 302 &&
+        failures.length === (auditsBefore[0]?.count ?? 0) + 2 &&
+        failures.every(
+          (row) =>
+            row.category === 'auth' &&
+            row.status === 'failure' &&
+            row.metadata?.stage === 'callback',
+        ),
+      `tampered=${tamperedRes.status}/${(tamperedRes.headers.get('set-cookie') ?? '') === '' ? 'no-cookie' : 'COOKIE'}, impostorAccounts=${impostor.length}, expired=${expiredRes.status}, noBody=${noBodyRes.status}, auditRows=${auditsBefore[0]?.count}→${failures.length} (want +2)`,
+    );
+  } finally {
+    if (savedSiteUrl === undefined) delete process.env.SITE_URL;
+    else process.env.SITE_URL = savedSiteUrl;
+    if (previousConnection !== null) {
+      await writeFile(connectionPath, previousConnection);
+    }
   }
 }
 
@@ -22253,6 +22592,7 @@ async function main(): Promise<void> {
     await checkRestMachineJourney(sql, baseUrl, authCtx);
     await checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSsoLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
+    await checkSamlLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
     await checkScim(sql, baseUrl, authCtx);
     await checkSsoAdminSurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTrustedHeaders(sql, baseUrl);
