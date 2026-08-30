@@ -5,7 +5,6 @@ import { buildAuthorizeUrl } from '../../../convex/http_connectors/authorize_url
 import {
   oauthAppEnvPrefix,
   resolveConnectorSettingsUrl,
-  resolveOauthAppCredentials,
   resolveOauthRedirectUri,
 } from '../../../convex/http_connectors/deployment_config.ts';
 import {
@@ -17,6 +16,10 @@ import {
 import { exchangeAuthorizationCode } from '../../../convex/http_connectors/token_exchange.ts';
 import { findConnector } from '../../../lib/connectors/catalog.ts';
 import { createCredential } from '../connector_credentials/service.ts';
+import {
+  applyMicrosoftTenant,
+  resolveConnectorOauthApp,
+} from './oauth-apps.ts';
 
 /**
  * The OAuth2 authorization-code flow for connectors on Postgres — the 0.4
@@ -26,7 +29,8 @@ import { createCredential } from '../connector_credentials/service.ts';
  * modules, because they are already host-neutral and each owns one rule:
  * the opaque single-use `state` (`oauth_state.ts`), PKCE S256
  * (`enterprise_sso/pkce.ts`), the deployment-fixed `redirect_uri` and the
- * env-only app credentials (`deployment_config.ts`), the authorize URL
+ * env app-credential fallback (`deployment_config.ts` — org rows in
+ * `oauth-apps.ts` resolve first), the authorize URL
  * builder with its vendor quirks (`authorize_url.ts`), and the scrubbed
  * server-to-server exchange (`token_exchange.ts`). The catalog stays the one
  * truth for a vendor's endpoints and scopes.
@@ -234,11 +238,15 @@ export async function startOauth2(
   const endpoints = readOauth2Endpoints(args.connectorSlug);
   if (!endpoints) return { kind: 'error', error: 'unsupported_connector' };
 
-  const app = resolveOauthAppCredentials(args.connectorSlug);
+  const app = await resolveConnectorOauthApp(
+    sql,
+    args.organizationId,
+    args.connectorSlug,
+  );
   if (!app) {
     const prefix = oauthAppEnvPrefix(args.connectorSlug);
     console.error(
-      `[connectors:oauth2] no OAuth app configured for "${args.connectorSlug}": set ${prefix}CLIENT_ID and ${prefix}CLIENT_SECRET`,
+      `[connectors:oauth2] no OAuth app configured for "${args.connectorSlug}": configure one under Settings > Connectors, or set ${prefix}CLIENT_ID and ${prefix}CLIENT_SECRET on the deployment`,
     );
     return { kind: 'error', error: 'not_configured' };
   }
@@ -258,7 +266,10 @@ export async function startOauth2(
     return {
       kind: 'redirect',
       url: buildAuthorizeUrl({
-        authorizeUrl: endpoints.authorizeUrl,
+        authorizeUrl: applyMicrosoftTenant(
+          endpoints.authorizeUrl,
+          app.tenantId,
+        ),
         scopes: endpoints.scopes,
         clientId: app.clientId,
         redirectUri,
@@ -335,18 +346,22 @@ export async function completeOauth2(
   if (!endpoints) {
     return { kind: 'error', error: 'unsupported_connector', organizationId };
   }
-  const app = resolveOauthAppCredentials(connectorSlug);
+  const app = await resolveConnectorOauthApp(
+    sql,
+    organizationId,
+    connectorSlug,
+  );
   if (!app) {
     const prefix = oauthAppEnvPrefix(connectorSlug);
     console.error(
-      `[connectors:oauth2] no OAuth app configured for "${connectorSlug}": set ${prefix}CLIENT_ID and ${prefix}CLIENT_SECRET`,
+      `[connectors:oauth2] no OAuth app configured for "${connectorSlug}": configure one under Settings > Connectors, or set ${prefix}CLIENT_ID and ${prefix}CLIENT_SECRET on the deployment`,
     );
     return { kind: 'error', error: 'not_configured', organizationId };
   }
 
   const exchange = await exchangeAuthorizationCode(
     {
-      tokenUrl: endpoints.tokenUrl,
+      tokenUrl: applyMicrosoftTenant(endpoints.tokenUrl, app.tenantId),
       code: args.code,
       // Byte-identical to the authorize request's — what vendors compare.
       redirectUri,

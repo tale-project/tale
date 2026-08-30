@@ -2201,6 +2201,14 @@ documents:
     noDrivesDescription: This site doesn't have any document libraries.
     siteUrl: Site URL
     driveType: Type
+  cloudImport:
+    appNotConfigured:
+      Importing from this provider is not set up yet. Ask an organization
+      admin to configure its OAuth app under Settings > Connectors.
+    appNotConfiguredAdmin:
+      Importing from this provider needs an OAuth app first. Configure one
+      under Settings > Connectors > OAuth apps, then come back to connect.
+    openConnectorSettings: Open connector settings
   onedrive:
     importSettings: Import settings
     settingsDescription:
@@ -5309,6 +5317,12 @@ settings:
       emptyBodyOauth:
         Connect {connector} to grant Tale access, and its actions become
         available to automations and chat.
+      oauthAppMissing:
+        '{connector} has no OAuth app to connect against yet. Ask an
+        organization admin to configure one under Settings > Connectors.'
+      oauthAppMissingAdmin:
+        '{connector} has no OAuth app to connect against yet. Configure one
+        in the OAuth apps section below, then come back to connect.'
     credential:
       disabled: Disabled
       needsReauth: Reconnect needed
@@ -5321,6 +5335,42 @@ settings:
       basicTitle: Replace username & password
       note: The stored secret is never shown. Entering a new one replaces it
         everywhere this credential is used.
+    oauthApps:
+      title: OAuth apps
+      description:
+        The vendor app registrations this organization's members consent
+        against when connecting an OAuth connector. An app configured here
+        overrides the deployment-wide one from the environment.
+      onedriveTarget: OneDrive / SharePoint (Knowledge import)
+      statusOrg: Organization app
+      statusEnv: Deployment app
+      statusNone: Not configured
+      orgClientId: 'Client ID: {clientId}'
+      statusEnvDetail: Using the app registered on the deployment environment.
+      statusNoneDetail: No app anywhere — connecting is not possible yet.
+      configure: Configure
+      remove: Remove
+      removeTitle: Remove the {connector} OAuth app?
+      removeBody:
+        Members can no longer start new connections against this app. The
+        deployment's environment app, if any, takes over. Existing
+        connections keep working until their tokens expire.
+      removedToast: OAuth app removed
+      savedToast: OAuth app saved
+      dialogTitle: 'OAuth app: {connector}'
+      dialogDescription:
+        Paste the client ID and secret from the vendor app registration.
+        Tale stores the secret encrypted and never shows it again.
+      clientIdLabel: Client ID
+      clientSecretLabel: Client secret
+      clientSecretKeep: Leave blank to keep the current secret.
+      tenantIdLabel: Directory (tenant) ID
+      tenantIdHint:
+        Required for single-tenant Microsoft app registrations; leave blank
+        for multi-tenant ones.
+      redirectUrisLabel: Redirect URIs to register
+      redirectUrisHint:
+        Add each of these to the vendor app registration before connecting.
     dialog:
       apiKey: API key
       token: Token

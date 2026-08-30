@@ -40,6 +40,7 @@ type VisionModelPickResult =
   ReturnsOf<'lib/providers/vision_actions:getResolvedVisionModel'>;
 type ConnectorSummaryItem =
   ItemOf<'connector_credentials/connector_catalog:listConnectors'>;
+type ConnectorOauthAppItem = ItemOf<'connector_oauth_apps/queries:list'>;
 type HarnessHealthResult =
   ReturnsOf<'sandbox/session_queries_public:getHarnessHealth'>;
 type QuotaUsageResult =
@@ -466,6 +467,18 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.credentials),
     };
   },
+  'connector_oauth_apps/queries:list': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'connector_oauth_app', 'list'),
+      queryFn: () =>
+        backendFetch<{ apps: ConnectorOauthAppItem[] }>(
+          '/connector-oauth-apps',
+          { orgId },
+        ).then((body) => body.apps),
+    };
+  },
   'sandbox/session_queries_public:getHarnessHealth': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -868,6 +881,27 @@ function invalidateProviderCredentials(
   });
 }
 
+function invalidateConnectorOauthApps(
+  client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'connector_oauth_app'),
+  });
+  // The connector catalog rides an action query under its own key and
+  // carries the per-connector `oauthApp` state — refresh it too.
+  void client.invalidateQueries({
+    queryKey: ['connectors', 'connectors', orgId],
+  });
+  // The documents connect dialogs read the cloud-import status probe.
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'cloud_oauth_app'),
+  });
+}
+
 function invalidateConnectorCredentials(
   client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
   args: Record<string, unknown>,
@@ -1243,6 +1277,35 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         { orgId: requireOrg(args, ctx), body: {} },
       ).then(() => null),
     invalidate: invalidateConnectorCredentials,
+  },
+  'connector_oauth_apps/actions:upsert': {
+    run: (args, ctx) =>
+      backendFetch<ReturnsOf<'connector_oauth_apps/actions:upsert'>>(
+        `/connector-oauth-apps/${encodeURIComponent(stringArg(args, 'slug'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          method: 'PUT',
+          body: {
+            clientId: stringArg(args, 'clientId'),
+            ...(typeof args.clientSecret === 'string' &&
+            args.clientSecret.length > 0
+              ? { clientSecret: args.clientSecret }
+              : {}),
+            ...(typeof args.tenantId === 'string' && args.tenantId.length > 0
+              ? { tenantId: args.tenantId }
+              : {}),
+          },
+        },
+      ),
+    invalidate: invalidateConnectorOauthApps,
+  },
+  'connector_oauth_apps/mutations:remove': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/connector-oauth-apps/${encodeURIComponent(stringArg(args, 'slug'))}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null),
+    invalidate: invalidateConnectorOauthApps,
   },
   'governance/file_actions:saveGovernancePolicy': {
     run: (args, ctx) =>

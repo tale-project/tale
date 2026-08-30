@@ -2277,6 +2277,16 @@ documents:
     noDrivesDescription: Diese Website hat keine Dokumentbibliotheken.
     siteUrl: Website-URL
     driveType: Typ
+  cloudImport:
+    appNotConfigured:
+      Der Import von diesem Anbieter ist noch nicht eingerichtet. Bitte einen
+      Admin deiner Organisation, die OAuth-App unter Einstellungen >
+      Connectors zu hinterlegen.
+    appNotConfiguredAdmin:
+      Der Import von diesem Anbieter braucht zuerst eine OAuth-App. Richte
+      sie unter Einstellungen > Connectors > OAuth-Apps ein und verbinde
+      danach.
+    openConnectorSettings: Connector-Einstellungen öffnen
   onedrive:
     importSettings: Importeinstellungen
     settingsDescription:
@@ -5178,6 +5188,13 @@ settings:
       emptyBodyOauth:
         Verbinde {connector}, um Tale Zugriff zu geben — danach stehen die
         Aktionen in Automationen und im Chat bereit.
+      oauthAppMissing:
+        'Für {connector} ist noch keine OAuth-App hinterlegt. Bitte einen
+        Admin deiner Organisation, sie unter Einstellungen > Connectors
+        einzurichten.'
+      oauthAppMissingAdmin:
+        'Für {connector} ist noch keine OAuth-App hinterlegt. Richte sie unten
+        im Abschnitt OAuth-Apps ein und verbinde danach.'
     credential:
       disabled: Deaktiviert
       needsReauth: Neu verbinden nötig
@@ -5193,6 +5210,45 @@ settings:
       note:
         Das gespeicherte Secret wird nie angezeigt. Ein neuer Wert ersetzt es
         überall dort, wo dieser Eintrag verwendet wird.
+    oauthApps:
+      title: OAuth-Apps
+      description:
+        Die App-Registrierungen beim jeweiligen Anbieter, gegen die Mitglieder
+        dieser Organisation ihre Freigabe erteilen, wenn sie einen
+        OAuth-Connector verbinden. Eine hier hinterlegte App hat Vorrang vor
+        der deployment-weiten aus der Umgebung.
+      onedriveTarget: OneDrive / SharePoint (Wissens-Import)
+      statusOrg: App der Organisation
+      statusEnv: App des Deployments
+      statusNone: Nicht eingerichtet
+      orgClientId: 'Client-ID: {clientId}'
+      statusEnvDetail: Verwendet die in der Deployment-Umgebung registrierte App.
+      statusNoneDetail: Noch nirgends eine App — Verbinden ist erst danach möglich.
+      configure: Einrichten
+      remove: Entfernen
+      removeTitle: OAuth-App für {connector} entfernen?
+      removeBody:
+        Mitglieder starten über diese App keine neuen Verbindungen mehr; die
+        App aus der Deployment-Umgebung übernimmt, falls vorhanden.
+        Bestehende Verbindungen laufen weiter, bis ihre Tokens ablaufen.
+      removedToast: OAuth-App entfernt
+      savedToast: OAuth-App gespeichert
+      dialogTitle: 'OAuth-App: {connector}'
+      dialogDescription:
+        Füge Client-ID und Client-Secret aus der App-Registrierung beim
+        Anbieter ein. Tale speichert das Secret verschlüsselt und zeigt es
+        nie wieder an.
+      clientIdLabel: Client-ID
+      clientSecretLabel: Client-Secret
+      clientSecretKeep: Leer lassen, um das aktuelle Secret beizubehalten.
+      tenantIdLabel: Verzeichnis-ID (Tenant)
+      tenantIdHint:
+        Nötig für Single-Tenant-Registrierungen bei Microsoft; bei
+        Multi-Tenant-Apps leer lassen.
+      redirectUrisLabel: Zu registrierende Redirect-URIs
+      redirectUrisHint:
+        Trage jede dieser Adressen in der App-Registrierung beim Anbieter
+        ein, bevor du verbindest.
     dialog:
       apiKey: API-Schlüssel
       token: Token

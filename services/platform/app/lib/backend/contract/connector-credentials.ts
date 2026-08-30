@@ -73,7 +73,43 @@ export interface ConnectorCredentialsContract {
       }>;
       authMethods: Array<'oauth2' | 'api-key' | 'bearer' | 'basic'>;
       actionCount: number;
+      /** OAuth2 connectors only: whether an app is available to consent
+       * against, and where it comes from (org row beats deployment env). */
+      oauthApp?: { configured: boolean; source: 'org' | 'env' | null };
     }>;
+  };
+  'connector_oauth_apps/queries:list': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: Array<{
+      slug: string;
+      clientId: string;
+      maskedPreview: string | null;
+      tenantId: string | null;
+      updatedAtMs: number;
+    }>;
+  };
+  'connector_oauth_apps/actions:upsert': {
+    kind: 'action';
+    args: {
+      organizationId: string;
+      slug: string;
+      clientId: string;
+      clientSecret?: string;
+      tenantId?: string;
+    };
+    returns: {
+      slug: string;
+      clientId: string;
+      maskedPreview: string | null;
+      tenantId: string | null;
+      updatedAtMs: number;
+    };
+  };
+  'connector_oauth_apps/mutations:remove': {
+    kind: 'mutation';
+    args: { organizationId: string; slug: string };
+    returns: null;
   };
   'connector_credentials/mutations:deleteCredential': {
     kind: 'mutation';

@@ -82,7 +82,7 @@ The env-var key source needs no environment-level switch: a provider credential 
 
 ## Connector OAuth apps
 
-OAuth connectors (Gmail, Google Drive, Outlook, Teams, Slack, …) read their vendor app credentials only from the environment. For each connector slug:
+OAuth connectors (Gmail, Google Drive, Outlook, Teams, Slack, …) resolve their vendor app per organization first: an app configured under **Settings > Connectors > OAuth apps** wins for that org. The environment supplies the deployment-wide default underneath (and is the only source for Slack, whose inbound event verification runs before any org is known). For each connector slug:
 
 | Name                                   | Default | Description                                                                                             |
 | -------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
@@ -93,7 +93,7 @@ Register `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` on the vendor 
 
 ## Knowledge cloud import (Documents)
 
-Per-user OneDrive / Google Drive authorizations for **Knowledge → Documents** are separate from org connectors and from login. Register this redirect URI on the Microsoft (or Google) app:
+Per-user OneDrive / Google Drive authorizations for **Knowledge → Documents** are separate from org connectors and from login. An org-level app configured under **Settings > Connectors > OAuth apps** takes precedence here too — the **google-drive** entry is shared with the connector lane, and **OneDrive / SharePoint (Knowledge import)** has its own entry. The chains below resolve wherever the org has not configured one. Register this redirect URI on the Microsoft (or Google) app:
 
 `${SITE_URL}${BASE_PATH}/api/cloud-import/oauth2/callback`
 

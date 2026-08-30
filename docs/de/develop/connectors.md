@@ -72,15 +72,22 @@ Secrets liegen verschlüsselt in einem einzigen Umschlag und wandern nie an eine
 
 ## Eine OAuth-App registrieren
 
-Ein `oauth2`-Connector deklariert die Authorize- und Token-URLs des Anbieters sowie die Scopes, die er anfragt; das Deployment stellt die App bereit, gegen die sich diese URLs authentifizieren. Registriere beim Anbieter genau diesen Callback als erlaubte Redirect-URI, gebaut aus `SITE_URL` und einem etwaigen `BASE_PATH`-Präfix des Deployments:
+Ein `oauth2`-Connector deklariert die Authorize- und Token-URLs des Anbieters sowie die Scopes, die er anfragt; irgendwo muss die App herkommen, gegen die sich diese URLs authentifizieren. Zwei Quellen gibt es, und die spezifischere gewinnt:
+
+- **Pro Organisation** — ein Org-Admin öffnet **Einstellungen > Connectors** und trägt unter **OAuth-Apps** Client-ID und Secret aus der App-Registrierung des Anbieters ein (plus die Verzeichnis-ID bei einer Single-Tenant-Microsoft-App; Tale autorisiert dann gegen diesen Tenant statt gegen `/common`). Das Secret liegt verschlüsselt und wird nie wieder angezeigt. Auf einem Multi-Org-Deployment bringt so jede Organisation ihre eigene Anbieter-App mit.
+- **Pro Deployment** — Umgebungsvariablen, pro Connector benannt als `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` und `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, mit großgeschriebenem Slug und Bindestrichen als Unterstriche. Sie sind der deployment-weite Standard überall dort, wo eine Organisation keine eigene App hinterlegt hat.
+
+Slack ist die Ausnahme: Seine App bleibt reine Umgebungskonfiguration (`CONNECTOR_OAUTH_SLACK_*` plus Signing-Secret), weil die Signaturprüfung eingehender Events läuft, bevor irgendeine Organisation bekannt ist.
+
+Registriere beim Anbieter genau diesen Callback als erlaubte Redirect-URI, gebaut aus `SITE_URL` und einem etwaigen `BASE_PATH`-Präfix des Deployments:
 
 ```text
 ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
 ```
 
-Client-ID und Secret kommen pro Connector aus der Umgebung des Deployments, benannt als `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` und `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, mit großgeschriebenem Slug und Bindestrichen als Unterstriche. Ist `SITE_URL` nicht gesetzt, verweigert der Freigabe-Flow den Start, statt einen Ursprung aus der Anfrage zu raten.
+Ist `SITE_URL` nicht gesetzt, verweigert der Freigabe-Flow den Start, statt einen Ursprung aus der Anfrage zu raten.
 
-Persönlicher OneDrive- / Google-Drive-Import für Wissen ist **kein** Org-Connector — siehe [Dokumente](/de/platform/knowledge/documents) und den Cloud-Import-Redirect unter [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference).
+Persönlicher OneDrive- / Google-Drive-Import für Wissen ist **kein** Org-Connector — er löst seine OAuth-App aber auf demselben Weg auf, und die **google-drive**-App teilen sich beide Bahnen: ein Google-OAuth-Client mit beiden registrierten Redirect-URIs bedient den Connector und den Wissens-Import. Siehe [Dokumente](/de/platform/knowledge/documents) und den Cloud-Import-Redirect unter [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference).
 
 <Warning>
 

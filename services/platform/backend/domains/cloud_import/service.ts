@@ -1,9 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import {
-  resolveCloudImportOauthApp,
-  resolveMicrosoftCloudImportTenantId,
-} from '../../../convex/cloud_import/deployment_config.ts';
+import { resolveMicrosoftCloudImportTenantId } from '../../../convex/cloud_import/deployment_config.ts';
 import {
   refreshGoogleAccessToken,
   refreshMicrosoftAccessToken,
@@ -20,6 +17,7 @@ import {
   type EncryptedSecret,
 } from '../../../convex/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
+import { resolveCloudImportApp } from '../connectors/oauth-apps.ts';
 
 /**
  * Cloud-import grants — the 0.5 twin of `convex/cloud_import`: per
@@ -328,17 +326,23 @@ export async function resolveCloudAccessToken(
     };
   }
 
-  const app = resolveCloudImportOauthApp(args.provider);
+  const app = await resolveCloudImportApp(
+    sql,
+    args.organizationId,
+    args.provider,
+  );
   if (!app) {
     return {
       success: false,
-      error: 'Cloud import OAuth app is not configured on this deployment',
+      error: 'Cloud import OAuth app is not configured for this organization',
     };
   }
 
   let refreshed: RefreshedTokens | null = null;
   if (args.provider === 'onedrive') {
-    const tenantId = resolveMicrosoftCloudImportTenantId();
+    // An org app refreshes against ITS tenant; the deployment chain only
+    // backs the env-app fallback.
+    const tenantId = app.tenantId ?? resolveMicrosoftCloudImportTenantId();
     if (!tenantId) {
       return {
         success: false,

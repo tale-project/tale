@@ -82,7 +82,7 @@ La source de clé par variable d'environnement ne nécessite aucun commutateur d
 
 ## Applications OAuth des connecteurs
 
-Les connecteurs OAuth (Gmail, Google Drive, Outlook, Teams, Slack, …) lisent les identifiants de leur application fournisseur uniquement depuis l’environnement. Pour chaque slug de connecteur :
+Les connecteurs OAuth (Gmail, Google Drive, Outlook, Teams, Slack, …) résolvent leur application fournisseur d’abord par organisation : une app configurée sous **Paramètres > Connectors > Apps OAuth** gagne pour cette organisation. L’environnement fournit la valeur par défaut du déploiement en dessous (et reste la seule source pour Slack, dont la vérification de signature des événements s’exécute avant qu’aucune organisation ne soit connue). Pour chaque slug de connecteur :
 
 | Nom                                    | Défaut | Description                                                                                                               |
 | -------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
@@ -93,7 +93,7 @@ Enregistre `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` sur l’appl
 
 ## Import cloud Knowledge (Documents)
 
-Les autorisations OneDrive / Google Drive par utilisateur pour **Connaissances → Documents** sont distinctes des connectors d’organisation et de la connexion. Enregistre cette URI de redirection sur l’app Microsoft (ou Google) :
+Les autorisations OneDrive / Google Drive par utilisateur pour **Connaissances → Documents** sont distinctes des connectors d’organisation et de la connexion. Ici aussi, une app d’organisation configurée sous **Paramètres > Connectors > Apps OAuth** prime — l’entrée **google-drive** est partagée avec la voie connector, et **OneDrive / SharePoint (import de connaissances)** a sa propre entrée ; les chaînes ci-dessous s’appliquent partout où l’organisation n’en a pas configuré. Enregistre cette URI de redirection sur l’app Microsoft (ou Google) :
 
 `${SITE_URL}${BASE_PATH}/api/cloud-import/oauth2/callback`
 

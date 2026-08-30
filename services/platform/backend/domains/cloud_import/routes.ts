@@ -6,7 +6,6 @@ import {
   cloudImportMicrosoftTenantMissingEnvNames,
   cloudImportOauthMissingEnvNames,
   microsoftCloudImportOauthUrls,
-  resolveCloudImportOauthApp,
   resolveCloudImportOauthRedirectUri,
   resolveDocumentsUrl,
   resolveMicrosoftCloudImportTenantId,
@@ -37,6 +36,10 @@ import type { Auth } from '../../auth/auth.ts';
 import { findOrganizationMember } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession, type SessionBundle } from '../../auth/session.ts';
+import {
+  getCloudImportAppStatus,
+  resolveCloudImportApp,
+} from '../connectors/oauth-apps.ts';
 import { resolveSignInConfig } from '../sso/config.ts';
 import {
   consumePendingCloudAuthorization,
@@ -156,12 +159,17 @@ async function resolveProviderEndpoints(
   sql: Sql,
   provider: CloudImportProvider,
   organizationId: string,
+  /** The org OAuth app's own tenant — an org app must authorize against ITS
+   * tenant, never the deployment's. */
+  orgAppTenantId?: string,
 ): Promise<
   | { ok: true; endpoints: CloudImportProviderEndpoints }
   | { ok: false; reason: 'not_configured' }
 > {
   if (provider === 'onedrive') {
-    const tenantId = await resolveMicrosoftTenantForOrg(sql, organizationId);
+    const tenantId =
+      orgAppTenantId ??
+      (await resolveMicrosoftTenantForOrg(sql, organizationId));
     if (!tenantId) {
       console.error(
         `[cloud-import:oauth2] no Microsoft tenant for org ${organizationId}: set ${cloudImportMicrosoftTenantMissingEnvNames()}`,
@@ -223,10 +231,14 @@ export function createCloudImportOauthRoutes(deps: {
       );
     }
 
-    const oauthApp = resolveCloudImportOauthApp(provider);
+    const oauthApp = await resolveCloudImportApp(
+      deps.sql,
+      organizationId,
+      provider,
+    );
     if (!oauthApp) {
       console.error(
-        `[cloud-import:oauth2] no OAuth app for "${provider}": set ${cloudImportOauthMissingEnvNames(provider)}`,
+        `[cloud-import:oauth2] no OAuth app for "${provider}": configure one under Settings > Connectors, or set ${cloudImportOauthMissingEnvNames(provider)} on the deployment`,
       );
       return errorPage('not_configured', organizationId);
     }
@@ -234,6 +246,7 @@ export function createCloudImportOauthRoutes(deps: {
       deps.sql,
       provider,
       organizationId,
+      oauthApp.tenantId,
     );
     if (!resolved.ok) {
       return errorPage('not_configured', organizationId);
@@ -298,7 +311,11 @@ export function createCloudImportOauthRoutes(deps: {
     if (vendorError !== undefined || code === undefined) {
       return errorPage('vendor_declined', organizationId);
     }
-    const oauthApp = resolveCloudImportOauthApp(provider);
+    const oauthApp = await resolveCloudImportApp(
+      deps.sql,
+      organizationId,
+      provider,
+    );
     if (!oauthApp) {
       return errorPage('not_configured', organizationId);
     }
@@ -306,6 +323,7 @@ export function createCloudImportOauthRoutes(deps: {
       deps.sql,
       provider,
       organizationId,
+      oauthApp.tenantId,
     );
     if (!resolved.ok) {
       return errorPage('not_configured', organizationId);
@@ -382,6 +400,19 @@ export function createCloudImportRoutes(deps: {
     return c.json({
       authorizations: await listCloudAuthorizations(deps.sql, caller(c)),
     });
+  });
+
+  /** Whether a provider has an OAuth app this org can consent against (org
+   * row or deployment env) — the connect dialogs gate their Connect button
+   * on it instead of letting members walk into the not-configured page. */
+  app.get('/oauth-app-status', async (c) => {
+    const provider = z
+      .enum(['onedrive', 'google-drive'])
+      .safeParse(c.req.query('provider'));
+    if (!provider.success) return c.json({ error: 'unknown provider' }, 404);
+    return c.json(
+      await getCloudImportAppStatus(deps.sql, c.get('orgId'), provider.data),
+    );
   });
 
   app.post('/authorizations/:provider/revoke', async (c) => {
