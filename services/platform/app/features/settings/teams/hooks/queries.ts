@@ -2,14 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import type { ItemOf } from '@/app/lib/backend/contract';
 import { myTeamsQuery, type MyTeamRow } from '@/app/lib/backend/org';
-import { api } from '@/convex/_generated/api';
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 export type Team = MyTeamRow;
 
 export function useApproxTeamCount(organizationId: string) {
-  return useConvexQuery(api.members.queries.approxCountMyTeams, {
+  return useConvexQuery('members/queries:approxCountMyTeams', {
     organizationId,
   });
 }
@@ -30,7 +29,7 @@ export function useTeams() {
 export function useOrgTeams() {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
-    api.members.queries.listOrgTeams,
+    'members/queries:listOrgTeams',
     organizationId ? { organizationId } : 'skip',
   );
 
@@ -40,13 +39,11 @@ export function useOrgTeams() {
   };
 }
 
-export type TeamMember = ConvexItemOf<
-  typeof api.team_members.queries.listByTeam
->;
+export type TeamMember = ItemOf<'team_members/queries:listByTeam'>;
 
 export function useTeamMembers(teamId: string) {
   const { data, isLoading } = useConvexQuery(
-    api.team_members.queries.listByTeam,
+    'team_members/queries:listByTeam',
     { teamId },
   );
 

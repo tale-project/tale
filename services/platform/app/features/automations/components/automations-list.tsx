@@ -22,7 +22,6 @@ import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
@@ -38,7 +37,7 @@ interface AutomationListRow {
   name: string;
   displayName: string;
   latest: number;
-  projectIds: Id<'projects'>[];
+  projectIds: string[];
   deployedVersion?: number;
   presentation?: unknown;
 }
@@ -62,7 +61,7 @@ export function AutomationsList({
 }: {
   organizationId: string;
   /** Render one project's automations (links stay inside the project shell). */
-  projectId?: Id<'projects'>;
+  projectId?: string;
 }) {
   const { t } = useT('automations');
   const { locale } = useLocale();

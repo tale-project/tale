@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { toId } from '@/convex/lib/type_cast_helpers';
-
 const mockMutateAsync = vi.fn();
 
 const mockMutationResult = {
@@ -58,11 +56,11 @@ describe('useCloseConversation', () => {
     const { mutateAsync: closeConversation } = useCloseConversation();
 
     await closeConversation({
-      conversationId: toId<'conversations'>('conv-123'),
+      conversationId: 'conv-123',
     });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
-      conversationId: toId<'conversations'>('conv-123'),
+      conversationId: 'conv-123',
     });
   });
 
@@ -72,7 +70,7 @@ describe('useCloseConversation', () => {
 
     await expect(
       closeConversation({
-        conversationId: toId<'conversations'>('conv-789'),
+        conversationId: 'conv-789',
       }),
     ).rejects.toThrow('Close failed');
   });
@@ -94,11 +92,11 @@ describe('useReopenConversation', () => {
     const { mutateAsync: reopenConversation } = useReopenConversation();
 
     await reopenConversation({
-      conversationId: toId<'conversations'>('conv-123'),
+      conversationId: 'conv-123',
     });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
-      conversationId: toId<'conversations'>('conv-123'),
+      conversationId: 'conv-123',
     });
   });
 
@@ -108,7 +106,7 @@ describe('useReopenConversation', () => {
 
     await expect(
       reopenConversation({
-        conversationId: toId<'conversations'>('conv-789'),
+        conversationId: 'conv-789',
       }),
     ).rejects.toThrow('Reopen failed');
   });
@@ -130,11 +128,11 @@ describe('useMarkAsRead', () => {
     const { mutateAsync: markAsRead } = useMarkAsRead();
 
     await markAsRead({
-      conversationId: toId<'conversations'>('conv-123'),
+      conversationId: 'conv-123',
     });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
-      conversationId: toId<'conversations'>('conv-123'),
+      conversationId: 'conv-123',
     });
   });
 
@@ -144,7 +142,7 @@ describe('useMarkAsRead', () => {
 
     await expect(
       markAsRead({
-        conversationId: toId<'conversations'>('conv-789'),
+        conversationId: 'conv-789',
       }),
     ).rejects.toThrow('MarkAsRead failed');
   });
@@ -166,11 +164,11 @@ describe('useMarkAsSpam', () => {
     const { mutateAsync: markAsSpam } = useMarkAsSpam();
 
     await markAsSpam({
-      conversationId: toId<'conversations'>('conv-123'),
+      conversationId: 'conv-123',
     });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
-      conversationId: toId<'conversations'>('conv-123'),
+      conversationId: 'conv-123',
     });
   });
 
@@ -180,7 +178,7 @@ describe('useMarkAsSpam', () => {
 
     await expect(
       markAsSpam({
-        conversationId: toId<'conversations'>('conv-789'),
+        conversationId: 'conv-789',
       }),
     ).rejects.toThrow('Spam failed');
   });

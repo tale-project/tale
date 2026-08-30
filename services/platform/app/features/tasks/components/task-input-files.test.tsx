@@ -2,7 +2,6 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 import { render, screen } from '@/tests/utils/render';
 
@@ -67,8 +66,8 @@ function renderCard(canEdit = true, canRemove = false) {
   return render(
     <TaskInputFilesCard
       organizationId="org_1"
-      projectId={'project_1' as Id<'projects'>}
-      folderId={FOLDER as Id<'folders'>}
+      projectId={'project_1' as string}
+      folderId={FOLDER as string}
       contract={contract}
       automationName="Document verification desk"
       canEdit={canEdit}

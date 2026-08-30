@@ -12,7 +12,6 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
@@ -44,7 +43,7 @@ export function TaskDependencies({
   task: TaskRow;
   canEdit: boolean;
   projectKey?: string | null;
-  onOpenTask?: (taskId: Id<'tasks'>) => void;
+  onOpenTask?: (taskId: string) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -140,9 +139,9 @@ function DependencyGroup({
   candidates: TaskRow[];
   canEdit: boolean;
   projectKey?: string | null;
-  onOpenTask?: (taskId: Id<'tasks'>) => void;
-  onAdd: (taskId: Id<'tasks'>) => void;
-  onRemove: (taskId: Id<'tasks'>) => void;
+  onOpenTask?: (taskId: string) => void;
+  onAdd: (taskId: string) => void;
+  onRemove: (taskId: string) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');

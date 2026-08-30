@@ -13,9 +13,6 @@ import { useDeleteDocument } from '@/app/features/documents/hooks/mutations';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
@@ -66,8 +63,8 @@ export function TaskInputFilesCard({
   canRemove,
 }: {
   organizationId: string;
-  projectId: Id<'projects'>;
-  folderId: Id<'folders'>;
+  projectId: string;
+  folderId: string;
   contract: TaskSubjectContract;
   /** The owning automation as it names itself — the empty zone says whose
    *  input this is instead of naming the machinery ("the run"). */
@@ -82,18 +79,18 @@ export function TaskInputFilesCard({
 }) {
   const { t } = useT('tasks');
   const documentsQuery = useConvexQuery(
-    api.projects.queries.listProjectDocuments,
+    'projects/queries:listProjectDocuments',
     { organizationId, projectId },
   );
-  const foldersQuery = useConvexQuery(api.projects.queries.listProjectFolders, {
+  const foldersQuery = useConvexQuery('projects/queries:listProjectFolders', {
     organizationId,
     projectId,
   });
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
-    api.files.mutations.generateUploadUrl,
+    'files/mutations:generateUploadUrl',
   );
   const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
-    api.documents.mutations.createDocumentFromUpload,
+    'documents/mutations:createDocumentFromUpload',
   );
   const { mutateAsync: deleteDocument, isPending: isDeletingDocument } =
     useDeleteDocument();
@@ -103,7 +100,7 @@ export function TaskInputFilesCard({
     null,
   );
   const [confirmDelete, setConfirmDelete] = useState<{
-    id: Id<'documents'>;
+    id: string;
     title: string;
   } | null>(null);
 
@@ -156,7 +153,7 @@ export function TaskInputFilesCard({
         }
         await createDocumentFromUpload({
           organizationId,
-          fileId: toId<'_storage'>(uploadJson.storageId),
+          fileId: uploadJson.storageId,
           fileName: file.name,
           contentType: resolvedType,
           metadata: {
@@ -211,7 +208,7 @@ export function TaskInputFilesCard({
                 <FileOpenButton
                   name={name}
                   label={t('inputFiles.open', { name })}
-                  onOpen={() => setPreview({ id: String(document._id), name })}
+                  onOpen={() => setPreview({ id: document._id, name })}
                 />
                 {canRemove && (
                   <IconButton

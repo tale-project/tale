@@ -7,7 +7,6 @@ import { useCallback, useMemo, useState } from 'react';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteKnowledgeEntry } from '../hooks/mutations';
@@ -63,7 +62,7 @@ export function KnowledgeEntriesTable({
   const handleDeleteItem = useCallback(
     async (id: string) => {
       // RowSelectionState keys are the row `_id`s by construction (getRowId).
-      await deleteEntry({ entryId: toId<'knowledgeEntries'>(id) });
+      await deleteEntry({ entryId: id });
     },
     [deleteEntry],
   );

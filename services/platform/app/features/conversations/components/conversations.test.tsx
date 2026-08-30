@@ -1,6 +1,6 @@
-import type { UsePaginatedQueryResult } from 'convex/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { ConversationItem } from '@/convex/conversations/types';
 import { render, screen } from '@/tests/utils/render';
 
@@ -60,13 +60,13 @@ function makeConversation(id: string, title: string): ConversationItem {
 
 function makePaginatedResult(
   results: ConversationItem[],
-): UsePaginatedQueryResult<ConversationItem> {
+): UsePaginatedQueryReturnType<ConversationItem> {
   return {
     results,
     status: 'Exhausted',
     isLoading: false,
     loadMore: vi.fn(),
-  } as unknown as UsePaginatedQueryResult<ConversationItem>;
+  } as unknown as UsePaginatedQueryReturnType<ConversationItem>;
 }
 
 const searchBox = () => screen.getByPlaceholderText('Search conversations');

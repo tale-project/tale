@@ -97,9 +97,7 @@ export function DeferredSendTray({
 
   if (rows === undefined || rows.length === 0) return null;
 
-  const jobById = new Map(
-    (threadJobs ?? []).map((job) => [String(job.jobId), job]),
-  );
+  const jobById = new Map((threadJobs ?? []).map((job) => [job.jobId, job]));
 
   const attachmentStatus = (attachment: {
     fileId: string;

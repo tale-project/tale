@@ -1,34 +1,33 @@
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
 
 export function useSetMemberPassword() {
-  return useConvexMutation(api.users.mutations.setMemberPassword);
+  return useConvexMutation('users/mutations:setMemberPassword');
 }
 
 export function useCreateMember() {
-  return useConvexMutation(api.users.mutations.createMember);
+  return useConvexMutation('users/mutations:createMember');
 }
 
 export function useRemoveMember() {
-  return useConvexMutation(api.members.mutations.removeMember);
+  return useConvexMutation('members/mutations:removeMember');
 }
 
 export function useUpdateMemberRole() {
-  return useConvexMutation(api.members.mutations.updateMemberRole);
+  return useConvexMutation('members/mutations:updateMemberRole');
 }
 
 export function useUpdateMemberDisplayName() {
-  return useConvexMutation(api.members.mutations.updateMemberDisplayName);
+  return useConvexMutation('members/mutations:updateMemberDisplayName');
 }
 
 export function useTransferOwnership() {
-  return useConvexMutation(api.members.mutations.transferOwnership);
+  return useConvexMutation('members/mutations:transferOwnership');
 }
 
 export function useResetMemberTwoFactor() {
-  return useConvexMutation(api.two_factor.mutations.resetForUser);
+  return useConvexMutation('two_factor/mutations:resetForUser');
 }
 
 export function useRevokeMemberPasskey() {
-  return useConvexMutation(api.two_factor.mutations.revokePasskeyForMember);
+  return useConvexMutation('two_factor/mutations:revokePasskeyForMember');
 }

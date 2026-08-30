@@ -9,7 +9,6 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateProjectIdentity } from '../hooks/mutations';
@@ -17,7 +16,7 @@ import { useUpdateProjectIdentity } from '../hooks/mutations';
 interface ProjectRenameDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: Id<'projects'>;
+  projectId: string;
   currentName: string;
 }
 

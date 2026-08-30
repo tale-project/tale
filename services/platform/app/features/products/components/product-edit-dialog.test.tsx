@@ -3,7 +3,6 @@ import '@testing-library/jest-dom/vitest';
 import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 // Verifies the user-facing half of the duplicate-name fix in the edit flow: a
@@ -52,7 +51,7 @@ vi.mock('../hooks/mutations', () => ({
 import { ProductEditDialog } from './product-edit-dialog';
 
 const PRODUCT = {
-  _id: 'prod-1' as Id<'products'>,
+  _id: 'prod-1' as string,
   organizationId: 'org-1',
   name: 'Original name',
   status: 'active' as const,

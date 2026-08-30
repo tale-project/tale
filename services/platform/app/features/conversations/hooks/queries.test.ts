@@ -21,13 +21,6 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org_1',
 }));
 
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    automations: { queries: { listAutomations: 'listAutomations' } },
-    connector_credentials: { queries: { listCredentials: 'listCredentials' } },
-  },
-}));
-
 import { useEmailConnectors } from './queries';
 
 function inboxPack(slug: string, connector: string): Record<string, unknown> {
@@ -59,7 +52,7 @@ function stub(options: {
 }): void {
   convexQuery.mockImplementation((ref: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined, isLoading: false };
-    if (ref === 'listAutomations') {
+    if (ref === 'automations/queries:listAutomations') {
       const isLoading = options.loading?.automations === true;
       return { data: isLoading ? undefined : options.automations, isLoading };
     }

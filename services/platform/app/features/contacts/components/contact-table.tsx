@@ -8,7 +8,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 import type { SortingState } from '@/lib/pagination/types';
 
@@ -21,7 +21,7 @@ import { useContactsTableConfig } from '../hooks/use-contacts-table-config';
 import { ContactInfoDialog } from './contact-info-dialog';
 import { ContactsActionMenu } from './contacts-action-menu';
 
-type Contact = Doc<'contacts'>;
+type Contact = ContactDoc;
 
 export interface ContactsTableProps {
   organizationId: string;
@@ -151,7 +151,7 @@ export function ContactsTable({
   const handleDeleteItem = useCallback(
     async (id: string) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex Id type from row selection key
-      const contactId = id as Doc<'contacts'>['_id'];
+      const contactId = id;
       await deleteContact.mutateAsync({ contactId });
     },
     [deleteContact],

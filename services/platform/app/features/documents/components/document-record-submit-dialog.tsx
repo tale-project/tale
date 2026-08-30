@@ -12,7 +12,6 @@ import {
 } from '@/app/components/ui/forms/searchable-select';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useSubmitRecordForReview } from '../hooks/mutations';
@@ -75,7 +74,7 @@ function DocumentRecordSubmitDialogContent({
     if (reviewerUserId === null) return;
     try {
       await submit.mutateAsync({
-        documentId: toId<'documents'>(documentId),
+        documentId: documentId,
         reviewerUserId,
       });
       toast({

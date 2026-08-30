@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { toId } from '@/convex/lib/type_cast_helpers';
-
 const mockMutateAsync = vi.fn();
 
 const mockMutationResult = {
@@ -116,7 +114,7 @@ describe('useDeleteContact', () => {
     mockMutateAsync.mockResolvedValueOnce(null);
     const { mutateAsync: deleteContact } = useDeleteContact();
 
-    await deleteContact({ contactId: toId<'contacts'>('contact-123') });
+    await deleteContact({ contactId: 'contact-123' });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({ contactId: 'contact-123' });
   });
@@ -125,9 +123,9 @@ describe('useDeleteContact', () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
     const { mutateAsync: deleteContact } = useDeleteContact();
 
-    await expect(
-      deleteContact({ contactId: toId<'contacts'>('contact-789') }),
-    ).rejects.toThrow('Delete failed');
+    await expect(deleteContact({ contactId: 'contact-789' })).rejects.toThrow(
+      'Delete failed',
+    );
   });
 });
 
@@ -147,7 +145,7 @@ describe('useUpdateContact', () => {
     const { mutateAsync: updateContact } = useUpdateContact();
 
     await updateContact({
-      contactId: toId<'contacts'>('contact-123'),
+      contactId: 'contact-123',
       name: 'Updated Name',
       email: 'new@example.com',
     });
@@ -163,7 +161,7 @@ describe('useUpdateContact', () => {
     mockMutateAsync.mockResolvedValueOnce(undefined);
     const { mutateAsync: updateContact } = useUpdateContact();
 
-    await updateContact({ contactId: toId<'contacts'>('contact-456') });
+    await updateContact({ contactId: 'contact-456' });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({ contactId: 'contact-456' });
   });
@@ -174,7 +172,7 @@ describe('useUpdateContact', () => {
 
     await expect(
       updateContact({
-        contactId: toId<'contacts'>('contact-789'),
+        contactId: 'contact-789',
         name: 'Fail',
       }),
     ).rejects.toThrow('Update failed');

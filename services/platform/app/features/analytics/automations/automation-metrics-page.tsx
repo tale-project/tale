@@ -3,7 +3,6 @@
 import { Alert } from '@tale/ui/alert';
 import { Grid } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import type { FunctionReturnType } from 'convex/server';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback } from 'react';
 
@@ -14,7 +13,7 @@ import {
 } from '@/app/components/metrics/metrics-period';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
 import { AutomationSummaryCards } from './automation-summary-cards';
@@ -31,7 +30,7 @@ export interface AutomationMetricsPageProps {
 }
 
 type AutomationMetricsData =
-  | FunctionReturnType<typeof api.automations.queries.getOrgAutomationMetrics>
+  | ReturnsOf<'automations/queries:getOrgAutomationMetrics'>
   | undefined;
 
 interface AutomationMetricsPageViewProps {
@@ -130,7 +129,7 @@ export function AutomationMetricsPage({
   const { t } = useT('analytics');
 
   const { data, isLoading } = useConvexQuery(
-    api.automations.queries.getOrgAutomationMetrics,
+    'automations/queries:getOrgAutomationMetrics',
     { organizationId, periodDays },
     { enabled: !!organizationId },
   );

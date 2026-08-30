@@ -1,7 +1,6 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
-import type { FunctionReturnType } from 'convex/server';
 
-import type { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 
 import { BackendApiError, backendFetch, backendUrl } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
@@ -431,7 +430,7 @@ export function videoJobsForThreadQuery(
     queryKey: backendKey(organizationId, 'video_link', 'thread', threadId),
     queryFn: ({ signal }) =>
       backendFetch<{
-        jobs: FunctionReturnType<typeof api.video_links.queries.listForThread>;
+        jobs: ReturnsOf<'video_links/queries:listForThread'>;
       }>(`/video-links/thread/${encodeURIComponent(threadId)}`, {
         signal,
         orgId: organizationId,
@@ -742,7 +741,7 @@ export function synthesizeChunkRequest(request: {
   index: number;
   text: string;
   locale: string;
-}): Promise<FunctionReturnType<typeof api.tts.synthesize.synthesizeChunk>> {
+}): Promise<ReturnsOf<'tts/synthesize:synthesizeChunk'>> {
   const { organizationId, ...body } = request;
   return backendFetch('/tts/synthesize', {
     method: 'POST',
@@ -894,7 +893,7 @@ export function sharedThreadQuery(organizationId: string, token: string) {
   return queryOptions({
     queryKey: backendKey(organizationId, 'chat_thread', 'shared', token),
     queryFn: ({ signal }) =>
-      backendFetch<FunctionReturnType<typeof api.chat.threads.getSharedThread>>(
+      backendFetch<ReturnsOf<'chat/threads:getSharedThread'>>(
         `/chat/threads/shared/${encodeURIComponent(token)}`,
         {
           signal,
@@ -927,9 +926,7 @@ export function fileStatusesQuery(
     ),
     queryFn: ({ signal }) =>
       backendFetch<{
-        statuses: FunctionReturnType<
-          typeof api.file_metadata.queries.getByStorageIds
-        >;
+        statuses: ReturnsOf<'file_metadata/queries:getByStorageIds'>;
       }>('/files/statuses', {
         method: 'POST',
         body: { storageIds: [...storageIds] },
@@ -946,9 +943,7 @@ export function videoJobsUnboundQuery(organizationId: string) {
     queryKey: backendKey(organizationId, 'video_link', 'unbound'),
     queryFn: ({ signal }) =>
       backendFetch<{
-        jobs: FunctionReturnType<
-          typeof api.video_links.queries.listForUserUnboundChat
-        >;
+        jobs: ReturnsOf<'video_links/queries:listForUserUnboundChat'>;
       }>('/video-links/unbound', { signal, orgId: organizationId }).then(
         (body) => body.jobs,
       ),
@@ -991,9 +986,7 @@ export function messageVoiceUsageQuery(
   return queryOptions({
     queryKey: backendKey(organizationId, 'voice', 'usage', messageId),
     queryFn: ({ signal }) =>
-      backendFetch<FunctionReturnType<
-        typeof api.tts.queries.getMessageVoiceUsage
-      > | null>(
+      backendFetch<ReturnsOf<'tts/queries:getMessageVoiceUsage'> | null>(
         `/tts/messages/${encodeURIComponent(messageId)}/usage?threadId=${encodeURIComponent(threadId)}`,
         { signal, orgId: organizationId },
       ),

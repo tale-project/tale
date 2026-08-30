@@ -20,8 +20,6 @@ import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
@@ -73,7 +71,7 @@ export interface ComposeEmailPaneProps {
 }
 
 interface UploadedAttachment {
-  storageId: Id<'_storage'>;
+  storageId: string;
   fileName: string;
   contentType: string;
   size: number;
@@ -258,7 +256,7 @@ export function ComposeEmailPane({
         const { storageId } = await result.json();
         if (typeof storageId !== 'string') throw new Error('upload failed');
         return {
-          storageId: toId<'_storage'>(storageId),
+          storageId: storageId,
           fileName: file.name,
           contentType: file.type,
           size: file.size,
@@ -288,7 +286,7 @@ export function ComposeEmailPane({
     try {
       const result = await composeEmail({
         organizationId,
-        contactId: toId<'contacts'>(contactId),
+        contactId: contactId,
         connectorName,
         subject: subject.trim(),
         content: message,

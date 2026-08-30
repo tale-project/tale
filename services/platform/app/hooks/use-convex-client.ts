@@ -1,11 +1,13 @@
-import type {
-  FunctionArgs,
-  FunctionReference,
-  FunctionReturnType,
-} from 'convex/server';
-import { getFunctionName } from 'convex/server';
 import { useMemo } from 'react';
 
+import type {
+  ActionName,
+  ArgsOf,
+  BackendName,
+  MutationName,
+  QueryName,
+  ReturnsOf,
+} from '@/app/lib/backend/contract';
 import {
   ACTION_QUERY_ADAPTERS,
   activeOrganizationId,
@@ -13,97 +15,84 @@ import {
   runAdapted,
   WRITE_ADAPTERS,
 } from '@/app/lib/backend/convex-adapters';
-import { retiredConvexClient } from '@/app/lib/backend/retired-convex';
+import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
 
 /**
  * The imperative escape hatch for one-shot calls outside the hook wrappers
  * (`client.query(...)` behind a button, an upload's URL resolve, a poll).
- * ADAPTER-AWARE: a family migrated to the 0.5 backend serves the call over
- * HTTP exactly like the hook lanes do; everything else passes through to the
- * Convex client untouched. Without this seam, every `useConvexClient()`
- * call site silently kept the dead-WS lane after its family migrated.
+ * Same adapter registry the hooks consult, addressed by the same contract
+ * names — so a call site here and its hook twin cannot diverge.
  */
-interface AdapterAwareClient {
-  query<Query extends FunctionReference<'query'>>(
-    query: Query,
-    args: FunctionArgs<Query>,
-  ): Promise<FunctionReturnType<Query>>;
-  action<Action extends FunctionReference<'action'>>(
-    action: Action,
-    args: FunctionArgs<Action>,
-  ): Promise<FunctionReturnType<Action>>;
-  mutation<Mutation extends FunctionReference<'mutation'>>(
-    mutation: Mutation,
-    args: FunctionArgs<Mutation>,
-  ): Promise<FunctionReturnType<Mutation>>;
+interface BackendClient {
+  query<Name extends QueryName>(
+    name: Name,
+    args: ArgsOf<Name>,
+  ): Promise<ReturnsOf<Name>>;
+  action<Name extends BackendName>(
+    name: Name,
+    args: ArgsOf<Name>,
+  ): Promise<ReturnsOf<Name>>;
+  mutation<Name extends MutationName>(
+    name: Name,
+    args: ArgsOf<Name>,
+  ): Promise<ReturnsOf<Name>>;
 }
 
-/** What the wrapper still needs from a "client": three refusals. */
-interface ImperativeConvex {
-  query: (
-    query: FunctionReference<'query'>,
-    args: Record<string, unknown>,
-  ) => never;
-  action: (
-    action: FunctionReference<'action'>,
-    args: Record<string, unknown>,
-  ) => never;
-  mutation: (
-    mutation: FunctionReference<'mutation'>,
-    args: Record<string, unknown>,
-  ) => never;
+/** The org scope every adapter row resolves against (the URL's `$id`). */
+function adapterCtx(): { organizationId?: string } {
+  const orgId = activeOrganizationId();
+  return orgId !== undefined ? { organizationId: orgId } : {};
 }
 
-/** Pure client wrapper — exported for tests; the hook memoizes it. */
-export function makeAdapterAwareClient(
-  convex: ImperativeConvex,
-): AdapterAwareClient {
+/* oxlint-disable typescript/no-unsafe-type-assertion -- the adapter registry
+   is the untyped boundary: a row and the contract entry it serves are keyed by
+   the SAME name, so the row's projection IS that name's return shape. The
+   assertions below are where that fact is stated once. */
+
+/** Pure client — exported for tests; the hook memoizes it. */
+export function makeAdapterAwareClient(): BackendClient {
   return {
-    query: (query, args) => {
-      const read = READ_ADAPTERS[getFunctionName(query)];
+    query: <Name extends QueryName>(name: Name, args: ArgsOf<Name>) => {
+      const read = READ_ADAPTERS[name];
       if (read !== undefined) {
-        const orgId = activeOrganizationId();
-        const adapted = read(
-          args ?? {},
-          orgId !== undefined ? { organizationId: orgId } : {},
-        );
-        if (adapted !== null) return runAdapted(adapted.queryFn);
+        const adapted = read(args ?? {}, adapterCtx());
+        if (adapted !== null) {
+          return runAdapted(adapted.queryFn) as Promise<ReturnsOf<Name>>;
+        }
       }
-      return convex.query(query, args);
+      return Promise.reject(new ConvexRetiredError(name));
     },
-    action: (action, args) => {
-      const name = getFunctionName(action);
+    action: <Name extends BackendName>(name: Name, args: ArgsOf<Name>) => {
+      const ctx = adapterCtx();
       const write = WRITE_ADAPTERS[name];
-      const orgId = activeOrganizationId();
-      const ctx = orgId !== undefined ? { organizationId: orgId } : {};
       if (write !== undefined) {
-        return runAdapted(() => write.run(args ?? {}, ctx));
+        return runAdapted(() =>
+          write.run((args ?? {}) as Record<string, unknown>, ctx),
+        ) as Promise<ReturnsOf<Name>>;
       }
       const actionQuery = ACTION_QUERY_ADAPTERS[name];
       if (actionQuery !== undefined) {
         const adapted = actionQuery(args ?? {}, ctx);
-        if (adapted !== null) return runAdapted(adapted);
+        if (adapted !== null) {
+          return runAdapted(adapted) as Promise<ReturnsOf<Name>>;
+        }
       }
-      return convex.action(action, args);
+      return Promise.reject(new ConvexRetiredError(name));
     },
-    mutation: (mutation, args) => {
-      const write = WRITE_ADAPTERS[getFunctionName(mutation)];
+    mutation: <Name extends MutationName>(name: Name, args: ArgsOf<Name>) => {
+      const write = WRITE_ADAPTERS[name];
       if (write !== undefined) {
-        const orgId = activeOrganizationId();
         return runAdapted(() =>
-          write.run(
-            args ?? {},
-            orgId !== undefined ? { organizationId: orgId } : {},
-          ),
-        );
+          write.run((args ?? {}) as Record<string, unknown>, adapterCtx()),
+        ) as Promise<ReturnsOf<Name>>;
       }
-      return convex.mutation(mutation, args);
+      return Promise.reject(new ConvexRetiredError(name));
     },
   };
 }
 
-export function useConvexClient(): AdapterAwareClient {
-  // Nothing to reach behind the unadapted branch any more — it refuses,
-  // named (`retiredConvexClient`), instead of hanging on a dead socket.
-  return useMemo(() => makeAdapterAwareClient(retiredConvexClient), []);
+export function useConvexClient(): BackendClient {
+  return useMemo(() => makeAdapterAwareClient(), []);
 }
+
+export type { ActionName, BackendClient };

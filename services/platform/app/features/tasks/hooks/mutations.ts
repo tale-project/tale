@@ -1,52 +1,51 @@
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { convexUserMessage } from '@/lib/utils/convex-error';
 
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 
 export function useCreateTask() {
-  return useConvexMutation(api.tasks.mutations.createTask);
+  return useConvexMutation('tasks/mutations:createTask');
 }
 
 export function useUpdateTask() {
-  return useConvexMutation(api.tasks.mutations.updateTask);
+  return useConvexMutation('tasks/mutations:updateTask');
 }
 
 export function useUpdateTaskStatus() {
-  return useConvexMutation(api.tasks.mutations.updateTaskStatus);
+  return useConvexMutation('tasks/mutations:updateTaskStatus');
 }
 
 export function useAssignTask() {
-  return useConvexMutation(api.tasks.mutations.assignTask);
+  return useConvexMutation('tasks/mutations:assignTask');
 }
 
 export function useClaimTask() {
-  return useConvexMutation(api.tasks.mutations.claimTask);
+  return useConvexMutation('tasks/mutations:claimTask');
 }
 
 export function useAddTaskComment() {
-  return useConvexMutation(api.tasks.mutations.addTaskComment);
+  return useConvexMutation('tasks/mutations:addTaskComment');
 }
 
 export function useEditTaskComment() {
-  return useConvexMutation(api.tasks.mutations.editTaskDiscussionMessage);
+  return useConvexMutation('tasks/mutations:editTaskDiscussionMessage');
 }
 
 export function useDeleteTaskComment() {
-  return useConvexMutation(api.tasks.mutations.deleteTaskDiscussionMessage);
+  return useConvexMutation('tasks/mutations:deleteTaskDiscussionMessage');
 }
 
 export function useArchiveTask() {
-  return useConvexMutation(api.tasks.mutations.archiveTask);
+  return useConvexMutation('tasks/mutations:archiveTask');
 }
 
 export function useRestoreTask() {
-  return useConvexMutation(api.tasks.mutations.restoreTask);
+  return useConvexMutation('tasks/mutations:restoreTask');
 }
 
 export function useDeleteTask() {
-  return useConvexMutation(api.tasks.mutations.deleteTask);
+  return useConvexMutation('tasks/mutations:deleteTask');
 }
 
 export function useMoveTask() {
@@ -55,7 +54,7 @@ export function useMoveTask() {
   // Dropping In review → Done IS the review approve, so the org's
   // review_policy can refuse a drag — name the reason instead of the generic
   // failure copy (the card still snaps back either way).
-  return useConvexMutation(api.tasks.mutations.moveTask, {
+  return useConvexMutation('tasks/mutations:moveTask', {
     errorToast: {
       title: tToast('error.generic.title'),
       description: (error) =>
@@ -66,61 +65,61 @@ export function useMoveTask() {
 }
 
 export function useAddTaskDependency() {
-  return useConvexMutation(api.tasks.mutations.addTaskDependency);
+  return useConvexMutation('tasks/mutations:addTaskDependency');
 }
 
 export function useRemoveTaskDependency() {
-  return useConvexMutation(api.tasks.mutations.removeTaskDependency);
+  return useConvexMutation('tasks/mutations:removeTaskDependency');
 }
 
 export function useBulkUpdateTasks() {
-  return useConvexMutation(api.tasks.mutations.bulkUpdateTasks);
+  return useConvexMutation('tasks/mutations:bulkUpdateTasks');
 }
 
 export function useUpdateTaskLabel() {
-  return useConvexMutation(api.tasks.mutations.updateTaskLabel);
+  return useConvexMutation('tasks/mutations:updateTaskLabel');
 }
 
 export function useCreateTaskLabel() {
-  return useConvexMutation(api.tasks.mutations.createTaskLabel);
+  return useConvexMutation('tasks/mutations:createTaskLabel');
 }
 
 export function useEnsureDefaultTaskLabels() {
-  return useConvexMutation(api.tasks.mutations.ensureDefaultTaskLabels);
+  return useConvexMutation('tasks/mutations:ensureDefaultTaskLabels');
 }
 
 export function useDeleteTaskLabel() {
-  return useConvexMutation(api.tasks.mutations.deleteTaskLabel);
+  return useConvexMutation('tasks/mutations:deleteTaskLabel');
 }
 
 export function useSaveBoardView() {
-  return useConvexMutation(api.tasks.mutations.saveBoardView);
+  return useConvexMutation('tasks/mutations:saveBoardView');
 }
 
 export function useDeleteBoardView() {
-  return useConvexMutation(api.tasks.mutations.deleteBoardView);
+  return useConvexMutation('tasks/mutations:deleteBoardView');
 }
 
 export function useSetTaskReviewer() {
-  return useConvexMutation(api.tasks.review_mutations.setTaskReviewer);
+  return useConvexMutation('tasks/review_mutations:setTaskReviewer');
 }
 
 export function useStartTaskAgentRun() {
-  return useConvexMutation(api.tasks.mutations.startTaskAgentRun);
+  return useConvexMutation('tasks/mutations:startTaskAgentRun');
 }
 
 export function useCancelTaskAgentRun() {
-  return useConvexMutation(api.tasks.mutations.cancelTaskAgentRun);
+  return useConvexMutation('tasks/mutations:cancelTaskAgentRun');
 }
 
 export function useSubscribeToTask() {
-  return useConvexMutation(api.collab.subscriptions.subscribeToTask);
+  return useConvexMutation('collab/subscriptions:subscribeToTask');
 }
 
 export function useUnsubscribeFromTask() {
-  return useConvexMutation(api.collab.subscriptions.unsubscribeFromTask);
+  return useConvexMutation('collab/subscriptions:unsubscribeFromTask');
 }
 
 export function useSetTaskMuted() {
-  return useConvexMutation(api.collab.subscriptions.setTaskMuted);
+  return useConvexMutation('collab/subscriptions:setTaskMuted');
 }

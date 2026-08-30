@@ -1,12 +1,11 @@
-import { getFunctionName } from 'convex/server';
 import { useCallback } from 'react';
 
-import {
-  type PaginatedQueryArgs,
-  type PaginatedQueryReference,
-  type UsePaginatedQueryReturnType,
-} from '@/app/hooks/use-convex-paginated-query';
 import { useReactInfiniteQuery } from '@/app/hooks/use-react-query';
+import type {
+  ArgsOf,
+  PageItemOf,
+  PaginatedName,
+} from '@/app/lib/backend/contract';
 import {
   activeOrganizationId,
   PAGINATED_ADAPTERS,
@@ -17,20 +16,29 @@ import {
 } from '@/app/lib/backend/convex-adapters';
 import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
 
-/**
- * Drop-in replacement for `usePaginatedQuery` that caches results across
- * component unmount/remount cycles. On re-navigation the cached data is
- * returned instantly while the WebSocket subscription re-establishes,
- * eliminating the skeleton flash.
- */
-/** The adapted HTTP lane: react-query `useInfiniteQuery` over the backend's
- * keyset cursors, presented in Convex's paginated-hook shape. Always called
- * (hook-order stability) — a non-adapted query passes `opts: null` and the
- * underlying query stays disabled. */
-function useBackendPaginatedQuery<Query extends PaginatedQueryReference>(
+/** How far a listing has walked. Kept as the 0.4 vocabulary because every
+ *  consumer branches on these four words. */
+export type PaginatedStatus =
+  | 'LoadingFirstPage'
+  | 'LoadingMore'
+  | 'CanLoadMore'
+  | 'Exhausted';
+
+/** What a paginated listing hands its consumer. */
+export interface UsePaginatedQueryReturnType<Item> {
+  results: Item[];
+  status: PaginatedStatus;
+  isLoading: boolean;
+  loadMore: (numItems: number) => void;
+}
+
+/** The listing lane: react-query `useInfiniteQuery` over the backend's keyset
+ * cursors. Always called (hook-order stability) — a listing with no adapter
+ * row passes `opts: null` and the underlying query stays disabled. */
+function useBackendPaginatedQuery<Item>(
   opts: AdaptedPaginatedOptions | null,
   options: { initialNumItems: number },
-): UsePaginatedQueryReturnType<Query> {
+): UsePaginatedQueryReturnType<Item> {
   const fetchPage = opts?.fetchPage;
   const infinite = useReactInfiniteQuery<AdaptedPage>({
     queryKey: opts?.queryKey ?? ['backend', 'paginated', 'disabled'],
@@ -76,38 +84,39 @@ function useBackendPaginatedQuery<Query extends PaginatedQueryReference>(
         : hasNextPage
           ? 'CanLoadMore'
           : 'Exhausted';
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the adapted page items match the 0.4 wire this Query declares; the status union is constructed exhaustively above
   return {
-    results,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the adapter's page rows are the contract's page item by construction (both keyed by the same name)
+    results: results as Item[],
     status,
     isLoading: isLoading || isFetchingNextPage,
     loadMore,
-  } as UsePaginatedQueryReturnType<Query>;
+  };
 }
 
-export function useCachedPaginatedQuery<Query extends PaginatedQueryReference>(
-  query: Query,
-  args: PaginatedQueryArgs<Query> | 'skip',
+/**
+ * A paginated backend listing, addressed by its contract name. Results are
+ * cached across unmount/remount, so re-navigation renders instantly instead
+ * of flashing a skeleton. A name with no adapter row has no server left to
+ * page through, so it fails loudly and named.
+ */
+export function useCachedPaginatedQuery<Name extends PaginatedName>(
+  name: Name,
+  args: Omit<ArgsOf<Name>, 'paginationOpts'> | 'skip',
   options: { initialNumItems: number },
-): UsePaginatedQueryReturnType<Query> {
-  // A family migrated to the 0.5 backend serves this listing over HTTP
-  // (infinite query, keyset cursors); everything else keeps the Convex
-  // subscription. Both hooks always run — one of them disabled — so hook
-  // order never changes with the registry.
-  // Every shipped listing is served over HTTP (infinite query, keyset
-  // cursors) by its adapter row. A listing with no row has no server left to
-  // subscribe to, so it fails loudly and named rather than hanging.
-  const fnName = getFunctionName(query);
-  const adapter = PAGINATED_ADAPTERS[fnName];
+): UsePaginatedQueryReturnType<PageItemOf<Name>> {
+  const adapter = PAGINATED_ADAPTERS[name];
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adaptedOpts =
     adapter !== undefined && args !== 'skip'
       ? adapter(args, organizationId !== undefined ? { organizationId } : {})
       : null;
-  const adaptedResult = useBackendPaginatedQuery<Query>(adaptedOpts, options);
+  const adaptedResult = useBackendPaginatedQuery<PageItemOf<Name>>(
+    adaptedOpts,
+    options,
+  );
   if (adapter === undefined && args !== 'skip') {
-    throw new ConvexRetiredError(fnName);
+    throw new ConvexRetiredError(name);
   }
   return adaptedResult;
 }
@@ -120,12 +129,10 @@ export function useCachedPaginatedQuery<Query extends PaginatedQueryReference>(
  * here. Kept as a no-op (rather than deleted at 20 call sites) so a listing
  * that later grows its own prefetch has one obvious place to grow it.
  */
-export function primeCachedPaginatedQuery<
-  Query extends PaginatedQueryReference,
->(
+export function primeCachedPaginatedQuery<Name extends PaginatedName>(
   _client: unknown,
-  _query: Query,
-  _args: PaginatedQueryArgs<Query>,
+  _name: Name,
+  _args: Omit<ArgsOf<Name>, 'paginationOpts'>,
   _options: { initialNumItems: number },
 ): Promise<void> {
   return Promise.resolve();

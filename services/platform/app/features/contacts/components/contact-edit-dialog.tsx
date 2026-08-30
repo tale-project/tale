@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { toast } from '@/app/hooks/use-toast';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateContact } from '../hooks/mutations';
@@ -17,7 +17,7 @@ import {
 import { ContactFormFields } from './contact-form-fields';
 
 interface ContactEditDialogProps {
-  contact: Doc<'contacts'>;
+  contact: ContactDoc;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   asChild?: boolean;

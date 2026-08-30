@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 import { WebsitesTable } from '@/app/features/websites/components/websites-table';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
-import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
@@ -20,7 +19,7 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/websites')({
   loader: ({ context, params }) => {
     prefetchAdaptedQuery(
       context.queryClient,
-      api.websites.queries.approxCountWebsites,
+      'websites/queries:approxCountWebsites',
       {
         organizationId: params.id,
       },

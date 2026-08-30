@@ -11,7 +11,6 @@ import {
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { PROJECT_INSTRUCTIONS_MAX_CHARS } from '@/lib/shared/schemas/projects';
 import { cn } from '@/lib/utils/cn';
@@ -20,7 +19,7 @@ import { useUpdateProjectInstructions } from '../hooks/mutations';
 import { useProject } from '../hooks/queries';
 
 interface ProjectInstructionsEditorProps {
-  projectId: Id<'projects'>;
+  projectId: string;
 }
 
 interface InstructionsForm {

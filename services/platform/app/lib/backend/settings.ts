@@ -6,9 +6,7 @@
  * landed it first) — this file carries the rest of the family.
  */
 
-import type { FunctionReturnType } from 'convex/server';
-
-import type { api } from '@/convex/_generated/api';
+import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
 import { backendFetch } from './api-client';
 import type {
@@ -20,129 +18,72 @@ import type {
 } from './convex-adapters';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
-type OrgTeamItem = FunctionReturnType<
-  typeof api.members.queries.listOrgTeams
->[number];
-type TeamMemberItem = FunctionReturnType<
-  typeof api.team_members.queries.listByTeam
->[number];
-type MemberPasskeyItem = FunctionReturnType<
-  typeof api.two_factor.queries.listPasskeysForMember
->[number];
-type CreateMemberResult = FunctionReturnType<
-  typeof api.users.mutations.createMember
->;
-type MyPreferencesResult = FunctionReturnType<
-  typeof api.user_preferences.queries.getMyPreferences
->;
-type NotificationPrefsResult = FunctionReturnType<
-  typeof api.collab.preferences.getNotificationPreferences
->;
-type MyEnvItem = FunctionReturnType<
-  typeof api.sandbox.user_env.listMyEnv
->[number];
-type AppPasswordItem = FunctionReturnType<
-  typeof api.webdav.app_password_queries.listAppPasswords
->[number];
-type CreateAppPasswordResult = FunctionReturnType<
-  typeof api.webdav.app_password_mutations.createAppPassword
->;
-type ProviderCatalogItem = FunctionReturnType<
-  typeof api.lib.providers.catalog_actions.listProviderCatalogs
->[number];
-type RefreshCatalogsResult = FunctionReturnType<
-  typeof api.lib.providers.catalog_actions.refreshProviderCatalogs
->;
-type HarnessStatusItem = FunctionReturnType<
-  typeof api.lib.providers.harness_status.listHarnessStatus
->[number];
-type VisionModelPickResult = FunctionReturnType<
-  typeof api.lib.providers.vision_actions.getResolvedVisionModel
->;
-type ConnectorSummaryItem = FunctionReturnType<
-  typeof api.connector_credentials.connector_catalog.listConnectors
->[number];
-type HarnessHealthResult = FunctionReturnType<
-  typeof api.sandbox.session_queries_public.getHarnessHealth
->;
-type QuotaUsageResult = FunctionReturnType<
-  typeof api.sandbox.session_queries_public.getSandboxQuotaUsage
->;
-type SandboxListResult = FunctionReturnType<
-  typeof api.sandbox.session_queries_public.listSandboxesForOrg
->;
-type ProviderCredentialItem = FunctionReturnType<
-  typeof api.provider_credentials.queries.listCredentials
->[number];
-type ConnectorCredentialItem = FunctionReturnType<
-  typeof api.connector_credentials.queries.listCredentials
->[number];
-type CreateProviderCredentialResult = FunctionReturnType<
-  typeof api.provider_credentials.actions.createCredential
->;
-type CreateConnectorCredentialResult = FunctionReturnType<
-  typeof api.connector_credentials.actions.createCredential
->;
-type GovernancePolicyResult = FunctionReturnType<
-  typeof api.governance.queries.getPolicy
->;
-type MyFeatureFlagsResult = FunctionReturnType<
-  typeof api.governance.queries.getMyFeatureFlags
->;
-type MyBudgetStatusResult = FunctionReturnType<
-  typeof api.governance.queries.getMyBudgetStatus
->;
-type TrashListResult = FunctionReturnType<
-  typeof api.governance.queries.listTrashedRows
->;
-type LegalHoldItem = FunctionReturnType<
-  typeof api.governance.legal_hold_queries.listLegalHolds
->[number];
-type LegalMatterItem = FunctionReturnType<
-  typeof api.governance.legal_hold_queries.listLegalMatters
->[number];
-type ReleaseRequestItem = FunctionReturnType<
-  typeof api.governance.legal_hold_queries.listLegalHoldReleaseRequests
->[number];
-type HeldByTargetResult = FunctionReturnType<
-  typeof api.governance.legal_hold_queries.getLegalHoldByTarget
->;
-type ActiveHoldTargetsResult = FunctionReturnType<
-  typeof api.governance.legal_hold_queries.listActiveHoldTargetIds
->;
-type MemberPickerItem = FunctionReturnType<
-  typeof api.governance.legal_hold_queries.listOrgMembersForPicker
->[number];
-type ErasureDetailResult = FunctionReturnType<
-  typeof api.governance.erasure_queries.getErasureRequest
->;
-type DsarPolicyUiResult = FunctionReturnType<
-  typeof api.governance.dsar_policy.getDsarPolicyForUi
->;
-type PendingRetentionChangeResult = FunctionReturnType<
-  typeof api.governance.queries.getPendingRetentionChange
->;
-type RetentionBoundsCatalogResult = FunctionReturnType<
-  typeof api.governance.retention_actions.getRetentionBoundsAction
->;
-type PendingBoundsProposalResult = FunctionReturnType<
-  typeof api.governance.retention_bounds_proposal.getPendingBoundsProposal
->;
-type ChatFilterEventItem = FunctionReturnType<
-  typeof api.chat_filter_events.queries.listRecent
->[number];
-type RequestErasureResult = FunctionReturnType<
-  typeof api.governance.erasure.requestErasure
->;
-type ExtendErasureResult = FunctionReturnType<
-  typeof api.governance.erasure.extendErasureDeadline
->;
-type CloseMatterResult = FunctionReturnType<
-  typeof api.governance.legal_hold.closeLegalMatter
->;
-type ProposeDsarResult = FunctionReturnType<
-  typeof api.governance.dsar_policy.proposeDsarPolicy
->;
+type OrgTeamItem = ItemOf<'members/queries:listOrgTeams'>;
+type TeamMemberItem = ItemOf<'team_members/queries:listByTeam'>;
+type MemberPasskeyItem = ItemOf<'two_factor/queries:listPasskeysForMember'>;
+type CreateMemberResult = ReturnsOf<'users/mutations:createMember'>;
+type MyPreferencesResult =
+  ReturnsOf<'user_preferences/queries:getMyPreferences'>;
+type NotificationPrefsResult =
+  ReturnsOf<'collab/preferences:getNotificationPreferences'>;
+type MyEnvItem = ItemOf<'sandbox/user_env:listMyEnv'>;
+type AppPasswordItem = ItemOf<'webdav/app_password_queries:listAppPasswords'>;
+type CreateAppPasswordResult =
+  ReturnsOf<'webdav/app_password_mutations:createAppPassword'>;
+type ProviderCatalogItem =
+  ItemOf<'lib/providers/catalog_actions:listProviderCatalogs'>;
+type RefreshCatalogsResult =
+  ReturnsOf<'lib/providers/catalog_actions:refreshProviderCatalogs'>;
+type HarnessStatusItem =
+  ItemOf<'lib/providers/harness_status:listHarnessStatus'>;
+type VisionModelPickResult =
+  ReturnsOf<'lib/providers/vision_actions:getResolvedVisionModel'>;
+type ConnectorSummaryItem =
+  ItemOf<'connector_credentials/connector_catalog:listConnectors'>;
+type HarnessHealthResult =
+  ReturnsOf<'sandbox/session_queries_public:getHarnessHealth'>;
+type QuotaUsageResult =
+  ReturnsOf<'sandbox/session_queries_public:getSandboxQuotaUsage'>;
+type SandboxListResult =
+  ReturnsOf<'sandbox/session_queries_public:listSandboxesForOrg'>;
+type ProviderCredentialItem =
+  ItemOf<'provider_credentials/queries:listCredentials'>;
+type ConnectorCredentialItem =
+  ItemOf<'connector_credentials/queries:listCredentials'>;
+type CreateProviderCredentialResult =
+  ReturnsOf<'provider_credentials/actions:createCredential'>;
+type CreateConnectorCredentialResult =
+  ReturnsOf<'connector_credentials/actions:createCredential'>;
+type GovernancePolicyResult = ReturnsOf<'governance/queries:getPolicy'>;
+type MyFeatureFlagsResult = ReturnsOf<'governance/queries:getMyFeatureFlags'>;
+type MyBudgetStatusResult = ReturnsOf<'governance/queries:getMyBudgetStatus'>;
+type TrashListResult = ReturnsOf<'governance/queries:listTrashedRows'>;
+type LegalHoldItem = ItemOf<'governance/legal_hold_queries:listLegalHolds'>;
+type LegalMatterItem = ItemOf<'governance/legal_hold_queries:listLegalMatters'>;
+type ReleaseRequestItem =
+  ItemOf<'governance/legal_hold_queries:listLegalHoldReleaseRequests'>;
+type HeldByTargetResult =
+  ReturnsOf<'governance/legal_hold_queries:getLegalHoldByTarget'>;
+type ActiveHoldTargetsResult =
+  ReturnsOf<'governance/legal_hold_queries:listActiveHoldTargetIds'>;
+type MemberPickerItem =
+  ItemOf<'governance/legal_hold_queries:listOrgMembersForPicker'>;
+type ErasureDetailResult =
+  ReturnsOf<'governance/erasure_queries:getErasureRequest'>;
+type DsarPolicyUiResult =
+  ReturnsOf<'governance/dsar_policy:getDsarPolicyForUi'>;
+type PendingRetentionChangeResult =
+  ReturnsOf<'governance/queries:getPendingRetentionChange'>;
+type RetentionBoundsCatalogResult =
+  ReturnsOf<'governance/retention_actions:getRetentionBoundsAction'>;
+type PendingBoundsProposalResult =
+  ReturnsOf<'governance/retention_bounds_proposal:getPendingBoundsProposal'>;
+type ChatFilterEventItem = ItemOf<'chat_filter_events/queries:listRecent'>;
+type RequestErasureResult = ReturnsOf<'governance/erasure:requestErasure'>;
+type ExtendErasureResult =
+  ReturnsOf<'governance/erasure:extendErasureDeadline'>;
+type CloseMatterResult = ReturnsOf<'governance/legal_hold:closeLegalMatter'>;
+type ProposeDsarResult = ReturnsOf<'governance/dsar_policy:proposeDsarPolicy'>;
 
 /** GET /members row (the directory projection the pickers reuse). */
 interface MemberDirectoryWire {

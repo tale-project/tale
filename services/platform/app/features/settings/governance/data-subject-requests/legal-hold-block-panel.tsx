@@ -4,14 +4,13 @@ import { Row, Stack } from '@tale/ui/layout';
 import { Link } from '@tanstack/react-router';
 import { AlertOctagon } from 'lucide-react';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useGetErasureRequest } from './hooks/queries';
 
 interface LegalHoldBlockPanelProps {
   organizationId: string;
-  requestId: Id<'gdprErasureRequests'>;
+  requestId: string;
 }
 
 /**

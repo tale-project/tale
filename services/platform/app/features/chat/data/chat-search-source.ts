@@ -2,7 +2,7 @@
 
 /**
  * The chat search source: the caller's conversations, matched by title or recent
- * message text through `api.chat.search.searchChats`. Used by the chat-scoped
+ * message text through `"chat/search:searchChats"`. Used by the chat-scoped
  * palette and the global ⌘K palette.
  *
  * Shaped like the docs source (`createDocsSearchSource`): the factory is
@@ -15,7 +15,6 @@
 import type { SearchResult, SearchSource } from '@tale/ui/search';
 import { useMemo } from 'react';
 
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { useChatQuery } from './chat-backend';
@@ -30,7 +29,7 @@ export function createChatSearchSource(options: {
     const { t } = useT('chat');
     const trimmed = query.trim();
     const hits = useChatQuery(
-      api.chat.search.searchChats,
+      'chat/search:searchChats',
       active && trimmed.length > 0
         ? { organizationId, query: trimmed }
         : 'skip',

@@ -8,8 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
-import type { Doc } from '@/convex/_generated/dataModel';
-import { toId } from '@/convex/lib/type_cast_helpers';
+import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteWebsite, useSyncWebsiteStatuses } from '../hooks/mutations';
@@ -21,7 +20,7 @@ import { useWebsitesTableConfig } from '../hooks/use-websites-table-config';
 import { ViewWebsiteDialog } from './website-view-dialog';
 import { WebsitesActionMenu } from './websites-action-menu';
 
-type Website = Doc<'websites'>;
+type Website = WebsiteDoc;
 
 export interface WebsitesTableProps {
   organizationId: string;
@@ -160,7 +159,7 @@ export function WebsitesTable({
   const handleDeleteItem = useCallback(
     async (id: string) => {
       // RowSelectionState keys are the row `_id`s by construction (getRowId).
-      await deleteWebsite({ websiteId: toId<'websites'>(id) });
+      await deleteWebsite({ websiteId: id });
     },
     [deleteWebsite],
   );

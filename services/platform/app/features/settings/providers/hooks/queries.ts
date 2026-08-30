@@ -1,8 +1,6 @@
-import type { FunctionReturnType } from 'convex/server';
-
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import type { ItemOf } from '@/app/lib/backend/contract';
 
 /**
  * Read hooks for the AI-providers settings page. Credentials come from a
@@ -14,14 +12,12 @@ import { api } from '@/convex/_generated/api';
  */
 
 /** One masked credential row as listed for the settings page. */
-export type MaskedCredential = FunctionReturnType<
-  typeof api.provider_credentials.queries.listCredentials
->[number];
+export type MaskedCredential =
+  ItemOf<'provider_credentials/queries:listCredentials'>;
 
 /** One shipped provider with its current model catalog. */
-export type ProviderCatalog = FunctionReturnType<
-  typeof api.lib.providers.catalog_actions.listProviderCatalogs
->[number];
+export type ProviderCatalog =
+  ItemOf<'lib/providers/catalog_actions:listProviderCatalogs'>;
 
 /** One model entry of a provider's catalog. */
 export type CatalogModel = ProviderCatalog['models'][number];
@@ -33,7 +29,7 @@ export function providerCatalogsQueryKey(organizationId: string) {
 
 /** Every provider credential of the organization, masked. */
 export function useProviderCredentials(organizationId: string) {
-  return useConvexQuery(api.provider_credentials.queries.listCredentials, {
+  return useConvexQuery('provider_credentials/queries:listCredentials', {
     organizationId,
   });
 }
@@ -43,15 +39,14 @@ export function useProviderCredentials(organizationId: string) {
 export function useProviderCatalogs(organizationId: string) {
   return useActionQuery(
     providerCatalogsQueryKey(organizationId),
-    api.lib.providers.catalog_actions.listProviderCatalogs,
+    'lib/providers/catalog_actions:listProviderCatalogs',
     { organizationId },
   );
 }
 
 /** One shipped harness with its resolved status for this org. */
-export type HarnessStatus = FunctionReturnType<
-  typeof api.lib.providers.harness_status.listHarnessStatus
->[number];
+export type HarnessStatus =
+  ItemOf<'lib/providers/harness_status:listHarnessStatus'>;
 
 /** React-query key of the harness status listing. */
 export function harnessStatusQueryKey(organizationId: string) {
@@ -63,7 +58,7 @@ export function harnessStatusQueryKey(organizationId: string) {
 export function useHarnessStatus(organizationId: string) {
   return useActionQuery(
     harnessStatusQueryKey(organizationId),
-    api.lib.providers.harness_status.listHarnessStatus,
+    'lib/providers/harness_status:listHarnessStatus',
     { organizationId },
   );
 }
@@ -71,7 +66,7 @@ export function useHarnessStatus(organizationId: string) {
 /** Per-harness recent-failure signal — the same reactive health read the
  * chat composer's circuit-breaker hint consumes. */
 export function useHarnessHealth(organizationId: string) {
-  return useConvexQuery(api.sandbox.session_queries_public.getHarnessHealth, {
+  return useConvexQuery('sandbox/session_queries_public:getHarnessHealth', {
     organizationId,
   });
 }

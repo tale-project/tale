@@ -1,6 +1,5 @@
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { api } from '@/convex/_generated/api';
 
 /**
  * Read branding for an organization. Pass the org id to read that org's
@@ -12,7 +11,7 @@ import { api } from '@/convex/_generated/api';
 export function useBranding(organizationId?: string) {
   return useActionQuery(
     [...configKeys.type('branding'), organizationId ?? 'default'],
-    api.branding.file_actions.readBranding,
+    'branding/file_actions:readBranding',
     organizationId ? { organizationId } : {},
   );
 }

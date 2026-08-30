@@ -13,8 +13,6 @@ import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
-import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { scopeTeamIds } from '@/lib/knowledge/types';
 import type { DocumentItem, RagStatus } from '@/types/documents';
@@ -306,8 +304,8 @@ export function DocumentsTable({
       // Warm the preview's point query on hover (cheap single-doc read) so the
       // preview dialog opens without a loading flash on click.
       if (row.original.type !== 'file') return;
-      prefetchAdaptedQuery(queryClient, api.documents.queries.getDocumentById, {
-        documentId: toId<'documents'>(row.original.id),
+      prefetchAdaptedQuery(queryClient, 'documents/queries:getDocumentById', {
+        documentId: row.original.id,
         organizationId,
       });
     },

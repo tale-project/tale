@@ -53,9 +53,6 @@ import { useUploadPolicy } from '@/app/features/settings/governance/hooks/querie
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
@@ -84,7 +81,7 @@ const DUPLICATE_PATH = '!duplicate';
 
 interface ProjectFilesTabProps {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   /** Deep-link from automation navigate / shareable URL (`?folderId=`). */
   initialFolderId?: string;
   /** Deep-link to open the create-folder dialog once (`?createFolder=1`). */
@@ -130,7 +127,7 @@ function ProjectFileRecordMenu({
   const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
   const { actions, dialogs, isHeld, isRecordProtected } =
     useDocumentRecordActions({
-      documentId: String(doc._id),
+      documentId: doc._id,
       documentName: displayTitle,
       mimeType: doc.mimeType,
       extension: doc.extension,
@@ -219,7 +216,7 @@ function ProjectFileRecordMenu({
 function buildTree(folders: ProjectFolderRow[], docs: ProjectDocumentRow[]) {
   const childFolders = new Map<string, ProjectFolderRow[]>();
   for (const folder of folders) {
-    const key = folder.parentId ? String(folder.parentId) : '';
+    const key = folder.parentId ? folder.parentId : '';
     const list = childFolders.get(key) ?? [];
     list.push(folder);
     childFolders.set(key, list);
@@ -229,7 +226,7 @@ function buildTree(folders: ProjectFolderRow[], docs: ProjectDocumentRow[]) {
   }
   const filesByFolder = new Map<string, ProjectDocumentRow[]>();
   for (const doc of docs) {
-    const key = doc.folderId ? String(doc.folderId) : '';
+    const key = doc.folderId ? doc.folderId : '';
     const list = filesByFolder.get(key) ?? [];
     list.push(doc); // listProjectDocuments is already newest-first
     filesByFolder.set(key, list);
@@ -257,35 +254,33 @@ export function ProjectFilesTab({
   const { mutateAsync: createFolder } = useCreateFolder();
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
-    api.files.mutations.generateUploadUrl,
+    'files/mutations:generateUploadUrl',
   );
   const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
-    api.documents.mutations.createDocumentFromUpload,
+    'documents/mutations:createDocumentFromUpload',
   );
   const { mutateAsync: retryRagIndexing } = useConvexAction(
-    api.documents.actions.retryRagIndexing,
+    'documents/actions:retryRagIndexing',
   );
 
   const [uploading, setUploading] = useState(false);
   const [retryingIds, setRetryingIds] = useState(new Set<string>());
-  const [confirmDetachId, setConfirmDetachId] =
-    useState<Id<'documents'> | null>(null);
+  const [confirmDetachId, setConfirmDetachId] = useState<string | null>(null);
   const [confirmDeleteFolder, setConfirmDeleteFolder] =
     useState<ProjectFolderRow | null>(null);
   const [previewDoc, setPreviewDoc] = useState<{
-    id: Id<'documents'>;
+    id: string;
     title: string;
   } | null>(null);
   const [historyDoc, setHistoryDoc] = useState<{
-    id: Id<'documents'>;
+    id: string;
     title: string;
   } | null>(null);
   // Expanded folder ids; the selected folder is the upload target.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const [selectedFolderId, setSelectedFolderId] =
-    useState<Id<'folders'> | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [createFolderParent, setCreateFolderParent] = useState<{
-    parentId?: Id<'folders'>;
+    parentId?: string;
   } | null>(null);
   const treeRef = useRef<HTMLUListElement | null>(null);
   const hydratedFolderIdRef = useRef<string | null>(null);
@@ -294,16 +289,16 @@ export function ProjectFilesTab({
   const hydratedPreviewRef = useRef<string | null>(null);
 
   const historyLookup = useDocumentByExternalItemId(historyExternalItemId, {
-    projectId: String(projectId),
+    projectId: projectId,
     enabled: Boolean(historyExternalItemId),
   });
 
   const syncFolderSearch = useCallback(
-    (folderId: Id<'folders'> | null) => {
+    (folderId: string | null) => {
       void navigate({
         to: '/dashboard/$id/projects/$projectId/files',
-        params: { id: organizationId, projectId: String(projectId) },
-        search: folderId ? { folderId: String(folderId) } : {},
+        params: { id: organizationId, projectId: projectId },
+        search: folderId ? { folderId: folderId } : {},
         replace: true,
       });
     },
@@ -311,7 +306,7 @@ export function ProjectFilesTab({
   );
 
   const selectFolder = useCallback(
-    (folderId: Id<'folders'> | null) => {
+    (folderId: string | null) => {
       setSelectedFolderId(folderId);
       syncFolderSearch(folderId);
     },
@@ -323,15 +318,15 @@ export function ProjectFilesTab({
   useEffect(() => {
     if (!initialFolderId || folders.length === 0) return;
     if (hydratedFolderIdRef.current === initialFolderId) return;
-    const match = folders.find((f) => String(f._id) === initialFolderId);
+    const match = folders.find((f) => f._id === initialFolderId);
     if (!match) return;
     hydratedFolderIdRef.current = initialFolderId;
     setSelectedFolderId(match._id);
     const toExpand = new Set<string>();
     let cursor: ProjectFolderRow | undefined = match;
     while (cursor) {
-      toExpand.add(String(cursor._id));
-      const parentId: Id<'folders'> | undefined = cursor.parentId;
+      toExpand.add(cursor._id);
+      const parentId: string | undefined = cursor.parentId;
       cursor = parentId ? folders.find((f) => f._id === parentId) : undefined;
     }
     setExpanded((prev) => {
@@ -349,7 +344,7 @@ export function ProjectFilesTab({
     setCreateFolderParent({});
     void navigate({
       to: '/dashboard/$id/projects/$projectId/files',
-      params: { id: organizationId, projectId: String(projectId) },
+      params: { id: organizationId, projectId: projectId },
       search: initialFolderId ? { folderId: initialFolderId } : {},
       replace: true,
     });
@@ -386,11 +381,11 @@ export function ProjectFilesTab({
 
     void navigate({
       to: '/dashboard/$id/projects/$projectId/files',
-      params: { id: organizationId, projectId: String(projectId) },
+      params: { id: organizationId, projectId: projectId },
       search: initialFolderId
         ? { folderId: initialFolderId }
         : resolved?.folderId
-          ? { folderId: String(resolved.folderId) }
+          ? { folderId: resolved.folderId }
           : {},
       replace: true,
     });
@@ -417,9 +412,9 @@ export function ProjectFilesTab({
     if (isLoading) return;
 
     hydratedPreviewRef.current = previewDocumentId;
-    const match = documents.find((d) => String(d._id) === previewDocumentId);
+    const match = documents.find((d) => d._id === previewDocumentId);
     setPreviewDoc({
-      id: match?._id ?? toId<'documents'>(previewDocumentId),
+      id: match?._id ?? previewDocumentId,
       title: match?.title ?? match?.extension ?? t('files.unknownTitle'),
     });
     if (match?.folderId) {
@@ -427,18 +422,18 @@ export function ProjectFilesTab({
       setSelectedFolderId(matchFolderId);
       setExpanded((prev) => {
         const next = new Set(prev);
-        next.add(String(matchFolderId));
+        next.add(matchFolderId);
         return next;
       });
     }
 
     void navigate({
       to: '/dashboard/$id/projects/$projectId/files',
-      params: { id: organizationId, projectId: String(projectId) },
+      params: { id: organizationId, projectId: projectId },
       search: initialFolderId
         ? { folderId: initialFolderId }
         : match?.folderId
-          ? { folderId: String(match.folderId) }
+          ? { folderId: match.folderId }
           : {},
       replace: true,
     });
@@ -503,7 +498,7 @@ export function ProjectFilesTab({
       // failed (issue #2546). The selected folder is the upload target.
       await createDocumentFromUpload({
         organizationId,
-        fileId: toId<'_storage'>(storageId),
+        fileId: storageId,
         fileName: file.name,
         contentType: resolvedType,
         metadata: {
@@ -515,7 +510,7 @@ export function ProjectFilesTab({
         teamId: undefined,
         folderId:
           folderIdOverride !== undefined
-            ? toId<'folders'>(folderIdOverride)
+            ? folderIdOverride
             : (selectedFolderId ?? undefined),
         fileSize: file.size,
         projectId,
@@ -559,20 +554,15 @@ export function ProjectFilesTab({
         );
         let folderId: string;
         if (existing) {
-          folderId = String(existing._id);
+          folderId = existing._id;
         } else {
           try {
-            folderId = String(
-              await createFolder({
-                organizationId,
-                name: segment,
-                parentId:
-                  parentId === undefined
-                    ? undefined
-                    : toId<'folders'>(parentId),
-                projectId,
-              }),
-            );
+            folderId = await createFolder({
+              organizationId,
+              name: segment,
+              parentId: parentId === undefined ? undefined : parentId,
+              projectId,
+            });
           } catch (error) {
             // A concurrent creator (or a stale reactive folder snapshot)
             // already owns this name server-side — poison the path so the
@@ -747,7 +737,7 @@ export function ProjectFilesTab({
   );
 
   const handleDetach = useCallback(
-    async (documentId: Id<'documents'>) => {
+    async (documentId: string) => {
       try {
         await detachDocument({ documentId, destination: 'organization' });
         toast({ title: t('files.detachSuccess'), variant: 'success' });
@@ -772,7 +762,7 @@ export function ProjectFilesTab({
   );
 
   const handleDeleteFolder = useCallback(
-    async (folderId: Id<'folders'>) => {
+    async (folderId: string) => {
       try {
         await deleteFolder({ folderId });
         if (selectedFolderId === folderId) selectFolder(null);
@@ -802,9 +792,9 @@ export function ProjectFilesTab({
   );
 
   const handleRetryIndexing = useCallback(
-    async (documentId: Id<'documents'>) => {
-      if (retryingIds.has(String(documentId))) return;
-      setRetryingIds((prev) => new Set(prev).add(String(documentId)));
+    async (documentId: string) => {
+      if (retryingIds.has(documentId)) return;
+      setRetryingIds((prev) => new Set(prev).add(documentId));
       try {
         await retryRagIndexing({ documentId });
         toast({ title: t('files.indexingRetryQueued'), variant: 'success' });
@@ -817,7 +807,7 @@ export function ProjectFilesTab({
       } finally {
         setRetryingIds((prev) => {
           const next = new Set(prev);
-          next.delete(String(documentId));
+          next.delete(documentId);
           return next;
         });
       }
@@ -842,7 +832,7 @@ export function ProjectFilesTab({
   };
 
   const renderFileRow = (doc: ProjectDocumentRow, depth: number) => {
-    const isRetrying = retryingIds.has(String(doc._id));
+    const isRetrying = retryingIds.has(doc._id);
     const failed = doc.ragStatus === 'failed';
     const displayTitle = doc.title ?? doc.extension ?? t('files.unknownTitle');
     // A file can only be opened/downloaded once its bytes have been stored,
@@ -862,7 +852,7 @@ export function ProjectFilesTab({
                 onClick={openPreview}
                 title={displayTitle}
                 ariaLabel={displayTitle}
-                dataParentPath={doc.folderId ? String(doc.folderId) : null}
+                dataParentPath={doc.folderId ? doc.folderId : null}
               >
                 <FileIcon
                   className="text-muted-foreground size-3.5 shrink-0"
@@ -958,7 +948,7 @@ export function ProjectFilesTab({
   };
 
   const renderFolder = (folder: ProjectFolderRow, depth: number) => {
-    const id = String(folder._id);
+    const id = folder._id;
     const isExpanded = expanded.has(id);
     const isSelected = selectedFolderId === folder._id;
     const FolderIcon = isExpanded ? FolderOpen : Folder;
@@ -983,7 +973,7 @@ export function ProjectFilesTab({
               ariaLabel={folder.name}
               ariaExpanded={isExpanded}
               dataDirPath={id}
-              dataParentPath={folder.parentId ? String(folder.parentId) : null}
+              dataParentPath={folder.parentId ? folder.parentId : null}
             >
               {isExpanded ? (
                 <ChevronDown className="size-3.5 shrink-0" aria-hidden="true" />

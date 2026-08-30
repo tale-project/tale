@@ -9,7 +9,7 @@ import {
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
 import { useAbility } from '@/app/hooks/use-ability';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { UNKNOWN_CONTACT_EMAIL } from '../lib/contact-data';
@@ -17,7 +17,7 @@ import { ContactDeleteDialog } from './contact-delete-dialog';
 import { ContactEditDialog } from './contact-edit-dialog';
 
 interface ContactRowActionsProps {
-  contact: Doc<'contacts'>;
+  contact: ContactDoc;
 }
 
 export function ContactRowActions({ contact }: ContactRowActionsProps) {

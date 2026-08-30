@@ -6,9 +6,8 @@
  */
 
 import type { QueryClient } from '@tanstack/react-query';
-import type { FunctionReturnType } from 'convex/server';
 
-import type { api } from '@/convex/_generated/api';
+import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
 import { backendFetch, BackendApiError } from './api-client';
 import type {
@@ -22,26 +21,14 @@ import { backendEntityPrefix, backendKey } from './query-keys';
 // Wire rows + 0.4-shape projections
 // ---------------------------------------------------------------------------
 
-type TasksByProjectResult = FunctionReturnType<
-  typeof api.tasks.queries.listTasksByProject
->;
+type TasksByProjectResult = ReturnsOf<'tasks/queries:listTasksByProject'>;
 type TaskItem = TasksByProjectResult['tasks'][number];
-type GetTaskResult = FunctionReturnType<typeof api.tasks.queries.getTask>;
-type TaskLabelItem = FunctionReturnType<
-  typeof api.tasks.queries.listTaskLabels
->[number];
-type TaskDependenciesResult = FunctionReturnType<
-  typeof api.tasks.queries.listTaskDependencies
->;
-type ProjectDependencyEdge = FunctionReturnType<
-  typeof api.tasks.queries.listProjectDependencies
->[number];
-type TaskDiscussionResult = FunctionReturnType<
-  typeof api.tasks.queries.getTaskDiscussion
->;
-type TaskActivityItem = FunctionReturnType<
-  typeof api.tasks.queries.listTaskActivity
->[number];
+type GetTaskResult = ReturnsOf<'tasks/queries:getTask'>;
+type TaskLabelItem = ItemOf<'tasks/queries:listTaskLabels'>;
+type TaskDependenciesResult = ReturnsOf<'tasks/queries:listTaskDependencies'>;
+type ProjectDependencyEdge = ItemOf<'tasks/queries:listProjectDependencies'>;
+type TaskDiscussionResult = ReturnsOf<'tasks/queries:getTaskDiscussion'>;
+type TaskActivityItem = ItemOf<'tasks/queries:listTaskActivity'>;
 
 /** One task as the backend answers it (decorated: labels + folder facts). */
 interface TaskWire {

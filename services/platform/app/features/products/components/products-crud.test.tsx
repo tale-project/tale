@@ -70,7 +70,7 @@ import { ProductCreateDialog } from './product-create-dialog';
 import { ProductRowActions } from './product-row-actions';
 import { ProductStatusBadge } from './product-status-badge';
 
-// Doc<'products'> shape the row/edit dialog reads. Cast the branded Id via
+// ProductDoc shape the row/edit dialog reads. Cast the branded Id via
 // `unknown` so the fixture stays a plain object.
 const product = {
   _id: 'product-1' as never,

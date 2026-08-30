@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { api } from '@/convex/_generated/api';
-
 import { primeCachedPaginatedQuery } from './use-cached-paginated-query';
 
-const LIST = api.contacts.queries.listContactsPaginated;
+const LIST = 'contacts/queries:listContactsPaginated';
 
 /**
  * The prime helper is a no-op now: an adapted listing's pages live in

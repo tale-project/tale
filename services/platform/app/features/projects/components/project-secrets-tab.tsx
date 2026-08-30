@@ -19,7 +19,6 @@ import {
   type LoadedEnvVar,
 } from '@/app/components/env/env-var-list-editor';
 import { ContentArea } from '@/app/components/layout/content-area';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { convexErrorCode } from '@/lib/utils/convex-error';
 
@@ -34,7 +33,7 @@ export function ProjectSecretsTab({
   projectId,
 }: {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
 }) {
   const { t } = useT('projectSecrets');
   const {

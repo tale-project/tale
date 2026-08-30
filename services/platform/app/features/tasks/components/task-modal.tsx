@@ -46,9 +46,6 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { TASK_TITLE_MAX } from '@/convex/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
@@ -150,13 +147,13 @@ export function TaskModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   /** Present → edit/view an existing task; absent → create a new one. */
-  taskId?: Id<'tasks'> | null;
+  taskId?: string | null;
   /** Initial status for create mode (e.g. the "+" of a list section). */
   defaultStatus?: TaskStatus;
   /** Navigate to another task (subtasks / dependency links). */
-  onOpenTask?: (taskId: Id<'tasks'>) => void;
+  onOpenTask?: (taskId: string) => void;
   /** All-projects board: show a link to the task's project in the detail. */
   showProjectLink?: boolean;
 }) {
@@ -397,20 +394,20 @@ function TemplateCreateBody({
   onCreated,
 }: {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   template: ResolvedTaskSubjectContract;
   chips: ReactNode;
   onClose: () => void;
   /** Open the created (or re-picked) task right away — the subject panel
    * there names the next step instead of leaving the card silent in Backlog. */
-  onCreated?: (taskId: Id<'tasks'>) => void;
+  onCreated?: (taskId: string) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { t: tAutomations } = useT('automations');
   const { locale } = useLocale();
   const createFromTemplate = useConvexAction(
-    api.tasks.public_actions.createTaskFromExternalIssue,
+    'tasks/public_actions:createTaskFromExternalIssue',
   );
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -507,7 +504,7 @@ function TemplateCreateBody({
       // Land inside the task right away: its subject panel says what comes
       // next (upload input files / Start) instead of leaving the new card
       // silent in Backlog.
-      onCreated?.(toId<'tasks'>(result.taskId));
+      onCreated?.(result.taskId);
     } catch (error) {
       if (
         error instanceof ConvexError &&
@@ -700,12 +697,12 @@ function CreateTaskBody({
   onCreated,
 }: {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   defaultStatus: TaskStatus;
   onClose: () => void;
   /** Open the created (or re-picked) task — the template flow lands the user
    * inside the task modal where the subject panel names the next step. */
-  onCreated?: (taskId: Id<'tasks'>) => void;
+  onCreated?: (taskId: string) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -967,8 +964,8 @@ function EditTaskBody({
   onClose,
   showProjectLink = false,
 }: {
-  taskId: Id<'tasks'>;
-  onOpenTask?: (taskId: Id<'tasks'>) => void;
+  taskId: string;
+  onOpenTask?: (taskId: string) => void;
   onClose: () => void;
   showProjectLink?: boolean;
 }) {
@@ -1003,7 +1000,7 @@ function EditTaskBody({
   // it out from under the run. Same-args subscription as TaskSubjectPanel's,
   // so Convex serves both from one read.
   const liveRunQuery = useConvexQuery(
-    api.automations.queries.getLiveRunForTask,
+    'automations/queries:getLiveRunForTask',
     task != null && ownedBy !== null
       ? {
           organizationId: task.organizationId,
@@ -1088,7 +1085,7 @@ function EditTaskBody({
     ownedBy.contract.input?.kind === 'folder' &&
     typeof task.externalId === 'string' &&
     task.externalId !== ''
-      ? toId<'folders'>(task.externalId)
+      ? task.externalId
       : null;
 
   const assigneeName =

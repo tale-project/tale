@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import type {
-  FunctionArgs,
-  FunctionReference,
-  FunctionReturnType,
-} from 'convex/server';
-import { getFunctionName } from 'convex/server';
 
+/* oxlint-disable typescript/no-unsafe-type-assertion -- the adapter
+   registry is the untyped boundary: a row and the contract entry it
+   serves are keyed by the SAME name, so the row's projection IS that
+   name's return shape. */
+import type {
+  ArgsOf,
+  BackendName,
+  ReturnsOf,
+} from '@/app/lib/backend/contract';
 import {
   ACTION_QUERY_ADAPTERS,
   activeOrganizationId,
@@ -52,18 +55,21 @@ export function convexErrorCode(err: unknown): string | undefined {
   return typeof data.code === 'string' ? data.code : undefined;
 }
 
-export function useActionQuery<Func extends FunctionReference<'action'>>(
+/**
+ * A READ served by a write-shaped backend call (the 0.4 `action` lane), keyed
+ * by the caller's own queryKey. The adapter row supplies the fetch.
+ */
+export function useActionQuery<Name extends BackendName>(
   queryKey: readonly unknown[],
-  func: Func,
-  args: FunctionArgs<Func>,
+  name: Name,
+  args: ArgsOf<Name>,
   options?: ActionQueryOptions,
 ) {
   const { isAuthenticated } = useConvexAuth();
 
   // Every shipped walk is served over HTTP (session cookie, no WebSocket-auth
-  // gate) by its adapter row; a ref without one has no server left.
-  const fnName = getFunctionName(func);
-  const adapter = ACTION_QUERY_ADAPTERS[fnName];
+  // gate) by its adapter row; a name without one has no server left.
+  const adapter = ACTION_QUERY_ADAPTERS[name];
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adaptedFetch =
@@ -74,12 +80,12 @@ export function useActionQuery<Func extends FunctionReference<'action'>>(
           organizationId !== undefined ? { organizationId } : {},
         );
 
-  // The explicit annotation keeps TData = the action's return type on BOTH
+  // The explicit annotation keeps TData = the contract's return type on BOTH
   // lanes — an untyped ternary would collapse the inference to `unknown`.
-  const queryFn: () => Promise<FunctionReturnType<Func>> =
+  const queryFn: () => Promise<ReturnsOf<Name>> =
     adaptedFetch !== null
-      ? () => runAdapted(adaptedFetch)
-      : () => Promise.reject(new ConvexRetiredError(fnName));
+      ? () => runAdapted(adaptedFetch) as Promise<ReturnsOf<Name>>
+      : () => Promise.reject(new ConvexRetiredError(name));
 
   return useQuery({
     queryKey,

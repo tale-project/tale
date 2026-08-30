@@ -1,13 +1,12 @@
 import type { UseMutationOptions } from '@tanstack/react-query';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type {
-  FunctionArgs,
-  FunctionReference,
-  FunctionReturnType,
-} from 'convex/server';
-import { getFunctionName } from 'convex/server';
 
+/* oxlint-disable typescript/no-unsafe-type-assertion -- the adapter
+   registry is the untyped boundary: a row and the contract entry it
+   serves are keyed by the SAME name, so the row's projection IS that
+   name's return shape. */
 import { toast } from '@/app/hooks/use-toast';
+import type { ActionName, ArgsOf, ReturnsOf } from '@/app/lib/backend/contract';
 import {
   activeOrganizationId,
   runAdapted,
@@ -28,34 +27,37 @@ interface ConvexActionExtras {
     | false;
 }
 
-type ConvexActionOptions<Func extends FunctionReference<'action'>> = Omit<
-  // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- FunctionArgs<Func> is not the default (void)
-  UseMutationOptions<FunctionReturnType<Func>, Error, FunctionArgs<Func>>,
+type ConvexActionOptions<Name extends ActionName> = Omit<
+  UseMutationOptions<ReturnsOf<Name>, Error, ArgsOf<Name>>,
   'mutationFn'
 > &
   ConvexActionExtras;
 
-export function useConvexAction<Func extends FunctionReference<'action'>>(
-  func: Func,
-  options?: ConvexActionOptions<Func>,
+/**
+ * A backend action, addressed by its contract name — the same write lane as
+ * {@link useConvexMutation}, kept separate because the 0.4 split between
+ * mutations and actions is what the adapter rows are keyed on.
+ */
+export function useConvexAction<Name extends ActionName>(
+  name: Name,
+  options?: ConvexActionOptions<Name>,
 ) {
   const { errorToast, onError, onSuccess, ...actionOptions } = options ?? {};
   const { t } = useT('toast');
   const queryClient = useQueryClient();
 
-  // Every shipped action runs over HTTP through its adapter row; a ref
+  // Every shipped action runs over HTTP through its adapter row; a name
   // without one has no server left to reach (see `retired-convex.ts`).
-  const fnName = getFunctionName(func);
-  const adapter = WRITE_ADAPTERS[fnName];
+  const adapter = WRITE_ADAPTERS[name];
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adapterCtx = organizationId !== undefined ? { organizationId } : {};
-  const mutationFn = (
-    args: FunctionArgs<Func>,
-  ): Promise<FunctionReturnType<Func>> =>
+  const mutationFn = (args: ArgsOf<Name>): Promise<ReturnsOf<Name>> =>
     adapter !== undefined
-      ? runAdapted(() => adapter.run(args, adapterCtx))
-      : Promise.reject(new ConvexRetiredError(fnName));
+      ? (runAdapted(() =>
+          adapter.run(args as Record<string, unknown>, adapterCtx),
+        ) as Promise<ReturnsOf<Name>>)
+      : Promise.reject(new ConvexRetiredError(name));
 
   return useMutation({
     mutationFn,
@@ -66,7 +68,7 @@ export function useConvexAction<Func extends FunctionReference<'action'>>(
       return onSuccess?.(...successArgs);
     },
     onError: (error, ...rest) => {
-      console.error(`Action failed: ${getFunctionName(func)}`, error);
+      console.error(`Action failed: ${name}`, error);
       if (errorToast !== false) {
         toast({
           title: errorToast?.title ?? t('error.generic.title'),

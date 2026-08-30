@@ -1,12 +1,7 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
-import type {
-  FunctionArgs,
-  FunctionReference,
-  FunctionReturnType,
-} from 'convex/server';
-import { getFunctionName } from 'convex/server';
 
+import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
 import {
   activeOrganizationId,
   READ_ADAPTERS,
@@ -17,46 +12,43 @@ import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
 
 import { useConvexAuth } from './use-convex-auth';
 
-type EmptyObject = Record<string, never>;
-
 interface ConvexQueryOptions {
   staleTime?: number;
   gcTime?: number;
   enabled?: boolean;
   /**
-   * Gate the query on the Convex WebSocket auth being established. Defaults to
-   * `true`, so authenticated queries never fire during the cold-load auth gap
-   * (which otherwise surfaces as `UnauthorizedError`). Set `false` only for
-   * queries that MUST run before auth — the `getCurrentUser` auth probe and
-   * genuinely public/marketing reads. Pre-auth queries left gated would hang.
-   * Reads served by the 0.5 backend adapter ignore this gate entirely — they
-   * authenticate with the session cookie, not the WebSocket.
+   * Gate the query on the session probe having resolved. Defaults to `true`,
+   * so authenticated queries never fire during the cold-load auth gap. Set
+   * `false` only for queries that MUST run before auth — the `getCurrentUser`
+   * probe and genuinely public reads. Adapted reads ignore this gate entirely:
+   * they authenticate with the session cookie, which the browser sends anyway.
    */
   requireAuth?: boolean;
 }
 
-type QueryArgs<Func extends FunctionReference<'query'>> =
-  keyof FunctionArgs<Func> extends never
-    ? [args?: EmptyObject | 'skip', options?: ConvexQueryOptions]
-    : EmptyObject extends FunctionArgs<Func>
-      ? [args?: FunctionArgs<Func> | 'skip', options?: ConvexQueryOptions]
-      : [args: FunctionArgs<Func> | 'skip', options?: ConvexQueryOptions];
+/** `'skip'` stands in for the args when a read is not ready to run yet — the
+ *  hook stays mounted (stable hook order) and answers nothing. */
+type QueryArgs<Name extends QueryName> =
+  Record<string, never> extends ArgsOf<Name>
+    ? [args?: ArgsOf<Name> | 'skip', options?: ConvexQueryOptions]
+    : [args: ArgsOf<Name> | 'skip', options?: ConvexQueryOptions];
 
-export function useConvexQuery<Func extends FunctionReference<'query'>>(
-  func: Func,
-  ...[args, options]: QueryArgs<Func>
-  // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- FunctionReturnType<Func> is not the default (unknown)
-): UseQueryResult<FunctionReturnType<Func>> {
+/**
+ * A backend read, addressed by its contract name. The adapter row keyed by
+ * that same name serves it over HTTP; a name with no row has no server left
+ * to reach and rejects loudly (see `retired-convex.ts`).
+ */
+export function useConvexQuery<Name extends QueryName>(
+  name: Name,
+  ...[args, options]: QueryArgs<Name>
+): UseQueryResult<ReturnsOf<Name>> {
   const { isAuthenticated } = useConvexAuth();
   // `requireAuth` is our own gate, not a react-query option — peel it off.
   const { requireAuth = true, ...queryOpts } = options ?? {};
 
-  // A family migrated to the 0.5 backend serves this read over HTTP — same
-  // hook order either way (one useQuery), so the seam is invisible upstream.
   // No memo needed: react-query hashes queryKey by VALUE, so rebuilding the
   // options object every render never refetches.
-  const fnName = getFunctionName(func);
-  const adapter = READ_ADAPTERS[fnName];
+  const adapter = READ_ADAPTERS[name];
   const skipped = args === 'skip';
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
@@ -85,7 +77,7 @@ export function useConvexQuery<Func extends FunctionReference<'query'>>(
           }
         : // Skipped (or unservable without an org): a stable inert entry.
           {
-            queryKey: ['backend-skip', fnName],
+            queryKey: ['backend-skip', name],
             queryFn: () => Promise.resolve(null),
           };
     enabled = adapted !== null && (base.enabled ?? true);
@@ -94,8 +86,8 @@ export function useConvexQuery<Func extends FunctionReference<'query'>>(
     // (named, so the missing registry key is obvious) instead of hanging on
     // a socket that will never open.
     base = {
-      queryKey: ['convex-retired', fnName],
-      queryFn: () => Promise.reject(new ConvexRetiredError(fnName)),
+      queryKey: ['convex-retired', name],
+      queryFn: () => Promise.reject(new ConvexRetiredError(name)),
       retry: false,
       ...queryOpts,
     };
@@ -106,7 +98,8 @@ export function useConvexQuery<Func extends FunctionReference<'query'>>(
       (requireAuth ? isAuthenticated : true) &&
       (base.enabled ?? true);
   }
-  return useQuery({ ...base, enabled });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the adapter row and this name's contract entry are keyed alike, so the row's projection IS this return shape
+  return useQuery({ ...base, enabled }) as UseQueryResult<ReturnsOf<Name>>;
 }
 
 export type { ConvexQueryOptions };

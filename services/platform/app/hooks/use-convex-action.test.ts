@@ -1,15 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import type { ActionName } from '@/app/lib/backend/contract';
+
 const { mockToast } = vi.hoisted(() => ({ mockToast: vi.fn() }));
 
 // The hook now resolves toast copy through i18n and reports the failing
 // function by name, so those collaborators are mocked exactly like the sibling
 // `use-convex-mutation` suite. Without them the hook cannot be called outside a
 // React render: `useTranslation` reaches for a context that does not exist.
-vi.mock('convex/server', () => ({
-  getFunctionName: vi.fn(() => 'items:process'),
-}));
-
 vi.mock('@/app/hooks/use-toast', () => ({
   toast: mockToast,
 }));
@@ -47,14 +45,16 @@ vi.mock('@/app/lib/backend/convex-adapters', () => ({
 }));
 
 import { useMutation } from '@tanstack/react-query';
-import { getFunctionName } from 'convex/server';
 
 import { useConvexAction } from './use-convex-action';
 
+/** A row that exists only in this file's stub registry — the
+ *  wrapper's own wiring is what these tests cover, not a shipped
+ *  contract entry. */
+const FAKE_ROW = 'fake:write' as ActionName;
+
 const mockUseMutation = vi.mocked(useMutation);
-const mockActionRef = {
-  _name: 'items:process',
-} as unknown as Parameters<typeof useConvexAction>[0];
+const actionName = 'items:process' as Parameters<typeof useConvexAction>[0];
 
 describe('useConvexAction', () => {
   beforeEach(() => {
@@ -62,19 +62,19 @@ describe('useConvexAction', () => {
   });
 
   it('returns a mutation result object with mutateAsync', () => {
-    const result = useConvexAction(mockActionRef);
+    const result = useConvexAction(actionName);
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('mutate');
     expect(result).toHaveProperty('isPending');
   });
 
   it('returns isPending as false initially', () => {
-    const result = useConvexAction(mockActionRef);
+    const result = useConvexAction(actionName);
     expect(result.isPending).toBe(false);
   });
 
   it('refuses, NAMED, when the action has no backend row', async () => {
-    useConvexAction(mockActionRef);
+    useConvexAction(actionName);
     const options = mockUseMutation.mock.calls[0]?.[0];
     expect(options).toHaveProperty('mutationFn');
     await expect(
@@ -88,7 +88,7 @@ describe('useConvexAction', () => {
     const userOnSuccess = vi.fn();
     const userOnError = vi.fn();
     const userOnSettled = vi.fn();
-    useConvexAction(mockActionRef, {
+    useConvexAction(actionName, {
       onSuccess: userOnSuccess,
       onError: userOnError,
       onSettled: userOnSettled,
@@ -126,7 +126,7 @@ describe('useConvexAction error toast', () => {
   }
 
   it('shows a destructive toast by default so a failed action never lingers silently', () => {
-    useConvexAction(mockActionRef);
+    useConvexAction(actionName);
     getRegisteredOnError()(new Error('boom'));
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({ variant: 'destructive' }),
@@ -134,13 +134,13 @@ describe('useConvexAction error toast', () => {
   });
 
   it('suppresses the toast when errorToast is false', () => {
-    useConvexAction(mockActionRef, { errorToast: false });
+    useConvexAction(actionName, { errorToast: false });
     getRegisteredOnError()(new Error('boom'));
     expect(mockToast).not.toHaveBeenCalled();
   });
 
   it('uses the provided title and description', () => {
-    useConvexAction(mockActionRef, {
+    useConvexAction(actionName, {
       errorToast: { title: 'Run failed', description: (e) => e.message },
     });
     getRegisteredOnError()(new Error('disk full'));
@@ -157,14 +157,13 @@ describe('useConvexAction error toast', () => {
 describe('useConvexAction adapter lane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getFunctionName).mockReturnValue('fake:write');
     mockOrgId.current = 'org-1';
   });
 
   it('routes mutationFn through the adapter with the route org', async () => {
     mockWriteRun.mockResolvedValue({ created: true });
 
-    useConvexAction(mockActionRef);
+    useConvexAction(FAKE_ROW);
 
     const options = mockUseMutation.mock.calls[0]?.[0];
     await expect(

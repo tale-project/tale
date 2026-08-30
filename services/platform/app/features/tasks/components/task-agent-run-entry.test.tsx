@@ -2,8 +2,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { TaskAgentRunEntry } from './task-agent-run-entry';
 
 vi.mock('@/lib/i18n/client', () => ({
@@ -74,11 +72,11 @@ vi.mock('@/app/hooks/use-convex-query', () => ({
   },
 }));
 
-const taskId = 'task-1' as Id<'tasks'>;
+const taskId = 'task-1' as string;
 
 function settledRun() {
   return {
-    _id: 'run-1' as Id<'projectAgentRuns'>,
+    _id: 'run-1' as string,
     status: 'settled',
     agentId: 'agent-1',
     agentName: 'Alice',

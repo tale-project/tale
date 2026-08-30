@@ -1,19 +1,23 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type {
+  MutationName,
+  QueryName,
+  ActionName,
+} from '@/app/lib/backend/contract';
+
 import { makeAdapterAwareClient } from './use-convex-client';
 
-const { convexQuery, convexAction, convexMutation, readRow, writeRun } =
-  vi.hoisted(() => ({
-    convexQuery: vi.fn(() => Promise.resolve('convex-query')),
-    convexAction: vi.fn(() => Promise.resolve('convex-action')),
-    convexMutation: vi.fn(() => Promise.resolve('convex-mutation')),
-    readRow: vi.fn(() => ({
-      queryKey: ['backend', 'org-1', 'thing'],
-      queryFn: () => Promise.resolve('adapted-read'),
-    })),
-    writeRun: vi.fn(() => Promise.resolve('adapted-write')),
-  }));
+const { readRow, writeRun } = vi.hoisted(() => ({
+  readRow: vi.fn(() => ({
+    queryKey: ['backend', 'org-1', 'thing'],
+    queryFn: () => Promise.resolve('adapted-read'),
+  })),
+  writeRun: vi.fn(() => Promise.resolve('adapted-write')),
+}));
 
+// A registry with exactly two rows: these tests cover the imperative seam's
+// own wiring, not any shipped row.
 vi.mock('@/app/lib/backend/convex-adapters', () => ({
   READ_ADAPTERS: { 'things/queries:getThing': readRow },
   WRITE_ADAPTERS: { 'things/mutations:setThing': { run: writeRun } },
@@ -22,48 +26,35 @@ vi.mock('@/app/lib/backend/convex-adapters', () => ({
   runAdapted: async (fn: () => Promise<unknown>) => fn(),
 }));
 
-vi.mock('convex/server', () => ({
-  getFunctionName: (fn: { name: string }) => fn.name,
-}));
+const client = makeAdapterAwareClient();
 
-vi.mock('convex/react', () => ({ useConvex: () => ({}) }));
-
-const client = makeAdapterAwareClient({
-  query: convexQuery,
-  action: convexAction,
-  mutation: convexMutation,
-} as never);
-
-// Plain refs mirroring convex/server's getFunctionName contract.
-const ref = (name: string): never => ({ name }) as never;
+/** The stub rows above are not shipped contract entries — that is the point. */
+const READ = 'things/queries:getThing' as QueryName;
+const WRITE = 'things/mutations:setThing' as MutationName;
+const MISSING_READ = 'things/queries:other' as QueryName;
+const MISSING_ACTION = 'things/actions:doThing' as ActionName;
 
 describe('makeAdapterAwareClient (imperative seam)', () => {
-  it('serves a migrated query over the adapted HTTP lane', async () => {
-    await expect(
-      client.query(ref('things/queries:getThing'), {} as never),
-    ).resolves.toBe('adapted-read');
-    expect(convexQuery).not.toHaveBeenCalled();
+  it('serves a read over its adapter row', async () => {
+    await expect(client.query(READ, {} as never)).resolves.toBe('adapted-read');
   });
 
-  it('passes an unmigrated query through to the Convex client', async () => {
-    await expect(
-      client.query(ref('things/queries:other'), {} as never),
-    ).resolves.toBe('convex-query');
-    expect(convexQuery).toHaveBeenCalledOnce();
-  });
-
-  it('serves a migrated mutation through the write adapter', async () => {
-    await expect(
-      client.mutation(ref('things/mutations:setThing'), {} as never),
-    ).resolves.toBe('adapted-write');
-    expect(convexMutation).not.toHaveBeenCalled();
+  it('serves a write over its adapter row, org-scoped', async () => {
+    await expect(client.mutation(WRITE, {} as never)).resolves.toBe(
+      'adapted-write',
+    );
     expect(writeRun).toHaveBeenCalledWith({}, { organizationId: 'org-1' });
   });
 
-  it('passes an unmigrated action through to the Convex client', async () => {
-    await expect(
-      client.action(ref('things/actions:doThing'), {} as never),
-    ).resolves.toBe('convex-action');
-    expect(convexAction).toHaveBeenCalledOnce();
+  it('refuses a read with no row, NAMING it', async () => {
+    await expect(client.query(MISSING_READ, {} as never)).rejects.toThrow(
+      'things/queries:other',
+    );
+  });
+
+  it('refuses an action with no row, NAMING it', async () => {
+    await expect(client.action(MISSING_ACTION, {} as never)).rejects.toThrow(
+      'things/actions:doThing',
+    );
   });
 });

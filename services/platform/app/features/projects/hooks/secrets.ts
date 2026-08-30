@@ -1,11 +1,9 @@
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 
-export function useProjectSecrets(projectId: Id<'projects'> | undefined) {
+export function useProjectSecrets(projectId: string | undefined) {
   const { data, isLoading, error, isError } = useConvexQuery(
-    api.projects.secrets.queries.listProjectSecrets,
+    'projects/secrets/queries:listProjectSecrets',
     projectId ? { projectId } : 'skip',
   );
   // Surface the query error instead of swallowing it — a non-admin who reaches
@@ -16,13 +14,13 @@ export function useProjectSecrets(projectId: Id<'projects'> | undefined) {
 }
 
 export function useSetProjectSecret() {
-  return useConvexAction(api.projects.secrets.actions.setProjectSecret);
+  return useConvexAction('projects/secrets/actions:setProjectSecret');
 }
 
 export function useSetProjectSecretPair() {
-  return useConvexAction(api.projects.secrets.actions.setProjectSecretPair);
+  return useConvexAction('projects/secrets/actions:setProjectSecretPair');
 }
 
 export function useDeleteProjectSecret() {
-  return useConvexAction(api.projects.secrets.actions.deleteProjectSecret);
+  return useConvexAction('projects/secrets/actions:deleteProjectSecret');
 }

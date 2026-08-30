@@ -8,9 +8,8 @@
  */
 
 import type { QueryClient } from '@tanstack/react-query';
-import type { FunctionReturnType } from 'convex/server';
 
-import type { api } from '@/convex/_generated/api';
+import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
 import { BackendApiError, backendFetch } from './api-client';
 import {
@@ -32,33 +31,16 @@ import { backendEntityPrefix, backendKey } from './query-keys';
 // Wire rows (what the pg backend answers) + 0.4-shape projections
 // ---------------------------------------------------------------------------
 
-export type ProjectListItem = FunctionReturnType<
-  typeof api.projects.queries.listProjects
->[number];
-type ProjectOverviewResult = FunctionReturnType<
-  typeof api.projects.queries.listProjectsOverview
->;
-type ProjectAgentItem = FunctionReturnType<
-  typeof api.projects.queries.listProjectAgents
->[number];
-type SidebarProjectItem = FunctionReturnType<
-  typeof api.projects.queries.listSidebarProjects
->[number];
-type ProjectSearchItem = FunctionReturnType<
-  typeof api.projects.queries.searchProjects
->[number];
-type PaletteSearchItem = FunctionReturnType<
-  typeof api.projects.search.searchProjects
->[number];
-type ProjectThreadsResult = FunctionReturnType<
-  typeof api.chat.project_threads.listThreadsForProject
->;
-type AgentSecretItem = FunctionReturnType<
-  typeof api.agent_secrets.queries.listAgentSecrets
->[number];
-type ProjectSecretItem = FunctionReturnType<
-  typeof api.projects.secrets.queries.listProjectSecrets
->[number];
+export type ProjectListItem = ItemOf<'projects/queries:listProjects'>;
+type ProjectOverviewResult = ReturnsOf<'projects/queries:listProjectsOverview'>;
+type ProjectAgentItem = ItemOf<'projects/queries:listProjectAgents'>;
+type SidebarProjectItem = ItemOf<'projects/queries:listSidebarProjects'>;
+type ProjectSearchItem = ItemOf<'projects/queries:searchProjects'>;
+type PaletteSearchItem = ItemOf<'projects/search:searchProjects'>;
+type ProjectThreadsResult =
+  ReturnsOf<'chat/project_threads:listThreadsForProject'>;
+type AgentSecretItem = ItemOf<'agent_secrets/queries:listAgentSecrets'>;
+type ProjectSecretItem = ItemOf<'projects/secrets/queries:listProjectSecrets'>;
 
 /** One project as the backend returns it (access flags server-stamped). */
 interface ProjectWire {

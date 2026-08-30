@@ -8,9 +8,8 @@
  */
 
 import type { QueryClient } from '@tanstack/react-query';
-import type { FunctionReturnType } from 'convex/server';
 
-import type { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 
 import { backendFetch } from './api-client';
 import type {
@@ -21,12 +20,8 @@ import type {
 } from './convex-adapters';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
-type CollabUnreadResult = FunctionReturnType<
-  typeof api.collab.notifications.myUnreadCount
->;
-type OrgUnreadResult = FunctionReturnType<
-  typeof api.notifications.queries.unreadCount
->;
+type CollabUnreadResult = ReturnsOf<'collab/notifications:myUnreadCount'>;
+type OrgUnreadResult = ReturnsOf<'notifications/queries:unreadCount'>;
 
 function orgOf(
   args: Record<string, unknown>,

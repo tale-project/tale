@@ -7,8 +7,6 @@ import { useEffect, useRef } from 'react';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 interface BreadcrumbNavigationProps {
@@ -27,10 +25,8 @@ export function BreadcrumbNavigation({
 
   const organizationId = useOrganizationId();
   const { data: breadcrumb, isLoading } = useConvexQuery(
-    api.folders.queries.getFolderBreadcrumb,
-    organizationId
-      ? { folderId: toId<'folders'>(folderId), organizationId }
-      : 'skip',
+    'folders/queries:getFolderBreadcrumb',
+    organizationId ? { folderId: folderId, organizationId } : 'skip',
   );
 
   useEffect(() => {

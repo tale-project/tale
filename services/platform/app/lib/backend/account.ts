@@ -1,12 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { queryOptions } from '@tanstack/react-query';
-import type { FunctionReturnType } from 'convex/server';
 
 import type {
   PasswordExpiryStatus,
   TwoFactorStatus,
 } from '@/app/context/account-bootstrap-context';
-import type { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 
 import { BackendApiError, backendFetch } from './api-client';
 import type {
@@ -124,9 +123,8 @@ export const accountActionQueryAdapters: Record<string, ActionQueryAdapter> = {
   },
 };
 
-type NotificationStateResult = FunctionReturnType<
-  typeof api.users.notification_state.getUserNotificationState
->;
+type NotificationStateResult =
+  ReturnsOf<'users/notification_state:getUserNotificationState'>;
 
 /**
  * The changelog dot/toast state — per-USER and org-free, so it keys under

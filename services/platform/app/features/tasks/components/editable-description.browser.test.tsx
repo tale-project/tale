@@ -2,7 +2,6 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 /**
@@ -48,9 +47,9 @@ const WRITTEN = 'See [the runbook](/runbook) before starting.';
 function renderField() {
   return render(
     <EditableDescription
-      taskId={'task_1' as Id<'tasks'>}
+      taskId={'task_1' as string}
       organizationId="org_1"
-      projectId={'project_1' as Id<'projects'>}
+      projectId={'project_1' as string}
       value={WRITTEN}
       label="Description"
       placeholder="Add a description…"

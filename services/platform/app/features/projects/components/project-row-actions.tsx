@@ -10,7 +10,6 @@ import {
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useDuplicateProject } from '../hooks/mutations';
@@ -20,7 +19,7 @@ import { ProjectRenameDialog } from './project-rename-dialog';
 
 interface ProjectRowActionsProps {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   projectName: string;
   isArchived: boolean;
   canEdit: boolean;
@@ -51,7 +50,7 @@ export function ProjectRowActions({
         to: '/dashboard/$id/projects/$projectId/tasks',
         params: {
           id: organizationId,
-          projectId: String(newProjectId),
+          projectId: newProjectId,
         },
       });
     } catch (error) {

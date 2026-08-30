@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
 
 /**
  * Every write busts the library's react-query family, so a fresh skill
@@ -26,7 +25,7 @@ function useInvalidateSkills() {
  */
 export function useSaveSkill() {
   const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.actions.saveSkill, {
+  return useConvexAction('skills/actions:saveSkill', {
     onSuccess: () => invalidate(),
   });
 }
@@ -34,25 +33,25 @@ export function useSaveSkill() {
 /** Delete a skill's whole bundle (owner or org-admin; enforced server-side). */
 export function useDeleteSkill() {
   const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.actions.deleteSkill, {
+  return useConvexAction('skills/actions:deleteSkill', {
     onSuccess: () => invalidate(),
   });
 }
 
 /** Presign hop of the bundle upload (any member). */
 export function useGenerateSkillUploadUrl() {
-  return useConvexMutation(api.skills.upload_mutations.generateSkillUploadUrl);
+  return useConvexMutation('skills/upload_mutations:generateSkillUploadUrl');
 }
 
 /** Bind the POSTed blob to (org, user) — load-bearing before the action. */
 export function useRecordSkillUploadIntent() {
-  return useConvexMutation(api.skills.upload_mutations.recordSkillUploadIntent);
+  return useConvexMutation('skills/upload_mutations:recordSkillUploadIntent');
 }
 
 /** The final upload hop: parse, gate the replace, swap onto disk. */
 export function useUploadSkillBundle() {
   const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.actions.uploadSkillBundle, {
+  return useConvexAction('skills/actions:uploadSkillBundle', {
     onSuccess: () => invalidate(),
   });
 }

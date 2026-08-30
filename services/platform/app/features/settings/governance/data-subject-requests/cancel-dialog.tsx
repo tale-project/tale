@@ -9,7 +9,6 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { useToast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { mapDsrError } from './data-subject-requests-errors';
@@ -18,7 +17,7 @@ import { useCancelErasureRequest } from './hooks/mutations';
 interface CancelDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  requestId: Id<'gdprErasureRequests'>;
+  requestId: string;
 }
 
 interface FormValues {

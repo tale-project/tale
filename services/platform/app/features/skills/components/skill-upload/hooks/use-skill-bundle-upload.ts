@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { fetchJson } from '@/lib/utils/type-utils';
 
 import {
@@ -70,7 +69,7 @@ export function useSkillBundleUpload(organizationId: string) {
       const { storageId: rawStorageId } = await fetchJson<{
         storageId: string;
       }>(resp);
-      const storageId = toId<'_storage'>(rawStorageId);
+      const storageId = rawStorageId;
 
       // Bind the blob to (org, user) BEFORE invoking the action.
       await recordIntent({ organizationId, storageId });

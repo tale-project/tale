@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import type { MutationName } from '@/app/lib/backend/contract';
+
 const { mockToast } = vi.hoisted(() => ({ mockToast: vi.fn() }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -15,10 +17,6 @@ vi.mock('@tanstack/react-query', () => ({
     _options: options,
   })),
   useQueryClient: vi.fn(() => mockQueryClient),
-}));
-
-vi.mock('convex/server', () => ({
-  getFunctionName: vi.fn(() => 'items:update'),
 }));
 
 // The registry is swapped for one controllable row so these tests cover the
@@ -47,14 +45,16 @@ vi.mock('@/lib/i18n/client', () => ({
 }));
 
 import { useMutation } from '@tanstack/react-query';
-import { getFunctionName } from 'convex/server';
 
 import { useConvexMutation } from './use-convex-mutation';
 
+/** A row that exists only in this file's stub registry — the
+ *  wrapper's own wiring is what these tests cover, not a shipped
+ *  contract entry. */
+const FAKE_ROW = 'fake:write' as MutationName;
+
 const mockUseMutation = vi.mocked(useMutation);
-const mockMutationRef = {
-  _name: 'items:update',
-} as unknown as Parameters<typeof useConvexMutation>[0];
+const mutationName = 'items:update' as Parameters<typeof useConvexMutation>[0];
 
 // Pull the `onError` handler the hook registered with useMutation.
 function getRegisteredOnError() {
@@ -70,14 +70,14 @@ describe('useConvexMutation', () => {
   });
 
   it('returns a mutation result object', () => {
-    const result = useConvexMutation(mockMutationRef);
+    const result = useConvexMutation(mutationName);
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('mutate');
     expect(result).toHaveProperty('isPending');
   });
 
   it('refuses, NAMED, when the write has no backend row', async () => {
-    useConvexMutation(mockMutationRef);
+    useConvexMutation(mutationName);
     const options = mockUseMutation.mock.calls[0]?.[0];
     await expect(
       (options.mutationFn as (a: unknown) => Promise<unknown>)({
@@ -87,7 +87,7 @@ describe('useConvexMutation', () => {
   });
 
   it('shows a destructive error toast by default on failure', () => {
-    useConvexMutation(mockMutationRef);
+    useConvexMutation(mutationName);
     getRegisteredOnError()(new Error('boom'));
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({ variant: 'destructive' }),
@@ -95,13 +95,13 @@ describe('useConvexMutation', () => {
   });
 
   it('suppresses the error toast when errorToast is false', () => {
-    useConvexMutation(mockMutationRef, { errorToast: false });
+    useConvexMutation(mutationName, { errorToast: false });
     getRegisteredOnError()(new Error('boom'));
     expect(mockToast).not.toHaveBeenCalled();
   });
 
   it('uses the provided title and description on error', () => {
-    useConvexMutation(mockMutationRef, {
+    useConvexMutation(mutationName, {
       errorToast: { title: 'Save failed', description: (e) => e.message },
     });
     getRegisteredOnError()(new Error('disk full'));
@@ -116,7 +116,7 @@ describe('useConvexMutation', () => {
 
   it('still calls a caller-provided onError', () => {
     const userOnError = vi.fn();
-    useConvexMutation(mockMutationRef, { onError: userOnError });
+    useConvexMutation(mutationName, { onError: userOnError });
     const error = new Error('boom');
     getRegisteredOnError()(error, { input: 'x' }, undefined, {});
     expect(userOnError).toHaveBeenCalledWith(
@@ -130,7 +130,7 @@ describe('useConvexMutation', () => {
   it('preserves user options', () => {
     const userOnSuccess = vi.fn();
     const userOnSettled = vi.fn();
-    useConvexMutation(mockMutationRef, {
+    useConvexMutation(mutationName, {
       onSuccess: userOnSuccess,
       onSettled: userOnSettled,
     });
@@ -148,14 +148,13 @@ describe('useConvexMutation', () => {
 describe('useConvexMutation adapter lane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getFunctionName).mockReturnValue('fake:write');
     mockOrgId.current = 'org-1';
   });
 
   it('routes mutationFn through the adapter with the route org', async () => {
     mockWriteRun.mockResolvedValue('p-1');
 
-    useConvexMutation(mockMutationRef);
+    useConvexMutation(FAKE_ROW);
 
     const options = mockUseMutation.mock.calls[0]?.[0];
     await expect(
@@ -174,7 +173,7 @@ describe('useConvexMutation adapter lane', () => {
     mockWriteInvalidate.mockImplementation(() => order.push('invalidate'));
     const userOnSuccess = vi.fn(() => order.push('caller'));
 
-    useConvexMutation(mockMutationRef, { onSuccess: userOnSuccess });
+    useConvexMutation(FAKE_ROW, { onSuccess: userOnSuccess });
 
     const options = mockUseMutation.mock.calls[0]?.[0];
     (options.onSuccess as (...a: unknown[]) => void)(

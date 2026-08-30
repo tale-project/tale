@@ -10,7 +10,6 @@ import { useEffect, useId, useMemo, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Select } from '@/app/components/ui/forms/select';
-import type { Id } from '@/convex/_generated/dataModel';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 
@@ -46,7 +45,7 @@ export function NewAutomationDialog({
 }: {
   organizationId: string;
   /** Author into one project's surface (links stay inside the project shell). */
-  projectId?: Id<'projects'>;
+  projectId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {

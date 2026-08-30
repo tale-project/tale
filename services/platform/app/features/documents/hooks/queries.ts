@@ -3,14 +3,12 @@ import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useReactQuery } from '@/app/hooks/use-react-query';
-import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
+import type { ItemOf } from '@/app/lib/backend/contract';
 
-export type Document = ConvexItemOf<typeof api.documents.queries.listDocuments>;
+export type Document = ItemOf<'documents/queries:listDocuments'>;
 
 export function useApproxDocumentCount(organizationId: string) {
-  return useConvexQuery(api.documents.queries.approxCountDocuments, {
+  return useConvexQuery('documents/queries:approxCountDocuments', {
     organizationId,
   });
 }
@@ -21,7 +19,7 @@ export function useApproxDocumentCount(organizationId: string) {
  * per-user volume quota applies — callers then render no meter.
  */
 export function useUploadUsage(organizationId: string) {
-  return useConvexQuery(api.documents.queries.getUploadUsage, {
+  return useConvexQuery('documents/queries:getUploadUsage', {
     organizationId,
   });
 }
@@ -33,7 +31,7 @@ export function useCloudImportAuthorizationStatus(
   provider: 'onedrive' | 'google-drive' = 'onedrive',
 ) {
   return useConvexQuery(
-    api.cloud_import.queries.getAuthorizationStatus,
+    'cloud_import/queries:getAuthorizationStatus',
     enabled ? { organizationId, provider } : 'skip',
   );
 }
@@ -43,7 +41,7 @@ export function useDocuments(
   options?: { enabled?: boolean },
 ) {
   const { data, isLoading } = useConvexQuery(
-    api.documents.queries.listDocuments,
+    'documents/queries:listDocuments',
     options?.enabled === false ? 'skip' : { organizationId },
   );
 
@@ -61,9 +59,9 @@ export function useDocuments(
 export function useDocument(documentId: string | undefined) {
   const organizationId = useOrganizationId();
   return useConvexQuery(
-    api.documents.queries.getDocumentById,
+    'documents/queries:getDocumentById',
     documentId && organizationId
-      ? { documentId: toId<'documents'>(documentId), organizationId }
+      ? { documentId: documentId, organizationId }
       : 'skip',
   );
 }
@@ -72,9 +70,9 @@ export function useDocument(documentId: string | undefined) {
 export function useDocumentVersions(documentId: string | undefined) {
   const organizationId = useOrganizationId();
   return useConvexQuery(
-    api.documents.queries.listDocumentVersions,
+    'documents/queries:listDocumentVersions',
     documentId && organizationId
-      ? { documentId: toId<'documents'>(documentId), organizationId }
+      ? { documentId: documentId, organizationId }
       : 'skip',
   );
 }
@@ -87,14 +85,12 @@ export function useDocumentByExternalItemId(
   const organizationId = useOrganizationId();
   const enabled = options?.enabled !== false;
   return useConvexQuery(
-    api.documents.queries.getDocumentByExternalItemId,
+    'documents/queries:getDocumentByExternalItemId',
     enabled && externalItemId && organizationId
       ? {
           organizationId,
           externalItemId,
-          ...(options?.projectId
-            ? { projectId: toId<'projects'>(options.projectId) }
-            : {}),
+          ...(options?.projectId ? { projectId: options.projectId } : {}),
         }
       : 'skip',
   );
@@ -103,17 +99,17 @@ export function useDocumentByExternalItemId(
 export function useFolder(folderId: string | undefined) {
   const organizationId = useOrganizationId();
   return useConvexQuery(
-    api.folders.queries.getFolder,
+    'folders/queries:getFolder',
     folderId && organizationId
-      ? { folderId: toId<'folders'>(folderId), organizationId }
+      ? { folderId: folderId, organizationId }
       : 'skip',
   );
 }
 
 export function useFolders(organizationId: string, parentFolderId?: string) {
-  return useConvexQuery(api.folders.queries.listFolders, {
+  return useConvexQuery('folders/queries:listFolders', {
     organizationId,
-    parentId: parentFolderId ? toId<'folders'>(parentFolderId) : undefined,
+    parentId: parentFolderId ? parentFolderId : undefined,
   });
 }
 
@@ -122,7 +118,7 @@ export function useOneDriveFiles(
   folderId: string | undefined,
   enabled: boolean,
 ) {
-  const listOneDriveFiles = useConvexAction(api.onedrive.actions.listFiles);
+  const listOneDriveFiles = useConvexAction('onedrive/actions:listFiles');
 
   return useReactQuery({
     queryKey: ['onedrive-items', organizationId, folderId],
@@ -148,7 +144,7 @@ export function useGoogleDriveFiles(
   enabled: boolean,
 ) {
   const listGoogleDriveFiles = useConvexAction(
-    api.google_drive.actions.listFiles,
+    'google_drive/actions:listFiles',
   );
 
   return useReactQuery({
@@ -171,7 +167,7 @@ export function useGoogleDriveFiles(
 
 export function useSharePointSites(organizationId: string, enabled: boolean) {
   const listSharePointSites = useConvexAction(
-    api.onedrive.actions.listSharePointSites,
+    'onedrive/actions:listSharePointSites',
   );
 
   return useReactQuery({
@@ -195,7 +191,7 @@ export function useSharePointDrives(
   enabled: boolean,
 ) {
   const listSharePointDrives = useConvexAction(
-    api.onedrive.actions.listSharePointDrives,
+    'onedrive/actions:listSharePointDrives',
   );
 
   return useReactQuery({
@@ -228,10 +224,10 @@ interface ListDocumentsPaginatedArgs {
 export function useListDocumentsPaginated(args: ListDocumentsPaginatedArgs) {
   const { initialNumItems, folderId, ...queryArgs } = args;
   return useCachedPaginatedQuery(
-    api.documents.queries.listDocumentsPaginated,
+    'documents/queries:listDocumentsPaginated',
     {
       ...queryArgs,
-      folderId: folderId ? toId<'folders'>(folderId) : undefined,
+      folderId: folderId ? folderId : undefined,
     },
     { initialNumItems },
   );
@@ -245,7 +241,7 @@ export function useSharePointFiles(
   enabled: boolean,
 ) {
   const listSharePointFiles = useConvexAction(
-    api.onedrive.actions.listSharePointFiles,
+    'onedrive/actions:listSharePointFiles',
   );
 
   return useReactQuery({
@@ -276,8 +272,8 @@ export function useSharePointFiles(
  */
 export function usePendingDocumentRecordReview(documentId: string | undefined) {
   return useConvexQuery(
-    api.documents.records.getPendingDocumentRecordReview,
-    documentId ? { documentId: toId<'documents'>(documentId) } : 'skip',
+    'documents/records:getPendingDocumentRecordReview',
+    documentId ? { documentId: documentId } : 'skip',
   );
 }
 
@@ -287,8 +283,8 @@ export function usePendingDocumentRecordReview(documentId: string | undefined) {
  * the rule). Subscribed only while that dialog is open.
  */
 export function useEligibleDocumentReviewerIds(documentId: string) {
-  return useConvexQuery(api.documents.records.listEligibleDocumentReviewerIds, {
-    documentId: toId<'documents'>(documentId),
+  return useConvexQuery('documents/records:listEligibleDocumentReviewerIds', {
+    documentId: documentId,
   });
 }
 
@@ -297,7 +293,7 @@ export function useEligibleDocumentReviewerIds(documentId: string) {
  * "changes requested by …" callout before a re-submit.
  */
 export function useLastDocumentRecordReview(documentId: string) {
-  return useConvexQuery(api.documents.records.getLastDocumentRecordReview, {
-    documentId: toId<'documents'>(documentId),
+  return useConvexQuery('documents/records:getLastDocumentRecordReview', {
+    documentId: documentId,
   });
 }

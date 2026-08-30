@@ -19,7 +19,6 @@ import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { UserButton } from '@/app/components/user-button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { AccountStep } from './steps/account-step';
@@ -52,7 +51,7 @@ export function OnboardingWizard({
   const { t: tCommon } = useT('common');
 
   const setOnboardingCompleted = useConvexMutation(
-    api.user_preferences.mutations.setOnboardingCompleted,
+    'user_preferences/mutations:setOnboardingCompleted',
   );
 
   const [createdOrgId, setCreatedOrgId] = useState<string | null>(null);

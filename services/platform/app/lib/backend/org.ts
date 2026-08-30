@@ -1,7 +1,6 @@
 import { queryOptions } from '@tanstack/react-query';
-import type { FunctionReturnType } from 'convex/server';
 
-import type { api } from '@/convex/_generated/api';
+import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
 import { BackendApiError, backendFetch } from './api-client';
 import type { WriteAdapter } from './convex-adapters';
@@ -99,9 +98,8 @@ export function organizationQuery(organizationId: string) {
 
 /** The 0.4 `members/queries:getCurrentMemberContext` type, verbatim —
  * consumers compiled against it and it stays the one source of truth. */
-export type MemberContextView = FunctionReturnType<
-  typeof api.members.queries.getCurrentMemberContext
->;
+export type MemberContextView =
+  ReturnsOf<'members/queries:getCurrentMemberContext'>;
 
 /** The caller's membership context for one organization. */
 export function memberContextQuery(organizationId: string) {
@@ -117,9 +115,7 @@ export function memberContextQuery(organizationId: string) {
 }
 
 /** The 0.4 `members/queries:getMyTeams` row, verbatim. */
-export type MyTeamRow = FunctionReturnType<
-  typeof api.members.queries.getMyTeams
->[number];
+export type MyTeamRow = ItemOf<'members/queries:getMyTeams'>;
 
 /** The caller's teams in one organization (the team filter's boot read). */
 export function myTeamsQuery(organizationId: string) {

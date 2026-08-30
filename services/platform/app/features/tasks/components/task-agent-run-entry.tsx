@@ -29,8 +29,6 @@ import { useState } from 'react';
 import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -40,7 +38,7 @@ import {
 
 interface TaskAgentRunEntryProps {
   organizationId: string;
-  taskId: Id<'tasks'>;
+  taskId: string;
   canEdit: boolean;
 }
 
@@ -59,7 +57,7 @@ function TaskAgentRunDetailsDialog({
   onOpenChange,
 }: {
   organizationId: string;
-  runId: Id<'projectAgentRuns'>;
+  runId: string;
   name: string;
   /** The RUN row's liveness, not the op's — a queued run has no op yet, and
    * an op can settle a beat before its run row does. It picks the title's
@@ -72,7 +70,7 @@ function TaskAgentRunDetailsDialog({
   const { t } = useT('tasks');
   const { t: tAutomations } = useT('automations');
   const opQuery = useConvexQuery(
-    api.tasks.queries.getTaskAgentRunSandboxOp,
+    'tasks/queries:getTaskAgentRunSandboxOp',
     open ? { organizationId, runId } : 'skip',
   );
   const op = opQuery.data ?? null;
@@ -115,7 +113,7 @@ export function TaskAgentRunEntry({
 }: TaskAgentRunEntryProps) {
   const { t } = useT('tasks');
   const runQuery = useConvexQuery(
-    api.tasks.queries.getLatestTaskAgentRunForTask,
+    'tasks/queries:getLatestTaskAgentRunForTask',
     { organizationId, taskId },
   );
   const { mutateAsync: startRun } = useStartTaskAgentRun();

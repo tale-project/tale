@@ -12,7 +12,6 @@ import {
   TableRow,
 } from '@tale/ui/table';
 import { Text } from '@tale/ui/text';
-import type { FunctionReturnType } from 'convex/server';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback } from 'react';
 
@@ -24,7 +23,7 @@ import {
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
-import { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
 export interface ExternalTurnMetricsPageProps {
@@ -33,9 +32,8 @@ export interface ExternalTurnMetricsPageProps {
   onChangePeriod: (period: MetricsPeriodDays) => void;
 }
 
-type ExternalTurnMetrics = FunctionReturnType<
-  typeof api.sandbox.session_queries_public.getExternalTurnMetrics
->;
+type ExternalTurnMetrics =
+  ReturnsOf<'sandbox/session_queries_public:getExternalTurnMetrics'>;
 
 /** Rate (0..1 or null) as a percentage, or an em dash when there is nothing to
  * rate (no non-cancelled turns in the window). */
@@ -169,7 +167,7 @@ export function ExternalTurnMetricsPage({
   const { t } = useT('analytics');
 
   const { data, isLoading } = useConvexQuery(
-    api.sandbox.session_queries_public.getExternalTurnMetrics,
+    'sandbox/session_queries_public:getExternalTurnMetrics',
     { organizationId, periodDays },
     { enabled: !!organizationId },
   );

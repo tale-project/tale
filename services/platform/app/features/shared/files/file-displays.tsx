@@ -23,8 +23,6 @@ import { memo, useState } from 'react';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
@@ -199,7 +197,7 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   // For audio/video attachments in sent messages, fetch the transcript via
   // the existing plural query (skip when not media to avoid subscriptions).
   const { data: audioMetadataList } = useConvexQuery(
-    api.file_metadata.queries.getByStorageIds,
+    'file_metadata/queries:getByStorageIds',
     isMedia && organizationId
       ? { organizationId, storageIds: [attachment.fileId] }
       : 'skip',
@@ -399,9 +397,7 @@ export const FilePartDisplay = memo(function FilePartDisplay({
   // cards. While the query is loading (undefined) keep rendering, so history
   // doesn't flash.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id parsed from our own download URL; branded at runtime
-  const fileId = extractStorageFileId(filePart.url) as
-    | Id<'_storage'>
-    | undefined;
+  const fileId = extractStorageFileId(filePart.url);
   const { data: liveUrl } = useFileUrl(fileId);
   if (fileId !== undefined && liveUrl === null) return null;
 

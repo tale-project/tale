@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router';
 
 import { MembersPage } from '@/app/features/settings/organization/components/members-page';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
-import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/members')({
@@ -10,7 +9,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/members')({
   loader: ({ context, params }) => {
     prefetchAdaptedQuery(
       context.queryClient,
-      api.members.queries.listByOrganization,
+      'members/queries:listByOrganization',
       {
         organizationId: params.id,
       },

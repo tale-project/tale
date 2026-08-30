@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 import { ProductsTable } from '@/app/features/products/components/products-table';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
-import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
@@ -20,7 +19,7 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/products')({
   loader: ({ context, params }) => {
     prefetchAdaptedQuery(
       context.queryClient,
-      api.products.queries.approxCountProducts,
+      'products/queries:approxCountProducts',
       {
         organizationId: params.id,
       },

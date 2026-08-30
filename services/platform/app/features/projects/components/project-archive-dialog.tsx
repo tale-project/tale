@@ -5,7 +5,6 @@ import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useArchiveProject, useRestoreProject } from '../hooks/mutations';
@@ -13,7 +12,7 @@ import { useArchiveProject, useRestoreProject } from '../hooks/mutations';
 interface ProjectArchiveDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: Id<'projects'>;
+  projectId: string;
   isArchived: boolean;
   projectName: string;
 }

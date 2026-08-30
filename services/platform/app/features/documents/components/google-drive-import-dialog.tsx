@@ -12,7 +12,6 @@ import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { useImportGoogleDriveFiles } from '../hooks/actions';
@@ -67,7 +66,7 @@ export function GoogleDriveImportDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isBusy = isImporting || isSubmitting;
   const { mutateAsync: listGoogleDriveFiles } = useConvexAction(
-    api.google_drive.actions.listFiles,
+    'google_drive/actions:listFiles',
   );
 
   const [stage, setStage] = useState<Stage>('picker');

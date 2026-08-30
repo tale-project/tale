@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router';
 
 import { UserEnvSettings } from '@/app/features/settings/user-env/components/user-env-settings';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
-import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/environment')({
@@ -13,7 +12,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/environment')({
   // paint instead of the skeleton. Best-effort — the component's own loading
   // state still renders correctly if this misses.
   loader: ({ context, params }) => {
-    void ensureConvexQuery(context, api.sandbox.user_env.listMyEnv, {
+    void ensureConvexQuery(context, 'sandbox/user_env:listMyEnv', {
       organizationId: params.id,
     }).catch(console.warn);
   },

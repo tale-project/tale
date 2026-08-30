@@ -1,14 +1,16 @@
 import type { UseMutationOptions } from '@tanstack/react-query';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { OptimisticUpdate } from 'convex/browser';
-import type {
-  FunctionArgs,
-  FunctionReference,
-  FunctionReturnType,
-} from 'convex/server';
-import { getFunctionName } from 'convex/server';
 
+/* oxlint-disable typescript/no-unsafe-type-assertion -- the adapter
+   registry is the untyped boundary: a row and the contract entry it
+   serves are keyed by the SAME name, so the row's projection IS that
+   name's return shape. */
 import { toast } from '@/app/hooks/use-toast';
+import type {
+  ArgsOf,
+  MutationName,
+  ReturnsOf,
+} from '@/app/lib/backend/contract';
 import {
   activeOrganizationId,
   runAdapted,
@@ -18,16 +20,7 @@ import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
 import { useT } from '@/lib/i18n/client';
 import { convexUserMessage } from '@/lib/utils/convex-error';
 
-interface ConvexMutationExtras<Func extends FunctionReference<'mutation'>> {
-  /**
-   * Convex-native optimistic patch. Applied to the live query store the instant
-   * the mutation fires and rolled back automatically when it settles (success
-   * or error) — compose with the helpers in `optimistic-updates.ts`. Only use
-   * when the optimistic value is a straightforward projection of the args.
-   * Writes served by the 0.5 backend adapter ignore it — there is no Convex
-   * query store on that lane; invalidation refetches instead.
-   */
-  optimisticUpdate?: OptimisticUpdate<FunctionArgs<Func>>;
+interface ConvexMutationExtras {
   /**
    * Error feedback on failure. Defaults to a destructive toast with a generic
    * message so a failed mutation never silently lingers. Pass `false` to opt out
@@ -38,44 +31,35 @@ interface ConvexMutationExtras<Func extends FunctionReference<'mutation'>> {
     | false;
 }
 
-type ConvexMutationOptions<Func extends FunctionReference<'mutation'>> = Omit<
-  // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- FunctionArgs<Func> is not the default (void)
-  UseMutationOptions<FunctionReturnType<Func>, Error, FunctionArgs<Func>>,
+type ConvexMutationOptions<Name extends MutationName> = Omit<
+  UseMutationOptions<ReturnsOf<Name>, Error, ArgsOf<Name>>,
   'mutationFn'
 > &
-  ConvexMutationExtras<Func>;
+  ConvexMutationExtras;
 
-export function useConvexMutation<Func extends FunctionReference<'mutation'>>(
-  func: Func,
-  options?: ConvexMutationOptions<Func>,
+/**
+ * A backend write, addressed by its contract name. The adapter row keyed by
+ * that same name performs it over HTTP; a name with no row has no server left
+ * to reach and rejects loudly (see `retired-convex.ts`).
+ */
+export function useConvexMutation<Name extends MutationName>(
+  name: Name,
+  options?: ConvexMutationOptions<Name>,
 ) {
-  const {
-    optimisticUpdate,
-    errorToast,
-    onError,
-    onSuccess,
-    ...mutationOptions
-  } = options ?? {};
+  const { errorToast, onError, onSuccess, ...mutationOptions } = options ?? {};
   const { t } = useT('toast');
   const queryClient = useQueryClient();
 
-  // Every shipped write runs over HTTP through its adapter row; a ref
-  // without one has no server left to reach (see `retired-convex.ts`).
-  const fnName = getFunctionName(func);
-  const adapter = WRITE_ADAPTERS[fnName];
+  const adapter = WRITE_ADAPTERS[name];
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adapterCtx = organizationId !== undefined ? { organizationId } : {};
-  // The optimistic-update callback belonged to the Convex mutation's local
-  // store; the adapted lane invalidates instead (its `invalidate` hook), so
-  // it is accepted and unused rather than silently changing behaviour.
-  void optimisticUpdate;
-  const mutationFn = (
-    args: FunctionArgs<Func>,
-  ): Promise<FunctionReturnType<Func>> =>
+  const mutationFn = (args: ArgsOf<Name>): Promise<ReturnsOf<Name>> =>
     adapter !== undefined
-      ? runAdapted(() => adapter.run(args, adapterCtx))
-      : Promise.reject(new ConvexRetiredError(fnName));
+      ? (runAdapted(() =>
+          adapter.run(args as Record<string, unknown>, adapterCtx),
+        ) as Promise<ReturnsOf<Name>>)
+      : Promise.reject(new ConvexRetiredError(name));
 
   return useMutation({
     mutationFn,
@@ -87,7 +71,7 @@ export function useConvexMutation<Func extends FunctionReference<'mutation'>>(
     },
     onError: (error, ...rest) => {
       // Never swallow a mutation failure, even when the visible toast is opted out.
-      console.error(`Mutation failed: ${getFunctionName(func)}`, error);
+      console.error(`Mutation failed: ${name}`, error);
       if (errorToast !== false) {
         toast({
           title: errorToast?.title ?? t('error.generic.title'),

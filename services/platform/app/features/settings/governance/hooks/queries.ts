@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
 import type { SoftDeleteResourceType } from '@/convex/governance/soft_delete_validators';
 import {
@@ -43,7 +42,7 @@ function parseUploadPolicyConfig(
 }
 
 export function usePiiConfig(organizationId: string) {
-  return useConvexQuery(api.governance.queries.getPolicy, {
+  return useConvexQuery('governance/queries:getPolicy', {
     organizationId,
     policyType: 'pii_config' as const,
   });
@@ -53,20 +52,20 @@ export function useGovernancePolicy(
   organizationId: string,
   policyType: PolicyType,
 ) {
-  return useConvexQuery(api.governance.queries.getPolicy, {
+  return useConvexQuery('governance/queries:getPolicy', {
     organizationId,
     policyType,
   });
 }
 
 export function useDsarPolicyForUi(organizationId: string) {
-  return useConvexQuery(api.governance.dsar_policy.getDsarPolicyForUi, {
+  return useConvexQuery('governance/dsar_policy:getDsarPolicyForUi', {
     organizationId,
   });
 }
 
 export function useMyFeatureFlags(organizationId: string) {
-  return useConvexQuery(api.governance.queries.getMyFeatureFlags, {
+  return useConvexQuery('governance/queries:getMyFeatureFlags', {
     organizationId,
   });
 }
@@ -75,7 +74,7 @@ export function useMyBudgetStatus(
   organizationId: string,
   selectedTeamId?: string | null,
 ) {
-  return useConvexQuery(api.governance.queries.getMyBudgetStatus, {
+  return useConvexQuery('governance/queries:getMyBudgetStatus', {
     organizationId,
     selectedTeamId: selectedTeamId ?? null,
   });
@@ -86,7 +85,7 @@ export function useAccessibleModels(
   modelIds: string[],
 ) {
   return useConvexQuery(
-    api.governance.queries.getAccessibleModelsForUser,
+    'governance/queries:getAccessibleModelsForUser',
     modelIds.length > 0 ? { organizationId, modelIds } : 'skip',
   );
 }
@@ -101,7 +100,7 @@ export function usePasswordPolicy(
   organizationId: string | undefined,
 ): PasswordPolicyConfig {
   const result = useConvexQuery(
-    api.governance.queries.getPolicy,
+    'governance/queries:getPolicy',
     organizationId
       ? { organizationId, policyType: 'password_policy' as const }
       : 'skip',
@@ -127,7 +126,7 @@ export function usePasswordPolicy(
 export function useModerationSecretStatus(organizationId: string) {
   return useActionQuery(
     ['moderation-secret-status', organizationId],
-    api.governance.moderation_provider.secrets.hasModerationSecret,
+    'governance/moderation_provider/secrets:hasModerationSecret',
     { organizationId },
   );
 }
@@ -146,7 +145,7 @@ export function useModerationSecretStatus(organizationId: string) {
 export function usePendingBoundsProposal(organizationId: string) {
   return useActionQuery(
     ['retention-bounds-proposal', organizationId],
-    api.governance.retention_bounds_proposal.getPendingBoundsProposal,
+    'governance/retention_bounds_proposal:getPendingBoundsProposal',
     { organizationId },
   );
 }
@@ -169,7 +168,7 @@ export function useLegalHolds(
   options?: { status?: LegalHoldStatus; targetType?: LegalHoldTargetType },
 ) {
   return useConvexQuery(
-    api.governance.legal_hold_queries.listLegalHolds,
+    'governance/legal_hold_queries:listLegalHolds',
     organizationId
       ? {
           organizationId,
@@ -185,7 +184,7 @@ export function useLegalMatters(
   options?: { status?: LegalMatterStatus },
 ) {
   return useConvexQuery(
-    api.governance.legal_hold_queries.listLegalMatters,
+    'governance/legal_hold_queries:listLegalMatters',
     organizationId ? { organizationId, status: options?.status } : 'skip',
   );
 }
@@ -195,7 +194,7 @@ export function useLegalHoldReleaseRequests(
   status: LegalReleaseStatus,
 ) {
   return useConvexQuery(
-    api.governance.legal_hold_queries.listLegalHoldReleaseRequests,
+    'governance/legal_hold_queries:listLegalHoldReleaseRequests',
     organizationId ? { organizationId, status } : 'skip',
   );
 }
@@ -206,7 +205,7 @@ export function useLegalHoldReleaseRequestsPaginated(args: {
   initialNumItems?: number;
 }) {
   return useCachedPaginatedQuery(
-    api.governance.legal_hold_queries.listLegalHoldReleaseRequestsPaginated,
+    'governance/legal_hold_queries:listLegalHoldReleaseRequestsPaginated',
     args.organizationId
       ? { organizationId: args.organizationId, status: args.status }
       : 'skip',
@@ -220,7 +219,7 @@ export function useLegalHoldByTarget(args: {
   targetId: string | undefined;
 }) {
   return useConvexQuery(
-    api.governance.legal_hold_queries.getLegalHoldByTarget,
+    'governance/legal_hold_queries:getLegalHoldByTarget',
     args.organizationId && args.targetId
       ? {
           organizationId: args.organizationId,
@@ -236,7 +235,7 @@ export function useActiveHoldTargetIds(args: {
   targetType: LegalHoldTargetType;
 }) {
   return useConvexQuery(
-    api.governance.legal_hold_queries.listActiveHoldTargetIds,
+    'governance/legal_hold_queries:listActiveHoldTargetIds',
     args.organizationId
       ? { organizationId: args.organizationId, targetType: args.targetType }
       : 'skip',
@@ -245,7 +244,7 @@ export function useActiveHoldTargetIds(args: {
 
 export function useOrgMembersForPicker(organizationId: string | undefined) {
   return useConvexQuery(
-    api.governance.legal_hold_queries.listOrgMembersForPicker,
+    'governance/legal_hold_queries:listOrgMembersForPicker',
     organizationId ? { organizationId } : 'skip',
   );
 }
@@ -295,7 +294,7 @@ export function useListTrashedRows(
   enabled: boolean,
 ) {
   return useConvexQuery(
-    api.governance.queries.listTrashedRows,
+    'governance/queries:listTrashedRows',
     enabled
       ? {
           organizationId,
@@ -316,7 +315,7 @@ export function useListTrashedRows(
 export function useResolvedVisionModel(organizationId: string) {
   return useActionQuery(
     ['governance', 'vision-model', 'resolved', organizationId],
-    api.lib.providers.vision_actions.getResolvedVisionModel,
+    'lib/providers/vision_actions:getResolvedVisionModel',
     { organizationId },
   );
 }

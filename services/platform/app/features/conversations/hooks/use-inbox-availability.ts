@@ -11,7 +11,6 @@
 import { useMemo } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
 import { parseAutomationPresentation } from '@/lib/shared/schemas/automation_presentation';
 
 export interface InboxAutomationSummary {
@@ -35,7 +34,7 @@ export function useInboxAvailability(organizationId: string): {
   inboxAutomations: InboxAutomationSummary[];
 } {
   const { data, isLoading } = useConvexQuery(
-    api.automations.queries.listAutomations,
+    'automations/queries:listAutomations',
     organizationId ? { organizationId, includeProjectBound: true } : 'skip',
   );
 

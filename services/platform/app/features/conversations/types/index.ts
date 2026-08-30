@@ -3,15 +3,11 @@
  * This file re-exports types from Convex to avoid duplication
  */
 
-import type { FunctionReturnType } from 'convex/server';
-
-import type { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 
 // Extract the return type from getConversationWithMessages query
 export type ConversationWithMessages = NonNullable<
-  FunctionReturnType<
-    typeof api.conversations.queries.getConversationWithMessages
-  >
+  ReturnsOf<'conversations/queries:getConversationWithMessages'>
 >;
 
 // Extract nested types from the conversation

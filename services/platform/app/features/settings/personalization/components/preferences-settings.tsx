@@ -35,7 +35,6 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -83,7 +82,7 @@ export function PreferencesSettings({
   const { t } = useT('personalization');
 
   const { data: prefs, isLoading: prefsLoading } = useConvexQuery(
-    api.user_preferences.queries.getMyPreferences,
+    'user_preferences/queries:getMyPreferences',
     { organizationId },
   );
   const { data: instructionsPolicy } = useGovernancePolicy(

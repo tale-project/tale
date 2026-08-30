@@ -5,7 +5,7 @@ import { render, renderHook, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { i18n } from '@/lib/i18n/i18n';
 
 import { useWebsitesTableConfig } from './use-websites-table-config';
@@ -19,11 +19,11 @@ function Providers({ children }: { children: ReactNode }) {
 }
 
 type CellRenderer = (ctx: {
-  row: { original: Partial<Doc<'websites'>> };
+  row: { original: Partial<WebsiteDoc> };
 }) => ReactNode;
 
 /** Render the `lastScannedAt` column cell for a given website row. */
-function renderLastScannedCell(website: Partial<Doc<'websites'>>) {
+function renderLastScannedCell(website: Partial<WebsiteDoc>) {
   const { result } = renderHook(() => useWebsitesTableConfig(), {
     wrapper: Providers,
   });

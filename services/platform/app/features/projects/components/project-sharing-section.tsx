@@ -10,13 +10,12 @@ import { Select } from '@/app/components/ui/forms/select';
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateProjectSharing } from '../hooks/mutations';
 
 interface ProjectSharingSectionProps {
-  projectId: Id<'projects'>;
+  projectId: string;
   organizationId: string;
   /** Current owning team id; `undefined` means org-wide. */
   teamId: string | undefined;

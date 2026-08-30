@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 import { buildGraph } from '../lib/graph';
@@ -17,7 +16,7 @@ vi.mock('@/app/hooks/use-convex-query', () => ({
   useConvexQuery: () => ({ data: state.data }),
 }));
 
-const runId = 'run-1' as Id<'automationRuns'>;
+const runId = 'run-1' as string;
 
 // Three steps wired by references, so topoSort has an order to find:
 // mark_started → read_invoices → notify.

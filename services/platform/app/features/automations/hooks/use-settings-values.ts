@@ -1,13 +1,10 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { getFunctionName } from 'convex/server';
 
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { ACTION_QUERY_ADAPTERS } from '@/app/lib/backend/convex-adapters';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import {
   type AutomationSettings,
   isUploadsForm,
@@ -29,7 +26,7 @@ export type SettingsValuesByFile = Record<string, Record<string, string>>;
  */
 export function settingsValuesQueryKey(
   organizationId: string,
-  projectId: Id<'projects'>,
+  projectId: string,
   folder: string,
 ): readonly unknown[] {
   return ['automation-settings-values', organizationId, projectId, folder];
@@ -37,15 +34,14 @@ export function settingsValuesQueryKey(
 
 export function useAutomationSettingsValues(
   organizationId: string,
-  projectId: Id<'projects'>,
+  projectId: string,
   folder: string | null,
   settings: AutomationSettings | null,
 ) {
   const client = useConvexClient();
   const readAdapted =
-    ACTION_QUERY_ADAPTERS[
-      getFunctionName(api.documents.public_actions.readProjectTextValues)
-    ] !== undefined;
+    ACTION_QUERY_ADAPTERS['documents/public_actions:readProjectTextValues'] !==
+    undefined;
   const { isAuthenticated } = useConvexAuth();
   // Only FIELD forms own a YAML file; uploads panels read the folder's
   // documents through their own query instead.
@@ -64,7 +60,7 @@ export function useAutomationSettingsValues(
       await Promise.all(
         files.map(async (fileName) => {
           byFile[fileName] = await client.action(
-            api.documents.public_actions.readProjectTextValues,
+            'documents/public_actions:readProjectTextValues',
             {
               organizationId,
               projectId,

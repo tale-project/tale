@@ -13,7 +13,7 @@ import {
   useFileImport,
 } from '@/app/hooks/use-file-import';
 import { toast } from '@/app/hooks/use-toast';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { useBulkCreateContacts } from '../hooks/mutations';
@@ -25,7 +25,7 @@ export interface ParsedContact {
   // Omitted (not defaulted) when the file doesn't provide one — an explicit
   // absence, not a fabricated 'en' nobody chose (#2642).
   locale?: string;
-  source: Doc<'contacts'>['source'];
+  source: ContactDoc['source'];
 }
 
 // Type for the form data

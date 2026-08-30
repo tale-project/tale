@@ -6,9 +6,7 @@
  * the one PAGINATED lane (`ts|id` keyset, server envelope pass-through).
  */
 
-import type { FunctionReturnType } from 'convex/server';
-
-import type { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 
 import { backendFetch } from './api-client';
 import type {
@@ -18,21 +16,13 @@ import type {
 } from './convex-adapters';
 import { backendKey } from './query-keys';
 
-type UsageMetricsResult = FunctionReturnType<
-  typeof api.governance.queries.getOrgUsageMetrics
->;
-type FeedbackStatsResult = FunctionReturnType<
-  typeof api.feedback.queries.getFeedbackStats
->;
-type ChatHealthResult = FunctionReturnType<
-  typeof api.chat.messages.getOrgChatHealth
->;
-type GuardrailStatsResult = FunctionReturnType<
-  typeof api.chat_filter_events.queries.getGuardrailStats
->;
-type ExternalTurnMetricsResult = FunctionReturnType<
-  typeof api.sandbox.session_queries_public.getExternalTurnMetrics
->;
+type UsageMetricsResult = ReturnsOf<'governance/queries:getOrgUsageMetrics'>;
+type FeedbackStatsResult = ReturnsOf<'feedback/queries:getFeedbackStats'>;
+type ChatHealthResult = ReturnsOf<'chat/messages:getOrgChatHealth'>;
+type GuardrailStatsResult =
+  ReturnsOf<'chat_filter_events/queries:getGuardrailStats'>;
+type ExternalTurnMetricsResult =
+  ReturnsOf<'sandbox/session_queries_public:getExternalTurnMetrics'>;
 
 function orgOf(
   args: Record<string, unknown>,

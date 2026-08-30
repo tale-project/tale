@@ -7,15 +7,14 @@ import {
   useApproxConversationCountByStatus,
   useListConversationsPaginated,
 } from '@/app/features/conversations/hooks/queries';
+import type { ConversationRow } from '@/app/lib/backend/contract/docs';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
-import { api } from '@/convex/_generated/api';
-import type { Doc } from '@/convex/_generated/dataModel';
 
 const INITIAL_NUM_ITEMS = 30;
 
 const VALID_STATUSES = ['open', 'closed', 'archived', 'spam'] as const;
 type ValidStatus = (typeof VALID_STATUSES)[number];
-type ConversationStatus = Doc<'conversations'>['status'];
+type ConversationStatus = ConversationRow['status'];
 
 function isValidStatus(value: string): value is ValidStatus {
   return VALID_STATUSES.some((s) => s === value);
@@ -51,7 +50,7 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
       const status = params.status;
       prefetchAdaptedQuery(
         context.queryClient,
-        api.conversations.queries.approxCountConversationsByStatus,
+        'conversations/queries:approxCountConversationsByStatus',
         {
           organizationId: params.id,
           status,

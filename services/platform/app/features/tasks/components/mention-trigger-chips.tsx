@@ -3,7 +3,6 @@
 import { Ban, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { parseMentionTokens } from '@/convex/tasks/mentions';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -29,7 +28,7 @@ export function MentionTriggerChips({
   baseline,
 }: {
   organizationId: string;
-  target: { taskId: Id<'tasks'> } | { projectId: Id<'projects'> };
+  target: { taskId: string } | { projectId: string };
   draft: string;
   /** Saved text the draft edits (description edit mode): tokens already in
    *  it won't re-trigger on save, so they get no chip — mirrors the server's

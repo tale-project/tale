@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 
 /** Mirrors `MAX_KB_REFERENCES` in convex/agents/chat_turn.ts. */
@@ -14,7 +13,7 @@ export const MAX_KB_MENTIONS = 5;
  */
 export interface KbDocumentMention {
   kind: 'document';
-  documentId: Id<'documents'>;
+  documentId: string;
   fileId: BlobRef;
   title: string;
   fileType: string;
@@ -26,7 +25,7 @@ export interface KbDocumentMention {
 /** A folder pin — expands to its subtree's indexed files at send time. */
 export interface KbFolderMention {
   kind: 'folder';
-  folderId: Id<'folders'>;
+  folderId: string;
   title: string;
   parentPath?: string;
 }

@@ -11,7 +11,6 @@ import { useForm } from '@/app/components/ui/forms/use-form';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useToast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useCreateFolder } from '../hooks/mutations';
@@ -72,7 +71,7 @@ export function CreateFolderDialog({
       await createFolder({
         organizationId,
         name: data.name,
-        parentId: parentFolderId ? toId<'folders'>(parentFolderId) : undefined,
+        parentId: parentFolderId ? parentFolderId : undefined,
         teamId,
       });
 

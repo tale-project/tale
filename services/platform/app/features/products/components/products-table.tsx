@@ -8,7 +8,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ProductDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteProduct } from '../hooks/mutations';
@@ -20,7 +20,7 @@ import { useProductsTableConfig } from '../hooks/use-products-table-config';
 import { ProductViewDialog } from './product-view-dialog';
 import { ProductsActionMenu } from './products-action-menu';
 
-type Product = Doc<'products'>;
+type Product = ProductDoc;
 
 export interface ProductsTableProps {
   organizationId: string;
@@ -105,7 +105,7 @@ export function ProductsTable({
   const handleDeleteItem = useCallback(
     async (id: string) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex Id type from row selection key
-      const productId = id as Doc<'products'>['_id'];
+      const productId = id;
       await deleteProduct.mutateAsync({ productId });
     },
     [deleteProduct],

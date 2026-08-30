@@ -22,7 +22,6 @@ import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { AGENT_TOOL_CATALOG } from '@/convex/sandbox/tool_names';
 import { useT } from '@/lib/i18n/client';
 
@@ -46,7 +45,7 @@ export interface HarnessOption {
 interface ProjectAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: Id<'projects'>;
+  projectId: string;
   organizationId: string;
   harnesses: readonly HarnessOption[];
   models: readonly ModelOption[];

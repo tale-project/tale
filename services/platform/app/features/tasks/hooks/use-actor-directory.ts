@@ -6,8 +6,6 @@ import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param'
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   automationDisplayName,
@@ -301,12 +299,12 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
  */
 export function useAssignableActors(
   organizationId: string,
-  projectId?: Id<'projects'>,
+  projectId?: string,
 ) {
   const directory = useActorDirectory(organizationId, projectId);
   const { members } = directory;
   const scope = useConvexQuery(
-    api.projects.queries.listAccessibleUserIds,
+    'projects/queries:listAccessibleUserIds',
     projectId ? { organizationId, projectId } : 'skip',
   );
 

@@ -9,7 +9,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { toast } from '@/app/hooks/use-toast';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateWebsite } from '../hooks/mutations';
@@ -21,7 +21,7 @@ type FormData = {
 interface EditWebsiteDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  website: Doc<'websites'>;
+  website: WebsiteDoc;
 }
 
 export function EditWebsiteDialog({

@@ -1,84 +1,79 @@
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
 
 export function useGenerateUploadUrl() {
-  return useConvexMutation(api.files.mutations.generateUploadUrl);
+  return useConvexMutation('files/mutations:generateUploadUrl');
 }
 
 export function useBulkArchiveConversations() {
-  return useConvexMutation(
-    api.conversations.mutations.bulkArchiveConversations,
-  );
+  return useConvexMutation('conversations/mutations:bulkArchiveConversations');
 }
 
 export function useBulkCloseConversations() {
-  return useConvexMutation(api.conversations.mutations.bulkCloseConversations);
+  return useConvexMutation('conversations/mutations:bulkCloseConversations');
 }
 
 export function useBulkReopenConversations() {
-  return useConvexMutation(api.conversations.mutations.bulkReopenConversations);
+  return useConvexMutation('conversations/mutations:bulkReopenConversations');
 }
 
 export function useBulkSpamConversations() {
-  return useConvexMutation(api.conversations.mutations.bulkSpamConversations);
+  return useConvexMutation('conversations/mutations:bulkSpamConversations');
 }
 
 export function useBulkUnarchiveConversations() {
   return useConvexMutation(
-    api.conversations.mutations.bulkUnarchiveConversations,
+    'conversations/mutations:bulkUnarchiveConversations',
   );
 }
 
 export function useSendMessageViaConnector() {
-  return useConvexMutation(api.conversations.mutations.sendMessageViaConnector);
+  return useConvexMutation('conversations/mutations:sendMessageViaConnector');
 }
 
 export function useComposeEmailConversation() {
-  return useConvexMutation(
-    api.conversations.mutations.composeEmailConversation,
-  );
+  return useConvexMutation('conversations/mutations:composeEmailConversation');
 }
 
 export function useCloseConversation() {
-  return useConvexMutation(api.conversations.mutations.closeConversation);
+  return useConvexMutation('conversations/mutations:closeConversation');
 }
 
 export function useReopenConversation() {
-  return useConvexMutation(api.conversations.mutations.reopenConversation);
+  return useConvexMutation('conversations/mutations:reopenConversation');
 }
 
 export function useAssignConversation() {
-  return useConvexMutation(api.conversations.mutations.assignConversation);
+  return useConvexMutation('conversations/mutations:assignConversation');
 }
 
 export function useAssignConversationTeam() {
-  return useConvexMutation(api.conversations.mutations.assignConversationTeam);
+  return useConvexMutation('conversations/mutations:assignConversationTeam');
 }
 
 export function useMarkAsRead() {
-  return useConvexMutation(api.conversations.mutations.markConversationAsRead);
+  return useConvexMutation('conversations/mutations:markConversationAsRead');
 }
 
 export function useMarkAsSpam() {
-  return useConvexMutation(api.conversations.mutations.markConversationAsSpam);
+  return useConvexMutation('conversations/mutations:markConversationAsSpam');
 }
 
 export function useDeleteConversation() {
-  return useConvexMutation(api.conversations.mutations.deleteConversation);
+  return useConvexMutation('conversations/mutations:deleteConversation');
 }
 
 export function useDownloadAttachments() {
-  return useConvexMutation(api.conversations.mutations.downloadAttachments);
+  return useConvexMutation('conversations/mutations:downloadAttachments');
 }
 
 export function useUndoSendMessage() {
-  return useConvexMutation(api.conversations.mutations.undoSendMessage);
+  return useConvexMutation('conversations/mutations:undoSendMessage');
 }
 
 export function useRetrySendMessage() {
-  return useConvexMutation(api.conversations.mutations.retrySendMessage);
+  return useConvexMutation('conversations/mutations:retrySendMessage');
 }
 
 export function useDiscardOutboundMessage() {
-  return useConvexMutation(api.conversations.mutations.discardOutboundMessage);
+  return useConvexMutation('conversations/mutations:discardOutboundMessage');
 }

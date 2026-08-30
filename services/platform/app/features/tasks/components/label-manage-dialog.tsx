@@ -11,7 +11,6 @@ import { useState } from 'react';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -42,7 +41,7 @@ export function LabelManageDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: Id<'projects'>;
+  projectId: string;
   canEdit: boolean;
 }) {
   const { t } = useT('tasks');
@@ -54,10 +53,10 @@ export function LabelManageDialog({
   const ensureDefaults = useEnsureDefaultTaskLabels();
 
   const [newName, setNewName] = useState('');
-  const [editingId, setEditingId] = useState<Id<'taskLabels'> | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [pendingDelete, setPendingDelete] = useState<{
-    id: Id<'taskLabels'>;
+    id: string;
     name: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -105,7 +104,7 @@ export function LabelManageDialog({
     }
   };
 
-  const onSaveRename = async (labelId: Id<'taskLabels'>) => {
+  const onSaveRename = async (labelId: string) => {
     const name = editName.trim().toLowerCase();
     if (!name || !canEdit) return;
     setBusy(true);

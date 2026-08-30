@@ -8,7 +8,6 @@ import { useUserOrganizationsWithDetails } from '@/app/features/organization/hoo
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { useToast } from '@/app/hooks/use-toast';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
-import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -36,7 +35,7 @@ export function useDeleteOrganization() {
 
   const { organizations: userOrgs } = useUserOrganizationsWithDetails();
   const prepareOrganizationDeletion = useConvexMutation(
-    api.organizations.delete_cleanup.prepareOrganizationDeletion,
+    'organizations/delete_cleanup:prepareOrganizationDeletion',
   );
 
   const [isDeleting, setIsDeleting] = useState(false);

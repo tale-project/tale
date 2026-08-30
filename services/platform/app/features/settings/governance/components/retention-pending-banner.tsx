@@ -9,7 +9,6 @@ import { Clock } from 'lucide-react';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
@@ -30,11 +29,11 @@ export function RetentionPendingBanner({ organizationId }: Props) {
   const { t } = useT('governance');
   const { toast } = useToast();
   const pending = useConvexQuery(
-    api.governance.queries.getPendingRetentionChange,
+    'governance/queries:getPendingRetentionChange',
     { organizationId },
   );
   const cancel = useConvexAction(
-    api.governance.retention_actions.cancelPendingRetentionChange,
+    'governance/retention_actions:cancelPendingRetentionChange',
   );
 
   if (!pending.data) return null;

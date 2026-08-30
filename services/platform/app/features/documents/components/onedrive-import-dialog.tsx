@@ -7,7 +7,6 @@ import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { useImportOneDriveFiles } from '../hooks/actions';
@@ -68,10 +67,10 @@ export function OneDriveImportDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isBusy = isImporting || isSubmitting;
   const { mutateAsync: listOneDriveFiles } = useConvexAction(
-    api.onedrive.actions.listFiles,
+    'onedrive/actions:listFiles',
   );
   const { mutateAsync: listSharePointFiles } = useConvexAction(
-    api.onedrive.actions.listSharePointFiles,
+    'onedrive/actions:listSharePointFiles',
   );
 
   const [stage, setStage] = useState<Stage>('picker');

@@ -10,7 +10,6 @@ import {
 import { AutomationMetricsPage } from '@/app/features/analytics/automations/automation-metrics-page';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
-import { api } from '@/convex/_generated/api';
 import { automationSlugToParam } from '@/lib/automations/slug';
 
 export const Route = createFileRoute(
@@ -25,14 +24,10 @@ export const Route = createFileRoute(
   // skeleton. Bounded query (summary + capped series + top-N), safe to await;
   // never fail the transition on a transient/auth error.
   loader: ({ context, params, deps }) =>
-    ensureConvexQuery(
-      context,
-      api.automations.queries.getOrgAutomationMetrics,
-      {
-        organizationId: params.id,
-        periodDays: deps.periodDays,
-      },
-    ).catch((error: unknown) => {
+    ensureConvexQuery(context, 'automations/queries:getOrgAutomationMetrics', {
+      organizationId: params.id,
+      periodDays: deps.periodDays,
+    }).catch((error: unknown) => {
       console.warn('Failed to preload automation metrics', error);
     }),
   component: AutomationsMetricsRoute,

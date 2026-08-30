@@ -25,7 +25,6 @@ import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inb
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -46,7 +45,7 @@ export const Route = createFileRoute('/dashboard/$id/conversations')({
     for (const status of statuses) {
       prefetchAdaptedQuery(
         context.queryClient,
-        api.conversations.queries.approxCountConversationsByStatus,
+        'conversations/queries:approxCountConversationsByStatus',
         {
           organizationId: params.id,
           status,

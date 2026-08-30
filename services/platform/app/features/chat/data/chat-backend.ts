@@ -33,12 +33,6 @@ import {
   QueryClientContext,
   useQuery,
 } from '@tanstack/react-query';
-import {
-  getFunctionName,
-  type FunctionArgs,
-  type FunctionReference,
-  type FunctionReturnType,
-} from 'convex/server';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { backendFetch } from '@/app/lib/backend/api-client';
@@ -73,9 +67,8 @@ import {
   resolveQuestionRequest,
   threadShareStatusQuery,
 } from '@/app/lib/backend/chat';
+import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
 import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import type { ReasoningEffort } from '@/lib/chat/effort';
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -208,20 +201,16 @@ export function useChatQueryClient(): QueryClient {
   return useContext(QueryClientContext) ?? fallbackChatQueryClient;
 }
 
-export function useChatQuery<Ref extends FunctionReference<'query'>>(
-  fnRef: Ref,
-  args: FunctionArgs<Ref> | 'skip',
+export function useChatQuery<Name extends QueryName>(
+  name: Name,
+  args: ArgsOf<Name> | 'skip',
   options?: { readonly cache?: boolean },
-): ChatQuery<FunctionReturnType<Ref>> {
+): ChatQuery<ReturnsOf<Name>> {
   const skip = args === 'skip';
-  // Key the subscription by the function's NAME and the JSON of its args —
-  // never by object identity. `api.x.y.z` builds a fresh FunctionReference on
-  // every property access and callers build args inline, so identity-keyed
-  // deps would tear down and rebuild the watch on every render. A fresh watch
-  // answers `undefined` until its first result lands, so identity keying
-  // oscillates the surface between loading and ready many times a second — a
-  // self-sustaining, visible flicker.
-  const fnKey = getFunctionName(fnRef);
+  // Key the read by NAME + the JSON of its args, never by object identity:
+  // callers build args inline, so identity-keyed deps would rebuild the query
+  // on every render and oscillate the surface between loading and ready.
+  const fnKey = name;
   const argsKey = skip ? 'skip' : JSON.stringify(args);
 
   // The HTTP lane: adapted families fetch the backend; the options are
@@ -244,10 +233,11 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
     contextQueryClient ?? fallbackChatQueryClient,
   );
 
-  // Every chat read is an HTTP row now; a ref with no row has no server
-  // left, so the surface degrades to `unavailable` rather than waiting on a
-  // subscription that will never arrive.
-  const data: FunctionReturnType<Ref> | undefined = httpQuery.data;
+  // Every chat read is an HTTP row now; a name with no row has no server
+  // left, so the surface degrades to `unavailable` rather than waiting on an
+  // answer that will never arrive.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the HTTP row and this name's contract entry are keyed alike, so the row's projection IS this return shape
+  const data = httpQuery.data as ReturnsOf<Name> | undefined;
 
   // Render-phase cache maintenance, mirroring useCachedPaginatedQuery: the
   // write is idempotent, and the value must be current for this render's own
@@ -265,13 +255,13 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
 
   let value = data;
   if (value === undefined && cacheable) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only this hook writes the cache, under the same (function, args) key it reads, so the entry is this query's own return type
-    value = liveResultCache.get(cacheKey);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only this hook writes the cache, under the same (name, args) key it reads, so the entry is this read's own return type
+    value = liveResultCache.get(cacheKey) as ReturnsOf<Name> | undefined;
   }
 
   // One stable object per answer: while a remount serves the cached value its
   // identity holds across renders, exactly like a live result's would.
-  const result = useMemo<ChatQuery<FunctionReturnType<Ref>>>(
+  const result = useMemo<ChatQuery<ReturnsOf<Name>>>(
     () =>
       value === undefined
         ? { status: 'loading' }
@@ -294,7 +284,7 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
 export function useChatThreads(
   organizationId: string,
 ): ChatQuery<readonly ChatThreadSummary[]> {
-  return useChatQuery(api.chat.threads.listThreads, { organizationId });
+  return useChatQuery('chat/threads:listThreads', { organizationId });
 }
 
 /**
@@ -305,7 +295,7 @@ export function useChatThreads(
 export function useChatProjects(
   organizationId: string,
 ): ChatQuery<readonly ChatProjectSummary[]> {
-  const projects = useChatQuery(api.projects.queries.listProjects, {
+  const projects = useChatQuery('projects/queries:listProjects', {
     organizationId,
   });
   return useMemo(() => {
@@ -359,13 +349,10 @@ export function useThreadHolds(organizationId: string): ChatQuery<{
   readonly orgHeld: boolean;
   readonly targetIds: readonly string[];
 }> {
-  return useChatQuery(
-    api.governance.legal_hold_queries.listActiveHoldTargetIds,
-    {
-      organizationId,
-      targetType: 'thread',
-    },
-  );
+  return useChatQuery('governance/legal_hold_queries:listActiveHoldTargetIds', {
+    organizationId,
+    targetType: 'thread',
+  });
 }
 
 /** One page of the archived list. */
@@ -386,7 +373,7 @@ export function useArchivedThreads(
   options: { enabled: boolean; cursor?: number },
 ): ChatQuery<ArchivedThreadsPage> {
   return useChatQuery(
-    api.chat.threads.listArchivedThreads,
+    'chat/threads:listArchivedThreads',
     options.enabled
       ? {
           organizationId,
@@ -423,7 +410,7 @@ export function useChatMessages(
   threadId: string | undefined,
 ): ChatQuery<readonly ChatMessageView[]> {
   const rows = useChatQuery(
-    api.chat.messages.listMessages,
+    'chat/messages:listMessages',
     threadId ? { organizationId, threadId } : 'skip',
   );
   return useMemo(() => {
@@ -431,8 +418,11 @@ export function useChatMessages(
     return {
       status: 'ready' as const,
       data: rows.data.map((row): ChatMessageView => {
-        const usage = normalizeMessageUsage(row.usage);
-        return { ...row, ...(usage !== undefined ? { usage } : {}) };
+        // The RAW usage never reaches the view — it rides the wire as
+        // free-form JSON and only the normalized shape is renderable.
+        const { usage: rawUsage, ...rest } = row;
+        const usage = normalizeMessageUsage(rawUsage);
+        return { ...rest, ...(usage !== undefined ? { usage } : {}) };
       }),
     };
   }, [rows]);
@@ -453,7 +443,7 @@ export function useVoiceMode(
   source: 'thread' | 'preferences' | 'default' | 'org_policy';
 }> {
   return useChatQuery(
-    api.tts.queries.getVoiceModeEffective,
+    'tts/queries:getVoiceModeEffective',
     threadId !== undefined ? { organizationId, threadId } : { organizationId },
     { cache: false },
   );
@@ -469,7 +459,7 @@ export function useChatThread(
   threadId: string | undefined,
 ): ChatQuery<ChatThreadSummary | null> {
   return useChatQuery(
-    api.chat.threads.getThread,
+    'chat/threads:getThread',
     threadId ? { organizationId, threadId } : 'skip',
   );
 }
@@ -492,7 +482,7 @@ export function useThreadBranches(
   selections: string | null;
 }> {
   return useChatQuery(
-    api.chat.branches.listThreadBranches,
+    'chat/branches:listThreadBranches',
     rootThreadId ? { organizationId, rootThreadId } : 'skip',
   );
 }
@@ -512,7 +502,7 @@ export function useArenaPair(
   createdAt: number;
 } | null> {
   return useChatQuery(
-    api.chat.arena.getArenaPair,
+    'chat/arena:getArenaPair',
     threadId ? { organizationId, threadId } : 'skip',
     { cache: false },
   );
@@ -535,7 +525,7 @@ export function useThreadFeedback(
   }>
 > {
   return useChatQuery(
-    api.feedback.queries.listThreadFeedback,
+    'feedback/queries:listThreadFeedback',
     threadId ? { organizationId, threadId } : 'skip',
     { cache: false },
   );
@@ -679,7 +669,7 @@ export function useChatModelPreference(organizationId: string): {
    * the previously pinned model (an absent preference reads as Auto). */
   readonly save: (modelId: string | undefined) => void;
 } {
-  const row = useChatQuery(api.user_preferences.queries.getMyPreferences, {
+  const row = useChatQuery('user_preferences/queries:getMyPreferences', {
     organizationId,
   });
 
@@ -932,9 +922,9 @@ export function useChatSend(organizationId: string): {
 export function usePendingQuestion(
   organizationId: string,
   threadId: string | undefined,
-): ChatQuery<{ requestId: Id<'approvals'>; set: QuestionSet } | null> {
+): ChatQuery<{ requestId: string; set: QuestionSet } | null> {
   return useChatQuery(
-    api.chat.questions.getPendingQuestion,
+    'chat/questions:getPendingQuestion',
     threadId ? { organizationId, threadId } : 'skip',
   );
 }
@@ -949,7 +939,7 @@ export function usePendingQuestion(
 export function useResolveQuestion(organizationId: string): {
   readonly available: boolean;
   readonly resolve: (
-    requestId: Id<'approvals'>,
+    requestId: string,
     outcome: 'answered' | 'superseded',
   ) => Promise<void>;
 } {
@@ -957,10 +947,10 @@ export function useResolveQuestion(organizationId: string): {
 
   const resolve = useCallback(
     async (
-      requestId: Id<'approvals'>,
+      requestId: string,
       outcome: 'answered' | 'superseded',
     ): Promise<void> => {
-      await resolveQuestionRequest(organizationId, String(requestId), outcome);
+      await resolveQuestionRequest(organizationId, requestId, outcome);
       // The panel clears from this read — nudge it without waiting for the
       // hint round-trip.
       void queryClient.invalidateQueries({
@@ -1047,5 +1037,5 @@ export function useChatMemories(organizationId: string): ChatQuery<{
   readonly pending: readonly { id: string; content: string }[];
   readonly approved: readonly { id: string; content: string }[];
 }> {
-  return useChatQuery(api.chat.memories.listMemories, { organizationId });
+  return useChatQuery('chat/memories:listMemories', { organizationId });
 }

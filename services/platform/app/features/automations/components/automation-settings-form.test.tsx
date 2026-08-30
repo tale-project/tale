@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import {
   type AutomationSettings,
   parseAutomationSettings,
@@ -93,7 +92,7 @@ function mount(onSaved = vi.fn(), onSavingChange = vi.fn()) {
     <QueryClientProvider client={client}>
       <AutomationSettingsForm
         organizationId="org_1"
-        projectId={'project_1' as Id<'projects'>}
+        projectId={'project_1' as string}
         settings={SETTINGS}
         folder="Setup"
         formId="setup-form"

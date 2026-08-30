@@ -1,15 +1,15 @@
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import type { KnowledgeEntryItem } from '@/convex/knowledge_entries/queries';
+import type { PageItemOf } from '@/app/lib/backend/contract';
 
-export type { KnowledgeEntryItem };
+/** One knowledge entry as the table renders it. */
+export type KnowledgeEntryItem =
+  PageItemOf<'knowledge_entries/queries:listKnowledgeEntriesPaginated'>;
 
 export function useApproxKnowledgeEntryCount(organizationId: string) {
   return useConvexQuery(
-    api.knowledge_entries.queries.approxCountKnowledgeEntries,
+    'knowledge_entries/queries:approxCountKnowledgeEntries',
     { organizationId },
   );
 }
@@ -24,18 +24,16 @@ export function useListKnowledgeEntriesPaginated(
 ) {
   const { initialNumItems, ...queryArgs } = args;
   return useCachedPaginatedQuery(
-    api.knowledge_entries.queries.listKnowledgeEntriesPaginated,
+    'knowledge_entries/queries:listKnowledgeEntriesPaginated',
     queryArgs,
     { initialNumItems },
   );
 }
 
-export function useKnowledgeEntryVersions(
-  entryId: Id<'knowledgeEntries'> | undefined,
-) {
+export function useKnowledgeEntryVersions(entryId: string | undefined) {
   const organizationId = useOrganizationId();
   return useConvexQuery(
-    api.knowledge_entries.queries.getKnowledgeEntryVersions,
+    'knowledge_entries/queries:getKnowledgeEntryVersions',
     entryId && organizationId ? { entryId, organizationId } : 'skip',
   );
 }

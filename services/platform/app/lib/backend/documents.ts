@@ -8,9 +8,8 @@
  */
 
 import type { QueryClient } from '@tanstack/react-query';
-import type { FunctionReturnType } from 'convex/server';
 
-import type { api } from '@/convex/_generated/api';
+import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
 import { BackendApiError, backendFetch, backendUrl } from './api-client';
 import type {
@@ -27,39 +26,22 @@ import { backendEntityPrefix, backendKey } from './query-keys';
 // Wire rows + 0.4-shape projections
 // ---------------------------------------------------------------------------
 
-type DocumentItem = FunctionReturnType<
-  typeof api.documents.queries.listDocuments
->[number];
-type DocumentVersionsResult = FunctionReturnType<
-  typeof api.documents.queries.listDocumentVersions
->;
-type DocumentByExternalIdResult = FunctionReturnType<
-  typeof api.documents.queries.getDocumentByExternalItemId
->;
-type UploadUsageResult = FunctionReturnType<
-  typeof api.documents.queries.getUploadUsage
->;
-type DocumentSearchHit = FunctionReturnType<
-  typeof api.documents.search.searchDocuments
->[number];
-type ProjectDocumentItem = FunctionReturnType<
-  typeof api.projects.queries.listProjectDocuments
->[number];
-type PendingRecordReviewResult = FunctionReturnType<
-  typeof api.documents.records.getPendingDocumentRecordReview
->;
-type LastRecordReviewResult = FunctionReturnType<
-  typeof api.documents.records.getLastDocumentRecordReview
->;
-type RespondToRecordReviewResult = FunctionReturnType<
-  typeof api.documents.records.respondToDocumentRecordReview
->;
-type SubmitRecordResult = FunctionReturnType<
-  typeof api.documents.records.submitRecordForReview
->;
-type MemberListItem = FunctionReturnType<
-  typeof api.members.queries.listByOrganization
->[number];
+type DocumentItem = ItemOf<'documents/queries:listDocuments'>;
+type DocumentVersionsResult =
+  ReturnsOf<'documents/queries:listDocumentVersions'>;
+type DocumentByExternalIdResult =
+  ReturnsOf<'documents/queries:getDocumentByExternalItemId'>;
+type UploadUsageResult = ReturnsOf<'documents/queries:getUploadUsage'>;
+type DocumentSearchHit = ItemOf<'documents/search:searchDocuments'>;
+type ProjectDocumentItem = ItemOf<'projects/queries:listProjectDocuments'>;
+type PendingRecordReviewResult =
+  ReturnsOf<'documents/records:getPendingDocumentRecordReview'>;
+type LastRecordReviewResult =
+  ReturnsOf<'documents/records:getLastDocumentRecordReview'>;
+type RespondToRecordReviewResult =
+  ReturnsOf<'documents/records:respondToDocumentRecordReview'>;
+type SubmitRecordResult = ReturnsOf<'documents/records:submitRecordForReview'>;
+type MemberListItem = ItemOf<'members/queries:listByOrganization'>;
 
 /** One member row as the pg backend returns it (`GET /members`). */
 interface MemberListWire {
@@ -73,13 +55,9 @@ interface MemberListWire {
   twoFactorEnabled: boolean;
   passkeyCount: number;
 }
-type ProjectFolderItem = FunctionReturnType<
-  typeof api.projects.queries.listProjectFolders
->[number];
-type FolderDoc = NonNullable<
-  FunctionReturnType<typeof api.folders.queries.listFolders>
->[number];
-type GetFolderResult = FunctionReturnType<typeof api.folders.queries.getFolder>;
+type ProjectFolderItem = ItemOf<'projects/queries:listProjectFolders'>;
+type FolderDoc = NonNullable<ReturnsOf<'folders/queries:listFolders'>>[number];
+type GetFolderResult = ReturnsOf<'folders/queries:getFolder'>;
 
 /** The wire item — the 0.4 `DocumentItemResponse` plus the pg extras the
  * Files-tab projection needs (`fileId`). */
@@ -112,7 +90,7 @@ function folderView(row: FolderWire): FolderDoc {
     ...(row.projectId !== null ? { projectId: row.projectId } : {}),
     ...(row.createdBy !== null ? { createdBy: row.createdBy } : {}),
     syncConfigId: row.syncConfigId,
-  } as FolderDoc;
+  };
 }
 
 /** The Files tab's light row, projected from the item view. */
@@ -201,13 +179,10 @@ function textArg(args: Record<string, unknown>, key: string): string {
   return typeof value === 'string' ? value : '';
 }
 
-type FileStatusResult = FunctionReturnType<
-  typeof api.file_metadata.queries.getByStorageIds
->;
+type FileStatusResult = ReturnsOf<'file_metadata/queries:getByStorageIds'>;
 
-type EnsureProjectTextResult = FunctionReturnType<
-  typeof api.documents.public_actions.ensureProjectTextDocument
->;
+type EnsureProjectTextResult =
+  ReturnsOf<'documents/public_actions:ensureProjectTextDocument'>;
 
 export const documentReadAdapters: Record<string, ReadAdapter> = {
   // Attachment pipeline statuses — the same row the chat seam serves, here
@@ -506,7 +481,7 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
             parentId: row.parentId ?? undefined,
             organizationId: row.organizationId,
             projectId: row.projectId ?? undefined,
-          } as GetFolderResult;
+          };
         }),
     };
   },

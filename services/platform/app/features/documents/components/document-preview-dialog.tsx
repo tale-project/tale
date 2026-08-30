@@ -21,7 +21,6 @@ import { useFileUrl } from '@/app/features/shared/files/use-file-url';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { formatBytes } from '@/lib/utils/format/number';
@@ -214,7 +213,7 @@ export function DocumentPreviewDialog({
   const doc = docData ?? undefined;
 
   const { data: storageUrl, isLoading: isLoadingUrl } = useFileUrl(
-    !documentId && fileId ? toId<'_storage'>(fileId) : undefined,
+    !documentId && fileId ? fileId : undefined,
     !open,
   );
 

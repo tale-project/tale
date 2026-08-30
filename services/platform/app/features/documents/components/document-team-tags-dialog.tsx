@@ -13,7 +13,6 @@ import { Label } from '@/app/components/ui/forms/label';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateDocument, useUpdateFolderTeams } from '../hooks/mutations';
@@ -78,12 +77,12 @@ function DocumentTeamDialogContent({
 
       if (entityType === 'folder') {
         await updateFolderTeams.mutateAsync({
-          folderId: toId<'folders'>(entityId),
+          folderId: entityId,
           teamIds,
         });
       } else {
         await updateDocument.mutateAsync({
-          documentId: toId<'documents'>(entityId),
+          documentId: entityId,
           teamIds,
         });
       }

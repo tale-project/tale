@@ -4,7 +4,6 @@ import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { WebdavSettings } from '@/app/features/settings/webdav/components/webdav-settings';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
-import { api } from '@/convex/_generated/api';
 import { useSiteUrl } from '@/lib/site-url-context';
 import { seo } from '@/lib/utils/seo';
 
@@ -16,7 +15,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/api/webdav')({
   loader: ({ context, params }) => {
     void ensureConvexQuery(
       context,
-      api.webdav.app_password_queries.listAppPasswords,
+      'webdav/app_password_queries:listAppPasswords',
       { organizationId: params.id },
     ).catch(console.warn);
   },

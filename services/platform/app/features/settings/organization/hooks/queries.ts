@@ -2,20 +2,15 @@ import * as z from 'zod';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useDebounce } from '@/app/hooks/use-debounce';
-import { api } from '@/convex/_generated/api';
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
+import type { ItemOf } from '@/app/lib/backend/contract';
 
-export type Member = ConvexItemOf<
-  typeof api.members.queries.listByOrganization
->;
+export type Member = ItemOf<'members/queries:listByOrganization'>;
 
-export type MemberPasskey = ConvexItemOf<
-  typeof api.two_factor.queries.listPasskeysForMember
->;
+export type MemberPasskey = ItemOf<'two_factor/queries:listPasskeysForMember'>;
 
 export function useMembers(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
-    api.members.queries.listByOrganization,
+    'members/queries:listByOrganization',
     { organizationId },
   );
 
@@ -31,7 +26,7 @@ export function useMembers(organizationId: string) {
  */
 export function useMemberPasskeys(memberId: string | undefined) {
   return useConvexQuery(
-    api.two_factor.queries.listPasskeysForMember,
+    'two_factor/queries:listPasskeysForMember',
     memberId ? { memberId } : 'skip',
   );
 }
@@ -48,7 +43,7 @@ export function useUserExistsByEmail(email: string): boolean {
   const debouncedEmail = useDebounce(email.trim(), 400);
   const isValidEmail = emailSchema.safeParse(debouncedEmail).success;
   const { data } = useConvexQuery(
-    api.members.queries.getUserIdByEmail,
+    'members/queries:getUserIdByEmail',
     isValidEmail ? { email: debouncedEmail } : 'skip',
   );
   return typeof data === 'string' && data.length > 0;

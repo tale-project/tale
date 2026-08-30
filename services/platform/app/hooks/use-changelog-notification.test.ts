@@ -14,22 +14,10 @@ vi.mock('@/app/hooks/use-convex-query', () => ({
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
   useConvexMutation: (fn: unknown) => ({
     mutateAsync:
-      fn === 'markChangelogSeen'
+      fn === 'users/notification_state:markChangelogSeen'
         ? mockMarkSeenMutation
         : mockMarkToastedMutation,
   }),
-}));
-
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    users: {
-      notification_state: {
-        getUserNotificationState: 'getUserNotificationState',
-        markChangelogSeen: 'markChangelogSeen',
-        markToastShown: 'markToastShown',
-      },
-    },
-  },
 }));
 
 let mockVersion: string | undefined = 'v0.2.97';
@@ -125,7 +113,7 @@ describe('useChangelogNotification', () => {
     const result = useChangelogNotification();
 
     expect(mockUseQuery).toHaveBeenCalledWith(
-      'getUserNotificationState',
+      'users/notification_state:getUserNotificationState',
       'skip',
     );
     expect(result.hasUnseenVersion).toBe(false);

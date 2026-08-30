@@ -309,7 +309,7 @@ export function OrgEmbeddingSection({
   const credentialOptions = useMemo(() => {
     const own = credentials
       .filter((c) => c.providerSlug === selectedProvider)
-      .map((c) => ({ value: String(c.id), label: c.name }));
+      .map((c) => ({ value: c.id, label: c.name }));
     return [
       {
         value: DEFAULT_CREDENTIAL,

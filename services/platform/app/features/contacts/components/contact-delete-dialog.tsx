@@ -9,13 +9,13 @@ import {
   useDeleteDialog,
   useDeleteDialogTranslations,
 } from '@/app/components/ui/entity/use-delete-dialog';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteContact } from '../hooks/mutations';
 
 interface ContactDeleteDialogProps {
-  contact: Doc<'contacts'>;
+  contact: ContactDoc;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   asChild?: boolean;
@@ -48,14 +48,14 @@ export function ContactDeleteDialog({
   });
 
   const handleDelete = useCallback(
-    async (c: Doc<'contacts'>) => {
+    async (c: ContactDoc) => {
       await deleteContact.mutateAsync({ contactId: c._id });
     },
     [deleteContact],
   );
 
   const getEntityName = useCallback(
-    (c: Doc<'contacts'>) => c.name || tContacts('thisContact'),
+    (c: ContactDoc) => c.name || tContacts('thisContact'),
     [tContacts],
   );
 

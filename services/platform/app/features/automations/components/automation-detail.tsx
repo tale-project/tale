@@ -36,7 +36,6 @@ import {
 import { Select } from '@/app/components/ui/forms/select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
-import type { Id } from '@/convex/_generated/dataModel';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayDescription } from '@/lib/shared/schemas/automation_presentation';
@@ -168,7 +167,7 @@ export function AutomationDetail({
   automationSlug: string;
   /** Render inside a project shell: run links stay on the project routes and
    * a first save pins the automation to the project. */
-  projectId?: Id<'projects'>;
+  projectId?: string;
 }) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
@@ -205,7 +204,7 @@ export function AutomationDetail({
    * default. Only offered (and only meaningful) when the automation is bound to
    * more than one project; a sole binding is auto-applied server-side, and an
    * org-level automation is org-wide already. */
-  const [runProjectId, setRunProjectId] = useState<Id<'projects'> | undefined>(
+  const [runProjectId, setRunProjectId] = useState<string | undefined>(
     undefined,
   );
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
@@ -231,7 +230,7 @@ export function AutomationDetail({
   // binding is auto-applied server-side, none means org-wide.
   const boundProjects = useMemo(() => {
     const ids = new Set((boundProjectIds.data ?? []).map(String));
-    return projects.filter((project) => ids.has(String(project._id)));
+    return projects.filter((project) => ids.has(project._id));
   }, [boundProjectIds.data, projects]);
   const canChooseRunProject = boundProjects.length >= 2;
 
@@ -533,14 +532,14 @@ export function AutomationDetail({
                     label: t('detail.runScope.orgWide'),
                   },
                   ...boundProjects.map((project) => ({
-                    value: String(project._id),
+                    value: project._id,
                     label: project.name,
                   })),
                 ]}
                 value={
                   effectiveRunProjectId === undefined
                     ? RUN_SCOPE_ORG_WIDE
-                    : String(effectiveRunProjectId)
+                    : effectiveRunProjectId
                 }
                 onValueChange={(value) => {
                   // Radix fires a spurious '' on unmount — never act on it.
@@ -549,7 +548,7 @@ export function AutomationDetail({
                     value === RUN_SCOPE_ORG_WIDE
                       ? undefined
                       : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value is one of the bound project ids above
-                        (value as Id<'projects'>),
+                        value,
                   );
                 }}
               />

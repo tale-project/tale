@@ -23,8 +23,7 @@ import { useProjects } from '@/app/features/projects/hooks/queries';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import type { ArgsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeployAutomation } from '../hooks/mutations';
@@ -65,7 +64,7 @@ export function UploadAutomationDialog({
 }: {
   organizationId: string;
   /** Upload into one project's surface (the picker is then fixed). */
-  projectId?: Id<'projects'>;
+  projectId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -73,7 +72,7 @@ export function UploadAutomationDialog({
   const filesId = useId();
   const queryClient = useQueryClient();
   const [files, setFiles] = useState<File[]>([]);
-  const [target, setTarget] = useState(String(projectId ?? ORG_TARGET));
+  const [target, setTarget] = useState(projectId ?? ORG_TARGET);
   const [pending, setPending] = useState(false);
   const [phase, setPhase] = useState<'uploading' | 'validating'>('validating');
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -85,18 +84,25 @@ export function UploadAutomationDialog({
 
   const { projects } = useProjects(organizationId);
   const client = useConvexClient();
-  const upload = client.action.bind(
-    client,
-    api.automations.upload_action.uploadAutomation,
-  );
-  const generateUploadUrl = client.mutation.bind(
-    client,
-    api.automations.upload_mutations.generateAutomationUploadUrl,
-  );
-  const recordIntent = client.mutation.bind(
-    client,
-    api.automations.upload_mutations.recordAutomationUploadIntent,
-  );
+  // Arrow wrappers rather than `.bind`: binding erases the name's generic
+  // instantiation, collapsing the answer to the union over every contract
+  // entry.
+  const upload = (args: ArgsOf<'automations/upload_action:uploadAutomation'>) =>
+    client.action('automations/upload_action:uploadAutomation', args);
+  const generateUploadUrl = (
+    args: ArgsOf<'automations/upload_mutations:generateAutomationUploadUrl'>,
+  ) =>
+    client.mutation(
+      'automations/upload_mutations:generateAutomationUploadUrl',
+      args,
+    );
+  const recordIntent = (
+    args: ArgsOf<'automations/upload_mutations:recordAutomationUploadIntent'>,
+  ) =>
+    client.mutation(
+      'automations/upload_mutations:recordAutomationUploadIntent',
+      args,
+    );
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -116,12 +122,12 @@ export function UploadAutomationDialog({
     abortRef.current = null;
   };
 
-  const resolvedProjectId = (): { projectId: Id<'projects'> } | object => {
+  const resolvedProjectId = (): { projectId: string } | object => {
     const resolvedTarget = projectId ?? target;
     return resolvedTarget !== ORG_TARGET
       ? {
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the value came from the projects listing
-          projectId: resolvedTarget as Id<'projects'>,
+          projectId: resolvedTarget,
         }
       : {};
   };
@@ -206,7 +212,7 @@ export function UploadAutomationDialog({
     }
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the presign endpoint's response shape is Convex's own upload contract
     const { storageId } = (await response.json()) as {
-      storageId: Id<'_storage'>;
+      storageId: string;
     };
     await recordIntent({ organizationId, storageId });
     setPhase('validating');
@@ -472,7 +478,7 @@ export function UploadAutomationDialog({
               options={[
                 { value: ORG_TARGET, label: t('upload.targetOrg') },
                 ...projects.map((project) => ({
-                  value: String(project._id),
+                  value: project._id,
                   label: project.name,
                 })),
               ]}

@@ -20,8 +20,6 @@ import { useEffect, useRef, useState } from 'react';
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
@@ -195,7 +193,7 @@ export function ConversationPanel({
 
       if (hasUnreadMessages) {
         markAsRead(
-          { conversationId: toId<'conversations'>(selectedConversationId) },
+          { conversationId: selectedConversationId },
           {
             onError: (error) => {
               console.error('Failed to mark conversation as read:', error);
@@ -222,7 +220,7 @@ export function ConversationPanel({
 
     let uploadedAttachments:
       | Array<{
-          storageId: Id<'_storage'>;
+          storageId: string;
           fileName: string;
           contentType: string;
           size: number;
@@ -263,7 +261,7 @@ export function ConversationPanel({
             }
 
             return {
-              storageId: toId<'_storage'>(rawStorageId),
+              storageId: rawStorageId,
               fileName: file.name,
               contentType: file.type,
               size: file.size,
@@ -295,7 +293,7 @@ export function ConversationPanel({
     });
 
     await sendMessageViaConnector({
-      conversationId: toId<'conversations'>(conversation._id),
+      conversationId: conversation._id,
       organizationId: conversation.organizationId,
       connectorName: conversation.connectorName ?? 'outlook',
       content: message,
@@ -312,7 +310,7 @@ export function ConversationPanel({
 
   const handleUndoSend = (messageId: string) => {
     undoSendMessage(
-      { messageId: toId<'conversationMessages'>(messageId) },
+      { messageId: messageId },
       {
         onSuccess: ({ sourceMarkdown }) => {
           if (sourceMarkdown) {
@@ -332,7 +330,7 @@ export function ConversationPanel({
 
   const handleRetrySend = (messageId: string) => {
     retrySendMessage(
-      { messageId: toId<'conversationMessages'>(messageId) },
+      { messageId: messageId },
       {
         onError: (error) => {
           console.error('Failed to retry send:', error);
@@ -347,7 +345,7 @@ export function ConversationPanel({
 
   const handleDiscardOutbound = (messageId: string) => {
     discardOutboundMessage(
-      { messageId: toId<'conversationMessages'>(messageId) },
+      { messageId: messageId },
       {
         onError: (error) => {
           console.error('Failed to discard message:', error);
@@ -600,8 +598,7 @@ export function ConversationPanel({
                             onDownloadAttachments={(messageId) => {
                               downloadAttachments(
                                 {
-                                  messageId:
-                                    toId<'conversationMessages'>(messageId),
+                                  messageId: messageId,
                                 },
                                 {
                                   onError: (error) => {
@@ -702,7 +699,7 @@ export function ConversationPanel({
                   onClick={() => {
                     reopenConversation(
                       {
-                        conversationId: toId<'conversations'>(conversation.id),
+                        conversationId: conversation.id,
                       },
                       {
                         onSuccess: () => {
@@ -749,7 +746,7 @@ export function ConversationPanel({
                   onClick={() => {
                     reopenConversation(
                       {
-                        conversationId: toId<'conversations'>(conversation.id),
+                        conversationId: conversation.id,
                       },
                       {
                         onSuccess: () => {
@@ -797,9 +794,7 @@ export function ConversationPanel({
                     onClick={() => {
                       reopenConversation(
                         {
-                          conversationId: toId<'conversations'>(
-                            conversation.id,
-                          ),
+                          conversationId: conversation.id,
                         },
                         {
                           onSuccess: () => {
@@ -834,9 +829,7 @@ export function ConversationPanel({
                     onClick={() => {
                       deleteConversation(
                         {
-                          conversationId: toId<'conversations'>(
-                            conversation.id,
-                          ),
+                          conversationId: conversation.id,
                         },
                         {
                           onSuccess: () => {

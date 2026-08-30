@@ -6,7 +6,6 @@ import { useUploadPolicy } from '@/app/features/settings/governance/hooks/querie
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import {
   CHAT_UPLOAD_ALLOWED_TYPES,
@@ -89,16 +88,16 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
   // configured, else Convex `_storage`. An ACTION (not a mutation) because
   // presigning S3 needs the node runtime. Mirrors the documents uploader.
   const { mutateAsync: generateBlobUpload } = useConvexAction(
-    api.files.blob_actions.generateBlobUpload,
+    'files/blob_actions:generateBlobUpload',
   );
   const { mutateAsync: saveFileMetadata } = useConvexMutation(
-    api.file_metadata.mutations.saveFileMetadata,
+    'file_metadata/mutations:saveFileMetadata',
   );
   const { mutateAsync: skipTranscription } = useConvexMutation(
-    api.file_metadata.mutations.skipTranscription,
+    'file_metadata/mutations:skipTranscription',
   );
   const { mutateAsync: retryTranscription } = useConvexMutation(
-    api.file_metadata.mutations.retryTranscription,
+    'file_metadata/mutations:retryTranscription',
   );
 
   const policyLimits = useUploadPolicy(config.organizationId);

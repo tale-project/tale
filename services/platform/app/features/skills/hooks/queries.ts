@@ -1,6 +1,5 @@
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { api } from '@/convex/_generated/api';
 
 /**
  * Read hooks for the skill library. Skills are org-config FILES (one
@@ -13,7 +12,7 @@ import { api } from '@/convex/_generated/api';
 export function useSkills(organizationId: string) {
   return useActionQuery(
     configKeys.list('skills', organizationId),
-    api.skills.actions.listSkills,
+    'skills/actions:listSkills',
     { organizationId },
   );
 }
@@ -22,7 +21,7 @@ export function useSkills(organizationId: string) {
 export function useSkill(organizationId: string, slug: string | null) {
   return useActionQuery(
     configKeys.detail('skills', organizationId, slug ?? ''),
-    api.skills.actions.getSkill,
+    'skills/actions:getSkill',
     { organizationId, slug: slug ?? '' },
     { enabled: !!slug },
   );
@@ -36,7 +35,7 @@ export function useSkillAsset(
 ) {
   return useActionQuery(
     [...configKeys.detail('skills', organizationId, slug), 'asset', path ?? ''],
-    api.skills.actions.getSkillAsset,
+    'skills/actions:getSkillAsset',
     { organizationId, slug, path: path ?? '' },
     { enabled: !!path },
   );

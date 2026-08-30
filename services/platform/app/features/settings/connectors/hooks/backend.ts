@@ -1,6 +1,4 @@
-import { type FunctionReturnType } from 'convex/server';
-
-import { api } from '@/convex/_generated/api';
+import type { ItemOf } from '@/app/lib/backend/contract';
 
 /**
  * Backend bindings of the connectors settings page.
@@ -17,12 +15,10 @@ import { api } from '@/convex/_generated/api';
 
 /** One stored credential as the settings listing sees it: metadata plus the
  * write-time masked preview. Secret material never leaves the server. */
-export type MaskedConnectorCredential = FunctionReturnType<
-  typeof api.connector_credentials.queries.listCredentials
->[number];
+export type MaskedConnectorCredential =
+  ItemOf<'connector_credentials/queries:listCredentials'>;
 
 /** One shipped connector as the catalog lists it: its icon, tags, and how many
  * actions it exposes to automations and chat. */
-export type ConnectorSummary = FunctionReturnType<
-  typeof api.connector_credentials.connector_catalog.listConnectors
->[number];
+export type ConnectorSummary =
+  ItemOf<'connector_credentials/connector_catalog:listConnectors'>;

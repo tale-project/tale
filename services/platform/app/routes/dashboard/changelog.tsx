@@ -13,7 +13,6 @@ import { ChangelogBackButton } from '@/app/features/changelog/components/changel
 import { ReleaseBody } from '@/app/features/changelog/components/release-body';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
 import { useConvexClient } from '@/app/hooks/use-convex-client';
-import { api } from '@/convex/_generated/api';
 import { compareVersions, filterReleasesInRange } from '@/lib/compare-versions';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -71,7 +70,7 @@ function ChangelogPage() {
     void (async () => {
       try {
         const data = await client.action(
-          api.changelog.actions.listReleases,
+          'changelog/actions:listReleases',
           fromForFetch ? { from: fromForFetch } : {},
         );
         setReleases(data);

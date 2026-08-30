@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
@@ -13,7 +12,7 @@ const mockLocation = {
 };
 
 type ProjectRow = {
-  _id: Id<'projects'>;
+  _id: string;
   name: string;
 };
 
@@ -29,8 +28,8 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useLocation: () => mockLocation,
 }));
 
-const CURRENT_ID = 'proj-getting-started' as Id<'projects'>;
-const OTHER_ID = 'proj-acme' as Id<'projects'>;
+const CURRENT_ID = 'proj-getting-started' as string;
+const OTHER_ID = 'proj-acme' as string;
 
 describe('ProjectBreadcrumbSwitcher', () => {
   beforeEach(() => {

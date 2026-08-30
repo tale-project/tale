@@ -6,7 +6,6 @@ import { useCallback, useState } from 'react';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 interface GoogleDisconnectButtonProps {
@@ -27,7 +26,7 @@ export function GoogleDisconnectButton({
   const [isLoading, setIsLoading] = useState(false);
   const organizationId = useOrganizationId();
   const { mutateAsync: revokeAuthorization } = useConvexMutation(
-    api.cloud_import.mutations.revokeAuthorization,
+    'cloud_import/mutations:revokeAuthorization',
   );
 
   const handleDisconnect = useCallback(async () => {

@@ -59,7 +59,7 @@ const mockListFiles = vi.fn().mockResolvedValue({
 
 vi.mock('@/app/hooks/use-convex-action', () => ({
   useConvexAction: (ref: string) => ({
-    mutateAsync: ref === 'listFiles' ? mockListFiles : vi.fn(),
+    mutateAsync: ref === 'onedrive/actions:listFiles' ? mockListFiles : vi.fn(),
   }),
 }));
 
@@ -68,18 +68,6 @@ vi.mock('@/app/hooks/use-convex-mutation', () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
-}));
-
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    cloud_import: {
-      mutations: { revokeAuthorization: 'revokeAuthorization' },
-      actions: { startOAuth: 'startOAuth' },
-    },
-    onedrive: {
-      actions: { listFiles: 'listFiles', listSharePointFiles: 'listSpFiles' },
-    },
-  },
 }));
 
 const mockImportFiles = vi.fn().mockResolvedValue({

@@ -2,7 +2,6 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 import type { AssignableAgent } from '../hooks/use-actor-directory';
@@ -119,7 +118,7 @@ describe('AssigneePicker', () => {
     const { user } = render(
       <AssigneePicker
         organizationId="org-1"
-        projectId={'project-1' as Id<'projects'>}
+        projectId={'project-1' as string}
         onAssign={onAssign}
         onUnassign={vi.fn()}
       />,
@@ -149,7 +148,7 @@ describe('AssigneePicker', () => {
     const first = render(
       <AssigneePicker
         organizationId="org-1"
-        projectId={'project-1' as Id<'projects'>}
+        projectId={'project-1' as string}
         onAssign={vi.fn()}
         onUnassign={vi.fn()}
       />,
@@ -183,7 +182,7 @@ describe('AssigneePicker', () => {
     const { user } = render(
       <AssigneePicker
         organizationId="org-1"
-        projectId={'project-1' as Id<'projects'>}
+        projectId={'project-1' as string}
         onAssign={vi.fn()}
         onUnassign={vi.fn()}
       />,

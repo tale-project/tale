@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 import { ContactsTable } from '@/app/features/contacts/components/contact-table';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
-import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
@@ -20,7 +19,7 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/contacts')({
   loader: ({ context, params }) => {
     prefetchAdaptedQuery(
       context.queryClient,
-      api.contacts.queries.approxCountContacts,
+      'contacts/queries:approxCountContacts',
       {
         organizationId: params.id,
       },

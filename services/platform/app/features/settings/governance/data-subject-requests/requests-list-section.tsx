@@ -207,13 +207,13 @@ export function RequestsListSection({
           // fetches keep the existing rows visible.
           isLoading={isInitialLoading}
           approxRowCount={results?.length}
-          getRowId={(row) => String(row._id)}
+          getRowId={(row) => row._id}
           onRowClick={(row) => {
             void navigate({
               to: '/dashboard/$id/settings/governance/data-subject-requests/$requestId',
               params: {
                 id: organizationId,
-                requestId: String(row.original._id),
+                requestId: row.original._id,
               },
             });
           }}

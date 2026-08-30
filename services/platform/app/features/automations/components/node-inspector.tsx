@@ -11,7 +11,6 @@ import { Textarea } from '@tale/ui/textarea';
 import { AlertTriangle, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
@@ -212,7 +211,7 @@ export interface NodeInspectorProps {
   /** For the agent node's equipment pickers (skills/connectors/tools/secrets
    * catalogs are org-scoped, widened to the project when authored in one). */
   organizationId: string;
-  projectId?: Id<'projects'>;
+  projectId?: string;
   /**
    * What the panel shows when no node is selected — the automation's trigger,
    * project bindings, and description. Hidden (not unmounted) while a node is
@@ -335,7 +334,7 @@ function NodeFields({
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
   organizationId: string;
-  projectId?: Id<'projects'>;
+  projectId?: string;
   onDeselect?: () => void;
 }) {
   const { t } = useT('automations');

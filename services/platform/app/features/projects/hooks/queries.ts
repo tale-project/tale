@@ -1,11 +1,7 @@
-import type { FunctionReturnType } from 'convex/server';
-
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
+import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
 /**
  * The shipped harnesses a project agent can run on. Reuses the composer's
@@ -15,7 +11,7 @@ import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 export function useProjectHarnesses(organizationId: string) {
   return useActionQuery(
     ['projects', 'harnesses', organizationId],
-    api.chat.composer.listComposerModels,
+    'chat/composer:listComposerModels',
     { organizationId },
   );
 }
@@ -29,13 +25,13 @@ export function useProjectHarnesses(organizationId: string) {
  */
 export function useProjectCapabilityCatalog(
   organizationId: string,
-  projectId: Id<'projects'> | undefined,
+  projectId: string | undefined,
 ) {
   return useActionQuery(
     ['projects', 'capability-catalog', organizationId, projectId ?? ''],
-    api.chat.composer.listProjectCapabilities,
+    'chat/composer:listProjectCapabilities',
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `enabled` below skips the query while projectId is undefined
-    { organizationId, projectId: projectId as Id<'projects'> },
+    { organizationId, projectId: projectId as string },
     { enabled: projectId !== undefined },
   );
 }
@@ -44,36 +40,30 @@ export function useProjectCapabilityCatalog(
  * equipment picker and the secret manager. Values are never returned. */
 export function useAgentSecrets(organizationId: string | undefined) {
   return useConvexQuery(
-    api.agent_secrets.queries.listAgentSecrets,
+    'agent_secrets/queries:listAgentSecrets',
     organizationId !== undefined ? { organizationId } : 'skip',
   );
 }
 
-export type AgentSecretSummary = ConvexItemOf<
-  typeof api.agent_secrets.queries.listAgentSecrets
->;
+export type AgentSecretSummary =
+  ItemOf<'agent_secrets/queries:listAgentSecrets'>;
 
-export type ProjectListItem = ConvexItemOf<
-  typeof api.projects.queries.listProjects
->;
+export type ProjectListItem = ItemOf<'projects/queries:listProjects'>;
 
-export type ProjectAgentRow = ConvexItemOf<
-  typeof api.projects.queries.listProjectAgents
->;
+export type ProjectAgentRow = ItemOf<'projects/queries:listProjectAgents'>;
 
 /** The project's user-created agents (name-sorted). */
-export function useProjectAgents(projectId: Id<'projects'> | undefined) {
+export function useProjectAgents(projectId: string | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
-    api.projects.queries.listProjectAgents,
+    'projects/queries:listProjectAgents',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { agents: data ?? [], isLoading };
 }
 
-export type ProjectOverviewRow = FunctionReturnType<
-  typeof api.projects.queries.listProjectsOverview
->['projects'][number];
+export type ProjectOverviewRow =
+  ReturnsOf<'projects/queries:listProjectsOverview'>['projects'][number];
 
 /**
  * How coarsely the overdue clock is quantized. `listProjectsOverview` derives
@@ -111,7 +101,7 @@ export function useProjectsOverview(
   options: { includeArchived: boolean },
 ) {
   const { data, isLoading } = useConvexQuery(
-    api.projects.queries.listProjectsOverview,
+    'projects/queries:listProjectsOverview',
     projectsOverviewArgs(organizationId, options.includeArchived),
   );
   return {
@@ -127,41 +117,38 @@ export function useProjects(
   organizationId: string,
   options?: { includeArchived?: boolean },
 ) {
-  const { data, isLoading } = useConvexQuery(
-    api.projects.queries.listProjects,
-    {
-      organizationId,
-      includeArchived: options?.includeArchived,
-    },
-  );
+  const { data, isLoading } = useConvexQuery('projects/queries:listProjects', {
+    organizationId,
+    includeArchived: options?.includeArchived,
+  });
   return {
     projects: data ?? [],
     isLoading,
   };
 }
 
-export function useProject(projectId: Id<'projects'> | undefined) {
+export function useProject(projectId: string | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
-    api.projects.queries.getProject,
+    'projects/queries:getProject',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { project: data ?? null, isLoading };
 }
 
-export function useProjectDocuments(projectId: Id<'projects'> | undefined) {
+export function useProjectDocuments(projectId: string | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
-    api.projects.queries.listProjectDocuments,
+    'projects/queries:listProjectDocuments',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { documents: data ?? [], isLoading };
 }
 
-export function useProjectFolders(projectId: Id<'projects'> | undefined) {
+export function useProjectFolders(projectId: string | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
-    api.projects.queries.listProjectFolders,
+    'projects/queries:listProjectFolders',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { folders: data ?? [], isLoading };
@@ -169,12 +156,12 @@ export function useProjectFolders(projectId: Id<'projects'> | undefined) {
 
 /** The Chats tab's data: the caller's own conversations in the project and
  * the ones other members shared with it, from the chat-v2 tables. */
-export function useProjectChatThreads(projectId: Id<'projects'> | undefined) {
+export function useProjectChatThreads(projectId: string | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(
-    api.chat.project_threads.listThreadsForProject,
+    'chat/project_threads:listThreadsForProject',
     projectId && organizationId
-      ? { organizationId, projectId: String(projectId) }
+      ? { organizationId, projectId: projectId }
       : 'skip',
   );
   return {
@@ -186,7 +173,7 @@ export function useProjectChatThreads(projectId: Id<'projects'> | undefined) {
 
 export function useSidebarProjects(organizationId: string) {
   const { data, isLoading } = useConvexQuery(
-    api.projects.queries.listSidebarProjects,
+    'projects/queries:listSidebarProjects',
     { organizationId, limit: 8 },
   );
   return { projects: data ?? [], isLoading };
@@ -194,7 +181,7 @@ export function useSidebarProjects(organizationId: string) {
 
 export function useProjectsSearch(organizationId: string, query: string) {
   const { data, isLoading } = useConvexQuery(
-    api.projects.queries.searchProjects,
+    'projects/queries:searchProjects',
     query.trim().length > 0
       ? { organizationId, query: query.trim(), limit: 20 }
       : 'skip',

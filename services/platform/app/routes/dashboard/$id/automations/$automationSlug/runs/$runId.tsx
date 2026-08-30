@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
 import { RunDetail } from '@/app/features/automations/components/run-detail';
-import type { Id } from '@/convex/_generated/dataModel';
 import { paramToAutomationSlug } from '@/lib/automations/slug';
 import { seo } from '@/lib/utils/seo';
 
@@ -22,7 +21,7 @@ function AutomationRunPage() {
       // that does not belong to the caller's organization, so an id shaped
       // like another table's reads as "not found" rather than leaking.
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a route param is a string; the server validates it
-      runId={runId as Id<'automationRuns'>}
+      runId={runId}
     />
   );
 }

@@ -57,7 +57,7 @@ export function ViewKnowledgeEntryDialog({
             indexedAt={entry.ragIndexedAt}
             error={entry.ragError}
             errorCode={entry.ragErrorCode}
-            documentId={entry.documentId ? String(entry.documentId) : undefined}
+            documentId={entry.documentId ? entry.documentId : undefined}
           />
         ),
       },

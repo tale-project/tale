@@ -7,9 +7,7 @@
  * `listAutomations`). Response types are DERIVED from the 0.4 signatures.
  */
 
-import type { FunctionReturnType } from 'convex/server';
-
-import type { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 
 import { backendFetch, backendUrl } from './api-client';
 import type {
@@ -20,55 +18,26 @@ import type {
 } from './convex-adapters';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
-type GetAutomationResult = FunctionReturnType<
-  typeof api.automations.queries.getAutomation
->;
-type ListVersionsResult = FunctionReturnType<
-  typeof api.automations.queries.listVersions
->;
-type ListTriggersResult = FunctionReturnType<
-  typeof api.automations.queries.listTriggers
->;
-type ListRunsResult = FunctionReturnType<
-  typeof api.automations.queries.listRuns
->;
-type GetRunResult = FunctionReturnType<typeof api.automations.queries.getRun>;
-type PendingAskResult = FunctionReturnType<
-  typeof api.automations.human_asks.getPendingAskForRun
->;
-type OrgAutomationMetricsResult = FunctionReturnType<
-  typeof api.automations.queries.getOrgAutomationMetrics
->;
-type ApprovalResult = FunctionReturnType<
-  typeof api.approvals.queries.getApproval
->;
-type NodeTypesResult = FunctionReturnType<
-  typeof api.automations.catalog.listNodeTypes
->;
-type AutomationCapabilitiesResult = FunctionReturnType<
-  typeof api.chat.composer.listAutomationCapabilities
->;
-type SaveAutomationResult = FunctionReturnType<
-  typeof api.automations.mutations.saveAutomation
->;
-type DeployResult = FunctionReturnType<
-  typeof api.automations.mutations.deployAutomation
->;
-type SetTriggerResult = FunctionReturnType<
-  typeof api.automations.mutations.setTrigger
->;
-type StartRunResult = FunctionReturnType<
-  typeof api.automations.mutations.startRun
->;
-type CancelRunResult = FunctionReturnType<
-  typeof api.automations.mutations.cancelRun
->;
-type DeleteAutomationResult = FunctionReturnType<
-  typeof api.automations.mutations.deleteAutomation
->;
-type UploadAutomationResult = FunctionReturnType<
-  typeof api.automations.upload_action.uploadAutomation
->;
+type GetAutomationResult = ReturnsOf<'automations/queries:getAutomation'>;
+type ListVersionsResult = ReturnsOf<'automations/queries:listVersions'>;
+type ListTriggersResult = ReturnsOf<'automations/queries:listTriggers'>;
+type ListRunsResult = ReturnsOf<'automations/queries:listRuns'>;
+type GetRunResult = ReturnsOf<'automations/queries:getRun'>;
+type PendingAskResult = ReturnsOf<'automations/human_asks:getPendingAskForRun'>;
+type OrgAutomationMetricsResult =
+  ReturnsOf<'automations/queries:getOrgAutomationMetrics'>;
+type ApprovalResult = ReturnsOf<'approvals/queries:getApproval'>;
+type NodeTypesResult = ReturnsOf<'automations/catalog:listNodeTypes'>;
+type AutomationCapabilitiesResult =
+  ReturnsOf<'chat/composer:listAutomationCapabilities'>;
+type SaveAutomationResult = ReturnsOf<'automations/mutations:saveAutomation'>;
+type DeployResult = ReturnsOf<'automations/mutations:deployAutomation'>;
+type SetTriggerResult = ReturnsOf<'automations/mutations:setTrigger'>;
+type CancelRunResult = ReturnsOf<'automations/mutations:cancelRun'>;
+type DeleteAutomationResult =
+  ReturnsOf<'automations/mutations:deleteAutomation'>;
+type UploadAutomationResult =
+  ReturnsOf<'automations/upload_action:uploadAutomation'>;
 
 function orgOf(
   args: Record<string, unknown>,
@@ -447,7 +416,7 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
           },
         },
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg run ids stand in for Convex ids on the 0.4 wire shape
-      ).then((body) => body as StartRunResult),
+      ).then((body) => body),
     invalidate: invalidateRuns,
   },
   'automations/mutations:cancelRun': {

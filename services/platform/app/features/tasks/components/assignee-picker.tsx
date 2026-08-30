@@ -19,8 +19,6 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useCancelTaskAgentRun } from '../hooks/mutations';
@@ -74,11 +72,11 @@ export function AssigneePicker({
   afterTrigger,
 }: {
   organizationId: string;
-  projectId?: Id<'projects'>;
+  projectId?: string;
   /** Enables the ownership-transfer guard (confirm + cancel-then-reassign)
    * and is required for it — pickers without a bound task keep the bare
    * assign behavior. */
-  taskId?: Id<'tasks'>;
+  taskId?: string;
   assigneeType?: TaskActorType;
   assigneeId?: string;
   onAssign: (type: TaskActorType, id: string) => void;
@@ -113,7 +111,7 @@ export function AssigneePicker({
   );
   const client = useConvexClient();
   const cancelWorkflowRun = useConvexAction(
-    api.tasks.public_actions.cancelTaskWorkflow,
+    'tasks/public_actions:cancelTaskWorkflow',
   );
   const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();
   const [open, setOpen] = useState(false);
@@ -319,12 +317,12 @@ export function AssigneePicker({
       let liveRun: 'automation' | 'agent' | null = null;
       try {
         const [automationRun, agentRun] = await Promise.all([
-          client.query(api.automations.queries.getLiveRunForTask, {
+          client.query('automations/queries:getLiveRunForTask', {
             organizationId,
             projectId,
             taskId,
           }),
-          client.query(api.tasks.queries.getLatestTaskAgentRunForTask, {
+          client.query('tasks/queries:getLatestTaskAgentRunForTask', {
             organizationId,
             taskId,
           }),

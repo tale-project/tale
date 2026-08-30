@@ -7,13 +7,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import type { UsePaginatedQueryResult } from '@/app/hooks/use-convex-paginated-query';
+import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -22,10 +21,10 @@ import {
   type AuditLogTableVariant,
 } from '../hooks/use-audit-log-table-config';
 
-type AuditLog = Doc<'auditLogs'>;
+type AuditLog = AuditLogDoc;
 
 interface AuditLogTableProps {
-  paginatedResult: UsePaginatedQueryResult<AuditLog>;
+  paginatedResult: UsePaginatedQueryReturnType<AuditLog>;
   userEmailMap?: Map<string, string>;
   /** `errors` renders the error-message column set and errors copy. */
   variant?: AuditLogTableVariant;
@@ -73,7 +72,7 @@ export function AuditLogTable({
     revealFromResults === undefined &&
     organizationId !== undefined;
   const revealFetch = useConvexQuery(
-    api.audit_logs.queries.getAuditLogById,
+    'audit_logs/queries:getAuditLogById',
     shouldFetchReveal ? { organizationId, logId: revealLogId } : 'skip',
   );
   const handledRevealRef = useRef<number | undefined>(undefined);

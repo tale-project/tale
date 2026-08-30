@@ -128,7 +128,7 @@ export function SidebarSearchCommand({
         const taskProjectId = data.projectId;
         const onSameTasksRoute =
           tasksRoute.routeProjectId !== undefined &&
-          String(taskProjectId) === tasksRoute.routeProjectId;
+          taskProjectId === tasksRoute.routeProjectId;
         const search = {
           task: result.id,
           ...(tasksRoute.allProjects ? { projects: 'all' as const } : {}),

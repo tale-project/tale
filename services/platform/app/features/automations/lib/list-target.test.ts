@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { automationListTarget } from './list-target';
 
 describe('automationListTarget', () => {
@@ -23,7 +21,7 @@ describe('automationListTarget', () => {
       automationListTarget({
         organizationId: 'org-1',
         name: 'desk/prepare-return',
-        listProjectId: 'proj_1' as Id<'projects'>,
+        listProjectId: 'proj_1' as string,
         boundProjectIds: [],
       }),
     ).toEqual({
@@ -41,7 +39,7 @@ describe('automationListTarget', () => {
       automationListTarget({
         organizationId: 'org-1',
         name: 'desk/prepare-return',
-        boundProjectIds: ['proj_1' as Id<'projects'>],
+        boundProjectIds: ['proj_1' as string],
       }),
     ).toEqual({
       to: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
@@ -58,10 +56,7 @@ describe('automationListTarget', () => {
       automationListTarget({
         organizationId: 'org-1',
         name: 'desk/prepare-return',
-        boundProjectIds: [
-          'proj_1' as Id<'projects'>,
-          'proj_2' as Id<'projects'>,
-        ],
+        boundProjectIds: ['proj_1' as string, 'proj_2' as string],
       }),
     ).toEqual({
       to: '/dashboard/$id/automations/$automationSlug',

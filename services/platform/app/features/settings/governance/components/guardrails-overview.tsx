@@ -26,7 +26,6 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import {
   chatFilterConfigSchema,
@@ -275,7 +274,7 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
   );
 
   const { data: events, isLoading } = useConvexQuery(
-    api.chat_filter_events.queries.listRecent,
+    'chat_filter_events/queries:listRecent',
     queryArgs,
   );
 

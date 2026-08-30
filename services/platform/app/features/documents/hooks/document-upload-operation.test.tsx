@@ -33,41 +33,15 @@ vi.mock('@/lib/utils/file-hash', () => ({
   calculateFileHash: (...args: unknown[]) => mocks.calculateFileHash(...args),
 }));
 
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    files: {
-      blob_actions: { generateBlobUpload: 'generateBlobUpload' },
-      mutations: { deleteRejectedUploadBlob: 'deleteRejectedUploadBlob' },
-    },
-    documents: {
-      mutations: { createDocumentFromUpload: 'createDocumentFromUpload' },
-      record_actions: {
-        beginControlledDocumentReplacementUpload:
-          'beginControlledDocumentReplacementUpload',
-        finalizeControlledDocumentReplacementUpload:
-          'finalizeControlledDocumentReplacementUpload',
-        reconcileControlledDocumentReplacementUpload:
-          'reconcileControlledDocumentReplacementUpload',
-      },
-      replacement_uploads: {
-        registerControlledDocumentReplacementUpload:
-          'registerControlledDocumentReplacementUpload',
-        cancelControlledDocumentReplacementUpload:
-          'cancelControlledDocumentReplacementUpload',
-      },
-    },
-  },
-}));
-
 vi.mock('@/app/hooks/use-convex-action', () => ({
   useConvexAction: (reference: string) => {
     const mutateAsync = {
-      generateBlobUpload: mocks.generateBlobUpload,
-      beginControlledDocumentReplacementUpload:
+      'files/blob_actions:generateBlobUpload': mocks.generateBlobUpload,
+      'documents/record_actions:beginControlledDocumentReplacementUpload':
         mocks.beginControlledDocumentReplacementUpload,
-      finalizeControlledDocumentReplacementUpload:
+      'documents/record_actions:finalizeControlledDocumentReplacementUpload':
         mocks.finalizeControlledDocumentReplacementUpload,
-      reconcileControlledDocumentReplacementUpload:
+      'documents/record_actions:reconcileControlledDocumentReplacementUpload':
         mocks.reconcileControlledDocumentReplacementUpload,
     }[reference];
     return { mutateAsync };
@@ -77,12 +51,14 @@ vi.mock('@/app/hooks/use-convex-action', () => ({
 vi.mock('@/app/hooks/use-convex-mutation', () => ({
   useConvexMutation: (reference: string) => {
     const mutateAsync = {
-      createDocumentFromUpload: mocks.createDocumentFromUpload,
-      registerControlledDocumentReplacementUpload:
+      'documents/mutations:createDocumentFromUpload':
+        mocks.createDocumentFromUpload,
+      'documents/replacement_uploads:registerControlledDocumentReplacementUpload':
         mocks.registerControlledDocumentReplacementUpload,
-      cancelControlledDocumentReplacementUpload:
+      'documents/replacement_uploads:cancelControlledDocumentReplacementUpload':
         mocks.cancelControlledDocumentReplacementUpload,
-      deleteRejectedUploadBlob: mocks.deleteRejectedUploadBlob,
+      'files/mutations:deleteRejectedUploadBlob':
+        mocks.deleteRejectedUploadBlob,
     }[reference];
     return { mutateAsync };
   },

@@ -174,7 +174,7 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
           data={matters ?? []}
           isLoading={isLoading}
           approxRowCount={matters?.length}
-          getRowId={(row) => String(row._id)}
+          getRowId={(row) => row._id}
           emptyState={{
             icon: Archive,
             title: t('legalHold.sections.matters.empty.title'),

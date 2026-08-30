@@ -2,13 +2,13 @@ import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, within } from '@/tests/utils/render';
 
 import { ContactsTable } from './contact-table';
 
-type Contact = Doc<'contacts'>;
+type Contact = ContactDoc;
 
 // ---------------------------------------------------------------------------
 // Mutable fixtures driven per-test. The component reads the paginated rows

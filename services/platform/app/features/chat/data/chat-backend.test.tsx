@@ -4,7 +4,6 @@ import { ConvexProvider, type ConvexReactClient } from 'convex/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { api } from '@/convex/_generated/api';
 import { render, screen } from '@/tests/utils/render';
 
 import {
@@ -46,7 +45,7 @@ function Probe() {
   // A ref the seam has NOT migrated: with the Convex runtime retired there is
   // nothing behind it, so the surface must degrade — steadily, not by
   // flickering between states on every render.
-  const read = useChatQuery(api.chat_filter_events.queries.getGuardrailStats, {
+  const read = useChatQuery('chat_filter_events/queries:getGuardrailStats', {
     organizationId: 'org-1',
     periodDays: 7,
   });
@@ -95,7 +94,7 @@ function WatchProbe({ org, threadId }: { org: string; threadId?: string }) {
   // An ADAPTED read, skipped when no thread is selected — what the seam's
   // 'skip' contract is actually about.
   const read = useChatQuery(
-    api.chat.threads.listThreads,
+    'chat/threads:listThreads',
     threadId !== undefined ? { organizationId: org } : 'skip',
   );
   return <output>{read.status}</output>;

@@ -21,7 +21,6 @@ import { ContentArea } from '@/app/components/layout/content-area';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useSetThreadSharedWithProject } from '../hooks/mutations';
@@ -29,7 +28,7 @@ import { useProjectChatThreads } from '../hooks/queries';
 
 interface ProjectThreadsTabProps {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
 }
 
 export function ProjectThreadsTab({
@@ -45,7 +44,7 @@ export function ProjectThreadsTab({
     void navigate({
       to: '/dashboard/$id/chat',
       params: { id: organizationId },
-      search: { projectId: String(projectId) },
+      search: { projectId: projectId },
     });
   };
 

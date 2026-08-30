@@ -22,7 +22,6 @@ import {
   HEADER_CRUMB_LINK_CLASS,
   HeaderBreadcrumbs,
 } from '@/app/components/layout/header-breadcrumbs';
-import type { Id } from '@/convex/_generated/dataModel';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
@@ -38,7 +37,7 @@ export function AutomationBreadcrumbs({
   organizationId: string;
   automationSlug: string;
   /** When set, the automation name crumb (on a run) stays on the project route. */
-  projectId?: Id<'projects'>;
+  projectId?: string;
 }) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');

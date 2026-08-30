@@ -10,7 +10,6 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { useToast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { mapDsrError } from './data-subject-requests-errors';
@@ -22,7 +21,7 @@ const MAX_EXTRA_DAYS = 60;
 interface ExtendDeadlineDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  requestId: Id<'gdprErasureRequests'>;
+  requestId: string;
 }
 
 interface FormValues {

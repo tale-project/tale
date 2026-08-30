@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 
 import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { api } from '@/convex/_generated/api';
 
 import type { DocumentComparisonResult } from '../components/document-comparison/comparison-types';
 
@@ -31,7 +30,7 @@ export function useDocumentComparison({
   organizationId,
 }: UseDocumentComparisonOptions) {
   const { mutateAsync: compareAction } = useConvexAction(
-    api.documents.compare_documents.compareDocuments,
+    'documents/compare_documents:compareDocuments',
   );
   const [state, setState] = useState<ComparisonState>({
     result: null,

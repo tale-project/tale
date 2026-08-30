@@ -6,7 +6,6 @@ import { Text } from '@tale/ui/text';
 import { Pencil, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { MentionText } from './mention-text';
@@ -42,9 +41,9 @@ export function EditableDescription({
   placeholder,
   onSave,
 }: {
-  taskId: Id<'tasks'>;
+  taskId: string;
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   value: string;
   /** Visible label, and the textarea's accessible name once open. */
   label: string;

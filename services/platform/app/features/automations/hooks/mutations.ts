@@ -1,6 +1,5 @@
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
 
 /**
  * Write hooks for the automations surface.
@@ -18,14 +17,14 @@ import { api } from '@/convex/_generated/api';
 
 /** Append a version of the automation's document. */
 export function useSaveAutomation() {
-  return useConvexMutation(api.automations.mutations.saveAutomation, {
+  return useConvexMutation('automations/mutations:saveAutomation', {
     errorToast: false,
   });
 }
 
 /** Promote one version to the single live version of the automation. */
 export function useDeployAutomation() {
-  return useConvexMutation(api.automations.mutations.deployAutomation, {
+  return useConvexMutation('automations/mutations:deployAutomation', {
     errorToast: false,
   });
 }
@@ -33,7 +32,7 @@ export function useDeployAutomation() {
 /** Resolve a run's write-approval card: approve lets the parked node act on
  * the next stepper poll; reject fails it. */
 export function useResolveRunApproval() {
-  return useConvexMutation(api.approvals.mutations.updateApprovalStatus, {
+  return useConvexMutation('approvals/mutations:updateApprovalStatus', {
     errorToast: false,
   });
 }
@@ -41,21 +40,21 @@ export function useResolveRunApproval() {
 /** Answer a run's pending `ask_human` question — records the answer and
  * resumes the parked agent conversation. */
 export function useAnswerHumanAsk() {
-  return useConvexMutation(api.automations.human_asks.answerAsk, {
+  return useConvexMutation('automations/human_asks:answerAsk', {
     errorToast: false,
   });
 }
 
 /** Start a run — `mock` performs no IO, `live` may reach the outside world. */
 export function useStartAutomationRun() {
-  return useConvexMutation(api.automations.mutations.startRun, {
+  return useConvexMutation('automations/mutations:startRun', {
     errorToast: false,
   });
 }
 
 /** Stop a run that has not finished. */
 export function useCancelAutomationRun() {
-  return useConvexMutation(api.automations.mutations.cancelRun, {
+  return useConvexMutation('automations/mutations:cancelRun', {
     errorToast: false,
   });
 }
@@ -63,14 +62,14 @@ export function useCancelAutomationRun() {
 /** Bind (or re-bind) what starts the automation. The result may carry a
  * webhook token — shown exactly once, so the call site must display it. */
 export function useSetAutomationTrigger() {
-  return useConvexMutation(api.automations.mutations.setTrigger, {
+  return useConvexMutation('automations/mutations:setTrigger', {
     errorToast: false,
   });
 }
 
 /** Unbind the automation's trigger; versions and run history stay. */
 export function useDeleteAutomationTrigger() {
-  return useConvexMutation(api.automations.mutations.deleteTrigger, {
+  return useConvexMutation('automations/mutations:deleteTrigger', {
     errorToast: false,
   });
 }
@@ -78,7 +77,7 @@ export function useDeleteAutomationTrigger() {
 /** Reconcile the automation's project bindings to exactly the given set —
  * empty makes it org-level. */
 export function useSetAutomationProjects() {
-  return useConvexMutation(api.automations.mutations.setAutomationProjects, {
+  return useConvexMutation('automations/mutations:setAutomationProjects', {
     errorToast: false,
   });
 }
@@ -86,7 +85,7 @@ export function useSetAutomationProjects() {
 /** Delete the automation — versions, deployment, triggers and bindings.
  * Refused while a run is still live; run history is kept. */
 export function useDeleteAutomation() {
-  return useConvexMutation(api.automations.mutations.deleteAutomation, {
+  return useConvexMutation('automations/mutations:deleteAutomation', {
     errorToast: false,
   });
 }
@@ -98,5 +97,5 @@ export function useDeleteAutomation() {
  * saves versions, so the resolved value is only the closing summary.
  */
 export function useStartBuilderSession() {
-  return useConvexAction(api.automations_builder.actions.startBuilderSession);
+  return useConvexAction('automations_builder/actions:startBuilderSession');
 }

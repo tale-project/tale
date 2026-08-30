@@ -2,14 +2,13 @@
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useQuery } from '@tanstack/react-query';
-import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useEffect, useRef } from 'react';
 
 import {
   synthesizeChunkRequest,
   voiceChunksQuery,
 } from '@/app/lib/backend/chat';
-import { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import {
   MAX_TTS_CHUNK_CHARS,
   MAX_TTS_IN_FLIGHT,
@@ -136,9 +135,7 @@ export function useVoiceChunks(
     useChatQueryClient(),
   );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the route serves the 0.4 chunk projection verbatim
-  return result.data as
-    | FunctionReturnType<typeof api.tts.queries.getMessageChunks>
-    | undefined;
+  return result.data as ReturnsOf<'tts/queries:getMessageChunks'> | undefined;
 }
 
 /**

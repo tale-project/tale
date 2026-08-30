@@ -2,7 +2,6 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 import { TaskRunFailureBanner } from './task-run-failure-banner';
@@ -84,7 +83,7 @@ describe('TaskRunFailureBanner (#2609)', () => {
 
     render(
       <TaskRunFailureBanner
-        taskId={'task_1' as Id<'tasks'>}
+        taskId={'task_1' as string}
         organizationId="org_1"
       />,
     );
@@ -107,7 +106,7 @@ describe('TaskRunFailureBanner (#2609)', () => {
 
     render(
       <TaskRunFailureBanner
-        taskId={'task_1' as Id<'tasks'>}
+        taskId={'task_1' as string}
         organizationId="org_1"
       />,
     );
@@ -143,7 +142,7 @@ describe('TaskRunFailureBanner (#2609)', () => {
 
     render(
       <TaskRunFailureBanner
-        taskId={'task_1' as Id<'tasks'>}
+        taskId={'task_1' as string}
         organizationId="org_1"
       />,
     );

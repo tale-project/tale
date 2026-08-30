@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router';
 
 import { EnterpriseSsoSettings } from '@/app/features/settings/enterprise-sso/components/enterprise-sso-settings';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
-import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/enterprise-sso')({
@@ -10,7 +9,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/enterprise-sso')({
   loader: ({ context, params }) => {
     prefetchAdaptedQuery(
       context.queryClient,
-      api.enterprise_sso.config.queries.get,
+      'enterprise_sso/config/queries:get',
       {
         organizationId: params.id,
       },

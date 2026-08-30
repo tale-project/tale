@@ -6,9 +6,7 @@
  * rows. Response types are DERIVED from the 0.4 function signatures.
  */
 
-import type { FunctionReturnType } from 'convex/server';
-
-import type { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 
 import { BackendApiError, backendFetch } from './api-client';
 import type {
@@ -20,75 +18,43 @@ import type {
 } from './convex-adapters';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
-type AuditListResult = FunctionReturnType<
-  typeof api.audit_logs.queries.listAuditLogs
->;
-type ActivitySummaryResult = FunctionReturnType<
-  typeof api.audit_logs.queries.getActivitySummary
->;
-type IntegrityStatusResult = FunctionReturnType<
-  typeof api.audit_logs.verify_integrity.getIntegrityStatus
->;
-type VerifyIntegrityResult = FunctionReturnType<
-  typeof api.audit_logs.verify_integrity.verifyIntegrity
->;
-type RequestExportResult = FunctionReturnType<
-  typeof api.audit_logs.actions.requestExport
->;
-type BrandingReadResult = FunctionReturnType<
-  typeof api.branding.file_actions.readBranding
->;
-type SaveImageResult = FunctionReturnType<
-  typeof api.branding.file_actions.saveImage
->;
-type SsoConnectionViewResult = FunctionReturnType<
-  typeof api.enterprise_sso.config.queries.get
->;
-type TestSsoResult = FunctionReturnType<
-  typeof api.enterprise_sso.config.actions.testConnection
->;
-type ParseIdpMetadataResult = FunctionReturnType<
-  typeof api.enterprise_sso.config.actions.parseIdpMetadata
->;
-type RegenerateScimResult = FunctionReturnType<
-  typeof api.scim.mutations.regenerateToken
->;
-type DeploymentConfigViewResult = FunctionReturnType<
-  typeof api.deployment.file_actions.readDeploymentConfig
->;
-type SaveDeploymentConfigResult = FunctionReturnType<
-  typeof api.deployment.file_actions.saveDeploymentConfig
->;
-type DeploymentTestResult = FunctionReturnType<
-  typeof api.deployment.file_actions.testDeploymentConnection
->;
-type RequestRestartResult = FunctionReturnType<
-  typeof api.deployment.file_actions.requestRestart
->;
-type ObjectStorageViewResult = FunctionReturnType<
-  typeof api.object_storage.actions.getObjectStorageConnection
->;
-type ObjectStorageProbeResult = FunctionReturnType<
-  typeof api.object_storage.actions.testObjectStorageConnection
->;
-type BackfillStartResult = FunctionReturnType<
-  typeof api.object_storage.actions.startObjectStorageBlobBackfill
->;
-type BackfillStatusResult = FunctionReturnType<
-  typeof api.object_storage.backfill_queries.getObjectStorageBackfillStatus
->;
-type KnowledgeConnectionViewResult = FunctionReturnType<
-  typeof api.knowledge.actions.getKnowledgeConnection
->;
-type KnowledgeProbeResult = FunctionReturnType<
-  typeof api.knowledge.actions.testKnowledgeConnection
->;
-type KnowledgeEmbeddingViewResult = FunctionReturnType<
-  typeof api.knowledge.actions.getKnowledgeEmbedding
->;
-type EmbeddingRecommendationsResult = FunctionReturnType<
-  typeof api.knowledge.recommendations.listEmbeddingRecommendations
->;
+type AuditListResult = ReturnsOf<'audit_logs/queries:listAuditLogs'>;
+type ActivitySummaryResult = ReturnsOf<'audit_logs/queries:getActivitySummary'>;
+type IntegrityStatusResult =
+  ReturnsOf<'audit_logs/verify_integrity:getIntegrityStatus'>;
+type VerifyIntegrityResult =
+  ReturnsOf<'audit_logs/verify_integrity:verifyIntegrity'>;
+type RequestExportResult = ReturnsOf<'audit_logs/actions:requestExport'>;
+type BrandingReadResult = ReturnsOf<'branding/file_actions:readBranding'>;
+type SaveImageResult = ReturnsOf<'branding/file_actions:saveImage'>;
+type SsoConnectionViewResult = ReturnsOf<'enterprise_sso/config/queries:get'>;
+type TestSsoResult = ReturnsOf<'enterprise_sso/config/actions:testConnection'>;
+type ParseIdpMetadataResult =
+  ReturnsOf<'enterprise_sso/config/actions:parseIdpMetadata'>;
+type RegenerateScimResult = ReturnsOf<'scim/mutations:regenerateToken'>;
+type DeploymentConfigViewResult =
+  ReturnsOf<'deployment/file_actions:readDeploymentConfig'>;
+type SaveDeploymentConfigResult =
+  ReturnsOf<'deployment/file_actions:saveDeploymentConfig'>;
+type DeploymentTestResult =
+  ReturnsOf<'deployment/file_actions:testDeploymentConnection'>;
+type RequestRestartResult = ReturnsOf<'deployment/file_actions:requestRestart'>;
+type ObjectStorageViewResult =
+  ReturnsOf<'object_storage/actions:getObjectStorageConnection'>;
+type ObjectStorageProbeResult =
+  ReturnsOf<'object_storage/actions:testObjectStorageConnection'>;
+type BackfillStartResult =
+  ReturnsOf<'object_storage/actions:startObjectStorageBlobBackfill'>;
+type BackfillStatusResult =
+  ReturnsOf<'object_storage/backfill_queries:getObjectStorageBackfillStatus'>;
+type KnowledgeConnectionViewResult =
+  ReturnsOf<'knowledge/actions:getKnowledgeConnection'>;
+type KnowledgeProbeResult =
+  ReturnsOf<'knowledge/actions:testKnowledgeConnection'>;
+type KnowledgeEmbeddingViewResult =
+  ReturnsOf<'knowledge/actions:getKnowledgeEmbedding'>;
+type EmbeddingRecommendationsResult =
+  ReturnsOf<'knowledge/recommendations:listEmbeddingRecommendations'>;
 
 /** One audit row on the pg wire (superset of the 0.4 doc; `id` not `_id`). */
 type AuditLogWire = Record<string, unknown> & { id: string };

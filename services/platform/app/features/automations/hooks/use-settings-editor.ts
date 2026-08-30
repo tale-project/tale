@@ -17,8 +17,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import {
   type AutomationSettings,
   type AnySettingsForm,
@@ -144,7 +142,7 @@ export function useSettingsEditor({
   folder,
 }: {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   settings: AutomationSettings;
   folder: string;
 }): SettingsEditor {
@@ -156,7 +154,7 @@ export function useSettingsEditor({
     settings,
   );
   const writeValues = useConvexAction(
-    api.documents.public_actions.ensureProjectTextDocument,
+    'documents/public_actions:ensureProjectTextDocument',
   );
 
   const [edited, setEdited] = useState<ValuesByFile>({});

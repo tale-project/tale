@@ -1,8 +1,6 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { useAssignableActors } from '../hooks/use-actor-directory';
 import {
   useTaskContractAutomations,
@@ -41,7 +39,7 @@ export interface MentionActorOption {
  */
 export function useMentionActorOptions(
   organizationId: string,
-  projectId: Id<'projects'>,
+  projectId: string,
 ): MentionActorOption[] {
   const { assignableMembers, assignableAgents, currentUserId } =
     useAssignableActors(organizationId, projectId);

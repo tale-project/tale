@@ -7,6 +7,7 @@ import { Globe, Loader } from 'lucide-react';
 
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
+import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 
 import { WebsiteRowActions } from '../components/website-row-actions';
 import { isScanPaused } from '../lib/scan-paused';
@@ -19,7 +20,7 @@ const statusVariant = {
   deleting: 'destructive',
 } as const;
 
-export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
+export const useWebsitesTableConfig = createTableConfigHook<WebsiteDoc>(
   {
     entityNamespace: 'websites',
     defaultSort: '_creationTime',

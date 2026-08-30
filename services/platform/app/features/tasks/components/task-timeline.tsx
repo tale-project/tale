@@ -6,7 +6,6 @@ import { Bot } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
@@ -40,9 +39,9 @@ export function TaskTimeline({
   organizationId,
   projectId,
 }: {
-  taskId: Id<'tasks'>;
+  taskId: string;
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
 }) {
   const { t } = useT('tasks');
   const { activity } = useTaskActivity(taskId);

@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router';
 
 import { KnowledgeEntriesTable } from '@/app/features/knowledge-entries/components/knowledge-entries-table';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
-import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute(
@@ -14,7 +13,7 @@ export const Route = createFileRoute(
   loader: ({ context, params }) => {
     prefetchAdaptedQuery(
       context.queryClient,
-      api.knowledge_entries.queries.approxCountKnowledgeEntries,
+      'knowledge_entries/queries:approxCountKnowledgeEntries',
       {
         organizationId: params.id,
       },

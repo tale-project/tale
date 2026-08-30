@@ -21,7 +21,6 @@ import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 interface AuditLogsPageProps {
@@ -76,7 +75,7 @@ export function AuditLogsPage({
   const activeTab = tab ?? 'audit';
   const showCategoryFilter = activeTab === 'audit' || activeTab === 'errors';
 
-  const membersQuery = useConvexQuery(api.members.queries.listByOrganization, {
+  const membersQuery = useConvexQuery('members/queries:listByOrganization', {
     organizationId,
   });
   const userEmailMap = useMemo(() => {
@@ -127,7 +126,7 @@ export function AuditLogsPage({
 
   const { toast } = useToast();
 
-  const exportAction = useConvexAction(api.audit_logs.actions.requestExport, {
+  const exportAction = useConvexAction('audit_logs/actions:requestExport', {
     errorToast: false,
     onSuccess: (data) => {
       if (data.url) {

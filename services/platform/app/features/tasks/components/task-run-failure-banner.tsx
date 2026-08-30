@@ -3,7 +3,6 @@
 import { Alert } from '@tale/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
@@ -27,7 +26,7 @@ export function TaskRunFailureBanner({
   organizationId,
   projectId,
 }: {
-  taskId: Id<'tasks'>;
+  taskId: string;
   organizationId: string;
   projectId?: string;
 }) {

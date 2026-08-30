@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 // `FileAttachmentDisplay` (the real chat renderer) resolves its own preview
@@ -45,7 +44,7 @@ function fileAttachment(
     fileSize: 1024,
     previewUrl: 'blob:photo-1',
     ...overrides,
-    fileId: (overrides.fileId ?? 'storage-1') as Id<'_storage'>,
+    fileId: (overrides.fileId ?? 'storage-1') as string,
   };
 }
 

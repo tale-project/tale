@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
@@ -58,7 +57,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ),
 }));
 
-const PROJECT_ID = 'proj-1' as Id<'projects'>;
+const PROJECT_ID = 'proj-1' as string;
 
 function renderTab() {
   return render(

@@ -9,7 +9,6 @@ import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteProject } from '../hooks/mutations';
@@ -18,7 +17,7 @@ interface ProjectDeleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   projectName: string;
   /**
    * Navigate to the projects list after a successful delete. Set to false

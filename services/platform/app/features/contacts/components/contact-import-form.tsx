@@ -9,7 +9,7 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 import {
   isSpreadsheet,
@@ -23,7 +23,7 @@ interface ContactImportFormProps {
   mode?: 'manual' | 'upload';
 }
 
-export type DataSource = Doc<'contacts'>['source'];
+export type DataSource = ContactDoc['source'];
 
 export function ContactImportForm({ hideTabs, mode }: ContactImportFormProps) {
   const { t } = useT('contacts');

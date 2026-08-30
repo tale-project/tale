@@ -2,7 +2,6 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
 
 /**
  * Save a governance policy to its per-org JSON file (the source of truth),
@@ -15,19 +14,19 @@ import { api } from '@/convex/_generated/api';
  * `useUpsertRetentionPolicy` / `useProposeDsarPolicy` (bounds / loosen-grace).
  */
 export function useUpsertGovernancePolicy() {
-  return useConvexAction(api.governance.file_actions.saveGovernancePolicy);
+  return useConvexAction('governance/file_actions:saveGovernancePolicy');
 }
 
 export function useProposeDsarPolicy() {
   // Files are the source of truth, so this is an action (filesystem write).
   // The DSAR editor toasts its own failure message.
-  return useConvexAction(api.governance.dsar_policy.proposeDsarPolicy);
+  return useConvexAction('governance/dsar_policy:proposeDsarPolicy');
 }
 
 export function useCancelPendingDsarPolicyChange() {
   // The DSAR editor toasts its own failure message — opt out of the default.
   return useConvexMutation(
-    api.governance.dsar_policy.cancelPendingDsarPolicyChange,
+    'governance/dsar_policy:cancelPendingDsarPolicyChange',
     { errorToast: false },
   );
 }
@@ -41,14 +40,14 @@ export function useCancelPendingDsarPolicyChange() {
  */
 export function useUpsertRetentionPolicy() {
   return useConvexAction(
-    api.governance.retention_actions.upsertRetentionPolicyAction,
+    'governance/retention_actions:upsertRetentionPolicyAction',
   );
 }
 
 export function useSaveModerationSecret() {
   const queryClient = useQueryClient();
   return useConvexAction(
-    api.governance.moderation_provider.secrets.saveModerationSecret,
+    'governance/moderation_provider/secrets:saveModerationSecret',
     {
       onSuccess: (_data, variables) => {
         // Invalidate the mask query so the UI shows the updated fingerprint.
@@ -62,7 +61,7 @@ export function useSaveModerationSecret() {
 
 export function useTestModerationProvider() {
   return useConvexAction(
-    api.governance.moderation_provider.test_action.testModerationProvider,
+    'governance/moderation_provider/test_action:testModerationProvider',
   );
 }
 
@@ -73,7 +72,7 @@ export function useTestModerationProvider() {
 export function useApplyBoundsProposal() {
   const queryClient = useQueryClient();
   return useConvexAction(
-    api.governance.retention_bounds_proposal.applyBoundsProposal,
+    'governance/retention_bounds_proposal:applyBoundsProposal',
     {
       onSuccess: (_data, variables) => {
         void queryClient.invalidateQueries({
@@ -92,7 +91,7 @@ export function useApplyBoundsProposal() {
 export function useRejectBoundsProposal() {
   const queryClient = useQueryClient();
   return useConvexAction(
-    api.governance.retention_bounds_proposal.rejectBoundsProposal,
+    'governance/retention_bounds_proposal:rejectBoundsProposal',
     {
       onSuccess: (_data, variables) => {
         void queryClient.invalidateQueries({
@@ -104,32 +103,32 @@ export function useRejectBoundsProposal() {
 }
 
 export function usePlaceLegalHold() {
-  return useConvexMutation(api.governance.legal_hold.placeLegalHold);
+  return useConvexMutation('governance/legal_hold:placeLegalHold');
 }
 
 export function useRequestLegalHoldRelease() {
-  return useConvexMutation(api.governance.legal_hold.requestLegalHoldRelease);
+  return useConvexMutation('governance/legal_hold:requestLegalHoldRelease');
 }
 
 export function useApproveLegalHoldRelease() {
-  return useConvexMutation(api.governance.legal_hold.approveLegalHoldRelease);
+  return useConvexMutation('governance/legal_hold:approveLegalHoldRelease');
 }
 
 export function useRejectLegalHoldRelease() {
-  return useConvexMutation(api.governance.legal_hold.rejectLegalHoldRelease);
+  return useConvexMutation('governance/legal_hold:rejectLegalHoldRelease');
 }
 
 export function useUpsertLegalMatter() {
-  return useConvexMutation(api.governance.legal_hold.upsertLegalMatter);
+  return useConvexMutation('governance/legal_hold:upsertLegalMatter');
 }
 
 export function useCloseLegalMatter() {
-  return useConvexMutation(api.governance.legal_hold.closeLegalMatter);
+  return useConvexMutation('governance/legal_hold:closeLegalMatter');
 }
 
 export function useRestoreSoftDeletedRow() {
   const queryClient = useQueryClient();
-  return useConvexMutation(api.governance.restore.restoreSoftDeletedRow, {
+  return useConvexMutation('governance/restore:restoreSoftDeletedRow', {
     onSuccess: () => {
       // `convexQuery` produces keys of shape
       //   ['convexQuery', '<module>:<query>', args]

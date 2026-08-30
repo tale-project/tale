@@ -1,24 +1,20 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import type { FunctionReturnType } from 'convex/server';
 import { createContext, useContext } from 'react';
 
 import {
   passwordExpiryQuery,
   twoFactorStatusQuery,
 } from '@/app/lib/backend/account';
-import type { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 
 // These used to derive from the single `getAccountBootstrap` batch query,
 // which was retired with the rest of the bootstrap module; the two underlying
 // per-concern queries remain and now define the shapes directly.
-export type TwoFactorStatus = FunctionReturnType<
-  typeof api.two_factor.queries.getStatus
->;
-export type PasswordExpiryStatus = FunctionReturnType<
-  typeof api.users.queries.getPasswordExpiryStatus
->;
+export type TwoFactorStatus = ReturnsOf<'two_factor/queries:getStatus'>;
+export type PasswordExpiryStatus =
+  ReturnsOf<'users/queries:getPasswordExpiryStatus'>;
 
 export interface AccountBootstrapContextValue {
   /** `undefined` until the bootstrap query resolves (treated as "hold"). */

@@ -6,9 +6,7 @@
  * byte lane exactly like the automation pack.
  */
 
-import type { FunctionReturnType } from 'convex/server';
-
-import type { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 
 import { backendFetch, backendUrl } from './api-client';
 import type {
@@ -17,28 +15,14 @@ import type {
   WriteAdapter,
 } from './convex-adapters';
 
-type AgentListingResult = FunctionReturnType<
-  typeof api.agents.actions.listAgents
->;
-type AgentDocumentResult = FunctionReturnType<
-  typeof api.agents.actions.getAgent
->;
-type AgentHistoryResult = FunctionReturnType<
-  typeof api.agents.actions.listAgentHistory
->;
-type SkillListingResult = FunctionReturnType<
-  typeof api.skills.actions.listSkills
->;
-type SkillDocumentResult = FunctionReturnType<
-  typeof api.skills.actions.getSkill
->;
-type SkillAssetResult = FunctionReturnType<
-  typeof api.skills.actions.getSkillAsset
->;
-type SaveSkillResult = FunctionReturnType<typeof api.skills.actions.saveSkill>;
-type UploadSkillBundleResult = FunctionReturnType<
-  typeof api.skills.actions.uploadSkillBundle
->;
+type AgentListingResult = ReturnsOf<'agents/actions:listAgents'>;
+type AgentDocumentResult = ReturnsOf<'agents/actions:getAgent'>;
+type AgentHistoryResult = ReturnsOf<'agents/actions:listAgentHistory'>;
+type SkillListingResult = ReturnsOf<'skills/actions:listSkills'>;
+type SkillDocumentResult = ReturnsOf<'skills/actions:getSkill'>;
+type SkillAssetResult = ReturnsOf<'skills/actions:getSkillAsset'>;
+type SaveSkillResult = ReturnsOf<'skills/actions:saveSkill'>;
+type UploadSkillBundleResult = ReturnsOf<'skills/actions:uploadSkillBundle'>;
 
 function orgOf(
   args: Record<string, unknown>,

@@ -5,11 +5,11 @@ import type { Column } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
 
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 
 import { ContactRowActions } from '../components/contact-row-actions';
 
-type Contact = Doc<'contacts'>;
+type Contact = ContactDoc;
 
 interface SortLabels {
   ascending: string;
@@ -63,7 +63,7 @@ function sortableHeader<TData>(
   };
 }
 
-export const useContactsTableConfig = createTableConfigHook<'contacts'>(
+export const useContactsTableConfig = createTableConfigHook<ContactDoc>(
   {
     entityNamespace: 'contacts',
     defaultSort: '_creationTime',

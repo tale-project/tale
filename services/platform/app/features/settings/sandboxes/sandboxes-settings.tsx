@@ -7,7 +7,6 @@ import {
   TooltipTrigger,
 } from '@tale/ui/tooltip';
 import type { ColumnDef } from '@tanstack/react-table';
-import type { FunctionReturnType } from 'convex/server';
 import { Box, Pin, PinOff, Square, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -20,13 +19,11 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
 type SandboxList = NonNullable<
-  FunctionReturnType<
-    typeof api.sandbox.session_queries_public.listSandboxesForOrg
-  >
+  ReturnsOf<'sandbox/session_queries_public:listSandboxesForOrg'>
 >;
 type SandboxRow = SandboxList[number];
 
@@ -44,25 +41,25 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   const { toast } = useToast();
 
   const { data, isLoading } = useConvexQuery(
-    api.sandbox.session_queries_public.listSandboxesForOrg,
+    'sandbox/session_queries_public:listSandboxesForOrg',
     { organizationId },
   );
 
   // Per-budget session usage vs cap — the soft-warning surface before a hard
   // refusal. Reactive, so it tracks sessions coming and going live.
   const quota = useConvexQuery(
-    api.sandbox.session_queries_public.getSandboxQuotaUsage,
+    'sandbox/session_queries_public:getSandboxQuotaUsage',
     { organizationId },
   );
 
   const stop = useConvexAction(
-    api.node_only.sandbox.session_admin_actions.stopSandboxTask,
+    'node_only/sandbox/session_admin_actions:stopSandboxTask',
   );
   const destroy = useConvexAction(
-    api.node_only.sandbox.session_admin_actions.destroySandbox,
+    'node_only/sandbox/session_admin_actions:destroySandbox',
   );
   const setPinned = useConvexAction(
-    api.node_only.sandbox.session_admin_actions.setSandboxPinned,
+    'node_only/sandbox/session_admin_actions:setSandboxPinned',
   );
 
   // Reconcile platform rows with the spawner on mount so a session the idle/TTL
@@ -71,7 +68,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   // cron — is what keeps the fleet view honest. Fire-and-forget; the action
   // logs its own per-session failures.
   const reconcile = useConvexAction(
-    api.node_only.sandbox.session_admin_actions.reconcileOrgSessions,
+    'node_only/sandbox/session_admin_actions:reconcileOrgSessions',
   );
   const reconcileMutate = reconcile.mutate;
   useEffect(() => {

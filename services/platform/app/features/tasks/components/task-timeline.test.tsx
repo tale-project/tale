@@ -1,8 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import type { TaskActivityRow } from '../utils/task-timeline';
 import { TaskTimeline } from './task-timeline';
 
@@ -11,7 +9,7 @@ import { TaskTimeline } from './task-timeline';
 const timelineMocks: { activity: TaskActivityRow[] } = {
   activity: [
     {
-      _id: 'activity_1' as Id<'taskActivity'>,
+      _id: 'activity_1' as string,
       actorType: 'agent',
       actorId: 'issue-triager',
       action: 'agent_run.refused',
@@ -75,9 +73,9 @@ describe('TaskTimeline — admission refusal activity (#2609)', () => {
   it('renders the refusal reason in plain language, not the raw action/reason codes', () => {
     render(
       <TaskTimeline
-        taskId={'task_1' as Id<'tasks'>}
+        taskId={'task_1' as string}
         organizationId="org_1"
-        projectId={'project_1' as Id<'projects'>}
+        projectId={'project_1' as string}
       />,
     );
 
@@ -94,7 +92,7 @@ describe('TaskTimeline — assignee change activity', () => {
   beforeEach(() => {
     timelineMocks.activity = [
       {
-        _id: 'activity_2' as Id<'taskActivity'>,
+        _id: 'activity_2' as string,
         actorType: 'user',
         actorId: 'user-actor',
         action: 'assignee.changed',
@@ -108,9 +106,9 @@ describe('TaskTimeline — assignee change activity', () => {
   it('renders assignee names instead of raw ids', () => {
     render(
       <TaskTimeline
-        taskId={'task_1' as Id<'tasks'>}
+        taskId={'task_1' as string}
         organizationId="org_1"
-        projectId={'project_1' as Id<'projects'>}
+        projectId={'project_1' as string}
       />,
     );
 

@@ -2,7 +2,6 @@
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useToast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { mapDsrError } from './data-subject-requests-errors';
@@ -11,7 +10,7 @@ import { useRetryErasureRequest } from './hooks/mutations';
 interface RetryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  requestId: Id<'gdprErasureRequests'>;
+  requestId: string;
 }
 
 export function RetryDialog({

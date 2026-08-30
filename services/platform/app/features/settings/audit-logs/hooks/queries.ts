@@ -1,6 +1,5 @@
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
 import type { AuditLogFilter } from '@/convex/audit_logs/types';
 
 export function useListAuditLogs(
@@ -8,7 +7,7 @@ export function useListAuditLogs(
   filter?: AuditLogFilter,
   limit = 50,
 ) {
-  return useConvexQuery(api.audit_logs.queries.listAuditLogs, {
+  return useConvexQuery('audit_logs/queries:listAuditLogs', {
     organizationId,
     filter,
     limit,
@@ -25,7 +24,7 @@ interface ListAuditLogsPaginatedArgs {
 export function useListAuditLogsPaginated(args: ListAuditLogsPaginatedArgs) {
   const { initialNumItems, ...queryArgs } = args;
   return useCachedPaginatedQuery(
-    api.audit_logs.queries.listAuditLogsPaginated,
+    'audit_logs/queries:listAuditLogsPaginated',
     queryArgs,
     { initialNumItems },
   );
@@ -40,7 +39,7 @@ interface ListErrorLogsPaginatedArgs {
 export function useListErrorLogsPaginated(args: ListErrorLogsPaginatedArgs) {
   const { initialNumItems, ...queryArgs } = args;
   return useCachedPaginatedQuery(
-    api.audit_logs.queries.listErrorLogsPaginated,
+    'audit_logs/queries:listErrorLogsPaginated',
     queryArgs,
     { initialNumItems },
   );
@@ -50,7 +49,7 @@ export function useActivitySummary(
   organizationId: string,
   periodDays: 7 | 30 | 90,
 ) {
-  return useConvexQuery(api.audit_logs.queries.getActivitySummary, {
+  return useConvexQuery('audit_logs/queries:getActivitySummary', {
     organizationId,
     periodDays,
   });

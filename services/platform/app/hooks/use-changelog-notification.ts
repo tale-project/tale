@@ -2,7 +2,6 @@
 
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
 import { compareVersions } from '@/lib/compare-versions';
 import { getEnv } from '@/lib/env';
 
@@ -55,14 +54,14 @@ interface ChangelogNotification {
 export function useChangelogNotification(): ChangelogNotification {
   const currentVersion = getEnv('TALE_VERSION');
   const { data: state } = useConvexQuery(
-    api.users.notification_state.getUserNotificationState,
+    'users/notification_state:getUserNotificationState',
     currentVersion ? {} : 'skip',
   );
   const markSeenMutation = useConvexMutation(
-    api.users.notification_state.markChangelogSeen,
+    'users/notification_state:markChangelogSeen',
   );
   const markToastedMutation = useConvexMutation(
-    api.users.notification_state.markToastShown,
+    'users/notification_state:markToastShown',
   );
 
   // `state === undefined` means the query is still loading; we hold back

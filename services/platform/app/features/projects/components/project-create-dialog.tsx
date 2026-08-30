@@ -11,7 +11,6 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   deriveProjectKey,
@@ -36,7 +35,7 @@ interface ProjectCreateDialogProps {
    * navigates to it). Lets a caller record local UI state for the new project
    * — e.g. the chat sidebar pre-expands its folder.
    */
-  onCreated?: (projectId: Id<'projects'>) => void;
+  onCreated?: (projectId: string) => void;
   /**
    * Navigate to the new project's detail page after creation (default `true`).
    * Set `false` when the caller drives its own follow-up navigation — e.g. the
@@ -130,7 +129,7 @@ export function ProjectCreateDialog({
       if (navigateOnCreate) {
         void navigate({
           to: '/dashboard/$id/projects/$projectId/tasks',
-          params: { id: organizationId, projectId: String(projectId) },
+          params: { id: organizationId, projectId: projectId },
         });
       }
     } catch (error) {

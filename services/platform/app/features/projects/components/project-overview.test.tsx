@@ -1,7 +1,6 @@
 import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import { ProjectOverview } from './project-overview';
@@ -65,7 +64,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ),
 }));
 
-const PROJECT_ID = 'proj-1' as Id<'projects'>;
+const PROJECT_ID = 'proj-1' as string;
 
 function renderOverview() {
   return render(

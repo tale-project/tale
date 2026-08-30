@@ -3,7 +3,7 @@
  * and `@tale/ui` Badge variants. Pure constants shared across board/table/detail.
  */
 
-import type { Doc, Id } from '@/convex/_generated/dataModel';
+import type { TaskRow } from '@/app/lib/backend/contract/docs';
 
 /**
  * One attached label as the read paths return it. The stored document holds
@@ -13,7 +13,7 @@ import type { Doc, Id } from '@/convex/_generated/dataModel';
  * `withResolvedLabels`' mid-migration fallback).
  */
 export type TaskLabelRef = {
-  id?: Id<'taskLabels'>;
+  id?: string;
   name: string;
   color: string;
 };
@@ -21,21 +21,21 @@ export type TaskLabelRef = {
 /**
  * A task as every read path returns it: the stored document with `labels`
  * swapped from the raw id array to resolved catalog rows. Client code should
- * type tasks as `TaskDoc`, never `Doc<'tasks'>` — the latter is the *storage*
+ * type tasks as `TaskDoc`, never `TaskRow` — the latter is the *storage*
  * shape and its `labels` is the retired string array.
  */
-export type TaskDoc = Omit<Doc<'tasks'>, 'labels'> & {
+export type TaskDoc = Omit<TaskRow, 'labels'> & {
   labels?: TaskLabelRef[];
 };
 
-export type TaskStatus = Doc<'tasks'>['status'];
-export type TaskPriority = NonNullable<Doc<'tasks'>['priority']>;
+export type TaskStatus = TaskRow['status'];
+export type TaskPriority = NonNullable<TaskRow['priority']>;
 /** Polymorphic actor type shared by assignees, comment authors, and activity. */
-export type TaskActorType = NonNullable<Doc<'tasks'>['assigneeType']>;
+export type TaskActorType = NonNullable<TaskRow['assigneeType']>;
 /** Creator attribution type — superset of {@link TaskActorType} that also
  *  includes `'app'` (a task provisioned by an installed app; `createdBy` is the
  *  app slug). A task can't be ASSIGNED to an app, so this is distinct. */
-export type TaskCreatorType = NonNullable<Doc<'tasks'>['createdByType']>;
+export type TaskCreatorType = NonNullable<TaskRow['createdByType']>;
 
 /** Canonical status order (status pickers, full-status surfaces). */
 export const TASK_STATUS_ORDER: TaskStatus[] = [

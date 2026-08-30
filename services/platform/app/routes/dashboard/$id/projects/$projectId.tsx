@@ -35,7 +35,6 @@ import {
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { ensureAdaptedQueryData } from '@/app/lib/backend/prefetch';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -57,7 +56,7 @@ export const Route = createFileRoute('/dashboard/$id/projects/$projectId')({
     // `useProject` call still surfaces the real not-found/error state.
     const project = await ensureAdaptedQueryData(
       context.queryClient,
-      api.projects.queries.getProject,
+      'projects/queries:getProject',
       {
         projectId: asProjectId(params.projectId),
         organizationId: params.id,

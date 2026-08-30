@@ -3,7 +3,6 @@
 import { useMemo } from 'react';
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { api } from '@/convex/_generated/api';
 
 import type { CategoryId } from '../components/retention-categories';
 
@@ -72,7 +71,7 @@ export interface CategoryBounds {
 export function useRetentionBounds(organizationId: string | undefined) {
   const result = useActionQuery(
     ['retention-bounds', organizationId ?? null],
-    api.governance.retention_actions.getRetentionBoundsAction,
+    'governance/retention_actions:getRetentionBoundsAction',
     { organizationId: organizationId ?? '' },
     { enabled: !!organizationId, staleTime: 60_000 },
   );

@@ -1,4 +1,4 @@
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 
 /**
  * Whether this website's scans are paused — the `metadata.scanPausedAt` flag
@@ -7,6 +7,6 @@ import type { Doc } from '@/convex/_generated/dataModel';
  * keep `status: 'error'`; this flag is what distinguishes "failed, will
  * retry" from "gave up, needs a manual resume".
  */
-export function isScanPaused(website: Doc<'websites'>): boolean {
+export function isScanPaused(website: WebsiteDoc): boolean {
   return typeof website.metadata?.scanPausedAt === 'number';
 }

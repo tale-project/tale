@@ -3,7 +3,6 @@
 import { useCallback, useState } from 'react';
 
 import { useConvexClient } from '@/app/hooks/use-convex-client';
-import { api } from '@/convex/_generated/api';
 
 /** Product images are small thumbnails; cap uploads at 5 MB. */
 export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -25,7 +24,7 @@ export function useProductImageUpload() {
       setIsUploading(true);
       try {
         const uploadUrl = await client.mutation(
-          api.files.mutations.generateUploadUrl,
+          'files/mutations:generateUploadUrl',
           {},
         );
         const res = await fetch(uploadUrl, {
@@ -40,7 +39,7 @@ export function useProductImageUpload() {
         if (!storageId) {
           throw new Error('Upload response missing storageId');
         }
-        return await client.query(api.files.queries.getFileUrl, {
+        return await client.query('files/queries:getFileUrl', {
           fileId: storageId,
         });
       } finally {

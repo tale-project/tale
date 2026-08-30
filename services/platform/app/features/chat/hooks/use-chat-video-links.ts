@@ -13,7 +13,6 @@ import {
   videoJobsForThreadQuery,
   videoJobsUnboundQuery,
 } from '@/app/lib/backend/chat';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { extractVideoUrls } from '@/lib/shared/video-url';
 
@@ -27,7 +26,7 @@ import { useChatQueryClient } from '../data/chat-backend';
  * `hasFailedJobs` (send stays blocked until the user retries or removes).
  */
 export interface VideoLinkJob {
-  jobId: Id<'videoLinkJobs'>;
+  jobId: string;
   /** Original https:// URL the user pasted — the chip's "open source"
    * affordance, the only way back once the token leaves the textarea. */
   sourceUrl: string;
@@ -84,12 +83,12 @@ export interface UseChatVideoLinksResult {
   hasFailedJobs: boolean;
   /** Ingests up to 3 video URLs found in `text`; returns how many. */
   ingestUrlsFromText: (text: string) => Promise<number>;
-  cancelJob: (jobId: Id<'videoLinkJobs'>) => Promise<void>;
-  retryJob: (jobId: Id<'videoLinkJobs'>) => Promise<void>;
+  cancelJob: (jobId: string) => Promise<void>;
+  retryJob: (jobId: string) => Promise<void>;
   /** Hide chips synchronously on send-click; the server bind's subscription
    * re-emit lags the round-trip. Pair with `unmarkJobsSent` on rollback. */
-  markJobsSent: (jobIds: Array<Id<'videoLinkJobs'>>) => void;
-  unmarkJobsSent: (jobIds: Array<Id<'videoLinkJobs'>>) => void;
+  markJobsSent: (jobIds: Array<string>) => void;
+  unmarkJobsSent: (jobIds: Array<string>) => void;
 }
 
 export function useChatVideoLinks(args: {
@@ -122,11 +121,11 @@ export function useChatVideoLinks(args: {
 
   // Client-side "just-sent" set so chips vanish in the same commit as the
   // composer clearing; pruned once the subscription catches up.
-  const [hideJobIds, setHideJobIds] = useState<
-    ReadonlySet<Id<'videoLinkJobs'>>
-  >(() => new Set());
+  const [hideJobIds, setHideJobIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
-  const markJobsSent = useCallback((jobIds: Array<Id<'videoLinkJobs'>>) => {
+  const markJobsSent = useCallback((jobIds: Array<string>) => {
     if (jobIds.length === 0) return;
     setHideJobIds((prev) => {
       const next = new Set(prev);
@@ -135,7 +134,7 @@ export function useChatVideoLinks(args: {
     });
   }, []);
 
-  const unmarkJobsSent = useCallback((jobIds: Array<Id<'videoLinkJobs'>>) => {
+  const unmarkJobsSent = useCallback((jobIds: Array<string>) => {
     if (jobIds.length === 0) return;
     setHideJobIds((prev) => {
       if (jobIds.every((id) => !prev.has(id))) return prev;
@@ -149,12 +148,12 @@ export function useChatVideoLinks(args: {
     if (!queryResult) return;
     setHideJobIds((prev) => {
       if (prev.size === 0) return prev;
-      const visibleUnbound = new Set<Id<'videoLinkJobs'>>();
+      const visibleUnbound = new Set<string>();
       for (const job of queryResult) {
         if (job.messageBoundAt === undefined) visibleUnbound.add(job.jobId);
       }
       let mutated = false;
-      const next = new Set<Id<'videoLinkJobs'>>();
+      const next = new Set<string>();
       for (const id of prev) {
         if (visibleUnbound.has(id)) next.add(id);
         else mutated = true;
@@ -220,7 +219,7 @@ export function useChatVideoLinks(args: {
   );
 
   const cancelJob = useCallback(
-    async (jobId: Id<'videoLinkJobs'>) => {
+    async (jobId: string) => {
       // Hide first so the ✕ feels instant; reverted if the mutation fails.
       setHideJobIds((prev) => {
         if (prev.has(jobId)) return prev;
@@ -229,7 +228,7 @@ export function useChatVideoLinks(args: {
         return next;
       });
       try {
-        await cancelVideoLinkRequest(args.organizationId, String(jobId));
+        await cancelVideoLinkRequest(args.organizationId, jobId);
       } catch (err) {
         setHideJobIds((prev) => {
           if (!prev.has(jobId)) return prev;
@@ -248,9 +247,9 @@ export function useChatVideoLinks(args: {
   );
 
   const retryJob = useCallback(
-    async (jobId: Id<'videoLinkJobs'>) => {
+    async (jobId: string) => {
       try {
-        await retryVideoLinkRequest(args.organizationId, String(jobId));
+        await retryVideoLinkRequest(args.organizationId, jobId);
       } catch (err) {
         // The mutation refuses with structured codes (cooldown, budget,
         // in-flight cap); without this catch the click reads as dead.

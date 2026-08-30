@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 import { AgentExecutionLog } from './agent-execution-log';
@@ -15,7 +14,7 @@ vi.mock('@/app/hooks/use-convex-query', () => ({
   useConvexQuery: () => ({ data: state.data }),
 }));
 
-const runId = 'run-1' as Id<'automationRuns'>;
+const runId = 'run-1' as string;
 
 function op(timeline: unknown[], status = 'running') {
   return {

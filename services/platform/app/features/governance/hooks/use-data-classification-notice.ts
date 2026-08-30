@@ -3,7 +3,6 @@
 import { useTranslation } from 'react-i18next';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
 import { isRecord } from '@/lib/utils/type-utils';
 
 interface DataNoticeConfig {
@@ -49,7 +48,7 @@ export function useDataClassificationNotice(
   // hook always returned the inline English fallback regardless of locale.
   const { t, i18n } = useTranslation('dataNotice');
   const policy = useConvexQuery(
-    api.governance.queries.getPolicy,
+    'governance/queries:getPolicy',
     organizationId
       ? { organizationId, policyType: 'data_classification_notice' }
       : 'skip',

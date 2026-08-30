@@ -9,10 +9,9 @@
 import { useRef } from 'react';
 
 import { useReportServerNow } from '@/app/hooks/use-clock-offset';
-import { api } from '@/convex/_generated/api';
 
 import {
-  useChatQuery,
+  useChatMessages,
   useChatGeneration,
   useChatGenerationText,
 } from '../data/chat-backend';
@@ -63,10 +62,9 @@ export function useThreadView(
     readonly includeLiveText?: boolean;
   },
 ): ThreadView {
-  const messages = useChatQuery(
-    api.chat.messages.listMessages,
-    threadId !== undefined ? { organizationId, threadId } : 'skip',
-  );
+  // The NORMALIZING read (not the raw row query): the reducer builds views,
+  // and a message's `usage` only becomes renderable once normalized.
+  const messages = useChatMessages(organizationId, threadId);
   // Absence is a signal for both live reads (idle vs. streaming), so neither
   // may serve a stale cached value; the merge latches across their gaps.
   const generation = useChatGeneration(organizationId, threadId);

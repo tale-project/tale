@@ -6,7 +6,6 @@ import { Popover } from '@tale/ui/popover';
 import { Check, Plus, Search, X } from 'lucide-react';
 import { useMemo, useState, type KeyboardEvent } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -35,7 +34,7 @@ export function LabelEditor({
 }: {
   labels: string[];
   onChange: (labels: string[]) => void;
-  projectId: Id<'projects'>;
+  projectId: string;
   disabled?: boolean;
 }) {
   const { t } = useT('tasks');

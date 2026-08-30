@@ -4,16 +4,16 @@ import { HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 
 import { createTableConfigHook } from '@/app/hooks/use-table-config-factory';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ProductDoc } from '@/app/lib/backend/contract/docs';
 import { formatCurrency } from '@/lib/utils/format/number';
 
 import { ProductImage } from '../components/product-image';
 import { ProductRowActions } from '../components/product-row-actions';
 import { ProductStatusBadge } from '../components/product-status-badge';
 
-export type Product = Doc<'products'>;
+export type Product = ProductDoc;
 
-export const useProductsTableConfig = createTableConfigHook<'products'>(
+export const useProductsTableConfig = createTableConfigHook<ProductDoc>(
   {
     entityNamespace: 'products',
     defaultSort: 'lastUpdated',

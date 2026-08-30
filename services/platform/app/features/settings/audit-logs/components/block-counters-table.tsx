@@ -9,7 +9,6 @@ import { useMemo } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -32,7 +31,7 @@ export function BlockCountersTable({
   const { t } = useT('settings');
   const { t: tTables } = useT('tables');
   const { data, isLoading } = useConvexQuery(
-    api.login_attempts.queries.listBlockCounters,
+    'login_attempts/queries:listBlockCounters',
     { organizationId, limit: 200 },
   );
 

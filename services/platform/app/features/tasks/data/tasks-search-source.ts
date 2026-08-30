@@ -3,7 +3,7 @@
 /**
  * The ⌘K palette's tasks source: readable project tasks, matched by title,
  * description, external id, KEY-number, or recent discussion comments through
- * `api.tasks.search.searchTasks`.
+ * `"tasks/search:searchTasks"`.
  *
  * Shaped like the chat source (`createChatSearchSource`): the factory is
  * memoised at the call site so the hook-shaped source keeps one identity —
@@ -16,27 +16,25 @@ import type { SearchResult, SearchSource } from '@tale/ui/search';
 import { useMemo } from 'react';
 
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 
 const NO_RESULTS: SearchResult<TaskSearchHitData>[] = [];
 
 export type TaskSearchHitData = {
   kind: 'task';
-  projectId: Id<'projects'>;
+  projectId: string;
 };
 
 export function createTasksSearchSource(options: {
   organizationId: string;
   /** When set, narrows to one project (Tasks toolbar / project-scoped palette). */
-  projectId?: Id<'projects'>;
+  projectId?: string;
 }): SearchSource<TaskSearchHitData> {
   const { organizationId, projectId } = options;
   return (query, { active }) => {
     const trimmed = query.trim();
     const hits = useConvexQuery(
-      api.tasks.search.searchTasks,
+      'tasks/search:searchTasks',
       active && trimmed.length > 0
         ? {
             organizationId,

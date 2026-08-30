@@ -8,7 +8,6 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { clearTitleSuffix } from '@/app/lib/title-suffix';
-import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
@@ -67,7 +66,7 @@ export function useSessionIdleWatchdog(): void {
   const { isAuthenticated } = useConvexAuth();
   const organizationId = useOrganizationId();
   const { data: policyRow } = useConvexQuery(
-    api.governance.queries.getPolicy,
+    'governance/queries:getPolicy',
     organizationId && isAuthenticated
       ? { organizationId, policyType: 'session_idle_timeout' as const }
       : 'skip',

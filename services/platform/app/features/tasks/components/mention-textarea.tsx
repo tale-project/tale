@@ -8,7 +8,6 @@ import {
   detectMentionTrigger,
   type MentionTrigger,
 } from '@/app/features/shared/mentions/use-kb-mentions';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -24,7 +23,7 @@ interface MentionTextareaProps extends Omit<
   'value' | 'onChange'
 > {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   value: string;
   onValueChange: (value: string) => void;
   label?: string;

@@ -7,7 +7,6 @@ import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { DsarPolicyEditor } from '@/app/features/settings/governance/components/dsar-policy-editor';
 import { RequestsListSection } from '@/app/features/settings/governance/data-subject-requests/requests-list-section';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
-import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute(
   '/dashboard/$id/settings/governance/data-subject-requests',
@@ -16,7 +15,7 @@ export const Route = createFileRoute(
   // on, so it paints its real values on first render (no skeleton flash). The
   // requests list is a paginated query and stays on its own loading path.
   loader: ({ context, params }) =>
-    ensureConvexQuery(context, api.governance.dsar_policy.getDsarPolicyForUi, {
+    ensureConvexQuery(context, 'governance/dsar_policy:getDsarPolicyForUi', {
       organizationId: params.id,
     }).catch((error: unknown) => {
       console.warn('Failed to preload DSAR policy', error);

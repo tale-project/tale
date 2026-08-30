@@ -26,7 +26,6 @@ import {
   mailboxSideAddress,
   resolveReplyFrom,
 } from '@/convex/conversations/reply_from';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -93,7 +92,7 @@ export function ConversationHeader({
 
   const handleResolveConversation = useCallback(() => {
     closeConversation(
-      { conversationId: toId<'conversations'>(conversation.id) },
+      { conversationId: conversation.id },
       {
         onSuccess: () => {
           toast({
@@ -115,7 +114,7 @@ export function ConversationHeader({
 
   const handleReopenConversation = useCallback(() => {
     reopenConversation(
-      { conversationId: toId<'conversations'>(conversation.id) },
+      { conversationId: conversation.id },
       {
         onSuccess: () => {
           toast({
@@ -137,7 +136,7 @@ export function ConversationHeader({
 
   const handleMarkAsSpam = useCallback(() => {
     markAsSpamMutation(
-      { conversationId: toId<'conversations'>(conversation.id) },
+      { conversationId: conversation.id },
       {
         onSuccess: () => {
           toast({

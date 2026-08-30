@@ -18,7 +18,6 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SECTION_DIVIDER_CLASS } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   PROJECT_DESCRIPTION_MAX,
@@ -36,7 +35,7 @@ import { ProjectSharingSection } from './project-sharing-section';
 
 interface ProjectOverviewProps {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
 }
 
 type IdentityForm = {

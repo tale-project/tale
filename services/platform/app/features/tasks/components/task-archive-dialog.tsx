@@ -5,7 +5,6 @@ import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useArchiveTask, useRestoreTask } from '../hooks/mutations';
@@ -13,7 +12,7 @@ import { useArchiveTask, useRestoreTask } from '../hooks/mutations';
 interface TaskArchiveDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  taskId: Id<'tasks'>;
+  taskId: string;
   taskTitle: string;
   isArchived: boolean;
   /** Called after a successful archive (not restore) — e.g. close the detail sheet. */
