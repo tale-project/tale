@@ -102,6 +102,24 @@ export async function ensureDefaultObjectStore(
     },
   );
   if (existing !== null) {
+    // A surviving config file does not mean the STORE survived: recreating
+    // the store's volume (compose down -v, a docker prune) leaves this
+    // connection pointing at a bucket that no longer exists, and every
+    // upload fails `NoSuchBucket` until someone recreates it by hand. When
+    // the existing default IS the bundled store, re-ensure the bucket —
+    // idempotent, an existing one answers 200/409. A default an operator
+    // repointed at their own S3 is not ours to CreateBucket against; that
+    // stays untouched.
+    if (
+      existing.connection.endpoint === store.endpoint &&
+      existing.connection.bucket === store.bucket
+    ) {
+      await ensureBucket(store);
+      return {
+        status: 'present',
+        detail: `deployment default already points at bucket "${store.bucket}" (re-ensured)`,
+      };
+    }
     return {
       status: 'present',
       detail: `deployment default already points at bucket "${existing.connection.bucket}"`,

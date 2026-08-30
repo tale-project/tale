@@ -1815,6 +1815,23 @@ async function checkFiles(
   // that rewrote the connection each time would repoint a deployment whose
   // operator had since edited it.
   const reseeded = await ensureDefaultObjectStore(storeEnv);
+  // A surviving config file with a VANISHED bucket (store volume recreated
+  // under a surviving config dir) must heal on the next boot: delete the
+  // bucket and re-run the seeder — the 'present' path re-ensures the bucket
+  // when the default still points at the bundled store.
+  const { buildS3ObjectStore } =
+    await import('../convex/lib/storage/object_store.ts');
+  const probeS3 = buildS3ObjectStore(
+    { region: 'us-east-1', endpoint, forcePathStyle: true, bucket },
+    { accessKeyId, secretAccessKey },
+  );
+  const bucketDropped = (
+    await probeS3.client.fetch(`${endpoint}/${bucket}`, { method: 'DELETE' })
+  ).ok;
+  const healed = await ensureDefaultObjectStore(storeEnv);
+  const bucketBack = (
+    await probeS3.client.fetch(`${endpoint}/${bucket}`, { method: 'HEAD' })
+  ).ok;
   const connectionPath = path.join(
     configRoot,
     'default',
@@ -1830,11 +1847,14 @@ async function checkFiles(
     'object store: the deployment default seeds itself at boot',
     seeded.status === 'seeded' &&
       reseeded.status === 'present' &&
+      bucketDropped &&
+      healed.status === 'present' &&
+      bucketBack &&
       written.success &&
       written.data.bucket === bucket &&
       // Self-hosted S3 has no per-bucket DNS; virtual-host style would 404.
       written.data.forcePathStyle,
-    `seed=${seeded.status} (want seeded), reseed=${reseeded.status} (want present), bucket=${written.success ? written.data.bucket : 'ERR'}, pathStyle=${written.success ? String(written.data.forcePathStyle) : 'ERR'}`,
+    `seed=${seeded.status} (want seeded), reseed=${reseeded.status} (want present), dropped=${bucketDropped}→healed=${healed.status}/back=${bucketBack} (want present/true), bucket=${written.success ? written.data.bucket : 'ERR'}, pathStyle=${written.success ? String(written.data.forcePathStyle) : 'ERR'}`,
   );
 
   const { cookie, orgId } = ctx;
