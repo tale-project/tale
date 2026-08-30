@@ -38,7 +38,6 @@ type SaveDeploymentConfigResult =
   ReturnsOf<'deployment/file_actions:saveDeploymentConfig'>;
 type DeploymentTestResult =
   ReturnsOf<'deployment/file_actions:testDeploymentConnection'>;
-type RequestRestartResult = ReturnsOf<'deployment/file_actions:requestRestart'>;
 type ObjectStorageViewResult =
   ReturnsOf<'object_storage/actions:getObjectStorageConnection'>;
 type ObjectStorageProbeResult =
@@ -550,12 +549,6 @@ export const adminWriteAdapters: Record<string, WriteAdapter> = {
             ? { password: args.password }
             : {}),
         },
-      }),
-  },
-  'deployment/file_actions:requestRestart': {
-    run: (args) =>
-      backendFetch<RequestRestartResult>('/deployment/restart', {
-        body: Array.isArray(args.services) ? { services: args.services } : {},
       }),
   },
   'object_storage/actions:saveObjectStorageConnection': {

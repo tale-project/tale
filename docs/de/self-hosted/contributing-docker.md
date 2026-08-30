@@ -21,7 +21,6 @@ Der Stack ist vollständig TypeScript — kein Python-Image. Jedes Image hat ein
 | `tale-sandbox-egress`    | `services/sandbox-egress/`    | Alpine + tinyproxy           |
 | `tale-sandbox-runtime`   | `services/sandbox-runtime/`   | Bun + Chromium + Playwright  |
 | `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | Debian + BuildKit + redsocks |
-| `tale-controller`        | `services/controller/`        | Bun + Docker-CLI             |
 
 Beide Datenbank-Container — `db` und `knowledge-db` — bauen aus demselben `tale-db`-ParadeDB-Image; der Unterschied ist die Datenbank, die jeder bedient. Das LLM-Gateway `tale-sandbox-llm-gateway` ist ein gepinntes Upstream-Image (`maximhq/bifrost`), hat also kein Dockerfile im Repo. Die Compose-Dateien im Repo-Root (`compose.yml` für Development, die CLI-generierte Produktions-Compose) referenzieren diese über `ghcr.io/tale-project/tale/<image>:<tag>`. Ein lokaler Build ersetzt den Registry-Pull mit einem `build:`-Block in Compose.
 

@@ -67,7 +67,7 @@ const sinceBoot = (): string =>
 
 // Docker backing services the HOST `bun dev` depends on (the backend + Vite
 // run on the host; these run in docker). Excludes the host-run backend and the
-// dev-irrelevant proxy/docs/controller. `sandbox-llm-gateway` is the one with no
+// dev-irrelevant proxy/docs. `sandbox-llm-gateway` is the one with no
 // published port in base compose.yml — see DEV_COMPOSE_FILES.
 //
 // compose.sandbox-llm-gateway.dev.yml
@@ -656,7 +656,7 @@ async function ensureDockerDependencies(): Promise<void> {
       // `tale-sandbox-llm-gateway` can't bind :8080 ("port is already allocated") and the
       // whole bring-up fails. The flag is project-scoped and only removes
       // containers for services no longer defined ANYWHERE in the compose files —
-      // services defined-but-not-started here (platform/controller/proxy/docs) are
+      // services defined-but-not-started here (platform/proxy/docs) are
       // NOT orphans and stay put, and modern blue-green deploys run under their own
       // `…-blue`/`…-green` projects, so a live deploy is never touched.
       const up = (extra: string[]) =>

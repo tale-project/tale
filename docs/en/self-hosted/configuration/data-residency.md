@@ -105,9 +105,6 @@ At boot the `convex` entrypoint reads these and derives its connections before s
 
 ## Applying a change: restart
 
-The config is read at boot, so a save does not take effect until the **`convex`** container restarts (the platform itself does not need restarting). Two ways:
+The config is read at boot, so a save does not take effect until the backend containers (`backend-api` and `backend-worker`) restart. Run `docker compose restart backend-api backend-worker`, or `tale deploy` for a zero-downtime blue-green roll — the settings page shows the same commands after a save.
 
-- **Manual** — `docker compose restart convex`, or `tale deploy --services convex` for a zero-downtime blue-green roll.
-- **One-click** — enable the opt-in `controller` service (`docker compose --profile controller up -d`). It is a small internal-only sidecar that restarts the allowlisted `convex` service on an HMAC-signed request from the app, so the browser-facing platform never needs Docker-socket access. With it running, the **Apply & restart** button does the bounce for you; set `CONTROLLER_TOKEN` (shared with the platform) and `CONTROLLER_URL` in `.env`. Without it, the button shows the manual command.
-
-The relevant environment variables are `TALE_DEPLOYMENT_CONFIG_ADMINS` (the comma-separated email allowlist of operators allowed to edit), and — only when running the one-click `controller` — `CONTROLLER_TOKEN` (the shared HMAC secret) and `CONTROLLER_URL` (e.g. `http://controller:8004`). Set them in `.env`. See also [Environment reference](/self-hosted/configuration/environment-reference) and [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).
+The relevant environment variable is `TALE_DEPLOYMENT_CONFIG_ADMINS` (the comma-separated email allowlist of operators allowed to edit). Set it in `.env`. See also [Environment reference](/self-hosted/configuration/environment-reference) and [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).

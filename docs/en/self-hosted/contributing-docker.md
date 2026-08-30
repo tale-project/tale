@@ -21,7 +21,6 @@ The stack is entirely TypeScript — no Python image. Each image has one Dockerf
 | `tale-sandbox-egress`    | `services/sandbox-egress/`    | Alpine + tinyproxy           |
 | `tale-sandbox-runtime`   | `services/sandbox-runtime/`   | Bun + Chromium + Playwright  |
 | `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | Debian + BuildKit + redsocks |
-| `tale-controller`        | `services/controller/`        | Bun + Docker CLI             |
 
 Both database containers — `db` and `knowledge-db` — build from the same `tale-db` ParadeDB image; the difference is the database each one serves. The LLM gateway, `tale-sandbox-llm-gateway`, is a pinned upstream image (`maximhq/bifrost`), so it has no Dockerfile in the repo. The compose files at the repo root (`compose.yml` for development, the CLI-generated production compose) reference these by `ghcr.io/tale-project/tale/<image>:<tag>`. A local build replaces the registry pull with a `build:` block in compose.
 

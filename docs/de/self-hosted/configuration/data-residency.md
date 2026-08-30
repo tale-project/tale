@@ -105,9 +105,6 @@ Beim Boot liest der `convex`-Entrypoint diese und leitet seine Verbindungen ab, 
 
 ## Eine Änderung anwenden: Neustart
 
-Die Konfiguration wird beim Boot gelesen, also greift ein Speichern erst, wenn der **`convex`**-Container neu startet (die Plattform selbst muss nicht neu starten). Zwei Wege:
+Die Konfiguration wird beim Boot gelesen, also greift ein Speichern erst, wenn die Backend-Container (`backend-api` und `backend-worker`) neu starten. Führe `docker compose restart backend-api backend-worker` aus, oder `tale deploy` für einen Zero-Downtime-Blue-Green-Roll — die Einstellungsseite zeigt nach dem Speichern dieselben Befehle an.
 
-- **Manuell** — `docker compose restart convex`, oder `tale deploy --services convex` für einen Zero-Downtime-Blue-Green-Roll.
-- **Ein Klick** — aktiviere den Opt-in-Dienst `controller` (`docker compose --profile controller up -d`). Er ist ein kleiner, nur intern erreichbarer Sidecar, der den erlaubten `convex`-Dienst auf eine HMAC-signierte Anfrage der App neu startet, damit die browserzugewandte Plattform nie Docker-Socket-Zugriff braucht. Läuft er, erledigt der Knopf **Anwenden & neu starten** den Neustart für dich; setze `CONTROLLER_TOKEN` (geteilt mit der Plattform) und `CONTROLLER_URL` in `.env`. Ohne ihn zeigt der Knopf den manuellen Befehl.
-
-Die relevanten Umgebungsvariablen sind `TALE_DEPLOYMENT_CONFIG_ADMINS` (die kommagetrennte E-Mail-Allowlist der bearbeitungsberechtigten Operatoren) und — nur beim Ein-Klick-`controller` — `CONTROLLER_TOKEN` (das geteilte HMAC-Geheimnis) und `CONTROLLER_URL` (z. B. `http://controller:8004`). Setze sie in `.env`. Siehe auch [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference) und [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops).
+Die relevante Umgebungsvariable ist `TALE_DEPLOYMENT_CONFIG_ADMINS` (die kommagetrennte E-Mail-Allowlist der bearbeitungsberechtigten Operatoren). Setze sie in `.env`. Siehe auch [Umgebungsvariablen-Referenz](/de/self-hosted/configuration/environment-reference) und [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops).

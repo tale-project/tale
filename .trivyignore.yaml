@@ -28,16 +28,6 @@ misconfigurations:
       tinyproxy.conf. Documented in services/sandbox-egress/Dockerfile.
   - id: AVD-DS-0002
     paths:
-      - 'services/controller/Dockerfile'
-    statement: |
-      Controller sidecar needs root inside the container to reach the mounted
-      /var/run/docker.sock for its list+restart of the {convex} allowlist.
-      The docker socket is the security boundary, not the in-container UID;
-      every call is HMAC-verified and the service is reachable only on the
-      internal network. Same accepted boundary as services/sandbox/Dockerfile.
-      Documented in services/controller/Dockerfile.
-  - id: AVD-DS-0002
-    paths:
       - 'services/sandbox-buildkitd/Dockerfile'
     statement: |
       Shared buildkitd needs root + --privileged for the mount/namespace ops a

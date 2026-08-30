@@ -6,7 +6,6 @@ import {
   createBackendWorkerService,
 } from '../services/create-backend-services';
 import { createBgutilProviderService } from '../services/create-bgutil-provider-service';
-import { createControllerService } from '../services/create-controller-service';
 import { createDbService } from '../services/create-db-service';
 import { createObjectStorageService } from '../services/create-object-storage-service';
 import { createProxyService } from '../services/create-proxy-service';
@@ -35,13 +34,6 @@ export function generateStatefulCompose(
     // services (not in the always-roll tier — see the service comment).
     'bgutil-provider': createBgutilProviderService(config),
   };
-  // Opt-in: emit the privileged restart sidecar only when a shared HMAC token
-  // is configured (it exits without one anyway). Operators who want one-click
-  // "Apply & restart" set CONTROLLER_TOKEN (+ CONTROLLER_URL) in .env.
-  if (process.env.CONTROLLER_TOKEN) {
-    services.controller = createControllerService(config);
-  }
-
   const compose: ComposeConfig = {
     services,
     volumes: {

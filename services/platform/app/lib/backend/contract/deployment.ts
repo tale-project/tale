@@ -68,13 +68,6 @@ export interface DeploymentContract {
       email: undefined | string;
     };
   };
-  'deployment/file_actions:requestRestart': {
-    kind: 'action';
-    args: { services?: string[] };
-    returns:
-      | { configured: boolean; ok: boolean; error: string }
-      | { configured: boolean; ok: boolean; error?: undefined };
-  };
   'deployment/file_actions:saveDeploymentConfig': {
     kind: 'action';
     args: { expectedHash?: string; config: unknown };

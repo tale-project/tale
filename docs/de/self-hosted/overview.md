@@ -23,8 +23,6 @@ Lies das, bevor du `docker compose up` ausführst. Komm zurück, wenn du einen A
 
 **tale-sandbox** und **tale-sandbox-egress** führen sandboxierten Code für das **Code-ausführen**-Tool und Fähigkeits-Skripte aus und dienen als die Headless-Browser-Laufzeit, die das Convex-Backend für Web-Render und Dokumentgenerierung aufruft. Der Egress-Container ist der einzige Netzwerkweg, den die Sandbox hat. Egress ist standardmäßig offen — sandboxierter Code erreicht jeden öffentlichen Host über HTTPS, Cloud-Metadaten und private Adressbereiche bleiben auf IP-Ebene blockiert. Einschränken kannst du das mit `SANDBOX_EGRESS_ALLOWLIST` auf eine Hostname-Allowlist; die Anleitung steht in [Hardening](/de/self-hosted/operate/security/hardening).
 
-Ein weiterer Service kommt mit, bleibt aber standardmäßig aus: **tale-controller** ist ein Opt-in-Sidecar (das `controller`-compose-Profil), der den Convex-Container auf eine signierte Anfrage der App neu startet, damit eine Datenresidenz-Änderung greifen kann, ohne der browserzugewandten Plattform Docker-Socket-Zugriff zu geben.
-
 ## Daten auf dem Storage
 
 Vier Volumes überleben ein `docker compose down`:

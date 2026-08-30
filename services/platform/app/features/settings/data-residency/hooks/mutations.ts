@@ -39,11 +39,6 @@ export function useTestDeploymentConnection() {
   return useBackendAction('deployment/file_actions:testDeploymentConnection');
 }
 
-/** Ask the opt-in controller sidecar to restart convex (one-click apply). */
-export function useRequestRestart() {
-  return useBackendAction('deployment/file_actions:requestRestart');
-}
-
 function useInvalidateOrgObjectStorage(organizationId: string) {
   const queryClient = useQueryClient();
   return () =>

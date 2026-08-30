@@ -128,15 +128,6 @@ Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jede
 | `FILE_EVENTS_ENABLED`           | `false` | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Connector.                                                                          |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Kommagetrennte E-Mail-Allowlist der Operatoren, die die Datenresidenz bearbeiten dürfen. Leer/nicht gesetzt = nur lesend für alle Admins. |
 
-## Restart-Controller
-
-Der Opt-in-Sidecar `controller` treibt den Ein-Klick-Knopf **Anwenden & neu starten** auf der Seite [Datenresidenz](/de/self-hosted/configuration/data-residency): Er startet den `convex`-Container nach einer Konfigurationsänderung neu, damit die browserzugewandte Plattform nie Docker-Socket-Zugriff braucht. Aktiviere ihn mit `docker compose --profile controller up -d` und setze dann beide Variablen unten. Lass sie nicht gesetzt, um `convex` weiter von Hand neu zu starten.
-
-| Name               | Default | Beschreibung                                                                                                                                                                                                                               |
-| ------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `CONTROLLER_TOKEN` | unset   | Geteiltes HMAC-Geheimnis für **Anwenden & neu starten**. Der `controller` startet ohne es nicht, und die Plattform signiert jede Neustart-Anfrage damit — die beiden Werte müssen übereinstimmen. Erzeuge es mit `openssl rand -hex 32`.   |
-| `CONTROLLER_URL`   | unset   | Basis-URL, über die die Plattform den `controller`-Sidecar erreicht (z. B. `http://controller:8004` im internen Netz). Ist diese oder `CONTROLLER_TOKEN` nicht gesetzt, zeigt **Anwenden & neu starten** stattdessen den manuellen Befehl. |
-
 ## RAG-Retrieval-Tuning
 
 Optionale Stellschrauben für die Wissensdatenbank-Suche. Der In-Process-RAG-Pfad (Convex-Node-Actions) bewertet Ergebnisse mit einem Cross-Encoder neu, wenn Re-Ranking an ist. Alle tragen das `RAG_`-Präfix und werden von den Containern `platform` und `convex` beim Boot gelesen; nach einer Änderung führe `docker compose restart platform convex` aus, damit sie wirkt.

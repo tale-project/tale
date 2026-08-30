@@ -27,7 +27,9 @@ jobs:
       fail-fast: false
       matrix:
         # Compose-stack services. Keep in sync with build.yml (build matrix +
-        # smoke/validate pull loops).
+        # smoke/validate pull loops). Retired services (convex, controller)
+        # stay listed so their leftover PR image tags still get cleaned up;
+        # a package that no longer exists is skipped harmlessly.
         service:
           [
             db,

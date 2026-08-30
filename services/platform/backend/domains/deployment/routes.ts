@@ -8,7 +8,6 @@ import {
   DeploymentError,
   requireInstanceAdmin,
   readDeploymentConfigView,
-  requestRestart,
   saveDeploymentConfig,
   saveDeploymentSecret,
   testDeploymentConnection,
@@ -116,25 +115,6 @@ export function createDeploymentRoutes(deps: {
             ? { password: body.data.password }
             : {}),
         }),
-      );
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.post('/restart', async (c) => {
-    const body = z
-      .object({ services: z.array(z.string().max(100)).max(10).optional() })
-      .safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return c.json({ error: 'invalid body' }, 400);
-    try {
-      await requireInstanceAdmin(deps.sql, caller(c), { write: true });
-      return c.json(
-        await requestRestart(
-          body.data.services !== undefined
-            ? { services: body.data.services }
-            : {},
-        ),
       );
     } catch (error) {
       return handleError(c, error);

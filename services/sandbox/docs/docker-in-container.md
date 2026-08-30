@@ -81,8 +81,7 @@ spawner — overrides the env):
 ```
 
 After editing `deployment.json`, restart the spawner so it re-reads at boot:
-`docker compose restart sandbox` (or the controller's apply-and-restart with
-`services: ["sandbox"]`).
+`docker compose restart sandbox`.
 
 ### Host install — Sysbox (Docker backend)
 

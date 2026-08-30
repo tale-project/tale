@@ -20826,10 +20826,6 @@ async function checkDataResidency(
       })
     ).json(),
   );
-  const restart = z
-    .object({ configured: z.boolean(), ok: z.boolean() })
-    .loose()
-    .safeParse(await (await post('/api/app/deployment/restart')).json());
   record(
     'data residency: deployment config view, editor gate, OCC, secrets',
     readFresh.success &&
@@ -20846,10 +20842,8 @@ async function checkDataResidency(
       maskedPreview.present &&
       maskedPreview.masked?.startsWith('AKITES') === true &&
       localProbe.success &&
-      localProbe.data.ok &&
-      restart.success &&
-      !restart.data.configured,
-    `fresh=${readFresh.success ? `edit=${readFresh.data.canEdit}` : 'ERR'}, denied=${writeDenied.status} (want 403), saved=${saved.success}, hashMatch=${readBack.success && saved.success ? readBack.data.hash === saved.data.hash : '?'}, stale=${staleSave.status} (want 409), secret=${secretSaved.success}/${badSecret.status}/${maskedPreview?.masked?.slice(0, 6) ?? '?'}, probe=${localProbe.success ? localProbe.data.ok : 'ERR'}, restart=${restart.success ? restart.data.configured : 'ERR'} (want false)`,
+      localProbe.data.ok,
+    `fresh=${readFresh.success ? `edit=${readFresh.data.canEdit}` : 'ERR'}, denied=${writeDenied.status} (want 403), saved=${saved.success}, hashMatch=${readBack.success && saved.success ? readBack.data.hash === saved.data.hash : '?'}, stale=${staleSave.status} (want 409), secret=${secretSaved.success}/${badSecret.status}/${maskedPreview?.masked?.slice(0, 6) ?? '?'}, probe=${localProbe.success ? localProbe.data.ok : 'ERR'}`,
   );
 
   // --- Object storage: connection files + probe + blob backfill ---------

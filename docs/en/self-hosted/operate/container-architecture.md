@@ -20,7 +20,7 @@ Read this when you are on call. Come back when you are deciding which container 
 | `tale-sandbox-egress`      | Network egress for sandboxed code                                                              | `Run code` tool errors with "egress denied"; web render fails  |
 | `tale-sandbox`             | Sandbox runtime + headless browser for web render and document generation                      | `Run code`, web crawl render, and document generation all fail |
 
-One container is exposed to the public network (`tale-proxy` for HTTPS, and optionally `tale-sandbox-egress` outbound for the sandbox); the rest are internal-only. The opt-in `tale-controller` sidecar (the `controller` profile) is off by default; when enabled it restarts `tale-convex` on a signed request so a data-residency change can apply without handing the platform Docker access.
+One container is exposed to the public network (`tale-proxy` for HTTPS, and optionally `tale-sandbox-egress` outbound for the sandbox); the rest are internal-only.
 
 ## The request path
 

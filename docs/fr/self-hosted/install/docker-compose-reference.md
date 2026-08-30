@@ -69,14 +69,6 @@ docker compose -f compose.yml -f compose.local.yml up -d
 
 Ce motif garde `git pull` propre — pas de conflits de merge sur les fichiers livrés. Le même motif fonctionne pour tout montage de volume personnalisé, port personnalisé, ou surcharge d'environnement.
 
-## Profils
-
-Un service du fichier de base utilise un profil Docker Compose. Les profils permettent à un service d'exister dans le graphe mais de ne pas démarrer tant que son profil n'est pas activé. Le profil en usage est `controller` — le sidecar `tale-controller`, à activer explicitement, qui redémarre le conteneur convex sur une requête signée pour qu'un changement de résidence des données s'applique sans donner à la plateforme l'accès au socket Docker. Active-le avec :
-
-```bash
-docker compose --profile controller up -d
-```
-
 ## Où ça s'inscrit
 
 La référence compose est la grille de l'opérateur pour l'arbre source. Pour l'intérieur de chaque conteneur, la page [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) couvre les responsabilités ; pour les variables que les conteneurs lisent au démarrage, la [Référence d'environnement](/fr/self-hosted/configuration/environment-reference) est la source de vérité.

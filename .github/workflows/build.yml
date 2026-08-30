@@ -93,8 +93,6 @@ jobs:
               - 'services/db/**'
             proxy:
               - 'services/proxy/**'
-            controller:
-              - 'services/controller/**'
             sandbox-llm-gateway:
               - 'services/sandbox-llm-gateway/**'
             web:
@@ -144,7 +142,7 @@ jobs:
           # trio that `build` actually pushes to GHCR. Web and docs use their
           # own compose stacks and are reachable via security.yml's
           # filesystem scan.
-          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "controller" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")]')
+          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")]')
           echo "scannable=${SCANNABLE}" >> "$GITHUB_OUTPUT"
           echo "Services to scan: ${SCANNABLE}"
 
@@ -197,7 +195,6 @@ jobs:
         service:
           [
             db,
-            controller,
             platform,
             proxy,
             sandbox-llm-gateway,
@@ -365,7 +362,7 @@ jobs:
           # locally so smoke tests with PULL_POLICY=never find it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db controller platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+          for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
@@ -586,7 +583,7 @@ jobs:
           # locally so PULL_POLICY=never validation finds it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db controller platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+          for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"

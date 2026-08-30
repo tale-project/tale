@@ -20,7 +20,7 @@ Lis ceci quand tu es d'astreinte. Reviens-y quand tu décides quel conteneur rou
 | `tale-sandbox-egress`      | Sortie réseau pour code sandbox                                                                            | L'outil **Exécuter du code** échoue avec « egress denied » ; le rendu web échoue   |
 | `tale-sandbox`             | Runtime sandbox + navigateur headless pour le rendu web et la génération de documents                      | **Exécuter du code**, le rendu de crawl web et la génération de documents échouent |
 
-Un conteneur est exposé au réseau public (`tale-proxy` pour HTTPS, et optionnellement `tale-sandbox-egress` sortant pour la sandbox) ; le reste est interne seulement. Le sidecar `tale-controller`, à activer explicitement (le profil `controller`), est éteint par défaut ; une fois activé, il redémarre `tale-convex` sur une requête signée pour qu'un changement de résidence des données s'applique sans donner à la plateforme l'accès à Docker.
+Un conteneur est exposé au réseau public (`tale-proxy` pour HTTPS, et optionnellement `tale-sandbox-egress` sortant pour la sandbox) ; le reste est interne seulement.
 
 ## Le chemin de requête
 

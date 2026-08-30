@@ -6214,25 +6214,9 @@ settings:
       title: Saved — restart to apply.
       runPrefix: Run
       orPrefix: (or
-      tail: for zero-downtime). The platform itself does not need restarting.
+      tail: for zero-downtime).
     saving: Saving…
     saveDeployment: Save deployment
-    applyRestart: Apply & restart
-    applyRestartTitle: Restart rag + convex via the controller (if enabled), or
-      shows the manual command
-    restarting: Restarting…
-    restart:
-      notEnabled: Restart controller not enabled.
-      requested: 'Restart requested: {services}'
-      failed: 'Restart failed: {error}'
-      defaultServices: rag, convex
-      unknownError: unknown error
-    restartConfirm:
-      title: Restart RAG and Convex?
-      description:
-        This applies the saved configuration by restarting the RAG and
-        Convex containers. Expect a brief interruption while they come back up.
-      confirm: Restart now
     forceOverwrite:
       title: Overwrite unreadable secrets?
       description:

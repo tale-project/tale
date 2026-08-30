@@ -105,9 +105,6 @@ Au démarrage, l'entrypoint `convex` les lit et en dérive ses connexions avant 
 
 ## Appliquer un changement : redémarrage
 
-La configuration est lue au démarrage, donc un enregistrement ne prend effet qu'au redémarrage du conteneur **`convex`** (la plateforme elle-même n'a pas besoin de redémarrer). Deux façons :
+La configuration est lue au démarrage, donc un enregistrement ne prend effet qu'au redémarrage des conteneurs backend (`backend-api` et `backend-worker`). Lance `docker compose restart backend-api backend-worker`, ou `tale deploy` pour un roulement blue-green sans interruption — la page de réglages montre les mêmes commandes après un enregistrement.
 
-- **Manuel** — `docker compose restart convex`, ou `tale deploy --services convex` pour un roulement blue-green sans interruption.
-- **Un clic** — active le service `controller` à activer explicitement (`docker compose --profile controller up -d`). C'est un petit sidecar uniquement interne qui redémarre le service `convex` autorisé sur une requête signée par HMAC venant de l'app, pour que la plateforme exposée au navigateur n'ait jamais besoin d'accéder au socket Docker. Quand il tourne, le bouton **Appliquer & redémarrer** fait le redémarrage pour toi ; définis `CONTROLLER_TOKEN` (partagé avec la plateforme) et `CONTROLLER_URL` dans `.env`. Sans lui, le bouton montre la commande manuelle.
-
-Les variables d'environnement pertinentes sont `TALE_DEPLOYMENT_CONFIG_ADMINS` (l'allowlist de courriels, séparés par des virgules, des opérateurs autorisés à modifier) et — seulement avec le `controller` en un clic — `CONTROLLER_TOKEN` (le secret HMAC partagé) et `CONTROLLER_URL` (p. ex. `http://controller:8004`). Définis-les dans `.env`. Voir aussi [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference) et [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops).
+La variable d'environnement pertinente est `TALE_DEPLOYMENT_CONFIG_ADMINS` (l'allowlist de courriels, séparés par des virgules, des opérateurs autorisés à modifier). Définis-la dans `.env`. Voir aussi [Référence des variables d'environnement](/fr/self-hosted/configuration/environment-reference) et [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops).
