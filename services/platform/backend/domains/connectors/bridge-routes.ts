@@ -37,6 +37,45 @@ import { runConnectorAction } from './service.ts';
 
 const BEARER_PREFIX = 'Bearer ';
 
+/**
+ * The forensic trail for a bridge connector call: who/what/when/outcome
+ * plus a sorted param-KEY fingerprint, never the values — the same shape
+ * `recordToolCall` writes for in-sandbox tools, and the same ledger, since
+ * a connector call IS a tool call from the agent's side. The `connector:`
+ * prefix keeps the two readable apart in one query.
+ *
+ * A logging failure must never fail the call it describes.
+ */
+async function recordConnectorCall(
+  sql: Sql,
+  entry: {
+    organizationId: string;
+    sessionId: string;
+    slug: string;
+    operation: string;
+    userId: string;
+    outcome: string;
+    callArgs: Record<string, unknown>;
+  },
+): Promise<void> {
+  try {
+    await sql`
+      INSERT INTO app.sandbox_tool_calls (
+        org_id, session_id, tool, user_id, outcome, params_fingerprint,
+        created_at_ms
+      ) VALUES (
+        ${entry.organizationId}, ${entry.sessionId},
+        ${`connector:${entry.slug}.${entry.operation}`},
+        ${entry.userId}, ${entry.outcome},
+        ${Object.keys(entry.callArgs).sort().join(',')},
+        ${Date.now()}
+      )
+    `;
+  } catch (error) {
+    console.warn('[connectors-bridge] audit write failed:', error);
+  }
+}
+
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -154,29 +193,36 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
         ],
       });
     }
-    return json(
-      200,
-      await runBridgeConnectorImpl(
-        (dispatchArgs) =>
-          runConnectorAction(deps.sql, {
-            organizationId: dispatchArgs.organizationId,
-            connector: dispatchArgs.connector,
-            action: dispatchArgs.action,
-            input: dispatchArgs.input,
-            mode: 'live',
-            caller: { kind: 'user', userId: dispatchArgs.userId },
-            execSessionId: dispatchArgs.execSessionId,
-          }),
-        {
-          organizationId: auth.organizationId,
-          sessionId: auth.sessionId,
-          userId: auth.userId,
-          slug,
-          operation,
-          callArgs,
-        },
-      ),
+    const result = await runBridgeConnectorImpl(
+      (dispatchArgs) =>
+        runConnectorAction(deps.sql, {
+          organizationId: dispatchArgs.organizationId,
+          connector: dispatchArgs.connector,
+          action: dispatchArgs.action,
+          input: dispatchArgs.input,
+          mode: 'live',
+          caller: { kind: 'user', userId: dispatchArgs.userId },
+          execSessionId: dispatchArgs.execSessionId,
+        }),
+      {
+        organizationId: auth.organizationId,
+        sessionId: auth.sessionId,
+        userId: auth.userId,
+        slug,
+        operation,
+        callArgs,
+      },
     );
+    await recordConnectorCall(deps.sql, {
+      organizationId: auth.organizationId,
+      sessionId: auth.sessionId,
+      slug,
+      operation,
+      userId: auth.userId,
+      outcome: result.status,
+      callArgs,
+    });
+    return json(200, result);
   });
 
   app.post('/status', async (c) => {

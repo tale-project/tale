@@ -19809,6 +19809,37 @@ async function checkGovernanceSettingsTail(
         await get(`/api/app/governance/dsar/policy?orgId=${orgId}`)
       ).json(),
     );
+  // The cooling-off window ELAPSING is what makes a staged loosening real.
+  // 0.5 applies it lazily on the next read rather than from a scheduled job,
+  // so stage one more and pull its effective time into the past: the read
+  // must return the loosened config with no pending change left behind.
+  await post(`/api/app/governance/dsar/policy?orgId=${orgId}`, {
+    config: {
+      coolingOffHours: 1,
+      requireDualApproval: false,
+      dailyLimitPerAdmin: 5,
+    },
+  });
+  await sql`
+    UPDATE app.dsar_policy_pending_changes
+    SET effective_at_ms = ${Date.now() - 1000}
+    WHERE org_id = ${orgId}
+  `;
+  const dsarApplied = z
+    .object({
+      config: z.object({ coolingOffHours: z.number() }).loose(),
+      pending: z.null(),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await get(`/api/app/governance/dsar/policy?orgId=${orgId}`)
+      ).json(),
+    );
+  const dsarPendingGone = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.dsar_policy_pending_changes
+    WHERE org_id = ${orgId}
+  `;
   record(
     'governance tail: DSAR policy tighten-now / loosen-staged / cancel',
     dsarRead.success &&
@@ -19824,8 +19855,11 @@ async function checkGovernanceSettingsTail(
       dsarPendingRead.data.pending.config.coolingOffHours === 1 &&
       dsarCancelled.success &&
       dsarCancelled.data.ok &&
-      dsarAfterCancel.success,
-    `read=${dsarRead.success ? dsarRead.data.config.coolingOffHours : 'ERR'} (want 1), tighten=${tightened.success ? tightened.data.staged : 'ERR'} (want false), loosen=${loosened.success ? loosened.data.staged : 'ERR'} (want true), dupPending=${pendingBlocks.status} (want 400), pendingRead=${dsarPendingRead.success ? `${dsarPendingRead.data.config.coolingOffHours}/${dsarPendingRead.data.pending.config.coolingOffHours}` : 'ERR'}, cancel=${dsarCancelled.success}, after=${dsarAfterCancel.success}`,
+      dsarAfterCancel.success &&
+      dsarApplied.success &&
+      dsarApplied.data.config.coolingOffHours === 1 &&
+      dsarPendingGone[0]?.count === '0',
+    `read=${dsarRead.success ? dsarRead.data.config.coolingOffHours : 'ERR'} (want 1), tighten=${tightened.success ? tightened.data.staged : 'ERR'} (want false), loosen=${loosened.success ? loosened.data.staged : 'ERR'} (want true), dupPending=${pendingBlocks.status} (want 400), pendingRead=${dsarPendingRead.success ? `${dsarPendingRead.data.config.coolingOffHours}/${dsarPendingRead.data.pending.config.coolingOffHours}` : 'ERR'}, cancel=${dsarCancelled.success}, after=${dsarAfterCancel.success}, applied=${dsarApplied.success ? dsarApplied.data.config.coolingOffHours : 'ERR'} (want 1), leftover=${dsarPendingGone[0]?.count} (want 0)`,
   );
 
   // --- D. Moderation secret + offline test stub ---------------------------
@@ -21997,6 +22031,15 @@ async function checkMetricsSurface(
         await bridge('execute', { slug: 'document', operation: 'create' })
       ).json(),
     );
+  // Every call that REACHES the decision body leaves a forensic row: who,
+  // what, when, outcome, and a sorted param-KEY fingerprint — never values.
+  // A call refused at the door (not granted) never reaches it, so it leaves
+  // none.
+  const bridgeAudit = await sql<{ tool: string; outcome: string }[]>`
+    SELECT tool, outcome FROM app.sandbox_tool_calls
+    WHERE session_id = ${bridgeSessionId} AND tool LIKE 'connector:%'
+    ORDER BY created_at_ms
+  `;
   record(
     'connectors bridge: the token row is the authority',
     // Only a transport failure is non-2xx; every decision is a 200 body the
@@ -22014,8 +22057,13 @@ async function checkMetricsSurface(
       // external turn has nobody to answer an approval card.
       writeRefused.success &&
       writeRefused.data.status === 'unavailable' &&
-      writeRefused.data.blockers[0]?.code === 'write_not_supported',
-    `unauth=${unauthorized.status} (want 401), status=${status.success ? status.data.connectors.map((row) => row.slug).join(',') : 'ERR'}, notGranted=${notGranted.success ? notGranted.data.blockers[0]?.code : 'ERR'}, unknownOp=${unknownOp.success ? unknownOp.data.status : 'ERR'}, write=${writeRefused.success ? writeRefused.data.blockers[0]?.code : 'ERR'}`,
+      writeRefused.data.blockers[0]?.code === 'write_not_supported' &&
+      bridgeAudit.length === 2 &&
+      bridgeAudit[0]?.tool === 'connector:document.nope' &&
+      bridgeAudit[0]?.outcome === 'invalid_args' &&
+      bridgeAudit[1]?.tool === 'connector:document.create' &&
+      bridgeAudit[1]?.outcome === 'unavailable',
+    `unauth=${unauthorized.status} (want 401), status=${status.success ? status.data.connectors.map((row) => row.slug).join(',') : 'ERR'}, notGranted=${notGranted.success ? notGranted.data.blockers[0]?.code : 'ERR'}, unknownOp=${unknownOp.success ? unknownOp.data.status : 'ERR'}, write=${writeRefused.success ? writeRefused.data.blockers[0]?.code : 'ERR'}, audit=${bridgeAudit.map((row) => `${row.tool}:${row.outcome}`).join(',')} (want 2)`,
   );
   await sql`
     UPDATE app.sandbox_sessions SET status = 'destroyed'
