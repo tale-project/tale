@@ -16,6 +16,7 @@ import {
   taskSubscriberUserIds,
 } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
+import { holdsAllCompetences } from '../governance/competence.ts';
 import { type ProjectAuthContext } from '../projects/service.ts';
 import { kickAgentRun } from './agent-runs.ts';
 import { addTaskComment } from './comments.ts';
@@ -259,13 +260,17 @@ export async function requestTaskReview(
 
 export interface TaskReviewPolicyOutcome {
   independentReviewer?: boolean;
+  /** The competence grants that justified this response — stamped on the
+   * decision so a governed sign-off stays explainable afterwards. */
+  competenceRecordIds?: string[];
 }
 
 /**
  * The org's `review_policy` file tightens WHO may respond — shared by the
- * respond door and the status-leave approve so no path bypasses it. A policy
- * requiring competences refuses fail-closed (competence records are not
- * ported yet — silently ignoring the requirement would launder sign-offs).
+ * respond door and the status-leave approve so no path bypasses it. A
+ * policy requiring competences is checked against the responder's records
+ * (`governance/competence.ts`): a refusal NAMES the missing slugs, and an
+ * approval carries back the grants that justified it.
  */
 export async function checkReviewPolicyForResponder(
   tx: TransactionSql | Sql,
@@ -306,11 +311,27 @@ export async function checkReviewPolicyForResponder(
   }
   const requiredCompetences = policy?.requiredCompetences ?? [];
   if (requiredCompetences.length > 0) {
-    throw new TaskReviewError(
-      'REVIEW_COMPETENCE_REQUIRED',
-      `Responding to this review requires the competence(s): ${requiredCompetences.join(', ')} — competence records are not available on this backend yet.`,
-      403,
+    const held = await holdsAllCompetences(
+      tx,
+      args.task.organizationId,
+      args.responderUserId,
+      requiredCompetences,
     );
+    if (!held.holdsAll) {
+      // Name what is MISSING: a governed refusal the responder cannot act on
+      // is worse than no policy at all.
+      throw new TaskReviewError(
+        'REVIEW_COMPETENCE_REQUIRED',
+        `Responding to this review requires the competence(s): ${held.missing.join(', ')}.`,
+        403,
+      );
+    }
+    // Record WHICH grants justified the response — a governed decision has
+    // to be explainable after the fact.
+    return {
+      ...(independentReviewer !== undefined ? { independentReviewer } : {}),
+      competenceRecordIds: held.heldRecordIds,
+    };
   }
   return independentReviewer !== undefined ? { independentReviewer } : {};
 }

@@ -28,6 +28,13 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { checkTtsBudget } from '../tts/service.ts';
 import {
+  CompetenceError,
+  grantCompetence,
+  listOrgCompetences,
+  listUserCompetences,
+  revokeCompetence,
+} from './competence.ts';
+import {
   getAccessibleModelsForUser,
   resolveFeatureFlagsForUser,
 } from './service.ts';
@@ -173,6 +180,89 @@ export function createGovernanceRoutes(deps: {
       });
     });
     return c.json({ ok: true });
+  });
+
+  /** The caller as the competence writer's actor (role decides the gate;
+   * the refusal itself is audited inside the service). */
+  const actorOf = (
+    c: Context<OrgEnv>,
+  ): { userId: string; email?: string; role: string } => {
+    const user = c.get('sessionBundle').user;
+    return {
+      userId: user.id,
+      ...(user.email ? { email: user.email } : {}),
+      role: c.get('orgMember').role,
+    };
+  };
+
+  const competenceError = (c: Context<OrgEnv>, error: unknown): Response => {
+    if (error instanceof CompetenceError) {
+      return c.json(
+        { error: error.code, message: error.message },
+        error.status,
+      );
+    }
+    throw error;
+  };
+
+  /**
+   * Competence register — who is qualified to respond to a governed review.
+   * Reads are org-member (a responder must be able to see why they were
+   * refused); grants and revocations are admin-only and audited, including
+   * the refusal of a non-admin attempt.
+   */
+  app.get('/competences', async (c) => {
+    const userId = c.req.query('userId');
+    return c.json({
+      records:
+        userId === undefined || userId === ''
+          ? await listOrgCompetences(deps.sql, c.get('orgId'))
+          : await listUserCompetences(deps.sql, c.get('orgId'), userId),
+    });
+  });
+
+  app.post('/competences', async (c) => {
+    const body = z
+      .object({
+        userId: z.string().min(1).max(128),
+        competence: z.string().min(1).max(200),
+        expiresAt: z.number().finite().optional(),
+        evidence: z.string().max(4000).optional(),
+      })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      return c.json(
+        await grantCompetence(deps.sql, {
+          organizationId: c.get('orgId'),
+          actor: actorOf(c),
+          userId: body.data.userId,
+          competence: body.data.competence,
+          ...(body.data.expiresAt !== undefined
+            ? { expiresAt: body.data.expiresAt }
+            : {}),
+          ...(body.data.evidence !== undefined
+            ? { evidence: body.data.evidence }
+            : {}),
+        }),
+        201,
+      );
+    } catch (error) {
+      return competenceError(c, error);
+    }
+  });
+
+  app.post('/competences/:recordId/revoke', async (c) => {
+    try {
+      await revokeCompetence(deps.sql, {
+        organizationId: c.get('orgId'),
+        actor: actorOf(c),
+        recordId: c.req.param('recordId'),
+      });
+      return c.json({ ok: true });
+    } catch (error) {
+      return competenceError(c, error);
+    }
   });
 
   /** Org usage metrics (the metrics page; admin) — the 0.4 fold reused. */

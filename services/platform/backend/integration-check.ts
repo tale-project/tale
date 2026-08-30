@@ -6934,6 +6934,223 @@ async function checkProjectTail(
   );
 }
 
+async function checkCompetences(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const now = Date.now();
+  const { toJson } = await import('./db/sql.ts');
+  const { isRecord } = await import('../lib/utils/type-utils.ts');
+  const api = (
+    route: string,
+    init: { body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(
+      `${base}/api/app/governance${route}${route.includes('?') ? '&' : '?'}orgId=${orgId}`,
+      {
+        method: init.body === undefined ? 'GET' : 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+      },
+    );
+
+  const granted = z.object({ recordId: z.string() }).safeParse(
+    await (
+      await api('/competences', {
+        body: {
+          userId,
+          competence: 'iso-13485-auditor',
+          evidence: 'https://certs.example/iso-13485',
+        },
+      })
+    ).json(),
+  );
+  const recordId = granted.success ? granted.data.recordId : '';
+  // At most ONE live grant per (member, competence).
+  const duplicate = await api('/competences', {
+    body: { userId, competence: 'iso-13485-auditor' },
+  });
+  const duplicateBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await duplicate.json());
+  // An EXPIRED grant must not wedge the slug shut forever.
+  await sql`
+    INSERT INTO app.competence_records (
+      org_id, user_id, competence, granted_by, granted_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${userId}, 'expired-cert', ${userId}, ${now - 86_400_000},
+      ${now - 3_600_000}
+    )
+  `;
+  const regrant = await api('/competences', {
+    body: { userId, competence: 'expired-cert' },
+  });
+  const listed = z
+    .object({ records: z.array(z.object({ competence: z.string() }).loose()) })
+    .safeParse(await (await api(`/competences?userId=${userId}`)).json());
+  // A grant to a non-member would read as a qualification that is not one.
+  const stranger = await api('/competences', {
+    body: {
+      userId: 'not-a-member-of-this-org',
+      competence: 'iso-13485-auditor',
+    },
+  });
+  const strangerBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await stranger.json());
+  record(
+    'competences: one live grant per member, and an expired one re-grants',
+    granted.success &&
+      duplicate.status === 409 &&
+      duplicateBody.success &&
+      duplicateBody.data.error === 'COMPETENCE_ALREADY_GRANTED' &&
+      regrant.status === 201 &&
+      stranger.status === 400 &&
+      strangerBody.success &&
+      strangerBody.data.error === 'COMPETENCE_USER_NOT_MEMBER' &&
+      listed.success &&
+      listed.data.records.some((row) => row.competence === 'iso-13485-auditor'),
+    `granted=${granted.success}, duplicate=${duplicate.status}/${duplicateBody.success ? duplicateBody.data.error : 'ERR'} (want 409), regrantAfterExpiry=${regrant.status} (want 201), nonMember=${stranger.status}/${strangerBody.success ? strangerBody.data.error : 'ERR'} (want 400), listed=${listed.success ? listed.data.records.length : 'ERR'}`,
+  );
+
+  // ---- the review door actually consults the register ------------------
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const governanceDir = path.join(configRoot, orgSlug, 'governance');
+  await mkdir(governanceDir, { recursive: true });
+  await writeFile(
+    path.join(governanceDir, 'review-policy.yml'),
+    ['requiredCompetences:', '  - iso-13485-auditor'].join('\n'),
+  );
+  const orgConfig = await import('./lib/org-config.ts');
+  orgConfig.clearOrgConfigCaches();
+
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Competence project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Competence task', 'in_review', 'a0', ${userId},
+      'user', ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+  const mintReview = async (): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.approvals (
+        org_id, status, resource_type, resource_id, priority, metadata,
+        created_at_ms
+      ) VALUES (
+        ${orgId}, 'pending', 'task_review', ${taskId}, 'medium',
+        ${sql.json(toJson({ taskId, round: 0, requestedFor: userId }))},
+        ${Date.now()}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const respond = (approvalId: string): Promise<Response> =>
+    fetch(
+      `${base}/api/app/tasks/reviews/${approvalId}/respond?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ decision: 'approve' }),
+      },
+    );
+
+  const holderApproval = await mintReview();
+  const holderRes = await respond(holderApproval);
+  const holderBody = z
+    .object({ taskCompleted: z.boolean() })
+    .loose()
+    .safeParse(await holderRes.json());
+  // The grants that justified the decision are stamped on the trail, so a
+  // later auditor can see WHICH record admitted this reviewer.
+  const stamped = await sql<{ metadata: Record<string, unknown> | null }[]>`
+    SELECT metadata FROM app.approvals WHERE id = ${holderApproval}
+  `;
+  const response = isRecord(stamped[0]?.metadata?.response)
+    ? stamped[0].metadata.response
+    : {};
+  const auditRows = await sql<{ metadata: Record<string, unknown> | null }[]>`
+    SELECT metadata FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'task.review_responded'
+      AND resource_id = ${taskId}
+  `;
+  const auditIds = auditRows[0]?.metadata?.competenceRecordIds;
+  record(
+    'competences: a holder passes the review door and the grant is stamped',
+    holderRes.status === 200 &&
+      holderBody.success &&
+      holderBody.data.taskCompleted &&
+      Array.isArray(response.competenceRecordIds) &&
+      response.competenceRecordIds.includes(recordId) &&
+      Array.isArray(auditIds) &&
+      auditIds.includes(recordId),
+    `status=${holderRes.status}, completed=${holderBody.success ? holderBody.data.taskCompleted : 'ERR'}, stamped=${JSON.stringify(response.competenceRecordIds)}, audit=${JSON.stringify(auditIds)}, want ${recordId}`,
+  );
+
+  // ---- revocation retains the row and closes the door ------------------
+  const revoked = await api(`/competences/${recordId}/revoke`, { body: {} });
+  const afterRevoke = await sql<
+    { revokedBy: string | null; grantedAt: number }[]
+  >`
+    SELECT revoked_by AS "revokedBy", granted_at_ms::float8 AS "grantedAt"
+    FROM app.competence_records WHERE id = ${recordId}
+  `;
+  await sql`
+    UPDATE app.tasks SET status = 'in_review' WHERE id = ${taskId}
+  `;
+  const refusedRes = await respond(await mintReview());
+  const refusedBody = z
+    .object({ error: z.string(), message: z.string() })
+    .loose()
+    .safeParse(await refusedRes.json());
+  const audits = await sql<{ action: string }[]>`
+    SELECT action FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action LIKE 'competence_%'
+  `;
+  const actions = new Set(audits.map((row) => row.action));
+  record(
+    'competences: revoking retains the record, shuts the door, and audits',
+    revoked.status === 200 &&
+      // RETAINED, never deleted — it is the trail behind reviews it admitted.
+      afterRevoke.length === 1 &&
+      afterRevoke[0]?.revokedBy === userId &&
+      refusedRes.status === 403 &&
+      refusedBody.success &&
+      refusedBody.data.error === 'REVIEW_COMPETENCE_REQUIRED' &&
+      // The refusal NAMES what is missing — an unexplained 403 is unusable.
+      refusedBody.data.message.includes('iso-13485-auditor') &&
+      actions.has('competence_granted') &&
+      actions.has('competence_revoked'),
+    `revoke=${revoked.status}, retained=${afterRevoke.length === 1}/${afterRevoke[0]?.revokedBy === userId}, refusal=${refusedRes.status}/${refusedBody.success ? `${refusedBody.data.error}:${refusedBody.data.message.includes('iso-13485-auditor')}` : 'ERR'}, audits=${[...actions].sort().join(',')}`,
+  );
+
+  // Leave the org as we found it: the policy file off, the seeded card gone
+  // (a pending review row would skew every later approvals fold).
+  await writeFile(path.join(governanceDir, 'review-policy.yml'), '{}\n');
+  orgConfig.clearOrgConfigCaches();
+  await sql`
+    DELETE FROM app.approvals
+    WHERE resource_type = 'task_review' AND resource_id = ${taskId}
+  `;
+  await sql`DELETE FROM app.task_activity WHERE task_id = ${taskId}`;
+  await sql`DELETE FROM app.tasks WHERE id = ${taskId}`;
+  await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
+}
+
 async function checkCollabMentions(
   sql: Sql,
   base: string,
@@ -22045,6 +22262,7 @@ async function main(): Promise<void> {
     await checkRecoverySweeps(sql, authCtx);
     await checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`);
     await checkCollabMentions(sql, baseUrl, authCtx);
+    await checkCompetences(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkProjectTail(sql, baseUrl, authCtx);
     await checkRunProvenance(sql, authCtx);
     await checkTurnReattach(sql, authCtx);
