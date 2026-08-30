@@ -5,7 +5,7 @@ description: Wie `tale update` eine Tale-Instanz vorwärtsbewegt — die automat
 
 Upgrades auf einer self-hosted Tale-Instanz laufen durch zwei Kommandos: `tale update` bewegt das CLI-Binary auf die neue Version und synct deine Projektdateien passend dazu, dann rollt `tale deploy` die Plattform-Container. Der Deploy nutzt ein Blue-Green-Pattern — die neue Farbe startet neben der alten, Healthchecks bestehen, der Traffic kippt, die alte Farbe drainet. Zero-Downtime ist der Default; macht ein Patch-Release Ärger, bringt `tale rollback` den vorherigen Patch in einem Kommando zurück, und alles Größere recovert aus dem Pre-Upgrade-Snapshot.
 
-**Eine harte Ausnahme:** Von 0.3.x auf 0.4 gibt es keinen Upgrade-Pfad. 0.4 ist ein Breaking Cutover, der ein frisches Deployment verlangt — lies zuerst [0.3 → 0.4: Breaking Cutover](#03--04-breaking-cutover), wenn deine Instanz auf 0.3.x läuft.
+**Eine harte Ausnahme:** Auf 0.5 führt von keiner früheren Linie ein Upgrade-Pfad. 0.5 ist ein Breaking Cutover, der ein frisches Deployment verlangt — lies zuerst [0.4 → 0.5: Breaking Cutover](#04--05-breaking-cutover), wenn deine Instanz auf 0.4.x oder älter läuft (0.4 war selbst der vorige Cutover dieser Art und hat 0.3.x abgetrennt).
 
 Was du nicht mehr tust, ist das CLI von Hand im Gleichschritt zu halten: Das CLI gleicht sich automatisch an die Instanz an (siehe unten), sodass der einzige bewusste Schritt die Wahl ist, wann du mit `tale update` die Version wechselst.
 
@@ -112,37 +112,37 @@ Tale-Versionen sind semver. Die Kompatibilitäts-Regeln:
 - Patch (`0.9.0 → 0.9.1`) — keine Migrationen, keine Config-Änderungen, `tale rollback` ist immer sicher.
 - Minor (`0.9.x → 0.10.x`) — kann forward-only Migrationen enthalten; `tale rollback` verweigert, Recovery ist Snapshot-Restore plus Redeploy.
 - Major (`0.x → 1.x`) — lies die Migrations-Notes, plan das Wartungsfenster, erwarte Überraschungen.
-- **Die 0.4.0-Baseline** — Versionen unter 0.4.0 und Versionen ab 0.4.0 sind getrennte Welten: kein Upgrade in keine Richtung, siehe den Cutover-Abschnitt unten.
+- **Die 0.5.0-Baseline** — Versionen unter 0.5.0 und Versionen ab 0.5.0 sind getrennte Welten: kein Upgrade in keine Richtung, siehe den Cutover-Abschnitt unten.
 
-Minor-Versionen zu überspringen (von 0.9 auf 0.11 zu gehen) ist unterstützt, solange die Zwischen-Migrationen noch im Binary sind; die Release-Notes nennen es, wenn das nicht der Fall ist. Die 0.4.0-Baseline ist der Dauerfall dieser Ausnahme: Prä-0.4-Migrationen stecken in keinem 0.4+-Binary.
+Minor-Versionen zu überspringen (von 0.9 auf 0.11 zu gehen) ist unterstützt, solange die Zwischen-Schema-Migrationen noch im Image stecken; die Release-Notes nennen es, wenn das nicht der Fall ist. Die 0.5.0-Baseline ist der Dauerfall dieser Ausnahme: Bei 0.5 hat sich der Anwendungs-Store selbst geändert, also kann kein 0.5+-Release lesen, was davor entstand.
 
-Um bewusst eine Version _runter_ zu gehen — etwa wenn ein Minor-Release Ärger macht und du seine Migrationen schon zurückgenommen hast —, nagle das Ziel mit `tale update --version <version>` fest. Das Kommando warnt, wenn das Ziel älter als die laufende Version ist, und erinnert dich, zuerst die Daten-Migrationen zurückzunehmen. Ein Downgrade unter 0.4.0 kreuzt den Cutover rückwärts und ist nicht unterstützt: Ein 0.3.x-Release kann von 0.4+ erzeugte Daten nicht lesen — stelle einen Prä-0.4-Snapshot wieder her oder deploye 0.3.x frisch.
+Um bewusst eine Version _runter_ zu gehen — etwa wenn ein Minor-Release Ärger macht —, nagle das Ziel mit `tale update --version <version>` fest. Das Kommando warnt, wenn das Ziel älter als die laufende Version ist; gehe nur auf eine Version zurück, deren Schema-Migrationen ein Präfix dessen sind, was die Datenbank angewendet hat, oder stelle einen Volume-Snapshot von vor dem Upgrade wieder her. Ein Downgrade unter 0.5.0 kreuzt den Cutover rückwärts und ist nicht unterstützt: Ein 0.4.x-Release kann von 0.5+ erzeugte Daten nicht lesen — stelle einen Prä-0.5-Snapshot wieder her oder deploye 0.4.x frisch.
 
-## 0.3 → 0.4: Breaking Cutover
+## 0.4 → 0.5: Breaking Cutover
 
-0.4 hat das KI-Backend der Plattform — und damit das Datenmodell — von einer sauberen Baseline neu aufgebaut. Die versionierte Migrations-Historie wurde bei 0.4.0 zurückgesetzt: Kein 0.4+-Release trägt die Prä-0.4-Migrationen, also **lässt sich eine 0.3.x-Instanz nicht in-place upgraden — 0.4 verlangt ein frisches Deployment.**
+0.5 hat Laufzeit und Store des Anwendungs-Backends ersetzt: Anwendungsdaten liegen jetzt in Postgres, wo 0.4 sie in der eigenen Datenbank des mitgelieferten Convex-Dienstes hielt. Kein Importer verbindet die beiden, also **lässt sich eine 0.4.x-Instanz nicht in-place upgraden — 0.5 verlangt ein frisches Deployment.**
 
 **Was das praktisch heißt:**
 
-- `tale deploy` mit einem 0.4+-CLI **verweigert** jede Instanz, deren laufende Version unter 0.4.0 liegt — bevor ein Image gezogen oder irgendetwas geschrieben wird. Der Container trägt dieselbe Wache beim Boot (Log-Marker `[migrations][breaking-cutover]`) für Stacks, die außerhalb des CLI verwaltet werden.
-- Nichts aus einer 0.3-Instanz wird übernommen: Chats, Automationen samt Lauf-Historie, Wissenseinträge, Aufgaben-Historie, Benutzer und Anmeldungen. Dateien in einem BYO-S3-Bucket bleiben physisch im Bucket, aber die neue Instanz hat keine Referenzen darauf.
-- Die 0.3.x-Linie bleibt für Sicherheits- und kritische Fixes auf dem Branch `release/0.3` gepflegt — eine Weile auf 0.3.x zu bleiben ist ein unterstützter Weg; der Wechsel auf 0.4 ist ein Re-Onboarding, kein Upgrade.
+- `tale deploy` mit einem 0.5+-CLI **verweigert** jede Instanz, deren laufende Version unter 0.5.0 liegt — bevor ein Image gezogen oder irgendetwas geschrieben wird.
+- Nichts aus der Datenbank einer 0.4-Instanz wird übernommen: Chats, Automationen samt Lauf-Historie, Wissenseinträge, Aufgaben-Historie, Benutzer und Anmeldungen. Der **Konfigurationsbaum** der Organisation (Agenten, Skills, Anbieter, Governance-Richtlinien) liegt als Dateien auf dem geteilten Konfigurations-Volume und wandert mit; Dateien in einem BYO-S3-Bucket bleiben physisch im Bucket, aber die neue Instanz hat keine Referenzen darauf.
+- Die 0.4.x-Linie bleibt für Sicherheits- und kritische Fixes auf dem Branch `release/0.4` gepflegt — eine Weile auf 0.4.x zu bleiben ist ein unterstützter Weg; der Wechsel auf 0.5 ist ein Re-Onboarding, kein Upgrade.
 
-**Der Weg auf 0.4:**
+**Der Weg auf 0.5:**
 
 ```bash
-# 1. Die 0.3-Instanz unangetastet lassen (sie bedient weiter).
-# 2. Ein NEUES Projektverzeichnis mit einem 0.4-CLI anlegen:
-mkdir tale-04 && cd tale-04
+# 1. Die 0.4-Instanz unangetastet lassen (sie bedient weiter).
+# 2. Ein NEUES Projektverzeichnis mit einem 0.5-CLI anlegen:
+mkdir tale-05 && cd tale-05
 tale init
 tale deploy
 
 # 3. Re-Onboarding: Organisationen, Benutzer (Einladung / SSO),
 #    Konfiguration, Dokumente und Wissen neu hochladen.
-# 4. Die 0.3-Instanz stilllegen, sobald die neue abgenommen ist.
+# 4. Die 0.4-Instanz stilllegen, sobald die neue abgenommen ist.
 ```
 
-Der Experten-Override — `tale deploy --accept-data-loss` bzw. `TALE_ACCEPT_DATA_LOSS=1` am Container — existiert für den seltenen Fall, dass du bewusst einen Host wiederverwendest, dessen alte Volumes du bereits behandelt hast. Er tut genau, was sein Name sagt: Prä-0.4-Daten dieser Instanz werden dauerhaft unlesbar.
+Der Experten-Override — `tale deploy --accept-data-loss` bzw. `TALE_ACCEPT_DATA_LOSS=1` am Container — existiert für den seltenen Fall, dass du bewusst einen Host wiederverwendest, dessen alte Volumes du bereits behandelt hast. Er tut genau, was sein Name sagt: Prä-0.5-Daten dieser Instanz werden dauerhaft unlesbar.
 
 ## Wo das hingehört
 

@@ -5,7 +5,7 @@ description: How `tale update` moves a Tale instance forward — automatic CLI/i
 
 Upgrades on a self-hosted Tale instance run through two commands: `tale update` moves the CLI binary to the new version and syncs your project files to match, then `tale deploy` rolls the platform containers. The deploy uses a blue-green pattern — the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains. Zero downtime is the default; if a patch release misbehaves, `tale rollback` returns to the previous patch in one command, and anything bigger recovers from the pre-upgrade snapshot.
 
-**One hard exception:** there is no upgrade path from 0.3.x to 0.4. 0.4 is a breaking cutover that requires a fresh deployment — see [0.3 → 0.4: breaking cutover](#03--04-breaking-cutover) before anything else if your instance is on 0.3.x.
+**One hard exception:** there is no upgrade path onto 0.5 from an earlier line. 0.5 is a breaking cutover that requires a fresh deployment — see [0.4 → 0.5: breaking cutover](#04--05-breaking-cutover) before anything else if your instance is on 0.4.x or older (0.4 itself was the previous such cutover, severing 0.3.x).
 
 What you no longer do is keep the CLI in sync by hand: the CLI aligns itself to the instance automatically (see below), so the only deliberate step is choosing when to move versions with `tale update`.
 
@@ -112,37 +112,37 @@ Tale versions are semver. The compatibility rules:
 - Patch (`0.9.0 → 0.9.1`) — no migrations, no config changes, `tale rollback` is always safe.
 - Minor (`0.9.x → 0.10.x`) — may include forward-only migrations; `tale rollback` refuses, recovery is restore-snapshot-and-redeploy.
 - Major (`0.x → 1.x`) — read the migration notes, schedule the maintenance window, expect surprises.
-- **The 0.4.0 baseline** — versions below 0.4.0 and versions from 0.4.0 on are separate worlds: no upgrade in either direction, see the cutover section below.
+- **The 0.5.0 baseline** — versions below 0.5.0 and versions from 0.5.0 on are separate worlds: no upgrade in either direction, see the cutover section below.
 
-Skipping minor versions (going from 0.9 to 0.11) is supported as long as the intermediate migrations are still in the binary; the release notes call it out when this is not the case. The 0.4.0 baseline is the standing instance of that exception: pre-0.4 migrations are not in any 0.4+ binary.
+Skipping minor versions (going from 0.9 to 0.11) is supported as long as the intermediate schema migrations are still in the image; the release notes call it out when this is not the case. The 0.5.0 baseline is the standing instance of that exception: the application store itself changed at 0.5, so no 0.5+ release can read what came before.
 
-To move _down_ a version deliberately — say a minor release misbehaves and you have already reversed its migrations — pin the target with `tale update --version <version>`. The command warns when the target is older than the running version and reminds you to reverse data migrations first. A downgrade below 0.4.0 crosses the cutover backwards and is not supported: a 0.3.x release cannot read data created by 0.4+ — restore a pre-0.4 snapshot or deploy 0.3.x fresh instead.
+To move _down_ a version deliberately — say a minor release misbehaves — pin the target with `tale update --version <version>`. The command warns when the target is older than the running version; downgrade only to a version whose schema migrations are a prefix of what the database has applied, or restore a volume snapshot from before the upgrade. A downgrade below 0.5.0 crosses the cutover backwards and is not supported: a 0.4.x release cannot read data created by 0.5+ — restore a pre-0.5 snapshot or deploy 0.4.x fresh instead.
 
-## 0.3 → 0.4: breaking cutover
+## 0.4 → 0.5: breaking cutover
 
-0.4 rebuilt the platform's AI backend, and with it the data model, from a clean baseline. The versioned-migration history was reset at 0.4.0: no 0.4+ release carries the pre-0.4 migrations, so **a 0.3.x instance cannot be upgraded in place — 0.4 requires a fresh deployment.**
+0.5 replaced the application backend's runtime and store: application data now lives in Postgres, where 0.4 kept it in the bundled Convex service's own database. No importer bridges the two, so **a 0.4.x instance cannot be upgraded in place — 0.5 requires a fresh deployment.**
 
 **What this means in practice:**
 
-- `tale deploy` with a 0.4+ CLI **refuses** to touch an instance whose running version is below 0.4.0, before pulling an image or writing anything. The container has the same guard at boot (log marker `[migrations][breaking-cutover]`) for stacks managed outside the CLI.
-- Nothing from a 0.3 instance is carried over: chats, automations and their run history, knowledge entries, task history, users and sign-ins. Files in a BYO-S3 bucket physically remain in the bucket, but the new instance has no references to them.
-- The 0.3.x line stays maintained for security and critical fixes on the `release/0.3` branch — staying on 0.3.x for a while is a supported choice, moving to 0.4 is a re-onboarding, not an upgrade.
+- `tale deploy` with a 0.5+ CLI **refuses** to touch an instance whose running version is below 0.5.0, before pulling an image or writing anything.
+- Nothing from a 0.4 instance's database is carried over: chats, automations and their run history, knowledge entries, task history, users and sign-ins. The org **config tree** (agents, skills, providers, governance policies) lives on the shared config volume as files and does carry forward; files in a BYO-S3 bucket physically remain in the bucket, but the new instance has no references to them.
+- The 0.4.x line stays maintained for security and critical fixes on the `release/0.4` branch — staying on 0.4.x for a while is a supported choice, moving to 0.5 is a re-onboarding, not an upgrade.
 
-**Moving to 0.4:**
+**Moving to 0.5:**
 
 ```bash
-# 1. Leave the 0.3 instance untouched (it keeps serving).
-# 2. Create a NEW project directory with a 0.4 CLI:
-mkdir tale-04 && cd tale-04
+# 1. Leave the 0.4 instance untouched (it keeps serving).
+# 2. Create a NEW project directory with a 0.5 CLI:
+mkdir tale-05 && cd tale-05
 tale init
 tale deploy
 
 # 3. Re-onboard: organizations, users (invite / SSO), configuration,
 #    documents and knowledge re-upload.
-# 4. Decommission the 0.3 instance once the new one is accepted.
+# 4. Decommission the 0.4 instance once the new one is accepted.
 ```
 
-The expert override — `tale deploy --accept-data-loss`, or `TALE_ACCEPT_DATA_LOSS=1` on the container — exists for the rare case where you deliberately reuse a host whose old volumes you have already dealt with. It does exactly what its name says: pre-0.4 data on that instance becomes permanently unreadable.
+The expert override — `tale deploy --accept-data-loss`, or `TALE_ACCEPT_DATA_LOSS=1` on the container — exists for the rare case where you deliberately reuse a host whose old volumes you have already dealt with. It does exactly what its name says: pre-0.5 data on that instance becomes permanently unreadable.
 
 ## Where this fits
 

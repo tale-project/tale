@@ -5,7 +5,7 @@ description: Comment `tale update` fait avancer une instance Tale — l'aligneme
 
 Les montées de version sur une instance Tale auto-hébergée passent par deux commandes : `tale update` bouge le binaire CLI à la nouvelle version et synchronise tes fichiers projet pour correspondre, puis `tale deploy` roule les conteneurs plateforme. Le déploiement utilise un pattern blue-green — la nouvelle couleur démarre à côté de l'ancienne, les healthchecks passent, le trafic bascule, l'ancienne couleur draine. Zéro downtime est le défaut ; si une release patch se comporte mal, `tale rollback` ramène le patch précédent en une commande, et tout ce qui est plus gros se récupère depuis le snapshot pré-upgrade.
 
-**Une exception dure :** il n'existe aucun chemin de montée de version de 0.3.x vers 0.4. La 0.4 est une rupture qui exige un déploiement neuf — lis [0.3 → 0.4 : rupture de version](#03--04--rupture-de-version) avant toute chose si ton instance est en 0.3.x.
+**Une exception dure :** il n'existe aucun chemin de montée de version vers la 0.5 depuis une ligne antérieure. La 0.5 est une rupture qui exige un déploiement neuf — lis [0.4 → 0.5 : rupture de version](#04--05--rupture-de-version) avant toute chose si ton instance est en 0.4.x ou plus ancienne (la 0.4 était la rupture précédente du même genre, qui a coupé la 0.3.x).
 
 Ce que tu ne fais plus, c'est garder la CLI synchronisée à la main : la CLI s'aligne elle-même sur l'instance automatiquement (voir plus bas), donc le seul pas délibéré est de choisir quand bouger de version avec `tale update`.
 
@@ -112,37 +112,37 @@ Les versions Tale sont en semver. Les règles de compatibilité :
 - Patch (`0.9.0 → 0.9.1`) — pas de migrations, pas de changements de config, `tale rollback` est toujours sûr.
 - Minor (`0.9.x → 0.10.x`) — peut inclure des migrations forward-only ; `tale rollback` refuse, la récupération est restauration-de-snapshot plus redéploiement.
 - Major (`0.x → 1.x`) — lis les notes de migration, planifie la fenêtre de maintenance, attends-toi à des surprises.
-- **La baseline 0.4.0** — les versions sous la 0.4.0 et les versions à partir de la 0.4.0 sont deux mondes séparés : aucune montée ni descente entre eux, voir la section rupture ci-dessous.
+- **La baseline 0.5.0** — les versions sous la 0.5.0 et les versions à partir de la 0.5.0 sont deux mondes séparés : aucune montée ni descente entre eux, voir la section rupture ci-dessous.
 
-Sauter des versions mineures (passer de 0.9 à 0.11) est supporté tant que les migrations intermédiaires sont encore dans le binaire ; les notes de version le mentionnent quand ce n'est pas le cas. La baseline 0.4.0 est le cas permanent de cette exception : les migrations pré-0.4 ne sont dans aucun binaire 0.4+.
+Sauter des versions mineures (passer de 0.9 à 0.11) est supporté tant que les migrations de schéma intermédiaires sont encore dans l'image ; les notes de version le mentionnent quand ce n'est pas le cas. La baseline 0.5.0 est le cas permanent de cette exception : le store applicatif lui-même a changé à la 0.5, donc aucune release 0.5+ ne peut lire ce qui existait avant.
 
-Pour descendre _délibérément_ d'une version — disons qu'une release minor se comporte mal et que tu as déjà inversé ses migrations — fixe la cible avec `tale update --version <version>`. La commande prévient quand la cible est plus ancienne que la version qui tourne et te rappelle d'inverser d'abord les migrations de données. Descendre sous la 0.4.0 traverse la rupture à rebours et n'est pas supporté : une release 0.3.x ne peut pas lire des données créées par la 0.4+ — restaure un snapshot pré-0.4 ou déploie la 0.3.x à neuf.
+Pour descendre _délibérément_ d'une version — disons qu'une release minor se comporte mal — fixe la cible avec `tale update --version <version>`. La commande prévient quand la cible est plus ancienne que la version qui tourne ; ne descends que vers une version dont les migrations de schéma sont un préfixe de ce que la base a appliqué, ou restaure un snapshot de volume antérieur à la montée. Descendre sous la 0.5.0 traverse la rupture à rebours et n'est pas supporté : une release 0.4.x ne peut pas lire des données créées par la 0.5+ — restaure un snapshot pré-0.5 ou déploie la 0.4.x à neuf.
 
-## 0.3 → 0.4 : rupture de version
+## 0.4 → 0.5 : rupture de version
 
-La 0.4 a reconstruit le backend IA de la plateforme, et avec lui le modèle de données, depuis une baseline propre. L'historique des migrations versionnées a été remis à zéro à la 0.4.0 : aucune release 0.4+ n'embarque les migrations pré-0.4, donc **une instance 0.3.x ne peut pas être montée en place — la 0.4 exige un déploiement neuf.**
+La 0.5 a remplacé le runtime et le store du backend applicatif : les données applicatives vivent désormais dans Postgres, là où la 0.4 les gardait dans la base propre du service Convex embarqué. Aucun importateur ne relie les deux, donc **une instance 0.4.x ne peut pas être montée en place — la 0.5 exige un déploiement neuf.**
 
 **Ce que ça veut dire concrètement :**
 
-- `tale deploy` avec une CLI 0.4+ **refuse** de toucher une instance dont la version qui tourne est sous la 0.4.0, avant de tirer une image ou d'écrire quoi que ce soit. Le conteneur porte la même garde au démarrage (marqueur de log `[migrations][breaking-cutover]`) pour les stacks gérées hors CLI.
-- Rien d'une instance 0.3 n'est repris : chats, automatisations et leur historique d'exécution, entrées de connaissance, historique des tâches, utilisateurs et connexions. Les fichiers d'un bucket BYO-S3 restent physiquement dans le bucket, mais la nouvelle instance n'a aucune référence vers eux.
-- La ligne 0.3.x reste maintenue pour la sécurité et les correctifs critiques sur la branche `release/0.3` — rester en 0.3.x un moment est un choix supporté ; passer à la 0.4 est un ré-embarquement, pas une montée de version.
+- `tale deploy` avec une CLI 0.5+ **refuse** de toucher une instance dont la version qui tourne est sous la 0.5.0, avant de tirer une image ou d'écrire quoi que ce soit.
+- Rien de la base d'une instance 0.4 n'est repris : chats, automatisations et leur historique d'exécution, entrées de connaissance, historique des tâches, utilisateurs et connexions. L'**arbre de configuration** de l'organisation (agents, skills, fournisseurs, politiques de gouvernance) vit en fichiers sur le volume de configuration partagé et suit, lui ; les fichiers d'un bucket BYO-S3 restent physiquement dans le bucket, mais la nouvelle instance n'a aucune référence vers eux.
+- La ligne 0.4.x reste maintenue pour la sécurité et les correctifs critiques sur la branche `release/0.4` — rester en 0.4.x un moment est un choix supporté ; passer à la 0.5 est un ré-embarquement, pas une montée de version.
 
-**Passer à la 0.4 :**
+**Passer à la 0.5 :**
 
 ```bash
-# 1. Laisser l'instance 0.3 intacte (elle continue de servir).
-# 2. Créer un NOUVEAU répertoire projet avec une CLI 0.4 :
-mkdir tale-04 && cd tale-04
+# 1. Laisser l'instance 0.4 intacte (elle continue de servir).
+# 2. Créer un NOUVEAU répertoire projet avec une CLI 0.5 :
+mkdir tale-05 && cd tale-05
 tale init
 tale deploy
 
 # 3. Ré-embarquer : organisations, utilisateurs (invitation / SSO),
 #    configuration, re-téléversement des documents et connaissances.
-# 4. Décommissionner l'instance 0.3 une fois la nouvelle validée.
+# 4. Décommissionner l'instance 0.4 une fois la nouvelle validée.
 ```
 
-Le contournement expert — `tale deploy --accept-data-loss`, ou `TALE_ACCEPT_DATA_LOSS=1` sur le conteneur — existe pour le cas rare où tu réutilises délibérément un hôte dont tu as déjà traité les anciens volumes. Il fait exactement ce que son nom dit : les données pré-0.4 de cette instance deviennent définitivement illisibles.
+Le contournement expert — `tale deploy --accept-data-loss`, ou `TALE_ACCEPT_DATA_LOSS=1` sur le conteneur — existe pour le cas rare où tu réutilises délibérément un hôte dont tu as déjà traité les anciens volumes. Il fait exactement ce que son nom dit : les données pré-0.5 de cette instance deviennent définitivement illisibles.
 
 ## Où cela s'inscrit
 

@@ -160,20 +160,22 @@ export async function runUpdate(
   }
   if (opts.version && !isDev && comparison < 0) {
     if (compareVersions(target, BREAKING_BASELINE) < 0) {
-      // Crossing the 0.4 baseline BACKWARDS: pre-0.4 releases cannot read
-      // data created by 0.4+ (the history reset severed both directions).
+      // Crossing the baseline BACKWARDS: pre-baseline releases cannot read
+      // data created past it (the store itself changed at the cutover).
       // `tale update` never blocks — enforcement lives in the deploy guard —
       // but say it plainly here so the operator stops before deploying.
       logger.warn(
-        `Downgrading below v${BREAKING_BASELINE} crosses the 0.4 breaking cutover: ` +
+        `Downgrading below v${BREAKING_BASELINE} crosses a breaking cutover: ` +
           `a v${target} instance CANNOT read data created by v${deps.currentVersion}. ` +
           `Restore a pre-${BREAKING_BASELINE} volume snapshot or deploy v${target} fresh.`,
       );
     } else {
       logger.warn(
-        `Downgrading from ${deps.currentVersion} to ${target}. Data migrations ` +
-          `from the newer version persist — reverse them FIRST with ` +
-          `\`tale migrate down --to ${target}\` (check \`tale migrate status\`).`,
+        `Downgrading from ${deps.currentVersion} to ${target}. Schema ` +
+          `migrations from the newer version persist in the database — ` +
+          `downgrade only to a version whose migrations are a prefix of ` +
+          `what is applied, or restore a volume snapshot from before the ` +
+          `upgrade.`,
       );
     }
   }
