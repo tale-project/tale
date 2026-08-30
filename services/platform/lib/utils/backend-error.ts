@@ -23,12 +23,12 @@ function stringField(err: unknown, field: string): string | undefined {
 
 /** The machine `code` a surface branches on (e.g. a connector that isn't
  *  connected), or undefined when the error carries none. */
-export function convexErrorCode(err: unknown): string | undefined {
+export function backendErrorCode(err: unknown): string | undefined {
   return stringField(err, 'code');
 }
 
 /** The structured `message`, falling back for an unstructured throw. */
-export function convexErrorMessage(err: unknown, fallback: string): string {
+export function backendErrorMessage(err: unknown, fallback: string): string {
   return stringField(err, 'message') ?? fallback;
 }
 
@@ -37,6 +37,6 @@ export function convexErrorMessage(err: unknown, fallback: string): string {
  * Unlike `message` (which may carry codes or developer-facing text), this is
  * a contract; absent ⇒ the caller's generic copy.
  */
-export function convexUserMessage(err: unknown, fallback: string): string {
+export function backendUserMessage(err: unknown, fallback: string): string {
   return stringField(err, 'userMessage') ?? fallback;
 }

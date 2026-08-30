@@ -2,7 +2,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import { convexErrorCode } from '../../lib/utils/convex-error';
+import { backendErrorCode } from '../../lib/utils/backend-error';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -148,7 +148,7 @@ export const sendMessageViaConnectorAction = internalAction({
         );
       }
     } catch (error) {
-      const code = convexErrorCode(error);
+      const code = backendErrorCode(error);
       console.error(
         '[sendMessageViaConnectorAction] error:',
         code ?? errorMessage(error),

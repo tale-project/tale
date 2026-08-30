@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import type { ItemOf } from '@/app/lib/backend/contract';
 
@@ -14,7 +14,7 @@ import { useInboxAvailability } from './use-inbox-availability';
 export type Conversation = ItemOf<'conversations/queries:listConversations'>;
 
 export function useConversations(organizationId: string) {
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'conversations/queries:listConversations',
     { organizationId },
   );
@@ -51,7 +51,7 @@ export function useApproxConversationCountByStatus(
   organizationId: string,
   status: 'open' | 'closed' | 'spam' | 'archived',
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'conversations/queries:approxCountConversationsByStatus',
     {
       organizationId,
@@ -74,7 +74,7 @@ export function useComposeContactName(
   organizationId: string,
   contactId: string | undefined,
 ): { name: string | undefined; isLoading: boolean } {
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'contacts/queries:listContacts',
     contactId ? { organizationId } : 'skip',
   );
@@ -116,7 +116,7 @@ export function useEmailConnectors(organizationId: string): {
     [inboxAutomations],
   );
 
-  const { data: credentials, isLoading: credentialsLoading } = useConvexQuery(
+  const { data: credentials, isLoading: credentialsLoading } = useBackendQuery(
     'connector_credentials/queries:listCredentials',
     organizationId ? { organizationId } : 'skip',
   );
@@ -155,7 +155,7 @@ const EMPTY_EMAIL_CONNECTORS: EmailConnectorOption[] = [];
 
 export function useConversationWithMessages(conversationId: string | null) {
   const organizationId = useOrganizationId();
-  return useConvexQuery(
+  return useBackendQuery(
     'conversations/queries:getConversationWithMessages',
     conversationId && organizationId
       ? {

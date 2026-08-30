@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useAuth } from '@/app/hooks/use-session-user';
 import {
   organizationQuery,
   userOrganizationsQuery,

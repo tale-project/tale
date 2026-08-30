@@ -2,9 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
-import { useConvexClient } from '@/app/hooks/use-convex-client';
-import { ACTION_QUERY_ADAPTERS } from '@/app/lib/backend/convex-adapters';
+import { useBackendClient } from '@/app/hooks/use-backend-client';
+import { useSessionUser } from '@/app/hooks/use-session-user';
+import { ACTION_QUERY_ADAPTERS } from '@/app/lib/backend/adapters';
 import {
   type AutomationSettings,
   isUploadsForm,
@@ -38,11 +38,11 @@ export function useAutomationSettingsValues(
   folder: string | null,
   settings: AutomationSettings | null,
 ) {
-  const client = useConvexClient();
+  const client = useBackendClient();
   const readAdapted =
     ACTION_QUERY_ADAPTERS['documents/public_actions:readProjectTextValues'] !==
     undefined;
-  const { isAuthenticated } = useConvexAuth();
+  const { isAuthenticated } = useSessionUser();
   // Only FIELD forms own a YAML file; uploads panels read the folder's
   // documents through their own query instead.
   const files = (settings?.forms ?? [])

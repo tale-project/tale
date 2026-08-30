@@ -1,5 +1,5 @@
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 /**
  * Write hooks for the connectors settings page. The secret-carrying writes
@@ -16,24 +16,27 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 
 /** Create one credential for a connector. */
 export function useCreateCredential() {
-  return useConvexAction('connector_credentials/actions:createCredential');
+  return useBackendAction('connector_credentials/actions:createCredential');
 }
 
 /** Patch one credential: label, endpoint, status, or its secret. */
 export function useUpdateCredential() {
-  return useConvexAction('connector_credentials/actions:updateCredential');
+  return useBackendAction('connector_credentials/actions:updateCredential');
 }
 
 /** Delete one credential. */
 export function useDeleteCredential() {
-  return useConvexMutation('connector_credentials/mutations:deleteCredential', {
-    errorToast: false,
-  });
+  return useBackendMutation(
+    'connector_credentials/mutations:deleteCredential',
+    {
+      errorToast: false,
+    },
+  );
 }
 
 /** Make one credential the default of its connector. */
 export function useSetDefaultCredential() {
-  return useConvexMutation(
+  return useBackendMutation(
     'connector_credentials/mutations:setDefaultCredential',
     { errorToast: false },
   );

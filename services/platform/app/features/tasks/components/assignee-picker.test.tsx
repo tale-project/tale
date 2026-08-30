@@ -74,11 +74,11 @@ vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
 vi.mock('../hooks/mutations', () => ({
   useCancelTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock('@/app/hooks/use-convex-client', () => ({
-  useConvexClient: () => ({ query: vi.fn(async () => null) }),
+vi.mock('@/app/hooks/use-backend-client', () => ({
+  useBackendClient: () => ({ query: vi.fn(async () => null) }),
 }));
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({ mutateAsync: vi.fn() }),
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: () => ({ mutateAsync: vi.fn() }),
 }));
 
 describe('AssigneePicker', () => {

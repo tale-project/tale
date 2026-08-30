@@ -1,5 +1,5 @@
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 /**
  * Write hooks for the automations surface.
@@ -17,14 +17,14 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 
 /** Append a version of the automation's document. */
 export function useSaveAutomation() {
-  return useConvexMutation('automations/mutations:saveAutomation', {
+  return useBackendMutation('automations/mutations:saveAutomation', {
     errorToast: false,
   });
 }
 
 /** Promote one version to the single live version of the automation. */
 export function useDeployAutomation() {
-  return useConvexMutation('automations/mutations:deployAutomation', {
+  return useBackendMutation('automations/mutations:deployAutomation', {
     errorToast: false,
   });
 }
@@ -32,7 +32,7 @@ export function useDeployAutomation() {
 /** Resolve a run's write-approval card: approve lets the parked node act on
  * the next stepper poll; reject fails it. */
 export function useResolveRunApproval() {
-  return useConvexMutation('approvals/mutations:updateApprovalStatus', {
+  return useBackendMutation('approvals/mutations:updateApprovalStatus', {
     errorToast: false,
   });
 }
@@ -40,21 +40,21 @@ export function useResolveRunApproval() {
 /** Answer a run's pending `ask_human` question — records the answer and
  * resumes the parked agent conversation. */
 export function useAnswerHumanAsk() {
-  return useConvexMutation('automations/human_asks:answerAsk', {
+  return useBackendMutation('automations/human_asks:answerAsk', {
     errorToast: false,
   });
 }
 
 /** Start a run — `mock` performs no IO, `live` may reach the outside world. */
 export function useStartAutomationRun() {
-  return useConvexMutation('automations/mutations:startRun', {
+  return useBackendMutation('automations/mutations:startRun', {
     errorToast: false,
   });
 }
 
 /** Stop a run that has not finished. */
 export function useCancelAutomationRun() {
-  return useConvexMutation('automations/mutations:cancelRun', {
+  return useBackendMutation('automations/mutations:cancelRun', {
     errorToast: false,
   });
 }
@@ -62,14 +62,14 @@ export function useCancelAutomationRun() {
 /** Bind (or re-bind) what starts the automation. The result may carry a
  * webhook token — shown exactly once, so the call site must display it. */
 export function useSetAutomationTrigger() {
-  return useConvexMutation('automations/mutations:setTrigger', {
+  return useBackendMutation('automations/mutations:setTrigger', {
     errorToast: false,
   });
 }
 
 /** Unbind the automation's trigger; versions and run history stay. */
 export function useDeleteAutomationTrigger() {
-  return useConvexMutation('automations/mutations:deleteTrigger', {
+  return useBackendMutation('automations/mutations:deleteTrigger', {
     errorToast: false,
   });
 }
@@ -77,7 +77,7 @@ export function useDeleteAutomationTrigger() {
 /** Reconcile the automation's project bindings to exactly the given set —
  * empty makes it org-level. */
 export function useSetAutomationProjects() {
-  return useConvexMutation('automations/mutations:setAutomationProjects', {
+  return useBackendMutation('automations/mutations:setAutomationProjects', {
     errorToast: false,
   });
 }
@@ -85,7 +85,7 @@ export function useSetAutomationProjects() {
 /** Delete the automation — versions, deployment, triggers and bindings.
  * Refused while a run is still live; run history is kept. */
 export function useDeleteAutomation() {
-  return useConvexMutation('automations/mutations:deleteAutomation', {
+  return useBackendMutation('automations/mutations:deleteAutomation', {
     errorToast: false,
   });
 }
@@ -97,5 +97,5 @@ export function useDeleteAutomation() {
  * saves versions, so the resolved value is only the closing summary.
  */
 export function useStartBuilderSession() {
-  return useConvexAction('automations_builder/actions:startBuilderSession');
+  return useBackendAction('automations_builder/actions:startBuilderSession');
 }

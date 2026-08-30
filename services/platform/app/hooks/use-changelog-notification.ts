@@ -1,7 +1,7 @@
 'use client';
 
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { compareVersions } from '@/lib/compare-versions';
 import { getEnv } from '@/lib/env';
 
@@ -53,14 +53,14 @@ interface ChangelogNotification {
 
 export function useChangelogNotification(): ChangelogNotification {
   const currentVersion = getEnv('TALE_VERSION');
-  const { data: state } = useConvexQuery(
+  const { data: state } = useBackendQuery(
     'users/notification_state:getUserNotificationState',
     currentVersion ? {} : 'skip',
   );
-  const markSeenMutation = useConvexMutation(
+  const markSeenMutation = useBackendMutation(
     'users/notification_state:markChangelogSeen',
   );
-  const markToastedMutation = useConvexMutation(
+  const markToastedMutation = useBackendMutation(
     'users/notification_state:markToastShown',
   );
 

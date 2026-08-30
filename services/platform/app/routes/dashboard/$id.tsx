@@ -28,8 +28,8 @@ import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/tw
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { setActiveOrganizationId } from '@/app/lib/active-organization';

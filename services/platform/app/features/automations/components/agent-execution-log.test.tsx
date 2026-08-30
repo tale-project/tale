@@ -4,14 +4,14 @@ import { render, screen } from '@/tests/utils/render';
 
 import { AgentExecutionLog } from './agent-execution-log';
 
-// Drives the mocked `useConvexQuery` return: the run's sandbox op, or `null`
+// Drives the mocked `useBackendQuery` return: the run's sandbox op, or `null`
 // for a run that never ran an agent node.
 const { state } = vi.hoisted(() => ({
   state: { data: undefined as unknown },
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: state.data }),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: state.data }),
 }));
 
 const runId = 'run-1' as string;

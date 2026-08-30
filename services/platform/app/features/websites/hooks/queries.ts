@@ -1,17 +1,17 @@
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import type { ItemOf } from '@/app/lib/backend/contract';
 
 export type Website = ItemOf<'websites/queries:listWebsites'>;
 
 export function useApproxWebsiteCount(organizationId: string) {
-  return useConvexQuery('websites/queries:approxCountWebsites', {
+  return useBackendQuery('websites/queries:approxCountWebsites', {
     organizationId,
   });
 }
 
 export function useWebsites(organizationId: string) {
-  const { data, isLoading } = useConvexQuery('websites/queries:listWebsites', {
+  const { data, isLoading } = useBackendQuery('websites/queries:listWebsites', {
     organizationId,
   });
 

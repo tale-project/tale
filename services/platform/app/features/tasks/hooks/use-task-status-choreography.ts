@@ -3,8 +3,8 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useCallback } from 'react';
 
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexClient } from '@/app/hooks/use-convex-client';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
@@ -135,13 +135,16 @@ export function useTaskStatusChoreography(
   options?: TaskStatusChoreographyOptions,
 ) {
   const automations = useTaskContractAutomations(organizationId, projectId);
-  const client = useConvexClient();
-  const startRun = useConvexAction('tasks/public_actions:startTaskWorkflow', {
+  const client = useBackendClient();
+  const startRun = useBackendAction('tasks/public_actions:startTaskWorkflow', {
     errorToast: false,
   });
-  const cancelRun = useConvexAction('tasks/public_actions:cancelTaskWorkflow', {
-    errorToast: false,
-  });
+  const cancelRun = useBackendAction(
+    'tasks/public_actions:cancelTaskWorkflow',
+    {
+      errorToast: false,
+    },
+  );
   const { mutateAsync: startAgentRun } = useStartTaskAgentRun();
   const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();
   const { t } = useT('tasks');

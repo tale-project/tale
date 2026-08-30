@@ -1,6 +1,6 @@
 /**
  * Projects vertical over the 0.5 backend — the adapter rows the app-wide
- * Convex hook wrappers consult (`convex-adapters.ts`). Response types are
+ * Convex hook wrappers consult (`adapters.ts`). Response types are
  * DERIVED from the 0.4 function signatures (`FunctionReturnType`), and every
  * pg wire row is projected to the 0.4 doc shape in exactly one place here
  * (`id` → `_id`, null → omitted-optional), so call sites keep compiling
@@ -11,6 +11,13 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
+import type {
+  AdaptedReadOptions,
+  AdapterContext,
+  ReadAdapter,
+  ActionQueryAdapter,
+  WriteAdapter,
+} from './adapters';
 import { BackendApiError, backendFetch } from './api-client';
 import {
   invalidateChatThreads,
@@ -18,13 +25,6 @@ import {
   setChatThreadSharedWithProject,
   setProjectPinnedRequest,
 } from './chat';
-import type {
-  AdaptedReadOptions,
-  AdapterContext,
-  ReadAdapter,
-  ActionQueryAdapter,
-  WriteAdapter,
-} from './convex-adapters';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 // ---------------------------------------------------------------------------

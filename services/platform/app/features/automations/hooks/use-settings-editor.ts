@@ -16,7 +16,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 import {
   type AutomationSettings,
   type AnySettingsForm,
@@ -153,7 +153,7 @@ export function useSettingsEditor({
     folder,
     settings,
   );
-  const writeValues = useConvexAction(
+  const writeValues = useBackendAction(
     'documents/public_actions:ensureProjectTextDocument',
   );
 

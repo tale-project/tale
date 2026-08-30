@@ -11,8 +11,8 @@ const connectionState = {
   connectionCount: 1,
 };
 
-vi.mock('@/app/hooks/use-convex-connection-state', () => ({
-  useConvexConnectionState: () => connectionState,
+vi.mock('@/app/hooks/use-backend-connection-state', () => ({
+  useBackendConnectionState: () => connectionState,
 }));
 
 const { OnlineGate } = await import('./online-gate');

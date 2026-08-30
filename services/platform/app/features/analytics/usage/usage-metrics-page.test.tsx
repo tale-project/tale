@@ -16,8 +16,8 @@ import { UsageMetricsPage } from './usage-metrics-page';
 // The page tolerates an undefined/empty payload via `data?.` reads with
 // fallbacks; we supply a populated summary so the cards render loaded values
 // rather than their skeleton masks.
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({
     data: {
       summary: {
         totalRequests: 12,

@@ -1,5 +1,12 @@
 import { useMemo } from 'react';
 
+import {
+  ACTION_QUERY_ADAPTERS,
+  activeOrganizationId,
+  READ_ADAPTERS,
+  runAdapted,
+  WRITE_ADAPTERS,
+} from '@/app/lib/backend/adapters';
 import type {
   ActionName,
   ArgsOf,
@@ -8,14 +15,7 @@ import type {
   QueryName,
   ReturnsOf,
 } from '@/app/lib/backend/contract';
-import {
-  ACTION_QUERY_ADAPTERS,
-  activeOrganizationId,
-  READ_ADAPTERS,
-  runAdapted,
-  WRITE_ADAPTERS,
-} from '@/app/lib/backend/convex-adapters';
-import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
+import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 
 /**
  * The imperative escape hatch for one-shot calls outside the hook wrappers
@@ -60,7 +60,7 @@ export function makeAdapterAwareClient(): BackendClient {
           return runAdapted(adapted.queryFn) as Promise<ReturnsOf<Name>>;
         }
       }
-      return Promise.reject(new ConvexRetiredError(name));
+      return Promise.reject(new MissingBackendRowError(name));
     },
     action: <Name extends BackendName>(name: Name, args: ArgsOf<Name>) => {
       const ctx = adapterCtx();
@@ -77,7 +77,7 @@ export function makeAdapterAwareClient(): BackendClient {
           return runAdapted(adapted) as Promise<ReturnsOf<Name>>;
         }
       }
-      return Promise.reject(new ConvexRetiredError(name));
+      return Promise.reject(new MissingBackendRowError(name));
     },
     mutation: <Name extends MutationName>(name: Name, args: ArgsOf<Name>) => {
       const write = WRITE_ADAPTERS[name];
@@ -86,12 +86,12 @@ export function makeAdapterAwareClient(): BackendClient {
           write.run((args ?? {}) as Record<string, unknown>, adapterCtx()),
         ) as Promise<ReturnsOf<Name>>;
       }
-      return Promise.reject(new ConvexRetiredError(name));
+      return Promise.reject(new MissingBackendRowError(name));
     },
   };
 }
 
-export function useConvexClient(): BackendClient {
+export function useBackendClient(): BackendClient {
   return useMemo(() => makeAdapterAwareClient(), []);
 }
 

@@ -1,9 +1,9 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 export function useMarkNotificationRead() {
-  return useConvexMutation('notifications/mutations:markRead');
+  return useBackendMutation('notifications/mutations:markRead');
 }
 
 export function useMarkAllNotificationsRead() {
-  return useConvexMutation('notifications/mutations:markAllRead');
+  return useBackendMutation('notifications/mutations:markAllRead');
 }

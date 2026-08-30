@@ -20,7 +20,7 @@ import {
 } from '@/app/components/env/env-var-list-editor';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { useT } from '@/lib/i18n/client';
-import { convexErrorCode } from '@/lib/utils/convex-error';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import {
   useDeleteProjectSecret,
@@ -49,7 +49,7 @@ export function ProjectSecretsTab({
   // non-admin can still reach this page via a direct URL. Surface the backend's
   // structured access error as a translated message instead of a misleading
   // empty editor.
-  const accessErrorCode = isError ? convexErrorCode(secretsError) : undefined;
+  const accessErrorCode = isError ? backendErrorCode(secretsError) : undefined;
   const isAccessDenied =
     accessErrorCode === 'PROJECT_FORBIDDEN' ||
     accessErrorCode === 'PROJECT_NOT_FOUND' ||

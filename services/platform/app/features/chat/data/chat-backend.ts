@@ -14,7 +14,7 @@
  * selection only (the Chat·Task·Automation boundary model).
  *
  * Subscriptions go through the Convex client directly (`useConvex` +
- * `useSyncExternalStore`) rather than the app's `useConvexQuery` wrapper. The
+ * `useSyncExternalStore`) rather than the app's `useBackendQuery` wrapper. The
  * wrapper reads the auth and query-client contexts, which a component rendered
  * outside the provider tree does not have; `useConvex()` returns `undefined`
  * there instead of throwing, so the surface degrades to `unavailable` in that

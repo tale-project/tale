@@ -16,8 +16,8 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useToast } from '@/app/hooks/use-toast';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
@@ -40,25 +40,25 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   const { t } = useT('sandboxes');
   const { toast } = useToast();
 
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'sandbox/session_queries_public:listSandboxesForOrg',
     { organizationId },
   );
 
   // Per-budget session usage vs cap — the soft-warning surface before a hard
   // refusal. Reactive, so it tracks sessions coming and going live.
-  const quota = useConvexQuery(
+  const quota = useBackendQuery(
     'sandbox/session_queries_public:getSandboxQuotaUsage',
     { organizationId },
   );
 
-  const stop = useConvexAction(
+  const stop = useBackendAction(
     'node_only/sandbox/session_admin_actions:stopSandboxTask',
   );
-  const destroy = useConvexAction(
+  const destroy = useBackendAction(
     'node_only/sandbox/session_admin_actions:destroySandbox',
   );
-  const setPinned = useConvexAction(
+  const setPinned = useBackendAction(
     'node_only/sandbox/session_admin_actions:setSandboxPinned',
   );
 
@@ -67,7 +67,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   // is pull-only (no lifecycle callback), so this opportunistic probe — not a
   // cron — is what keeps the fleet view honest. Fire-and-forget; the action
   // logs its own per-session failures.
-  const reconcile = useConvexAction(
+  const reconcile = useBackendAction(
     'node_only/sandbox/session_admin_actions:reconcileOrgSessions',
   );
   const reconcileMutate = reconcile.mutate;

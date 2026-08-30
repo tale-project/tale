@@ -12,7 +12,7 @@ import {
   type MetricsPeriodDays,
 } from '@/app/components/metrics/metrics-period';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
@@ -128,7 +128,7 @@ export function AutomationMetricsPage({
 }: AutomationMetricsPageProps) {
   const { t } = useT('analytics');
 
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'automations/queries:getOrgAutomationMetrics',
     { organizationId, periodDays },
     { enabled: !!organizationId },

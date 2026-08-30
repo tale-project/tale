@@ -1,5 +1,5 @@
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 /**
  * Upsert one of the calling user's env/secret rows. This is a Node `action`
@@ -8,14 +8,14 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
  * surface `message` inline.
  */
 export function useUpsertMyEnvVar() {
-  return useConvexAction('sandbox/user_env_actions:upsertMyEnvVar');
+  return useBackendAction('sandbox/user_env_actions:upsertMyEnvVar');
 }
 
 /** Delete one of the calling user's env/secret rows. */
 export function useDeleteMyEnvVar() {
   // `errorToast: false` — the section toasts its own (better-copy) failure
   // message so a failed delete never lingers silently.
-  return useConvexMutation('sandbox/user_env:deleteMyEnvVar', {
+  return useBackendMutation('sandbox/user_env:deleteMyEnvVar', {
     errorToast: false,
   });
 }

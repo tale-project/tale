@@ -11,7 +11,6 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
-import { BackendApiError, backendFetch, backendUrl } from './api-client';
 import type {
   ActionQueryAdapter,
   AdaptedPaginatedOptions,
@@ -19,7 +18,8 @@ import type {
   PaginatedAdapter,
   ReadAdapter,
   WriteAdapter,
-} from './convex-adapters';
+} from './adapters';
+import { BackendApiError, backendFetch, backendUrl } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 // ---------------------------------------------------------------------------

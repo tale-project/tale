@@ -40,8 +40,8 @@ import {
   type FileAttachment,
   useConvexFileUpload,
 } from '@/app/features/shared/files/use-convex-file-upload';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
@@ -406,7 +406,7 @@ function TemplateCreateBody({
   const { t: tCommon } = useT('common');
   const { t: tAutomations } = useT('automations');
   const { locale } = useLocale();
-  const createFromTemplate = useConvexAction(
+  const createFromTemplate = useBackendAction(
     'tasks/public_actions:createTaskFromExternalIssue',
   );
   const [name, setName] = useState('');
@@ -999,7 +999,7 @@ function EditTaskBody({
   // permanently deletes the project document (blob + index), which would yank
   // it out from under the run. Same-args subscription as TaskSubjectPanel's,
   // so Convex serves both from one read.
-  const liveRunQuery = useConvexQuery(
+  const liveRunQuery = useBackendQuery(
     'automations/queries:getLiveRunForTask',
     task != null && ownedBy !== null
       ? {

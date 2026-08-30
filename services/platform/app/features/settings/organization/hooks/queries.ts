@@ -1,6 +1,6 @@
 import * as z from 'zod';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import type { ItemOf } from '@/app/lib/backend/contract';
 
@@ -9,7 +9,7 @@ export type Member = ItemOf<'members/queries:listByOrganization'>;
 export type MemberPasskey = ItemOf<'two_factor/queries:listPasskeysForMember'>;
 
 export function useMembers(organizationId: string) {
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'members/queries:listByOrganization',
     { organizationId },
   );
@@ -25,7 +25,7 @@ export function useMembers(organizationId: string) {
  * to skip — the member edit dialog only fetches while it is open.
  */
 export function useMemberPasskeys(memberId: string | undefined) {
-  return useConvexQuery(
+  return useBackendQuery(
     'two_factor/queries:listPasskeysForMember',
     memberId ? { memberId } : 'skip',
   );
@@ -42,7 +42,7 @@ const emailSchema = z.string().email();
 export function useUserExistsByEmail(email: string): boolean {
   const debouncedEmail = useDebounce(email.trim(), 400);
   const isValidEmail = emailSchema.safeParse(debouncedEmail).success;
-  const { data } = useConvexQuery(
+  const { data } = useBackendQuery(
     'members/queries:getUserIdByEmail',
     isValidEmail ? { email: debouncedEmail } : 'skip',
   );

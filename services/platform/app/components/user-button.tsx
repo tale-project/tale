@@ -46,8 +46,8 @@ import { OrganizationListPanel } from '@/app/features/organization/components/or
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
 import { TeamListPanel } from '@/app/features/settings/teams/components/team-list-panel';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { getEnv } from '@/lib/env';

@@ -1,8 +1,8 @@
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
 export function useProjectSecrets(projectId: string | undefined) {
-  const { data, isLoading, error, isError } = useConvexQuery(
+  const { data, isLoading, error, isError } = useBackendQuery(
     'projects/secrets/queries:listProjectSecrets',
     projectId ? { projectId } : 'skip',
   );
@@ -14,13 +14,13 @@ export function useProjectSecrets(projectId: string | undefined) {
 }
 
 export function useSetProjectSecret() {
-  return useConvexAction('projects/secrets/actions:setProjectSecret');
+  return useBackendAction('projects/secrets/actions:setProjectSecret');
 }
 
 export function useSetProjectSecretPair() {
-  return useConvexAction('projects/secrets/actions:setProjectSecretPair');
+  return useBackendAction('projects/secrets/actions:setProjectSecretPair');
 }
 
 export function useDeleteProjectSecret() {
-  return useConvexAction('projects/secrets/actions:deleteProjectSecret');
+  return useBackendAction('projects/secrets/actions:deleteProjectSecret');
 }

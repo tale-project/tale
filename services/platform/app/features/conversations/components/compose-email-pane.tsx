@@ -16,9 +16,9 @@ import {
 } from '@/app/components/ui/forms/searchable-select';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';

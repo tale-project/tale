@@ -49,8 +49,8 @@ import {
   validateDocumentUploadSelection,
 } from '@/app/features/documents/lib/document-upload-selection';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
@@ -253,13 +253,13 @@ export function ProjectFilesTab({
   const { mutateAsync: deleteFolder } = useDeleteFolder();
   const { mutateAsync: createFolder } = useCreateFolder();
   const folderInputRef = useRef<HTMLInputElement | null>(null);
-  const { mutateAsync: generateUploadUrl } = useConvexMutation(
+  const { mutateAsync: generateUploadUrl } = useBackendMutation(
     'files/mutations:generateUploadUrl',
   );
-  const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
+  const { mutateAsync: createDocumentFromUpload } = useBackendMutation(
     'documents/mutations:createDocumentFromUpload',
   );
-  const { mutateAsync: retryRagIndexing } = useConvexAction(
+  const { mutateAsync: retryRagIndexing } = useBackendAction(
     'documents/actions:retryRagIndexing',
   );
 

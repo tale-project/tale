@@ -12,7 +12,7 @@
  * via `getErasureRequest`.
  */
 
-import { pickString, readConvexErrorData } from '../convex-error-data';
+import { pickString, readBackendErrorData } from '../backend-error-data';
 
 type Translator = (key: string, options?: Record<string, unknown>) => string;
 
@@ -41,7 +41,7 @@ function pickBoolean(
 }
 
 export function mapDsrError(err: unknown, t: Translator): DsrErrorMapping {
-  const data = readConvexErrorData(err);
+  const data = readBackendErrorData(err);
   const code = pickString(data, 'code');
   const fallbackTitle = t('dataSubjectRequests.errors.generic.title');
   const fallbackDescription =

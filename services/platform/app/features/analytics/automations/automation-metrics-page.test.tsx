@@ -12,8 +12,8 @@ import { AutomationMetricsPage } from './automation-metrics-page';
 // skeleton masks. Labels come from i18n keys pending central merge, so the
 // assertions pin locale-independent output (formatted values, control labels
 // that already exist) rather than card label strings.
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({
     data: {
       summary: {
         total: 42,

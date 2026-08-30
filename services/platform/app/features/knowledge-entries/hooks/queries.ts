@@ -1,5 +1,5 @@
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import type { PageItemOf } from '@/app/lib/backend/contract';
 
@@ -8,7 +8,7 @@ export type KnowledgeEntryItem =
   PageItemOf<'knowledge_entries/queries:listKnowledgeEntriesPaginated'>;
 
 export function useApproxKnowledgeEntryCount(organizationId: string) {
-  return useConvexQuery(
+  return useBackendQuery(
     'knowledge_entries/queries:approxCountKnowledgeEntries',
     { organizationId },
   );
@@ -32,7 +32,7 @@ export function useListKnowledgeEntriesPaginated(
 
 export function useKnowledgeEntryVersions(entryId: string | undefined) {
   const organizationId = useOrganizationId();
-  return useConvexQuery(
+  return useBackendQuery(
     'knowledge_entries/queries:getKnowledgeEntryVersions',
     entryId && organizationId ? { entryId, organizationId } : 'skip',
   );

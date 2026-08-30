@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root';
 import { Route as SetupRouteImport } from './routes/setup';
 import { Route as DocsRouteImport } from './routes/docs';
 import { Route as DashboardRouteImport } from './routes/dashboard';
-import { Route as ConvexDashboardRouteImport } from './routes/convex-dashboard';
 import { Route as AuthRouteImport } from './routes/_auth';
 import { Route as R2faEnrollRouteImport } from './routes/2fa-enroll';
 import { Route as IndexRouteImport } from './routes/index';
@@ -134,11 +133,6 @@ const DocsRoute = DocsRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any);
-const ConvexDashboardRoute = ConvexDashboardRouteImport.update({
-  id: '/convex-dashboard',
-  path: '/convex-dashboard',
   getParentRoute: () => rootRouteImport,
 } as any);
 const AuthRoute = AuthRouteImport.update({
@@ -769,7 +763,6 @@ const DashboardIdProjectsProjectIdAutomationsAutomationSlugRunsRunIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
   '/2fa-enroll': typeof R2faEnrollRoute;
-  '/convex-dashboard': typeof ConvexDashboardRoute;
   '/dashboard': typeof DashboardRouteWithChildren;
   '/docs': typeof DocsRoute;
   '/setup': typeof SetupRoute;
@@ -880,7 +873,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
   '/2fa-enroll': typeof R2faEnrollRoute;
-  '/convex-dashboard': typeof ConvexDashboardRoute;
   '/docs': typeof DocsRoute;
   '/setup': typeof SetupRoute;
   '/2fa': typeof Auth2faRoute;
@@ -981,7 +973,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute;
   '/2fa-enroll': typeof R2faEnrollRoute;
   '/_auth': typeof AuthRouteWithChildren;
-  '/convex-dashboard': typeof ConvexDashboardRoute;
   '/dashboard': typeof DashboardRouteWithChildren;
   '/docs': typeof DocsRoute;
   '/setup': typeof SetupRoute;
@@ -1095,7 +1086,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/2fa-enroll'
-    | '/convex-dashboard'
     | '/dashboard'
     | '/docs'
     | '/setup'
@@ -1206,7 +1196,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/2fa-enroll'
-    | '/convex-dashboard'
     | '/docs'
     | '/setup'
     | '/2fa'
@@ -1306,7 +1295,6 @@ export interface FileRouteTypes {
     | '/'
     | '/2fa-enroll'
     | '/_auth'
-    | '/convex-dashboard'
     | '/dashboard'
     | '/docs'
     | '/setup'
@@ -1420,7 +1408,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   R2faEnrollRoute: typeof R2faEnrollRoute;
   AuthRoute: typeof AuthRouteWithChildren;
-  ConvexDashboardRoute: typeof ConvexDashboardRoute;
   DashboardRoute: typeof DashboardRouteWithChildren;
   DocsRoute: typeof DocsRoute;
   SetupRoute: typeof SetupRoute;
@@ -1448,13 +1435,6 @@ declare module '@tanstack/react-router' {
       path: '/dashboard';
       fullPath: '/dashboard';
       preLoaderRoute: typeof DashboardRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    '/convex-dashboard': {
-      id: '/convex-dashboard';
-      path: '/convex-dashboard';
-      fullPath: '/convex-dashboard';
-      preLoaderRoute: typeof ConvexDashboardRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/_auth': {
@@ -2642,7 +2622,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   R2faEnrollRoute: R2faEnrollRoute,
   AuthRoute: AuthRouteWithChildren,
-  ConvexDashboardRoute: ConvexDashboardRoute,
   DashboardRoute: DashboardRouteWithChildren,
   DocsRoute: DocsRoute,
   SetupRoute: SetupRoute,

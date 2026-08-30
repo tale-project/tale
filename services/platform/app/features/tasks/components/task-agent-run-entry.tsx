@@ -27,7 +27,7 @@ import { Loader2, Play } from 'lucide-react';
 import { useState } from 'react';
 
 import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -69,7 +69,7 @@ function TaskAgentRunDetailsDialog({
 }) {
   const { t } = useT('tasks');
   const { t: tAutomations } = useT('automations');
-  const opQuery = useConvexQuery(
+  const opQuery = useBackendQuery(
     'tasks/queries:getTaskAgentRunSandboxOp',
     open ? { organizationId, runId } : 'skip',
   );
@@ -112,7 +112,7 @@ export function TaskAgentRunEntry({
   canEdit,
 }: TaskAgentRunEntryProps) {
   const { t } = useT('tasks');
-  const runQuery = useConvexQuery(
+  const runQuery = useBackendQuery(
     'tasks/queries:getLatestTaskAgentRunForTask',
     { organizationId, taskId },
   );

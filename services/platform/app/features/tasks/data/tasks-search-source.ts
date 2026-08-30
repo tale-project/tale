@@ -15,7 +15,7 @@
 import type { SearchResult, SearchSource } from '@tale/ui/search';
 import { useMemo } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 
 const NO_RESULTS: SearchResult<TaskSearchHitData>[] = [];
@@ -33,7 +33,7 @@ export function createTasksSearchSource(options: {
   const { organizationId, projectId } = options;
   return (query, { active }) => {
     const trimmed = query.trim();
-    const hits = useConvexQuery(
+    const hits = useBackendQuery(
       'tasks/search:searchTasks',
       active && trimmed.length > 0
         ? {

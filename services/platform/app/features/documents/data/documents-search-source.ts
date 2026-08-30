@@ -3,7 +3,7 @@
 import type { SearchResult, SearchSource } from '@tale/ui/search';
 import { useMemo } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
 const NO_RESULTS: SearchResult<DocumentSearchHitData>[] = [];
 
@@ -20,7 +20,7 @@ export function createDocumentsSearchSource(options: {
   const { organizationId, enabled = true } = options;
   return (query, { active }) => {
     const trimmed = query.trim();
-    const hits = useConvexQuery(
+    const hits = useBackendQuery(
       'documents/search:searchDocuments',
       enabled && active && trimmed.length > 0
         ? { organizationId, query: trimmed }

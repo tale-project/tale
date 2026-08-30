@@ -1,5 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 
+import {
+  ACTION_QUERY_ADAPTERS,
+  activeOrganizationId,
+  runAdapted,
+} from '@/app/lib/backend/adapters';
 /* oxlint-disable typescript/no-unsafe-type-assertion -- the adapter
    registry is the untyped boundary: a row and the contract entry it
    serves are keyed by the SAME name, so the row's projection IS that
@@ -9,14 +14,9 @@ import type {
   BackendName,
   ReturnsOf,
 } from '@/app/lib/backend/contract';
-import {
-  ACTION_QUERY_ADAPTERS,
-  activeOrganizationId,
-  runAdapted,
-} from '@/app/lib/backend/convex-adapters';
-import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
+import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 
-import { useConvexAuth } from './use-convex-auth';
+import { useSessionUser } from './use-session-user';
 
 interface ActionQueryOptions {
   enabled?: boolean;
@@ -31,7 +31,7 @@ interface ActionQueryOptions {
  * fails even though the error IS a BackendError. Structural shape is what
  * the UI actually consumes, so check that directly.
  */
-export function isStructuredConvexError(err: unknown): boolean {
+export function isStructuredBackendError(err: unknown): boolean {
   if (err == null || typeof err !== 'object') return false;
   if (!('data' in err)) return false;
   const data = err.data;
@@ -44,7 +44,7 @@ export function isStructuredConvexError(err: unknown): boolean {
  * connected) instead of substring-matching a human message. Returns
  * `undefined` for a plain error or a `data` without a string `code`.
  */
-export function convexErrorCode(err: unknown): string | undefined {
+export function backendErrorCode(err: unknown): string | undefined {
   if (err == null || typeof err !== 'object' || !('data' in err)) {
     return undefined;
   }
@@ -65,7 +65,7 @@ export function useActionQuery<Name extends BackendName>(
   args: ArgsOf<Name>,
   options?: ActionQueryOptions,
 ) {
-  const { isAuthenticated } = useConvexAuth();
+  const { isAuthenticated } = useSessionUser();
 
   // Every shipped walk is served over HTTP (session cookie, no WebSocket-auth
   // gate) by its adapter row; a name without one has no server left.
@@ -85,7 +85,7 @@ export function useActionQuery<Name extends BackendName>(
   const queryFn: () => Promise<ReturnsOf<Name>> =
     adaptedFetch !== null
       ? () => runAdapted(adaptedFetch) as Promise<ReturnsOf<Name>>
-      : () => Promise.reject(new ConvexRetiredError(name));
+      : () => Promise.reject(new MissingBackendRowError(name));
 
   return useQuery({
     queryKey,
@@ -97,7 +97,7 @@ export function useActionQuery<Name extends BackendName>(
     // (default 3 retries with exponential backoff = ~7 s wait before `error`
     // is exposed). Network errors still retry the default 3 times.
     retry: (failureCount, err) =>
-      !isStructuredConvexError(err) && failureCount < 3,
+      !isStructuredBackendError(err) && failureCount < 3,
     ...options,
     enabled:
       (adapter !== undefined ? adaptedFetch !== null : isAuthenticated) &&

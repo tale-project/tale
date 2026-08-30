@@ -1,6 +1,6 @@
 import { anyApi } from 'convex/server';
 
-import { convexErrorCode } from '../errors';
+import { backendErrorCode } from '../errors';
 import { lockKeyFromParsed, parseDavPath } from '../paths';
 import type {
   AuthContext,
@@ -42,7 +42,7 @@ export async function handleUnlock(
       resourcePath,
     });
   } catch (err) {
-    const code = convexErrorCode(err);
+    const code = backendErrorCode(err);
     if (code === 'FORBIDDEN') {
       return {
         status: 403,

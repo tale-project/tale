@@ -57,14 +57,14 @@ const mockListFiles = vi.fn().mockResolvedValue({
   ],
 });
 
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: (ref: string) => ({
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: (ref: string) => ({
     mutateAsync: ref === 'onedrive/actions:listFiles' ? mockListFiles : vi.fn(),
   }),
 }));
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),

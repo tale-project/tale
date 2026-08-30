@@ -1,88 +1,90 @@
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 export function useCreateProject() {
-  return useConvexMutation('projects/mutations:createProject');
+  return useBackendMutation('projects/mutations:createProject');
 }
 
 export function useUpdateProjectIdentity() {
-  return useConvexMutation('projects/mutations:updateProjectIdentity');
+  return useBackendMutation('projects/mutations:updateProjectIdentity');
 }
 
 export function useUpdateProjectInstructions() {
-  return useConvexMutation('projects/mutations:updateProjectInstructions');
+  return useBackendMutation('projects/mutations:updateProjectInstructions');
 }
 
 export function useUpdateProjectSharing() {
-  return useConvexMutation('projects/mutations:updateProjectSharing');
+  return useBackendMutation('projects/mutations:updateProjectSharing');
 }
 
 export function useUpdateProjectKnowledgeMode() {
-  return useConvexMutation('projects/mutations:updateProjectKnowledgeMode');
+  return useBackendMutation('projects/mutations:updateProjectKnowledgeMode');
 }
 
 export function useUpdateProjectAgentSettings() {
-  return useConvexMutation('projects/mutations:updateProjectAgentSettings');
+  return useBackendMutation('projects/mutations:updateProjectAgentSettings');
 }
 
 export function useUpdateProjectModelSettings() {
-  return useConvexMutation('projects/mutations:updateProjectModelSettings');
+  return useBackendMutation('projects/mutations:updateProjectModelSettings');
 }
 
 export function useUpdateProjectConnectorSettings() {
-  return useConvexMutation('projects/mutations:updateProjectConnectorSettings');
+  return useBackendMutation(
+    'projects/mutations:updateProjectConnectorSettings',
+  );
 }
 
 export function useCreateProjectAgent() {
-  return useConvexMutation('projects/mutations:createProjectAgent');
+  return useBackendMutation('projects/mutations:createProjectAgent');
 }
 
 export function useUpdateProjectAgent() {
-  return useConvexMutation('projects/mutations:updateProjectAgent');
+  return useBackendMutation('projects/mutations:updateProjectAgent');
 }
 
 export function useDeleteProjectAgent() {
-  return useConvexMutation('projects/mutations:deleteProjectAgent');
+  return useBackendMutation('projects/mutations:deleteProjectAgent');
 }
 
 /** Org agent secrets: the value is encrypted server-side in a Node action
  * (`lib/secret_box`), so the write path is an action, not a mutation. */
 export function useUpsertAgentSecret() {
-  return useConvexAction('agent_secrets/actions:upsertAgentSecret');
+  return useBackendAction('agent_secrets/actions:upsertAgentSecret');
 }
 
 export function useDeleteAgentSecret() {
-  return useConvexMutation('agent_secrets/mutations:deleteAgentSecret');
+  return useBackendMutation('agent_secrets/mutations:deleteAgentSecret');
 }
 
 export function useDetachDocumentFromProject() {
-  return useConvexMutation('projects/mutations:detachDocumentFromProject');
+  return useBackendMutation('projects/mutations:detachDocumentFromProject');
 }
 
 export function useMoveThreadToProject() {
-  return useConvexMutation('projects/mutations:moveThreadToProject');
+  return useBackendMutation('projects/mutations:moveThreadToProject');
 }
 
 export function useSetProjectPinned() {
-  return useConvexMutation('projects/mutations:setProjectPinned');
+  return useBackendMutation('projects/mutations:setProjectPinned');
 }
 
 export function useSetThreadSharedWithProject() {
-  return useConvexMutation('chat/threads:setThreadSharedWithProject');
+  return useBackendMutation('chat/threads:setThreadSharedWithProject');
 }
 
 export function useArchiveProject() {
-  return useConvexMutation('projects/mutations:archiveProject');
+  return useBackendMutation('projects/mutations:archiveProject');
 }
 
 export function useRestoreProject() {
-  return useConvexMutation('projects/mutations:restoreProject');
+  return useBackendMutation('projects/mutations:restoreProject');
 }
 
 export function useDeleteProject() {
-  return useConvexMutation('projects/mutations:deleteProject');
+  return useBackendMutation('projects/mutations:deleteProject');
 }
 
 export function useDuplicateProject() {
-  return useConvexMutation('projects/mutations:duplicateProject');
+  return useBackendMutation('projects/mutations:duplicateProject');
 }

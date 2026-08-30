@@ -7,12 +7,12 @@ const mockUseQuery = vi.fn();
 const mockMarkSeenMutation = vi.fn(() => Promise.resolve(null));
 const mockMarkToastedMutation = vi.fn(() => Promise.resolve(null));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: (...args: unknown[]) => ({ data: mockUseQuery(...args) }),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (...args: unknown[]) => ({ data: mockUseQuery(...args) }),
 }));
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: (fn: unknown) => ({
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: (fn: unknown) => ({
     mutateAsync:
       fn === 'users/notification_state:markChangelogSeen'
         ? mockMarkSeenMutation

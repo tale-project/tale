@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
 import type { SoftDeleteResourceType } from '@/convex/governance/soft_delete_validators';
 import {
@@ -42,7 +42,7 @@ function parseUploadPolicyConfig(
 }
 
 export function usePiiConfig(organizationId: string) {
-  return useConvexQuery('governance/queries:getPolicy', {
+  return useBackendQuery('governance/queries:getPolicy', {
     organizationId,
     policyType: 'pii_config' as const,
   });
@@ -52,20 +52,20 @@ export function useGovernancePolicy(
   organizationId: string,
   policyType: PolicyType,
 ) {
-  return useConvexQuery('governance/queries:getPolicy', {
+  return useBackendQuery('governance/queries:getPolicy', {
     organizationId,
     policyType,
   });
 }
 
 export function useDsarPolicyForUi(organizationId: string) {
-  return useConvexQuery('governance/dsar_policy:getDsarPolicyForUi', {
+  return useBackendQuery('governance/dsar_policy:getDsarPolicyForUi', {
     organizationId,
   });
 }
 
 export function useMyFeatureFlags(organizationId: string) {
-  return useConvexQuery('governance/queries:getMyFeatureFlags', {
+  return useBackendQuery('governance/queries:getMyFeatureFlags', {
     organizationId,
   });
 }
@@ -74,7 +74,7 @@ export function useMyBudgetStatus(
   organizationId: string,
   selectedTeamId?: string | null,
 ) {
-  return useConvexQuery('governance/queries:getMyBudgetStatus', {
+  return useBackendQuery('governance/queries:getMyBudgetStatus', {
     organizationId,
     selectedTeamId: selectedTeamId ?? null,
   });
@@ -84,7 +84,7 @@ export function useAccessibleModels(
   organizationId: string,
   modelIds: string[],
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'governance/queries:getAccessibleModelsForUser',
     modelIds.length > 0 ? { organizationId, modelIds } : 'skip',
   );
@@ -99,7 +99,7 @@ export function useAccessibleModels(
 export function usePasswordPolicy(
   organizationId: string | undefined,
 ): PasswordPolicyConfig {
-  const result = useConvexQuery(
+  const result = useBackendQuery(
     'governance/queries:getPolicy',
     organizationId
       ? { organizationId, policyType: 'password_policy' as const }
@@ -167,7 +167,7 @@ export function useLegalHolds(
   organizationId: string | undefined,
   options?: { status?: LegalHoldStatus; targetType?: LegalHoldTargetType },
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'governance/legal_hold_queries:listLegalHolds',
     organizationId
       ? {
@@ -183,7 +183,7 @@ export function useLegalMatters(
   organizationId: string | undefined,
   options?: { status?: LegalMatterStatus },
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'governance/legal_hold_queries:listLegalMatters',
     organizationId ? { organizationId, status: options?.status } : 'skip',
   );
@@ -193,7 +193,7 @@ export function useLegalHoldReleaseRequests(
   organizationId: string | undefined,
   status: LegalReleaseStatus,
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'governance/legal_hold_queries:listLegalHoldReleaseRequests',
     organizationId ? { organizationId, status } : 'skip',
   );
@@ -218,7 +218,7 @@ export function useLegalHoldByTarget(args: {
   targetType: LegalHoldTargetType;
   targetId: string | undefined;
 }) {
-  return useConvexQuery(
+  return useBackendQuery(
     'governance/legal_hold_queries:getLegalHoldByTarget',
     args.organizationId && args.targetId
       ? {
@@ -234,7 +234,7 @@ export function useActiveHoldTargetIds(args: {
   organizationId: string | undefined;
   targetType: LegalHoldTargetType;
 }) {
-  return useConvexQuery(
+  return useBackendQuery(
     'governance/legal_hold_queries:listActiveHoldTargetIds',
     args.organizationId
       ? { organizationId: args.organizationId, targetType: args.targetType }
@@ -243,7 +243,7 @@ export function useActiveHoldTargetIds(args: {
 }
 
 export function useOrgMembersForPicker(organizationId: string | undefined) {
-  return useConvexQuery(
+  return useBackendQuery(
     'governance/legal_hold_queries:listOrgMembersForPicker',
     organizationId ? { organizationId } : 'skip',
   );
@@ -293,7 +293,7 @@ export function useListTrashedRows(
   },
   enabled: boolean,
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'governance/queries:listTrashedRows',
     enabled
       ? {

@@ -9,12 +9,8 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
+import type { AdapterContext, ReadAdapter, WriteAdapter } from './adapters';
 import { backendFetch, BackendApiError } from './api-client';
-import type {
-  AdapterContext,
-  ReadAdapter,
-  WriteAdapter,
-} from './convex-adapters';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 // ---------------------------------------------------------------------------

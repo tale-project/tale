@@ -33,8 +33,8 @@ const generateUploadUrl = vi.fn().mockResolvedValue('https://upload.test/put');
 const recordIntent = vi.fn().mockResolvedValue(null);
 // The dialog reaches the backend through the adapter-aware imperative
 // client; the mock dispatches on the api-proxy identity strings below.
-vi.mock('@/app/hooks/use-convex-client', () => ({
-  useConvexClient: () => ({
+vi.mock('@/app/hooks/use-backend-client', () => ({
+  useBackendClient: () => ({
     action: (ref: unknown, args: unknown) => uploadAction(args),
     mutation: (ref: unknown, args: unknown) =>
       ref === 'automations/upload_mutations:generateAutomationUploadUrl'

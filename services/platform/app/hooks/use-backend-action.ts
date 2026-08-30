@@ -6,24 +6,20 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
    serves are keyed by the SAME name, so the row's projection IS that
    name's return shape. */
 import { toast } from '@/app/hooks/use-toast';
-import type {
-  ArgsOf,
-  MutationName,
-  ReturnsOf,
-} from '@/app/lib/backend/contract';
 import {
   activeOrganizationId,
   runAdapted,
   WRITE_ADAPTERS,
-} from '@/app/lib/backend/convex-adapters';
-import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
+} from '@/app/lib/backend/adapters';
+import type { ActionName, ArgsOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 import { useT } from '@/lib/i18n/client';
-import { convexUserMessage } from '@/lib/utils/convex-error';
+import { backendUserMessage } from '@/lib/utils/backend-error';
 
-interface ConvexMutationExtras {
+interface ConvexActionExtras {
   /**
    * Error feedback on failure. Defaults to a destructive toast with a generic
-   * message so a failed mutation never silently lingers. Pass `false` to opt out
+   * message so a failed action never silently lingers. Pass `false` to opt out
    * (e.g. when the caller already toasts), or an object to override the copy.
    */
   errorToast?:
@@ -31,25 +27,27 @@ interface ConvexMutationExtras {
     | false;
 }
 
-type ConvexMutationOptions<Name extends MutationName> = Omit<
+type ConvexActionOptions<Name extends ActionName> = Omit<
   UseMutationOptions<ReturnsOf<Name>, Error, ArgsOf<Name>>,
   'mutationFn'
 > &
-  ConvexMutationExtras;
+  ConvexActionExtras;
 
 /**
- * A backend write, addressed by its contract name. The adapter row keyed by
- * that same name performs it over HTTP; a name with no row has no server left
- * to reach and rejects loudly (see `retired-convex.ts`).
+ * A backend action, addressed by its contract name — the same write lane as
+ * {@link useBackendMutation}, kept separate because the 0.4 split between
+ * mutations and actions is what the adapter rows are keyed on.
  */
-export function useConvexMutation<Name extends MutationName>(
+export function useBackendAction<Name extends ActionName>(
   name: Name,
-  options?: ConvexMutationOptions<Name>,
+  options?: ConvexActionOptions<Name>,
 ) {
-  const { errorToast, onError, onSuccess, ...mutationOptions } = options ?? {};
+  const { errorToast, onError, onSuccess, ...actionOptions } = options ?? {};
   const { t } = useT('toast');
   const queryClient = useQueryClient();
 
+  // Every shipped action runs over HTTP through its adapter row; a name
+  // without one has no server left to reach (see `missing-row.ts`).
   const adapter = WRITE_ADAPTERS[name];
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
@@ -59,7 +57,7 @@ export function useConvexMutation<Name extends MutationName>(
       ? (runAdapted(() =>
           adapter.run(args as Record<string, unknown>, adapterCtx),
         ) as Promise<ReturnsOf<Name>>)
-      : Promise.reject(new ConvexRetiredError(name));
+      : Promise.reject(new MissingBackendRowError(name));
 
   return useMutation({
     mutationFn,
@@ -70,19 +68,18 @@ export function useConvexMutation<Name extends MutationName>(
       return onSuccess?.(...successArgs);
     },
     onError: (error, ...rest) => {
-      // Never swallow a mutation failure, even when the visible toast is opted out.
-      console.error(`Mutation failed: ${name}`, error);
+      console.error(`Action failed: ${name}`, error);
       if (errorToast !== false) {
         toast({
           title: errorToast?.title ?? t('error.generic.title'),
           description:
             errorToast?.description?.(error) ??
-            convexUserMessage(error, t('error.generic.description')),
+            backendUserMessage(error, t('error.generic.description')),
           variant: 'destructive',
         });
       }
       onError?.(error, ...rest);
     },
-    ...mutationOptions,
+    ...actionOptions,
   });
 }

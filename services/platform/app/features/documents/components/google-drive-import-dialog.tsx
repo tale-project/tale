@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -65,7 +65,7 @@ export function GoogleDriveImportDialog({
     useImportGoogleDriveFiles();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isBusy = isImporting || isSubmitting;
-  const { mutateAsync: listGoogleDriveFiles } = useConvexAction(
+  const { mutateAsync: listGoogleDriveFiles } = useBackendAction(
     'google_drive/actions:listFiles',
   );
 

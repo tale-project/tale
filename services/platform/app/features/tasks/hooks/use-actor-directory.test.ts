@@ -54,8 +54,8 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: undefined }),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: undefined }),
 }));
 
 vi.mock('@/app/hooks/use-current-member-context', () => ({

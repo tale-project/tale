@@ -11,8 +11,8 @@ import { z } from 'zod';
 
 import { ChangelogBackButton } from '@/app/features/changelog/components/changelog-back-button';
 import { ReleaseBody } from '@/app/features/changelog/components/release-body';
+import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
-import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { compareVersions, filterReleasesInRange } from '@/lib/compare-versions';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -46,7 +46,7 @@ function ChangelogPage() {
   const { currentVersion, lastSeenVersion, stateLoaded, markSeen } =
     useChangelogNotification();
   const { locale } = useLocale();
-  const client = useConvexClient();
+  const client = useBackendClient();
 
   const [releases, setReleases] = useState<Release[] | null>(null);
   const [error, setError] = useState<unknown>(null);

@@ -6,7 +6,7 @@ import type {
   ActionName,
 } from '@/app/lib/backend/contract';
 
-import { makeAdapterAwareClient } from './use-convex-client';
+import { makeAdapterAwareClient } from './use-backend-client';
 
 const { readRow, writeRun } = vi.hoisted(() => ({
   readRow: vi.fn(() => ({
@@ -18,7 +18,7 @@ const { readRow, writeRun } = vi.hoisted(() => ({
 
 // A registry with exactly two rows: these tests cover the imperative seam's
 // own wiring, not any shipped row.
-vi.mock('@/app/lib/backend/convex-adapters', () => ({
+vi.mock('@/app/lib/backend/adapters', () => ({
   READ_ADAPTERS: { 'things/queries:getThing': readRow },
   WRITE_ADAPTERS: { 'things/mutations:setThing': { run: writeRun } },
   ACTION_QUERY_ADAPTERS: {},

@@ -1,5 +1,5 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
@@ -39,7 +39,7 @@ export function useProjectCapabilityCatalog(
 /** The org's agent secrets (name + masked preview + description), for the
  * equipment picker and the secret manager. Values are never returned. */
 export function useAgentSecrets(organizationId: string | undefined) {
-  return useConvexQuery(
+  return useBackendQuery(
     'agent_secrets/queries:listAgentSecrets',
     organizationId !== undefined ? { organizationId } : 'skip',
   );
@@ -55,7 +55,7 @@ export type ProjectAgentRow = ItemOf<'projects/queries:listProjectAgents'>;
 /** The project's user-created agents (name-sorted). */
 export function useProjectAgents(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'projects/queries:listProjectAgents',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
@@ -100,7 +100,7 @@ export function useProjectsOverview(
   organizationId: string,
   options: { includeArchived: boolean },
 ) {
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'projects/queries:listProjectsOverview',
     projectsOverviewArgs(organizationId, options.includeArchived),
   );
@@ -117,7 +117,7 @@ export function useProjects(
   organizationId: string,
   options?: { includeArchived?: boolean },
 ) {
-  const { data, isLoading } = useConvexQuery('projects/queries:listProjects', {
+  const { data, isLoading } = useBackendQuery('projects/queries:listProjects', {
     organizationId,
     includeArchived: options?.includeArchived,
   });
@@ -129,7 +129,7 @@ export function useProjects(
 
 export function useProject(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'projects/queries:getProject',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
@@ -138,7 +138,7 @@ export function useProject(projectId: string | undefined) {
 
 export function useProjectDocuments(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'projects/queries:listProjectDocuments',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
@@ -147,7 +147,7 @@ export function useProjectDocuments(projectId: string | undefined) {
 
 export function useProjectFolders(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'projects/queries:listProjectFolders',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
@@ -158,7 +158,7 @@ export function useProjectFolders(projectId: string | undefined) {
  * the ones other members shared with it, from the chat-v2 tables. */
 export function useProjectChatThreads(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'chat/project_threads:listThreadsForProject',
     projectId && organizationId
       ? { organizationId, projectId: projectId }
@@ -172,7 +172,7 @@ export function useProjectChatThreads(projectId: string | undefined) {
 }
 
 export function useSidebarProjects(organizationId: string) {
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'projects/queries:listSidebarProjects',
     { organizationId, limit: 8 },
   );
@@ -180,7 +180,7 @@ export function useSidebarProjects(organizationId: string) {
 }
 
 export function useProjectsSearch(organizationId: string, query: string) {
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'projects/queries:searchProjects',
     query.trim().length > 0
       ? { organizationId, query: query.trim(), limit: 20 }

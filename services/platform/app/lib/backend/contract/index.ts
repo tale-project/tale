@@ -1,9 +1,9 @@
 /**
  * THE app↔backend wire contract: every function name the app calls, with its
- * argument and response shapes. The hook wrappers (`useConvexQuery`,
- * `useConvexMutation`, `useConvexAction`, `useActionQuery`) index this to type
+ * argument and response shapes. The hook wrappers (`useBackendQuery`,
+ * `useBackendMutation`, `useBackendAction`, `useActionQuery`) index this to type
  * a call site from its name alone, and the adapter registry
- * (`../convex-adapters.ts`) is keyed by the SAME names — so a row and its
+ * (`../adapters.ts`) is keyed by the SAME names — so a row and its
  * types cannot drift apart in the type system's view.
  *
  * One file per family; this index merges them into `BackendContract` and

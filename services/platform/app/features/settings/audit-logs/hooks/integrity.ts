@@ -2,8 +2,8 @@
 
 import { useMutation } from '@tanstack/react-query';
 
-import { useConvexClient } from '@/app/hooks/use-convex-client';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendClient } from '@/app/hooks/use-backend-client';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 
 /** Result of a one-shot chain verification (`verifyIntegrity`). */
@@ -28,7 +28,7 @@ const VERIFY_MAX_ENTRIES = 1000;
  * Admin-gated server-side; only mount this for admins.
  */
 export function useIntegrityStatus(organizationId: string) {
-  return useConvexQuery('audit_logs/verify_integrity:getIntegrityStatus', {
+  return useBackendQuery('audit_logs/verify_integrity:getIntegrityStatus', {
     organizationId,
   });
 }
@@ -40,7 +40,7 @@ export function useIntegrityStatus(organizationId: string) {
  * `data` / `isPending` / `isError` for the panel.
  */
 export function useVerifyIntegrity() {
-  const client = useConvexClient();
+  const client = useBackendClient();
   return useMutation<VerifyIntegrityResult, Error, { organizationId: string }>({
     mutationFn: ({ organizationId }) =>
       client.query('audit_logs/verify_integrity:verifyIntegrity', {

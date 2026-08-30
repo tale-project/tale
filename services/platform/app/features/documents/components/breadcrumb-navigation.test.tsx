@@ -33,8 +33,8 @@ vi.mock('@/convex/lib/type_cast_helpers', () => ({
   toId: (id: string) => id,
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({
     data: [
       { _id: 'folder-1', name: 'Documents' },
       { _id: 'folder-2', name: 'Reports' },

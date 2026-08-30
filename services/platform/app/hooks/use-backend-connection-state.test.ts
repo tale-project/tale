@@ -6,11 +6,11 @@ import {
   reportBackendUnreachable,
 } from '@/app/lib/backend/connection-state';
 
-import { useConvexConnectionState } from './use-convex-connection-state';
+import { useBackendConnectionState } from './use-backend-connection-state';
 
-describe('useConvexConnectionState', () => {
+describe('useBackendConnectionState', () => {
   it('tracks the hint stream: optimistic until something actually fails', () => {
-    const { result } = renderHook(() => useConvexConnectionState());
+    const { result } = renderHook(() => useBackendConnectionState());
     // Nothing has failed yet — a request that was never tried is not
     // evidence of an outage.
     expect(result.current.isWebSocketConnected).toBe(true);

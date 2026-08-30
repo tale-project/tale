@@ -3,8 +3,8 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useState, useRef, useCallback } from 'react';
 
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { resolveFileType } from '@/lib/shared/file-types';
@@ -266,38 +266,38 @@ export function useDocumentUpload(options: UploadOptions) {
   // Backend-aware upload handoff: routes to the org's own S3 bucket when
   // configured, else Convex `_storage`. An ACTION (not a mutation) because
   // presigning S3 needs the node runtime.
-  const { mutateAsync: generateBlobUpload } = useConvexAction(
+  const { mutateAsync: generateBlobUpload } = useBackendAction(
     'files/blob_actions:generateBlobUpload',
   );
-  const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
+  const { mutateAsync: createDocumentFromUpload } = useBackendMutation(
     'documents/mutations:createDocumentFromUpload',
   );
   const { mutateAsync: beginControlledDocumentReplacementUpload } =
-    useConvexAction(
+    useBackendAction(
       'documents/record_actions:beginControlledDocumentReplacementUpload',
       { errorToast: false },
     );
   const { mutateAsync: finalizeControlledDocumentReplacementUpload } =
-    useConvexAction(
+    useBackendAction(
       'documents/record_actions:finalizeControlledDocumentReplacementUpload',
       { errorToast: false },
     );
   const { mutateAsync: reconcileControlledDocumentReplacementUpload } =
-    useConvexAction(
+    useBackendAction(
       'documents/record_actions:reconcileControlledDocumentReplacementUpload',
       { errorToast: false },
     );
   const { mutateAsync: registerControlledDocumentReplacementUpload } =
-    useConvexMutation(
+    useBackendMutation(
       'documents/replacement_uploads:registerControlledDocumentReplacementUpload',
       { errorToast: false },
     );
   const { mutateAsync: cancelControlledDocumentReplacementUpload } =
-    useConvexMutation(
+    useBackendMutation(
       'documents/replacement_uploads:cancelControlledDocumentReplacementUpload',
       { errorToast: false },
     );
-  const { mutateAsync: deleteRejectedUploadBlob } = useConvexMutation(
+  const { mutateAsync: deleteRejectedUploadBlob } = useBackendMutation(
     'files/mutations:deleteRejectedUploadBlob',
     { errorToast: false },
   );
@@ -934,37 +934,37 @@ export function useDocumentUpload(options: UploadOptions) {
 }
 
 export function useCreateFolder() {
-  return useConvexMutation('folders/mutations:createFolder');
+  return useBackendMutation('folders/mutations:createFolder');
 }
 
 export function useDeleteFolder() {
-  return useConvexMutation('folders/mutations:deleteFolder');
+  return useBackendMutation('folders/mutations:deleteFolder');
 }
 
 export function useCancelOneDriveSync() {
-  return useConvexMutation('onedrive/mutations:cancelSyncConfig');
+  return useBackendMutation('onedrive/mutations:cancelSyncConfig');
 }
 
 export function useCancelGoogleDriveSync() {
-  return useConvexMutation('google_drive/mutations:cancelSyncConfig');
+  return useBackendMutation('google_drive/mutations:cancelSyncConfig');
 }
 
 export function useDeleteDocument() {
-  return useConvexMutation('documents/mutations:deleteDocument', {
+  return useBackendMutation('documents/mutations:deleteDocument', {
     // EntityDeleteDialog shows its own specific error toast.
     errorToast: false,
   });
 }
 
 export function useUpdateDocument() {
-  return useConvexMutation('documents/mutations:updateDocument', {
+  return useBackendMutation('documents/mutations:updateDocument', {
     // The team-tags dialog shows its own specific error toast.
     errorToast: false,
   });
 }
 
 export function useUpdateFolderTeams() {
-  return useConvexMutation('folders/mutations:updateFolderTeams');
+  return useBackendMutation('folders/mutations:updateFolderTeams');
 }
 
 // ---------------------------------------------------------------------------
@@ -974,25 +974,25 @@ export function useUpdateFolderTeams() {
 
 export function useMarkDocumentControlled() {
   // Callers toast the specific refusal (already controlled / sync-owned).
-  return useConvexMutation('documents/records:markControlled', {
+  return useBackendMutation('documents/records:markControlled', {
     errorToast: false,
   });
 }
 
 export function useSubmitRecordForReview() {
-  return useConvexMutation('documents/records:submitRecordForReview', {
+  return useBackendMutation('documents/records:submitRecordForReview', {
     errorToast: false,
   });
 }
 
 export function useRespondToDocumentRecordReview() {
-  return useConvexMutation('documents/records:respondToDocumentRecordReview', {
+  return useBackendMutation('documents/records:respondToDocumentRecordReview', {
     errorToast: false,
   });
 }
 
 export function useOpenRecordRevision() {
-  return useConvexMutation('documents/records:openRecordRevision', {
+  return useBackendMutation('documents/records:openRecordRevision', {
     errorToast: false,
   });
 }

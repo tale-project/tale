@@ -33,7 +33,7 @@ import { useChatMemories } from '@/app/features/chat/data/chat-backend';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -81,7 +81,7 @@ export function PreferencesSettings({
 }) {
   const { t } = useT('personalization');
 
-  const { data: prefs, isLoading: prefsLoading } = useConvexQuery(
+  const { data: prefs, isLoading: prefsLoading } = useBackendQuery(
     'user_preferences/queries:getMyPreferences',
     { organizationId },
   );

@@ -1,5 +1,5 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { ItemOf } from '@/app/lib/backend/contract';
 
 /**
@@ -29,7 +29,7 @@ export function providerCatalogsQueryKey(organizationId: string) {
 
 /** Every provider credential of the organization, masked. */
 export function useProviderCredentials(organizationId: string) {
-  return useConvexQuery('provider_credentials/queries:listCredentials', {
+  return useBackendQuery('provider_credentials/queries:listCredentials', {
     organizationId,
   });
 }
@@ -66,7 +66,7 @@ export function useHarnessStatus(organizationId: string) {
 /** Per-harness recent-failure signal — the same reactive health read the
  * chat composer's circuit-breaker hint consumes. */
 export function useHarnessHealth(organizationId: string) {
-  return useConvexQuery('sandbox/session_queries_public:getHarnessHealth', {
+  return useBackendQuery('sandbox/session_queries_public:getHarnessHealth', {
     organizationId,
   });
 }

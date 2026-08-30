@@ -28,8 +28,8 @@ let statsResult: StatsHookResult = {
   error: null,
 };
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => statsResult,
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => statsResult,
 }));
 
 vi.mock('@/app/hooks/use-cached-paginated-query', () => ({

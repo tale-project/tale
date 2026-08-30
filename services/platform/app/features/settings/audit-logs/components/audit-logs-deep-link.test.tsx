@@ -52,15 +52,15 @@ vi.mock('@/app/features/settings/audit-logs/hooks/integrity', () => ({
 
 // Members list carries no `logId`; the by-id reveal read does — branch on it so
 // one mock serves both call sites.
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: (_func: unknown, args: unknown) =>
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (_func: unknown, args: unknown) =>
     args !== null && typeof args === 'object' && 'logId' in args
       ? { data: holder.reveal, isLoading: false }
       : { data: [], isLoading: false },
 }));
 
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({ mutate: vi.fn(), isPending: false }),
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({

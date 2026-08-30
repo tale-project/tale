@@ -8,14 +8,14 @@
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 
-import { BackendApiError, backendFetch } from './api-client';
 import type {
   ActionQueryAdapter,
   AdapterContext,
   PaginatedAdapter,
   ReadAdapter,
   WriteAdapter,
-} from './convex-adapters';
+} from './adapters';
+import { BackendApiError, backendFetch } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 type AuditListResult = ReturnsOf<'audit_logs/queries:listAuditLogs'>;

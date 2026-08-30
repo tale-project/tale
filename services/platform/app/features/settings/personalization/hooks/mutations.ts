@@ -1,8 +1,8 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 /** Turn the custom-instructions feature on or off for this user + org. */
 export function useSetCustomInstructionsEnabled() {
-  return useConvexMutation(
+  return useBackendMutation(
     'user_preferences/mutations:setCustomInstructionsEnabled',
     { errorToast: false },
   );
@@ -10,14 +10,14 @@ export function useSetCustomInstructionsEnabled() {
 
 /** Turn the memories feature on or off for this user + org. */
 export function useSetMemoriesEnabled() {
-  return useConvexMutation('user_preferences/mutations:setMemoriesEnabled', {
+  return useBackendMutation('user_preferences/mutations:setMemoriesEnabled', {
     errorToast: false,
   });
 }
 
 /** Store the custom-instructions text itself. */
 export function useUpsertMyPreferences() {
-  return useConvexMutation('user_preferences/mutations:upsertMyPreferences', {
+  return useBackendMutation('user_preferences/mutations:upsertMyPreferences', {
     errorToast: false,
   });
 }

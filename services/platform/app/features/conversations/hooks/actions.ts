@@ -1,5 +1,5 @@
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 
 export function useImproveMessage() {
-  return useConvexAction('conversations/actions:improveMessage');
+  return useBackendAction('conversations/actions:improveMessage');
 }

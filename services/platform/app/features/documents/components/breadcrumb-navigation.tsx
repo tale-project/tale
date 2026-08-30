@@ -4,7 +4,7 @@ import { Row } from '@tale/ui/layout';
 import { ChevronLeft } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -24,7 +24,7 @@ export function BreadcrumbNavigation({
   onNavigateRef.current = onNavigate;
 
   const organizationId = useOrganizationId();
-  const { data: breadcrumb, isLoading } = useConvexQuery(
+  const { data: breadcrumb, isLoading } = useBackendQuery(
     'folders/queries:getFolderBreadcrumb',
     organizationId ? { folderId: folderId, organizationId } : 'skip',
   );

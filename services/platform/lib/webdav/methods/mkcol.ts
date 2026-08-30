@@ -1,6 +1,6 @@
 import { anyApi } from 'convex/server';
 
-import { convexErrorCode } from '../errors';
+import { backendErrorCode } from '../errors';
 import { checkResourceLock } from '../locks';
 import {
   WEBDAV_MAX_XML_BODY,
@@ -68,7 +68,7 @@ export async function handleMkcol(
       userId: auth.userId,
     });
   } catch (err) {
-    const code = convexErrorCode(err);
+    const code = backendErrorCode(err);
     if (code === 'CONFLICT') {
       return { status: 409, headers: {}, body: 'Parent does not exist' };
     }

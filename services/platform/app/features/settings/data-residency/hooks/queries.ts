@@ -1,11 +1,11 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
 /**
  * Read hooks for the unified data-residency page. Both reads are Convex
  * ACTIONS (they read config off disk — the deployment config file and the
  * per-org JSON connection files), so they go through `useActionQuery` rather
- * than `useConvexQuery`.
+ * than `useBackendQuery`.
  *
  * Read the deployment-level config + masked secret presence + the per-caller
  * `canEdit` flag. Deployment-scoped (no org arg). The read is open to any
@@ -80,7 +80,7 @@ export function useObjectStorageBackfillStatus(
   organizationId: string,
   canView: boolean,
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'object_storage/backfill_queries:getObjectStorageBackfillStatus',
     canView ? { organizationId } : 'skip',
   );

@@ -11,13 +11,13 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 
-import { backendFetch } from './api-client';
 import type {
   AdapterContext,
   PaginatedAdapter,
   ReadAdapter,
   WriteAdapter,
-} from './convex-adapters';
+} from './adapters';
+import { backendFetch } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 type CollabUnreadResult = ReturnsOf<'collab/notifications:myUnreadCount'>;

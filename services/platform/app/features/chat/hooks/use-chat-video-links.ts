@@ -64,7 +64,7 @@ const NON_TERMINAL: ReadonlySet<string> = new Set([
 /** Structured `code` off a refusal — the 0.5 backend answers coded JSON
  * (`BackendApiError.code`), the legacy path a BackendError `data.code`;
  * both map 1:1 to `videoLink.errors.*` keys. */
-function convexErrorCode(err: unknown): string | undefined {
+function backendErrorCode(err: unknown): string | undefined {
   if (err instanceof BackendApiError) return err.code;
   return err instanceof BackendError &&
     typeof err.data === 'object' &&
@@ -199,7 +199,7 @@ export function useChatVideoLinks(args: {
           });
           ingested += 1;
         } catch (err) {
-          const code = convexErrorCode(err);
+          const code = backendErrorCode(err);
           toast({
             title: t('videoLink.toast.ingestFailedTitle'),
             description: t(
@@ -253,7 +253,7 @@ export function useChatVideoLinks(args: {
       } catch (err) {
         // The mutation refuses with structured codes (cooldown, budget,
         // in-flight cap); without this catch the click reads as dead.
-        const code = convexErrorCode(err);
+        const code = backendErrorCode(err);
         toast({
           title: t('videoLink.toast.retryFailedTitle'),
           description: t(

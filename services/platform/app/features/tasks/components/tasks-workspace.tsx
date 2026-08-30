@@ -10,7 +10,7 @@ import { ContentArea } from '@/app/components/layout/content-area';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useT } from '@/lib/i18n/client';
 
@@ -129,7 +129,7 @@ export function TasksWorkspace({
       ),
     [pendingReviews],
   );
-  const searchHits = useConvexQuery(
+  const searchHits = useBackendQuery(
     'tasks/search:searchTasks',
     trimmedSearchQuery.length > 0
       ? {

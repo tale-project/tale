@@ -1,20 +1,20 @@
 import type { QueryClient } from '@tanstack/react-query';
 
-import type { ArgsOf, QueryName, ReturnsOf } from './contract';
 import {
   activeOrganizationId,
   READ_ADAPTERS,
   retryAdaptedRead,
   runAdapted,
-} from './convex-adapters';
-import { ConvexRetiredError } from './retired-convex';
+} from './adapters';
+import type { ArgsOf, QueryName, ReturnsOf } from './contract';
+import { MissingBackendRowError } from './missing-row';
 
 /**
  * Route-loader prefetch that respects the adapter seam.
  *
  * A loader's job is to have the answer in the cache under the SAME key the
  * component will read, so the first paint has no skeleton flash — which means
- * going through the adapter row the component's own `useConvexQuery` will use,
+ * going through the adapter row the component's own `useBackendQuery` will use,
  * never a second lane of its own.
  */
 export function prefetchAdaptedQuery<Name extends QueryName>(
@@ -80,5 +80,5 @@ export async function ensureAdaptedQueryData<Name extends QueryName>(
     }
   }
   // A loader that NEEDS the value cannot degrade quietly.
-  throw new ConvexRetiredError(name);
+  throw new MissingBackendRowError(name);
 }

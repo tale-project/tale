@@ -15,8 +15,8 @@ const mockUseConvexAuth = vi.fn(() => ({
   isAuthenticated: true,
   isLoading: false,
 }));
-vi.mock('./use-convex-auth', () => ({
-  useConvexAuth: () => mockUseConvexAuth(),
+vi.mock('./use-session-user', () => ({
+  useSessionUser: () => mockUseConvexAuth(),
 }));
 
 // The adapter seam resolves the function name on every call; the plain mock
@@ -27,7 +27,7 @@ const { mockAdapterRow, mockOrgId } = vi.hoisted(() => ({
   mockAdapterRow: vi.fn(),
   mockOrgId: { current: undefined as string | undefined },
 }));
-vi.mock('@/app/lib/backend/convex-adapters', () => ({
+vi.mock('@/app/lib/backend/adapters', () => ({
   READ_ADAPTERS: { 'fake:adapted': mockAdapterRow },
   activeOrganizationId: () => mockOrgId.current,
   runAdapted: (run: () => Promise<unknown>) => run(),
@@ -36,7 +36,7 @@ vi.mock('@/app/lib/backend/convex-adapters', () => ({
 
 import { useQuery } from '@tanstack/react-query';
 
-import { useConvexQuery } from './use-convex-query';
+import { useBackendQuery } from './use-backend-query';
 
 /** A row that exists only in this file's stub registry — the
  *  wrapper's own wiring is what these tests cover, not a shipped
@@ -46,14 +46,14 @@ const FAKE_ROW = 'fake:adapted' as QueryName;
 const mockUseQuery = vi.mocked(useQuery);
 
 /** A read with no row in the stub registry — the refusal path. */
-const queryName = 'items:list' as Parameters<typeof useConvexQuery>[0];
+const queryName = 'items:list' as Parameters<typeof useBackendQuery>[0];
 
 function lastEnabled(): boolean | undefined {
   const passed = mockUseQuery.mock.calls[0]?.[0] as { enabled?: boolean };
   return passed?.enabled;
 }
 
-describe('useConvexQuery', () => {
+describe('useBackendQuery', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseConvexAuth.mockReturnValue({
@@ -63,7 +63,7 @@ describe('useConvexQuery', () => {
   });
 
   it('refuses, NAMED, when the read has no backend row', async () => {
-    useConvexQuery(queryName, { organizationId: 'org-123' });
+    useBackendQuery(queryName, { organizationId: 'org-123' });
 
     const passed = mockUseQuery.mock.calls[0]?.[0] as {
       queryKey: unknown[];
@@ -75,7 +75,7 @@ describe('useConvexQuery', () => {
   });
 
   it('a skipped read never fires the refusal', () => {
-    useConvexQuery(queryName, 'skip');
+    useBackendQuery(queryName, 'skip');
 
     expect(lastEnabled()).toBe(false);
     expect(mockUseQuery).toHaveBeenCalledTimes(1);
@@ -85,7 +85,7 @@ describe('useConvexQuery', () => {
     const mockResult = { data: [1, 2, 3], isLoading: false, error: null };
     mockUseQuery.mockReturnValueOnce(mockResult as ReturnType<typeof useQuery>);
 
-    const result = useConvexQuery(queryName, {});
+    const result = useBackendQuery(queryName, {});
 
     expect(result.data).toEqual([1, 2, 3]);
     expect(result.isLoading).toBe(false);
@@ -95,7 +95,7 @@ describe('useConvexQuery', () => {
     const args = { organizationId: 'org-123' };
     const options = { staleTime: 10_000, gcTime: 60_000 };
 
-    useConvexQuery(queryName, args, options);
+    useBackendQuery(queryName, args, options);
 
     const passedOptions = mockUseQuery.mock.calls[0]?.[0];
     expect(passedOptions).toMatchObject(options);
@@ -104,7 +104,7 @@ describe('useConvexQuery', () => {
   it('does not include undefined options when omitted', () => {
     const args = { organizationId: 'org-123' };
 
-    useConvexQuery(queryName, args);
+    useBackendQuery(queryName, args);
 
     const passedOptions = mockUseQuery.mock.calls[0]?.[0];
     expect(passedOptions).not.toHaveProperty('staleTime');
@@ -114,7 +114,7 @@ describe('useConvexQuery', () => {
   it('merges enabled option into useQuery call', () => {
     const args = { organizationId: 'org-123' };
 
-    useConvexQuery(queryName, args, { enabled: false });
+    useBackendQuery(queryName, args, { enabled: false });
 
     const passedOptions = mockUseQuery.mock.calls[0]?.[0] as {
       enabled?: boolean;
@@ -123,7 +123,7 @@ describe('useConvexQuery', () => {
   });
 
   it('a caller enabled:false disables the query while keeping its key', () => {
-    useConvexQuery(
+    useBackendQuery(
       queryName,
       { organizationId: 'org-123' },
       { enabled: false },
@@ -143,13 +143,13 @@ describe('useConvexQuery', () => {
       isLoading: false,
     });
 
-    useConvexQuery(queryName, { organizationId: 'org-123' });
+    useBackendQuery(queryName, { organizationId: 'org-123' });
 
     expect(lastEnabled()).toBe(false);
   });
 
   it('enabled once authenticated by default', () => {
-    useConvexQuery(queryName, { organizationId: 'org-123' });
+    useBackendQuery(queryName, { organizationId: 'org-123' });
 
     expect(lastEnabled()).toBe(true);
   });
@@ -160,7 +160,7 @@ describe('useConvexQuery', () => {
       isLoading: false,
     });
 
-    useConvexQuery(
+    useBackendQuery(
       queryName,
       { organizationId: 'org-123' },
       {
@@ -172,7 +172,7 @@ describe('useConvexQuery', () => {
   });
 
   it('caller enabled:false still wins when authenticated', () => {
-    useConvexQuery(
+    useBackendQuery(
       queryName,
       { organizationId: 'org-123' },
       {
@@ -184,7 +184,7 @@ describe('useConvexQuery', () => {
   });
 
   it('does not leak requireAuth into useQuery options', () => {
-    useConvexQuery(
+    useBackendQuery(
       queryName,
       { organizationId: 'org-123' },
       {
@@ -197,7 +197,7 @@ describe('useConvexQuery', () => {
   });
 });
 
-describe('useConvexQuery adapter lane', () => {
+describe('useBackendQuery adapter lane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // The whole point of the lane: the WebSocket never authenticates in
@@ -216,7 +216,7 @@ describe('useConvexQuery adapter lane', () => {
       queryFn,
     });
 
-    useConvexQuery(FAKE_ROW, { organizationId: 'org-1' });
+    useBackendQuery(FAKE_ROW, { organizationId: 'org-1' });
 
     expect(mockAdapterRow).toHaveBeenCalledWith(
       { organizationId: 'org-1' },
@@ -237,7 +237,7 @@ describe('useConvexQuery adapter lane', () => {
       queryFn: () => Promise.resolve(null),
     });
 
-    useConvexQuery(FAKE_ROW, {});
+    useBackendQuery(FAKE_ROW, {});
 
     expect(mockAdapterRow).toHaveBeenCalledWith(
       {},
@@ -246,7 +246,7 @@ describe('useConvexQuery adapter lane', () => {
   });
 
   it("'skip' keeps the adapted read disabled without building options", () => {
-    useConvexQuery(FAKE_ROW, 'skip');
+    useBackendQuery(FAKE_ROW, 'skip');
 
     expect(mockAdapterRow).not.toHaveBeenCalled();
     expect(lastEnabled()).toBe(false);
@@ -255,7 +255,7 @@ describe('useConvexQuery adapter lane', () => {
   it('an unservable row (adapter answers null) stays disabled', () => {
     mockAdapterRow.mockReturnValue(null);
 
-    useConvexQuery(FAKE_ROW, {});
+    useBackendQuery(FAKE_ROW, {});
 
     expect(lastEnabled()).toBe(false);
   });
@@ -266,7 +266,7 @@ describe('useConvexQuery adapter lane', () => {
       queryFn: () => Promise.resolve(null),
     });
 
-    useConvexQuery(
+    useBackendQuery(
       queryName,
       { organizationId: 'org-1' },
       { enabled: false, staleTime: 5 },

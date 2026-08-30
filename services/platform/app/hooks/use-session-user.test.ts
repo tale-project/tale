@@ -9,18 +9,18 @@ vi.mock('@/app/lib/backend/account', () => ({
   currentUserQuery: () => ({ queryKey: ['backend', 'me', 'account', 'user'] }),
 }));
 
-const { useConvexAuth } = await import('./use-convex-auth');
+const { useSessionUser } = await import('./use-session-user');
 
-describe('useConvexAuth', () => {
+describe('useSessionUser', () => {
   it('reports the session probe, not a websocket handshake', () => {
     mockUseQuery.mockReturnValue({ data: { id: 'u1' }, isLoading: false });
-    expect(renderHook(() => useConvexAuth()).result.current).toEqual({
+    expect(renderHook(() => useSessionUser()).result.current).toEqual({
       isAuthenticated: true,
       isLoading: false,
     });
 
     mockUseQuery.mockReturnValue({ data: undefined, isLoading: true });
-    expect(renderHook(() => useConvexAuth()).result.current).toEqual({
+    expect(renderHook(() => useSessionUser()).result.current).toEqual({
       isAuthenticated: false,
       isLoading: true,
     });
@@ -28,7 +28,7 @@ describe('useConvexAuth', () => {
 
   it('reads a 401 (no user) as signed out, not as still loading', () => {
     mockUseQuery.mockReturnValue({ data: undefined, isLoading: false });
-    expect(renderHook(() => useConvexAuth()).result.current).toEqual({
+    expect(renderHook(() => useSessionUser()).result.current).toEqual({
       isAuthenticated: false,
       isLoading: false,
     });

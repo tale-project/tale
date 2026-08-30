@@ -20,8 +20,8 @@ let preferences: {
 } | null = null;
 let policyEnabled = false;
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: preferences, isLoading: false }),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: preferences, isLoading: false }),
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({

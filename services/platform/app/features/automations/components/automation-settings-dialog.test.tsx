@@ -13,8 +13,8 @@ const convexMocks = vi.hoisted(() => ({
   read: vi.fn(),
   write: vi.fn(),
 }));
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({ mutateAsync: convexMocks.write }),
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: () => ({ mutateAsync: convexMocks.write }),
 }));
 vi.mock('../hooks/use-settings-values', () => ({
   settingsValuesQueryKey: (
@@ -57,8 +57,8 @@ vi.mock('@/app/features/documents/hooks/mutations', () => ({
   useCreateFolder: () => ({ mutateAsync: vi.fn() }),
   useDeleteDocument: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({ mutateAsync: vi.fn() }),
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => ({ mutateAsync: vi.fn() }),
 }));
 
 import { AutomationSettingsDialog } from './automation-settings-dialog';

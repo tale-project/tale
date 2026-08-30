@@ -6,8 +6,8 @@ import { Heading } from '@tale/ui/heading';
 import { Row } from '@tale/ui/layout';
 import { Clock } from 'lucide-react';
 
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -28,11 +28,11 @@ interface Props {
 export function RetentionPendingBanner({ organizationId }: Props) {
   const { t } = useT('governance');
   const { toast } = useToast();
-  const pending = useConvexQuery(
+  const pending = useBackendQuery(
     'governance/queries:getPendingRetentionChange',
     { organizationId },
   );
-  const cancel = useConvexAction(
+  const cancel = useBackendAction(
     'governance/retention_actions:cancelPendingRetentionChange',
   );
 

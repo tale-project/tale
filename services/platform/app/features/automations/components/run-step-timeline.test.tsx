@@ -6,14 +6,14 @@ import { buildGraph } from '../lib/graph';
 import { projectRun } from '../lib/run-view';
 import { RunStepTimeline } from './run-step-timeline';
 
-// Drives the mocked `useConvexQuery` return: the run's sandbox op, read by
+// Drives the mocked `useBackendQuery` return: the run's sandbox op, read by
 // the agent activity line and the transcript pane inside an unfolded row.
 const { state } = vi.hoisted(() => ({
   state: { data: undefined as unknown },
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: state.data }),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: state.data }),
 }));
 
 const runId = 'run-1' as string;

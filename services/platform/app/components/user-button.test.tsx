@@ -94,9 +94,9 @@ let mockAuthState = {
   signIn: vi.fn(),
   signOut: mockSignOut,
 };
-vi.mock('@/app/hooks/use-convex-auth', () => ({
+vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => mockAuthState,
-  useConvexAuth: () => ({
+  useSessionUser: () => ({
     isLoading: mockAuthState.isLoading,
     isAuthenticated: mockAuthState.isAuthenticated,
   }),

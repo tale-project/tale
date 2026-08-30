@@ -9,8 +9,8 @@ import { useEffect, useState } from 'react';
 import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
 import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { AccountBootstrapProvider } from '@/app/context/account-bootstrap-provider';
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useSessionIdleWatchdog } from '@/app/hooks/use-session-idle-watchdog';
+import { useSessionUser } from '@/app/hooks/use-session-user';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import {
   passwordExpiryQuery,
@@ -48,7 +48,7 @@ export const Route = createFileRoute('/dashboard')({
 });
 
 function DashboardRedirect() {
-  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { isAuthenticated, isLoading } = useSessionUser();
 
   // Idle-timeout UX: warn and sign out proactively when the deployment sets
   // SESSION_IDLE_TIMEOUT_MINUTES. The authenticated layout is the right mount

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 
-import { useConvexClient } from '@/app/hooks/use-convex-client';
+import { useBackendClient } from '@/app/hooks/use-backend-client';
 
 /** Product images are small thumbnails; cap uploads at 5 MB. */
 export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -16,7 +16,7 @@ export const PRODUCT_IMAGE_ACCEPT =
  * storage/serving infrastructure is introduced.
  */
 export function useProductImageUpload() {
-  const client = useConvexClient();
+  const client = useBackendClient();
   const [isUploading, setIsUploading] = useState(false);
 
   const uploadImage = useCallback(

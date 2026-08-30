@@ -8,12 +8,8 @@
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 
+import type { AdapterContext, PaginatedAdapter, ReadAdapter } from './adapters';
 import { backendFetch } from './api-client';
-import type {
-  AdapterContext,
-  PaginatedAdapter,
-  ReadAdapter,
-} from './convex-adapters';
 import { backendKey } from './query-keys';
 
 type UsageMetricsResult = ReturnsOf<'governance/queries:getOrgUsageMetrics'>;

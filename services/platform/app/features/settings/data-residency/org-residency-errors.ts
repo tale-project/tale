@@ -10,19 +10,19 @@
 
 import {
   pickString,
-  readConvexErrorData,
-} from '../governance/convex-error-data';
+  readBackendErrorData,
+} from '../governance/backend-error-data';
 
 type Translator = (key: string, options?: Record<string, unknown>) => string;
 
 /** Duck-typed `BackendError.data.code` of an org data-residency failure. */
 export function orgResidencyErrorCode(err: unknown): string | undefined {
-  return pickString(readConvexErrorData(err), 'code');
+  return pickString(readBackendErrorData(err), 'code');
 }
 
 /** Admin-facing message for an org data-residency action failure. */
 export function mapOrgResidencyError(err: unknown, t: Translator): string {
-  const data = readConvexErrorData(err);
+  const data = readBackendErrorData(err);
   const code = pickString(data, 'code');
   const serverMessage = pickString(data, 'message');
   const fallback =

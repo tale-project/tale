@@ -1,5 +1,5 @@
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import type { AuditLogFilter } from '@/convex/audit_logs/types';
 
 export function useListAuditLogs(
@@ -7,7 +7,7 @@ export function useListAuditLogs(
   filter?: AuditLogFilter,
   limit = 50,
 ) {
-  return useConvexQuery('audit_logs/queries:listAuditLogs', {
+  return useBackendQuery('audit_logs/queries:listAuditLogs', {
     organizationId,
     filter,
     limit,
@@ -49,7 +49,7 @@ export function useActivitySummary(
   organizationId: string,
   periodDays: 7 | 30 | 90,
 ) {
-  return useConvexQuery('audit_logs/queries:getActivitySummary', {
+  return useBackendQuery('audit_logs/queries:getActivitySummary', {
     organizationId,
     periodDays,
   });

@@ -7,12 +7,8 @@ import type {
 } from '@/app/context/account-bootstrap-context';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 
+import type { ActionQueryAdapter, ReadAdapter, WriteAdapter } from './adapters';
 import { BackendApiError, backendFetch } from './api-client';
-import type {
-  ActionQueryAdapter,
-  ReadAdapter,
-  WriteAdapter,
-} from './convex-adapters';
 import { backendKey } from './query-keys';
 
 /**

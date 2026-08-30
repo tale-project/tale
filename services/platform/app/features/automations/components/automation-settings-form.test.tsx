@@ -14,8 +14,8 @@ const convexMocks = vi.hoisted(() => ({
   read: vi.fn(),
   write: vi.fn(),
 }));
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({ mutateAsync: convexMocks.write }),
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: () => ({ mutateAsync: convexMocks.write }),
 }));
 vi.mock('../hooks/use-settings-values', () => ({
   settingsValuesQueryKey: (

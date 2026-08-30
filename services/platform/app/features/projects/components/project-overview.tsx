@@ -23,7 +23,7 @@ import {
   PROJECT_DESCRIPTION_MAX,
   PROJECT_NAME_MAX,
 } from '@/lib/shared/schemas/projects';
-import { convexErrorCode } from '@/lib/utils/convex-error';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useUpdateProjectIdentity } from '../hooks/mutations';
 import { useProject } from '../hooks/queries';
@@ -52,7 +52,7 @@ const PROJECT_OVERVIEW_FORM_ID = 'project-overview-identity-form';
  * destructive toast the save cluster raises.
  */
 function identityErrorField(error: unknown): keyof IdentityForm | undefined {
-  switch (convexErrorCode(error)) {
+  switch (backendErrorCode(error)) {
     case 'PROJECT_NAME_INVALID':
       return 'name';
     case 'PROJECT_DESCRIPTION_INVALID':

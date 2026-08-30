@@ -1,5 +1,5 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
 import { listNodeTypesRef } from './backend';
 
@@ -39,7 +39,7 @@ export function useAutomations(
   /** Org page: merge project-pinned automations into the listing. */
   includeProjectBound?: boolean,
 ) {
-  return useConvexQuery('automations/queries:listAutomations', {
+  return useBackendQuery('automations/queries:listAutomations', {
     organizationId,
     ...(projectId !== undefined && { projectId }),
     ...(includeProjectBound === true && { includeProjectBound: true }),
@@ -52,7 +52,7 @@ export function useAutomation(
   name: string,
   version?: number,
 ) {
-  return useConvexQuery('automations/queries:getAutomation', {
+  return useBackendQuery('automations/queries:getAutomation', {
     organizationId,
     name,
     ...(version !== undefined && { version }),
@@ -61,7 +61,7 @@ export function useAutomation(
 
 /** The immutable version history of one automation, oldest first. */
 export function useAutomationVersions(organizationId: string, name: string) {
-  return useConvexQuery('automations/queries:listVersions', {
+  return useBackendQuery('automations/queries:listVersions', {
     organizationId,
     name,
   });
@@ -76,7 +76,7 @@ export function useAutomationRuns(
   limit?: number,
   projectId?: string,
 ) {
-  return useConvexQuery('automations/queries:listRuns', {
+  return useBackendQuery('automations/queries:listRuns', {
     organizationId,
     ...(name !== undefined && { name }),
     ...(limit !== undefined && { limit }),
@@ -90,7 +90,7 @@ export function useAutomationRun(
   organizationId: string,
   runId: string | undefined,
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'automations/queries:getRun',
     runId === undefined ? 'skip' : { organizationId, runId },
   );
@@ -102,7 +102,7 @@ export function useRunApproval(
   organizationId: string,
   approvalId: string | undefined,
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'approvals/queries:getApproval',
     approvalId === undefined ? 'skip' : { organizationId, approvalId },
   );
@@ -114,7 +114,7 @@ export function useRunPendingAsk(
   organizationId: string,
   runId: string | undefined,
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'automations/human_asks:getPendingAskForRun',
     runId === undefined ? 'skip' : { organizationId, runId },
   );
@@ -122,7 +122,7 @@ export function useRunPendingAsk(
 
 /** The projects one automation is bound to — empty means org-level. */
 export function useAutomationProjects(organizationId: string, name: string) {
-  return useConvexQuery('automations/queries:listAutomationProjects', {
+  return useBackendQuery('automations/queries:listAutomationProjects', {
     organizationId,
     name,
   });
@@ -130,7 +130,7 @@ export function useAutomationProjects(organizationId: string, name: string) {
 
 /** What starts one automation. */
 export function useAutomationTriggers(organizationId: string, name: string) {
-  return useConvexQuery('automations/queries:listTriggers', {
+  return useBackendQuery('automations/queries:listTriggers', {
     organizationId,
     name,
   });
@@ -168,7 +168,7 @@ export function useBuilderCredentials(
   organizationId: string,
   enabled: boolean,
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'provider_credentials/queries:listCredentials',
     enabled ? { organizationId } : 'skip',
   );

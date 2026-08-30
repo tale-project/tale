@@ -1,11 +1,11 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 export function useBulkCreateContacts() {
-  return useConvexMutation('contacts/mutations:bulkCreateContacts');
+  return useBackendMutation('contacts/mutations:bulkCreateContacts');
 }
 
 export function useCreateContact() {
-  return useConvexMutation('contacts/mutations:createContact', {
+  return useBackendMutation('contacts/mutations:createContact', {
     // The create dialog shows its own specific error toast (duplicate-email
     // vs generic) — see `useCreateProduct` for the same pattern.
     errorToast: false,
@@ -13,14 +13,14 @@ export function useCreateContact() {
 }
 
 export function useDeleteContact() {
-  return useConvexMutation('contacts/mutations:deleteContact', {
+  return useBackendMutation('contacts/mutations:deleteContact', {
     // EntityDeleteDialog shows its own specific error toast.
     errorToast: false,
   });
 }
 
 export function useUpdateContact() {
-  return useConvexMutation('contacts/mutations:updateContact', {
+  return useBackendMutation('contacts/mutations:updateContact', {
     // The edit dialog shows its own specific error toast.
     errorToast: false,
   });

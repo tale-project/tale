@@ -8,14 +8,14 @@
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
-import { backendFetch } from './api-client';
 import type {
   ActionQueryAdapter,
   AdapterContext,
   PaginatedAdapter,
   ReadAdapter,
   WriteAdapter,
-} from './convex-adapters';
+} from './adapters';
+import { backendFetch } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 type OrgTeamItem = ItemOf<'members/queries:listOrgTeams'>;

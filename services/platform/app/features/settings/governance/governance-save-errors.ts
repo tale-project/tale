@@ -19,7 +19,7 @@
  * mappers in this directory.
  */
 
-import { pickString, readConvexErrorData } from './convex-error-data';
+import { pickString, readBackendErrorData } from './backend-error-data';
 
 type Translator = (key: string, options?: Record<string, unknown>) => string;
 
@@ -28,7 +28,7 @@ export function mapGovernanceSaveError(
   t: Translator,
   fallback: string,
 ): string {
-  const data = readConvexErrorData(err);
+  const data = readBackendErrorData(err);
   const code = pickString(data, 'code');
 
   switch (code) {

@@ -3,8 +3,8 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -87,16 +87,16 @@ export function useConvexFileUpload(config: ConvexFileUploadConfig) {
   // Backend-aware upload handoff: routes to the org's own S3 bucket when
   // configured, else Convex `_storage`. An ACTION (not a mutation) because
   // presigning S3 needs the node runtime. Mirrors the documents uploader.
-  const { mutateAsync: generateBlobUpload } = useConvexAction(
+  const { mutateAsync: generateBlobUpload } = useBackendAction(
     'files/blob_actions:generateBlobUpload',
   );
-  const { mutateAsync: saveFileMetadata } = useConvexMutation(
+  const { mutateAsync: saveFileMetadata } = useBackendMutation(
     'file_metadata/mutations:saveFileMetadata',
   );
-  const { mutateAsync: skipTranscription } = useConvexMutation(
+  const { mutateAsync: skipTranscription } = useBackendMutation(
     'file_metadata/mutations:skipTranscription',
   );
-  const { mutateAsync: retryTranscription } = useConvexMutation(
+  const { mutateAsync: retryTranscription } = useBackendMutation(
     'file_metadata/mutations:retryTranscription',
   );
 

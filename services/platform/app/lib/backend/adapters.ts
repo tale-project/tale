@@ -1,7 +1,7 @@
 /**
  * The name-keyed HTTP adapter registry — the ONE seam through which the
- * app-wide Convex hook wrappers (`useConvexQuery`, `useConvexMutation`,
- * `useConvexAction`, `useActionQuery`) serve a migrated family over the 0.5
+ * app-wide Convex hook wrappers (`useBackendQuery`, `useBackendMutation`,
+ * `useBackendAction`, `useActionQuery`) serve a migrated family over the 0.5
  * backend while unmigrated families keep their Convex transport. Keys are
  * Convex function names (`getFunctionName`); a family swaps reads AND writes
  * together by contributing rows (see `projects.ts`) — call sites never
@@ -10,7 +10,7 @@
  *
  * Errors from the adapted lane are normalized to real `BackendError`s
  * (`{ code, message, ...data }`) so every existing consumer — `instanceof`
- * branches, `convexErrorCode`, toast fallbacks — behaves exactly as on 0.4.
+ * branches, `backendErrorCode`, toast fallbacks — behaves exactly as on 0.4.
  */
 
 import type { QueryClient } from '@tanstack/react-query';
@@ -198,7 +198,7 @@ export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
  * contract. Transport-ish failures (5xx, network) pass through untouched so
  * retry policies still see them as transient.
  */
-export function toConvexError(error: unknown): unknown {
+export function toBackendError(error: unknown): unknown {
   if (error instanceof BackendApiError && error.status < 500) {
     return new BackendError({
       ...error.data,
@@ -214,7 +214,7 @@ export async function runAdapted<T>(run: () => Promise<T>): Promise<T> {
     return await run();
   } catch (error) {
     // oxlint-disable-next-line no-throw-literal -- rethrowing the normalized error as-is
-    throw toConvexError(error);
+    throw toBackendError(error);
   }
 }
 

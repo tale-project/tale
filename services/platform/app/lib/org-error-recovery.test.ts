@@ -37,7 +37,7 @@ const {
 const { QueryClient } = await import('@tanstack/react-query');
 
 /** A BackendError as the client sees it: duck-typed `data` payload. */
-function convexError(code: string): Error {
+function structuredError(code: string): Error {
   const error = new Error(`server failure ${code}`);
   Object.assign(error, { data: { code, message: 'boom' } });
   return error;
@@ -63,8 +63,8 @@ beforeEach(() => {
 
 describe('isDeadOrgError', () => {
   it('matches only BackendError data with code ORG_NOT_FOUND', () => {
-    expect(isDeadOrgError(convexError('ORG_NOT_FOUND'))).toBe(true);
-    expect(isDeadOrgError(convexError('ORG_FORBIDDEN'))).toBe(false);
+    expect(isDeadOrgError(structuredError('ORG_NOT_FOUND'))).toBe(true);
+    expect(isDeadOrgError(structuredError('ORG_FORBIDDEN'))).toBe(false);
     expect(isDeadOrgError(new Error('[CONVEX Q(x)] Server Error'))).toBe(false);
     expect(isDeadOrgError(null)).toBe(false);
     expect(isDeadOrgError('ORG_NOT_FOUND')).toBe(false);
@@ -73,7 +73,7 @@ describe('isDeadOrgError', () => {
 
 describe('handleOrgScopedQueryError', () => {
   it('recovers from a dead org: clears hints, leaves the org routes, resets the session org', async () => {
-    handleOrgScopedQueryError(convexError('ORG_NOT_FOUND'));
+    handleOrgScopedQueryError(structuredError('ORG_NOT_FOUND'));
     await recoverySettled();
 
     expect(mocks.clearMemberContextCache).toHaveBeenCalledTimes(1);
@@ -90,7 +90,7 @@ describe('handleOrgScopedQueryError', () => {
   it('does not navigate when the user is not inside an org dashboard', async () => {
     mocks.matches = [{ routeId: '/dashboard/' }];
 
-    handleOrgScopedQueryError(convexError('ORG_NOT_FOUND'));
+    handleOrgScopedQueryError(structuredError('ORG_NOT_FOUND'));
     await recoverySettled();
 
     expect(mocks.navigate).not.toHaveBeenCalled();
@@ -99,9 +99,9 @@ describe('handleOrgScopedQueryError', () => {
   });
 
   it('runs a single recovery for a burst of failures', async () => {
-    handleOrgScopedQueryError(convexError('ORG_NOT_FOUND'));
-    handleOrgScopedQueryError(convexError('ORG_NOT_FOUND'));
-    handleOrgScopedQueryError(convexError('ORG_NOT_FOUND'));
+    handleOrgScopedQueryError(structuredError('ORG_NOT_FOUND'));
+    handleOrgScopedQueryError(structuredError('ORG_NOT_FOUND'));
+    handleOrgScopedQueryError(structuredError('ORG_NOT_FOUND'));
     await recoverySettled();
 
     expect(mocks.setActive).toHaveBeenCalledTimes(1);
@@ -109,12 +109,12 @@ describe('handleOrgScopedQueryError', () => {
   });
 
   it('ignores forbidden, empty-arg, and unstructured errors', async () => {
-    handleOrgScopedQueryError(convexError('ORG_FORBIDDEN'));
+    handleOrgScopedQueryError(structuredError('ORG_FORBIDDEN'));
     // ORG_ID_REQUIRED = a component transiently sent "" (caller-side gap) —
     // recovering (navigating to the picker) over it would yank a WORKING
     // session out of its page, which is exactly what broke the E2E project
     // specs before the code split.
-    handleOrgScopedQueryError(convexError('ORG_ID_REQUIRED'));
+    handleOrgScopedQueryError(structuredError('ORG_ID_REQUIRED'));
     handleOrgScopedQueryError(new Error('network flake'));
     await recoverySettled();
 
@@ -127,7 +127,7 @@ describe('handleOrgScopedQueryError', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mocks.setActive.mockRejectedValue(new Error('offline'));
 
-    handleOrgScopedQueryError(convexError('ORG_NOT_FOUND'));
+    handleOrgScopedQueryError(structuredError('ORG_NOT_FOUND'));
     await recoverySettled();
 
     expect(mocks.navigate).toHaveBeenCalled();
@@ -146,7 +146,7 @@ describe('installOrgErrorRecovery (real query cache)', () => {
 
     await qc.prefetchQuery({
       queryKey: ['dead-org-fetch'],
-      queryFn: () => Promise.reject(convexError('ORG_NOT_FOUND')),
+      queryFn: () => Promise.reject(structuredError('ORG_NOT_FOUND')),
     });
     await recoverySettled();
 
@@ -166,7 +166,7 @@ describe('installOrgErrorRecovery (real query cache)', () => {
     const query = qc
       .getQueryCache()
       .build(qc, { queryKey: ['dead-org-live'], queryFn: async () => null });
-    const error = convexError('ORG_NOT_FOUND');
+    const error = structuredError('ORG_NOT_FOUND');
     query.setState({
       // Mirrors ConvexQueryClient.onUpdateQueryKeyHash's error delivery.
       error: error as never,
@@ -192,7 +192,7 @@ describe('installOrgErrorRecovery (real query cache)', () => {
 
     await qc.prefetchQuery({
       queryKey: ['other-error'],
-      queryFn: () => Promise.reject(convexError('ORG_FORBIDDEN')),
+      queryFn: () => Promise.reject(structuredError('ORG_FORBIDDEN')),
     });
     await recoverySettled();
 

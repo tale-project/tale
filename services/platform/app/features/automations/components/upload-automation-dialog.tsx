@@ -21,7 +21,7 @@ import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Select } from '@/app/components/ui/forms/select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { configKeys } from '@/app/hooks/config-query-keys';
-import { useConvexClient } from '@/app/hooks/use-convex-client';
+import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { toast } from '@/app/hooks/use-toast';
 import type { ArgsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
@@ -83,7 +83,7 @@ export function UploadAutomationDialog({
   const deploy = useDeployAutomation();
 
   const { projects } = useProjects(organizationId);
-  const client = useConvexClient();
+  const client = useBackendClient();
   // Arrow wrappers rather than `.bind`: binding erases the name's generic
   // instantiation, collapsing the answer to the union over every contract
   // entry.

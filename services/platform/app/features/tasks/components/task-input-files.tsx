@@ -10,8 +10,8 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useDeleteDocument } from '@/app/features/documents/hooks/mutations';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -78,18 +78,18 @@ export function TaskInputFilesCard({
   canRemove: boolean;
 }) {
   const { t } = useT('tasks');
-  const documentsQuery = useConvexQuery(
+  const documentsQuery = useBackendQuery(
     'projects/queries:listProjectDocuments',
     { organizationId, projectId },
   );
-  const foldersQuery = useConvexQuery('projects/queries:listProjectFolders', {
+  const foldersQuery = useBackendQuery('projects/queries:listProjectFolders', {
     organizationId,
     projectId,
   });
-  const { mutateAsync: generateUploadUrl } = useConvexMutation(
+  const { mutateAsync: generateUploadUrl } = useBackendMutation(
     'files/mutations:generateUploadUrl',
   );
-  const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
+  const { mutateAsync: createDocumentFromUpload } = useBackendMutation(
     'documents/mutations:createDocumentFromUpload',
   );
   const { mutateAsync: deleteDocument, isPending: isDeletingDocument } =

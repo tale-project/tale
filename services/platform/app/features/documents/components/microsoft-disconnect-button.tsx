@@ -3,7 +3,7 @@
 import { Button } from '@tale/ui/button';
 import { useCallback, useState } from 'react';
 
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -25,7 +25,7 @@ export function MicrosoftDisconnectButton({
   const { t: tCommon } = useT('common');
   const [isLoading, setIsLoading] = useState(false);
   const organizationId = useOrganizationId();
-  const { mutateAsync: revokeAuthorization } = useConvexMutation(
+  const { mutateAsync: revokeAuthorization } = useBackendMutation(
     'cloud_import/mutations:revokeAuthorization',
   );
 

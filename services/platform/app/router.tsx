@@ -4,7 +4,7 @@ import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 
 import { GlobalErrorDisplay } from '@/app/components/error-boundaries/displays/global-error-display';
 import { RouteNotFound } from '@/app/components/layout/route-not-found';
-import { isStructuredConvexError } from '@/app/hooks/use-action-query';
+import { isStructuredBackendError } from '@/app/hooks/use-action-query';
 import { warmSession } from '@/app/lib/auth/session-query';
 import { installOrgErrorRecovery } from '@/app/lib/org-error-recovery';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
@@ -27,7 +27,7 @@ export const queryClient = new QueryClient({
       // reaching the UI (and the recovery hook below); network errors still
       // retry the default 3 times. Same rationale as useActionQuery.
       retry: (failureCount, err) =>
-        !isStructuredConvexError(err) && failureCount < 3,
+        !isStructuredBackendError(err) && failureCount < 3,
       gcTime: 15 * 60 * 1000,
       // Reads are HTTP now: this bounds how often a remount refetches. The
       // `/events` hint stream invalidates whatever actually changed, so a

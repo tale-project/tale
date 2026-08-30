@@ -20,7 +20,7 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
-import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 

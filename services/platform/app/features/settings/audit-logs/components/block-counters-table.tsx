@@ -8,7 +8,7 @@ import { useMemo } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -30,7 +30,7 @@ export function BlockCountersTable({
 }: BlockCountersTableProps) {
   const { t } = useT('settings');
   const { t: tTables } = useT('tables');
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'login_attempts/queries:listBlockCounters',
     { organizationId, limit: 200 },
   );

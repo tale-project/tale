@@ -128,12 +128,12 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({ mutateAsync: vi.fn().mockResolvedValue({}) }),
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => ({ mutateAsync: vi.fn().mockResolvedValue({}) }),
 }));
 
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: () => ({
     mutateAsync: vi.fn().mockResolvedValue(undefined),
   }),
 }));

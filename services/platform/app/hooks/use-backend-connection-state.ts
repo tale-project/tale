@@ -5,6 +5,6 @@ import { useBackendReachable } from '@/app/lib/backend/connection-state';
  * gone, so `isWebSocketConnected` now means "the backend is answering" — the
  * hint stream's own state (see `lib/backend/connection-state.ts`).
  */
-export function useConvexConnectionState(): { isWebSocketConnected: boolean } {
+export function useBackendConnectionState(): { isWebSocketConnected: boolean } {
   return { isWebSocketConnected: useBackendReachable() };
 }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { activeOrganizationId } from './convex-adapters';
+import { activeOrganizationId } from './adapters';
 import {
   projectActionQueryAdapters,
   projectReadAdapters,

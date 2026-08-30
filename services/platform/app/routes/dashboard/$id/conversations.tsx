@@ -22,8 +22,8 @@ import { ConversationsNavigation } from '@/app/features/conversations/components
 import { InboxMobileBackButton } from '@/app/features/conversations/components/inbox-mobile-back-button';
 import { useComposeContactName } from '@/app/features/conversations/hooks/queries';
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';

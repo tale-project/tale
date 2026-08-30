@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
   documents: [] as Array<{ _id: string; title: string; folderId?: string }>,
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: mocks.documents }),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: mocks.documents }),
 }));
 
 vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({

@@ -7,8 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useToast } from '@/app/hooks/use-toast';
@@ -71,7 +71,7 @@ export function AuditLogTable({
     revealLogId !== undefined &&
     revealFromResults === undefined &&
     organizationId !== undefined;
-  const revealFetch = useConvexQuery(
+  const revealFetch = useBackendQuery(
     'audit_logs/queries:getAuditLogById',
     shouldFetchReveal ? { organizationId, logId: revealLogId } : 'skip',
   );

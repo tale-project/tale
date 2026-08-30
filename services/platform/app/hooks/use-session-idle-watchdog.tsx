@@ -3,9 +3,9 @@
 import * as ToastPrimitives from '@radix-ui/react-toast';
 import { useEffect, useMemo, useRef } from 'react';
 
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import { useSessionUser } from '@/app/hooks/use-session-user';
 import { toast } from '@/app/hooks/use-toast';
 import { clearTitleSuffix } from '@/app/lib/title-suffix';
 import { authClient } from '@/lib/auth-client';
@@ -63,9 +63,9 @@ export function useSessionIdleWatchdog(): void {
   // lands, and `getPolicy` throws `Unauthenticated` server-side if it runs
   // first. Gating in the args (not the options) is required — a `'skip'` arg
   // sets `enabled: false`, which an `{ enabled }` option would override.
-  const { isAuthenticated } = useConvexAuth();
+  const { isAuthenticated } = useSessionUser();
   const organizationId = useOrganizationId();
-  const { data: policyRow } = useConvexQuery(
+  const { data: policyRow } = useBackendQuery(
     'governance/queries:getPolicy',
     organizationId && isAuthenticated
       ? { organizationId, policyType: 'session_idle_timeout' as const }

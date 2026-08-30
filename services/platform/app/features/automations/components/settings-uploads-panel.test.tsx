@@ -9,8 +9,8 @@ const toastMock = vi.hoisted(() => vi.fn());
 vi.mock('@/app/hooks/use-toast', () => ({ toast: toastMock }));
 
 const convexMutation = vi.hoisted(() => vi.fn());
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({ mutateAsync: convexMutation }),
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => ({ mutateAsync: convexMutation }),
 }));
 
 // The panel's create-folder FormDialog reads the org from the route params

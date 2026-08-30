@@ -1,16 +1,16 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
 
-import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
 import {
   activeOrganizationId,
   READ_ADAPTERS,
   retryAdaptedRead,
   runAdapted,
-} from '@/app/lib/backend/convex-adapters';
-import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
+} from '@/app/lib/backend/adapters';
+import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
+import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 
-import { useConvexAuth } from './use-convex-auth';
+import { useSessionUser } from './use-session-user';
 
 interface ConvexQueryOptions {
   staleTime?: number;
@@ -36,13 +36,13 @@ type QueryArgs<Name extends QueryName> =
 /**
  * A backend read, addressed by its contract name. The adapter row keyed by
  * that same name serves it over HTTP; a name with no row has no server left
- * to reach and rejects loudly (see `retired-convex.ts`).
+ * to reach and rejects loudly (see `missing-row.ts`).
  */
-export function useConvexQuery<Name extends QueryName>(
+export function useBackendQuery<Name extends QueryName>(
   name: Name,
   ...[args, options]: QueryArgs<Name>
 ): UseQueryResult<ReturnsOf<Name>> {
-  const { isAuthenticated } = useConvexAuth();
+  const { isAuthenticated } = useSessionUser();
   // `requireAuth` is our own gate, not a react-query option — peel it off.
   const { requireAuth = true, ...queryOpts } = options ?? {};
 
@@ -87,7 +87,7 @@ export function useConvexQuery<Name extends QueryName>(
     // a socket that will never open.
     base = {
       queryKey: ['convex-retired', name],
-      queryFn: () => Promise.reject(new ConvexRetiredError(name)),
+      queryFn: () => Promise.reject(new MissingBackendRowError(name)),
       retry: false,
       ...queryOpts,
     };

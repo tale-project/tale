@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { BackendError } from '@/app/lib/backend/backend-error';
 
+import { retryAdaptedRead, runAdapted, toBackendError } from './adapters';
 import { BackendApiError } from './api-client';
-import { retryAdaptedRead, runAdapted, toConvexError } from './convex-adapters';
 
-describe('toConvexError', () => {
+describe('toBackendError', () => {
   it('turns a deterministic 4xx into a BackendError carrying code + data', () => {
-    const normalized = toConvexError(
+    const normalized = toBackendError(
       new BackendApiError(
         400,
         'Automations are bound to this project',
@@ -28,9 +28,9 @@ describe('toConvexError', () => {
 
   it('leaves transport-ish failures untouched (5xx, plain errors)', () => {
     const gateway = new BackendApiError(502, 'Bad gateway');
-    expect(toConvexError(gateway)).toBe(gateway);
+    expect(toBackendError(gateway)).toBe(gateway);
     const plain = new Error('socket hang up');
-    expect(toConvexError(plain)).toBe(plain);
+    expect(toBackendError(plain)).toBe(plain);
   });
 });
 

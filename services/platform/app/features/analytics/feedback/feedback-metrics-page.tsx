@@ -23,8 +23,8 @@ import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
@@ -345,7 +345,7 @@ export function FeedbackMetricsPage({
     data: stats,
     isLoading: statsLoading,
     error: statsError,
-  } = useConvexQuery(
+  } = useBackendQuery(
     'feedback/queries:getFeedbackStats',
     {
       organizationId,

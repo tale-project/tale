@@ -9,7 +9,7 @@ import { BrandingProvider } from '@/app/components/branding/branding-provider';
 import { OnlineGate } from '@/app/components/connectivity/online-gate';
 import { SwUpdateListener } from '@/app/components/connectivity/sw-update-listener';
 import { BackupCodesDialogProvider } from '@/app/features/settings/account/components/backup-codes-dialog-provider';
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
+import { useSessionUser } from '@/app/hooks/use-session-user';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
 import { i18n } from '@/lib/i18n/i18n';
 import { SiteUrlProvider } from '@/lib/site-url-context';
@@ -23,7 +23,7 @@ import './locals.css';
 /** Dev-only probe: marks the end of the session handshake (the one request
  * every auth-gated read waits on). */
 function ColdLoadProbe() {
-  const { isLoading } = useConvexAuth();
+  const { isLoading } = useSessionUser();
   useEffect(() => {
     if (!isLoading) markColdLoad('session-resolved');
   }, [isLoading]);

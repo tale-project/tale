@@ -20,7 +20,7 @@ interface UploadErrorData {
  * Duck-type the structured `data` off a Convex error. Avoids
  * `instanceof BackendError` because Vite HMR / chunk splitting can produce
  * multiple copies of the class, breaking the prototype check (same rationale
- * as `isStructuredConvexError`).
+ * as `isStructuredBackendError`).
  */
 function readUploadErrorData(err: unknown): UploadErrorData | undefined {
   if (err == null || typeof err !== 'object' || !('data' in err)) {

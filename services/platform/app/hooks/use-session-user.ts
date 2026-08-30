@@ -46,7 +46,7 @@ export function useAuth() {
  * answers `currentUser` on the session cookie alone, so there is nothing to
  * hand-shake and nothing to wait for beyond that one request.
  */
-export function useConvexAuth(): {
+export function useSessionUser(): {
   isLoading: boolean;
   isAuthenticated: boolean;
 } {

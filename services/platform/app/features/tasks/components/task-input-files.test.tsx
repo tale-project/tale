@@ -20,12 +20,12 @@ const mocks = vi.hoisted(() => ({
   }>,
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: mocks.documents }),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: mocks.documents }),
 }));
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({ mutateAsync: vi.fn() }),
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => ({ mutateAsync: vi.fn() }),
 }));
 
 vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({

@@ -1,5 +1,5 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 export function useSetNotificationPreferences() {
-  return useConvexMutation('collab/preferences:setNotificationPreferences');
+  return useBackendMutation('collab/preferences:setNotificationPreferences');
 }

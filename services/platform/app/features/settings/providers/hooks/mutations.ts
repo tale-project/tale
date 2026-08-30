@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 import { providerCatalogsQueryKey } from './queries';
 
@@ -18,24 +18,24 @@ import { providerCatalogsQueryKey } from './queries';
 
 /** Create one credential (api-key / env / subscription-broker). */
 export function useCreateCredential() {
-  return useConvexAction('provider_credentials/actions:createCredential');
+  return useBackendAction('provider_credentials/actions:createCredential');
 }
 
 /** Patch one credential: name, allowlist, status, default flag, or secret. */
 export function useUpdateCredential() {
-  return useConvexAction('provider_credentials/actions:updateCredential');
+  return useBackendAction('provider_credentials/actions:updateCredential');
 }
 
 /** Delete one credential. Deleting the default leaves the pair without one. */
 export function useDeleteCredential() {
-  return useConvexMutation('provider_credentials/mutations:deleteCredential', {
+  return useBackendMutation('provider_credentials/mutations:deleteCredential', {
     errorToast: false,
   });
 }
 
 /** Make one credential the default of its (org, provider) pair. */
 export function useSetDefaultCredential() {
-  return useConvexMutation(
+  return useBackendMutation(
     'provider_credentials/mutations:setDefaultCredential',
     { errorToast: false },
   );
@@ -44,7 +44,7 @@ export function useSetDefaultCredential() {
 /** Force-refresh the live-source catalogs, then refetch the listing. */
 export function useRefreshProviderCatalogs(organizationId: string) {
   const queryClient = useQueryClient();
-  return useConvexAction(
+  return useBackendAction(
     'lib/providers/catalog_actions:refreshProviderCatalogs',
     {
       onSuccess: () =>

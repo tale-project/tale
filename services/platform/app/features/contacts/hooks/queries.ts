@@ -1,19 +1,19 @@
 import { useMemo } from 'react';
 
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 
 export type Contact = ContactDoc;
 
 export function useApproxContactCount(organizationId: string) {
-  return useConvexQuery('contacts/queries:approxCountContacts', {
+  return useBackendQuery('contacts/queries:approxCountContacts', {
     organizationId,
   });
 }
 
 export function useContacts(organizationId: string) {
-  const { data, isLoading } = useConvexQuery('contacts/queries:listContacts', {
+  const { data, isLoading } = useBackendQuery('contacts/queries:listContacts', {
     organizationId,
   });
 

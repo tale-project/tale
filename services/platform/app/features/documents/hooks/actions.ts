@@ -1,13 +1,13 @@
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 
 export function useRetryRagIndexing() {
-  return useConvexAction('documents/actions:retryRagIndexing');
+  return useBackendAction('documents/actions:retryRagIndexing');
 }
 
 export function useImportOneDriveFiles() {
-  return useConvexAction('onedrive/actions:importFiles');
+  return useBackendAction('onedrive/actions:importFiles');
 }
 
 export function useImportGoogleDriveFiles() {
-  return useConvexAction('google_drive/actions:importFiles');
+  return useBackendAction('google_drive/actions:importFiles');
 }

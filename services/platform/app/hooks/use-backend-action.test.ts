@@ -6,7 +6,7 @@ const { mockToast } = vi.hoisted(() => ({ mockToast: vi.fn() }));
 
 // The hook now resolves toast copy through i18n and reports the failing
 // function by name, so those collaborators are mocked exactly like the sibling
-// `use-convex-mutation` suite. Without them the hook cannot be called outside a
+// `use-backend-mutation` suite. Without them the hook cannot be called outside a
 // React render: `useTranslation` reaches for a context that does not exist.
 vi.mock('@/app/hooks/use-toast', () => ({
   toast: mockToast,
@@ -38,7 +38,7 @@ const { mockWriteRun, mockQueryClient, mockOrgId } = vi.hoisted(() => ({
   mockQueryClient: { invalidateQueries: vi.fn() },
   mockOrgId: { current: undefined as string | undefined },
 }));
-vi.mock('@/app/lib/backend/convex-adapters', () => ({
+vi.mock('@/app/lib/backend/adapters', () => ({
   WRITE_ADAPTERS: { 'fake:write': { run: mockWriteRun } },
   activeOrganizationId: () => mockOrgId.current,
   runAdapted: (run: () => Promise<unknown>) => run(),
@@ -46,7 +46,7 @@ vi.mock('@/app/lib/backend/convex-adapters', () => ({
 
 import { useMutation } from '@tanstack/react-query';
 
-import { useConvexAction } from './use-convex-action';
+import { useBackendAction } from './use-backend-action';
 
 /** A row that exists only in this file's stub registry — the
  *  wrapper's own wiring is what these tests cover, not a shipped
@@ -54,27 +54,27 @@ import { useConvexAction } from './use-convex-action';
 const FAKE_ROW = 'fake:write' as ActionName;
 
 const mockUseMutation = vi.mocked(useMutation);
-const actionName = 'items:process' as Parameters<typeof useConvexAction>[0];
+const actionName = 'items:process' as Parameters<typeof useBackendAction>[0];
 
-describe('useConvexAction', () => {
+describe('useBackendAction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('returns a mutation result object with mutateAsync', () => {
-    const result = useConvexAction(actionName);
+    const result = useBackendAction(actionName);
     expect(result).toHaveProperty('mutateAsync');
     expect(result).toHaveProperty('mutate');
     expect(result).toHaveProperty('isPending');
   });
 
   it('returns isPending as false initially', () => {
-    const result = useConvexAction(actionName);
+    const result = useBackendAction(actionName);
     expect(result.isPending).toBe(false);
   });
 
   it('refuses, NAMED, when the action has no backend row', async () => {
-    useConvexAction(actionName);
+    useBackendAction(actionName);
     const options = mockUseMutation.mock.calls[0]?.[0];
     expect(options).toHaveProperty('mutationFn');
     await expect(
@@ -88,7 +88,7 @@ describe('useConvexAction', () => {
     const userOnSuccess = vi.fn();
     const userOnError = vi.fn();
     const userOnSettled = vi.fn();
-    useConvexAction(actionName, {
+    useBackendAction(actionName, {
       onSuccess: userOnSuccess,
       onError: userOnError,
       onSettled: userOnSettled,
@@ -109,10 +109,10 @@ describe('useConvexAction', () => {
   });
 });
 
-// #2935 gave `useConvexAction` the same error-toast machinery
-// `useConvexMutation` already had, but none of it was covered. These mirror
+// #2935 gave `useBackendAction` the same error-toast machinery
+// `useBackendMutation` already had, but none of it was covered. These mirror
 // the sibling suite so the two hooks cannot drift apart silently.
-describe('useConvexAction error toast', () => {
+describe('useBackendAction error toast', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -126,7 +126,7 @@ describe('useConvexAction error toast', () => {
   }
 
   it('shows a destructive toast by default so a failed action never lingers silently', () => {
-    useConvexAction(actionName);
+    useBackendAction(actionName);
     getRegisteredOnError()(new Error('boom'));
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({ variant: 'destructive' }),
@@ -134,13 +134,13 @@ describe('useConvexAction error toast', () => {
   });
 
   it('suppresses the toast when errorToast is false', () => {
-    useConvexAction(actionName, { errorToast: false });
+    useBackendAction(actionName, { errorToast: false });
     getRegisteredOnError()(new Error('boom'));
     expect(mockToast).not.toHaveBeenCalled();
   });
 
   it('uses the provided title and description', () => {
-    useConvexAction(actionName, {
+    useBackendAction(actionName, {
       errorToast: { title: 'Run failed', description: (e) => e.message },
     });
     getRegisteredOnError()(new Error('disk full'));
@@ -154,7 +154,7 @@ describe('useConvexAction error toast', () => {
   });
 });
 
-describe('useConvexAction adapter lane', () => {
+describe('useBackendAction adapter lane', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockOrgId.current = 'org-1';
@@ -163,7 +163,7 @@ describe('useConvexAction adapter lane', () => {
   it('routes mutationFn through the adapter with the route org', async () => {
     mockWriteRun.mockResolvedValue({ created: true });
 
-    useConvexAction(FAKE_ROW);
+    useBackendAction(FAKE_ROW);
 
     const options = mockUseMutation.mock.calls[0]?.[0];
     await expect(

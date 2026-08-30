@@ -22,7 +22,7 @@ import { memo, useState } from 'react';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
@@ -196,7 +196,7 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
 
   // For audio/video attachments in sent messages, fetch the transcript via
   // the existing plural query (skip when not media to avoid subscriptions).
-  const { data: audioMetadataList } = useConvexQuery(
+  const { data: audioMetadataList } = useBackendQuery(
     'file_metadata/queries:getByStorageIds',
     isMedia && organizationId
       ? { organizationId, storageIds: [attachment.fileId] }

@@ -5,7 +5,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
 
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useToast } from '@/app/hooks/use-toast';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { authClient } from '@/lib/auth-client';
@@ -34,7 +34,7 @@ export function useDeleteOrganization() {
   const { toast } = useToast();
 
   const { organizations: userOrgs } = useUserOrganizationsWithDetails();
-  const prepareOrganizationDeletion = useConvexMutation(
+  const prepareOrganizationDeletion = useBackendMutation(
     'organizations/delete_cleanup:prepareOrganizationDeletion',
   );
 

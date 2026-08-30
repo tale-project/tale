@@ -25,12 +25,12 @@ const generateBlobUpload = vi
   .mockResolvedValue({ url: 'https://upload.test/url', method: 'POST' });
 const saveFileMetadata = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({ mutateAsync: generateBlobUpload }),
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: () => ({ mutateAsync: generateBlobUpload }),
 }));
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({ mutateAsync: saveFileMetadata }),
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => ({ mutateAsync: saveFileMetadata }),
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({

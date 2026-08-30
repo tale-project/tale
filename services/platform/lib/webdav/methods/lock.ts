@@ -1,6 +1,6 @@
 import { anyApi } from 'convex/server';
 
-import { convexErrorCode } from '../errors';
+import { backendErrorCode } from '../errors';
 import { buildDavPath, lockKeyFromParsed } from '../paths';
 import {
   WEBDAV_MAX_XML_BODY,
@@ -167,7 +167,7 @@ export async function handleLock(
       timeoutMs: timeoutSec * 1000,
     });
   } catch (err) {
-    const code = convexErrorCode(err);
+    const code = backendErrorCode(err);
     if (code === 'LOCKED') {
       return {
         status: 423,

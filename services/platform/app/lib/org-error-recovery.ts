@@ -31,14 +31,14 @@
 
 import type { QueryClient } from '@tanstack/react-query';
 
-import { convexErrorCode } from '@/app/hooks/use-action-query';
+import { backendErrorCode } from '@/app/hooks/use-action-query';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
 import { authClient } from '@/lib/auth-client';
 
 /** True when a query failed because its organization no longer exists. */
 export function isDeadOrgError(error: unknown): boolean {
-  return convexErrorCode(error) === 'ORG_NOT_FOUND';
+  return backendErrorCode(error) === 'ORG_NOT_FOUND';
 }
 
 /**

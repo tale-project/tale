@@ -14,7 +14,7 @@ import {
   TOPIC_MAX_LENGTH,
 } from '@/convex/knowledge_entries/constants';
 import { useT } from '@/lib/i18n/client';
-import { convexErrorCode } from '@/lib/utils/convex-error';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useUpdateKnowledgeEntry } from '../hooks/mutations';
 import type { KnowledgeEntryItem } from '../hooks/queries';
@@ -80,7 +80,7 @@ export function EditKnowledgeEntryDialog({
         onError: (error) => {
           console.error('Failed to update knowledge entry:', error);
           const isDuplicate =
-            convexErrorCode(error) === 'KNOWLEDGE_ENTRY_DUPLICATE';
+            backendErrorCode(error) === 'KNOWLEDGE_ENTRY_DUPLICATE';
           toast({
             title: isDuplicate
               ? t('toast.addErrorDuplicate')

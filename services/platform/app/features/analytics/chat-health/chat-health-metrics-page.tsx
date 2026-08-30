@@ -22,7 +22,7 @@ import {
 import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { MetricsSection } from '@/app/components/metrics/metrics-section';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
@@ -572,7 +572,7 @@ export function ChatHealthMetricsPage({
     data: health,
     isLoading: healthLoading,
     error,
-  } = useConvexQuery(
+  } = useBackendQuery(
     'chat/messages:getOrgChatHealth',
     { organizationId, periodDays },
     { enabled: !!organizationId },
@@ -580,7 +580,7 @@ export function ChatHealthMetricsPage({
   // Both queries sit behind the same admin gate, so a denial fails them
   // together; a lone guardrails hiccup degrades to an empty section instead of
   // failing the page.
-  const { data: guardrails, isLoading: guardrailsLoading } = useConvexQuery(
+  const { data: guardrails, isLoading: guardrailsLoading } = useBackendQuery(
     'chat_filter_events/queries:getGuardrailStats',
     { organizationId, periodDays },
     { enabled: !!organizationId },

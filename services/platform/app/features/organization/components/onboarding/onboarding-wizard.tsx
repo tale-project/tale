@@ -17,8 +17,8 @@ import { Wizard } from '@/app/components/ui/wizard/wizard';
 import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { UserButton } from '@/app/components/user-button';
-import { useAuth } from '@/app/hooks/use-convex-auth';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { useT } from '@/lib/i18n/client';
 
 import { AccountStep } from './steps/account-step';
@@ -50,7 +50,7 @@ export function OnboardingWizard({
   const { t } = useT('onboarding');
   const { t: tCommon } = useT('common');
 
-  const setOnboardingCompleted = useConvexMutation(
+  const setOnboardingCompleted = useBackendMutation(
     'user_preferences/mutations:setOnboardingCompleted',
   );
 

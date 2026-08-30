@@ -55,7 +55,7 @@ import {
   type CodeRunner,
 } from '../../lib/engine/core/runner';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm';
-import { convexErrorCode } from '../../lib/utils/convex-error';
+import { backendErrorCode } from '../../lib/utils/backend-error';
 import { lockKeyFromParsed } from '../../lib/webdav/paths';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
@@ -134,7 +134,7 @@ const DOCUMENTS_NAMESPACE = 'documents' as const;
  * around. Anything uncoded is rethrown as itself.
  */
 function translateStoreFailure(error: unknown): never {
-  switch (convexErrorCode(error)) {
+  switch (backendErrorCode(error)) {
     case 'LEGAL_HOLD_ACTIVE':
       throw new WebdavStoreError(
         'legal-hold',

@@ -1,5 +1,5 @@
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import type { ErasureStatus } from '@/convex/governance/erasure_constants';
 
 export function useListErasureRequests(args: {
@@ -23,7 +23,7 @@ export function useListErasureRequests(args: {
 }
 
 export function useGetErasureRequest(requestId: string | undefined) {
-  return useConvexQuery(
+  return useBackendQuery(
     'governance/erasure_queries:getErasureRequest',
     requestId ? { requestId } : 'skip',
   );
@@ -38,7 +38,7 @@ export function useGetErasureRequest(requestId: string | undefined) {
 export function useOrgMembersForErasurePicker(
   organizationId: string | undefined,
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'governance/legal_hold_queries:listOrgMembersForPicker',
     organizationId ? { organizationId } : 'skip',
   );

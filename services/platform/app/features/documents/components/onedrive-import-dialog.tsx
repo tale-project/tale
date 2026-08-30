@@ -4,7 +4,7 @@ import { useMemo, useCallback, useState, useEffect } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -66,10 +66,10 @@ export function OneDriveImportDialog({
     useImportOneDriveFiles();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isBusy = isImporting || isSubmitting;
-  const { mutateAsync: listOneDriveFiles } = useConvexAction(
+  const { mutateAsync: listOneDriveFiles } = useBackendAction(
     'onedrive/actions:listFiles',
   );
-  const { mutateAsync: listSharePointFiles } = useConvexAction(
+  const { mutateAsync: listSharePointFiles } = useBackendAction(
     'onedrive/actions:listSharePointFiles',
   );
 

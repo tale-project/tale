@@ -4,7 +4,7 @@
  * `instanceof`, so we check shape instead. Shared by the governance error
  * mappers (legal-hold, data-subject-requests).
  */
-export function readConvexErrorData(
+export function readBackendErrorData(
   err: unknown,
 ): Record<string, unknown> | undefined {
   if (err == null || typeof err !== 'object') return undefined;

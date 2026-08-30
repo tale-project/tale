@@ -10,7 +10,7 @@
 
 import { useMemo } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { parseAutomationPresentation } from '@/lib/shared/schemas/automation_presentation';
 
 export interface InboxAutomationSummary {
@@ -33,7 +33,7 @@ export function useInboxAvailability(organizationId: string): {
   hasInbox: boolean;
   inboxAutomations: InboxAutomationSummary[];
 } {
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'automations/queries:listAutomations',
     organizationId ? { organizationId, includeProjectBound: true } : 'skip',
   );

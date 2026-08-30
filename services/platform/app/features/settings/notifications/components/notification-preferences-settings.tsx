@@ -9,7 +9,7 @@ import { SettingsToggleRow } from '@/app/features/settings/components/settings-t
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { convexErrorMessage } from '@/lib/utils/convex-error';
+import { backendErrorMessage } from '@/lib/utils/backend-error';
 
 import { useSetNotificationPreferences } from '../hooks/mutations';
 import { useNotificationPreferences } from '../hooks/queries';
@@ -97,7 +97,7 @@ function NotificationPreferencesSettingsView({
       } catch (err) {
         toast({
           title: t('saveFailed'),
-          description: convexErrorMessage(err, t('saveFailed')),
+          description: backendErrorMessage(err, t('saveFailed')),
           variant: 'destructive',
         });
       }

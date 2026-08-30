@@ -40,7 +40,7 @@ import {
   useProjectFolders,
 } from '@/app/features/projects/hooks/queries';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -94,10 +94,10 @@ export function SettingsUploadsPanel({
   const { mutateAsync: createFolder } = useCreateFolder();
   const { mutateAsync: deleteDocument, isPending: isDeletingDocument } =
     useDeleteDocument();
-  const { mutateAsync: generateUploadUrl } = useConvexMutation(
+  const { mutateAsync: generateUploadUrl } = useBackendMutation(
     'files/mutations:generateUploadUrl',
   );
-  const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
+  const { mutateAsync: createDocumentFromUpload } = useBackendMutation(
     'documents/mutations:createDocumentFromUpload',
   );
   const [uploading, setUploading] = useState(false);

@@ -15,7 +15,7 @@ import {
   type MetricsPeriodDays,
 } from '@/app/components/metrics/metrics-period';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
@@ -237,7 +237,7 @@ export function UsageMetricsPage({
   const [model, setModel] = useState<string | undefined>(undefined);
   const [provider, setProvider] = useState<string | undefined>(undefined);
 
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'governance/queries:getOrgUsageMetrics',
     {
       organizationId,

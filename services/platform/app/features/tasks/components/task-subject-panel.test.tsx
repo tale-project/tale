@@ -19,16 +19,16 @@ const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: (_query: unknown, args: unknown) => {
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (_query: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined };
     return { data: mocks.run };
   },
 }));
 
-vi.mock('@/app/hooks/use-convex-action', () => {
+vi.mock('@/app/hooks/use-backend-action', () => {
   return {
-    useConvexAction: (action: unknown) => ({
+    useBackendAction: (action: unknown) => ({
       mutateAsync:
         action === 'tasks/public_actions:cancelTaskWorkflow'
           ? mocks.cancel

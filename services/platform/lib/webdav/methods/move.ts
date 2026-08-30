@@ -1,6 +1,6 @@
 import { anyApi } from 'convex/server';
 
-import { convexErrorCode } from '../errors';
+import { backendErrorCode } from '../errors';
 import { checkCollectionDescendantLocks, checkResourceLock } from '../locks';
 import { buildDavPath, lockKeyFromParsed, parseDavPath } from '../paths';
 import type {
@@ -227,7 +227,7 @@ async function doMoveOrCopy(
       body: null,
     };
   } catch (err) {
-    const code = convexErrorCode(err);
+    const code = backendErrorCode(err);
     if (code === 'LEGAL_HOLD_ACTIVE') {
       // Overwrite trashed a held destination (MOVE/COPY over an existing
       // doc/folder) — refuse. 403, not 423: 423 implies a retriable WebDAV

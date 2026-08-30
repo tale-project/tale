@@ -21,7 +21,7 @@ import {
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import type {
@@ -63,7 +63,7 @@ function PageRow({
   const { formatDate } = useFormatDate();
   const [chunks, setChunks] = useState<CrawlerChunk[] | null>(null);
 
-  const { mutate: fetchChunks, isPending } = useConvexAction(
+  const { mutate: fetchChunks, isPending } = useBackendAction(
     'websites/actions:fetchChunks',
     {
       onSuccess: (data) => setChunks(data.chunks),
@@ -200,7 +200,7 @@ export function WebsitePagesDialog({
 
   const isSearchMode = activeQuery.length > 0;
 
-  const { mutate: fetchPages, isPending } = useConvexAction(
+  const { mutate: fetchPages, isPending } = useBackendAction(
     'websites/actions:fetchPages',
     {
       errorToast: false,
@@ -220,7 +220,7 @@ export function WebsitePagesDialog({
     },
   );
 
-  const { mutate: searchContent } = useConvexAction(
+  const { mutate: searchContent } = useBackendAction(
     'websites/actions:searchContent',
     {
       errorToast: false,

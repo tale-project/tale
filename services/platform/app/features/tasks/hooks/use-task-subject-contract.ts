@@ -3,7 +3,7 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import {
   automationDisplayDescription,
   automationDisplayName,
@@ -72,7 +72,7 @@ export function useTaskContractAutomations(
 ): ContractAutomationEntry[] {
   // '' means "not known yet" (empty board, modal still loading) — skip rather
   // than fire a member-gated query for no organization.
-  const orgQuery = useConvexQuery(
+  const orgQuery = useBackendQuery(
     'automations/queries:listAutomations',
     organizationId === ''
       ? 'skip'
@@ -83,7 +83,7 @@ export function useTaskContractAutomations(
           ...(projectId === undefined ? { includeProjectBound: true } : {}),
         },
   );
-  const projectQuery = useConvexQuery(
+  const projectQuery = useBackendQuery(
     'automations/queries:listAutomations',
     organizationId === '' || projectId === undefined
       ? 'skip'

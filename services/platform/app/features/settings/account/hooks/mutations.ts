@@ -1,9 +1,9 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 export function useUpdateUserName() {
-  return useConvexMutation('users/mutations:updateUserName');
+  return useBackendMutation('users/mutations:updateUserName');
 }
 
 export function useUpdatePassword() {
-  return useConvexMutation('users/mutations:updateUserPassword');
+  return useBackendMutation('users/mutations:updateUserPassword');
 }

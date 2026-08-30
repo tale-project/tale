@@ -13,8 +13,8 @@ import { Text } from '@tale/ui/text';
 import { LoaderIcon } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback, useTransition } from 'react';
 
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 

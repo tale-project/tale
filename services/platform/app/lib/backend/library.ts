@@ -8,12 +8,12 @@
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 
-import { backendFetch, backendUrl } from './api-client';
 import type {
   ActionQueryAdapter,
   AdapterContext,
   WriteAdapter,
-} from './convex-adapters';
+} from './adapters';
+import { backendFetch, backendUrl } from './api-client';
 
 type AgentListingResult = ReturnsOf<'agents/actions:listAgents'>;
 type AgentDocumentResult = ReturnsOf<'agents/actions:getAgent'>;

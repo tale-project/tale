@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 
 import type { DocumentComparisonResult } from '../components/document-comparison/comparison-types';
 
@@ -29,7 +29,7 @@ function isDocumentComparisonResult(
 export function useDocumentComparison({
   organizationId,
 }: UseDocumentComparisonOptions) {
-  const { mutateAsync: compareAction } = useConvexAction(
+  const { mutateAsync: compareAction } = useBackendAction(
     'documents/compare_documents:compareDocuments',
   );
   const [state, setState] = useState<ComparisonState>({

@@ -9,8 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { convexQuery } = vi.hoisted(() => ({ convexQuery: vi.fn() }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: (ref: unknown, args: unknown) => convexQuery(ref, args),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (ref: unknown, args: unknown) => convexQuery(ref, args),
 }));
 
 import { useInboxAvailability } from './use-inbox-availability';

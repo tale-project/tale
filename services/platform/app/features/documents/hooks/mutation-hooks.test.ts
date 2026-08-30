@@ -13,8 +13,8 @@ const mockMutationResult = {
   reset: vi.fn(),
 };
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => mockMutationResult,
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => mockMutationResult,
 }));
 
 vi.mock('@/convex/_generated/api', () => ({

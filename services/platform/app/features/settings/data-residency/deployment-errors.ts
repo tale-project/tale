@@ -19,7 +19,7 @@ export interface DeploymentErrorMapping {
   canForceOverwrite: boolean;
 }
 
-function readConvexErrorData(
+function readBackendErrorData(
   err: unknown,
 ): Record<string, unknown> | undefined {
   if (err == null || typeof err !== 'object') return undefined;
@@ -57,7 +57,7 @@ export function mapDeploymentError(
   err: unknown,
   t: Translator,
 ): DeploymentErrorMapping {
-  const data = readConvexErrorData(err);
+  const data = readBackendErrorData(err);
   const code = pickString(data, 'code');
   const serverMessage = pickString(data, 'message');
   const fallback =

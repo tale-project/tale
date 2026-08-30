@@ -1,10 +1,10 @@
-import { BackendError } from '@/app/lib/backend/backend-error';
-import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
 import {
   activeOrganizationId,
   READ_ADAPTERS,
-} from '@/app/lib/backend/convex-adapters';
-import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
+} from '@/app/lib/backend/adapters';
+import { BackendError } from '@/app/lib/backend/backend-error';
+import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
+import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 import type { RouterContext } from '@/app/router';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
 
@@ -42,7 +42,7 @@ export function ensureConvexQuery<Name extends QueryName>(
   }
   // A render-gating read with no row cannot degrade quietly: the route would
   // paint its denied/empty state as if that were the answer.
-  throw new ConvexRetiredError(name);
+  throw new MissingBackendRowError(name);
 }
 
 type GovernancePolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];

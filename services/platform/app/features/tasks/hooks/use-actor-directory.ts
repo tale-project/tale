@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useProjectAgents } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -303,7 +303,7 @@ export function useAssignableActors(
 ) {
   const directory = useActorDirectory(organizationId, projectId);
   const { members } = directory;
-  const scope = useConvexQuery(
+  const scope = useBackendQuery(
     'projects/queries:listAccessibleUserIds',
     projectId ? { organizationId, projectId } : 'skip',
   );

@@ -9,7 +9,7 @@
  * a toast.
  */
 
-import { pickString, readConvexErrorData } from '../convex-error-data';
+import { pickString, readBackendErrorData } from '../backend-error-data';
 
 type Translator = (key: string, options?: Record<string, unknown>) => string;
 
@@ -48,7 +48,7 @@ export function mapLegalHoldError(
   err: unknown,
   t: Translator,
 ): LegalHoldErrorMapping {
-  const data = readConvexErrorData(err);
+  const data = readBackendErrorData(err);
   const code = pickString(data, 'code');
   const fallbackTitle = t('legalHold.errors.generic.title');
   const fallbackDescription =

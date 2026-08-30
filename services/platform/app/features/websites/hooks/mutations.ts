@@ -1,21 +1,21 @@
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 
 export function useCreateWebsite() {
-  return useConvexAction('websites/actions:createWebsite');
+  return useBackendAction('websites/actions:createWebsite');
 }
 
 export function useDeleteWebsite() {
-  return useConvexAction('websites/actions:deleteWebsite');
+  return useBackendAction('websites/actions:deleteWebsite');
 }
 
 export function useUpdateWebsite() {
-  return useConvexAction('websites/actions:updateWebsite');
+  return useBackendAction('websites/actions:updateWebsite');
 }
 
 export function useSyncWebsiteStatuses() {
-  return useConvexAction('websites/actions:syncStatuses');
+  return useBackendAction('websites/actions:syncStatuses');
 }
 
 export function useResumeScanning() {
-  return useConvexAction('websites/actions:resumeScanning');
+  return useBackendAction('websites/actions:resumeScanning');
 }

@@ -16,8 +16,8 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexClient } from '@/app/hooks/use-convex-client';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -109,8 +109,8 @@ export function AssigneePicker({
     () => taskSubjectEntries(automations, locale),
     [automations, locale],
   );
-  const client = useConvexClient();
-  const cancelWorkflowRun = useConvexAction(
+  const client = useBackendClient();
+  const cancelWorkflowRun = useBackendAction(
     'tasks/public_actions:cancelTaskWorkflow',
   );
   const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();

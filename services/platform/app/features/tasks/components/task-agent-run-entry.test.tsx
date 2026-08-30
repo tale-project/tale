@@ -62,8 +62,8 @@ const { state } = vi.hoisted(() => ({
   state: { run: undefined as unknown, op: undefined as unknown },
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: (_func: unknown, args: unknown) => {
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (_func: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined };
     if (typeof args === 'object' && args !== null && 'taskId' in args) {
       return { data: state.run };

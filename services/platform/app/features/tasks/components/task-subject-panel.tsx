@@ -38,8 +38,8 @@ import {
   projectRun,
   readRunCursorNode,
 } from '@/app/features/automations/lib/run-view';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { toast } from '@/app/hooks/use-toast';
 import { BackendError } from '@/app/lib/backend/backend-error';
 import { automationSlugToParam } from '@/lib/automations/slug';
@@ -192,7 +192,7 @@ export function TaskSubjectPanel({
       ? resolveActor('user', task.reviewerUserId).name
       : undefined;
 
-  const runQuery = useConvexQuery('automations/queries:getLiveRunForTask', {
+  const runQuery = useBackendQuery('automations/queries:getLiveRunForTask', {
     organizationId,
     projectId: task.projectId,
     taskId: task._id,
@@ -212,12 +212,15 @@ export function TaskSubjectPanel({
     task.externalId !== '';
   const hasFiles = folderBound && task.hasFiles === true;
 
-  const startRun = useConvexAction('tasks/public_actions:startTaskWorkflow', {
+  const startRun = useBackendAction('tasks/public_actions:startTaskWorkflow', {
     errorToast: false,
   });
-  const cancelRun = useConvexAction('tasks/public_actions:cancelTaskWorkflow', {
-    errorToast: false,
-  });
+  const cancelRun = useBackendAction(
+    'tasks/public_actions:cancelTaskWorkflow',
+    {
+      errorToast: false,
+    },
+  );
   const updateStatus = useUpdateTaskStatus();
   const addComment = useAddTaskComment();
 

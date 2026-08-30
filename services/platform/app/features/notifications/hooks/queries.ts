@@ -1,5 +1,5 @@
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 
 export type NotificationsFilter = 'all' | 'unread';
 
@@ -19,7 +19,7 @@ export function useNotificationsList(organizationId: string) {
 }
 
 export function useNotificationsUnreadCount(organizationId: string) {
-  return useConvexQuery('notifications/queries:unreadCount', {
+  return useBackendQuery('notifications/queries:unreadCount', {
     organizationId,
   });
 }

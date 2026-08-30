@@ -1,6 +1,6 @@
 import { anyApi } from 'convex/server';
 
-import { convexErrorCode } from '../errors';
+import { backendErrorCode } from '../errors';
 import { checkResourceLock } from '../locks';
 import { rewriteStorageOrigin } from '../paths';
 import {
@@ -286,7 +286,7 @@ export async function handlePut(
       .catch((e: unknown) =>
         console.warn('[webdav] PUT orphan-blob cleanup failed', e),
       );
-    const code = convexErrorCode(err);
+    const code = backendErrorCode(err);
     if (code === 'LEGAL_HOLD_ACTIVE') {
       // Overwrite of a held document — refuse. 403, not 423 (a legal hold is
       // not a client-clearable WebDAV lock). The orphan blob was reclaimed

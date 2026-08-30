@@ -1,6 +1,6 @@
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useReactQuery } from '@/app/hooks/use-react-query';
 import type { ItemOf } from '@/app/lib/backend/contract';
@@ -8,7 +8,7 @@ import type { ItemOf } from '@/app/lib/backend/contract';
 export type Document = ItemOf<'documents/queries:listDocuments'>;
 
 export function useApproxDocumentCount(organizationId: string) {
-  return useConvexQuery('documents/queries:approxCountDocuments', {
+  return useBackendQuery('documents/queries:approxCountDocuments', {
     organizationId,
   });
 }
@@ -19,7 +19,7 @@ export function useApproxDocumentCount(organizationId: string) {
  * per-user volume quota applies — callers then render no meter.
  */
 export function useUploadUsage(organizationId: string) {
-  return useConvexQuery('documents/queries:getUploadUsage', {
+  return useBackendQuery('documents/queries:getUploadUsage', {
     organizationId,
   });
 }
@@ -30,7 +30,7 @@ export function useCloudImportAuthorizationStatus(
   enabled: boolean,
   provider: 'onedrive' | 'google-drive' = 'onedrive',
 ) {
-  return useConvexQuery(
+  return useBackendQuery(
     'cloud_import/queries:getAuthorizationStatus',
     enabled ? { organizationId, provider } : 'skip',
   );
@@ -40,7 +40,7 @@ export function useDocuments(
   organizationId: string,
   options?: { enabled?: boolean },
 ) {
-  const { data, isLoading } = useConvexQuery(
+  const { data, isLoading } = useBackendQuery(
     'documents/queries:listDocuments',
     options?.enabled === false ? 'skip' : { organizationId },
   );
@@ -58,7 +58,7 @@ export function useDocuments(
  */
 export function useDocument(documentId: string | undefined) {
   const organizationId = useOrganizationId();
-  return useConvexQuery(
+  return useBackendQuery(
     'documents/queries:getDocumentById',
     documentId && organizationId
       ? { documentId: documentId, organizationId }
@@ -69,7 +69,7 @@ export function useDocument(documentId: string | undefined) {
 /** Version list (current + historyFiles) for the History dialog. */
 export function useDocumentVersions(documentId: string | undefined) {
   const organizationId = useOrganizationId();
-  return useConvexQuery(
+  return useBackendQuery(
     'documents/queries:listDocumentVersions',
     documentId && organizationId
       ? { documentId: documentId, organizationId }
@@ -84,7 +84,7 @@ export function useDocumentByExternalItemId(
 ) {
   const organizationId = useOrganizationId();
   const enabled = options?.enabled !== false;
-  return useConvexQuery(
+  return useBackendQuery(
     'documents/queries:getDocumentByExternalItemId',
     enabled && externalItemId && organizationId
       ? {
@@ -98,7 +98,7 @@ export function useDocumentByExternalItemId(
 
 export function useFolder(folderId: string | undefined) {
   const organizationId = useOrganizationId();
-  return useConvexQuery(
+  return useBackendQuery(
     'folders/queries:getFolder',
     folderId && organizationId
       ? { folderId: folderId, organizationId }
@@ -107,7 +107,7 @@ export function useFolder(folderId: string | undefined) {
 }
 
 export function useFolders(organizationId: string, parentFolderId?: string) {
-  return useConvexQuery('folders/queries:listFolders', {
+  return useBackendQuery('folders/queries:listFolders', {
     organizationId,
     parentId: parentFolderId ? parentFolderId : undefined,
   });
@@ -118,7 +118,7 @@ export function useOneDriveFiles(
   folderId: string | undefined,
   enabled: boolean,
 ) {
-  const listOneDriveFiles = useConvexAction('onedrive/actions:listFiles');
+  const listOneDriveFiles = useBackendAction('onedrive/actions:listFiles');
 
   return useReactQuery({
     queryKey: ['onedrive-items', organizationId, folderId],
@@ -143,7 +143,7 @@ export function useGoogleDriveFiles(
   folderId: string | undefined,
   enabled: boolean,
 ) {
-  const listGoogleDriveFiles = useConvexAction(
+  const listGoogleDriveFiles = useBackendAction(
     'google_drive/actions:listFiles',
   );
 
@@ -166,7 +166,7 @@ export function useGoogleDriveFiles(
 }
 
 export function useSharePointSites(organizationId: string, enabled: boolean) {
-  const listSharePointSites = useConvexAction(
+  const listSharePointSites = useBackendAction(
     'onedrive/actions:listSharePointSites',
   );
 
@@ -190,7 +190,7 @@ export function useSharePointDrives(
   siteId: string | undefined,
   enabled: boolean,
 ) {
-  const listSharePointDrives = useConvexAction(
+  const listSharePointDrives = useBackendAction(
     'onedrive/actions:listSharePointDrives',
   );
 
@@ -240,7 +240,7 @@ export function useSharePointFiles(
   folderId: string | undefined,
   enabled: boolean,
 ) {
-  const listSharePointFiles = useConvexAction(
+  const listSharePointFiles = useBackendAction(
     'onedrive/actions:listSharePointFiles',
   );
 
@@ -271,7 +271,7 @@ export function useSharePointFiles(
  * review dialog fetches it.
  */
 export function usePendingDocumentRecordReview(documentId: string | undefined) {
-  return useConvexQuery(
+  return useBackendQuery(
     'documents/records:getPendingDocumentRecordReview',
     documentId ? { documentId: documentId } : 'skip',
   );
@@ -283,7 +283,7 @@ export function usePendingDocumentRecordReview(documentId: string | undefined) {
  * the rule). Subscribed only while that dialog is open.
  */
 export function useEligibleDocumentReviewerIds(documentId: string) {
-  return useConvexQuery('documents/records:listEligibleDocumentReviewerIds', {
+  return useBackendQuery('documents/records:listEligibleDocumentReviewerIds', {
     documentId: documentId,
   });
 }
@@ -293,7 +293,7 @@ export function useEligibleDocumentReviewerIds(documentId: string) {
  * "changes requested by …" callout before a re-submit.
  */
 export function useLastDocumentRecordReview(documentId: string) {
-  return useConvexQuery('documents/records:getLastDocumentRecordReview', {
+  return useBackendQuery('documents/records:getLastDocumentRecordReview', {
     documentId: documentId,
   });
 }

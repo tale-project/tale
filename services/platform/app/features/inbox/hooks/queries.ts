@@ -1,5 +1,5 @@
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 
 /**
  * Paginated personal-notification stream (review requests, escalations, task
@@ -18,7 +18,7 @@ export function useMyNotificationsList(organizationId: string) {
 }
 
 export function useUnreadNotificationCount(organizationId: string) {
-  const { data } = useConvexQuery('collab/notifications:myUnreadCount', {
+  const { data } = useBackendQuery('collab/notifications:myUnreadCount', {
     organizationId,
   });
   return data ?? 0;

@@ -1,4 +1,4 @@
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
 /**
  * The calling user's sandbox env/secrets for the active org. Secrets are
@@ -6,7 +6,7 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
  * `undefined` while loading (the section's skeleton vs empty-state split).
  */
 export function useMyEnv(organizationId: string) {
-  const { data } = useConvexQuery('sandbox/user_env:listMyEnv', {
+  const { data } = useBackendQuery('sandbox/user_env:listMyEnv', {
     organizationId,
   });
   return data;

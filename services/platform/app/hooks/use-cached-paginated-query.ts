@@ -1,11 +1,6 @@
 import { useCallback } from 'react';
 
 import { useReactInfiniteQuery } from '@/app/hooks/use-react-query';
-import type {
-  ArgsOf,
-  PageItemOf,
-  PaginatedName,
-} from '@/app/lib/backend/contract';
 import {
   activeOrganizationId,
   PAGINATED_ADAPTERS,
@@ -13,8 +8,13 @@ import {
   runAdapted,
   type AdaptedPage,
   type AdaptedPaginatedOptions,
-} from '@/app/lib/backend/convex-adapters';
-import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
+} from '@/app/lib/backend/adapters';
+import type {
+  ArgsOf,
+  PageItemOf,
+  PaginatedName,
+} from '@/app/lib/backend/contract';
+import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 
 /** How far a listing has walked. Kept as the 0.4 vocabulary because every
  *  consumer branches on these four words. */
@@ -116,7 +116,7 @@ export function useCachedPaginatedQuery<Name extends PaginatedName>(
     options,
   );
   if (adapter === undefined && args !== 'skip') {
-    throw new ConvexRetiredError(name);
+    throw new MissingBackendRowError(name);
   }
   return adaptedResult;
 }

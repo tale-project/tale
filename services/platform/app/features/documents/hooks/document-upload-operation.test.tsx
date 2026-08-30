@@ -34,8 +34,8 @@ vi.mock('@/lib/utils/file-hash', () => ({
   calculateFileHash: (...args: unknown[]) => mocks.calculateFileHash(...args),
 }));
 
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: (reference: string) => {
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: (reference: string) => {
     const mutateAsync = {
       'files/blob_actions:generateBlobUpload': mocks.generateBlobUpload,
       'documents/record_actions:beginControlledDocumentReplacementUpload':
@@ -49,8 +49,8 @@ vi.mock('@/app/hooks/use-convex-action', () => ({
   },
 }));
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: (reference: string) => {
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: (reference: string) => {
     const mutateAsync = {
       'documents/mutations:createDocumentFromUpload':
         mocks.createDocumentFromUpload,

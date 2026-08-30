@@ -2,8 +2,8 @@ import { queryOptions } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
+import type { WriteAdapter } from './adapters';
 import { BackendApiError, backendFetch } from './api-client';
-import type { WriteAdapter } from './convex-adapters';
 import { backendKey } from './query-keys';
 
 /**
