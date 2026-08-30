@@ -21643,6 +21643,112 @@ async function checkMetricsSurface(
       opMissing.success,
     `op=${opView.success ? `${opView.data.op?.execId}/${opView.data.op?.status}/${opView.data.op?.modelRef}` : 'ERR'}, unknownRun=${opMissing.success ? 'null' : 'ERR'}`,
   );
+
+  // ---- the in-sandbox connectors bridge --------------------------------
+  // Everything authoritative comes from the TOKEN ROW: a container names a
+  // connector, never an org, a user, or a grant.
+  const { insertSessionToken } = await import('./domains/sandbox/sessions.ts');
+  const { createHash: sha256 } = await import('node:crypto');
+  const bridgeSessionId = 'bridge-conn-session';
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${bridgeSessionId}, 'active', 'user', ${`u:${orgId}`},
+      'itest:bridge', ${Date.now()}, ${Date.now() + 3_600_000}
+    )
+  `;
+  const bridgeToken = 'vk_itest_bridge_token';
+  await insertSessionToken(sql, {
+    organizationId: orgId,
+    sessionId: bridgeSessionId,
+    tokenHash: sha256('sha256').update(bridgeToken).digest('hex'),
+    scope: {
+      agentKind: 'external',
+      allowedModels: [],
+      connectorGrants: ['document'],
+      budgetCents: 0,
+      userId,
+    },
+    ttlMs: 3_600_000,
+  });
+  const bridge = (
+    route: string,
+    body: unknown,
+    token = bridgeToken,
+  ): Promise<Response> =>
+    fetch(`${base}/api/connectors/${route}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+  const unauthorized = await bridge('status', {}, 'vk_not_a_token');
+  const status = z
+    .object({
+      connectors: z.array(
+        z.object({ slug: z.string(), usable: z.boolean() }).loose(),
+      ),
+    })
+    .loose()
+    .safeParse(await (await bridge('status', {})).json());
+  const notGranted = z
+    .object({
+      status: z.string(),
+      blockers: z.array(z.object({ code: z.string() }).loose()),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await bridge('execute', { slug: 'github', operation: 'list' })
+      ).json(),
+    );
+  const unknownOp = z
+    .object({ status: z.string(), message: z.string() })
+    .loose()
+    .safeParse(
+      await (
+        await bridge('execute', { slug: 'document', operation: 'nope' })
+      ).json(),
+    );
+  const writeRefused = z
+    .object({
+      status: z.string(),
+      blockers: z.array(z.object({ code: z.string() }).loose()),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await bridge('execute', { slug: 'document', operation: 'create' })
+      ).json(),
+    );
+  record(
+    'connectors bridge: the token row is the authority',
+    // Only a transport failure is non-2xx; every decision is a 200 body the
+    // agent relays verbatim.
+    unauthorized.status === 401 &&
+      status.success &&
+      status.data.connectors[0]?.slug === 'document' &&
+      notGranted.success &&
+      notGranted.data.status === 'unavailable' &&
+      notGranted.data.blockers[0]?.code === 'not_granted' &&
+      unknownOp.success &&
+      unknownOp.data.status === 'invalid_args' &&
+      unknownOp.data.message.includes('nope') &&
+      // V1 is READ-ONLY: a write needs the approvals lane, and an async
+      // external turn has nobody to answer an approval card.
+      writeRefused.success &&
+      writeRefused.data.status === 'unavailable' &&
+      writeRefused.data.blockers[0]?.code === 'write_not_supported',
+    `unauth=${unauthorized.status} (want 401), status=${status.success ? status.data.connectors.map((row) => row.slug).join(',') : 'ERR'}, notGranted=${notGranted.success ? notGranted.data.blockers[0]?.code : 'ERR'}, unknownOp=${unknownOp.success ? unknownOp.data.status : 'ERR'}, write=${writeRefused.success ? writeRefused.data.blockers[0]?.code : 'ERR'}`,
+  );
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'destroyed'
+    WHERE session_id = ${bridgeSessionId}
+  `;
   await sql`
     UPDATE app.sandbox_sessions SET status = 'destroyed'
     WHERE session_id = ${logSessionId}

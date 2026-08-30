@@ -139,6 +139,32 @@ if [ -n "${BACKEND_UPSTREAM:-}" ]; then
 		log_skip
 		reverse_proxy ${BACKEND_UPSTREAM}
 	}
+	# The in-sandbox connectors bridge + the live-body host-call door. A
+	# container normally reaches these over the sandbox network, but the
+	# public path must follow the tools lane so a deployment that routes
+	# sandbox traffic through the proxy keeps working.
+	handle /api/connectors/execute {
+		log_skip
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /api/connectors/status {
+		log_skip
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /api/connectors/hostcall {
+		log_skip
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	# The connector OAuth2 consent flow (browser-facing) and the Slack
+	# Events Request URL (signature-authorized) — both live on the backend
+	# once it owns the connectors domain.
+	handle /api/connectors/oauth2/* {
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /api/connectors/slack/* {
+		log_skip
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
 	handle /api/automations/webhook/* {
 		log_skip
 		reverse_proxy ${BACKEND_UPSTREAM}

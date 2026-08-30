@@ -19,6 +19,7 @@ import {
 } from './domains/cloud_import/routes.ts';
 import { createCollabRoutes } from './domains/collab/routes.ts';
 import { createConnectorCredentialRoutes } from './domains/connector_credentials/routes.ts';
+import { createConnectorBridgeRoutes } from './domains/connectors/bridge-routes.ts';
 import { createConnectorOauthRoutes } from './domains/connectors/oauth-routes.ts';
 import { createSlackEventRoutes } from './domains/connectors/slack-events.ts';
 import { createContactRoutes } from './domains/contacts/routes.ts';
@@ -121,6 +122,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // In-sandbox workspace-tool dispatch (session-token bearer auth, not a
   // browser session) — the container-facing machine door.
   app.route('/api/tools', createToolDispatchRoutes({ sql: deps.sql }));
+  app.route('/api/connectors', createConnectorBridgeRoutes({ sql: deps.sql }));
   // Connector OAuth2 consent flow — browser-facing: `start` is
   // session-gated, `callback` is authorized by its single-use state row (the
   // vendor redirects the browser back with no cookie guarantee).

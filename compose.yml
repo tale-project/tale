@@ -467,6 +467,11 @@ services:
       # compose.dev.yml's DB_PASSWORD default so the opt-in profile boots on a
       # plain dev stack. Production always has a real .env (tale deploy).
       DATABASE_URL: postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}
+      # Where a sandbox CONTAINER reaches this backend: the in-sandbox
+      # connectors bridge and the live-body host-call door are served here
+      # once the cutover switch points at it. Unset ⇒ the convex origin, so
+      # an un-migrated stack keeps its existing bridge.
+      SANDBOX_HTTP_API_BASE_URL: ${BACKEND_UPSTREAM:+http://${BACKEND_UPSTREAM}}
     env_file:
       - path: .env
         required: false
@@ -486,8 +491,12 @@ services:
       options:
         max-size: '10m'
         max-file: '3'
+    # Dual-homed like `convex`: the in-sandbox connectors bridge reaches this
+    # api directly over the sandbox network (VK-authed), exactly as it reaches
+    # convex today.
     networks:
       - internal
+      - sandbox
 
   backend-worker:
     image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
@@ -502,6 +511,9 @@ services:
     environment:
       TALE_ROLE: worker
       DATABASE_URL: postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}
+      # The worker DISPATCHES connector bodies too (automation nodes), so it
+      # mints the same in-sandbox host-call URL the api does.
+      SANDBOX_HTTP_API_BASE_URL: ${BACKEND_UPSTREAM:+http://${BACKEND_UPSTREAM}}
     env_file:
       - path: .env
         required: false

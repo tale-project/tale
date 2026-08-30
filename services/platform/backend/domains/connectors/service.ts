@@ -1,5 +1,6 @@
 import type { Sql } from 'postgres';
 
+import { signHostcallToken } from '../../../convex/connectors/hostcall_token.ts';
 import {
   ingestEmails,
   ingestSentEmails,
@@ -7,6 +8,7 @@ import {
   querySyncCursor,
   syncMailbox,
 } from '../../../convex/conversations/sync_mailbox.ts';
+import { codeRunnerForSession } from '../../../convex/node_only/sandbox/engine_exec_runner.ts';
 import { loadConnectorDefinitions } from '../../../lib/connectors/catalog.ts';
 import {
   executeConnectorAction,
@@ -26,10 +28,12 @@ import {
   type WorkflowDocumentStore,
   type WorkflowTaskStore,
 } from '../../../lib/connectors/natives/index.ts';
+import type { PortableHostCall } from '../../../lib/connectors/portable-live.ts';
 import { registerConnector } from '../../../lib/connectors/registry.ts';
 import {
   hasCodeRunner,
   setCodeRunner,
+  type CodeRunner,
 } from '../../../lib/engine/core/runner.ts';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm.ts';
 import { createCtxShim } from '../../lib/convex-shim.ts';
@@ -307,6 +311,14 @@ export interface RunConnectorArgs {
   mode?: 'mock' | 'live';
   caller: ConnectorCaller;
   idempotencyKey?: string;
+  /**
+   * A live sandbox session to run a yaml-js body IN, out of process. Only
+   * the external-turn bridge owns one; without it a live yaml-js body
+   * refuses on the data-only in-process runner (which cannot carry host
+   * capabilities). The runner is per-invocation ON PURPOSE — the
+   * process-global slot is shared by every concurrent org.
+   */
+  execSessionId?: string;
 }
 
 /**
@@ -318,6 +330,33 @@ export async function runConnectorAction(
   args: RunConnectorArgs,
 ): Promise<ConnectorDispatchResult> {
   assembleConnectorHost(sql);
+  // Out-of-process live execution: the session-bound sandbox-exec runner
+  // plus the one-run capability its in-sandbox façade phones home with. No
+  // HMAC root ⇒ no token ⇒ fall back to the in-process refusal rather than
+  // running a body whose `ctx.http` could not be mediated.
+  let portableRunner:
+    | { codeRunner: CodeRunner; portableHost: PortableHostCall }
+    | undefined;
+  if (args.execSessionId !== undefined && args.mode === 'live') {
+    const token = await signHostcallToken({
+      org: args.organizationId,
+      connector: args.connector,
+      action: args.action,
+      ...(args.credentialRef !== undefined
+        ? { credentialRef: args.credentialRef }
+        : {}),
+    });
+    if (token === null) {
+      console.warn(
+        '[connectors] no HMAC root configured — live sandbox execution unavailable, falling back to the in-process refusal',
+      );
+    } else {
+      portableRunner = {
+        codeRunner: codeRunnerForSession(args.execSessionId),
+        portableHost: { url: connectorsHostcallUrlForSessions(), token },
+      };
+    }
+  }
   return executeConnectorAction({
     connector: args.connector,
     action: args.action,
@@ -335,6 +374,16 @@ export async function runConnectorAction(
       ...(args.idempotencyKey !== undefined
         ? { idempotencyKey: args.idempotencyKey }
         : {}),
+      ...(portableRunner !== undefined ? portableRunner : {}),
     },
   });
+}
+
+/** Where a session's CONTAINER reaches the host-call door (the same origin
+ * contract the staging callback and the tools bridge use). */
+export function connectorsHostcallUrlForSessions(): string {
+  const origin = (
+    process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://convex:3211'
+  ).replace(/\/$/, '');
+  return `${origin}/api/connectors/hostcall`;
 }

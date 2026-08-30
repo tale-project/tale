@@ -26,7 +26,7 @@ import {
   loadConnectorDefinitions,
 } from '../../../lib/connectors/catalog';
 import { internal } from '../../_generated/api';
-import { internalAction, type ActionCtx } from '../../_generated/server';
+import { internalAction } from '../../_generated/server';
 
 /** One reason an connector (or call) cannot run, with guidance the agent
  * relays to the user verbatim. */
@@ -73,7 +73,19 @@ export const dispatchBridgeConnector = internalAction({
   },
   returns: v.any(),
   handler: async (ctx, args): Promise<BridgeExecuteResult> => {
-    const result = await runBridgeConnector(ctx, args);
+    const result = await runBridgeConnectorImpl(
+      (dispatchArgs) =>
+        ctx.runAction(internal.connectors.execute_action.runConnectorAction, {
+          organizationId: dispatchArgs.organizationId,
+          connector: dispatchArgs.connector,
+          action: dispatchArgs.action,
+          input: dispatchArgs.input,
+          mode: 'live',
+          caller: { kind: 'user', userId: dispatchArgs.userId },
+          execSessionId: dispatchArgs.execSessionId,
+        }),
+      args,
+    );
     // Forensic trail (the sandboxConnectorCalls table the schema promised):
     // who/what/when/outcome + a sorted param-KEY fingerprint, never values. A
     // logging failure must not fail the call.
@@ -96,8 +108,30 @@ export const dispatchBridgeConnector = internalAction({
   },
 });
 
-async function runBridgeConnector(
-  ctx: ActionCtx,
+/**
+ * The dispatch seam: how this host runs one connector action. 0.4 passes the
+ * Convex action; the 0.5 backend passes its own door. Everything else about
+ * a bridge call — catalog validation, the read-only rule, how a refusal is
+ * WORDED for the model — is this module's, so both lanes answer identically.
+ */
+export type BridgeDispatch = (args: {
+  organizationId: string;
+  connector: string;
+  action: string;
+  input: unknown;
+  userId: string;
+  execSessionId: string;
+}) => Promise<unknown>;
+
+/** Whether the org has an ACTIVE credential for a connector (the status
+ * face's only host dependency). */
+export type BridgeCredentialProbe = (args: {
+  organizationId: string;
+  connectorSlug: string;
+}) => Promise<boolean>;
+
+export async function runBridgeConnectorImpl(
+  dispatch: BridgeDispatch,
   args: {
     organizationId: string;
     sessionId: string;
@@ -149,20 +183,16 @@ async function runBridgeConnector(
   }
 
   try {
-    const result: unknown = await ctx.runAction(
-      internal.connectors.execute_action.runConnectorAction,
-      {
-        organizationId: args.organizationId,
-        connector: args.slug,
-        action: args.operation,
-        input: args.callArgs ?? {},
-        mode: 'live',
-        caller: { kind: 'user', userId: args.userId },
-        // The turn's own session doubles as the out-of-process runner for the
-        // connector's live body (the portable sandbox-exec convention).
-        execSessionId: args.sessionId,
-      },
-    );
+    const result: unknown = await dispatch({
+      organizationId: args.organizationId,
+      connector: args.slug,
+      action: args.operation,
+      input: args.callArgs ?? {},
+      userId: args.userId,
+      // The turn's own session doubles as the out-of-process runner for the
+      // connector's live body (the portable sandbox-exec convention).
+      execSessionId: args.sessionId,
+    });
     if (isRecord(result) && result.status === 'approval-required') {
       const message =
         typeof result.message === 'string'
@@ -207,7 +237,27 @@ export const bridgeConnectorStatus = internalAction({
     grants: v.array(v.string()),
   },
   returns: v.any(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<unknown> =>
+    bridgeConnectorStatusImpl(
+      async (probe) =>
+        isRecord(
+          await ctx.runQuery(
+            internal.connector_credentials.queries.resolveCredentialRefInternal,
+            {
+              organizationId: probe.organizationId,
+              connectorSlug: probe.connectorSlug,
+            },
+          ),
+        ),
+      args,
+    ),
+});
+
+export async function bridgeConnectorStatusImpl(
+  hasActiveCredential: BridgeCredentialProbe,
+  args: { organizationId: string; grants: string[] },
+): Promise<unknown> {
+  {
     if (args.grants.length === 0) {
       return {
         connectors: [],
@@ -235,12 +285,10 @@ export const bridgeConnectorStatus = internalAction({
         });
         continue;
       }
-      const credential: unknown = await ctx.runQuery(
-        internal.connector_credentials.queries.resolveCredentialRefInternal,
-        { organizationId: args.organizationId, connectorSlug: slug },
-      );
-      const credentialActive =
-        isRecord(credential) && credential.status === 'active';
+      const credentialActive = await hasActiveCredential({
+        organizationId: args.organizationId,
+        connectorSlug: slug,
+      });
       const blockers: BridgeBlocker[] = credentialActive
         ? []
         : [
@@ -258,5 +306,5 @@ export const bridgeConnectorStatus = internalAction({
       });
     }
     return { connectors };
-  },
-});
+  }
+}
