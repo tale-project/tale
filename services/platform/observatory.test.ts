@@ -541,7 +541,14 @@ function computeObservatoryGrade(
 
 describe('Mozilla Observatory grade (issue #1925)', () => {
   test('createApp() security headers grade A+ with no penalties', async () => {
-    const app = createApp(baseEnv);
+    // Grade the headers this code composes, not whatever object storage the
+    // machine running the suite happens to have configured: `createApp`'s
+    // default origins provider SCANS the ambient config tree, so a developer
+    // (or a seeded dev stack, now that the stack ships one) with a store on
+    // `http://…` adds an insecure-scheme source to the CSP and fails the
+    // grade on their disk alone. The per-org origin lanes are covered by
+    // org-storage-origins.test.ts.
+    const app = createApp(baseEnv, { orgStorageOrigins: () => [] });
     // Every route carries the same `secureHeaders` set via `app.use('*')`;
     // `/api/health` is used because it needs no dist/index.html.
     const res = await app.fetch(new Request('http://localhost/api/health'));
