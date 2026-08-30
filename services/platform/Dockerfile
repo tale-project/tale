@@ -270,7 +270,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get -o Acquire::Retries=3 update \
     && apt-get install -y --no-install-recommends \
-    curl tini gosu postgresql-client ca-certificates iptables \
+    curl tini gosu postgresql-client ca-certificates iptables iproute2 \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     && mkdir -p /usr/local/share/ca-certificates \
     && chmod 755 /usr/local/share/ca-certificates \

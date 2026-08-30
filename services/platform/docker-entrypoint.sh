@@ -58,18 +58,32 @@ install_ssrf_firewall() {
     log_warn "iptables present but no NET_ADMIN capability — SSRF firewall NOT installed (set cap_add: [NET_ADMIN] in compose.yml)"
     return 0
   fi
-  log_info "Installing SSRF egress firewall (REJECT IMDS + link-local + RFC1918)"
+  log_info "Installing SSRF egress firewall (REJECT IMDS + link-local + external RFC1918)"
   # Cloud instance metadata service (AWS/GCP/Azure IMDSv1 footprint).
   iptables -A OUTPUT -d 169.254.169.254/32 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || \
     log_warn "iptables: failed to reject 169.254.169.254/32 (continuing without IMDS guard)"
   # All link-local — covers Azure 168.63.129.16 and other variants.
   iptables -A OUTPUT -d 169.254.0.0/16 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
-  # RFC1918 — only external private ranges (corp VPN, cloud VPC peers) are
-  # blocked; same-compose traffic leaves via the bridge driver, not OUTPUT to
-  # the host netns. Non-default docker-network modes: TALE_SKIP_SSRF_FIREWALL=1.
-  iptables -A OUTPUT -d 10.0.0.0/8 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
-  iptables -A OUTPUT -d 172.16.0.0/12 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
-  iptables -A OUTPUT -d 192.168.0.0/16 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
+  # RFC1918 fence. Same-compose peers (db, object-store, the sandbox net)
+  # sit on RFC1918 docker bridge subnets, and this netns's OUTPUT chain
+  # filters packets to them too — the bridge driver only forwards what
+  # netfilter lets out. So ACCEPT the container's directly-connected
+  # subnets first, then reject the rest of the private space (corp VPN,
+  # cloud VPC peers). Without the ACCEPTs the backend fences off its own
+  # database and crash-loops on CONNECT_TIMEOUT: TCP treats the ICMP
+  # reject as a soft error and retries SYN until the client gives up.
+  # Non-default docker-network modes: TALE_SKIP_SSRF_FIREWALL=1.
+  if command -v ip >/dev/null 2>&1; then
+    for subnet in $(ip -4 route show | awk '$1 ~ /\// {print $1}'); do
+      iptables -A OUTPUT -d "$subnet" -j ACCEPT 2>/dev/null || \
+        log_warn "iptables: failed to accept connected subnet ${subnet}"
+    done
+    iptables -A OUTPUT -d 10.0.0.0/8 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
+    iptables -A OUTPUT -d 172.16.0.0/12 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
+    iptables -A OUTPUT -d 192.168.0.0/16 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
+  else
+    log_warn "ip (iproute2) unavailable — RFC1918 fence NOT installed (IMDS + link-local guards active); same-compose subnets cannot be derived"
+  fi
 }
 
 if [ "$(id -u)" = '0' ]; then
