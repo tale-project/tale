@@ -3633,6 +3633,14 @@ async function checkKnowledge(
       SELECT rag_status AS status, rag_error AS error FROM app.file_metadata
       WHERE id = ${registered.success ? registered.data.fileId : ''}
     `;
+    // Indexing state lives on the FILE row; the document LIST renders it. A
+    // browser only refetches when a hint names the entity it holds, so a
+    // status move that lands no `document` hint leaves an upload reading
+    // "Indexing" until someone reloads by hand — which is what shipped.
+    const ragHints = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app_realtime.outbox
+      WHERE org_id = ${orgId} AND entity = 'document'
+    `;
 
     const searchBody = await (
       await send('POST', `/api/app/knowledge/search?orgId=${orgId}`, {
@@ -3658,8 +3666,10 @@ async function checkKnowledge(
         search.success &&
         search.data.hits.length > 0 &&
         searchRaw.includes('verdigris') &&
-        fetchRaw.includes('zeppelin ledger'),
-      `indexed=${indexed} (status=${statusRows[0]?.status}${statusRows[0]?.error ? `, err=${statusRows[0].error.slice(0, 80)}` : ''}), hits=${search.success ? search.data.hits.length : 'ERR'}, searchHit=${searchRaw.includes('verdigris')}, fetchHit=${fetchRaw.includes('zeppelin ledger')}`,
+        fetchRaw.includes('zeppelin ledger') &&
+        // running → completed is at least two moves, so at least two hints.
+        Number(ragHints[0]?.count ?? '0') >= 2,
+      `indexed=${indexed} (status=${statusRows[0]?.status}${statusRows[0]?.error ? `, err=${statusRows[0].error.slice(0, 80)}` : ''}), hits=${search.success ? search.data.hits.length : 'ERR'}, searchHit=${searchRaw.includes('verdigris')}, fetchHit=${fetchRaw.includes('zeppelin ledger')}, documentHints=${ragHints[0]?.count ?? '0'} (want >= 2)`,
     );
   } finally {
     await new Promise<void>((resolve) => {

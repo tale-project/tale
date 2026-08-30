@@ -4,6 +4,7 @@ import {
   getKnowledgePoolForOrg,
   PRIVATE_KNOWLEDGE_SCHEMA,
 } from '../../../convex/knowledge/pool.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 
 /**
  * The file-pipeline recovery sweeps — the 0.5 twins of 0.4's
@@ -202,6 +203,13 @@ export async function recoverStuckRagIndexing(
             rag_indexed_at_ms = ${now}, status_changed_at_ms = ${now}
           WHERE id = ${row.id}
         `;
+        // The document list renders this column; without a hint the browser
+        // keeps showing whatever state the page was loaded with.
+        await emitHintInTx(sql, {
+          orgId,
+          entity: 'document',
+          entityId: null,
+        });
         adopted += 1;
         continue;
       }
@@ -214,6 +222,11 @@ export async function recoverStuckRagIndexing(
             status_changed_at_ms = ${now}
           WHERE id = ${row.id}
         `;
+        await emitHintInTx(sql, {
+          orgId,
+          entity: 'document',
+          entityId: null,
+        });
         if (row.ragStatus !== 'failed') failed += 1;
         continue;
       }

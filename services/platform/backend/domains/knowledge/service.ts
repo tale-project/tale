@@ -33,6 +33,7 @@ import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/convex-shim.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 
 /**
@@ -282,6 +283,20 @@ export async function ensureDefaultCorpusSchema(): Promise<void> {
   await applyCorpusSchema(pool);
 }
 
+/**
+ * Move a file's indexing state, and TELL the surfaces watching it.
+ *
+ * The document list renders this column (`ragStatus`, joined onto the file
+ * row by blob ref), and a browser only refetches when a hint names the entity
+ * it is holding. Without the hint the row keeps whatever state the page was
+ * loaded with — an upload that indexed in three seconds reads "Indexing"
+ * until someone reloads by hand, which is what shipped.
+ *
+ * Org-wide (`entityId: null`): the status lives on the FILE row while the
+ * surface is keyed by DOCUMENT, and the list is what has to re-read. Hints
+ * carry identity, never data, so the extra breadth costs one refetch of a
+ * page the user is already looking at.
+ */
 async function writeRagStatus(
   sql: Sql,
   fileId: string,
@@ -292,14 +307,18 @@ async function writeRagStatus(
     ragIndexedAt?: number | null;
   },
 ): Promise<void> {
-  await sql`
+  const rows = await sql<{ orgId: string }[]>`
     UPDATE app.file_metadata SET
       rag_status = coalesce(${patch.ragStatus ?? null}, rag_status),
       rag_progress = ${patch.ragProgress ?? null},
       rag_error = ${patch.ragError ?? null},
       rag_indexed_at_ms = coalesce(${patch.ragIndexedAt ?? null}, rag_indexed_at_ms)
     WHERE id = ${fileId}
+    RETURNING org_id AS "orgId"
   `;
+  const orgId = rows[0]?.orgId;
+  if (orgId === undefined) return;
+  await emitHintInTx(sql, { orgId, entity: 'document', entityId: null });
 }
 
 /**
