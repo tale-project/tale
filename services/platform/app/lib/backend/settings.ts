@@ -1075,14 +1075,21 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       }).then(() => null),
   },
   'users/mutations:updateUserPassword': {
+    // User-scoped: the forced-change page sits outside `/dashboard/$id` and
+    // clears the active-org store on unmount, so requireOrg would throw.
+    // `trigger` must ride the body — without it the backend defaults to
+    // voluntary and 400s a rotation that has no currentPassword.
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>('/users/update-password', {
-        orgId: requireOrg(args, ctx),
+        ...(orgOf(args, ctx) !== undefined ? { orgId: orgOf(args, ctx) } : {}),
         body: {
           ...(typeof args.currentPassword === 'string'
             ? { currentPassword: args.currentPassword }
             : {}),
           newPassword: stringArg(args, 'newPassword'),
+          ...(args.trigger === 'forced' || args.trigger === 'voluntary'
+            ? { trigger: args.trigger }
+            : {}),
         },
       }).then(() => null),
   },

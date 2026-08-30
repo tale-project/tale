@@ -72,7 +72,7 @@ test('uploads a package and switches automations from the breadcrumb leaf', asyn
   // clicking it opens the org-level detail — the probe has no project bound.
   const probeRow = page
     .getByRole('row')
-    .filter({ hasText: PROBE_SLUG })
+    .filter({ hasText: PROBE_DISPLAY_NAME })
     .first();
   await expect(probeRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await probeRow.click();
