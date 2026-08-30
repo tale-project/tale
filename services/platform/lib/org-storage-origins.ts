@@ -29,6 +29,7 @@ interface OriginExtractionInput {
   endpoint?: unknown;
   bucket?: unknown;
   region?: unknown;
+  publicEndpoint?: unknown;
 }
 
 /** True iff `err` is a Node ErrnoException with the given code. */
@@ -38,6 +39,12 @@ function isErrnoCode(err: unknown, code: string): boolean {
 
 /**
  * Derive the browser-facing origin(s) for one org's connection file content.
+ *
+ * `publicEndpoint` wins where it is set: it exists precisely because the
+ * browser cannot reach `endpoint` (the bundled store is internal-only), so
+ * putting the internal address in the CSP would name a host no browser
+ * requests while leaving the one it does request out.
+ *
  * With an explicit endpoint (MinIO/R2/Wasabi) the origin is the endpoint's.
  * Without one (AWS S3 proper) the presigned URL lands on the regional AWS
  * host — virtual-hosted (`<bucket>.s3.<region>.amazonaws.com`) by default,
@@ -45,13 +52,17 @@ function isErrnoCode(err: unknown, code: string): boolean {
  * are returned rather than mirroring the SDK's style choice here.
  */
 export function originsForConnection(conn: OriginExtractionInput): string[] {
-  if (typeof conn.endpoint === 'string' && conn.endpoint.length > 0) {
+  const endpoint =
+    typeof conn.publicEndpoint === 'string' && conn.publicEndpoint.length > 0
+      ? conn.publicEndpoint
+      : conn.endpoint;
+  if (typeof endpoint === 'string' && endpoint.length > 0) {
     try {
-      return [new URL(conn.endpoint).origin];
+      return [new URL(endpoint).origin];
     } catch (err) {
       console.warn(
         '[org-storage-origins] unparsable endpoint URL; skipping',
-        { endpoint: conn.endpoint },
+        { endpoint },
         err,
       );
       return [];

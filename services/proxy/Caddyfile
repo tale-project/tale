@@ -111,102 +111,29 @@
 	# BACKEND_PLACEHOLDER
 
 	# ============================================================================
-	# Direct Convex Proxies (bypass Express for better WebSocket stability)
+	# Everything else under /api
 	# ============================================================================
-
-	# WebSocket: Main app Convex sync (/ws_api/* -> convex:3210)
-	handle /ws_api/* {
-		uri strip_prefix /ws_api
-		reverse_proxy convex:3210
-	}
-
-	# WebSocket: Dashboard Convex sync (/api/:version/sync -> convex:3210)
-	handle /api/*/sync {
-		reverse_proxy convex:3210
-	}
-
-	# HTTP: Convex site proxy for actions (/http_api/* -> convex:3211)
-	handle /http_api/* {
-		uri strip_prefix /http_api
-		reverse_proxy convex:3211
-	}
-
-	# HTTP: Convex Dashboard static assets at root paths (logo, icons)
-	# Dashboard HTML references these at root but they're served under /convex-dashboard/.
-	# Only list assets the platform does NOT own at root. `/favicon.ico` and
-	# `/manifest.webmanifest` are served by the platform itself (dist/favicon.ico and
-	# the PWA manifest index.html references), so routing them here hijacked the
-	# platform's tab icon + PWA manifest with the Convex dashboard's (regression #1912).
-	@convexDashboardAssets {
-		path /convex-logo-only.svg /convex-light.svg /convex-dark.svg /apple-touch-icon.png
-	}
-	handle @convexDashboardAssets {
-		uri replace / /convex-dashboard/ 1
-		reverse_proxy convex:6791
-	}
-
-	# Redirect dashboard routes at root to /convex-dashboard prefix
-	# Dashboard "Go to Reference" opens new tabs without the prefix
-	@convexDashboardRedirect {
-		path /data /data/* /functions /functions/* /logs /logs/* /history /history/* /settings /settings/* /files /files/* /schedules /schedules/*
-		query component=*
-	}
-	redir @convexDashboardRedirect {$BASE_PATH:}/convex-dashboard{uri} temporary
-
-	# HTTP: Convex Dashboard UI (/convex-dashboard* -> convex:6791)
-	handle /convex-dashboard* {
-		reverse_proxy convex:6791
-	}
+	# The Convex fallbacks that used to live here are GONE with the runtime:
+	# `/ws_api`, `/http_api`, `/api/*/sync`, `/api/actions`, `/api/storage`, the
+	# dashboard and its root assets all addressed a service that no longer
+	# exists, so they answered 502 rather than falling back to anything. The 0.5
+	# lanes are injected above (BACKEND_PLACEHOLDER) and are explicit; what
+	# remains is the platform's own surface.
 
 	# HTTP: Platform health endpoint (/api/health -> platform:3000)
-	# The platform owns this route (see services/platform/server.ts); without
-	# this handle the generic /api/* catch-all below sends it to Convex, which
-	# answers 404 "No matching routes found". README.md and the manual-test
-	# SETUP.md document {SITE_URL}/api/health as the external readiness probe,
-	# so it must route through the proxy (#2553).
+	# The platform owns this route (see services/platform/server.ts); README.md
+	# and the manual-test SETUP.md document {SITE_URL}/api/health as the external
+	# readiness probe, so it must route through the proxy (#2553).
 	handle /api/health {
 		reverse_proxy platform:3000
 	}
 
-	# HTTP: Convex internal action callbacks (/api/actions/* -> convex:3210)
-	handle /api/actions/* {
-		reverse_proxy convex:3210
-	}
-
-	# HTTP: Sandbox callback API (/api/sandbox/* -> convex:3211)
-	# Must come BEFORE the generic /api/* block so the more specific path
-	# wins. Skips access logging by default since the path itself is HMAC-
-	# authenticated and adds nothing diagnostically. The spawner is the
-	# only legitimate caller; runtime containers cannot reach proxy.
-	handle /api/sandbox/* {
-		log_skip
-		reverse_proxy convex:3211
-	}
-
-	# HTTP: Convex storage upload/download (/api/storage/* -> convex:3210)
-	# `log_skip`: Convex's `generateUploadUrl()` embeds a 1-hour upload
-	# token in the URL's query string. Default INFO-level access logs
-	# would write that token to stdout (audit finding R2V7). The path
-	# itself is auth-bound by the token; access logging adds no security
-	# value here.
-	handle /api/storage/* {
-		log_skip
-		reverse_proxy convex:3210
-	}
-
-	# HTTP: Convex Dashboard admin API (Authorization: Convex* header -> convex:3210)
-	@convexAdminApi {
-		path /api/*
-		header Authorization Convex*
-	}
-	handle @convexAdminApi {
-		reverse_proxy convex:3210
-	}
-
-	# HTTP: All other /api/* requests -> Convex HTTP endpoint (convex:3211)
-	# Covers auth, SSO, documents, API gateway, workflow triggers, etc.
+	# Anything else under /api belongs to the backend. Naming it here rather
+	# than 404ing keeps a lane the injected list has not caught up with working,
+	# and a path the backend does not own answers ITS 404 — which is the honest
+	# answer, not a 502 from a dead upstream.
 	handle /api/* {
-		reverse_proxy convex:3211
+		reverse_proxy {$BACKEND_UPSTREAM:backend-api:3005}
 	}
 
 	# ============================================================================
@@ -215,7 +142,7 @@
 	# ============================================================================
 
 	@metricsAuth {
-		path /metrics/platform /metrics/convex /metrics/sla-rules /metrics/backend
+		path /metrics/platform /metrics/sla-rules /metrics/backend
 		expression `"{$METRICS_BEARER_TOKEN:}" != ""`
 		header Authorization "Bearer {$METRICS_BEARER_TOKEN:}"
 	}
@@ -228,10 +155,6 @@
 
 		handle /metrics/platform {
 			rewrite * /metrics
-			reverse_proxy platform:3000
-		}
-		handle /metrics/convex {
-			rewrite * /metrics/convex
 			reverse_proxy platform:3000
 		}
 		handle /metrics/sla-rules {
@@ -362,5 +285,4 @@
 		# Hono `secureHeaders` middleware (see services/platform/server.ts) so the
 		# app is the single source of truth. Caddy keeps only transport concerns.
 	}
-
 }

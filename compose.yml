@@ -428,6 +428,11 @@ services:
       OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tale-blobs}
       OBJECT_STORE_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY:-tale}
       OBJECT_STORE_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
+      # Where the BROWSER reaches the store: the site origin, behind which the
+      # proxy forwards `/<bucket>/*` verbatim. Presigned URLs are signed
+      # against this, the internal endpoint above is what the backend itself
+      # uses — see `browserFacing` in convex/lib/storage/object_store.ts.
+      OBJECT_STORE_PUBLIC_ENDPOINT: ${OBJECT_STORE_PUBLIC_ENDPOINT:-${SITE_URL:-http://localhost}}
     env_file:
       - path: .env
         required: false
@@ -487,6 +492,11 @@ services:
       OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tale-blobs}
       OBJECT_STORE_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY:-tale}
       OBJECT_STORE_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
+      # Where the BROWSER reaches the store: the site origin, behind which the
+      # proxy forwards `/<bucket>/*` verbatim. Presigned URLs are signed
+      # against this, the internal endpoint above is what the backend itself
+      # uses — see `browserFacing` in convex/lib/storage/object_store.ts.
+      OBJECT_STORE_PUBLIC_ENDPOINT: ${OBJECT_STORE_PUBLIC_ENDPOINT:-${SITE_URL:-http://localhost}}
     env_file:
       - path: .env
         required: false
@@ -582,6 +592,11 @@ services:
       # host/port, never so the stack can fall back to a runtime that no
       # longer exists.
       BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-backend-api:3005}
+      # The BLOB store, published at its own bucket path. The bucket name IS
+      # the public path and is forwarded unstripped — SigV4 covers the host
+      # and the path, so rewriting either breaks every presigned URL.
+      OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tale-blobs}
+      OBJECT_STORE_UPSTREAM: ${OBJECT_STORE_UPSTREAM:-object-store:9000}
 
     # Restart policy
     # Automatically restart the container if it crashes

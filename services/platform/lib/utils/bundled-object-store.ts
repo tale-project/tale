@@ -27,6 +27,14 @@ export const BUNDLED_OBJECT_STORE_BUCKET = 'tale-blobs';
 
 export interface BundledObjectStore {
   endpoint: string;
+  /**
+   * Where a BROWSER reaches the store, when the deployment publishes it
+   * somewhere other than `endpoint`. Compose sets it to the site origin,
+   * behind which the proxy forwards `/<bucket>/*` to the store; `bun dev`
+   * leaves it unset because its endpoint is already a loopback address the
+   * browser can reach.
+   */
+  publicEndpoint?: string;
   bucket: string;
   region: string;
   accessKeyId: string;
@@ -77,10 +85,31 @@ export function resolveBundledObjectStore(
     };
   }
 
+  const publicEndpoint = env.OBJECT_STORE_PUBLIC_ENDPOINT?.trim();
+  if (publicEndpoint !== undefined && publicEndpoint !== '') {
+    try {
+      const p = new URL(publicEndpoint).protocol;
+      if (p !== 'http:' && p !== 'https:') {
+        return {
+          configured: false,
+          reason: `OBJECT_STORE_PUBLIC_ENDPOINT must be http(s)://, got ${p}`,
+        };
+      }
+    } catch {
+      return {
+        configured: false,
+        reason: `OBJECT_STORE_PUBLIC_ENDPOINT is not a valid URL: ${publicEndpoint}`,
+      };
+    }
+  }
+
   return {
     configured: true,
     store: {
       endpoint: endpoint.replace(/\/+$/, ''),
+      ...(publicEndpoint
+        ? { publicEndpoint: publicEndpoint.replace(/\/+$/, '') }
+        : {}),
       bucket: env.OBJECT_STORE_BUCKET?.trim() || BUNDLED_OBJECT_STORE_BUCKET,
       region: env.OBJECT_STORE_REGION?.trim() || BUNDLED_OBJECT_STORE_REGION,
       accessKeyId,

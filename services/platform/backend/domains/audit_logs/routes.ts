@@ -3,6 +3,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import {
+  browserFacing,
   s3PresignGetUrl,
   s3PutObject,
 } from '../../../convex/lib/storage/object_store.ts';
@@ -211,7 +212,9 @@ export function createAuditLogRoutes(deps: {
       new TextEncoder().encode(built.content),
       built.contentType,
     );
-    const url = await s3PresignGetUrl(store, key, {
+    // The browser downloads the export directly, so the URL is signed
+    // against the origin it can reach — see `browserFacing`.
+    const url = await s3PresignGetUrl(browserFacing(store), key, {
       filename: built.fileName,
       expiresInSec: 600,
     });

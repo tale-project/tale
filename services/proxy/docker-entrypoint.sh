@@ -121,6 +121,9 @@ sed -i "s|{[\$]DOCS_ORIGIN:[^}]*}|${DOCS_URL}|" "$CADDYFILE"
 # cloud-import OAuth callbacks and the WebDAV protocol door. Anything not
 # named keeps flowing to Convex, so the cutover stays reversible: unset the
 # variable and the stack is back on 0.4 lanes.
+OBJECT_STORE_BUCKET="${OBJECT_STORE_BUCKET:-tale-blobs}"
+OBJECT_STORE_UPSTREAM="${OBJECT_STORE_UPSTREAM:-object-store:9000}"
+
 if [ -n "${BACKEND_UPSTREAM:-}" ]; then
   echo "Backend routing: 0.5 lanes → ${BACKEND_UPSTREAM}"
   BACKEND_BLOCK=$(cat <<EOF
@@ -198,6 +201,24 @@ if [ -n "${BACKEND_UPSTREAM:-}" ]; then
 	}
 	handle /http_api/api/cloud-import/oauth2/* {
 		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	# The BLOB store, published at its own bucket path.
+	#
+	# Uploads and downloads run browser↔store directly: the store, not Node,
+	# answers the Range requests media seeking needs. The store itself is
+	# internal-only, so the backend signs browser-facing URLs against
+	# OBJECT_STORE_PUBLIC_ENDPOINT (this origin) and they arrive here.
+	#
+	# The path is LITERALLY the bucket name and is NOT stripped: SigV4 covers
+	# the host and the path, so rewriting either would break every signature.
+	# That is also why this proxies verbatim — no header or URI rewriting.
+	#
+	# `log_skip`: a presigned URL carries its signature in the query string,
+	# and INFO-level access logs would write it to stdout. The path is
+	# auth-bound by that signature; logging it adds no security value.
+	handle /${OBJECT_STORE_BUCKET}/* {
+		log_skip
+		reverse_proxy ${OBJECT_STORE_UPSTREAM}
 	}
 EOF
 )

@@ -120,6 +120,7 @@ export async function ensureDefaultObjectStore(
       // need per-bucket DNS the deployment does not have.
       forcePathStyle: true,
       bucket: store.bucket,
+      ...(store.publicEndpoint ? { publicEndpoint: store.publicEndpoint } : {}),
     }),
   );
 

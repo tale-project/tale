@@ -5,6 +5,7 @@ import {
   parseBlobRef,
 } from '../../../convex/lib/storage/blob_ref.ts';
 import { s3KeyBelongsToOrg } from '../../../convex/lib/storage/blob_ref.ts';
+import { browserFacing } from '../../../convex/lib/storage/object_store.ts';
 import {
   buildObjectKey,
   resolveObjectStore,
@@ -79,7 +80,9 @@ export async function createUploadHandoff(
   }
   const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
   const key = buildObjectKey(store, orgSlug);
-  const uploadUrl = await s3PresignPutUrl(store, key, {
+  // The browser performs this PUT, so it is signed against the origin the
+  // browser can reach — see `browserFacing`.
+  const uploadUrl = await s3PresignPutUrl(browserFacing(store), key, {
     contentType: args.contentType,
   });
   return { storageRef: encodeS3Ref(key), uploadUrl };
@@ -97,7 +100,7 @@ export async function createRestUploadHandoff(
 ): Promise<UploadHandoff> {
   const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
   const key = buildObjectKey(store, orgSlug);
-  const uploadUrl = await s3PresignPutUrl(store, key, {
+  const uploadUrl = await s3PresignPutUrl(browserFacing(store), key, {
     contentType: args.contentType ?? 'application/octet-stream',
   });
   return { storageRef: encodeS3Ref(key), uploadUrl };
@@ -192,7 +195,8 @@ export async function getFileUrl(
 ): Promise<string> {
   const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
   const key = requireOrgScopedKey(storageRef, orgSlug);
-  return s3PresignGetUrl(store, key);
+  // Handed to the browser, so signed against the origin it can reach.
+  return s3PresignGetUrl(browserFacing(store), key);
 }
 
 /**

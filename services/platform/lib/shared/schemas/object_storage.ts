@@ -71,6 +71,34 @@ export const objectStorageConnectionFileSchema = z
      * (a per-org bucket is already dedicated); purely an org-chosen namespace.
      */
     prefix: z.string().optional(),
+    /**
+     * Where a BROWSER reaches this store, when that differs from `endpoint`.
+     *
+     * The bundled store the stack ships is internal-only — `object-store:9000`
+     * resolves inside the compose network and nowhere else — while presigned
+     * PUT/GET URLs are handed to the browser by design (direct transfer, and
+     * the store, not Node, answers Range requests for media seeking). So the
+     * backend signs browser-facing URLs against this origin instead, and the
+     * proxy forwards `/<bucket>/*` to the store. Signing covers the host and
+     * the path, and the proxy rewrites neither, so the signature still
+     * verifies at the store.
+     *
+     * Absent for a BYO bucket, whose endpoint is already public — and absent
+     * is the safe default: a store nobody published stays unreachable rather
+     * than being guessed at.
+     */
+    publicEndpoint: z
+      .string()
+      .url()
+      .refine((u) => {
+        try {
+          const p = new URL(u).protocol;
+          return p === 'https:' || p === 'http:';
+        } catch {
+          return false;
+        }
+      }, 'Public endpoint must be http(s)://')
+      .optional(),
   })
   .strict();
 export type ObjectStorageConnectionFile = z.infer<

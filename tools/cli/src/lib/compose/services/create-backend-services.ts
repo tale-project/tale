@@ -65,6 +65,10 @@ export function createBackendApiService(config: ServiceConfig): ComposeService {
       OBJECT_STORE_ACCESS_KEY: '${OBJECT_STORE_ACCESS_KEY:-tale}',
       OBJECT_STORE_SECRET_KEY:
         '${OBJECT_STORE_SECRET_KEY:?OBJECT_STORE_SECRET_KEY is required}',
+      // Where the BROWSER reaches the store: the site origin, behind which
+      // the proxy forwards `/<bucket>/*` verbatim.
+      OBJECT_STORE_PUBLIC_ENDPOINT:
+        '${OBJECT_STORE_PUBLIC_ENDPOINT:-${SITE_URL}}',
     },
     healthcheck: {
       test: ['CMD-SHELL', `curl -sf http://localhost:${BACKEND_API_PORT}/ping`],
@@ -104,6 +108,10 @@ export function createBackendWorkerService(
       OBJECT_STORE_ACCESS_KEY: '${OBJECT_STORE_ACCESS_KEY:-tale}',
       OBJECT_STORE_SECRET_KEY:
         '${OBJECT_STORE_SECRET_KEY:?OBJECT_STORE_SECRET_KEY is required}',
+      // Where the BROWSER reaches the store: the site origin, behind which
+      // the proxy forwards `/<bucket>/*` verbatim.
+      OBJECT_STORE_PUBLIC_ENDPOINT:
+        '${OBJECT_STORE_PUBLIC_ENDPOINT:-${SITE_URL}}',
     },
     healthcheck: { disable: true },
     networks: {

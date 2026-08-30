@@ -225,6 +225,41 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
     }
   });
 
+  test('both pipelines publish the store at its bucket path', () => {
+    // Presigned URLs go to the BROWSER, so the store needs a public origin —
+    // the proxy forwards `/<bucket>/*` UNSTRIPPED (SigV4 covers host + path).
+    // The proxy learns the bucket from env in both pipelines; compose sets it
+    // explicitly, `tale deploy`'s proxy reads the same `.env` the backend
+    // tiers do, and the entrypoint defaults to `tale-blobs` either way.
+    expect(compose.services.proxy?.environment?.OBJECT_STORE_BUCKET).toContain(
+      'tale-blobs',
+    );
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
+      'utf8',
+    );
+    expect(entrypoint).toContain('handle /${OBJECT_STORE_BUCKET}/*');
+    // Stripping the prefix or rewriting the URI would invalidate every
+    // signature — assert the route proxies verbatim.
+    const route = entrypoint.slice(
+      entrypoint.indexOf('handle /${OBJECT_STORE_BUCKET}/*'),
+    );
+    const body = route.slice(0, route.indexOf('\n\t}'));
+    expect(body).not.toContain('strip_prefix');
+    expect(body).not.toContain('rewrite');
+  });
+
+  test('nothing routes to the retired runtime any more', () => {
+    // The proxy used to fall back to `convex:*` for everything the backend
+    // list did not name. That service is gone, so a fallback is a 502 — every
+    // remaining lane must resolve to something that exists.
+    const caddyfile = readFileSync(
+      resolve(repoRoot, 'services/proxy/Caddyfile'),
+      'utf8',
+    );
+    expect(caddyfile).not.toContain('convex');
+  });
+
   test('the CLI refuses to boot the store on a default credential', () => {
     // `tale deploy` auto-generates OBJECT_STORE_SECRET_KEY into .env; the
     // `:?` form makes a missing one fail the compose up instead of silently
