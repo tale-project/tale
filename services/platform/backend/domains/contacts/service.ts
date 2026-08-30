@@ -443,3 +443,64 @@ export async function bulkCreateContacts(
   }
   return result;
 }
+
+/** How many rows the org has (the table header's total; the 0.4
+ * `approxCountContacts` probe, answered exactly rather than by
+ * walking a capped page). Trashed rows are not part of the count. */
+export async function countContacts(
+  sql: Sql,
+  organizationId: string,
+): Promise<number> {
+  const rows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.contacts
+    WHERE org_id = ${organizationId}
+      AND lifecycle_status IS DISTINCT FROM 'trashed'
+  `;
+  return Number(rows[0]?.count ?? '0');
+}
+
+/**
+ * Palette search over the org's contacts — name, email and external id (the
+ * 0.4 `searchContacts` fields), newest first and hard-capped. The snippet is
+ * assembled the same way the palette rendered it in 0.4, so a hit reads
+ * identically on either lane.
+ */
+export async function searchContacts(
+  sql: Sql,
+  scope: ContactScope,
+  query: string,
+): Promise<
+  { contactId: string; name: string; snippet: string; updatedAt: number }[]
+> {
+  assertContactAccess(scope, 'read');
+  const trimmed = query.trim();
+  if (trimmed === '') return [];
+  const like = `%${trimmed}%`;
+  const rows = await sql<
+    {
+      id: string;
+      name: string | null;
+      email: string | null;
+      externalId: string | null;
+      createdAt: number;
+    }[]
+  >`
+    SELECT id, name, email, external_id AS "externalId",
+           created_at_ms::float8 AS "createdAt"
+    FROM app.contacts
+    WHERE org_id = ${scope.organizationId}
+      AND lifecycle_status IS DISTINCT FROM 'trashed'
+      AND (name ILIKE ${like} OR email ILIKE ${like}
+           OR external_id ILIKE ${like})
+    ORDER BY updated_at_ms DESC, id DESC
+    LIMIT 25
+  `;
+  return rows.map((row) => ({
+    contactId: row.id,
+    name: row.name?.trim() || row.email?.trim() || 'Contact',
+    snippet: [row.email?.trim(), row.externalId]
+      .filter((part): part is string => !!part && part !== '')
+      .join(' · '),
+    updatedAt: row.createdAt,
+  }));
+}

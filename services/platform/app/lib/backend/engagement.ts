@@ -7,6 +7,7 @@
  * own cursor idiom onto the 0.4 page envelope).
  */
 
+import type { QueryClient } from '@tanstack/react-query';
 import type { FunctionReturnType } from 'convex/server';
 
 import type { api } from '@/convex/_generated/api';
@@ -95,7 +96,77 @@ function splitCursor(cursor: string | null): { ts: string; id: string } | null {
   return { ts: cursor.slice(0, at), id: cursor.slice(at + 1) };
 }
 
+/** The whole-list reads (the pickers and the conversation composer's
+ * contact lookup) — the pg listing's first page at its own cap, which is
+ * what the 0.4 `listContacts`/`listProducts` reads were too. */
+const LIST_LIMIT = 200;
+
 export const engagementReadAdapters: Record<string, ReadAdapter> = {
+  'contacts/queries:listContacts': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'contact', 'list'),
+      queryFn: () =>
+        backendFetch<{ items: unknown[] }>(`/contacts?limit=${LIST_LIMIT}`, {
+          orgId,
+        }).then((body) => body.items.map(withConvexId)),
+    };
+  },
+  'contacts/search:searchContacts': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const query = typeof args.query === 'string' ? args.query.trim() : '';
+    return {
+      queryKey: backendKey(orgId, 'contact', 'search', query),
+      queryFn: () =>
+        query === ''
+          ? Promise.resolve([])
+          : backendFetch<{
+              hits: {
+                contactId: string;
+                name: string;
+                snippet: string;
+                updatedAt: number;
+              }[];
+            }>(`/contacts/search?q=${encodeURIComponent(query)}`, {
+              orgId,
+            }).then((body) => body.hits),
+    };
+  },
+  'contacts/queries:approxCountContacts': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'contact', 'count'),
+      queryFn: () =>
+        backendFetch<{ count: number }>('/contacts/count', { orgId }).then(
+          (body) => body.count,
+        ),
+    };
+  },
+  'products/queries:listProducts': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'product', 'list'),
+      queryFn: () =>
+        backendFetch<{ items: unknown[] }>(`/products?limit=${LIST_LIMIT}`, {
+          orgId,
+        }).then((body) => body.items.map(withConvexId)),
+    };
+  },
+  'products/queries:approxCountProducts': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'product', 'count'),
+      queryFn: () =>
+        backendFetch<{ count: number }>('/products/count', { orgId }).then(
+          (body) => body.count,
+        ),
+    };
+  },
   'collab/notifications:myUnreadCount': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -306,7 +377,115 @@ function invalidateBells(
   });
 }
 
+function invalidateContacts(
+  client: QueryClient,
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'contact'),
+  });
+}
+
+function invalidateProducts(
+  client: QueryClient,
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'product'),
+  });
+}
+
+/** The 0.4 write args minus the routing fields the pg door takes in its
+ * path or scope — everything else is the entity body, forwarded as-is. */
+function entityBody(
+  args: Record<string, unknown>,
+  drop: readonly string[],
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (drop.includes(key) || value === undefined) continue;
+    body[key] = value;
+  }
+  return body;
+}
+
 export const engagementWriteAdapters: Record<string, WriteAdapter> = {
+  'contacts/mutations:createContact': {
+    run: (args, ctx) =>
+      backendFetch<{ contactId: string }>('/contacts', {
+        orgId: requireOrg(args, ctx),
+        body: entityBody(args, ['organizationId']),
+      }).then((body) => body.contactId),
+    invalidate: invalidateContacts,
+  },
+  'contacts/mutations:updateContact': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/contacts/${encodeURIComponent(stringArg(args, 'contactId'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: entityBody(args, ['organizationId', 'contactId']),
+        },
+      ).then(() => null),
+    invalidate: invalidateContacts,
+  },
+  'contacts/mutations:deleteContact': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/contacts/${encodeURIComponent(stringArg(args, 'contactId'))}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null),
+    invalidate: invalidateContacts,
+  },
+  'contacts/mutations:bulkCreateContacts': {
+    run: (args, ctx) =>
+      backendFetch<unknown>('/contacts/bulk', {
+        orgId: requireOrg(args, ctx),
+        body: { contacts: Array.isArray(args.contacts) ? args.contacts : [] },
+      }),
+    invalidate: invalidateContacts,
+  },
+  'products/mutations:createProduct': {
+    run: (args, ctx) =>
+      backendFetch<{ productId: string }>('/products', {
+        orgId: requireOrg(args, ctx),
+        body: entityBody(args, ['organizationId']),
+      }).then((body) => body.productId),
+    invalidate: invalidateProducts,
+  },
+  'products/mutations:updateProduct': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/products/${encodeURIComponent(stringArg(args, 'productId'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: entityBody(args, ['organizationId', 'productId']),
+        },
+      ).then(() => null),
+    invalidate: invalidateProducts,
+  },
+  'products/mutations:deleteProduct': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/products/${encodeURIComponent(stringArg(args, 'productId'))}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null),
+    invalidate: invalidateProducts,
+  },
+  'products/mutations:bulkCreateProducts': {
+    run: (args, ctx) =>
+      backendFetch<unknown>('/products/bulk', {
+        orgId: requireOrg(args, ctx),
+        body: { products: Array.isArray(args.products) ? args.products : [] },
+      }),
+    invalidate: invalidateProducts,
+  },
   'collab/notifications:markNotificationRead': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>(

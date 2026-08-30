@@ -2956,6 +2956,86 @@ async function checkSmallDomains(
     `email=${found.success ? found.data.items[0]?.email : 'ERR'} (want normalized), trashHidden=${afterTrash.success ? !afterTrash.data.items.some((i) => i.id === contactId) : 'ERR'}`,
   );
 
+  // The table header's count, the palette's search, and the CSV import —
+  // the three doors the contacts screen needs beyond CRUD.
+  const countBefore = z
+    .object({ count: z.number() })
+    .safeParse(await get(`/api/app/contacts/count?orgId=${orgId}`));
+  const bulk = z
+    .object({
+      success: z.number(),
+      failed: z.number(),
+      errors: z.array(z.object({ index: z.number(), errorCode: z.string() })),
+    })
+    .safeParse(
+      await (
+        await send('POST', `/api/app/contacts/bulk?orgId=${orgId}`, {
+          contacts: [
+            {
+              email: 'grace@example.com',
+              name: 'Grace Hopper',
+              source: 'file_upload',
+            },
+            {
+              email: 'alan@example.com',
+              name: 'Alan Turing',
+              source: 'file_upload',
+            },
+            // A duplicate of the row above: it must fail ALONE.
+            {
+              email: 'alan@example.com',
+              name: 'Alan Again',
+              source: 'file_upload',
+            },
+          ],
+        })
+      ).json(),
+    );
+  const contactCount = z
+    .object({ count: z.number() })
+    .safeParse(await get(`/api/app/contacts/count?orgId=${orgId}`));
+  // The count must agree with the listing it labels — including the trashed
+  // Ada being absent from BOTH (other probes seed contacts in this org, so
+  // the assertion is the delta and the agreement, never an absolute).
+  const listed = z
+    .object({ items: z.array(z.object({ id: z.string() })) })
+    .safeParse(await get(`/api/app/contacts?orgId=${orgId}&limit=200`));
+  const hits = z
+    .object({
+      hits: z.array(
+        z.object({
+          contactId: z.string(),
+          name: z.string(),
+          snippet: z.string(),
+        }),
+      ),
+    })
+    .safeParse(await get(`/api/app/contacts/search?orgId=${orgId}&q=hopper`));
+  const emptySearch = z
+    .object({ hits: z.array(z.unknown()) })
+    .safeParse(await get(`/api/app/contacts/search?orgId=${orgId}&q=`));
+  record(
+    'contacts: bulk import accounts per row, count + palette search',
+    bulk.success &&
+      bulk.data.success === 2 &&
+      bulk.data.failed === 1 &&
+      bulk.data.errors[0]?.index === 2 &&
+      countBefore.success &&
+      contactCount.success &&
+      contactCount.data.count === countBefore.data.count + 2 &&
+      listed.success &&
+      contactCount.data.count === listed.data.items.length &&
+      !listed.data.items.some((row) => row.id === contactId) &&
+      hits.success &&
+      hits.data.hits.length === 1 &&
+      hits.data.hits[0]?.name === 'Grace Hopper' &&
+      hits.data.hits[0].snippet.includes('grace@example.com') &&
+      // An empty term is not a search — it must never list the org.
+      emptySearch.success &&
+      emptySearch.data.hits.length === 0,
+    `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed}@${bulk.data.errors[0]?.index}` : 'ERR'} (want 2/1@2), count=${countBefore.success ? countBefore.data.count : 'ERR'}→${contactCount.success ? contactCount.data.count : 'ERR'} (want +2), listed=${listed.success ? listed.data.items.length : 'ERR'}, trashedOut=${listed.success ? !listed.data.items.some((row) => row.id === contactId) : 'ERR'}, search=${hits.success ? `${hits.data.hits.length}/${hits.data.hits[0]?.name}` : 'ERR'}, empty=${emptySearch.success ? emptySearch.data.hits.length : 'ERR'} (want 0)`,
+  );
+
   // Message feedback: vote → toggle → stats reflect one negative.
   await send('POST', `/api/app/feedback?orgId=${orgId}`, {
     threadId: 'itest-thread',
@@ -3025,6 +3105,39 @@ async function checkSmallDomains(
       productRead.success &&
       productRead.data.product.translations?.[0]?.name === 'Widget Profi',
     `dup → ${dupName.status} (want 400), de=${productRead.success ? productRead.data.product.translations?.[0]?.name : 'ERR'}`,
+  );
+
+  const productBulk = z
+    .object({
+      success: z.number(),
+      failed: z.number(),
+      errors: z.array(z.object({ index: z.number(), errorCode: z.string() })),
+    })
+    .safeParse(
+      await (
+        await send('POST', `/api/app/products/bulk?orgId=${orgId}`, {
+          products: [
+            { name: 'Gadget One', price: 10, status: 'active' },
+            // Duplicate of the row created above: it must fail ALONE.
+            { name: 'Widget Pro', price: 20 },
+            { name: 'Gadget Two', price: 30, status: 'draft' },
+          ],
+        })
+      ).json(),
+    );
+  const productCount = z
+    .object({ count: z.number() })
+    .safeParse(await get(`/api/app/products/count?orgId=${orgId}`));
+  record(
+    'products: bulk import continues past a refused row, count reads',
+    productBulk.success &&
+      productBulk.data.success === 2 &&
+      productBulk.data.failed === 1 &&
+      productBulk.data.errors[0]?.index === 1 &&
+      // The refused row must not have landed: 1 + 2 imported.
+      productCount.success &&
+      productCount.data.count === 3,
+    `bulk=${productBulk.success ? `${productBulk.data.success}/${productBulk.data.failed}@${productBulk.data.errors[0]?.index}` : 'ERR'} (want 2/1@1), count=${productCount.success ? productCount.data.count : 'ERR'} (want 3)`,
   );
 
   // Support case lifecycle.

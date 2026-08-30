@@ -7,15 +7,17 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
+  bulkCreateProducts,
+  countProducts,
   createProduct,
   deleteProduct,
   getProduct,
   listProducts,
   PRODUCT_STATUSES,
   ProductError,
+  type ProductScope,
   updateProduct,
   upsertProductTranslation,
-  type ProductScope,
 } from './service.ts';
 
 const productInputSchema = z.object({
@@ -97,6 +99,10 @@ export function createProductRoutes(deps: {
     }
   });
 
+  app.get('/count', async (c) => {
+    return c.json({ count: await countProducts(deps.sql, c.get('orgId')) });
+  });
+
   app.post('/', async (c) => {
     const body = productInputSchema.safeParse(await c.req.json());
     if (!body.success) {
@@ -108,6 +114,22 @@ export function createProductRoutes(deps: {
         createProduct(tx, scope, body.data),
       );
       return c.json({ productId });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/bulk', async (c) => {
+    const body = z
+      .object({ products: z.array(productInputSchema).max(1000) })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      return c.json(
+        await bulkCreateProducts(deps.sql, scopeOf(c), body.data.products),
+      );
     } catch (error) {
       return handleError(c, error);
     }

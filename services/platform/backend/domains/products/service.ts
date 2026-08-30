@@ -355,3 +355,65 @@ export async function listProducts(
         : null,
   };
 }
+
+/** How many rows the org has (the table header's total; the 0.4
+ * `approxCountProducts` probe, answered exactly rather than by
+ * walking a capped page). Products have no trash — a retired one is
+ * `archived`, and the table counts it like any other row. */
+export async function countProducts(
+  sql: Sql,
+  organizationId: string,
+): Promise<number> {
+  const rows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.products
+    WHERE org_id = ${organizationId}
+  `;
+  return Number(rows[0]?.count ?? '0');
+}
+
+// ---------------------------------------------------------------- bulk
+
+export interface BulkCreateProductsResult {
+  success: number;
+  failed: number;
+  errors: {
+    index: number;
+    error: string;
+    errorCode: string;
+    product: ProductInput;
+  }[];
+}
+
+/**
+ * Bulk import — the 0.4 `bulkCreateProducts` semantics: each row runs in its
+ * OWN transaction so a refused one (duplicate name, invalid field) never
+ * aborts the rest, and the importer gets a per-row account of what failed
+ * instead of an all-or-nothing error.
+ */
+export async function bulkCreateProducts(
+  sql: Sql,
+  scope: ProductScope,
+  products: ProductInput[],
+): Promise<BulkCreateProductsResult> {
+  assertProductAccess(scope, 'write');
+  const result: BulkCreateProductsResult = {
+    success: 0,
+    failed: 0,
+    errors: [],
+  };
+  for (const [index, product] of products.entries()) {
+    try {
+      await sql.begin((tx) => createProduct(tx, scope, product));
+      result.success += 1;
+    } catch (error) {
+      result.failed += 1;
+      result.errors.push({
+        index,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        errorCode: error instanceof ProductError ? error.code : 'unknown',
+        product,
+      });
+    }
+  }
+  return result;
+}

@@ -8,14 +8,17 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
+  bulkCreateContacts,
   CONTACT_SOURCES,
   ContactError,
+  countContacts,
   createContact,
   deleteContact,
   getContact,
   listContacts,
-  updateContact,
+  searchContacts,
   type ContactScope,
+  updateContact,
 } from './service.ts';
 
 const sourceSchema = z.enum(CONTACT_SOURCES);
@@ -99,6 +102,10 @@ export function createContactRoutes(deps: {
     }
   });
 
+  app.get('/count', async (c) => {
+    return c.json({ count: await countContacts(deps.sql, c.get('orgId')) });
+  });
+
   app.post('/', async (c) => {
     const body = contactInputSchema.safeParse(await c.req.json());
     if (!body.success) {
@@ -110,6 +117,42 @@ export function createContactRoutes(deps: {
         createContact(tx, scope, body.data),
       );
       return c.json({ contactId });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/search', async (c) => {
+    try {
+      return c.json({
+        hits: await searchContacts(
+          deps.sql,
+          scopeOf(c),
+          c.req.query('q') ?? '',
+        ),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/bulk', async (c) => {
+    const body = z
+      // The bulk lane REQUIRES an email: it is the duplicate key the
+      // per-row check uses, and a row without one cannot be deduplicated.
+      .object({
+        contacts: z
+          .array(contactInputSchema.extend({ email: z.string().max(320) }))
+          .max(1000),
+      })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) {
+      return c.json({ error: 'invalid body' }, 400);
+    }
+    try {
+      return c.json(
+        await bulkCreateContacts(deps.sql, scopeOf(c), body.data.contacts),
+      );
     } catch (error) {
       return handleError(c, error);
     }
