@@ -300,10 +300,17 @@ export const engagementPaginatedAdapters: Record<string, PaginatedAdapter> = {
         keyPart(args.connectorName),
       ),
       fetchPage: (cursor, numItems) =>
-        backendFetch<PageEnvelope>(
+        // `items` is the row PROJECTED into the shape the Inbox reads (the
+        // shared `projectConversationItem`); `page` is the raw pg row, which
+        // would render blank titles and previews.
+        backendFetch<PageEnvelope & { items: unknown[] }>(
           `/conversations?limit=${numItems}${qs}${cursor !== null && cursor !== '' ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
           { orgId },
-        ).then((body) => ({ ...body, page: body.page.map(withConvexId) })),
+        ).then((body) => ({
+          isDone: body.isDone,
+          continueCursor: body.continueCursor,
+          page: body.items,
+        })),
     };
   },
   'contacts/queries:listContactsPaginated': (args, ctx) => {

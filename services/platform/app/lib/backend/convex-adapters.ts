@@ -35,6 +35,11 @@ import {
   automationWriteAdapters,
 } from './automations';
 import {
+  conversationOfflineWriteAdapters,
+  conversationReadAdapters,
+  conversationWriteAdapters,
+} from './conversations';
+import {
   documentActionQueryAdapters,
   documentPaginatedAdapters,
   documentReadAdapters,
@@ -143,6 +148,7 @@ export const READ_ADAPTERS: Record<string, ReadAdapter> = {
   ...accountReadAdapters,
   ...adminReadAdapters,
   ...automationReadAdapters,
+  ...conversationReadAdapters,
   ...engagementReadAdapters,
   ...metricsReadAdapters,
   ...documentReadAdapters,
@@ -174,6 +180,8 @@ export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
   ...accountWriteAdapters,
   ...adminWriteAdapters,
   ...automationWriteAdapters,
+  ...conversationWriteAdapters,
+  ...conversationOfflineWriteAdapters,
   ...libraryWriteAdapters,
   ...engagementWriteAdapters,
   ...documentWriteAdapters,

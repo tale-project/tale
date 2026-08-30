@@ -9518,6 +9518,78 @@ async function checkConversations(
     .safeParse(await (await api(`/${conversationId}`)).json());
 
   // Bulk close stamps resolved_by; reopen flips back.
+  // The Inbox reads a row ONE LEVEL DEEP, so the door must hand back the
+  // projected item (the shared `projectConversationItem`), not the raw row:
+  // a raw row renders a blank title and no preview.
+  const projectedList = z
+    .object({
+      items: z.array(
+        z
+          .object({
+            _id: z.string(),
+            id: z.string(),
+            title: z.string(),
+            description: z.string(),
+            business_id: z.string(),
+            message_count: z.number(),
+            unread_count: z.number(),
+            created_at: z.string(),
+            contact: z.object({ email: z.string() }).loose(),
+            messages: z.array(z.object({ isCustomer: z.boolean() }).loose()),
+          })
+          .loose(),
+      ),
+    })
+    .loose()
+    .safeParse(
+      await (
+        await fetch(`${base}/api/app/conversations?orgId=${orgId}&limit=5`, {
+          headers: { cookie },
+        })
+      ).json(),
+    );
+  const projectedRow = projectedList.success
+    ? projectedList.data.items.find((item) => item.id === conversationId)
+    : undefined;
+  const projectedDetail = z
+    .object({
+      item: z
+        .object({
+          _id: z.string(),
+          title: z.string(),
+          messages: z.array(
+            z
+              .object({
+                id: z.string(),
+                isCustomer: z.boolean(),
+                status: z.string(),
+                timestamp: z.string(),
+              })
+              .loose(),
+          ),
+        })
+        .loose(),
+    })
+    .loose()
+    .safeParse(await (await api(`/${conversationId}`)).json());
+  record(
+    'conversations: rows and detail carry the projected Inbox shape',
+    projectedList.success &&
+      projectedRow !== undefined &&
+      projectedRow._id === conversationId &&
+      projectedRow.title !== '' &&
+      projectedRow.business_id === orgId &&
+      // A list row carries ONLY the newest message — enough for the preview.
+      projectedRow.messages.length === 1 &&
+      projectedRow.contact.email === 'customer@inbox.test' &&
+      projectedDetail.success &&
+      projectedDetail.data.item._id === conversationId &&
+      // The detail carries the whole thread, oldest first.
+      projectedDetail.data.item.messages.length >= 1 &&
+      (projectedDetail.data.item.messages[0]?.isCustomer ?? false),
+    `row=${projectedRow === undefined ? 'MISSING' : `${projectedRow.title}/${projectedRow.messages.length}msg/${projectedRow.contact.email}`}, detail=${projectedDetail.success ? `${projectedDetail.data.item.messages.length}msg` : 'ERR'}`,
+  );
+
   const closed = z
     .object({ successCount: z.number(), failedCount: z.number() })
     .loose()

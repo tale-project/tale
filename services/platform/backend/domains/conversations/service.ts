@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { conversationAssignmentAllows } from '../../../convex/lib/rls/helpers/conversation_assignment.ts';
+import { projectConversationItem } from '../../../lib/shared/conversations/conversation-item.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { toJson } from '../../db/sql.ts';
@@ -950,4 +951,96 @@ export async function deleteConversation(
     await assertNotHeld(tx, organizationId, 'conversation', conversationId);
     await tx`DELETE FROM app.conversations WHERE id = ${conversationId}`;
   });
+}
+
+/**
+ * One conversation in the shape the Inbox reads — the SHARED projection
+ * (`lib/shared/conversations/conversation-item.ts`), so this lane and 0.4
+ * cannot drift into two different "same" shapes. `withMessages: false`
+ * carries only the newest message, which is all a list row needs to show a
+ * preview.
+ */
+export async function projectConversationForView(
+  sql: Sql,
+  conversation: ConversationRow,
+  options: { withMessages: boolean },
+): Promise<Record<string, unknown>> {
+  const messages = options.withMessages
+    ? await listConversationMessages(sql, conversation.id)
+    : await sql<ConversationMessageRow[]>`
+        SELECT ${sql.unsafe(MESSAGE_COLUMNS)} FROM app.conversation_messages
+        WHERE conversation_id = ${conversation.id}
+        ORDER BY coalesce(sent_at_ms, delivered_at_ms, created_at_ms) DESC,
+                 seq DESC
+        LIMIT 1
+      `;
+  const contactRows =
+    conversation.contactId === null
+      ? []
+      : await sql<
+          {
+            id: string;
+            name: string | null;
+            email: string | null;
+            locale: string | null;
+            source: string | null;
+            createdAt: number;
+          }[]
+        >`
+          SELECT id, name, email, locale, source,
+                 created_at_ms::float8 AS "createdAt"
+          FROM app.contacts
+          WHERE id = ${conversation.contactId}
+            AND org_id = ${conversation.organizationId}
+          LIMIT 1
+        `;
+  const pending = await sql<{ id: string; metadata: unknown }[]>`
+    SELECT id, metadata FROM app.approvals
+    WHERE org_id = ${conversation.organizationId}
+      AND resource_type = 'conversations'
+      AND resource_id = ${conversation.id} AND status = 'pending'
+    ORDER BY created_at_ms DESC
+    LIMIT 1
+  `;
+  return projectConversationItem({
+    conversation: {
+      ...conversation,
+      createdAt: conversation.createdAt,
+    },
+    contact: contactRows[0] ?? null,
+    messages,
+    ...(pending[0] !== undefined ? { pendingApproval: pending[0] } : {}),
+  });
+}
+
+/**
+ * One message, scoped through its conversation's visibility — the guard the
+ * message-level doors (undo/retry/discard/attachments) share, so a member
+ * can never act on a message in a conversation they cannot open.
+ */
+export async function loadMessageForViewer(
+  sql: Sql,
+  viewer: ConversationViewer,
+  messageId: string,
+): Promise<ConversationMessageRow & { connectorName: string | null }> {
+  const rows = await sql<ConversationMessageRow[]>`
+    SELECT ${sql.unsafe(MESSAGE_COLUMNS)} FROM app.conversation_messages
+    WHERE id = ${messageId} AND org_id = ${viewer.organizationId}
+    LIMIT 1
+  `;
+  const message = rows[0];
+  if (message === undefined) {
+    throw new ConversationError('MESSAGE_NOT_FOUND', 'Message not found', 404);
+  }
+  const conversation = await loadVisibleConversation(
+    sql,
+    viewer,
+    message.conversationId,
+  );
+  return {
+    ...message,
+    // The CONVERSATION owns the provider — a per-message stamp would let a
+    // reply escape to whatever connector last touched the row.
+    connectorName: conversation.connectorName,
+  };
 }

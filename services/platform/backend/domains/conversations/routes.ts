@@ -15,9 +15,9 @@ import {
   undoSendMessage,
 } from './send.ts';
 import {
+  addMessageToConversation,
   assignConversation,
   assignConversationTeam,
-  addMessageToConversation,
   bulkSetConversationStatus,
   ConversationError,
   countConversationsByStatus,
@@ -25,10 +25,12 @@ import {
   deleteConversation,
   listConversationMessages,
   listConversationsPage,
+  loadMessageForViewer,
   loadVisibleConversation,
   markConversationAsRead,
-  updateConversation,
+  projectConversationForView,
   type ConversationViewer,
+  updateConversation,
 } from './service.ts';
 
 /**
@@ -113,7 +115,16 @@ export function createConversationRoutes(deps: {
       cursor: c.req.query('cursor') ?? null,
       limit: Number.isFinite(limitRaw) ? limitRaw : 25,
     });
-    return c.json(result);
+    // The Inbox reads a row one level deep, so every page row carries the
+    // projected item too — the same projection the detail door applies.
+    return c.json({
+      ...result,
+      items: await Promise.all(
+        result.page.map((row) =>
+          projectConversationForView(deps.sql, row, { withMessages: false }),
+        ),
+      ),
+    });
   });
 
   app.get('/counts', async (c) => {
@@ -142,7 +153,15 @@ export function createConversationRoutes(deps: {
         deps.sql,
         conversation.id,
       );
-      return c.json({ conversation, messages });
+      // Both shapes: the raw pair the machine door reads, and the projected
+      // Inbox item the app renders (one level deep, messages included).
+      return c.json({
+        conversation,
+        messages,
+        item: await projectConversationForView(deps.sql, conversation, {
+          withMessages: true,
+        }),
+      });
     } catch (error) {
       return handleError(c, error);
     }
@@ -374,6 +393,46 @@ export function createConversationRoutes(deps: {
         actor: actor(c),
       });
       return c.json(result);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /**
+   * Materialize a received message's attachments. The provider fetch itself
+   * is absent in BOTH versions (0.4's `downloadAttachmentsAction` is a
+   * no-op), so this door is the guards: the message must exist and be
+   * visible, and its conversation must carry a connector — a conversation no
+   * sync has stamped fails CLOSED rather than dispatching through whichever
+   * provider happens to be configured.
+   */
+  app.post('/messages/:messageId/attachments', async (c) => {
+    try {
+      const message = await loadMessageForViewer(
+        deps.sql,
+        viewer(c),
+        c.req.param('messageId'),
+      );
+      if (!message.externalMessageId) {
+        return c.json(
+          {
+            error: 'message_no_external_id',
+            message: 'Message has no external ID for attachment download',
+          },
+          400,
+        );
+      }
+      if (!message.connectorName) {
+        return c.json(
+          {
+            error: 'conversation_connector_missing',
+            message:
+              'Conversation has no connector to download attachments through — unavailable until a sync stamps its connectorName',
+          },
+          400,
+        );
+      }
+      return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
     }
