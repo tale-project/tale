@@ -3996,6 +3996,118 @@ async function checkAutomations(
       { version: 2 },
     );
 
+    // A CONNECTOR node: the stepper's "everything else is a connector
+    // action" branch, dispatched through the shim onto the 0.5 door. Mock
+    // mode runs the action's deterministic body, so nothing leaves the box.
+    const connectorDoc = {
+      version: 1,
+      name: 'ops/files',
+      nodes: [
+        {
+          id: 'listing',
+          type: 'document.list',
+          input: { folderPath: '{{ input.folder }}' },
+        },
+      ],
+      output: '{{ nodes.listing.output.count }}',
+    };
+    await post(`/api/app/automations/ops/files/save?orgId=${orgId}`, {
+      document: connectorDoc,
+      message: 'connector node',
+    });
+    await post(`/api/app/automations/ops/files/deploy?orgId=${orgId}`, {
+      version: 1,
+    });
+    const connectorRun = z.object({ runId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/automations/ops/files/start?orgId=${orgId}`, {
+          input: { folder: 'Clients/Acme' },
+          mode: 'mock',
+        })
+      ).json(),
+    );
+    const connectorRunId = connectorRun.success ? connectorRun.data.runId : '';
+    await waitFor(async () => {
+      const body = z
+        .object({ run: z.looseObject({ status: z.string() }) })
+        .loose()
+        .safeParse(
+          await get(
+            `/api/app/automations/runs/${connectorRunId}?orgId=${orgId}`,
+          ),
+        );
+      return (
+        body.success &&
+        ['success', 'failed', 'cancelled'].includes(body.data.run.status)
+      );
+    }, 30_000);
+    const connectorView = z
+      .object({
+        run: z.looseObject({
+          status: z.string(),
+          output: z.unknown(),
+          detail: z.string().nullable(),
+        }),
+      })
+      .loose()
+      .safeParse(
+        await get(`/api/app/automations/runs/${connectorRunId}?orgId=${orgId}`),
+      );
+    // An unknown action must fail the run with the door's CODED refusal,
+    // not a bare stack — the stepper branches on that contract.
+    await post(`/api/app/automations/ops/files/save?orgId=${orgId}`, {
+      document: {
+        ...connectorDoc,
+        nodes: [{ id: 'listing', type: 'document.nope', input: {} }],
+      },
+      message: 'unknown action',
+    });
+    await post(`/api/app/automations/ops/files/deploy?orgId=${orgId}`, {
+      version: 2,
+    });
+    const badRun = z.object({ runId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/automations/ops/files/start?orgId=${orgId}`, {
+          input: { folder: 'Clients/Acme' },
+          mode: 'mock',
+        })
+      ).json(),
+    );
+    const badRunId = badRun.success ? badRun.data.runId : '';
+    await waitFor(async () => {
+      const body = z
+        .object({ run: z.looseObject({ status: z.string() }) })
+        .loose()
+        .safeParse(
+          await get(`/api/app/automations/runs/${badRunId}?orgId=${orgId}`),
+        );
+      return (
+        body.success &&
+        ['success', 'failed', 'cancelled'].includes(body.data.run.status)
+      );
+    }, 30_000);
+    const badView = z
+      .object({
+        run: z.looseObject({
+          status: z.string(),
+          detail: z.string().nullable(),
+        }),
+      })
+      .loose()
+      .safeParse(
+        await get(`/api/app/automations/runs/${badRunId}?orgId=${orgId}`),
+      );
+    record(
+      'automation connector node dispatches through the door (mock body)',
+      connectorView.success &&
+        connectorView.data.run.status === 'success' &&
+        connectorView.data.run.output === 2 &&
+        badView.success &&
+        badView.data.run.status === 'failed' &&
+        (badView.data.run.detail ?? '').includes('nope'),
+      `run=${connectorView.success ? connectorView.data.run.status : 'ERR'} output=${connectorView.success ? JSON.stringify(connectorView.data.run.output) : 'ERR'} (want 2), unknownAction=${badView.success ? badView.data.run.status : 'ERR'}/${(badView.success ? (badView.data.run.detail ?? '') : '').slice(0, 60)}`,
+    );
+
     const started = z.object({ runId: z.string() }).safeParse(
       await (
         await post(`/api/app/automations/ops/greet/start?orgId=${orgId}`, {
@@ -16108,11 +16220,92 @@ async function checkAskAnswer(
     WHERE org_id = ${orgId} AND type = 'agent_escalation'
       AND params ->> 'askId' = ${bellAskId}
   `;
-  // The bell session must not linger — later capacity scenarios count the
+  // A TASK-BOUND run: the ask must hang off the card the person is being
+  // asked about — otherwise the bell lands on the bare dashboard and the
+  // task panel cannot say which question is waiting.
+  const askProject = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Ask project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const askProjectId = askProject[0]?.id ?? '';
+  const askTask = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${askProjectId}, 'Reconcile the ledger', 'in_progress', 'a0',
+      ${userId}, 'user', ${now}, ${now}
+    ) RETURNING id
+  `;
+  const askTaskId = askTask[0]?.id ?? '';
+  const boundRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, project_id, input,
+      checkpoints, started_at_ms
+    ) VALUES (
+      ${orgId}, 'itest/ask-task', 1, 'running', 'live', 'itest:ask',
+      ${askProjectId},
+      ${sql.json(toJson({ task: { id: askTaskId } }))},
+      ${sql.json(toJson(checkpointsA))}, ${now}
+    ) RETURNING id
+  `;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, 'wf-ask-task', 'active', 'workflow_run',
+      ${`${boundRun[0]?.id ?? ''}:@workflow`}, 'itest:ask', ${now},
+      ${now + 3_600_000}
+    )
+  `;
+  const taskAsk = z
+    .object({ askId: z.string(), taskId: z.string() })
+    .loose()
+    .safeParse(
+      await createAsk?.({
+        organizationId: orgId,
+        sessionId: 'wf-ask-task',
+        question: 'Which account should this land in?',
+      }),
+    );
+  const taskAskRow = await sql<{ taskId: string | null }[]>`
+    SELECT task_id AS "taskId" FROM app.automation_human_asks
+    WHERE id = ${taskAsk.success ? taskAsk.data.askId : ''}
+  `;
+  const taskBell = await sql<
+    {
+      resourceType: string;
+      resourceId: string;
+      params: Record<string, unknown> | null;
+    }[]
+  >`
+    SELECT resource_type AS "resourceType", resource_id AS "resourceId",
+           params
+    FROM app.user_notifications
+    WHERE org_id = ${orgId} AND type = 'agent_escalation'
+      AND params ->> 'askId' = ${taskAsk.success ? taskAsk.data.askId : ''}
+    LIMIT 1
+  `;
+  record(
+    'a task-bound ask hangs off the task: row, bell target, and deep link',
+    taskAsk.success &&
+      taskAsk.data.taskId === askTaskId &&
+      taskAskRow[0]?.taskId === askTaskId &&
+      taskBell[0]?.resourceType === 'task' &&
+      taskBell[0].resourceId === askTaskId &&
+      taskBell[0].params?.title === 'Reconcile the ledger' &&
+      taskBell[0].params.projectId === askProjectId,
+    `returned=${taskAsk.success ? taskAsk.data.taskId === askTaskId : 'ERR'}, row=${taskAskRow[0]?.taskId === askTaskId}, bell=${taskBell[0]?.resourceType}/${taskBell[0]?.resourceId === askTaskId}, params=${JSON.stringify(taskBell[0]?.params?.title)}/${taskBell[0]?.params?.projectId === askProjectId}`,
+  );
+
+  // The bell sessions must not linger — later capacity scenarios count the
   // org's live workflow sessions.
   await sql`
     UPDATE app.sandbox_sessions SET status = 'destroyed'
-    WHERE session_id = 'wf-ask-bell'
+    WHERE session_id IN ('wf-ask-bell', 'wf-ask-task')
   `;
   record(
     'ask bells: fan-out on create, fold carries the merged question, answer dismisses',
@@ -17975,6 +18168,8 @@ async function checkRetention(
       'chatHistoryRetentionDays: 7',
       'agentRunsEnabled: true',
       'agentRunsRetentionDays: 7',
+      'workflowLogEnabled: true',
+      'workflowLogRetentionDays: 7',
       'auditLogEnabled: true',
       'auditLogRetentionDays: 365',
       'userTempEnabled: true',
@@ -18033,6 +18228,20 @@ async function checkRetention(
        'system', true, ${old}),
       (${userId}, ${orgId}, 'task_commented', 'x', 'y', 'task', 'rt-new',
        'system', true, ${now})
+  `;
+
+  // Three aged automation runs: only the TERMINAL one may be swept.
+  await sql`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, started_at_ms,
+      finished_at_ms
+    ) VALUES
+      (${orgId}, 'rt-wf-success', 1, 'success', 'live', 'trigger:itest',
+       ${ancient}, ${ancient}),
+      (${orgId}, 'rt-wf-waiting', 1, 'waiting', 'live', 'trigger:itest',
+       ${ancient}, NULL),
+      (${orgId}, 'rt-wf-running', 1, 'running', 'live', 'trigger:itest',
+       ${ancient}, NULL)
   `;
 
   // Phase-2 seeds: an ancient document, an ancient chat thread (with a
@@ -18174,6 +18383,11 @@ async function checkRetention(
     SELECT count(*)::text AS count FROM app.project_agent_runs
     WHERE exec_id = 'rt-ancient-exec'
   `;
+  const automationRunsLeft = await sql<{ name: string }[]>`
+    SELECT name FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name LIKE 'rt-wf-%'
+    ORDER BY name
+  `;
   const auditGone = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.audit_logs
     WHERE org_id = ${orgId} AND actor_id = 'rt-ancient'
@@ -18189,8 +18403,13 @@ async function checkRetention(
       msgGone[0]?.count === '0' &&
       runGone[0]?.count === '0' &&
       auditGone[0]?.count === '0' &&
-      tempGone[0]?.count === '0',
-    `doc=${docGone[0]?.count} thread=${threadGone[0]?.count} msgs=${msgGone[0]?.count} run=${runGone[0]?.count} audit=${auditGone[0]?.count} temp=${tempGone[0]?.count} (all want 0)`,
+      tempGone[0]?.count === '0' &&
+      // The workflow-log window takes the aged TERMINAL run and nothing
+      // else: a `waiting` run is parked on a person and a `running` one is
+      // mid-flight, so age alone must never make either a candidate.
+      automationRunsLeft.map((row) => row.name).join(',') ===
+        'rt-wf-running,rt-wf-waiting',
+    `doc=${docGone[0]?.count} thread=${threadGone[0]?.count} msgs=${msgGone[0]?.count} run=${runGone[0]?.count} audit=${auditGone[0]?.count} temp=${tempGone[0]?.count} (all want 0), automationRuns=${automationRunsLeft.map((row) => row.name).join(',')} (want rt-wf-running,rt-wf-waiting)`,
   );
 }
 

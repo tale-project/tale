@@ -394,6 +394,7 @@ interface Phase2Stats {
   chatHistory: number;
   contacts: number;
   agentRuns: number;
+  automationRuns: number;
   auditLogs: number;
   tempFiles: number;
 }
@@ -732,6 +733,39 @@ async function sweepAgentRuns(
 }
 
 /**
+ * The `workflowLog` category's automation runs — the operator reads one
+ * question ("how long do we keep a record of what automations did"), so this
+ * shares that flag and window with the workflow log rather than inventing a
+ * category.
+ *
+ * Only TERMINAL runs are candidates. A `waiting` run is parked on a human
+ * decision and may sit for weeks; a `running` one is mid-flight — age alone
+ * must never make either a candidate, or the sweep destroys live work
+ * instead of an old record. `app.automation_runs` carries no user column, so
+ * the org-wide hold (checked by the caller before any category runs) is the
+ * whole custodian story; removing one subject's runs is erasure's job.
+ */
+async function sweepAutomationRuns(sql: Sql, org: OrgPolicy): Promise<number> {
+  if (org.config.workflowLogEnabled !== true) return 0;
+  const days = org.config.workflowLogRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return 0;
+  const cutoff =
+    Date.now() - (days + (org.config.deletionGraceDays ?? 0)) * DAY_MS;
+  const rows = await sql<{ id: string }[]>`
+    DELETE FROM app.automation_runs
+    WHERE id IN (
+      SELECT id FROM app.automation_runs
+      WHERE org_id = ${org.organizationId}
+        AND status IN ('success', 'failed', 'cancelled')
+        AND coalesce(finished_at_ms, started_at_ms) < ${cutoff}
+      LIMIT ${BATCH_LIMIT}
+    )
+    RETURNING id
+  `;
+  return rows.length;
+}
+
+/**
  * Audit logs are PREFIX-ONLY: the hash chain anchors on the oldest
  * remaining row's stored `previous_hash`, so a mid-chain hole would break
  * verification. The walk deletes oldest-first and STOPS at the first row
@@ -822,6 +856,7 @@ export async function sweepOrgPhase2(
     chatHistory: 0,
     contacts: 0,
     agentRuns: 0,
+    automationRuns: 0,
     auditLogs: 0,
     tempFiles: 0,
   };
@@ -830,6 +865,7 @@ export async function sweepOrgPhase2(
   stats.chatHistory = await sweepChatHistory(sql, org, holds);
   stats.contacts = await sweepContacts(sql, org, holds);
   stats.agentRuns = await sweepAgentRuns(sql, org, holds);
+  stats.automationRuns = await sweepAutomationRuns(sql, org);
   stats.auditLogs = await sweepAuditLogs(sql, org, holds);
   stats.tempFiles =
     (await sweepTempFiles(sql, org, 'user', holds)) +

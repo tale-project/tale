@@ -456,8 +456,11 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         return { refused: 'this session is not an automation run session' };
       }
       const runId = session.ownerId.split(':')[0] ?? '';
-      const runs = await sql<{ status: string; checkpoints: unknown }[]>`
-        SELECT status, checkpoints FROM app.automation_runs
+      const runs = await sql<
+        { status: string; checkpoints: unknown; taskId: string | null }[]
+      >`
+        SELECT status, checkpoints, input -> 'task' ->> 'id' AS "taskId"
+        FROM app.automation_runs
         WHERE id = ${runId} AND org_id = ${args.organizationId}
         LIMIT 1
       `;
@@ -483,6 +486,10 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         return { refused: 'the run has no live agent turn right now' };
       }
       const execId = agent.execId ?? '';
+      // A run bound to a task carries it in its input; resolve it ONCE and
+      // hang the ask off it, so the bell deep-links to the card the person
+      // is being asked about instead of the bare dashboard.
+      const task = await resolveRunTask(sql, args.organizationId, run.taskId);
       const existing = await sql<{ id: string; question: string }[]>`
         SELECT id, question FROM app.automation_human_asks
         WHERE session_id = ${args.sessionId} AND exec_id = ${execId}
@@ -504,19 +511,26 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
           askId: existing[0].id,
           runId,
           question: merged,
+          task,
         });
-        return { askId: existing[0].id, question, folded: true };
+        return {
+          askId: existing[0].id,
+          ...(task !== null ? { taskId: task.id } : {}),
+          question,
+          folded: true,
+        };
       }
       const inserted = await sql<{ id: string }[]>`
         INSERT INTO app.automation_human_asks (
           org_id, run_id, node_id, session_id, exec_id, question, questions,
-          status, expires_at_ms, created_at_ms
+          status, expires_at_ms, task_id, created_at_ms
         ) VALUES (
           ${args.organizationId}, ${runId},
           ${checkpoints.cursor?.node ?? ''}, ${args.sessionId}, ${execId},
           ${question},
           ${args.questions === undefined ? null : sql.json(toJson(args.questions))},
-          'pending', ${Date.now() + 7 * 24 * 3_600_000}, ${Date.now()}
+          'pending', ${Date.now() + 7 * 24 * 3_600_000}, ${task?.id ?? null},
+          ${Date.now()}
         )
         RETURNING id
       `;
@@ -526,8 +540,14 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         askId,
         runId,
         question,
+        task,
       });
-      return { askId, question, folded: false };
+      return {
+        askId,
+        ...(task !== null ? { taskId: task.id } : {}),
+        question,
+        folded: false,
+      };
     },
 
     'automations/human_asks:getPendingAskForExec': async (raw) => {
@@ -731,6 +751,23 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
 
 /** Bell fan-out for one ask — best-effort (a notify failure must never fail
  * the ask itself); the audience is everyone who can see the run's project. */
+/** The task an automation run was started FOR, when it still exists in this
+ * org — a stale or foreign id in the run input resolves to no task rather
+ * than a bell pointing at someone else's card (0.4's `normalizeId` guard). */
+async function resolveRunTask(
+  sql: Sql,
+  organizationId: string,
+  taskId: string | null,
+): Promise<{ id: string; title: string; projectId: string } | null> {
+  if (taskId === null || taskId === '') return null;
+  const rows = await sql<{ id: string; title: string; projectId: string }[]>`
+    SELECT id, title, project_id AS "projectId" FROM app.tasks
+    WHERE id = ${taskId} AND org_id = ${organizationId}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
 async function notifyAskBestEffort(
   sql: Sql,
   args: {
@@ -738,6 +775,7 @@ async function notifyAskBestEffort(
     askId: string;
     runId: string;
     question: string;
+    task: { id: string; title: string; projectId: string } | null;
   },
 ): Promise<void> {
   try {
@@ -752,7 +790,7 @@ async function notifyAskBestEffort(
       runId: args.runId,
       question: args.question,
       automationLabel: run?.name ?? 'automation',
-      task: null,
+      task: args.task,
       ...(run?.projectId != null ? { projectId: run.projectId } : {}),
     });
   } catch (error) {
