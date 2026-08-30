@@ -2,6 +2,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
 import { eventsUrl } from './api-client';
+import {
+  reportBackendReachable,
+  reportBackendUnreachable,
+} from './connection-state';
 import { backendEntityPrefix } from './query-keys';
 
 /**
@@ -42,10 +46,25 @@ export function useBackendHints(orgId: string | undefined): void {
         console.warn('[backend-hints] unparseable hint event:', error);
       }
     };
+    // This stream is also the app's reachability signal: it is the one lane
+    // that stays open, so its transitions are what the offline overlay
+    // reasons on (the 0.5 replacement for the WebSocket's state).
+    const onOpen = (): void => {
+      reportBackendReachable();
+    };
+    const onError = (): void => {
+      reportBackendUnreachable();
+    };
     source.addEventListener('hint', onHint);
+    source.addEventListener('open', onOpen);
+    source.addEventListener('error', onError);
     return () => {
       source.removeEventListener('hint', onHint);
+      source.removeEventListener('open', onOpen);
+      source.removeEventListener('error', onError);
       source.close();
+      // A closed stream is not an outage — the next mount reopens it.
+      reportBackendReachable();
     };
   }, [orgId, queryClient]);
 }

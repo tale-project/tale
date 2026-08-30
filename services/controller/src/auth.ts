@@ -1,6 +1,6 @@
 // HMAC request authentication for the controller.
 //
-// The platform/convex caller signs `${timestamp}.${rawBody}` with a shared
+// The backend caller signs `${timestamp}.${rawBody}` with a shared
 // secret (CONTROLLER_TOKEN); we verify with a constant-time compare and reject
 // stale timestamps. Mirrors the sandbox spawner's trust model — the only
 // thing that should ever reach this socket-holding service is a signed request

@@ -1,4 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
 import type { FunctionArgs, FunctionReference } from 'convex/server';
 import { getFunctionName } from 'convex/server';
 import { ConvexError } from 'convex/values';
@@ -7,6 +6,7 @@ import {
   activeOrganizationId,
   READ_ADAPTERS,
 } from '@/app/lib/backend/convex-adapters';
+import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
 import type { RouterContext } from '@/app/router';
 import { api } from '@/convex/_generated/api';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
@@ -17,9 +17,9 @@ type QueryArgs<Func extends FunctionReference<'query'>> =
     : [args: FunctionArgs<Func>];
 
 /**
- * Await a small, render-gating Convex query in a route loader. Resolves on the
- * first WebSocket result, warms the React Query cache (so the component reads it
- * warm — no client loading flash), and leaves the live subscription in place.
+ * Await a small, render-gating read in a route loader — it warms the SAME
+ * react-query entry the component's hook reads, so the first paint has the
+ * answer already (no client loading flash).
  *
  * Use ONLY for bounded data that decides what renders (access/member context,
  * the entity that gates content vs. an empty/denied state). Never await a list
@@ -30,10 +30,8 @@ export function ensureConvexQuery<Func extends FunctionReference<'query'>>(
   func: Func,
   ...[args]: QueryArgs<Func>
 ) {
-  // A family migrated to the 0.5 backend warms the SAME react-query entry
-  // its hook's adapter row reads — a convex prefetch would either error on
-  // the dead WS (post-swap) or warm a key nobody consumes.
-  const adapter = READ_ADAPTERS[getFunctionName(func)];
+  const fnName = getFunctionName(func);
+  const adapter = READ_ADAPTERS[fnName];
   if (adapter !== undefined) {
     const organizationId = activeOrganizationId();
     const adapted = adapter(
@@ -46,7 +44,9 @@ export function ensureConvexQuery<Func extends FunctionReference<'query'>>(
       queryFn: adapted.queryFn,
     });
   }
-  return context.queryClient.ensureQueryData(convexQuery(func, args ?? {}));
+  // A render-gating read with no row cannot degrade quietly: the route would
+  // paint its denied/empty state as if that were the answer.
+  throw new ConvexRetiredError(fnName);
 }
 
 type GovernancePolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];

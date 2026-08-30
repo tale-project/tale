@@ -1,12 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@convex-dev/react-query', () => ({
-  convexQuery: vi.fn((...args: unknown[]) => ({
-    queryKey: ['convexQuery', ...args],
-    queryFn: vi.fn(),
-  })),
-}));
-
 vi.mock('@tanstack/react-query', () => ({
   useQuery: vi.fn((options: unknown) => ({
     data: undefined,
@@ -20,7 +13,7 @@ const mockUseConvexAuth = vi.fn(() => ({
   isAuthenticated: true,
   isLoading: false,
 }));
-vi.mock('convex/react', () => ({
+vi.mock('./use-convex-auth', () => ({
   useConvexAuth: () => mockUseConvexAuth(),
 }));
 
@@ -43,13 +36,11 @@ vi.mock('@/app/lib/backend/convex-adapters', () => ({
   retryAdaptedRead: () => false,
 }));
 
-import { convexQuery } from '@convex-dev/react-query';
 import { useQuery } from '@tanstack/react-query';
 import { getFunctionName } from 'convex/server';
 
 import { useConvexQuery } from './use-convex-query';
 
-const mockConvexQuery = vi.mocked(convexQuery);
 const mockUseQuery = vi.mocked(useQuery);
 
 const mockQueryRef = {} as Parameters<typeof useConvexQuery>[0];
@@ -68,26 +59,22 @@ describe('useConvexQuery', () => {
     });
   });
 
-  it('passes query function and args to convexQuery', () => {
-    const args = { organizationId: 'org-123' };
+  it('refuses, NAMED, when the read has no backend row', async () => {
+    useConvexQuery(mockQueryRef, { organizationId: 'org-123' });
 
-    useConvexQuery(mockQueryRef, args);
-
-    expect(mockConvexQuery).toHaveBeenCalledWith(mockQueryRef, args);
+    const passed = mockUseQuery.mock.calls[0]?.[0] as {
+      queryKey: unknown[];
+      queryFn: () => Promise<unknown>;
+    };
+    expect(passed.queryKey).toEqual(['convex-retired', 'items:list']);
+    await expect(passed.queryFn()).rejects.toThrow('items:list');
     expect(mockUseQuery).toHaveBeenCalledTimes(1);
   });
 
-  it('passes empty object when no args provided', () => {
-    useConvexQuery(mockQueryRef);
-
-    expect(mockConvexQuery).toHaveBeenCalledWith(mockQueryRef, {});
-    expect(mockUseQuery).toHaveBeenCalledTimes(1);
-  });
-
-  it('passes skip string to convexQuery', () => {
+  it('a skipped read never fires the refusal', () => {
     useConvexQuery(mockQueryRef, 'skip');
 
-    expect(mockConvexQuery).toHaveBeenCalledWith(mockQueryRef, 'skip');
+    expect(lastEnabled()).toBe(false);
     expect(mockUseQuery).toHaveBeenCalledTimes(1);
   });
 
@@ -132,22 +119,19 @@ describe('useConvexQuery', () => {
     expect(passedOptions?.enabled).toBe(false);
   });
 
-  it('enabled option overrides convexQuery enabled when provided', () => {
-    // Even with normal args (which would produce enabled:true from convexQuery),
-    // passing enabled:false disables the query while keeping the stable query key.
+  it('a caller enabled:false disables the query while keeping its key', () => {
     useConvexQuery(
       mockQueryRef,
       { organizationId: 'org-123' },
       { enabled: false },
     );
 
-    expect(mockConvexQuery).toHaveBeenCalledWith(mockQueryRef, {
-      organizationId: 'org-123',
-    });
     const passedOptions = mockUseQuery.mock.calls[0]?.[0] as {
       enabled?: boolean;
+      queryKey: unknown[];
     };
     expect(passedOptions?.enabled).toBe(false);
+    expect(passedOptions.queryKey).toEqual(['convex-retired', 'items:list']);
   });
 
   it('gates on auth by default: disabled while unauthenticated', () => {
@@ -236,7 +220,6 @@ describe('useConvexQuery adapter lane', () => {
       { organizationId: 'org-1' },
       {},
     );
-    expect(mockConvexQuery).not.toHaveBeenCalled();
     const passed = mockUseQuery.mock.calls[0]?.[0] as {
       queryKey?: unknown;
       enabled?: boolean;
@@ -264,7 +247,6 @@ describe('useConvexQuery adapter lane', () => {
     useConvexQuery(mockQueryRef, 'skip');
 
     expect(mockAdapterRow).not.toHaveBeenCalled();
-    expect(mockConvexQuery).not.toHaveBeenCalled();
     expect(lastEnabled()).toBe(false);
   });
 

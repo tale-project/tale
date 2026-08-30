@@ -3,12 +3,12 @@
 import { Button } from '@tale/ui/button';
 import { Center, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import type { UsePaginatedQueryResult } from 'convex/react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { type ReactNode } from 'react';
 
 import { isConvexTransientError } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
+import type { UsePaginatedQueryResult } from '@/app/hooks/use-convex-paginated-query';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 

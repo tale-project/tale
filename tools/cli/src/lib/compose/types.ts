@@ -26,13 +26,17 @@ export interface ComposeService {
   env_file?: string[];
   environment?: Record<string, string>;
   restart?: string;
-  healthcheck?: {
-    test: string[];
-    interval: string;
-    timeout: string;
-    retries: number;
-    start_period?: string;
-  };
+  healthcheck?:
+    | {
+        test: string[];
+        interval: string;
+        timeout: string;
+        retries: number;
+        start_period?: string;
+      }
+    // A service with no HTTP surface (the job worker) disables the image's
+    // baked healthcheck rather than reading permanently unhealthy.
+    | { disable: true };
   depends_on?: string[] | Record<string, { condition: string }>;
   logging?: LoggingConfig;
   networks?: string[] | Record<string, { aliases?: string[] }>;
@@ -72,17 +76,14 @@ export const ROTATABLE_SERVICES = ['platform'] as const;
 export const STATEFUL_SERVICES = [
   'db',
   'proxy',
-  'convex',
   'sandbox-llm-gateway',
   // Sandbox tier — the single spawner and its egress proxy. Rolled in place
   // through the stateful compose on every default deploy (see
   // ALWAYS_ROLL_SERVICES); a serialized /v1/drain (drainSandbox) runs first.
   'sandbox',
   'sandbox-egress',
-  // 0.5 Postgres backend tier. Profile-gated in compose (`backend`), so a
-  // stack that has not cut over never starts one; naming a service
-  // explicitly starts it regardless of its profile, which is exactly how
-  // the migrated deployments roll it.
+  // The application backend tier: the api that serves every door and the
+  // worker that runs the jobs.
   'backend-api',
   'backend-worker',
 ] as const;
@@ -102,33 +103,26 @@ export const ALL_SERVICES = [
 export const STOP_GATED_SERVICES = ['db', 'proxy'] as const;
 /**
  * Always-roll-in-place tier — deployed via the stateful compose on EVERY
- * default deploy. `convex` must never version-skew from platform but can't be
- * two-color (it owns the single `convex-data` volume), so it's recreated in
- * place and only when its image actually changed. `sandbox-llm-gateway` is the
- * same shape — a singleton that owns the single `llm-gateway-data` volume, so it
- * also rolls in place. `sandbox` / `sandbox-egress` are the single-container
- * sandbox tier (blue-green dropped): they roll in place here too, drained first
- * via /v1/drain (drainSandbox, deploy.ts) like convex's chat-turn drain. The
- * wire protocol versions with platform, so they must roll on every deploy.
+ * default deploy. `sandbox-llm-gateway` is a singleton that owns the single
+ * `llm-gateway-data` volume, so it is recreated in place and only when its
+ * image actually changed. `sandbox` / `sandbox-egress` are the
+ * single-container sandbox tier (blue-green dropped): they roll in place too,
+ * drained first via /v1/drain (drainSandbox, deploy.ts). The wire protocol
+ * versions with platform, so they must roll on every deploy.
  */
 export const ALWAYS_ROLL_SERVICES = [
-  'convex',
   'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',
-  // The pg backend ships the SAME image as platform and shares its wire
+  // The backend ships the SAME image as platform and shares its wire
   // contracts, so it must never version-skew from it: rolled in place on
-  // every deploy of a migrated stack, drained first (drain-backend.ts).
-  // Deploy filters these out when the stack has not cut over.
+  // every deploy, drained first (drain-backend.ts).
   'backend-api',
   'backend-worker',
 ] as const;
 
-/**
- * The 0.5 Postgres backend tier — deployed only on a stack that has cut over
- * (see `selectDefaultServices`). Named once here so the deploy filter and the
- * drain lane can't drift apart.
- */
+/** The application backend tier — named once so the deploy flow and the
+ * drain lane cannot drift apart. */
 export const BACKEND_TIER_SERVICES = ['backend-api', 'backend-worker'] as const;
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];

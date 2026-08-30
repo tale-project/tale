@@ -1,5 +1,3 @@
-import type { ConvexReactClient } from 'convex/react';
-import { useConvex } from 'convex/react';
 import type {
   FunctionArgs,
   FunctionReference,
@@ -15,6 +13,7 @@ import {
   runAdapted,
   WRITE_ADAPTERS,
 } from '@/app/lib/backend/convex-adapters';
+import { retiredConvexClient } from '@/app/lib/backend/retired-convex';
 
 /**
  * The imperative escape hatch for one-shot calls outside the hook wrappers
@@ -39,10 +38,21 @@ interface AdapterAwareClient {
   ): Promise<FunctionReturnType<Mutation>>;
 }
 
-type ImperativeConvex = Pick<
-  ConvexReactClient,
-  'query' | 'action' | 'mutation'
->;
+/** What the wrapper still needs from a "client": three refusals. */
+interface ImperativeConvex {
+  query: (
+    query: FunctionReference<'query'>,
+    args: Record<string, unknown>,
+  ) => never;
+  action: (
+    action: FunctionReference<'action'>,
+    args: Record<string, unknown>,
+  ) => never;
+  mutation: (
+    mutation: FunctionReference<'mutation'>,
+    args: Record<string, unknown>,
+  ) => never;
+}
 
 /** Pure client wrapper — exported for tests; the hook memoizes it. */
 export function makeAdapterAwareClient(
@@ -93,6 +103,7 @@ export function makeAdapterAwareClient(
 }
 
 export function useConvexClient(): AdapterAwareClient {
-  const convex = useConvex();
-  return useMemo(() => makeAdapterAwareClient(convex), [convex]);
+  // Nothing to reach behind the unadapted branch any more — it refuses,
+  // named (`retiredConvexClient`), instead of hanging on a dead socket.
+  return useMemo(() => makeAdapterAwareClient(retiredConvexClient), []);
 }

@@ -10,7 +10,10 @@ import {
   ORG_DOMAIN_DIRS,
   ORGS_SUBDIR,
 } from '../../project/org-dirs';
-import { createConvexService } from '../services/create-convex-service';
+import {
+  createBackendApiService,
+  createBackendWorkerService,
+} from '../services/create-backend-services';
 import { createDbService } from '../services/create-db-service';
 import { createPlatformService } from '../services/create-platform-service';
 import { createProxyService } from '../services/create-proxy-service';
@@ -89,55 +92,51 @@ export function generateDevCompose(
   const projectDir = options.projectDir ?? process.cwd();
 
   // Discovered once and shared by every service that bind-mounts org config
-  // (convex + platform), so an empty workspace warns exactly once.
+  // (the backend tier + platform), so an empty workspace warns exactly once.
   const orgSources = orgMountSources(projectDir);
   if (orgSources.length === 0) {
     logger.warn(
-      `No org config found under ${projectDir}. Container will fall back to convex-data volume contents — host edits will not hot-reload.`,
+      `No org config found under ${projectDir}. Containers will fall back to the config volume's contents — host edits will not hot-reload.`,
     );
   }
 
-  // Convex service owns the /app/data volume in Phase 2.
-  const convex = createConvexService(config);
-  convex.container_name = `${getProjectId()}-convex`;
-  convex.volumes = [
+  // The backend tier owns the config volume; dev also bind-mounts the
+  // tale-init-populated dirs so host edits are visible to the routes and
+  // jobs that read them. Only emitted when the directory exists on disk.
+  const devConfigMounts = [
     'convex-data:/app/data',
-    // Dev overrides: live bind-mount tale-init-populated dirs so edits on
-    // the host are visible to the Convex actions that read them. Only
-    // emitted when the directory actually exists on disk.
     ...existingHostMounts(orgSources, projectDir, '/app/data'),
-    'caddy-data:/caddy-data:ro',
   ];
-  convex.depends_on = { db: { condition: 'service_healthy' } };
+  const backendApi = createBackendApiService(config);
+  backendApi.volumes = devConfigMounts;
+  const backendWorker = createBackendWorkerService(config);
+  backendWorker.volumes = devConfigMounts;
 
-  // Platform becomes a thin client.
+  // Platform is the web tier.
   //
-  // Read-only mount of `convex-data` for server.ts (config SSE watcher +
+  // Read-only mount of the config store for server.ts (config SSE watcher +
   // branding image serving). In dev we ALSO bind-mount the same host-side
-  // dirs that convex sees, so that:
+  // dirs the backend sees, so that:
   //   - host edits to ./agents/foo.json fire chokidar events in platform
   //     (named-volume-only mounts wouldn't see bind-mount overlays from a
   //     sibling container — bind mounts shadow but don't write through to
   //     the underlying named volume).
-  //   - server.ts can serve branding images from the same bytes the convex
-  //     functions read.
+  //   - server.ts serves branding images from the same bytes the backend
+  //     reads.
   const platform = createPlatformService(config, DEV_COLOR);
   platform.container_name = `${getProjectId()}-platform`;
   platform.volumes = [
     'convex-data:/app/data:ro',
     ...existingHostMounts(orgSources, projectDir, '/app/data', ':ro'),
   ];
-  // TALE_CONFIG_DIR is the only file-config path platform needs to push to
-  // Convex (sub-dirs are derived in convex/*/file_utils.ts). Platform also
-  // needs it locally for server.ts (chokidar root + branding image dir).
+  // server.ts needs the config root locally (chokidar root + branding image
+  // dir); the backend derives its own sub-dirs from the same value.
   platform.environment = {
     TALE_CONFIG_DIR: '/app/data',
     TALE_FILE_EVENTS: 'true',
-    CONVEX_URL: 'http://convex:3210',
   };
   platform.depends_on = {
     db: { condition: 'service_healthy' },
-    convex: { condition: 'service_healthy' },
   };
 
   const proxy = createProxyService(config, hostAlias);
@@ -165,7 +164,8 @@ export function generateDevCompose(
     services: {
       db: createDbService(config),
       proxy,
-      convex,
+      'backend-api': backendApi,
+      'backend-worker': backendWorker,
       platform,
       'sandbox-llm-gateway': createSandboxLlmGatewayService(config),
       'sandbox-egress': createSandboxEgressService(config),

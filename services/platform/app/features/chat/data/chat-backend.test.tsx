@@ -43,10 +43,9 @@ function stubClient(result: unknown): {
 /** Re-renders on demand, passing a FRESH api reference and args each time —
  * exactly what the real callsites do. */
 function Probe() {
-  // Every chat read has ported to the HTTP lane, so the watch machinery is
-  // pinned through a ref the seam has NOT migrated (any name outside
-  // HTTP_READS takes the websocket watch) — it stays the seam's fallback
-  // for whatever migrates last elsewhere.
+  // A ref the seam has NOT migrated: with the Convex runtime retired there is
+  // nothing behind it, so the surface must degrade — steadily, not by
+  // flickering between states on every render.
   const read = useChatQuery(api.chat_filter_events.queries.getGuardrailStats, {
     organizationId: 'org-1',
     periodDays: 7,
@@ -56,7 +55,7 @@ function Probe() {
 }
 
 describe('useChatQuery subscription stability', () => {
-  it('keeps one watch and a steady status across re-renders', async () => {
+  it('holds a steady status across re-renders', async () => {
     const { client, watchQuery } = stubClient([]);
     const { user } = render(
       <ConvexProvider client={client}>
@@ -64,14 +63,16 @@ describe('useChatQuery subscription stability', () => {
       </ConvexProvider>,
     );
 
-    expect(screen.getByRole('button')).toHaveTextContent('ready');
+    expect(screen.getByRole('button')).toHaveTextContent('unavailable');
 
     await user.click(screen.getByRole('button'));
     await user.click(screen.getByRole('button'));
     await user.click(screen.getByRole('button'));
 
-    expect(screen.getByRole('button')).toHaveTextContent('ready');
-    expect(watchQuery).toHaveBeenCalledTimes(1);
+    // Steady: the same answer on every render, never a flicker between
+    // states while the component re-renders around it.
+    expect(screen.getByRole('button')).toHaveTextContent('unavailable');
+    expect(watchQuery).not.toHaveBeenCalled();
   });
 });
 
@@ -86,35 +87,16 @@ describe('useChatQuery subscription stability', () => {
 
 /** A client whose local result can change between mounts, the way the real
  * one loses it when the last subscriber unmounts. */
-function liveStubClient(): {
-  client: ConvexReactClient;
-  watchQuery: ReturnType<typeof vi.fn>;
-  setLocalResult: (result: unknown) => void;
-} {
-  let live: unknown;
-  const watchQuery = vi.fn(() => ({
-    onUpdate: () => () => undefined,
-    localQueryResult: () => live,
-  }));
-  return {
-    client: { watchQuery } as unknown as ConvexReactClient,
-    watchQuery,
-    setLocalResult: (result: unknown) => {
-      live = result;
-    },
-  };
-}
-
 function ThreadsProbe({ org }: { org: string }) {
   return <output>{useChatThreads(org).status}</output>;
 }
 
 function WatchProbe({ org, threadId }: { org: string; threadId?: string }) {
-  // Same seam-unmigrated ref as `Probe` — the session-cache invariants pin
-  // the websocket lane, and the chat feature's own reads are all HTTP now.
+  // An ADAPTED read, skipped when no thread is selected — what the seam's
+  // 'skip' contract is actually about.
   const read = useChatQuery(
-    api.chat_filter_events.queries.getGuardrailStats,
-    threadId !== undefined ? { organizationId: org, periodDays: 7 } : 'skip',
+    api.chat.threads.listThreads,
+    threadId !== undefined ? { organizationId: org } : 'skip',
   );
   return <output>{read.status}</output>;
 }
@@ -153,48 +135,71 @@ describe('useChatQuery HTTP lane (migrated thread family)', () => {
 });
 
 describe('useChatQuery session cache', () => {
-  it('serves the last answer across a remount, with a fresh watch live', () => {
-    const { client, watchQuery, setLocalResult } = liveStubClient();
-    setLocalResult({ byKind: [] });
-    const first = render(
-      <ConvexProvider client={client}>
-        <WatchProbe org="org-remount" threadId="thread-1" />
-      </ConvexProvider>,
-    );
-    expect(screen.getByRole('status')).toHaveTextContent('ready');
-    first.unmount();
+  /** An ADAPTED read (the threads listing) whose answer the seam caches. */
+  function CachedProbe({ org }: { org: string }) {
+    return <output>{useChatThreads(org).status}</output>;
+  }
 
-    // The unmounted watch dropped its local result; without the cache the
-    // remount would render a `loading` frame until the round-trip answers.
-    setLocalResult(undefined);
-    render(
-      <ConvexProvider client={client}>
-        <WatchProbe org="org-remount" threadId="thread-1" />
-      </ConvexProvider>,
+  it('serves the last answer across a remount while it revalidates', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ threads: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
     );
-    expect(screen.getByRole('status')).toHaveTextContent('ready');
-    // Served from cache, but revalidating: the remount opened its own watch.
-    expect(watchQuery).toHaveBeenCalledTimes(2);
+    try {
+      const { client } = stubClient(undefined);
+      const first = render(
+        <ConvexProvider client={client}>
+          <CachedProbe org="org-remount" />
+        </ConvexProvider>,
+      );
+      await screen.findByText('ready');
+      first.unmount();
+
+      // Without the cache the remount would render a `loading` frame until
+      // the round-trip answers.
+      render(
+        <ConvexProvider client={client}>
+          <CachedProbe org="org-remount" />
+        </ConvexProvider>,
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('ready');
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
-  it('never serves the cache to a skipped read', () => {
-    const { client, setLocalResult } = liveStubClient();
-    setLocalResult({ byKind: [] });
-    const first = render(
-      <ConvexProvider client={client}>
-        <WatchProbe org="org-skip" threadId="thread-1" />
-      </ConvexProvider>,
+  it('never serves the cache to a skipped read', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ stats: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
     );
-    expect(screen.getByRole('status')).toHaveTextContent('ready');
-    first.unmount();
+    try {
+      const { client } = stubClient(undefined);
+      const first = render(
+        <ConvexProvider client={client}>
+          <WatchProbe org="org-skip" threadId="thread-1" />
+        </ConvexProvider>,
+      );
+      first.unmount();
 
-    // No thread selected: the read holds closed, cached messages or not.
-    render(
-      <ConvexProvider client={client}>
-        <WatchProbe org="org-skip" />
-      </ConvexProvider>,
-    );
-    expect(screen.getByRole('status')).toHaveTextContent('loading');
+      // No thread selected: the read holds closed, cached answer or not.
+      render(
+        <ConvexProvider client={client}>
+          <WatchProbe org="org-skip" />
+        </ConvexProvider>,
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('loading');
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it('never replays a generation — a fresh stream resolves anew', async () => {

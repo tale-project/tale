@@ -1,7 +1,5 @@
-import { convexQuery } from '@convex-dev/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
-import { useConvexAuth } from 'convex/react';
 import type {
   FunctionArgs,
   FunctionReference,
@@ -15,6 +13,9 @@ import {
   retryAdaptedRead,
   runAdapted,
 } from '@/app/lib/backend/convex-adapters';
+import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
+
+import { useConvexAuth } from './use-convex-auth';
 
 type EmptyObject = Record<string, never>;
 
@@ -89,12 +90,21 @@ export function useConvexQuery<Func extends FunctionReference<'query'>>(
           };
     enabled = adapted !== null && (base.enabled ?? true);
   } else {
-    base = { ...convexQuery(func, args ?? {}), ...queryOpts };
-    // Fold auth-gating into the effective `enabled` while preserving whatever
-    // it would have been (caller `enabled:false` / `'skip'` from convexQuery
-    // still win). Default-on gating means callers can't forget to wait for
-    // auth.
-    enabled = (requireAuth ? isAuthenticated : true) && (base.enabled ?? true);
+    // No row, no server: the Convex runtime is retired, so this fails loudly
+    // (named, so the missing registry key is obvious) instead of hanging on
+    // a socket that will never open.
+    base = {
+      queryKey: ['convex-retired', fnName],
+      queryFn: () => Promise.reject(new ConvexRetiredError(fnName)),
+      retry: false,
+      ...queryOpts,
+    };
+    // The auth gate still applies: a read that would refuse pre-auth should
+    // not fire its refusal before the session probe resolves.
+    enabled =
+      !skipped &&
+      (requireAuth ? isAuthenticated : true) &&
+      (base.enabled ?? true);
   }
   return useQuery({ ...base, enabled });
 }

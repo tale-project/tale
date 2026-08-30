@@ -8,7 +8,10 @@ import { parse } from 'yaml';
 import { setProjectId } from '../../project/project-context';
 import { generateStatefulCompose } from '../generators/generate-stateful-compose';
 import type { ServiceConfig } from '../types';
-import { createConvexService } from './create-convex-service';
+import {
+  createBackendApiService,
+  createBackendWorkerService,
+} from './create-backend-services';
 
 // Guards the class of "works in dev, silently broken in `tale deploy`" bugs:
 // config that lives in one pipeline but not the other. `compose.yml` (the
@@ -54,35 +57,37 @@ function graceSeconds(value: string | undefined): number {
   return match ? Number(match[1]) : 0;
 }
 
-describe('sandbox→convex reachability parity', () => {
-  test('CLI generator dual-homes convex onto the sandbox net with the `convex` alias', () => {
-    const networks = createConvexService(config).networks;
+describe('sandbox→backend reachability parity', () => {
+  test('CLI generator dual-homes the api onto the sandbox net with its alias', () => {
+    const networks = createBackendApiService(config).networks;
     if (Array.isArray(networks) || networks === undefined) {
-      throw new Error('convex networks should be the object form with aliases');
+      throw new Error('api networks should be the object form with aliases');
     }
     expect(networks.internal).toBeDefined();
     expect(networks.sandbox).toBeDefined();
-    // container_name is `<project>-convex`, so the explicit alias is what makes
-    // http://convex:3210 reachable from the session container.
-    expect(networks.sandbox?.aliases).toContain('convex');
+    // container_name is `<project>-backend-api`, so the explicit alias is what
+    // makes http://backend-api:3005 resolve from a session container.
+    expect(networks.sandbox?.aliases).toContain('backend-api');
   });
 
-  test('compose.yml keeps convex on the sandbox network (reachable as `convex`)', () => {
-    // compose.yml's service is literally named `convex`, so service-name
+  test('compose.yml keeps the api on the sandbox network', () => {
+    // compose.yml's service is literally named `backend-api`, so service-name
     // resolution covers the alias — only membership must be asserted.
-    expect(networkNames(compose.services.convex?.networks)).toContain(
+    expect(networkNames(compose.services['backend-api']?.networks)).toContain(
       'sandbox',
     );
   });
 });
 
 describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
-  test('CLI generator keeps NET_ADMIN on convex', () => {
-    expect(createConvexService(config).cap_add).toContain('NET_ADMIN');
+  test('CLI generator keeps NET_ADMIN on the backend tier', () => {
+    expect(createBackendApiService(config).cap_add).toContain('NET_ADMIN');
+    expect(createBackendWorkerService(config).cap_add).toContain('NET_ADMIN');
   });
 
-  test('compose.yml keeps NET_ADMIN on convex', () => {
-    expect(compose.services.convex?.cap_add).toContain('NET_ADMIN');
+  test('compose.yml keeps NET_ADMIN on the backend tier', () => {
+    expect(compose.services['backend-api']?.cap_add).toContain('NET_ADMIN');
+    expect(compose.services['backend-worker']?.cap_add).toContain('NET_ADMIN');
   });
 
   test('compose.yml keeps NET_ADMIN on the sandbox-egress proxy', () => {

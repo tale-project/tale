@@ -4,14 +4,11 @@ import type { FunctionReturnType } from 'convex/server';
 
 import { readDocumentId } from '@/app/hooks/optimistic-updates';
 
-export {
-  usePaginatedQuery as useConvexPaginatedQuery,
-  type PaginatedQueryArgs,
-} from 'convex/react';
-
 export type {
+  PaginatedQueryArgs,
   PaginatedQueryReference,
   UsePaginatedQueryReturnType,
+  UsePaginatedQueryResult,
 } from 'convex/react';
 
 // Re-export Convex's paginated optimistic helpers through this single chokepoint

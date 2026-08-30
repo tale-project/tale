@@ -1,5 +1,3 @@
-export { useConvexAuth } from 'convex/react';
-
 import { useQuery } from '@tanstack/react-query';
 
 import { clearConvexTokenCache } from '@/app/lib/auth/convex-token-cache';
@@ -40,4 +38,18 @@ function useConvexAuthUser() {
 
 export function useAuth() {
   return useConvexAuthUser();
+}
+
+/**
+ * The auth shape the app's hooks gate on. It used to be Convex's — the
+ * WebSocket handshake's state — and is now the session probe's: the backend
+ * answers `currentUser` on the session cookie alone, so there is nothing to
+ * hand-shake and nothing to wait for beyond that one request.
+ */
+export function useConvexAuth(): {
+  isLoading: boolean;
+  isAuthenticated: boolean;
+} {
+  const { isLoading, isAuthenticated } = useConvexAuthUser();
+  return { isLoading, isAuthenticated };
 }

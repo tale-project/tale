@@ -33,22 +33,13 @@ import {
   QueryClientContext,
   useQuery,
 } from '@tanstack/react-query';
-import { useConvex } from 'convex/react';
 import {
   getFunctionName,
   type FunctionArgs,
   type FunctionReference,
   type FunctionReturnType,
 } from 'convex/server';
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { backendFetch } from '@/app/lib/backend/api-client';
 import {
@@ -116,6 +107,8 @@ export type ChatQuery<T> =
   | { readonly status: 'unavailable' };
 
 const UNAVAILABLE = { status: 'unavailable' } as const;
+/** A read the caller deliberately withheld — holding, not broken. */
+const LOADING = { status: 'loading' } as const;
 
 /**
  * The last answer each live read served, keyed like the watches themselves
@@ -220,7 +213,6 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
   args: FunctionArgs<Ref> | 'skip',
   options?: { readonly cache?: boolean },
 ): ChatQuery<FunctionReturnType<Ref>> {
-  const convex = useConvex();
   const skip = args === 'skip';
   // Key the subscription by the function's NAME and the JSON of its args —
   // never by object identity. `api.x.y.z` builds a fresh FunctionReference on
@@ -252,54 +244,15 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
     contextQueryClient ?? fallbackChatQueryClient,
   );
 
-  const watch = useMemo(
-    () =>
-      convex && !skip && HTTP_READS[fnKey] === undefined
-        ? convex.watchQuery(fnRef, args)
-        : undefined,
-    // `fnRef` and `args` are intentionally tracked by their stable keys
-    // (`fnKey`, `argsKey`) — see above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [convex, fnKey, argsKey, skip],
-  );
-
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => watch?.onUpdate(onStoreChange) ?? (() => {}),
-    [watch],
-  );
-
-  // The last error already reported, so a persistent pre-auth error is logged
-  // once rather than on every render `useSyncExternalStore` triggers.
-  const reportedError = useRef<string | undefined>(undefined);
-  const getSnapshot = useCallback((): FunctionReturnType<Ref> | undefined => {
-    if (!watch) return undefined;
-    try {
-      const result = watch.localQueryResult();
-      reportedError.current = undefined;
-      return result;
-    } catch (error) {
-      // A query can be in an error state during the brief pre-auth window;
-      // read it as "not yet" so the surface holds rather than crashing, and it
-      // re-runs once auth lands.
-      const message = error instanceof Error ? error.message : String(error);
-      if (reportedError.current !== message) {
-        reportedError.current = message;
-        console.warn('[chat] query is not readable yet', message);
-      }
-      return undefined;
-    }
-  }, [watch]);
-
-  const wsData = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  // oxlint-disable-next-line typescript/no-unsafe-assignment -- the adapter serves the same wire shape the 0.4 query declared; the seam's own projection guarantees it
-  const data: FunctionReturnType<Ref> | undefined =
-    httpOptions !== undefined ? httpQuery.data : wsData;
+  // Every chat read is an HTTP row now; a ref with no row has no server
+  // left, so the surface degrades to `unavailable` rather than waiting on a
+  // subscription that will never arrive.
+  const data: FunctionReturnType<Ref> | undefined = httpQuery.data;
 
   // Render-phase cache maintenance, mirroring useCachedPaginatedQuery: the
   // write is idempotent, and the value must be current for this render's own
-  // read below. `getSnapshot` stays a pure view of the live watch — the
-  // substitution happens here, in the return path only.
-  const cacheable = options?.cache !== false && !skip && convex !== undefined;
+  // read below.
+  const cacheable = options?.cache !== false && !skip;
   const cacheKey = `${fnKey}:${argsKey}`;
   if (cacheable && data !== undefined) {
     liveResultCache.delete(cacheKey);
@@ -326,13 +279,14 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
     [value],
   );
 
-  if (httpOptions !== undefined) {
-    // An HTTP read needs no Convex client; a hard error (after the cache
-    // fallback above) degrades to `unavailable` like a missing client did.
-    if (value === undefined && httpQuery.isError) return UNAVAILABLE;
-    return result;
-  }
-  if (!convex) return UNAVAILABLE;
+  // A SKIPPED read is holding, not broken: the caller has nothing to ask for
+  // yet (no thread selected), so it must read as `loading` exactly as it did
+  // on the subscription lane. Only a ref with no row at all is unavailable.
+  if (skip) return LOADING;
+  if (httpOptions === undefined) return UNAVAILABLE;
+  // A hard error (after the cache fallback above) degrades to `unavailable`,
+  // exactly as a missing client used to.
+  if (value === undefined && httpQuery.isError) return UNAVAILABLE;
   return result;
 }
 

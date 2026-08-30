@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockActionFn, mockToast } = vi.hoisted(() => ({
-  mockActionFn: vi.fn(),
-  mockToast: vi.fn(),
-}));
-
-vi.mock('@convex-dev/react-query', () => ({
-  useConvexAction: vi.fn(() => mockActionFn),
-}));
+const { mockToast } = vi.hoisted(() => ({ mockToast: vi.fn() }));
 
 // The hook now resolves toast copy through i18n and reports the failing
 // function by name, so those collaborators are mocked exactly like the sibling
@@ -53,13 +46,11 @@ vi.mock('@/app/lib/backend/convex-adapters', () => ({
   runAdapted: (run: () => Promise<unknown>) => run(),
 }));
 
-import { useConvexAction as useActionFn } from '@convex-dev/react-query';
 import { useMutation } from '@tanstack/react-query';
 import { getFunctionName } from 'convex/server';
 
 import { useConvexAction } from './use-convex-action';
 
-const mockUseActionFn = vi.mocked(useActionFn);
 const mockUseMutation = vi.mocked(useMutation);
 const mockActionRef = {
   _name: 'items:process',
@@ -82,18 +73,15 @@ describe('useConvexAction', () => {
     expect(result.isPending).toBe(false);
   });
 
-  it('passes the function reference to useConvexAction from @convex-dev/react-query', () => {
-    useConvexAction(mockActionRef);
-    expect(mockUseActionFn).toHaveBeenCalledWith(mockActionRef);
-  });
-
-  it('uses the returned function as mutationFn', () => {
+  it('refuses, NAMED, when the action has no backend row', async () => {
     useConvexAction(mockActionRef);
     const options = mockUseMutation.mock.calls[0]?.[0];
     expect(options).toHaveProperty('mutationFn');
-    const args = { input: 'test' };
-    (options.mutationFn as Function)(args);
-    expect(mockActionFn).toHaveBeenCalledWith(args);
+    await expect(
+      (options.mutationFn as (a: unknown) => Promise<unknown>)({
+        input: 'test',
+      }),
+    ).rejects.toThrow('items:process');
   });
 
   it('preserves user options', () => {
@@ -188,6 +176,5 @@ describe('useConvexAction adapter lane', () => {
       { name: 'API_KEY' },
       { organizationId: 'org-1' },
     );
-    expect(mockActionFn).not.toHaveBeenCalled();
   });
 });

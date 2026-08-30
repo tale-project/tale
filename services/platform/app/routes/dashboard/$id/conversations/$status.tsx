@@ -1,4 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router';
 import { useCallback } from 'react';
 import { z } from 'zod';
@@ -8,7 +7,7 @@ import {
   useApproxConversationCountByStatus,
   useListConversationsPaginated,
 } from '@/app/features/conversations/hooks/queries';
-import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
+import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 
@@ -50,25 +49,18 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
   loader: ({ context, params }) => {
     if (isValidStatus(params.status)) {
       const status = params.status;
-      void context.queryClient.prefetchQuery(
-        convexQuery(
-          api.conversations.queries.approxCountConversationsByStatus,
-          {
-            organizationId: params.id,
-            status,
-          },
-        ),
+      prefetchAdaptedQuery(
+        context.queryClient,
+        api.conversations.queries.approxCountConversationsByStatus,
+        {
+          organizationId: params.id,
+          status,
+        },
       );
       // Prime the paginated list cache so the first page paints without a
       // skeleton flash on first nav. Args mirror useListConversationsPaginated's
       // base args (search is an in-page filter — live subscription; the
       // channel filter subscribes with its own args when active).
-      void primeCachedPaginatedQuery(
-        context.convexQueryClient.convexClient,
-        api.conversations.queries.listConversationsPaginated,
-        { organizationId: params.id, status },
-        { initialNumItems: INITIAL_NUM_ITEMS },
-      );
     }
   },
   component: ConversationsStatusPage,

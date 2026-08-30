@@ -1,9 +1,9 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useConvexAuth } from 'convex/react';
 import { getFunctionName } from 'convex/server';
 
+import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { ACTION_QUERY_ADAPTERS } from '@/app/lib/backend/convex-adapters';
 import { api } from '@/convex/_generated/api';

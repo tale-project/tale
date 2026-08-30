@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { useAction, useConvexAuth } from 'convex/react';
 import type {
   FunctionArgs,
   FunctionReference,
@@ -12,6 +11,9 @@ import {
   activeOrganizationId,
   runAdapted,
 } from '@/app/lib/backend/convex-adapters';
+import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
+
+import { useConvexAuth } from './use-convex-auth';
 
 interface ActionQueryOptions {
   enabled?: boolean;
@@ -56,12 +58,12 @@ export function useActionQuery<Func extends FunctionReference<'action'>>(
   args: FunctionArgs<Func>,
   options?: ActionQueryOptions,
 ) {
-  const action = useAction(func);
   const { isAuthenticated } = useConvexAuth();
 
-  // A family migrated to the 0.5 backend serves this walk over HTTP (session
-  // cookie, no WebSocket-auth gate); everything else keeps the Convex action.
-  const adapter = ACTION_QUERY_ADAPTERS[getFunctionName(func)];
+  // Every shipped walk is served over HTTP (session cookie, no WebSocket-auth
+  // gate) by its adapter row; a ref without one has no server left.
+  const fnName = getFunctionName(func);
+  const adapter = ACTION_QUERY_ADAPTERS[fnName];
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adaptedFetch =
@@ -75,7 +77,9 @@ export function useActionQuery<Func extends FunctionReference<'action'>>(
   // The explicit annotation keeps TData = the action's return type on BOTH
   // lanes — an untyped ternary would collapse the inference to `unknown`.
   const queryFn: () => Promise<FunctionReturnType<Func>> =
-    adaptedFetch !== null ? () => runAdapted(adaptedFetch) : () => action(args);
+    adaptedFetch !== null
+      ? () => runAdapted(adaptedFetch)
+      : () => Promise.reject(new ConvexRetiredError(fnName));
 
   return useQuery({
     queryKey,

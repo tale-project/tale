@@ -1,4 +1,3 @@
-import { useConvexMutation as useMutationFn } from '@convex-dev/react-query';
 import type { UseMutationOptions } from '@tanstack/react-query';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { OptimisticUpdate } from 'convex/browser';
@@ -15,6 +14,7 @@ import {
   runAdapted,
   WRITE_ADAPTERS,
 } from '@/app/lib/backend/convex-adapters';
+import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
 import { useT } from '@/lib/i18n/client';
 import { convexUserMessage } from '@/lib/utils/convex-error';
 
@@ -59,22 +59,23 @@ export function useConvexMutation<Func extends FunctionReference<'mutation'>>(
   const { t } = useT('toast');
   const queryClient = useQueryClient();
 
-  // A family migrated to the 0.5 backend runs this write over HTTP; the
-  // Convex mutation stays wired for everything else (same hook order).
-  const adapter = WRITE_ADAPTERS[getFunctionName(func)];
+  // Every shipped write runs over HTTP through its adapter row; a ref
+  // without one has no server left to reach (see `retired-convex.ts`).
+  const fnName = getFunctionName(func);
+  const adapter = WRITE_ADAPTERS[fnName];
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adapterCtx = organizationId !== undefined ? { organizationId } : {};
-  const mutate = useMutationFn(func);
-  const convexFn = optimisticUpdate
-    ? mutate.withOptimisticUpdate(optimisticUpdate)
-    : mutate;
+  // The optimistic-update callback belonged to the Convex mutation's local
+  // store; the adapted lane invalidates instead (its `invalidate` hook), so
+  // it is accepted and unused rather than silently changing behaviour.
+  void optimisticUpdate;
   const mutationFn = (
     args: FunctionArgs<Func>,
   ): Promise<FunctionReturnType<Func>> =>
     adapter !== undefined
       ? runAdapted(() => adapter.run(args, adapterCtx))
-      : convexFn(args);
+      : Promise.reject(new ConvexRetiredError(fnName));
 
   return useMutation({
     mutationFn,

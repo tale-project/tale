@@ -166,7 +166,7 @@ ENV TALE_BACKEND_DIR=/app/services/platform/backend
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get -o Acquire::Retries=3 update \
-    && apt-get install -y --no-install-recommends curl tini ca-certificates \
+    && apt-get install -y --no-install-recommends curl tini ca-certificates iptables \
     && chmod +x /convex/generate_key \
     && ln -s /convex/generate_key /usr/local/bin/generate_key \
     && mkdir -p /home/app && chmod 777 /home/app \
@@ -280,7 +280,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get -o Acquire::Retries=3 update \
     && apt-get install -y --no-install-recommends \
-    curl tini gosu postgresql-client ca-certificates \
+    curl tini gosu postgresql-client ca-certificates iptables \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     && mkdir -p /usr/local/share/ca-certificates \
     && chmod 755 /usr/local/share/ca-certificates \

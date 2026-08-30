@@ -1,9 +1,12 @@
 import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
+import {
+  createBackendApiService,
+  createBackendWorkerService,
+} from '../services/create-backend-services';
 import { createBgutilProviderService } from '../services/create-bgutil-provider-service';
 import { createControllerService } from '../services/create-controller-service';
-import { createConvexService } from '../services/create-convex-service';
 import { createDbService } from '../services/create-db-service';
 import { createProxyService } from '../services/create-proxy-service';
 import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
@@ -16,12 +19,11 @@ export function generateStatefulCompose(
   hostAlias: string,
 ): string {
   const prefix = `${getProjectId()}_`;
-  const convex = createConvexService(config);
-
   const services: ComposeConfig['services'] = {
     db: createDbService(config),
     proxy: createProxyService(config, hostAlias),
-    convex,
+    'backend-api': createBackendApiService(config),
+    'backend-worker': createBackendWorkerService(config),
     'sandbox-llm-gateway': createSandboxLlmGatewayService(config),
     'sandbox-egress': createSandboxEgressService(config),
     sandbox: createSandboxService(config),

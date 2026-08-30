@@ -42,7 +42,6 @@ import {
   drainBackend,
   endDrainBackend,
 } from './drain-backend';
-import { drainConvex, endDrainConvex } from './drain-convex';
 import { drainSandbox } from './drain-sandbox';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 
@@ -231,7 +230,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
           isFirstDeploy,
           stop,
           isStopGatedRunning: (s) => runningState.get(s) ?? false,
-          backendEnabled: env.BACKEND_UPSTREAM !== '',
         });
         rotatableToUpdate = selection.rotatable;
         statefulToUpdate = selection.stateful;
@@ -401,23 +399,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
         // The opt-in controller sidecar is emitted into the stateful compose
         // only when CONTROLLER_TOKEN is set. It is brought up SEPARATELY from the
         // core services (below) so a controller image/start problem can never
-        // block db/proxy/convex.
+        // block db/proxy/backend.
         const controllerEnabled = Boolean(process.env.CONTROLLER_TOKEN);
 
-        // Will this deploy actually recreate convex? `docker compose up -d` is a
-        // no-op when the image + config are unchanged, so only drain in-flight
-        // chat generation when convex's image version is changing (or a forced
-        // recreate). Draining a no-op deploy would refuse chats for nothing.
-        const convexWillRecreate =
-          !isFirstDeploy &&
-          statefulToUpdate.includes('convex') &&
-          (Boolean(options.forceRecreate) ||
-            (await getContainerVersion(`${getProjectId()}-convex`)) !==
-              version);
-
-        // Same question for the pg backend tier on a migrated stack: it ships
-        // the platform image, so a version change recreates it and cuts the
-        // in-flight turns its api container is streaming.
+        // Will this deploy actually recreate the backend? `docker compose up
+        // -d` is a no-op when the image + config are unchanged, so only drain
+        // in-flight turns when its image version is changing (or a forced
+        // recreate) — draining a no-op deploy would refuse chats for nothing.
+        // It ships the platform image, so a version change recreates it and
+        // cuts the turns its api container is streaming.
         const backendWillRecreate =
           !isFirstDeploy &&
           statefulToUpdate.includes('backend-api') &&
@@ -436,9 +426,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
               version);
 
         if (dryRun) {
-          if (convexWillRecreate) {
-            await drainConvex({ dryRun: true });
-          }
           if (backendWillRecreate) {
             await drainBackend({ dryRun: true });
           }
@@ -457,16 +444,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
             `${prefix}Would deploy bgutil-provider sidecar (separate, non-blocking)`,
           );
         } else {
-          // Drain in-flight chat generations before the in-place recreate kills
-          // them. Best-effort (see drain-convex.ts); the recovery watchdog
-          // finalizes anything that outlasts the drain budget.
-          if (convexWillRecreate) {
-            await drainConvex({ dryRun: false });
-          }
-
-          // The pg backend's own chat-turn drain — the migrated twin of the
-          // convex lane above (the two never both run: a cut-over stack
-          // serves chat from the backend tier).
+          // Drain in-flight chat generations before the in-place recreate
+          // kills them. Best-effort (see drain-backend.ts); the recovery
+          // watchdog finalizes anything that outlasts the drain budget.
           if (backendWillRecreate) {
             await drainBackend({ dryRun: false });
           }
@@ -515,12 +495,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
           }
 
-          // Convex is back and healthy — lift the drain flag so new chat turns
-          // are accepted again. Best-effort; the backend's auto-expiry clears it
-          // anyway if this fails (see drain-convex.ts).
-          if (convexWillRecreate) {
-            await endDrainConvex();
-          }
+          // The backend is back and healthy — lift the drain flag so new
+          // turns are accepted again. Best-effort; its auto-expiry clears the
+          // flag anyway if this fails (see drain-backend.ts).
           if (backendWillRecreate) {
             await endDrainBackend();
           }

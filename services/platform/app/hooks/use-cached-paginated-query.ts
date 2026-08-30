@@ -1,9 +1,7 @@
-import type { ConvexReactClient } from 'convex/react';
-import { getFunctionName, type OptionalRestArgs } from 'convex/server';
+import { getFunctionName } from 'convex/server';
 import { useCallback } from 'react';
 
 import {
-  useConvexPaginatedQuery,
   type PaginatedQueryArgs,
   type PaginatedQueryReference,
   type UsePaginatedQueryReturnType,
@@ -17,13 +15,7 @@ import {
   type AdaptedPage,
   type AdaptedPaginatedOptions,
 } from '@/app/lib/backend/convex-adapters';
-
-const MAX_CACHE_ENTRIES = 50;
-const paginatedQueryCache = new Map();
-
-function buildCacheKey(query: PaginatedQueryReference, args: unknown): string {
-  return `${getFunctionName(query)}:${JSON.stringify(args)}`;
-}
+import { ConvexRetiredError } from '@/app/lib/backend/retired-convex';
 
 /**
  * Drop-in replacement for `usePaginatedQuery` that caches results across
@@ -102,7 +94,11 @@ export function useCachedPaginatedQuery<Query extends PaginatedQueryReference>(
   // (infinite query, keyset cursors); everything else keeps the Convex
   // subscription. Both hooks always run — one of them disabled — so hook
   // order never changes with the registry.
-  const adapter = PAGINATED_ADAPTERS[getFunctionName(query)];
+  // Every shipped listing is served over HTTP (infinite query, keyset
+  // cursors) by its adapter row. A listing with no row has no server left to
+  // subscribe to, so it fails loudly and named rather than hanging.
+  const fnName = getFunctionName(query);
+  const adapter = PAGINATED_ADAPTERS[fnName];
   const organizationId =
     adapter === undefined ? undefined : activeOrganizationId();
   const adaptedOpts =
@@ -110,105 +106,27 @@ export function useCachedPaginatedQuery<Query extends PaginatedQueryReference>(
       ? adapter(args, organizationId !== undefined ? { organizationId } : {})
       : null;
   const adaptedResult = useBackendPaginatedQuery<Query>(adaptedOpts, options);
-  const result = useConvexPaginatedQuery(
-    query,
-    adapter === undefined ? args : 'skip',
-    options,
-  );
-  if (adapter !== undefined) {
-    return adaptedResult;
+  if (adapter === undefined && args !== 'skip') {
+    throw new ConvexRetiredError(fnName);
   }
-  const cacheKey = buildCacheKey(query, args);
-
-  // Persist live results into cache (including empty results to avoid empty-list flash)
-  if (result.status !== 'LoadingFirstPage') {
-    paginatedQueryCache.delete(cacheKey);
-    paginatedQueryCache.set(cacheKey, {
-      results: result.results,
-      wasExhausted: result.status === 'Exhausted',
-    });
-    if (paginatedQueryCache.size > MAX_CACHE_ENTRIES) {
-      const oldestKey = paginatedQueryCache.keys().next().value;
-      if (oldestKey) paginatedQueryCache.delete(oldestKey);
-    }
-  }
-
-  // Serve cached data while first page loads
-  if (result.status === 'LoadingFirstPage') {
-    const cached = paginatedQueryCache.get(cacheKey);
-    if (cached) {
-      return cached.wasExhausted
-        ? {
-            results: cached.results,
-            status: 'Exhausted',
-            loadMore: result.loadMore,
-            isLoading: false,
-          }
-        : {
-            results: cached.results,
-            status: 'CanLoadMore',
-            loadMore: result.loadMore,
-            isLoading: false,
-          };
-    }
-  }
-
-  return result;
+  return adaptedResult;
 }
 
 /**
- * Prime {@link useCachedPaginatedQuery}'s cache from a route `loader` so the
- * first page paints instantly on the *first* navigation to a list — not just on
- * re-nav. Fetches page 0 once and writes it under the same cache key the hook
- * reads, sidestepping Convex `usePaginatedQuery`'s per-mount `paginationOpts.id`
- * (which makes a plain `convexQuery` loader prefetch miss the subscription).
+ * Loader-side priming for a paginated listing.
  *
- * `args` MUST equal the hook's `queryArgs` (everything it passes besides
- * `initialNumItems`) so the key matches — pass the same leading args the
- * component will use (e.g. `{ organizationId }` for an unfiltered list). The
- * `numItems` is not part of the key, so it only sets how many rows paint
- * instantly before the live subscription fills the rest.
- *
- * Client-only (the cache and WS client are per-browser) and fire-and-forget:
- * always `void` it in a loader so a slow/failed prime never stalls the
- * transition. Skips the fetch when the key is already cached.
+ * The adapted lane's pages live in react-query, whose own cache the route's
+ * component reads on mount — so there is nothing left for a loader to warm
+ * here. Kept as a no-op (rather than deleted at 20 call sites) so a listing
+ * that later grows its own prefetch has one obvious place to grow it.
  */
-export async function primeCachedPaginatedQuery<
+export function primeCachedPaginatedQuery<
   Query extends PaginatedQueryReference,
 >(
-  convexClient: ConvexReactClient,
-  query: Query,
-  args: PaginatedQueryArgs<Query>,
-  options: { initialNumItems: number },
+  _client: unknown,
+  _query: Query,
+  _args: PaginatedQueryArgs<Query>,
+  _options: { initialNumItems: number },
 ): Promise<void> {
-  if (typeof window === 'undefined') return;
-  // An adapted listing never reads this cache (react-query owns its pages) —
-  // priming would fire a useless Convex query.
-  if (PAGINATED_ADAPTERS[getFunctionName(query)] !== undefined) return;
-  const cacheKey = buildCacheKey(query, args);
-  if (paginatedQueryCache.has(cacheKey)) return;
-  try {
-    // Convex's generic `OptionalRestArgs<Query>` is an unresolved conditional
-    // type, so it can't see that spreading `PaginatedQueryArgs` (FunctionArgs
-    // minus paginationOpts) back with paginationOpts reconstitutes the call
-    // args — a third-party typing gap, so assert the reconstructed tuple.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- generic OptionalRestArgs<Query> conditional can't be satisfied structurally; the reconstructed page-0 args are correct
-    const queryArgs = [
-      {
-        ...args,
-        paginationOpts: { numItems: options.initialNumItems, cursor: null },
-      },
-    ] as unknown as OptionalRestArgs<Query>;
-    const result = await convexClient.query(query, ...queryArgs);
-    paginatedQueryCache.set(cacheKey, {
-      results: result.page,
-      wasExhausted: result.isDone,
-    });
-    if (paginatedQueryCache.size > MAX_CACHE_ENTRIES) {
-      const oldestKey = paginatedQueryCache.keys().next().value;
-      if (oldestKey) paginatedQueryCache.delete(oldestKey);
-    }
-  } catch (error) {
-    console.warn('Failed to prime paginated query cache', error);
-  }
+  return Promise.resolve();
 }

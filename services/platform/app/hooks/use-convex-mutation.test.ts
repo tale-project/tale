@@ -1,19 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockOptimisticFn, mockMutationFn, mockToast } = vi.hoisted(() => {
-  const optimisticFn = vi.fn();
-  return {
-    mockOptimisticFn: optimisticFn,
-    mockMutationFn: Object.assign(vi.fn(), {
-      withOptimisticUpdate: vi.fn(() => optimisticFn),
-    }),
-    mockToast: vi.fn(),
-  };
-});
-
-vi.mock('@convex-dev/react-query', () => ({
-  useConvexMutation: vi.fn(() => mockMutationFn),
-}));
+const { mockToast } = vi.hoisted(() => ({ mockToast: vi.fn() }));
 
 vi.mock('@tanstack/react-query', () => ({
   useMutation: vi.fn((options: Record<string, unknown>) => ({
@@ -59,13 +46,11 @@ vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({ t: (key: string) => key }),
 }));
 
-import { useConvexMutation as useMutationFn } from '@convex-dev/react-query';
 import { useMutation } from '@tanstack/react-query';
 import { getFunctionName } from 'convex/server';
 
 import { useConvexMutation } from './use-convex-mutation';
 
-const mockUseMutationFn = vi.mocked(useMutationFn);
 const mockUseMutation = vi.mocked(useMutation);
 const mockMutationRef = {
   _name: 'items:update',
@@ -91,30 +76,14 @@ describe('useConvexMutation', () => {
     expect(result).toHaveProperty('isPending');
   });
 
-  it('passes the function reference to useConvexMutation from @convex-dev/react-query', () => {
-    useConvexMutation(mockMutationRef);
-    expect(mockUseMutationFn).toHaveBeenCalledWith(mockMutationRef);
-  });
-
-  it('uses the returned function as mutationFn when no optimistic update', () => {
+  it('refuses, NAMED, when the write has no backend row', async () => {
     useConvexMutation(mockMutationRef);
     const options = mockUseMutation.mock.calls[0]?.[0];
-    const args = { input: 'test' };
-    (options.mutationFn as (a: unknown) => unknown)(args);
-    expect(mockMutationFn).toHaveBeenCalledWith(args);
-    expect(mockMutationFn.withOptimisticUpdate).not.toHaveBeenCalled();
-  });
-
-  it('wires the optimistic update through withOptimisticUpdate', () => {
-    const optimisticUpdate = vi.fn();
-    useConvexMutation(mockMutationRef, { optimisticUpdate });
-    expect(mockMutationFn.withOptimisticUpdate).toHaveBeenCalledWith(
-      optimisticUpdate,
-    );
-    const options = mockUseMutation.mock.calls[0]?.[0];
-    const args = { input: 'test' };
-    (options.mutationFn as (a: unknown) => unknown)(args);
-    expect(mockOptimisticFn).toHaveBeenCalledWith(args);
+    await expect(
+      (options.mutationFn as (a: unknown) => Promise<unknown>)({
+        input: 'test',
+      }),
+    ).rejects.toThrow('items:update');
   });
 
   it('shows a destructive error toast by default on failure', () => {
@@ -198,7 +167,6 @@ describe('useConvexMutation adapter lane', () => {
       { projectId: 'p1' },
       { organizationId: 'org-1' },
     );
-    expect(mockMutationFn).not.toHaveBeenCalled();
   });
 
   it('fires the adapter invalidations before the caller onSuccess', () => {

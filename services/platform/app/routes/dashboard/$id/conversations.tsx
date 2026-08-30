@@ -1,4 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import {
@@ -25,6 +24,7 @@ import { useComposeContactName } from '@/app/features/conversations/hooks/querie
 import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -44,14 +44,13 @@ export const Route = createFileRoute('/dashboard/$id/conversations')({
   loader: ({ context, params }) => {
     const statuses = ['open', 'closed', 'spam', 'archived'] as const;
     for (const status of statuses) {
-      void context.queryClient.prefetchQuery(
-        convexQuery(
-          api.conversations.queries.approxCountConversationsByStatus,
-          {
-            organizationId: params.id,
-            status,
-          },
-        ),
+      prefetchAdaptedQuery(
+        context.queryClient,
+        api.conversations.queries.approxCountConversationsByStatus,
+        {
+          organizationId: params.id,
+          status,
+        },
       );
     }
   },

@@ -5,7 +5,6 @@ import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { Row } from '@tale/ui/layout';
 import { LoadingOverlay } from '@tale/ui/loading-overlay';
 import { useNavigate } from '@tanstack/react-router';
-import type { UsePaginatedQueryResult } from 'convex/react';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
@@ -21,6 +20,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import type { UsePaginatedQueryResult } from '@/app/hooks/use-convex-paginated-query';
 import type { ConversationItem } from '@/convex/conversations/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

@@ -1,4 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import type {
   FunctionArgs,
@@ -13,6 +12,7 @@ import {
   retryAdaptedRead,
   runAdapted,
 } from './convex-adapters';
+import { ConvexRetiredError } from './retired-convex';
 
 /**
  * Route-loader prefetch that respects the adapter seam.
@@ -50,7 +50,12 @@ export function prefetchAdaptedQuery<Func extends FunctionReference<'query'>>(
       return;
     }
   }
-  void queryClient.prefetchQuery(convexQuery(func, args));
+  // No row, no prefetch: a loader must never be the thing that discovers a
+  // missing registry key, so this stays silent (the component's own read
+  // raises the named error).
+  console.warn(
+    `[prefetch] no 0.5 row for ${getFunctionName(func)} — skipping prefetch`,
+  );
 }
 
 /**
@@ -84,5 +89,6 @@ export async function ensureAdaptedQueryData<
       });
     }
   }
-  return queryClient.ensureQueryData(convexQuery(func, args));
+  // A loader that NEEDS the value cannot degrade quietly.
+  throw new ConvexRetiredError(getFunctionName(func));
 }

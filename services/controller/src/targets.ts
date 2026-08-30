@@ -4,8 +4,9 @@
 // `<project>-<color>` (container `tale-platform-blue`) — while the hand-written
 // compose runs them as plain `platform` under `<project>`. Matching both shapes
 // keeps "Apply & restart" working on every deployment. Stateful services
-// (`convex`) are never colored. The controller's allowlist currently scopes
-// restarts to `convex` only, so no colored candidate is produced today; the set
+// (the backend) are never colored. The controller's allowlist currently scopes
+// restarts to the backend + sandbox, so no colored candidate is produced
+// today; the set
 // stays here so re-adding a rotatable target needs no machinery change.
 
 const ROTATABLE = new Set<string>();

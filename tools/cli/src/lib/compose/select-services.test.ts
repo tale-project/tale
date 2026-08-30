@@ -6,21 +6,21 @@ const ALL_RUNNING = () => true;
 const NONE_RUNNING = () => false;
 
 describe('selectDefaultServices', () => {
-  test('always rolls platform + the always-roll tier (convex, sandbox-llm-gateway, sandbox, sandbox-egress)', () => {
+  test('always rolls platform + the always-roll tier', () => {
     const sel = selectDefaultServices({
       isFirstDeploy: false,
       stop: false,
       isStopGatedRunning: ALL_RUNNING,
-      backendEnabled: false,
     });
     expect(sel.rotatable).toEqual(['platform']);
-    // The sandbox tier is a single container (blue-green dropped) and rolls
-    // in place through the stateful compose like convex.
+    // The sandbox and backend tiers are single containers (blue-green
+    // dropped) and roll in place through the stateful compose.
     expect(sel.stateful).toEqual([
-      'convex',
       'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
+      'backend-api',
+      'backend-worker',
     ]);
   });
 
@@ -29,7 +29,6 @@ describe('selectDefaultServices', () => {
       isFirstDeploy: false,
       stop: false,
       isStopGatedRunning: ALL_RUNNING,
-      backendEnabled: false,
     });
     expect(sel.leftRunning).toEqual(['db', 'proxy']);
     expect(sel.stateful).not.toContain('db');
@@ -41,14 +40,14 @@ describe('selectDefaultServices', () => {
       isFirstDeploy: false,
       stop: true,
       isStopGatedRunning: ALL_RUNNING,
-      backendEnabled: false,
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toEqual([
-      'convex',
       'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
+      'backend-api',
+      'backend-worker',
       'db',
       'proxy',
     ]);
@@ -59,7 +58,6 @@ describe('selectDefaultServices', () => {
       isFirstDeploy: false,
       stop: false,
       isStopGatedRunning: NONE_RUNNING,
-      backendEnabled: false,
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toContain('db');
@@ -71,7 +69,6 @@ describe('selectDefaultServices', () => {
       isFirstDeploy: false,
       stop: false,
       isStopGatedRunning: (s) => s === 'db', // db running, proxy stopped
-      backendEnabled: false,
     });
     expect(sel.leftRunning).toEqual(['db']);
     expect(sel.stateful).toContain('proxy');
@@ -83,40 +80,28 @@ describe('selectDefaultServices', () => {
       isFirstDeploy: true,
       stop: false,
       isStopGatedRunning: ALL_RUNNING,
-      backendEnabled: false,
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toEqual([
-      'convex',
       'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
+      'backend-api',
+      'backend-worker',
       'db',
       'proxy',
     ]);
   });
 });
 
-describe('the Postgres backend tier', () => {
-  test('is deployed only on a stack that has cut over', () => {
-    const migrated = selectDefaultServices({
+describe('the application backend tier', () => {
+  test('always rolls — every stack runs it', () => {
+    const sel = selectDefaultServices({
       isFirstDeploy: false,
       stop: false,
       isStopGatedRunning: () => true,
-      backendEnabled: true,
     });
-    expect(migrated.stateful).toContain('backend-api');
-    expect(migrated.stateful).toContain('backend-worker');
-
-    const notMigrated = selectDefaultServices({
-      isFirstDeploy: false,
-      stop: false,
-      isStopGatedRunning: () => true,
-      backendEnabled: false,
-    });
-    expect(notMigrated.stateful).not.toContain('backend-api');
-    expect(notMigrated.stateful).not.toContain('backend-worker');
-    // The 0.4 always-roll tier is untouched either way.
-    expect(notMigrated.stateful).toContain('convex');
+    expect(sel.stateful).toContain('backend-api');
+    expect(sel.stateful).toContain('backend-worker');
   });
 });

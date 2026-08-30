@@ -5,7 +5,8 @@
 // deployment-config change (external knowledge Postgres / Convex S3 storage)
 // takes effect. It mounts the docker socket (host root — same accepted threat
 // boundary as the sandbox spawner) but is far more constrained: HMAC-signed
-// requests only, a hard service allowlist of {convex, sandbox}, and only
+// requests only, a hard service allowlist of {backend-api, backend-worker,
+// sandbox}, and only
 // list+restart (no run/exec). Reachable only on the internal network.
 
 import { SIGNATURE_HEADER, TIMESTAMP_HEADER, verify } from './auth.ts';
@@ -26,13 +27,14 @@ const PROJECT =
 
 /** Hard allowlist — the only services this control plane may ever restart.
  * `sandbox` is here so a sandboxRuntime tier change in deployment.json takes
- * effect on apply-and-restart (the spawner reads it at boot). RAG/crawler used
- * to be here too, but that logic is now in-process in `convex` — a knowledge
- * config change restarts `convex`, not a standalone service. */
-const ALLOWED = new Set(['convex', 'sandbox']);
+ * effect on apply-and-restart (the spawner reads it at boot); the two backend
+ * services because a deployment-config change (external knowledge Postgres,
+ * object storage) is read at boot by the process that serves it. */
+const ALLOWED = new Set(['backend-api', 'backend-worker', 'sandbox']);
 
-// Delay before bouncing the caller's own container (`convex`) so the signed
-// HTTP response is flushed and the Convex action can return its result first.
+// Delay before bouncing the CALLER's own container so the signed HTTP
+// response is flushed and the request that asked for the restart can return
+// its result first.
 const DEFERRED_RESTART_DELAY_MS = 1500;
 
 // Replay guard. The signature already binds the request to a timestamp within
@@ -141,7 +143,7 @@ Bun.serve({
         return Response.json(
           {
             ok: false,
-            error: `services must be a non-empty subset of {convex, sandbox}${
+            error: `services must be a non-empty subset of {backend-api, backend-worker, sandbox}${
               invalid.length ? `; rejected: ${invalid.join(', ')}` : ''
             }`,
           },
@@ -149,13 +151,13 @@ Bun.serve({
         );
       }
 
-      // `convex` is co-located with the caller (the action that signed this
-      // request). Restarting it synchronously would sever this connection
-      // before the reply is flushed, so a successful restart would surface as a
-      // network error. Restart the others now; defer `convex` until just after
-      // the response is sent.
-      const immediate = services.filter((s) => s !== 'convex');
-      const deferred = services.filter((s) => s === 'convex');
+      // `backend-api` is co-located with the caller (the route that signed
+      // this request). Restarting it synchronously would sever this
+      // connection before the reply is flushed, so a successful restart would
+      // surface as a network error. Restart the others now; defer the api
+      // until just after the response is sent.
+      const immediate = services.filter((s) => s !== 'backend-api');
+      const deferred = services.filter((s) => s === 'backend-api');
 
       const restarted: string[] = [];
       const errors: string[] = [];
@@ -165,9 +167,9 @@ Bun.serve({
         errors.push(...r.errors);
       }
 
-      // All-or-nothing: only schedule the deferred `convex` bounce when the
+      // All-or-nothing: only schedule the deferred api bounce when the
       // immediate phase fully succeeded. A failed sibling restart must NOT
-      // trigger a lone `convex` bounce while the response already says
+      // trigger a lone api bounce while the response already says
       // ok:false.
       const willDefer = deferred.length > 0 && errors.length === 0;
       if (willDefer) {
@@ -199,5 +201,5 @@ Bun.serve({
 });
 
 console.log(
-  `[controller] listening on :${PORT} — allowlist {convex, sandbox}, project=${PROJECT ?? '(any)'}`,
+  `[controller] listening on :${PORT} — allowlist {backend-api, backend-worker, sandbox}, project=${PROJECT ?? '(any)'}`,
 );
