@@ -1,4 +1,4 @@
-import { TIMEOUT } from '../helpers/env';
+import { ENTITY_ID, TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
@@ -45,7 +45,7 @@ test('creates a project with a task shown in both views, then deletes it', async
 
   // Creation navigates straight to the project detail route.
   await page.waitForURL(
-    new RegExp(`/dashboard/${organizationId}/projects/[A-Za-z0-9]{16,}`),
+    new RegExp(`/dashboard/${organizationId}/projects/${ENTITY_ID}`),
     { timeout: TIMEOUT.NAV },
   );
   // The adaptive header renders the project name twice — once in the desktop
@@ -58,7 +58,9 @@ test('creates a project with a task shown in both views, then deletes it', async
   ).toBeVisible({
     timeout: TIMEOUT.VISIBLE,
   });
-  const projectId = /\/projects\/([A-Za-z0-9]{16,})/.exec(page.url())?.[1];
+  const projectId = new RegExp(`/projects/(${ENTITY_ID})`).exec(
+    page.url(),
+  )?.[1];
   expect(projectId, 'a project id should appear in the URL').toBeTruthy();
 
   // Create a task on the explicit board route (the bare /tasks alias redirects

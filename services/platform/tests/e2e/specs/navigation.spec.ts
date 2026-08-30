@@ -1,6 +1,6 @@
 import { type Locator, type Page } from '@playwright/test';
 
-import { TIMEOUT } from '../helpers/env';
+import { ENTITY_ID, TIMEOUT } from '../helpers/env';
 import { expect, test } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 import { STARTER_PROJECT_NAME } from '../helpers/seed';
@@ -209,7 +209,7 @@ test.describe('navigation: breadcrumbs', () => {
       .first();
     await expect(starterRow).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
     await starterRow.click();
-    await page.waitForURL(/\/projects\/[A-Za-z0-9]+(?:[/?#]|$)/, {
+    await page.waitForURL(new RegExp(`/projects/${ENTITY_ID}(?:[/?#]|$)`), {
       timeout: TIMEOUT.NAV,
     });
 

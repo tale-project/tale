@@ -126,12 +126,13 @@ export default createPlaywrightConfig({
         // Skip compose (sandbox/gateway/knowledge-db/object-store). E2E CI
         // has no built images for those; their bootstraps are also non-fatal.
         // App Postgres is provided separately — CI's `e2e` job starts a
-        // postgres:16 service, and DATABASE_URL/DB_PASSWORD below point the
-        // Hono backend at it. Keep this skip in both mock and live-stack modes.
+        // postgres:16 service, and DATABASE_URL below points the Hono backend
+        // at it. Do not pass DB_PASSWORD: deriveDevSecrets would then mint
+        // KNOWLEDGE_DATABASE_URL on :5433 (knowledge-db), which is not
+        // running here. Keep this skip in both mock and live-stack modes.
         TALE_DEV_SKIP_DOCKER: '1',
         // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret
         DATABASE_URL: E2E_DATABASE_URL,
-        DB_PASSWORD: E2E_DB_PASSWORD,
         // Same E2E marker CI exports at the workflow level: skips the
         // video-toolchain apt install in scripts/dev.ts (a slow mirror has
         // burned the webServer boot budget). Only applies when Playwright

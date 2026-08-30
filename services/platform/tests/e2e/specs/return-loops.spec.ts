@@ -1,5 +1,5 @@
 import { E2E_PASSWORD, signInViaApi } from '../helpers/auth';
-import { BASE_URL, TIMEOUT } from '../helpers/env';
+import { BASE_URL, ENTITY_ID, TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
@@ -158,10 +158,12 @@ test('return loop: assigning a task notifies and calls back the assignee', async
     .getByRole('button', { name: t('projects.create.submit') })
     .click();
   await page.waitForURL(
-    new RegExp(`/dashboard/${organizationId}/projects/[A-Za-z0-9]{16,}`),
+    new RegExp(`/dashboard/${organizationId}/projects/${ENTITY_ID}`),
     { timeout: TIMEOUT.NAV },
   );
-  const projectId = /\/projects\/([A-Za-z0-9]{16,})/.exec(page.url())?.[1];
+  const projectId = new RegExp(`/projects/(${ENTITY_ID})`).exec(
+    page.url(),
+  )?.[1];
   expect(projectId, 'a project id should appear in the URL').toBeTruthy();
 
   const boardUrl = `/dashboard/${organizationId}/projects/${projectId}/tasks/board`;

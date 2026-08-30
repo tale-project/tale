@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { signUpViaApi, uniqueCredentials } from '../helpers/auth';
-import { TIMEOUT } from '../helpers/env';
+import { ENTITY_ID, TIMEOUT } from '../helpers/env';
 import { t } from '../helpers/i18n';
 
 /**
@@ -17,7 +17,7 @@ import { t } from '../helpers/i18n';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-const ORG_ID_URL = /\/dashboard\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
+const ORG_ID_URL = new RegExp(`/dashboard/(${ENTITY_ID})(?:[/?#]|$)`);
 const LOGIN_URL = /\/log-in(?:[/?#]|$)/;
 const CREATE_ORG_URL = /\/dashboard\/create-organization(?:[/?#]|$)/;
 

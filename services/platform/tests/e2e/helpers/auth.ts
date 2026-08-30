@@ -1,7 +1,7 @@
 import type { APIRequestContext, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import { BASE_URL, TIMEOUT } from './env';
+import { BASE_URL, ENTITY_ID, TIMEOUT } from './env';
 import { t } from './i18n';
 import { STARTER_PROJECT_NAME } from './seed';
 
@@ -35,7 +35,7 @@ export function uniqueCredentials(label: string): E2ECredentials {
 }
 
 /** A fresh-account-resolved URL: either an org dashboard or the create-org wizard. */
-const ORG_ID_URL = /\/dashboard\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
+const ORG_ID_URL = new RegExp(`/dashboard/(${ENTITY_ID})(?:[/?#]|$)`);
 const RESOLVED_URL = new RegExp(
   `(?:${ORG_ID_URL.source})|/dashboard/create-organization`,
 );
