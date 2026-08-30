@@ -38,7 +38,7 @@ export const queryClient = new QueryClient({
   },
 });
 
-// Global stale-org recovery: any query erroring with ConvexError ORG_NOT_FOUND
+// Global stale-org recovery: any query erroring with BackendError ORG_NOT_FOUND
 // means the active organization is gone (deleted org id persisted in the
 // session, or an empty/garbage org context in a stale tab). Without this, such
 // a session retries the same dead org-scoped queries on every visit, forever —

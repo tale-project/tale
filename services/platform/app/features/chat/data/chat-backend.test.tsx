@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { ConvexProvider, type ConvexReactClient } from 'convex/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -16,28 +15,13 @@ import {
 import { storeComposerCatalog } from './composer-catalog-store';
 
 /**
- * The one seam invariant a component can't pin: a live read holds ONE watch
- * per (function, args) pair across re-renders. `api.x.y.z` builds a fresh
- * FunctionReference on every property access and callers build args inline,
- * so a watch keyed by identity is torn down and rebuilt every render — and a
- * fresh watch answers `undefined` before its first result, which oscillates
+ * The one seam invariant a component can't pin: a read holds ONE query per
+ * (name, args) pair across re-renders. Callers build args inline, so a query
+ * keyed by object identity would be torn down and rebuilt every render — and
+ * a fresh query answers `undefined` before its first result, which oscillates
  * the surface between loading and ready as fast as React can render. That
  * oscillation shipped as a whole-page flicker; this file keeps it dead.
  */
-
-function stubClient(result: unknown): {
-  client: ConvexReactClient;
-  watchQuery: ReturnType<typeof vi.fn>;
-} {
-  const watchQuery = vi.fn(() => ({
-    onUpdate: () => () => undefined,
-    localQueryResult: () => result,
-  }));
-  return {
-    client: { watchQuery } as unknown as ConvexReactClient,
-    watchQuery,
-  };
-}
 
 /** Re-renders on demand, passing a FRESH api reference and args each time —
  * exactly what the real callsites do. */
@@ -55,12 +39,7 @@ function Probe() {
 
 describe('useChatQuery subscription stability', () => {
   it('holds a steady status across re-renders', async () => {
-    const { client, watchQuery } = stubClient([]);
-    const { user } = render(
-      <ConvexProvider client={client}>
-        <Probe />
-      </ConvexProvider>,
-    );
+    const { user } = render(<Probe />);
 
     expect(screen.getByRole('button')).toHaveTextContent('unavailable');
 
@@ -71,21 +50,17 @@ describe('useChatQuery subscription stability', () => {
     // Steady: the same answer on every render, never a flicker between
     // states while the component re-renders around it.
     expect(screen.getByRole('button')).toHaveTextContent('unavailable');
-    expect(watchQuery).not.toHaveBeenCalled();
   });
 });
 
 /**
  * The second seam invariant: a remount must not flash `loading` for an answer
- * this session already has. A watch is torn down on unmount and the client
- * drops its local result, so a fresh mount answers `undefined` for one
- * round-trip — the session cache serves the last answer across that gap while
- * the fresh watch (still subscribed, still live) replaces it. Each test uses
- * its own org so the module-level cache can't leak between cases.
+ * this session already has. A fresh mount has no data until its fetch lands,
+ * so the session cache serves the last answer across that gap while the
+ * revalidation replaces it. Each test uses its own org so the module-level
+ * cache can't leak between cases.
  */
 
-/** A client whose local result can change between mounts, the way the real
- * one loses it when the last subscriber unmounts. */
 function ThreadsProbe({ org }: { org: string }) {
   return <output>{useChatThreads(org).status}</output>;
 }
@@ -115,12 +90,7 @@ describe('useChatQuery HTTP lane (migrated thread family)', () => {
       ),
     );
     try {
-      const { client } = stubClient(undefined);
-      render(
-        <ConvexProvider client={client}>
-          <ThreadsProbe org="org-http" />
-        </ConvexProvider>,
-      );
+      render(<ThreadsProbe org="org-http" />);
       await screen.findByText('ready');
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const firstUrl = fetchSpy.mock.calls[0]?.[0];
@@ -149,22 +119,13 @@ describe('useChatQuery session cache', () => {
       ),
     );
     try {
-      const { client } = stubClient(undefined);
-      const first = render(
-        <ConvexProvider client={client}>
-          <CachedProbe org="org-remount" />
-        </ConvexProvider>,
-      );
+      const first = render(<CachedProbe org="org-remount" />);
       await screen.findByText('ready');
       first.unmount();
 
       // Without the cache the remount would render a `loading` frame until
       // the round-trip answers.
-      render(
-        <ConvexProvider client={client}>
-          <CachedProbe org="org-remount" />
-        </ConvexProvider>,
-      );
+      render(<CachedProbe org="org-remount" />);
       expect(screen.getByRole('status')).toHaveTextContent('ready');
     } finally {
       fetchSpy.mockRestore();
@@ -181,20 +142,11 @@ describe('useChatQuery session cache', () => {
       ),
     );
     try {
-      const { client } = stubClient(undefined);
-      const first = render(
-        <ConvexProvider client={client}>
-          <WatchProbe org="org-skip" threadId="thread-1" />
-        </ConvexProvider>,
-      );
+      const first = render(<WatchProbe org="org-skip" threadId="thread-1" />);
       first.unmount();
 
       // No thread selected: the read holds closed, cached answer or not.
-      render(
-        <ConvexProvider client={client}>
-          <WatchProbe org="org-skip" />
-        </ConvexProvider>,
-      );
+      render(<WatchProbe org="org-skip" />);
       expect(screen.getByRole('status')).toHaveTextContent('loading');
     } finally {
       fetchSpy.mockRestore();
@@ -223,11 +175,8 @@ describe('useChatQuery session cache', () => {
     }
     vi.stubGlobal('EventSource', FakeEventSource);
     try {
-      const { client } = stubClient(undefined);
       const first = render(
-        <ConvexProvider client={client}>
-          <GenerationProbe org="org-gen" threadId="thread-1" />
-        </ConvexProvider>,
+        <GenerationProbe org="org-gen" threadId="thread-1" />,
       );
       expect(screen.getByRole('status')).toHaveTextContent('loading');
       const { act } = await import('react');
@@ -241,11 +190,7 @@ describe('useChatQuery session cache', () => {
       first.unmount();
 
       // A remount opens a FRESH stream: nothing replays until it answers.
-      render(
-        <ConvexProvider client={client}>
-          <GenerationProbe org="org-gen" threadId="thread-1" />
-        </ConvexProvider>,
-      );
+      render(<GenerationProbe org="org-gen" threadId="thread-1" />);
       expect(sources.length).toBe(2);
       expect(screen.getByRole('status')).toHaveTextContent('loading');
       act(() => {
@@ -290,12 +235,7 @@ describe('useComposerModels device store', () => {
       .spyOn(window, 'fetch')
       .mockImplementation(() => new Promise(() => {}));
     try {
-      const { client } = stubClient(undefined);
-      render(
-        <ConvexProvider client={client}>
-          <ModelsProbe org="org-reload" />
-        </ConvexProvider>,
-      );
+      render(<ModelsProbe org="org-reload" />);
 
       expect(screen.getByRole('status')).toHaveTextContent('ready:1');
       expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -329,13 +269,8 @@ function SendProbe({
  */
 describe('useChatSend', () => {
   function renderSendProbe() {
-    const { client } = stubClient(undefined);
     const seam = { current: null as ReturnType<typeof useChatSend> | null };
-    render(
-      <ConvexProvider client={client}>
-        <SendProbe org="org-send" seam={seam} />
-      </ConvexProvider>,
-    );
+    render(<SendProbe org="org-send" seam={seam} />);
     return seam;
   }
 

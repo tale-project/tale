@@ -10,7 +10,6 @@ import {
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { Link } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -42,6 +41,7 @@ import {
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -298,7 +298,7 @@ export function TaskSubjectPanel({
       // hear the reason, not a generic error.
       const reviewRefusal = reviewPolicyErrorMessage(error, t);
       if (
-        error instanceof ConvexError &&
+        error instanceof BackendError &&
         error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
       ) {
         toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });

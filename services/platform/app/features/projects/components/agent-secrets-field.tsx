@@ -17,7 +17,6 @@
 import { Button } from '@tale/ui/button';
 import { Description } from '@tale/ui/description';
 import { Stack } from '@tale/ui/layout';
-import { ConvexError } from 'convex/values';
 import { KeyRound, Plus, Trash2, X } from 'lucide-react';
 import { useId, useState } from 'react';
 
@@ -28,6 +27,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Label } from '@/app/components/ui/forms/label';
 import { useAbility } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteAgentSecret, useUpsertAgentSecret } from '../hooks/mutations';
@@ -121,7 +121,7 @@ export function AgentSecretsField({
       resetForm();
     } catch (error) {
       const message =
-        error instanceof ConvexError && typeof error.data?.message === 'string'
+        error instanceof BackendError && typeof error.data?.message === 'string'
           ? error.data.message
           : t('agents.secrets.saveError');
       toast({ title: message, variant: 'destructive' });

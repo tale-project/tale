@@ -1,5 +1,4 @@
-import { ConvexError } from 'convex/values';
-
+import { BackendError } from '@/app/lib/backend/backend-error';
 import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
 import {
   activeOrganizationId,
@@ -51,12 +50,12 @@ type GovernancePolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];
 /**
  * A render-gating read can reject during the brief pre-auth window (the Convex
  * client has not attached the auth token yet), which surfaces as an
- * `UNAUTHENTICATED` ConvexError. The reactive subscription re-runs the moment
+ * `UNAUTHENTICATED` BackendError. The reactive subscription re-runs the moment
  * auth lands, so this case is expected, not a preload failure worth logging —
  * anything else propagates to the caller for diagnostics.
  */
 function isPreAuthError(error: unknown): boolean {
-  if (!(error instanceof ConvexError)) return false;
+  if (!(error instanceof BackendError)) return false;
   const data: unknown = error.data;
   return (
     typeof data === 'object' &&

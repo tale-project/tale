@@ -1,16 +1,16 @@
 /**
  * Author-facing message for a refused automation write.
  *
- * The store throws structured `ConvexError`s whose `data.message` already names
+ * The store throws structured `BackendError`s whose `data.message` already names
  * the problem AND the fix — the deploy gate's "was saved with failing tests —
  * fix them and save a new version", the naming rule a slug broke, the automation
  * that has no version to run. Those sentences are the whole value of the
  * refusal, so they are surfaced verbatim rather than flattened into a generic
  * per-code line.
  *
- * Duck-types `ConvexError.data` rather than using `instanceof`: Vite chunk
+ * Duck-types `BackendError.data` rather than using `instanceof`: Vite chunk
  * splitting can produce more than one copy of the class, which breaks the
- * prototype check even though the value IS a ConvexError.
+ * prototype check even though the value IS a BackendError.
  */
 
 function errorData(error: unknown): Record<string, unknown> | undefined {

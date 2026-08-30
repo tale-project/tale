@@ -197,7 +197,7 @@ export function ProductEditDialog({
         onError: (err) => {
           console.error('Update error:', err);
           // Duck-typed code check — Vite chunk splitting can yield multiple
-          // ConvexError copies that break `instanceof` (see extract-error-code).
+          // BackendError copies that break `instanceof` (see extract-error-code).
           if (extractErrorCode(err) === 'DUPLICATE_PRODUCT_NAME') {
             setError('name', {
               message: tProducts('edit.toast.duplicateName'),

@@ -4,7 +4,7 @@ import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 /**
  * Upsert one of the calling user's env/secret rows. This is a Node `action`
  * (it authenticates, validates, and encrypts secrets before persisting) and
- * throws a `ConvexError` with `{ code, message }` on invalid input — callers
+ * throws a `BackendError` with `{ code, message }` on invalid input — callers
  * surface `message` inline.
  */
 export function useUpsertMyEnvVar() {

@@ -13,7 +13,6 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import {
   Archive,
   ArchiveRestore,
@@ -46,6 +45,7 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { TASK_TITLE_MAX } from '@/convex/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
@@ -507,7 +507,7 @@ function TemplateCreateBody({
       onCreated?.(result.taskId);
     } catch (error) {
       if (
-        error instanceof ConvexError &&
+        error instanceof BackendError &&
         error.data?.code === 'SETUP_FOLDER_MISSING'
       ) {
         toast({
@@ -760,7 +760,7 @@ function CreateTaskBody({
     } catch (error) {
       console.error('Create task error:', error);
       if (
-        error instanceof ConvexError &&
+        error instanceof BackendError &&
         error.data?.code === 'TASK_SCHEDULE_INVALID'
       ) {
         toast({ title: t('startDate.afterDue'), variant: 'destructive' });
@@ -1033,7 +1033,7 @@ function EditTaskBody({
 
   const onMutationError = (error: unknown) => {
     if (
-      error instanceof ConvexError &&
+      error instanceof BackendError &&
       error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
     ) {
       toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });
@@ -1047,14 +1047,14 @@ function EditTaskBody({
       return;
     }
     if (
-      error instanceof ConvexError &&
+      error instanceof BackendError &&
       error.data?.code === 'TASK_SCHEDULE_INVALID'
     ) {
       toast({ title: t('startDate.afterDue'), variant: 'destructive' });
       return;
     }
     if (
-      error instanceof ConvexError &&
+      error instanceof BackendError &&
       typeof error.data?.code === 'string' &&
       error.data.code.startsWith('TASK_LABEL')
     ) {

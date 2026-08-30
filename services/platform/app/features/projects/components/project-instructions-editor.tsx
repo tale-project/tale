@@ -1,7 +1,6 @@
 'use client';
 
 import { Text } from '@tale/ui/text';
-import { ConvexError } from 'convex/values';
 import { useCallback, useMemo } from 'react';
 
 import {
@@ -11,6 +10,7 @@ import {
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
 import { PROJECT_INSTRUCTIONS_MAX_CHARS } from '@/lib/shared/schemas/projects';
 import { cn } from '@/lib/utils/cn';
@@ -57,7 +57,7 @@ export function ProjectInstructionsEditor({
         // can pin it under the field; anything else surfaces as the cluster's
         // one generic save toast.
         if (
-          error instanceof ConvexError &&
+          error instanceof BackendError &&
           error.data?.code === 'PROJECT_INSTRUCTIONS_TOO_LONG'
         ) {
           throw error;
@@ -72,7 +72,7 @@ export function ProjectInstructionsEditor({
   const mapServerError = useCallback(
     (error: unknown) => {
       if (
-        error instanceof ConvexError &&
+        error instanceof BackendError &&
         error.data?.code === 'PROJECT_INSTRUCTIONS_TOO_LONG'
       ) {
         return [

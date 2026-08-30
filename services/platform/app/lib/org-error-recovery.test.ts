@@ -36,7 +36,7 @@ const {
 } = await import('./org-error-recovery');
 const { QueryClient } = await import('@tanstack/react-query');
 
-/** A ConvexError as the client sees it: duck-typed `data` payload. */
+/** A BackendError as the client sees it: duck-typed `data` payload. */
 function convexError(code: string): Error {
   const error = new Error(`server failure ${code}`);
   Object.assign(error, { data: { code, message: 'boom' } });
@@ -62,7 +62,7 @@ beforeEach(() => {
 });
 
 describe('isDeadOrgError', () => {
-  it('matches only ConvexError data with code ORG_NOT_FOUND', () => {
+  it('matches only BackendError data with code ORG_NOT_FOUND', () => {
     expect(isDeadOrgError(convexError('ORG_NOT_FOUND'))).toBe(true);
     expect(isDeadOrgError(convexError('ORG_FORBIDDEN'))).toBe(false);
     expect(isDeadOrgError(new Error('[CONVEX Q(x)] Server Error'))).toBe(false);

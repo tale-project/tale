@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { formatBytes } from '@/lib/utils/format-bytes';
 
 import { isUploadErrorRetryable, mapUploadError } from './map-upload-error';
@@ -23,7 +23,7 @@ function makeT() {
 describe('mapUploadError', () => {
   it('maps a full volume quota to the actionable quota message with usage', () => {
     const { t, calls } = makeT();
-    const err = new ConvexError({
+    const err = new BackendError({
       code: 'UPLOAD_POLICY_REJECTED',
       reasonCode: 'volume_exceeded',
       usedBytes: 1024 * 1024 * 1024,
@@ -39,7 +39,7 @@ describe('mapUploadError', () => {
 
   it('maps a policy file-size rejection to the size message with the limit', () => {
     const { t, calls } = makeT();
-    const err = new ConvexError({
+    const err = new BackendError({
       code: 'UPLOAD_POLICY_REJECTED',
       reasonCode: 'file_too_large',
       limitBytes: 5 * 1024 * 1024,
@@ -51,7 +51,7 @@ describe('mapUploadError', () => {
 
   it('maps the server FILE_TOO_LARGE code to the size message', () => {
     const { t } = makeT();
-    const err = new ConvexError({
+    const err = new BackendError({
       code: 'FILE_TOO_LARGE',
       reasonCode: 'file_too_large',
       limitBytes: 100 * 1024 * 1024,
@@ -62,7 +62,7 @@ describe('mapUploadError', () => {
 
   it('maps RATE_LIMITED to the rate-limit message', () => {
     const { t } = makeT();
-    const err = new ConvexError({ code: 'RATE_LIMITED', retryAfterMs: 5000 });
+    const err = new BackendError({ code: 'RATE_LIMITED', retryAfterMs: 5000 });
 
     expect(mapUploadError(err, t)).toBe('upload.rateLimited');
   });
@@ -72,7 +72,7 @@ describe('mapUploadError', () => {
 
     expect(
       mapUploadError(
-        new ConvexError({
+        new BackendError({
           code: 'DOCUMENT_RECORD_EXTENSION_MISMATCH',
           expectedExtension: 'pdf',
         }),
@@ -82,18 +82,18 @@ describe('mapUploadError', () => {
     expect(calls[0].values).toEqual({ extension: 'pdf' });
     expect(
       mapUploadError(
-        new ConvexError({ code: 'DOCUMENT_RECORD_FILE_UNCHANGED' }),
+        new BackendError({ code: 'DOCUMENT_RECORD_FILE_UNCHANGED' }),
         t,
       ),
     ).toBe('record.replace.unchanged');
     expect(
       mapUploadError(
-        new ConvexError({ code: 'DOCUMENT_RECORD_VERSION_MISMATCH' }),
+        new BackendError({ code: 'DOCUMENT_RECORD_VERSION_MISMATCH' }),
         t,
       ),
     ).toBe('record.replace.staleRevision');
     expect(
-      mapUploadError(new ConvexError({ code: 'LEGAL_HOLD_ACTIVE' }), t),
+      mapUploadError(new BackendError({ code: 'LEGAL_HOLD_ACTIVE' }), t),
     ).toBe('record.replace.blockedByHold');
   });
 
@@ -107,8 +107,8 @@ describe('mapUploadError', () => {
   ])('maps %s to %s', (code, messageKey) => {
     const { t } = makeT();
 
-    expect(mapUploadError(new ConvexError({ code }), t)).toBe(messageKey);
-    expect(isUploadErrorRetryable(new ConvexError({ code }))).toBe(false);
+    expect(mapUploadError(new BackendError({ code }), t)).toBe(messageKey);
+    expect(isUploadErrorRetryable(new BackendError({ code }))).toBe(false);
   });
 
   it('maps blocked/not-allowed types to the unsupported message', () => {
@@ -118,7 +118,7 @@ describe('mapUploadError', () => {
       'extension_not_allowed',
       'mime_not_allowed',
     ]) {
-      const err = new ConvexError({
+      const err = new BackendError({
         code: 'UPLOAD_POLICY_REJECTED',
         reasonCode,
       });
@@ -131,7 +131,7 @@ describe('mapUploadError', () => {
     expect(mapUploadError(new Error('boom'), t)).toBe(
       'upload.uploadFailedRetry',
     );
-    expect(mapUploadError(new ConvexError({ code: 'WAT' }), t)).toBe(
+    expect(mapUploadError(new BackendError({ code: 'WAT' }), t)).toBe(
       'upload.uploadFailedRetry',
     );
   });
@@ -139,19 +139,19 @@ describe('mapUploadError', () => {
   it('only retries failures that may succeed with the same staged bytes', () => {
     expect(
       isUploadErrorRetryable(
-        new ConvexError({ code: 'DOCUMENT_RECORD_VERSION_MISMATCH' }),
+        new BackendError({ code: 'DOCUMENT_RECORD_VERSION_MISMATCH' }),
       ),
     ).toBe(false);
     expect(
       isUploadErrorRetryable(
-        new ConvexError({
+        new BackendError({
           code: 'UPLOAD_POLICY_REJECTED',
           reasonCode: 'file_too_large',
         }),
       ),
     ).toBe(false);
     expect(
-      isUploadErrorRetryable(new ConvexError({ code: 'RATE_LIMITED' })),
+      isUploadErrorRetryable(new BackendError({ code: 'RATE_LIMITED' })),
     ).toBe(true);
     expect(isUploadErrorRetryable(new Error('network'))).toBe(true);
   });

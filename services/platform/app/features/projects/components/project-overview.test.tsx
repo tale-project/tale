@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import { ProjectOverview } from './project-overview';
@@ -178,7 +178,7 @@ describe('ProjectOverview', () => {
   describe('save feedback', () => {
     it('places a name the server refused under its own field, with no toast', async () => {
       mockUpdateIdentity.mockRejectedValueOnce(
-        new ConvexError({ code: 'PROJECT_NAME_INVALID' }),
+        new BackendError({ code: 'PROJECT_NAME_INVALID' }),
       );
       renderOverview();
 

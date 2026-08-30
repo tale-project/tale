@@ -7,7 +7,6 @@ import { HStack } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import {
   ChevronDown,
   ChevronRight,
@@ -53,6 +52,7 @@ import { useUploadPolicy } from '@/app/features/settings/governance/hooks/querie
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
@@ -543,7 +543,7 @@ export function ProjectFilesTab({
         if (cached === DUPLICATE_PATH) {
           // This exact path already failed on a duplicate name this batch —
           // fail its remaining files without re-hitting the server per file.
-          throw new ConvexError({ code: 'FOLDER_DUPLICATE_NAME' });
+          throw new BackendError({ code: 'FOLDER_DUPLICATE_NAME' });
         }
         if (cached !== undefined) {
           parentId = cached;
@@ -568,7 +568,7 @@ export function ProjectFilesTab({
             // already owns this name server-side — poison the path so the
             // batch reports it once, then rethrow for the per-file handler.
             if (
-              error instanceof ConvexError &&
+              error instanceof BackendError &&
               error.data?.code === 'FOLDER_DUPLICATE_NAME'
             ) {
               cache.set(key, DUPLICATE_PATH);
@@ -647,7 +647,7 @@ export function ProjectFilesTab({
           okCount++;
         } catch (error) {
           console.error('project file upload failed', file.name, error);
-          if (error instanceof ConvexError) {
+          if (error instanceof BackendError) {
             const code = error.data?.code;
             if (
               code === 'DOCUMENT_SCOPE_CONFLICT' ||
@@ -742,7 +742,7 @@ export function ProjectFilesTab({
         await detachDocument({ documentId, destination: 'organization' });
         toast({ title: t('files.detachSuccess'), variant: 'success' });
       } catch (error) {
-        if (error instanceof ConvexError) {
+        if (error instanceof BackendError) {
           const code = error.data?.code;
           if (code === 'PROJECT_FORBIDDEN' || code === 'RBAC_FORBIDDEN') {
             toast({
@@ -773,7 +773,7 @@ export function ProjectFilesTab({
       } catch (error) {
         console.error('deleteFolder failed', error);
         const code =
-          error instanceof ConvexError ? error.data?.code : undefined;
+          error instanceof BackendError ? error.data?.code : undefined;
         toast({
           title:
             code === 'LEGAL_HOLD_ACTIVE'

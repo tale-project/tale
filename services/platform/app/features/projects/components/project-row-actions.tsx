@@ -1,7 +1,6 @@
 'use client';
 
 import { useNavigate } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import { Archive, ArchiveRestore, Copy, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -10,6 +9,7 @@ import {
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
 
 import { useDuplicateProject } from '../hooks/mutations';
@@ -54,7 +54,7 @@ export function ProjectRowActions({
         },
       });
     } catch (error) {
-      if (error instanceof ConvexError) {
+      if (error instanceof BackendError) {
         const code = error.data?.code;
         if (code === 'RATE_LIMITED') {
           toast({ title: t('errors.RATE_LIMITED'), variant: 'destructive' });

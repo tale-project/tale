@@ -1,7 +1,6 @@
 'use client';
 
 import { Link } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -10,6 +9,7 @@ import { Select } from '@/app/components/ui/forms/select';
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateProjectSharing } from '../hooks/mutations';
@@ -97,7 +97,7 @@ export function ProjectSharingSection({
         toast({ title: t('settings.saveSuccess'), variant: 'success' });
         setPendingNarrowChange(null);
       } catch (error) {
-        if (error instanceof ConvexError) {
+        if (error instanceof BackendError) {
           const code = error.data?.code;
           if (
             code === 'PROJECT_SHARING_INVALID' ||

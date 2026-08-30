@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -104,7 +104,7 @@ describe('ProjectSecretsTab', () => {
       ['PROJECT_NOT_FOUND', /no longer exists/],
       ['UNAUTHENTICATED', /Only project administrators/],
     ])('shows the access notice and no editor for %s', (code, body) => {
-      secretsErrorFixture = new ConvexError({ code });
+      secretsErrorFixture = new BackendError({ code });
       renderTab();
 
       expect(screen.getByText('Admin access required')).toBeInTheDocument();

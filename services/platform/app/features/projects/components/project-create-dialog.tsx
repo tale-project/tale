@@ -2,7 +2,6 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import { useEffect, useMemo, useRef } from 'react';
 import { z } from 'zod/v4';
 
@@ -11,6 +10,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
 import {
   deriveProjectKey,
@@ -133,7 +133,7 @@ export function ProjectCreateDialog({
         });
       }
     } catch (error) {
-      if (error instanceof ConvexError) {
+      if (error instanceof BackendError) {
         const code = error.data?.code;
         if (code === 'PROJECT_NAME_INVALID') {
           setError('name', { message: t('errors.PROJECT_NAME_INVALID') });

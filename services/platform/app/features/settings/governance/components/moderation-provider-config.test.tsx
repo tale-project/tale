@@ -69,7 +69,7 @@ describe('ModerationProviderConfig', () => {
 
   // #2344: enabling the provider before an endpoint URL is configured used to
   // autosave, fail the server-side Zod gate (`endpoint.url` must be a valid
-  // URL), and silently revert with a raw ConvexError toast. The toggle must now
+  // URL), and silently revert with a raw BackendError toast. The toggle must now
   // defer the save and surface an inline hint instead.
   describe('enable without a configured endpoint (#2344)', () => {
     it('does not autosave the enable when the endpoint URL is missing', async () => {
@@ -94,7 +94,7 @@ describe('ModerationProviderConfig', () => {
   // #2657: enabling (deferred, per #2344 above — nothing persists yet) then
   // disabling the same never-configured provider used to fire a save that
   // failed the schema's endpoint/template validation, throwing an uncaught
-  // `ConvexError` even though the save was turning the layer OFF.
+  // `BackendError` even though the save was turning the layer OFF.
   describe('enable-without-endpoint then disable (#2657)', () => {
     it('persists the disable with a still-blank endpoint, validating clean against the real schema', async () => {
       setLoaded();

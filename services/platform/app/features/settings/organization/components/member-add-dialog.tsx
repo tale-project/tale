@@ -4,7 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { ConvexError } from 'convex/values';
 import { useState, useMemo, useEffect } from 'react';
 import * as z from 'zod';
 
@@ -19,6 +18,7 @@ import { useForm } from '@/app/components/ui/forms/use-form';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
 import { useToast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
 import {
   createOptionalPasswordSchema,
@@ -180,7 +180,7 @@ export function AddMemberDialog({
       // A new user requires a password; surface it on the field rather than a
       // generic toast, so the user knows what to fix (#1470).
       if (
-        error instanceof ConvexError &&
+        error instanceof BackendError &&
         error.data?.code === 'PASSWORD_REQUIRED'
       ) {
         setError('password', {
@@ -191,7 +191,7 @@ export function AddMemberDialog({
       // The email is already a member of this org; surface it on the email
       // field rather than a generic toast (#2018).
       if (
-        error instanceof ConvexError &&
+        error instanceof BackendError &&
         error.data?.code === 'DUPLICATE_MEMBER'
       ) {
         setError('email', {

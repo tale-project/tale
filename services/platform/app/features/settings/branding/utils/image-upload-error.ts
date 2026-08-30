@@ -1,8 +1,8 @@
 /**
  * Map a thrown branding `saveImage` error to a `toast` translation key.
  *
- * `saveImage` rejects validation failures with `ConvexError({ code })`. Vite
- * chunk splitting can produce multiple `ConvexError` class copies, which breaks
+ * `saveImage` rejects validation failures with `BackendError({ code })`. Vite
+ * chunk splitting can produce multiple `BackendError` class copies, which breaks
  * `instanceof`, so we duck-type the `data.code` shape instead. Unknown / network
  * errors fall back to a generic upload-failure key.
  */

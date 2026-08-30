@@ -10,14 +10,14 @@ import {
 // starts with `[Request ID: …] Server Error`.
 const RAW_ACTION_FAILURE =
   '[CONVEX A(agents/actions:listAgents)] [Request ID: 018f2a4b9c1d] Server Error\n' +
-  'Uncaught ConvexError: {"code":"ORG_NOT_FOUND","message":"Organization \\"jh7csd7\\" not found."}\n' +
+  'Uncaught BackendError: {"code":"ORG_NOT_FOUND","message":"Organization \\"jh7csd7\\" not found."}\n' +
   '  Called by client';
 
 describe('stripConvexRequestId', () => {
   it('removes the volatile request id but keeps function path and cause', () => {
     expect(stripConvexRequestId(RAW_ACTION_FAILURE)).toBe(
       '[CONVEX A(agents/actions:listAgents)] Server Error\n' +
-        'Uncaught ConvexError: {"code":"ORG_NOT_FOUND","message":"Organization \\"jh7csd7\\" not found."}\n' +
+        'Uncaught BackendError: {"code":"ORG_NOT_FOUND","message":"Organization \\"jh7csd7\\" not found."}\n' +
         '  Called by client',
     );
   });

@@ -1,11 +1,12 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
+
+import { BackendError } from '@/app/lib/backend/backend-error';
 
 import { BackendApiError } from './api-client';
 import { retryAdaptedRead, runAdapted, toConvexError } from './convex-adapters';
 
 describe('toConvexError', () => {
-  it('turns a deterministic 4xx into a ConvexError carrying code + data', () => {
+  it('turns a deterministic 4xx into a BackendError carrying code + data', () => {
     const normalized = toConvexError(
       new BackendApiError(
         400,
@@ -16,8 +17,8 @@ describe('toConvexError', () => {
         },
       ),
     );
-    expect(normalized).toBeInstanceOf(ConvexError);
-    if (!(normalized instanceof ConvexError)) return;
+    expect(normalized).toBeInstanceOf(BackendError);
+    if (!(normalized instanceof BackendError)) return;
     expect(normalized.data).toEqual({
       code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
       automations: ['weekly-report'],
@@ -42,13 +43,13 @@ describe('runAdapted', () => {
           new BackendApiError(403, 'No project access', 'PROJECT_FORBIDDEN'),
         ),
       ),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(BackendError);
   });
 });
 
 describe('retryAdaptedRead', () => {
   it('never retries a deterministic answer, retries transport 3x', () => {
-    expect(retryAdaptedRead(0, new ConvexError({ code: 'X' }))).toBe(false);
+    expect(retryAdaptedRead(0, new BackendError({ code: 'X' }))).toBe(false);
     expect(retryAdaptedRead(0, new BackendApiError(404, 'nope'))).toBe(false);
     expect(retryAdaptedRead(0, new BackendApiError(503, 'later'))).toBe(true);
     expect(retryAdaptedRead(2, new Error('network'))).toBe(true);

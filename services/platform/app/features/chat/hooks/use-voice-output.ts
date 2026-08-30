@@ -41,7 +41,7 @@ const RETRYABLE_ERROR_CODES = new Set(['RATE_LIMITED', 'CONTENTION']);
 const FALLBACK_SENTENCE_BOUNDARY = /(?<=[.!?。！？])\s+|\n{2,}/g;
 
 /**
- * Extract a Convex error's structured `code` (set via `new ConvexError({
+ * Extract a Convex error's structured `code` (set via `new BackendError({
  * code, message })` on the server). Used by the chunker to surface
  * pre-reservation errors to the indicator's error-code path. Returns
  * `undefined` for plain `Error` instances so the catch can fall back to
@@ -474,7 +474,7 @@ export function useVoiceOutputChunker(opts: {
           .catch((err) => {
             // Pre-reservation throws (BUDGET_EXCEEDED, MESSAGE_CHAR_LIMIT,
             // RATE_LIMITED, forbidden, TTS_CHUNK_LIMIT, …) come out of
-            // the action as plain Errors with a `ConvexError`-wrapped
+            // the action as plain Errors with a `BackendError`-wrapped
             // `data.code`. Surface the code through the per-message
             // sink so the indicator's `errorMessageForCode()` can show
             // an actionable message — without this, the only signal was

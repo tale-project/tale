@@ -2,13 +2,13 @@
  * Map a thrown error from `saveGovernancePolicy` into a localized,
  * user-facing message.
  *
- * On a backend rejection the Convex client re-throws a `ConvexError` whose
+ * On a backend rejection the Convex client re-throws a `BackendError` whose
  * `.message` is a dev-facing hybrid stacktrace (the `[CONVEX A(...)]` prefix
  * + the stringified `{code, message}` payload + "Called by client"). Because
- * `ConvexError extends Error`, the old `error instanceof Error ? error.message`
+ * `BackendError extends Error`, the old `error instanceof Error ? error.message`
  * guard always took the `.message` branch and surfaced that raw string to the
- * user. Instead we read the structured `ConvexError.data.code` (duck-typed,
- * since Vite chunk-splitting can produce multiple `ConvexError` class copies
+ * user. Instead we read the structured `BackendError.data.code` (duck-typed,
+ * since Vite chunk-splitting can produce multiple `BackendError` class copies
  * that break `instanceof`) and translate it.
  *
  * Codes come from `convex/governance/file_actions.ts`: `validation`,

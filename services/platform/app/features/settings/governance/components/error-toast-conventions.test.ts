@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * Guardrail (#2669): a governance save/restore failure must never surface a
- * thrown error's raw `.message` — for a `ConvexError` re-thrown by the
+ * thrown error's raw `.message` — for a `BackendError` re-thrown by the
  * Convex client that's a dev-facing `[CONVEX A(...)] {"code":…}` hybrid
  * stacktrace string, never a user-facing message. Every catch block in this
  * directory must route the caught error through `mapGovernanceSaveError` (or

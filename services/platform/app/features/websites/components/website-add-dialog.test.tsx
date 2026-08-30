@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
@@ -90,7 +90,7 @@ describe('AddWebsiteDialog', () => {
   // Regression for #2056: the duplicate-domain toast relied on
   // `error.message.includes('already exists')`, which is dead in prod because
   // Convex redacts raw Error messages to "Server Error". The backend now throws
-  // ConvexError({ code: 'WEBSITE_DUPLICATE_DOMAIN' }) and the dialog reads it.
+  // BackendError({ code: 'WEBSITE_DUPLICATE_DOMAIN' }) and the dialog reads it.
   describe('duplicate domain (#2056)', () => {
     beforeEach(() => {
       vi.clearAllMocks();
@@ -101,7 +101,7 @@ describe('AddWebsiteDialog', () => {
       createWebsiteMock.mockImplementation(
         (_args: unknown, opts: { onError: (e: unknown) => void }) => {
           opts.onError(
-            new ConvexError({
+            new BackendError({
               code: 'WEBSITE_DUPLICATE_DOMAIN',
               domain: 'example.com',
             }),
@@ -131,7 +131,7 @@ describe('AddWebsiteDialog', () => {
     it('falls back to the generic error toast for a non-duplicate failure', async () => {
       createWebsiteMock.mockImplementation(
         (_args: unknown, opts: { onError: (e: unknown) => void }) => {
-          opts.onError(new ConvexError({ code: 'SOMETHING_ELSE' }));
+          opts.onError(new BackendError({ code: 'SOMETHING_ELSE' }));
         },
       );
 

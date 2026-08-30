@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
@@ -158,7 +158,7 @@ describe('AddMemberDialog', () => {
     it('surfaces the backend PASSWORD_REQUIRED error on the password field', async () => {
       userExistsMock.mockReturnValue(true);
       createMemberMock.mockRejectedValueOnce(
-        new ConvexError({
+        new BackendError({
           code: 'PASSWORD_REQUIRED',
           message: 'Password is required when creating a new user',
         }),
@@ -196,7 +196,7 @@ describe('AddMemberDialog', () => {
     it('shows an email field error when the user is already a member', async () => {
       userExistsMock.mockReturnValue(true);
       createMemberMock.mockRejectedValueOnce(
-        new ConvexError({
+        new BackendError({
           code: 'DUPLICATE_MEMBER',
           message: 'User is already a member of this organization',
         }),

@@ -199,7 +199,7 @@ export function ProductCreateDialog({
         onError: (err) => {
           console.error('Create error:', err);
           // Duck-typed code check — Vite chunk splitting can yield multiple
-          // ConvexError copies that break `instanceof` (see extract-error-code).
+          // BackendError copies that break `instanceof` (see extract-error-code).
           const isDuplicate =
             extractErrorCode(err) === 'DUPLICATE_PRODUCT_NAME';
           toast({

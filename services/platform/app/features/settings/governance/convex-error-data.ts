@@ -1,6 +1,6 @@
 /**
- * Duck-typed reader for a thrown `ConvexError`'s `data` payload. Vite chunk
- * splitting can produce multiple `ConvexError` class copies, which breaks
+ * Duck-typed reader for a thrown `BackendError`'s `data` payload. Vite chunk
+ * splitting can produce multiple `BackendError` class copies, which breaks
  * `instanceof`, so we check shape instead. Shared by the governance error
  * mappers (legal-hold, data-subject-requests).
  */
@@ -15,7 +15,7 @@ export function readConvexErrorData(
   return data as Record<string, unknown>;
 }
 
-/** Read a string field from a parsed ConvexError `data` record. */
+/** Read a string field from a parsed BackendError `data` record. */
 export function pickString(
   data: Record<string, unknown> | undefined,
   key: string,

@@ -7,8 +7,9 @@ import {
   fireEvent,
   act,
 } from '@testing-library/react';
-import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { BackendError } from '@/app/lib/backend/backend-error';
 
 const mockCreateFolder = vi.fn();
 const mockToast = vi.fn();
@@ -144,11 +145,11 @@ describe('CreateFolderDialog', () => {
   // Regression for #2005: in prod Convex redacts raw Error messages to
   // "Server Error", so the old `error.message.includes('already exists')`
   // check was dead and the duplicate toast never appeared. The backend now
-  // throws ConvexError({ code: 'FOLDER_DUPLICATE_NAME' }) and the dialog reads
+  // throws BackendError({ code: 'FOLDER_DUPLICATE_NAME' }) and the dialog reads
   // the code, which survives the redaction.
   it('shows friendly duplicate name error from the structured code', async () => {
     mockCreateFolder.mockRejectedValue(
-      new ConvexError({
+      new BackendError({
         code: 'FOLDER_DUPLICATE_NAME',
         message: 'A folder with this name already exists',
       }),

@@ -7,7 +7,7 @@ export function useProjectSecrets(projectId: string | undefined) {
     projectId ? { projectId } : 'skip',
   );
   // Surface the query error instead of swallowing it — a non-admin who reaches
-  // this query (e.g. via a direct URL) gets `ConvexError({ code: '...' })`,
+  // this query (e.g. via a direct URL) gets `BackendError({ code: '...' })`,
   // which the Secrets tab maps to a translated access-denied message rather
   // than the misleading "No secrets yet." empty state.
   return { secrets: data ?? [], isLoading, error, isError };

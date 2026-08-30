@@ -24,7 +24,7 @@ export function isConvexTransientError(error: Error): boolean {
     // Convex access token. Live queries sent in that window reach the
     // server with a token whose session is gone and throw. The retry
     // backoff gives the client time to refresh its token. Match both
-    // Convex's native sentence form and our structured `ConvexError`
+    // Convex's native sentence form and our structured `BackendError`
     // payload (`{"code":"UNAUTHENTICATED"}`, #2013), which is upper-cased.
     msg.includes('Unauthenticated') ||
     msg.includes('UNAUTHENTICATED') ||

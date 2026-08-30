@@ -201,7 +201,7 @@ describe('FeatureFlagsEditor', () => {
   });
 
   // #2660: a sub-4096 "Max context tokens" used to save optimistically, then
-  // fail server-side with an uncaught ConvexError — nothing persisted, no
+  // fail server-side with an uncaught BackendError — nothing persisted, no
   // user-visible error. The client must now block it inline instead.
   describe('Max context tokens floor (#2660)', () => {
     it('blocks a sub-4096 value with an inline error and does not save', async () => {

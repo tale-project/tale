@@ -30,7 +30,7 @@ const ACCOUNT_SCOPE = 'me';
 
 /** Retry transport-shaped failures only: a 4xx from the backend is a
  * deterministic answer (auth gate, validation), and retrying it just
- * delays the UI — the same rationale as the app default's ConvexError
+ * delays the UI — the same rationale as the app default's BackendError
  * carve-out. */
 function retryTransportOnly(failureCount: number, error: unknown): boolean {
   return (

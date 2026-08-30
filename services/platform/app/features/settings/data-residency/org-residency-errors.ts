@@ -1,8 +1,8 @@
 /**
  * Map a thrown error from a per-org data-residency action (knowledge DB,
  * embedding model, object storage, blob backfill) into an admin-facing
- * message. Duck-types `ConvexError.data` because Vite chunk splitting can
- * produce multiple `ConvexError` class copies that break `instanceof` — same
+ * message. Duck-types `BackendError.data` because Vite chunk splitting can
+ * produce multiple `BackendError` class copies that break `instanceof` — same
  * rationale as `deployment-errors.ts`, which this sits beside (the code set
  * differs: these actions gate on org membership and validate a single
  * connection, not the deployment file).
@@ -15,7 +15,7 @@ import {
 
 type Translator = (key: string, options?: Record<string, unknown>) => string;
 
-/** Duck-typed `ConvexError.data.code` of an org data-residency failure. */
+/** Duck-typed `BackendError.data.code` of an org data-residency failure. */
 export function orgResidencyErrorCode(err: unknown): string | undefined {
   return pickString(readConvexErrorData(err), 'code');
 }

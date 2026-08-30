@@ -13,7 +13,7 @@
  *    PROVIDER_*, PROVIDER_INVALID_RESPONSE, HOST_POLICY,
  *    MESSAGE_CHAR_LIMIT, CONTENTION, WATCHDOG_TIMEOUT,
  *    PROVIDER_AUTH/BAD_REQUEST/PAYLOAD_TOO_LARGE).
- *  - ConvexError data codes raised by reservation/auth checks
+ *  - BackendError data codes raised by reservation/auth checks
  *    (forbidden, TTS_CHUNK_LIMIT, TTS_TEXT_TOO_LONG, TTS_EMPTY_TEXT,
  *    MESSAGE_CHAR_LIMIT).
  *  - Client-side synthetic codes (UNKNOWN_NETWORK, QUEUE_OVERFLOW,
@@ -51,7 +51,7 @@ export function voiceErrorMessageKey(
     case 'WATCHDOG_TIMEOUT':
       return 'voice.voiceOutputErrorTransient';
     // Client-side fallback raised when an action throw isn't a typed
-    // ConvexError — surface as a network problem so the user has an
+    // BackendError — surface as a network problem so the user has an
     // actionable read instead of staring at a stuck spinner.
     case 'UNKNOWN_NETWORK':
       return 'voice.voiceOutputErrorNetwork';

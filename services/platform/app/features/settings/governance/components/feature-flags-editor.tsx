@@ -92,7 +92,7 @@ interface FeatureFlagRuleErrors {
 /**
  * Client-side mirror of the server floor (#2660): a sub-{@link
  * MIN_MAX_CONTEXT_TOKENS} value used to save optimistically (the row
- * appeared saved), then fail server-side with an uncaught `ConvexError` and
+ * appeared saved), then fail server-side with an uncaught `BackendError` and
  * silently never persist. Blocking it here means the dialog never calls
  * `onSave` with a rule the server would reject.
  */

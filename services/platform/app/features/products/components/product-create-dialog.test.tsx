@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
-// The dialog's user-facing duplicate-name handling (a ConvexError with code
+// The dialog's user-facing duplicate-name handling (a BackendError with code
 // `DUPLICATE_PRODUCT_NAME` → the `create.toast.duplicateName` toast) is what we
 // verify here; the backend uniqueness rule is covered separately by
 // `assert_unique_product_name.test.ts`.
@@ -82,7 +82,7 @@ describe('ProductCreateDialog', () => {
 
   it('shows the duplicate-name toast when create rejects with DUPLICATE_PRODUCT_NAME', async () => {
     mockMutate.mockImplementation((_args, opts) => {
-      opts.onError(new ConvexError({ code: 'DUPLICATE_PRODUCT_NAME' }));
+      opts.onError(new BackendError({ code: 'DUPLICATE_PRODUCT_NAME' }));
     });
 
     const { user } = renderDialog();

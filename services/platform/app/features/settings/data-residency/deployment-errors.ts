@@ -1,7 +1,7 @@
 /**
  * Map a thrown error from a deployment-config action into an operator-facing
- * message + the structured code. Duck-types `ConvexError.data` because Vite
- * chunk splitting can produce multiple `ConvexError` class copies that break
+ * message + the structured code. Duck-types `BackendError.data` because Vite
+ * chunk splitting can produce multiple `BackendError` class copies that break
  * `instanceof` (same rationale as the org-residency mapper it sits beside).
  */
 

@@ -11,10 +11,10 @@
  * a governance veto) that reads as "the switch is broken".
  */
 
-import { ConvexError } from 'convex/values';
 import { useCallback, useMemo } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import {
   invalidateVoiceMode,
   setThreadVoiceOverrideRequest,
@@ -25,11 +25,11 @@ import { isRecord } from '@/lib/utils/type-utils';
 
 import { useChatQueryClient } from './chat-backend';
 
-/** Prefer the server's own explanation (a ConvexError payload message, e.g.
+/** Prefer the server's own explanation (a BackendError payload message, e.g.
  * the governance-veto wording) over the generic fallback. */
 function voiceSaveFailedToast(error: unknown, fallbackTitle: string) {
   const serverMessage =
-    error instanceof ConvexError && isRecord(error.data)
+    error instanceof BackendError && isRecord(error.data)
       ? error.data.message
       : undefined;
   toast({

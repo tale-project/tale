@@ -25,10 +25,10 @@ interface ActionQueryOptions {
 }
 
 /**
- * True iff `err` looks like a Convex `ConvexError` carrying structured `data`.
- * Avoids `instanceof ConvexError` because Vite HMR / chunk splitting can
+ * True iff `err` looks like a Convex `BackendError` carrying structured `data`.
+ * Avoids `instanceof BackendError` because Vite HMR / chunk splitting can
  * produce multiple copies of the class — the prototype-chain check then
- * fails even though the error IS a ConvexError. Structural shape is what
+ * fails even though the error IS a BackendError. Structural shape is what
  * the UI actually consumes, so check that directly.
  */
 export function isStructuredConvexError(err: unknown): boolean {
@@ -39,7 +39,7 @@ export function isStructuredConvexError(err: unknown): boolean {
 }
 
 /**
- * The `code` string from a structured `ConvexError`'s `data`, if present.
+ * The `code` string from a structured `BackendError`'s `data`, if present.
  * Lets the UI branch on a backend error kind (e.g. an connector that isn't
  * connected) instead of substring-matching a human message. Returns
  * `undefined` for a plain error or a `data` without a string `code`.
@@ -91,7 +91,7 @@ export function useActionQuery<Name extends BackendName>(
     queryKey,
     queryFn,
     staleTime: Infinity,
-    // ConvexError is deterministic — server-side validation, auth gate, or
+    // BackendError is deterministic — server-side validation, auth gate, or
     // expected-state signal (the adapted lane normalizes its 4xx answers to
     // the same shape). Retrying just delays the error reaching the UI
     // (default 3 retries with exponential backoff = ~7 s wait before `error`

@@ -3,7 +3,7 @@
  *
  * A client whose persisted active org was deleted (or whose org context is
  * an empty/garbage id — a stale demo tab) keeps firing org-scoped queries
- * that can only ever fail: the server classifies them as `ConvexError`
+ * that can only ever fail: the server classifies them as `BackendError`
  * `code: 'ORG_NOT_FOUND'` (`lib/rls/organization/get_organization_member.ts`,
  * `lib/auth/require_org_membership.ts`, `lib/helpers/org_slug.ts`). Observed
  * as a month of weekly `listAgents` / `readBranding` / `listProviders` error
@@ -26,7 +26,7 @@
  * Deliberately NOT triggered by `ORG_FORBIDDEN` (org exists, caller isn't a
  * member): the dashboard layout renders the intentional "you've been removed"
  * AccessDenied screen for that state (see routes/dashboard/$id.tsx), and a
- * structured ConvexError is never retried, so forbidden states don't loop.
+ * structured BackendError is never retried, so forbidden states don't loop.
  */
 
 import type { QueryClient } from '@tanstack/react-query';

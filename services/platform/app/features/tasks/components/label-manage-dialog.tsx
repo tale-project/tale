@@ -4,13 +4,13 @@ import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { ConvexError } from 'convex/values';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -77,7 +77,7 @@ export function LabelManageDialog({
   };
 
   const onError = (error: unknown, fallback: string) => {
-    if (error instanceof ConvexError) {
+    if (error instanceof BackendError) {
       const code = error.data?.code;
       if (typeof code === 'string') {
         toast({

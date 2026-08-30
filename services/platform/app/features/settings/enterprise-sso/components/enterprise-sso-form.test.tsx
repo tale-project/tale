@@ -1,5 +1,4 @@
 import { screen, waitFor } from '@testing-library/react';
-import { ConvexError } from 'convex/values';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,6 +8,7 @@ import {
   useActiveEditor,
 } from '@/app/components/ui/editor';
 import { AbilityContext } from '@/app/context/ability-context';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { defineAbilityFor } from '@/lib/permissions/ability';
 import type { SsoConnectionView } from '@/lib/shared/schemas/enterprise_sso';
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -325,7 +325,7 @@ describe('EnterpriseSsoForm validation + save', () => {
     upsertOidcMock.mockClear();
     toastMock.mockClear();
     upsertOidcMock.mockRejectedValueOnce(
-      new ConvexError({ code: 'sso_client_secret_required' }),
+      new BackendError({ code: 'sso_client_secret_required' }),
     );
     // The read view omits the client id; the form reveals it on mount and the
     // schema requires it, so seed the reveal or Save never enables.
@@ -742,7 +742,7 @@ describe('EnterpriseSsoForm IdP metadata import (#2652)', () => {
 
   it('maps a stable server error code to its localized message', async () => {
     parseMetadataMock.mockRejectedValueOnce(
-      new ConvexError({ code: 'sso_metadata_not_idp' }),
+      new BackendError({ code: 'sso_metadata_not_idp' }),
     );
     const { user } = renderForm(samlConfig);
 

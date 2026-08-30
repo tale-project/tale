@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { render, screen } from '@/tests/utils/render';
 
 import { ProjectDeleteDialog } from './project-delete-dialog';
@@ -57,7 +57,7 @@ describe('ProjectDeleteDialog', () => {
 
   it('surfaces the actionable message with bound automation names on PROJECT_HAS_BOUND_AUTOMATIONS', async () => {
     mockDeleteProject.mockRejectedValueOnce(
-      new ConvexError({
+      new BackendError({
         code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
         automations: ['Invoices', 'CRM'],
       }),
@@ -82,7 +82,7 @@ describe('ProjectDeleteDialog', () => {
 
   it('falls back to the generic actionable message when no automation names are returned', async () => {
     mockDeleteProject.mockRejectedValueOnce(
-      new ConvexError({ code: 'PROJECT_HAS_BOUND_AUTOMATIONS' }),
+      new BackendError({ code: 'PROJECT_HAS_BOUND_AUTOMATIONS' }),
     );
 
     const { user } = renderDialog();
@@ -104,7 +104,7 @@ describe('ProjectDeleteDialog', () => {
     // it falls back to the generic message rather than rendering
     // "[object Object]" or "123".
     mockDeleteProject.mockRejectedValueOnce(
-      new ConvexError({
+      new BackendError({
         code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
         automations: [123],
       }),

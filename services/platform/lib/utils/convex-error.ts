@@ -1,57 +1,42 @@
-import { ConvexError } from 'convex/values';
+/**
+ * Readers for a STRUCTURED error's `{ code, message, userMessage }` payload —
+ * the shape both the app's `BackendError` and the 0.4 `ConvexError` carry.
+ *
+ * Duck-typed on `data` rather than `instanceof`: Vite's chunk splitting can
+ * emit more than one copy of a class, and a prototype check then fails on an
+ * error that IS one. The payload is what every call site actually consumes,
+ * so checking it directly is both more robust and more honest.
+ */
 
-// Extract the `{ code: string }` data payload our Convex internal mutations
-// raise on expected failures. Returns undefined for non-ConvexError throws
-// or unstructured data. Avoids repeated `as { code?: string }` casts.
+/** One string field of a structured error's payload, or undefined. */
+function stringField(err: unknown, field: string): string | undefined {
+  if (err === null || typeof err !== 'object' || !('data' in err)) {
+    return undefined;
+  }
+  const { data } = err;
+  if (data === null || typeof data !== 'object' || !(field in data)) {
+    return undefined;
+  }
+  const value: unknown = Reflect.get(data, field);
+  return typeof value === 'string' ? value : undefined;
+}
+
+/** The machine `code` a surface branches on (e.g. a connector that isn't
+ *  connected), or undefined when the error carries none. */
 export function convexErrorCode(err: unknown): string | undefined {
-  if (!(err instanceof ConvexError)) return undefined;
-  const data: unknown = err.data;
-  if (typeof data !== 'object' || data === null) return undefined;
-  if (!('code' in data)) return undefined;
-  const candidate: unknown = data.code;
-  return typeof candidate === 'string' ? candidate : undefined;
+  return stringField(err, 'code');
 }
 
-// Extract the human-readable `{ message: string }` our Convex internal mutations
-// raise on expected failures, falling back to `fallback` for non-ConvexError
-// throws or unstructured data. Centralizes the toast-message helper that was
-// copied verbatim across several settings/chat components.
-//
-// Uses `instanceof ConvexError` to match the prior call-site behavior. A more
-// chunk-split-robust duck-typed variant lives in
-// `app/features/settings/governance/convex-error-data.ts` (Vite can emit
-// multiple ConvexError class copies, breaking instanceof) — switch to it only
-// if a regression surfaces, since that would be a behavior change.
+/** The structured `message`, falling back for an unstructured throw. */
 export function convexErrorMessage(err: unknown, fallback: string): string {
-  if (!(err instanceof ConvexError)) return fallback;
-  const data: unknown = err.data;
-  if (
-    data !== null &&
-    typeof data === 'object' &&
-    'message' in data &&
-    typeof data.message === 'string'
-  ) {
-    return data.message;
-  }
-  return fallback;
+  return stringField(err, 'message') ?? fallback;
 }
 
-// Extract the `{ userMessage: string }` field our Convex mutations explicitly
-// set when they want to surface a user-safe string in a toast. Unlike `message`
-// (which may contain internal codes or developer-facing text), `userMessage` is
-// a contract: the server author marked it as safe to display verbatim. Falls
-// back to `fallback` when the field is absent, so errors without it always
-// render the generic copy.
+/**
+ * The `userMessage` a handler explicitly marked safe to display verbatim.
+ * Unlike `message` (which may carry codes or developer-facing text), this is
+ * a contract; absent ⇒ the caller's generic copy.
+ */
 export function convexUserMessage(err: unknown, fallback: string): string {
-  if (!(err instanceof ConvexError)) return fallback;
-  const data: unknown = err.data;
-  if (
-    data !== null &&
-    typeof data === 'object' &&
-    'userMessage' in data &&
-    typeof data.userMessage === 'string'
-  ) {
-    return data.userMessage;
-  }
-  return fallback;
+  return stringField(err, 'userMessage') ?? fallback;
 }

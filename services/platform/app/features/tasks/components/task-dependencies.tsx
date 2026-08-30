@@ -3,7 +3,6 @@
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { ConvexError } from 'convex/values';
 import { Plus, X } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -12,6 +11,7 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { toast } from '@/app/hooks/use-toast';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
@@ -54,7 +54,7 @@ export function TaskDependencies({
 
   const onMutationError = (error: unknown) => {
     if (
-      error instanceof ConvexError &&
+      error instanceof BackendError &&
       error.data?.code === 'TASK_DEPENDENCY_CYCLE'
     ) {
       toast({ title: t('detail.dependencyCycle'), variant: 'destructive' });

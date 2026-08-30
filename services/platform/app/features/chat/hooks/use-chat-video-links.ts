@@ -1,11 +1,11 @@
 'use client';
 
 import { useQuery as useTanstackQuery } from '@tanstack/react-query';
-import { ConvexError } from 'convex/values';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
 import { BackendApiError } from '@/app/lib/backend/api-client';
+import { BackendError } from '@/app/lib/backend/backend-error';
 import {
   cancelVideoLinkRequest,
   ingestVideoUrlRequest,
@@ -62,11 +62,11 @@ const NON_TERMINAL: ReadonlySet<string> = new Set([
 ]);
 
 /** Structured `code` off a refusal — the 0.5 backend answers coded JSON
- * (`BackendApiError.code`), the legacy path a ConvexError `data.code`;
+ * (`BackendApiError.code`), the legacy path a BackendError `data.code`;
  * both map 1:1 to `videoLink.errors.*` keys. */
 function convexErrorCode(err: unknown): string | undefined {
   if (err instanceof BackendApiError) return err.code;
-  return err instanceof ConvexError &&
+  return err instanceof BackendError &&
     typeof err.data === 'object' &&
     err.data !== null &&
     'code' in err.data
