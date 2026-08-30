@@ -97,6 +97,17 @@ install_ssrf_firewall() {
 
 if [ "$(id -u)" = '0' ]; then
   install_ssrf_firewall
+  # The org-config volume mounts root-owned on first attach (and volumes a
+  # v0.5.0 image ever booted against stayed that way — it never chowned
+  # them), while every role runs as `app` and the backend must WRITE the
+  # tree (the default object-store connection, governance files, SSO
+  # connections). Top level only: everything deeper is app-created once this
+  # succeeds, and a recursive walk would tax large config trees on every
+  # boot. The web role mounts it read-only — hence best-effort.
+  if [ -d /app/data ]; then
+    chown app:app /app/data 2>/dev/null || \
+      log_warn "could not chown /app/data (read-only mount or unsupported fs)"
+  fi
   # Dev image opt-out: the hot-reload watchers (`vite build --watch`) must write
   # to dist/ and read the host-owned bind-mounted source, and running as root
   # sidesteps uid-mismatch permission errors. vite only writes container-local

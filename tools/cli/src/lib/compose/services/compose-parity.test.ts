@@ -9,6 +9,13 @@ import { setProjectId } from '../../project/project-context';
 import { generateStatefulCompose } from '../generators/generate-stateful-compose';
 import type { ServiceConfig } from '../types';
 import {
+  ALL_SERVICES,
+  THIRD_PARTY_IMAGES,
+  imageRef,
+  imageRepoForService,
+  isValidService,
+} from '../types';
+import {
   createBackendApiService,
   createBackendWorkerService,
 } from './create-backend-services';
@@ -249,6 +256,22 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
     expect(body).not.toContain('rewrite');
   });
 
+  test('the proxy injects the backend lanes unconditionally', () => {
+    // BACKEND_UPSTREAM began as the cutover's reversibility switch; with the
+    // Convex runtime gone, "unset" must mean the DEFAULT backend, not
+    // "skip the lanes" — v0.5.0 shipped the skip: uploads (/<bucket>/*),
+    // live updates (/events) and every machine door 404'd under `tale
+    // deploy`, which never set the variable.
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
+      'utf8',
+    );
+    expect(entrypoint).toContain(
+      'BACKEND_UPSTREAM="${BACKEND_UPSTREAM:-backend-api:3005}"',
+    );
+    expect(entrypoint).not.toContain('-n "${BACKEND_UPSTREAM');
+  });
+
   test('nothing routes to the retired runtime any more', () => {
     // The proxy used to fall back to `convex:*` for everything the backend
     // list did not name. That service is gone, so a fallback is a 502 — every
@@ -267,5 +290,91 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
     const password =
       createObjectStorageService(config).environment?.MINIO_ROOT_PASSWORD;
     expect(password).toContain('OBJECT_STORE_SECRET_KEY:?');
+  });
+});
+
+describe('service → image parity', () => {
+  // The bug this locks down: `tale deploy` derived its pull list mechanically
+  // as `tale-${service}` while the backend tier runs the platform image, so
+  // v0.5.0's first fresh deploy pulled two images that were never built
+  // (tale-backend-api, tale-backend-worker) and aborted. Service → image now
+  // goes through imageRef/imageRepoForService for the compose creators AND
+  // the deploy pull list; these tests hold the map to what actually exists.
+
+  test('the backend tier maps to the platform image', () => {
+    expect(imageRepoForService('backend-api')).toBe('tale-platform');
+    expect(imageRepoForService('backend-worker')).toBe('tale-platform');
+  });
+
+  test('every generated tale image matches imageRef for its service', () => {
+    const stateful = parse(generateStatefulCompose(config, 'localhost')) as {
+      services: Record<string, { image?: string }>;
+    };
+    const taleImageServices = Object.entries(stateful.services).filter(
+      ([, svc]) => svc.image?.startsWith(`${config.registry}/`),
+    );
+    expect(taleImageServices.length).toBeGreaterThan(0);
+    for (const [name, svc] of taleImageServices) {
+      if (!isValidService(name)) {
+        throw new Error(`unexpected tale-image service: ${name}`);
+      }
+      expect(svc.image).toBe(imageRef(config, name));
+    }
+  });
+
+  test('CLI backend services set every env key compose.yml sets', () => {
+    // The bug this locks down: compose.yml wired DATABASE_URL into the
+    // backend tier but the CLI generator did not, so a `tale deploy` stack
+    // crash-looped on the env schema while `docker compose up` worked.
+    // Values may differ (the CLI fails closed on DB_PASSWORD); the KEY set
+    // must not drift.
+    const cliServices = {
+      'backend-api': createBackendApiService(config),
+      'backend-worker': createBackendWorkerService(config),
+    } as const;
+    for (const [name, cliService] of Object.entries(cliServices)) {
+      const composeEnv = compose.services[name]?.environment ?? {};
+      const cliEnv = cliService.environment ?? {};
+      for (const key of Object.keys(composeEnv)) {
+        expect(`${name}:${key}:${key in cliEnv}`).toBe(`${name}:${key}:true`);
+      }
+    }
+  });
+
+  test('every service image repo is one release.yml actually builds', () => {
+    // The pull list can only name images the release pipeline pushes — this
+    // is the cross-artifact fact the v0.5.0 deploy regression violated.
+    const releaseYml = readFileSync(
+      resolve(repoRoot, '.github/workflows/release.yml'),
+      'utf8',
+    );
+    const built = new Set(
+      [...releaseYml.matchAll(/- \{ name: ([a-z0-9-]+) \}/g)].map((m) => m[1]),
+    );
+    expect(built.size).toBeGreaterThan(0);
+    const taleServices = ALL_SERVICES.filter(
+      (
+        s,
+      ): s is Exclude<
+        (typeof ALL_SERVICES)[number],
+        keyof typeof THIRD_PARTY_IMAGES
+      > => !(s in THIRD_PARTY_IMAGES), // third-party pins aren't built here
+    );
+    for (const service of taleServices) {
+      const repo = imageRepoForService(service).replace(/^tale-/, '');
+      expect(built).toContain(repo);
+    }
+  });
+
+  test('the object-store pin is one value, shared by every lane', () => {
+    // compose.yml, the CLI creator, and the deploy pull list must agree on
+    // the minio pin; THIRD_PARTY_IMAGES is the source the CLI lanes share and
+    // this holds compose.yml to it.
+    expect(createObjectStorageService(config).image).toBe(
+      THIRD_PARTY_IMAGES['object-store'],
+    );
+    expect(compose.services['object-store']?.image).toBe(
+      THIRD_PARTY_IMAGES['object-store'],
+    );
   });
 });

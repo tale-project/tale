@@ -18,6 +18,7 @@ import {
   type StatefulService,
   type StopGatedService,
   STOP_GATED_SERVICES,
+  imageRef,
   isRotatableService,
   isStatefulService,
 } from '../compose/types';
@@ -275,13 +276,16 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // Pull all required images first. The sandbox tier (sandbox +
       // sandbox-egress) is now a stateful always-roll singleton, so its images
       // are pulled here via statefulToUpdate like the rest — no special-casing.
+      // Service → image goes through imageRef (shared with the compose
+      // creators): the backend tier runs the platform image, so a mechanical
+      // `tale-${service}` would pull images that were never built. Dedup'd
+      // because several services can share one image.
       logger.step(`${prefix}Pulling images...`);
       const imagesToPull = [
-        ...rotatableToUpdate.map(
-          (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
-        ),
-        ...statefulToUpdate.map(
-          (s) => `${env.GHCR_REGISTRY}/tale-${s}:${version}`,
+        ...new Set(
+          [...rotatableToUpdate, ...statefulToUpdate].map((s) =>
+            imageRef(serviceConfig, s),
+          ),
         ),
       ];
 

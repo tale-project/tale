@@ -1,6 +1,6 @@
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
-import { DEFAULT_LOGGING } from '../types';
+import { DEFAULT_LOGGING, imageRef } from '../types';
 
 /**
  * The deployment's BLOB store.
@@ -18,10 +18,10 @@ import { DEFAULT_LOGGING } from '../types';
  * compose-parity.test.ts asserts they agree.
  */
 export function createObjectStorageService(
-  _config: ServiceConfig,
+  config: ServiceConfig,
 ): ComposeService {
   return {
-    image: 'minio/minio:RELEASE.2025-04-22T22-12-26Z',
+    image: imageRef(config, 'object-store'),
     container_name: `${getProjectId()}-object-store`,
     // Let in-flight multipart writes finish before SIGKILL.
     stop_grace_period: '30s',

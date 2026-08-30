@@ -43,8 +43,8 @@ export function createDeployCommand(): Command {
     )
     .option(
       '--accept-data-loss',
-      'Expert override for the 0.4 breaking-cutover guard: deploy a >= 0.4 ' +
-        'CLI over a pre-0.4 instance although its data becomes permanently ' +
+      'Expert override for the breaking-cutover guard: deploy a >= 0.5 ' +
+        'CLI over a pre-0.5 instance although its data becomes permanently ' +
         'unreadable. Normally you want a fresh deployment instead.',
       false,
     )

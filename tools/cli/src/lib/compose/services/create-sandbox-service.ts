@@ -1,6 +1,6 @@
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
-import { DEFAULT_LOGGING } from '../types';
+import { DEFAULT_LOGGING, imageRef } from '../types';
 
 /**
  * Sandbox spawner — thin stateless docker-run service.
@@ -30,7 +30,7 @@ import { DEFAULT_LOGGING } from '../types';
  */
 export function createSandboxService(config: ServiceConfig): ComposeService {
   return {
-    image: `${config.registry}/tale-sandbox:${config.version}`,
+    image: imageRef(config, 'sandbox'),
     container_name: `${getProjectId()}-sandbox`,
     // Graceful drain on stop: the spawner's SIGTERM handler stops accepting new
     // executions, cancels in-flight ones, and waits up to ~20s for them to tear

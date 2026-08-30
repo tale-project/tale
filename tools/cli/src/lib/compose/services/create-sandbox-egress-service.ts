@@ -1,6 +1,6 @@
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
-import { DEFAULT_LOGGING } from '../types';
+import { DEFAULT_LOGGING, imageRef } from '../types';
 
 /**
  * Sandbox egress proxy — tinyproxy on `sandbox` (faces the runtime
@@ -35,7 +35,7 @@ export function createSandboxEgressService(
   // sandbox network. The container-local iptables SSRF fence (IMDS/RFC1918)
   // runs inside it.
   return {
-    image: `${config.registry}/tale-sandbox-egress:${config.version}`,
+    image: imageRef(config, 'sandbox-egress'),
     container_name: `${getProjectId()}-sandbox-egress`,
     env_file: ['.env'],
     restart: 'unless-stopped',

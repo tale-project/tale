@@ -246,6 +246,38 @@ async function main(): Promise<number> {
     if (!foundSecret) r.pass(`${svc}: no secrets baked in`);
   }
 
+  // 3b. Platform ships the config catalogs and an app-owned data mount point.
+  // The retired convex image used to bake these; v0.5.0 shipped WITHOUT them:
+  // every provider read 500'd on the missing /app/system, org scaffolding had
+  // no /app/builtin seed catalog, and the backend roles (uid app) hit EACCES
+  // writing the root-owned org-config volume at /app/data.
+  header('Checking platform config catalogs');
+  {
+    const img = images.get('platform');
+    if (img) {
+      const probe = await capture([
+        'docker',
+        'run',
+        '--rm',
+        '--entrypoint=',
+        img,
+        'sh',
+        '-c',
+        'ls /app/system/providers | head -1; ls /app/builtin | head -1; stat -c %U /app/data',
+      ]);
+      const [firstProvider, firstBuiltin, dataOwner] = probe.stdout
+        .trim()
+        .split('\n')
+        .map((line) => line.trim());
+      if (firstProvider) r.pass(`platform: /app/system/providers is populated`);
+      else r.fail(`platform: /app/system/providers missing or empty`);
+      if (firstBuiltin) r.pass(`platform: /app/builtin seed catalog present`);
+      else r.fail(`platform: /app/builtin missing or empty`);
+      if (dataOwner === 'app') r.pass(`platform: /app/data owned by app`);
+      else r.fail(`platform: /app/data owner is '${dataOwner}', expected app`);
+    }
+  }
+
   // 4. Health check defined
   header('Checking HEALTHCHECK instruction');
   for (const svc of SERVICES) {

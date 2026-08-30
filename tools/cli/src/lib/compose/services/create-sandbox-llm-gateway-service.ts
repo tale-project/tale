@@ -1,6 +1,6 @@
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
-import { DEFAULT_LOGGING } from '../types';
+import { DEFAULT_LOGGING, imageRef } from '../types';
 
 /**
  * Sandbox LLM gateway service. Fronts every model provider with a single
@@ -24,7 +24,7 @@ export function createSandboxLlmGatewayService(
   config: ServiceConfig,
 ): ComposeService {
   return {
-    image: `${config.registry}/tale-sandbox-llm-gateway:${config.version}`,
+    image: imageRef(config, 'sandbox-llm-gateway'),
     container_name: `${getProjectId()}-sandbox-llm-gateway`,
     env_file: ['.env'],
     restart: 'unless-stopped',
