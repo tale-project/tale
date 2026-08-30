@@ -41,6 +41,7 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       cap_add?: string[];
       stop_grace_period?: string;
       image?: string;
+      build?: unknown;
     }
   >;
 };
@@ -110,6 +111,20 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
     expect(
       graceSeconds(compose.services.sandbox?.stop_grace_period),
     ).toBeGreaterThanOrEqual(30);
+  });
+});
+
+describe('shared tale-db image is built once', () => {
+  // `db` and `knowledge-db` are the same ParadeDB image in different roles.
+  // Two `build:` blocks on one tag race `docker compose up --build` on the
+  // containerd store ("image already exists") and leave `bun dev` without
+  // Postgres. Only `db` builds; knowledge-db reuses the tag.
+  test('knowledge-db reuses db image and does not declare its own build', () => {
+    expect(compose.services['knowledge-db']?.image).toBe(
+      compose.services.db?.image,
+    );
+    expect(compose.services.db?.build).toBeDefined();
+    expect(compose.services['knowledge-db']?.build).toBeUndefined();
   });
 });
 

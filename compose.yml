@@ -141,13 +141,14 @@ services:
   # `KNOWLEDGE_DATABASE_URL` (postgres.js); nothing else talks to it.
   # ============================================================================
   knowledge-db:
+    # Same image `db` builds. A second `build:` here makes
+    # `docker compose up --build` export the tag twice in parallel and fail
+    # with "image already exists" on the containerd store — `bun dev` then
+    # continues without Postgres and the host backend dies on ECONNREFUSED.
     image: ghcr.io/tale-project/tale/tale-db:${VERSION:-latest}
-    pull_policy: ${PULL_POLICY:-build}
-    build:
-      context: .
-      dockerfile: services/db/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
+    # Must not inherit PULL_POLICY=build: this service has no build spec.
+    # `missing` uses the image `db` just produced, or pulls if nothing is local.
+    pull_policy: missing
 
     container_name: tale-knowledge-db
 
