@@ -7,6 +7,18 @@ that ports a domain — it is the campaign's source of truth across sessions.
 
 Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 
+## Teardown — retiring the Convex runtime
+
+Every domain landed, so the runtime itself comes out. Tracked here because
+the ledger is the campaign's source of truth; each row lands with its own
+increment.
+
+| Step | Status | Notes |
+| --- | --- | --- |
+| The app stops needing a Convex server | done | inc 125: the provider, the WS query client and every `convex/react` hook are out of the app tree. `useConvexAuth` is now the SESSION probe (the backend answers `currentUser` on the cookie alone — there is no handshake to wait for), `useConvexConnectionState` is the `/events` hint stream's own open/error state (optimistic until something actually fails: a request that was never tried is not evidence of an outage), and the four wrappers + the imperative client serve their adapter row or REFUSE, named (`ConvexRetiredError` carries the function name, which is also the registry key someone must add). The chat seam lost its watch lane; a skipped read still reads `loading` (holding, not broken) and only a ref with no row is `unavailable`. |
+| The stack stops starting Convex | done | inc 125: the `convex` service is deleted from `compose.yml`, the backend tier loses its `backend` profile (it is the default now), `BACKEND_UPSTREAM` defaults to `backend-api:3005`, and the platform entrypoint's boot-time `convex deploy` + env sync + dev watcher (≈480 lines) are gone. FOUND EN ROUTE: the CLI generated a compose with NO backend services at all — `tale deploy` could never have started the tier the ledger said was cut over; `create-backend-services.ts` now emits both roles (dual-homed api for the in-sandbox bridges, worker with its healthcheck disabled). The SSRF egress firewall MOVED with the work it protects: the platform image gains `iptables` and installs the same IMDS + link-local + RFC1918 REJECT rules before dropping privileges, and both backend services carry `NET_ADMIN` — the parity guard now asserts it there. The config volume keeps its `convex-data` name so no operator has to migrate a volume for a rename; the backend mounts it read-write (it owns every write), the web tier read-only. The privileged restart sidecar's allowlist moves from `{convex}` to `{backend-api, backend-worker, sandbox}`. |
+| `convex/` moves out and the rest is deleted | pending | 439 of 1097 non-test modules are still imported by the backend/app (the reuse the campaign was built on) and must move to a non-Convex home; the remainder — Convex functions, `_generated`, schema, crons, http routes — goes, along with the `convex`/`convex-helpers`/`@convex-dev/*`/`convex-test` dependencies. The hard part is typing: the app's adapter seam is KEYED by Convex function names and its arg/return types come from `_generated/api`, so the seam has to be re-keyed before the generated tree can go. |
+
 ## Porting rules (the constitution, enforced on every port)
 
 1. Mutation-shaped handlers run through `transactSerializable`; callbacks are
