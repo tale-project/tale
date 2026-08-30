@@ -3794,12 +3794,40 @@ async function checkChat(
             z.looseObject({ role: z.string(), content: z.unknown() }),
           ),
           tools: z.array(z.unknown()).optional(),
+          stream: z.boolean().optional(),
         })
         .loose()
         .safeParse(JSON.parse(body || '{}'));
       const messages = parsed.success ? parsed.data.messages : [];
       const hasToolResult = messages.some((m) => m.role === 'tool');
       const transcript = JSON.stringify(messages);
+      // The NON-STREAMING dialect — a real provider speaks both. The title
+      // lane calls it (one small JSON completion), and answering SSE to a
+      // JSON caller made every title attempt fall back, which hid the title
+      // lane's spend from the ledger probe below.
+      const wantsStream = parsed.success && parsed.data.stream === true;
+      if (!wantsStream) {
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            id: 'itest-completion',
+            object: 'chat.completion',
+            choices: [
+              {
+                index: 0,
+                message: { role: 'assistant', content: 'Itest Thread Title' },
+                finish_reason: 'stop',
+              },
+            ],
+            usage: {
+              prompt_tokens: 42,
+              completion_tokens: 5,
+              total_tokens: 47,
+            },
+          }),
+        );
+        return;
+      }
       res.setHeader('content-type', 'text/event-stream');
       const finish = (finishReason: string): void => {
         res.write(
@@ -4075,6 +4103,64 @@ async function checkChat(
         Number(stamped[0]?.value ?? '0') === 1234 &&
         Number(restamped[0]?.value ?? '0') === 1234,
       `post=${waitRes.status}, stamped=${stamped[0]?.value ?? 'NONE'} (want 1234), afterSecondReport=${restamped[0]?.value ?? 'NONE'} (want 1234)`,
+    );
+
+    // Naming a thread is a MODEL CALL the org pays for, and it went
+    // unledgered for as long as the lane existed: the tokens appeared on the
+    // provider's bill and nowhere in ours. An UNTITLED thread is what
+    // enqueues it, so this probe cannot ride the titled threads above.
+    // The picker honours the owner's sticky chat model when a candidate
+    // serves it; without the pin the fallback scan takes the first SHIPPED
+    // connector with an active credential — `openai`, whose fake env key an
+    // earlier block planted — and the attempt dies on an unreachable host.
+    await send(`/api/app/user-preferences/chat-model?orgId=${orgId}`, {
+      modelId: 'itest-chat',
+    });
+    const untitled = z
+      .object({ id: z.string() })
+      .safeParse(
+        await (await send(`/api/app/chat/threads?orgId=${orgId}`, {})).json(),
+      );
+    const untitledId = untitled.success ? untitled.data.id : '';
+    await send(`/api/app/chat/threads/${untitledId}/messages?orgId=${orgId}`, {
+      text: `${SLOW_MARKER} name me`,
+      modelId: 'itest-chat',
+      providerSlug: 'itestchat',
+    });
+    const titleBooked = await waitFor(async () => {
+      const rows = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM app.usage_events
+        WHERE org_id = ${orgId} AND agent_slug = 'thread-title'
+      `;
+      return Number(rows[0]?.count ?? '0') > 0;
+    }, 20_000);
+    await waitFor(async () => {
+      const rows = await sql<{ title: string | null }[]>`
+        SELECT title FROM app.threads WHERE id = ${untitledId}
+      `;
+      return rows[0]?.title != null;
+    }, 15_000);
+    const titledRow = await sql<{ title: string | null }[]>`
+      SELECT title FROM app.threads WHERE id = ${untitledId}
+    `;
+    const titleUsage = await sql<
+      { inputTokens: number; outputTokens: number; model: string }[]
+    >`
+      SELECT input_tokens AS "inputTokens", output_tokens AS "outputTokens",
+             model
+      FROM app.usage_events
+      WHERE org_id = ${orgId} AND agent_slug = 'thread-title'
+      ORDER BY created_at_ms DESC LIMIT 1
+    `;
+    record(
+      'thread-title model call is booked to the usage ledger',
+      titleBooked &&
+        (titleUsage[0]?.inputTokens ?? 0) > 0 &&
+        (titleUsage[0]?.outputTokens ?? 0) > 0 &&
+        // The AI title itself landed — proof the booking rode a real call,
+        // not a fallback path that spent nothing.
+        titledRow[0]?.title === 'Itest Thread Title',
+      `booked=${titleBooked}, tokens=${titleUsage[0]?.inputTokens ?? 0}/${titleUsage[0]?.outputTokens ?? 0}, model=${titleUsage[0]?.model ?? 'NONE'}, threadTitle=${JSON.stringify(titledRow[0]?.title ?? null)} (want "Itest Thread Title")`,
     );
 
     // Turn 2 — SSE progress + mid-stream cancel: subscribe the stream lane,

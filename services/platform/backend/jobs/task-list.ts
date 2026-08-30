@@ -26,6 +26,7 @@ import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
 import { sweepBrowserSessions } from '../domains/browser_sessions/service.ts';
 import { runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
+import { createPgUsageLedger } from '../domains/chat/store.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
 import { runTranscribeJob } from '../domains/files/transcription.ts';
 import {
@@ -385,6 +386,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 action; every ctx facility it touches is covered by chatShimHandlers
         shim as unknown as Parameters<typeof generateThreadTitleImpl>[0],
         input,
+        // Naming a thread is a model call the org pays for. The shim has no
+        // ledger of its own, so the door hands it the same one the turn
+        // writes through — booked under its own agent slug so analytics can
+        // separate "what the conversation cost" from "what naming it cost".
+        (entry) => createPgUsageLedger(deps.sql).record(entry),
       );
     },
     'chat.api_turn': async (payload) => {

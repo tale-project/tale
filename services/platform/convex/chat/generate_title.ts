@@ -117,22 +117,40 @@ async function pickTitleModel(
   return null;
 }
 
-/** One model attempt at a title, or null. Never throws — every miss (no
- * model, provider failure, empty reply) means "use the fallback", so errors
- * are logged here rather than escaping past the fallback write. */
+/** The agent slug the title call books its tokens under. Distinct from the
+ *  turn's, so analytics can tell "what the conversation cost" from "what
+ *  naming it cost" instead of blending them. */
+export const TITLE_AGENT_SLUG = 'thread-title';
+
+/** What one naming attempt produced: the title, and what it SPENT. Naming a
+ *  thread is a real model call — small, but paid for — so the tokens leave
+ *  this function even when the title does not. */
+interface TitleAttempt {
+  readonly title: string | null;
+  readonly spend?: {
+    readonly model: string;
+    readonly provider: string;
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+  };
+}
+
+/** One model attempt at a title. Never throws — every miss (no model,
+ * provider failure, empty reply) means "use the fallback", so errors are
+ * logged here rather than escaping past the fallback write. */
 async function generateWithModel(
   ctx: ActionCtx,
   organizationId: string,
   userId: string,
   firstMessage: string,
-): Promise<string | null> {
+): Promise<TitleAttempt> {
   try {
     const preferredModelId: string | null = await ctx.runQuery(
       internal.user_preferences.queries.getChatModelInternal,
       { userId, organizationId },
     );
     const target = await pickTitleModel(ctx, organizationId, preferredModelId);
-    if (target === null) return null;
+    if (target === null) return { title: null };
     const model = createBuilderModel(ctx, {
       organizationId,
       target,
@@ -150,16 +168,44 @@ async function generateWithModel(
       turn: 1,
     });
     const title = reply.content.replace(/\s+/g, ' ').trim();
-    return title.length > 0 ? title.slice(0, TITLE_MAX_LEN) : null;
+    return {
+      title: title.length > 0 ? title.slice(0, TITLE_MAX_LEN) : null,
+      // The call happened whether or not the reply was usable — a ledger
+      // that counted only good titles would under-report the bill.
+      ...(reply.usage !== undefined
+        ? {
+            spend: {
+              model: target.modelId,
+              provider: target.providerSlug,
+              inputTokens: reply.usage.prompt,
+              outputTokens: reply.usage.completion,
+            },
+          }
+        : {}),
+    };
   } catch (error) {
     console.warn('[generateThreadTitle] model generation failed:', error);
-    return null;
+    return { title: null };
   }
 }
 
 /** The naming attempt as a PLAIN exported function — the internalAction
  * above wraps it, and the 0.5 backend's `chat.generate_title` job runs it
  * on the ctx shim (same pattern as the turn engine). */
+/** Where a naming attempt's tokens are booked. Injected rather than reached
+ *  for, the way the connector bridge takes its dispatch: this body runs on a
+ *  ctx shim that has no ledger of its own. */
+export type TitleUsageRecorder = (entry: {
+  organizationId: string;
+  userId: string;
+  agentSlug: string;
+  model: string;
+  provider: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}) => Promise<void>;
+
 export async function generateThreadTitleImpl(
   ctx: ActionCtx,
   args: {
@@ -168,24 +214,47 @@ export async function generateThreadTitleImpl(
     userId: string;
     firstMessage: string;
   },
+  recordUsage?: TitleUsageRecorder,
 ): Promise<null> {
   {
     // Cleared once the race settles — a won race must not leave a
     // ten-second timer holding the action's environment open.
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      const aiTitle = await Promise.race([
+      const attempt = await Promise.race([
         generateWithModel(
           ctx,
           args.organizationId,
           args.userId,
           args.firstMessage,
         ),
-        new Promise<null>((resolve) => {
-          timeout = setTimeout(() => resolve(null), TITLE_TIMEOUT_MS);
+        new Promise<TitleAttempt>((resolve) => {
+          timeout = setTimeout(
+            () => resolve({ title: null }),
+            TITLE_TIMEOUT_MS,
+          );
         }),
       ]);
-      const title = aiTitle ?? deriveFallbackTitle(args.firstMessage);
+      // Book the spend BEFORE the title write: naming a thread is a model
+      // call the org pays for, and it went unledgered for as long as this
+      // lane has existed — the tokens showed up on the provider's bill and
+      // nowhere else. Best-effort: a ledger failure must not cost the title.
+      if (attempt.spend !== undefined && recordUsage !== undefined) {
+        const spend = attempt.spend;
+        await recordUsage({
+          organizationId: args.organizationId,
+          userId: args.userId,
+          agentSlug: TITLE_AGENT_SLUG,
+          model: spend.model,
+          provider: spend.provider,
+          inputTokens: spend.inputTokens,
+          outputTokens: spend.outputTokens,
+          totalTokens: spend.inputTokens + spend.outputTokens,
+        }).catch((error: unknown) => {
+          console.warn('[generateThreadTitle] usage write failed:', error);
+        });
+      }
+      const title = attempt.title ?? deriveFallbackTitle(args.firstMessage);
       if (title !== null) {
         await ctx.runMutation(internal.chat.threads.setThreadTitleInternal, {
           organizationId: args.organizationId,
