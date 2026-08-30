@@ -113,6 +113,53 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
         }).then((body) => body.items.map(withConvexId)),
     };
   },
+  'knowledge_entries/queries:approxCountKnowledgeEntries': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'knowledge_entry', 'count'),
+      queryFn: () =>
+        backendFetch<{ count: number }>('/knowledge-entries/count', {
+          orgId,
+        }).then((body) => body.count),
+    };
+  },
+  'knowledge_entries/queries:getKnowledgeEntryVersions': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const entryId = typeof args.entryId === 'string' ? args.entryId : '';
+    if (entryId === '') return null;
+    return {
+      queryKey: backendKey(orgId, 'knowledge_entry', 'versions', entryId),
+      queryFn: () =>
+        backendFetch<{ versions: unknown[] }>(
+          `/knowledge-entries/${encodeURIComponent(entryId)}/versions`,
+          { orgId },
+        ).then((body) => body.versions.map(withConvexId)),
+    };
+  },
+  'websites/queries:listWebsites': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'website', 'list'),
+      queryFn: () =>
+        backendFetch<{ items: unknown[] }>(`/websites?limit=${LIST_LIMIT}`, {
+          orgId,
+        }).then((body) => body.items.map(withConvexId)),
+    };
+  },
+  'websites/queries:approxCountWebsites': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'website', 'count'),
+      queryFn: () =>
+        backendFetch<{ count: number }>('/websites/count', { orgId }).then(
+          (body) => body.count,
+        ),
+    };
+  },
   'contacts/search:searchContacts': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -377,6 +424,30 @@ function invalidateBells(
   });
 }
 
+function invalidateKnowledgeEntries(
+  client: QueryClient,
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'knowledge_entry'),
+  });
+}
+
+function invalidateWebsites(
+  client: QueryClient,
+  args: Record<string, unknown>,
+  ctx: AdapterContext,
+): void {
+  const orgId = orgOf(args, ctx);
+  if (orgId === undefined) return;
+  void client.invalidateQueries({
+    queryKey: backendEntityPrefix(orgId, 'website'),
+  });
+}
+
 function invalidateContacts(
   client: QueryClient,
   args: Record<string, unknown>,
@@ -450,6 +521,116 @@ export const engagementWriteAdapters: Record<string, WriteAdapter> = {
         body: { contacts: Array.isArray(args.contacts) ? args.contacts : [] },
       }),
     invalidate: invalidateContacts,
+  },
+  'knowledge_entries/mutations:createKnowledgeEntry': {
+    run: (args, ctx) =>
+      backendFetch<{ id: string }>('/knowledge-entries', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          topic: stringArg(args, 'topic'),
+          content: stringArg(args, 'content'),
+        },
+      }).then((body) => body.id),
+    invalidate: invalidateKnowledgeEntries,
+  },
+  'knowledge_entries/mutations:updateKnowledgeEntry': {
+    run: (args, ctx) =>
+      backendFetch<{ id: string }>(
+        `/knowledge-entries/${encodeURIComponent(stringArg(args, 'entryId'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: {
+            topic: stringArg(args, 'topic'),
+            content: stringArg(args, 'content'),
+          },
+        },
+      ).then((body) => body.id),
+    invalidate: invalidateKnowledgeEntries,
+  },
+  'knowledge_entries/mutations:deleteKnowledgeEntry': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/knowledge-entries/${encodeURIComponent(stringArg(args, 'entryId'))}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null),
+    invalidate: invalidateKnowledgeEntries,
+  },
+  'websites/actions:createWebsite': {
+    run: (args, ctx) =>
+      backendFetch<{ websiteId: string }>('/websites', {
+        orgId: requireOrg(args, ctx),
+        body: entityBody(args, ['organizationId']),
+      }).then((body) => body.websiteId),
+    invalidate: invalidateWebsites,
+  },
+  'websites/actions:updateWebsite': {
+    run: (args, ctx) =>
+      backendFetch<unknown>(
+        `/websites/${encodeURIComponent(stringArg(args, 'websiteId'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          method: 'PATCH',
+          body: entityBody(args, ['organizationId', 'websiteId']),
+        },
+      ).then(() => null),
+    invalidate: invalidateWebsites,
+  },
+  'websites/actions:deleteWebsite': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/websites/${encodeURIComponent(stringArg(args, 'websiteId'))}`,
+        { orgId: requireOrg(args, ctx), method: 'DELETE' },
+      ).then(() => null),
+    invalidate: invalidateWebsites,
+  },
+  'websites/actions:resumeScanning': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/websites/${encodeURIComponent(stringArg(args, 'websiteId'))}/resume`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then(() => null),
+    invalidate: invalidateWebsites,
+  },
+  'websites/actions:syncStatuses': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/websites/sync-statuses', {
+        orgId: requireOrg(args, ctx),
+        body: {},
+      }).then(() => null),
+    invalidate: invalidateWebsites,
+  },
+  // The pages/chunks/search dialogs call these AS actions (the 0.4 shape),
+  // so they ride the write lane even though they only read.
+  'websites/actions:fetchPages': {
+    run: (args, ctx) => {
+      const websiteId = stringArg(args, 'websiteId');
+      const offset = typeof args.offset === 'number' ? args.offset : 0;
+      const limit = typeof args.limit === 'number' ? args.limit : 100;
+      return backendFetch<unknown>(
+        `/websites/${encodeURIComponent(websiteId)}/pages?offset=${offset}&limit=${limit}`,
+        { orgId: requireOrg(args, ctx) },
+      );
+    },
+  },
+  'websites/actions:fetchChunks': {
+    run: (args, ctx) =>
+      backendFetch<unknown>(
+        `/websites/${encodeURIComponent(stringArg(args, 'websiteId'))}/chunks?url=${encodeURIComponent(stringArg(args, 'url'))}`,
+        { orgId: requireOrg(args, ctx) },
+      ),
+  },
+  'websites/actions:searchContent': {
+    run: (args, ctx) =>
+      backendFetch<unknown>(
+        `/websites/${encodeURIComponent(stringArg(args, 'websiteId'))}/search`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: {
+            query: stringArg(args, 'query'),
+            ...(typeof args.limit === 'number' ? { limit: args.limit } : {}),
+          },
+        },
+      ),
   },
   'products/mutations:createProduct': {
     run: (args, ctx) =>

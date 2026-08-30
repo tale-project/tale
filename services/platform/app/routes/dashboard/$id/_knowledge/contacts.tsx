@@ -1,10 +1,10 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { ContactsTable } from '@/app/features/contacts/components/contact-table';
 import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
+import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { api } from '@/convex/_generated/api';
 import { seo } from '@/lib/utils/seo';
 
@@ -20,10 +20,12 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/contacts')({
   }),
   validateSearch: searchSchema,
   loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.contacts.queries.approxCountContacts, {
+    prefetchAdaptedQuery(
+      context.queryClient,
+      api.contacts.queries.approxCountContacts,
+      {
         organizationId: params.id,
-      }),
+      },
     );
     // Prime the paginated list cache so the first page paints without a
     // skeleton flash on first nav. Args mirror useListContactsPaginated's base

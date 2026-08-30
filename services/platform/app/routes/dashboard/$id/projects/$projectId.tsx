@@ -1,4 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
@@ -35,6 +34,7 @@ import {
 } from '@/app/features/projects/components/project-breadcrumb-switcher';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { ensureAdaptedQueryData } from '@/app/lib/backend/prefetch';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -55,17 +55,17 @@ export const Route = createFileRoute('/dashboard/$id/projects/$projectId')({
     // below for the document title (#2647); a failed fetch falls back to the
     // generic `metadata.project` title below — the component's own
     // `useProject` call still surfaces the real not-found/error state.
-    const project = await context.queryClient
-      .ensureQueryData(
-        convexQuery(api.projects.queries.getProject, {
-          projectId: asProjectId(params.projectId),
-          organizationId: params.id,
-        }),
-      )
-      .catch((error: unknown) => {
-        console.warn('Failed to load project for document title', error);
-        return null;
-      });
+    const project = await ensureAdaptedQueryData(
+      context.queryClient,
+      api.projects.queries.getProject,
+      {
+        projectId: asProjectId(params.projectId),
+        organizationId: params.id,
+      },
+    ).catch((error: unknown) => {
+      console.warn('Failed to load project for document title', error);
+      return null;
+    });
     return { projectName: project?.name };
   },
   head: ({ loaderData }) => ({
