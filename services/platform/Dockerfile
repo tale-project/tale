@@ -88,6 +88,9 @@ COPY services/platform/types ./services/platform/types
 COPY services/platform/messages ./services/platform/messages
 COPY services/platform/vite-plugins ./services/platform/vite-plugins
 COPY services/platform/scripts ./services/platform/scripts
+# Knowledge-corpus DDL — the dev image inherits this stage, and preparing a
+# new corpus applies these at runtime (see the runner stage's note).
+COPY services/db/migrations/knowledge-db ./services/db/migrations/knowledge-db
 
 COPY services/platform/docker-entrypoint.sh \
      services/platform/reset-owner.sh \
@@ -192,6 +195,7 @@ ENV NODE_ENV=development \
     TALE_CONFIG_DIR=/app/data \
     TALE_CONFIG_BUILTIN_DIR=/app/builtin \
     TALE_CONFIG_SYSTEM_DIR=/app/system \
+    KNOWLEDGE_MIGRATIONS_DIR=/app/services/db/migrations/knowledge-db \
     TALE_DEV_NO_PRIVDROP=1
 
 WORKDIR /app/services/platform
@@ -346,7 +350,11 @@ ENV NODE_ENV=production \
     # read by 'use node' actions. Same push-to-Convex-env path as above; a
     # container has no repo checkout to fall back on. Baked at /app/system in
     # the convex image (services/convex/Dockerfile).
-    TALE_CONFIG_SYSTEM_DIR=/app/system
+    TALE_CONFIG_SYSTEM_DIR=/app/system \
+    # Where the corpus DDL lives in this image (copied below). Set
+    # explicitly because `findMigrationsDir`'s fallback walks up the module
+    # path looking for a repo checkout, and a container has none.
+    KNOWLEDGE_MIGRATIONS_DIR=/app/db/migrations/knowledge-db
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
 COPY --from=pruner --chown=app:app /app/services/platform/dist-seo ./dist-seo
@@ -373,6 +381,14 @@ COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 # docs + web Dockerfiles bundle their server.ts and don't need this.
 COPY --from=pruner --chown=app:app /app/packages ./packages
 COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
+# Knowledge-corpus DDL. Preparing a NEW corpus (the deployment default on
+# first boot, and every BYO per-org database) applies these at runtime, and
+# `findMigrationsDir` walks up from the module path — which finds nothing in
+# a container. Without them the bootstrap degrades to "apply them yourself",
+# so the image ships them and names the directory in KNOWLEDGE_MIGRATIONS_DIR
+# below. They are plain .sql text; the `knowledge-db` container applies the
+# same tree with dbmate for the default database it owns.
+COPY --chown=app:app services/db/migrations/knowledge-db ./db/migrations/knowledge-db
 COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/reset-owner.sh /app/services/platform/reset-owner.ts /app/services/platform/env.sh ./
 
 RUN chmod +x ./docker-entrypoint.sh ./reset-owner.sh
