@@ -5,8 +5,7 @@
  * bundle (or their tests' mock surface).
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import {
@@ -45,24 +44,24 @@ export function validateTopicAndContent(
 ): { topic: string; topicKey: string; content: string } {
   const trimmedTopic = topic.trim();
   const trimmedContent = content.trim();
-  // Structured ConvexError codes so the client surfaces a readable message
+  // Structured AppError codes so the client surfaces a readable message
   // instead of an opaque "Server Error" (raw `Error` messages are redacted by
   // Convex in prod). Called from both public and internal mutations;
-  // ConvexError propagates correctly through both paths.
+  // AppError propagates correctly through both paths.
   if (!trimmedTopic) {
-    throw new ConvexError({ code: 'KNOWLEDGE_ENTRY_TOPIC_REQUIRED' });
+    throw new AppError({ code: 'KNOWLEDGE_ENTRY_TOPIC_REQUIRED' });
   }
   if (trimmedTopic.length > TOPIC_MAX_LENGTH) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'KNOWLEDGE_ENTRY_TOPIC_TOO_LONG',
       max: TOPIC_MAX_LENGTH,
     });
   }
   if (!trimmedContent) {
-    throw new ConvexError({ code: 'KNOWLEDGE_ENTRY_CONTENT_REQUIRED' });
+    throw new AppError({ code: 'KNOWLEDGE_ENTRY_CONTENT_REQUIRED' });
   }
   if (trimmedContent.length > CONTENT_MAX_LENGTH) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'KNOWLEDGE_ENTRY_CONTENT_TOO_LONG',
       max: CONTENT_MAX_LENGTH,
     });

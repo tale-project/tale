@@ -8,8 +8,8 @@ import {
   useActiveEditor,
 } from '@/app/components/ui/editor';
 import { AbilityContext } from '@/app/context/ability-context';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { defineAbilityFor } from '@/lib/permissions/ability';
+import { AppError } from '@/lib/shared/errors/app-error';
 import type { SsoConnectionView } from '@/lib/shared/schemas/enterprise_sso';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
@@ -325,7 +325,7 @@ describe('EnterpriseSsoForm validation + save', () => {
     upsertOidcMock.mockClear();
     toastMock.mockClear();
     upsertOidcMock.mockRejectedValueOnce(
-      new BackendError({ code: 'sso_client_secret_required' }),
+      new AppError({ code: 'sso_client_secret_required' }),
     );
     // The read view omits the client id; the form reveals it on mount and the
     // schema requires it, so seed the reveal or Save never enables.
@@ -742,7 +742,7 @@ describe('EnterpriseSsoForm IdP metadata import (#2652)', () => {
 
   it('maps a stable server error code to its localized message', async () => {
     parseMetadataMock.mockRejectedValueOnce(
-      new BackendError({ code: 'sso_metadata_not_idp' }),
+      new AppError({ code: 'sso_metadata_not_idp' }),
     );
     const { user } = renderForm(samlConfig);
 

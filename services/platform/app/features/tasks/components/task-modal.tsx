@@ -45,9 +45,9 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { TASK_TITLE_MAX } from '@/convex/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import {
@@ -507,7 +507,7 @@ function TemplateCreateBody({
       onCreated?.(result.taskId);
     } catch (error) {
       if (
-        error instanceof BackendError &&
+        error instanceof AppError &&
         error.data?.code === 'SETUP_FOLDER_MISSING'
       ) {
         toast({
@@ -760,7 +760,7 @@ function CreateTaskBody({
     } catch (error) {
       console.error('Create task error:', error);
       if (
-        error instanceof BackendError &&
+        error instanceof AppError &&
         error.data?.code === 'TASK_SCHEDULE_INVALID'
       ) {
         toast({ title: t('startDate.afterDue'), variant: 'destructive' });
@@ -1033,7 +1033,7 @@ function EditTaskBody({
 
   const onMutationError = (error: unknown) => {
     if (
-      error instanceof BackendError &&
+      error instanceof AppError &&
       error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
     ) {
       toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });
@@ -1047,14 +1047,14 @@ function EditTaskBody({
       return;
     }
     if (
-      error instanceof BackendError &&
+      error instanceof AppError &&
       error.data?.code === 'TASK_SCHEDULE_INVALID'
     ) {
       toast({ title: t('startDate.afterDue'), variant: 'destructive' });
       return;
     }
     if (
-      error instanceof BackendError &&
+      error instanceof AppError &&
       typeof error.data?.code === 'string' &&
       error.data.code.startsWith('TASK_LABEL')
     ) {

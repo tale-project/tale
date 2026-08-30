@@ -2,10 +2,10 @@
  * Update products with flexible filtering and updates (internal operation)
  */
 
-import { ConvexError } from 'convex/values';
 import merge from 'lodash/merge';
 import set from 'lodash/set';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { assertUniqueProductName } from './assert_unique_product_name';
@@ -186,7 +186,7 @@ export async function updateProducts(
     if (productsToUpdate.length > 1) {
       // A filter-based batch can't rename many rows to one name without
       // creating duplicates among themselves.
-      throw new ConvexError({
+      throw new AppError({
         code: 'DUPLICATE_PRODUCT_NAME',
         message: `Cannot rename multiple products to "${newName.trim()}".`,
         userMessage: `Cannot rename multiple products to "${newName.trim()}".`,

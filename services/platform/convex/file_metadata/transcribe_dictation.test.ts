@@ -21,10 +21,10 @@ vi.mock('convex/values', () => {
       null: stub,
       bytes: stub,
     },
-    ConvexError: class ConvexError extends Error {
+    AppError: class AppError extends Error {
       data: unknown;
       constructor(data: unknown) {
-        super(typeof data === 'string' ? data : 'ConvexError');
+        super(typeof data === 'string' ? data : 'AppError');
         this.data = data;
       }
     },

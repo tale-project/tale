@@ -1,5 +1,6 @@
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internalMutation } from '../_generated/server';
 import { canonicalResourcePath } from './helpers';
 
@@ -63,7 +64,7 @@ export const createLock = internalMutation({
       }
     }
     if (liveCount >= MAX_LOCKS_PER_APP_PASSWORD) {
-      throw new ConvexError({ code: 'RATE_LIMITED' });
+      throw new AppError({ code: 'RATE_LIMITED' });
     }
 
     // Re-check at write time. Two clients racing for an exclusive lock
@@ -76,7 +77,7 @@ export const createLock = internalMutation({
       )
       .first();
     if (existing && existing.expiresAt > now) {
-      throw new ConvexError({ code: 'LOCKED' });
+      throw new AppError({ code: 'LOCKED' });
     }
     if (existing) await ctx.db.delete(existing._id);
 
@@ -96,7 +97,7 @@ export const createLock = internalMutation({
         )
         .first();
       if (anc && anc.depth === 'infinity' && anc.expiresAt > now) {
-        throw new ConvexError({ code: 'LOCKED' });
+        throw new AppError({ code: 'LOCKED' });
       }
     }
 
@@ -116,7 +117,7 @@ export const createLock = internalMutation({
         )
         .collect();
       if (descendants.some((d) => d.expiresAt > now)) {
-        throw new ConvexError({ code: 'LOCKED' });
+        throw new AppError({ code: 'LOCKED' });
       }
     }
 
@@ -156,14 +157,14 @@ export const refreshLock = internalMutation({
       .query('webdavLocks')
       .withIndex('by_token', (q) => q.eq('lockToken', args.lockToken))
       .first();
-    if (!row) throw new ConvexError({ code: 'NOT_FOUND' });
+    if (!row) throw new AppError({ code: 'NOT_FOUND' });
     if (row.expiresAt <= Date.now()) {
       // Stale — clients are supposed to re-LOCK rather than refresh.
       await ctx.db.delete(row._id);
-      throw new ConvexError({ code: 'NOT_FOUND' });
+      throw new AppError({ code: 'NOT_FOUND' });
     }
     if (row.ownerUserId !== args.ownerUserId) {
-      throw new ConvexError({ code: 'FORBIDDEN' });
+      throw new AppError({ code: 'FORBIDDEN' });
     }
     const timeoutMs = Math.min(args.timeoutMs, MAX_LOCK_TIMEOUT_MS);
     const newExpiresAt = Date.now() + timeoutMs;
@@ -202,19 +203,19 @@ export const releaseLock = internalMutation({
     // maps to 409 Conflict. Org and (optional) path mismatch fall into
     // the same bucket: from the client's view the token doesn't apply
     // to this URL, so it's NOT_FOUND.
-    if (!row) throw new ConvexError({ code: 'NOT_FOUND' });
+    if (!row) throw new AppError({ code: 'NOT_FOUND' });
     if (row.organizationId !== args.organizationId) {
-      throw new ConvexError({ code: 'NOT_FOUND' });
+      throw new AppError({ code: 'NOT_FOUND' });
     }
     if (args.resourcePath !== undefined) {
       const canonical = canonicalResourcePath(args.resourcePath);
       if (row.resourcePath !== canonical) {
-        throw new ConvexError({ code: 'NOT_FOUND' });
+        throw new AppError({ code: 'NOT_FOUND' });
       }
     }
     if (row.ownerUserId !== args.ownerUserId) {
       // RFC 4918 §9.11.1: only the lock owner can UNLOCK.
-      throw new ConvexError({ code: 'FORBIDDEN' });
+      throw new AppError({ code: 'FORBIDDEN' });
     }
     await ctx.db.delete(row._id);
   },

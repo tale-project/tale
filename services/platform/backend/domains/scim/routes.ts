@@ -1,4 +1,3 @@
-import { ConvexError } from 'convex/values';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -26,6 +25,7 @@ import {
   scimJson,
 } from '../../../convex/scim/responses.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -87,9 +87,9 @@ export function createScimRoutes(deps: { sql: Sql }): Hono {
           c.req.raw,
         );
       } catch (error) {
-        // A coded ConvexError from the provisioning layer maps to its SCIM
+        // A coded AppError from the provisioning layer maps to its SCIM
         // status — a cross-tenant create collision is a 409, not a 500.
-        if (error instanceof ConvexError && isRecord(error.data)) {
+        if (error instanceof AppError && isRecord(error.data)) {
           const data = error.data;
           if (data.code === 'scim_user_conflict') {
             const detail =

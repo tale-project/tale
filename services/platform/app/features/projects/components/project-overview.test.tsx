@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { BackendError } from '@/app/lib/backend/backend-error';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import { ProjectOverview } from './project-overview';
@@ -178,7 +178,7 @@ describe('ProjectOverview', () => {
   describe('save feedback', () => {
     it('places a name the server refused under its own field, with no toast', async () => {
       mockUpdateIdentity.mockRejectedValueOnce(
-        new BackendError({ code: 'PROJECT_NAME_INVALID' }),
+        new AppError({ code: 'PROJECT_NAME_INVALID' }),
       );
       renderOverview();
 

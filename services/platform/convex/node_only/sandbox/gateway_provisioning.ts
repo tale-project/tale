@@ -26,8 +26,7 @@
  * org is a routing preference.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
@@ -71,7 +70,7 @@ export async function buildProviderProvision(
     await resolveProvidersForOrgId(ctx, args.organizationId)
   ).find((entry) => entry.name === args.providerSlug);
   if (!connector) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'PROVIDER_UNKNOWN',
       message: `Unknown provider "${args.providerSlug}" — no shipped or org-defined connector by that name.`,
     });

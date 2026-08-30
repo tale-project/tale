@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
+import { AppError } from '../shared/errors/app-error';
 import {
   backendErrorCode,
   backendErrorMessage,
@@ -8,13 +8,13 @@ import {
 } from './backend-error';
 
 describe('backendErrorCode', () => {
-  it('extracts a string code from a ConvexError', () => {
-    expect(backendErrorCode(new ConvexError({ code: 'forbidden' }))).toBe(
+  it('extracts a string code from a AppError', () => {
+    expect(backendErrorCode(new AppError({ code: 'forbidden' }))).toBe(
       'forbidden',
     );
   });
 
-  it('returns undefined for non-ConvexError throws', () => {
+  it('returns undefined for non-AppError throws', () => {
     expect(backendErrorCode(new Error('boom'))).toBeUndefined();
     expect(backendErrorCode('boom')).toBeUndefined();
     expect(backendErrorCode(undefined)).toBeUndefined();
@@ -22,26 +22,24 @@ describe('backendErrorCode', () => {
 
   it('returns undefined when data lacks a string code', () => {
     expect(
-      backendErrorCode(new ConvexError({ message: 'no code' })),
+      backendErrorCode(new AppError({ message: 'no code' })),
     ).toBeUndefined();
-    expect(backendErrorCode(new ConvexError({ code: 42 }))).toBeUndefined();
-    expect(
-      backendErrorCode(new ConvexError('plain string data')),
-    ).toBeUndefined();
+    expect(backendErrorCode(new AppError({ code: 42 }))).toBeUndefined();
+    expect(backendErrorCode(new AppError('plain string data'))).toBeUndefined();
   });
 });
 
 describe('backendErrorMessage', () => {
-  it('extracts a string message from a ConvexError', () => {
+  it('extracts a string message from a AppError', () => {
     expect(
       backendErrorMessage(
-        new ConvexError({ message: 'Key already exists' }),
+        new AppError({ message: 'Key already exists' }),
         'fallback',
       ),
     ).toBe('Key already exists');
   });
 
-  it('returns the fallback for non-ConvexError throws', () => {
+  it('returns the fallback for non-AppError throws', () => {
     expect(backendErrorMessage(new Error('boom'), 'fallback')).toBe('fallback');
     expect(backendErrorMessage('boom', 'fallback')).toBe('fallback');
     expect(backendErrorMessage(undefined, 'fallback')).toBe('fallback');
@@ -49,22 +47,22 @@ describe('backendErrorMessage', () => {
 
   it('returns the fallback when data lacks a string message', () => {
     expect(
-      backendErrorMessage(new ConvexError({ code: 'forbidden' }), 'fallback'),
+      backendErrorMessage(new AppError({ code: 'forbidden' }), 'fallback'),
     ).toBe('fallback');
+    expect(backendErrorMessage(new AppError({ message: 99 }), 'fallback')).toBe(
+      'fallback',
+    );
     expect(
-      backendErrorMessage(new ConvexError({ message: 99 }), 'fallback'),
-    ).toBe('fallback');
-    expect(
-      backendErrorMessage(new ConvexError('plain string data'), 'fallback'),
+      backendErrorMessage(new AppError('plain string data'), 'fallback'),
     ).toBe('fallback');
   });
 });
 
 describe('backendUserMessage', () => {
-  it('extracts a string userMessage from a ConvexError', () => {
+  it('extracts a string userMessage from a AppError', () => {
     expect(
       backendUserMessage(
-        new ConvexError({
+        new AppError({
           code: 'FORBIDDEN',
           userMessage: 'Only owners can delete organizations.',
         }),
@@ -73,7 +71,7 @@ describe('backendUserMessage', () => {
     ).toBe('Only owners can delete organizations.');
   });
 
-  it('returns the fallback for non-ConvexError throws', () => {
+  it('returns the fallback for non-AppError throws', () => {
     expect(backendUserMessage(new Error('boom'), 'fallback')).toBe('fallback');
     expect(backendUserMessage('boom', 'fallback')).toBe('fallback');
     expect(backendUserMessage(undefined, 'fallback')).toBe('fallback');
@@ -82,15 +80,15 @@ describe('backendUserMessage', () => {
   it('returns the fallback when data lacks a string userMessage', () => {
     expect(
       backendUserMessage(
-        new ConvexError({ code: 'FORBIDDEN', message: 'internal text' }),
+        new AppError({ code: 'FORBIDDEN', message: 'internal text' }),
         'fallback',
       ),
     ).toBe('fallback');
     expect(
-      backendUserMessage(new ConvexError({ userMessage: 42 }), 'fallback'),
+      backendUserMessage(new AppError({ userMessage: 42 }), 'fallback'),
     ).toBe('fallback');
     expect(
-      backendUserMessage(new ConvexError('plain string data'), 'fallback'),
+      backendUserMessage(new AppError('plain string data'), 'fallback'),
     ).toBe('fallback');
   });
 });

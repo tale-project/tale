@@ -2,7 +2,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BackendError } from '@/app/lib/backend/backend-error';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 const mocks = vi.hoisted(() => ({
   generateBlobUpload: vi.fn(),
@@ -673,7 +673,7 @@ describe('useDocumentUpload operation ownership', () => {
 
   it('never generically deletes an intent-owned blob after finalize rejects it', async () => {
     mocks.finalizeControlledDocumentReplacementUpload.mockRejectedValueOnce(
-      new BackendError({ code: 'UPLOAD_MIME_MISMATCH' }),
+      new AppError({ code: 'UPLOAD_MIME_MISMATCH' }),
     );
     const { result } = renderHook(() =>
       useDocumentUpload({

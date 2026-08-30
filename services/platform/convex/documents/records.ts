@@ -14,8 +14,9 @@
  * the only controlled-content replacement seam.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
@@ -98,12 +99,12 @@ async function requireDocumentWriteAccess(
 }> {
   const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
-    throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    throw new AppError({ code: 'UNAUTHENTICATED' });
   }
 
   const document = await ctx.db.get(documentId);
   if (!document) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'DOCUMENT_NOT_FOUND',
       message: 'Document not found',
     });
@@ -125,7 +126,7 @@ async function requireDocumentWriteAccess(
       organizationId: document.organizationId,
     });
     if (!access?.canEdit) {
-      throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+      throw new AppError({ code: 'PROJECT_FORBIDDEN' });
     }
   }
 
@@ -150,7 +151,7 @@ export async function requireDocumentWriteAccessForPrincipal(
 ): Promise<Doc<'documents'>> {
   const document = await ctx.db.get(args.documentId);
   if (!document || document.organizationId !== args.organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'DOCUMENT_NOT_FOUND',
       message: 'Document not found',
     });
@@ -162,7 +163,7 @@ export async function requireDocumentWriteAccessForPrincipal(
     args.userId,
   );
   if (accessContext === null || accessContext.role === 'disabled') {
-    throw new ConvexError({ code: 'ORG_FORBIDDEN' });
+    throw new AppError({ code: 'ORG_FORBIDDEN' });
   }
 
   await assertDocumentVisibleToUser(ctx, document, {
@@ -176,7 +177,7 @@ export async function requireDocumentWriteAccessForPrincipal(
       organizationId: args.organizationId,
     });
     if (!projectAccess?.canEdit) {
-      throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+      throw new AppError({ code: 'PROJECT_FORBIDDEN' });
     }
   }
 
@@ -187,7 +188,7 @@ export function requireControlledRecord(
   doc: Doc<'documents'>,
 ): ControlledRecord {
   if (doc.record === undefined) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'DOCUMENT_NOT_CONTROLLED',
       message: 'This document is not a controlled record.',
     });
@@ -222,7 +223,7 @@ export function requireCurrentApprovedSnapshot(
     matches.length !== 1 ||
     !retainedInHistory
   ) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'DOCUMENT_RECORD_APPROVED_SNAPSHOT_INVALID',
       message:
         'The current approved record does not have one matching retained snapshot.',
@@ -254,7 +255,7 @@ export function assertControlledDraftHistoryCapacity(
     replacementWouldGrowDraftHistory &&
     draftHistoryRefs.size >= DOCUMENT_RECORD_MAX_DRAFT_HISTORY_FILES
   ) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'DOCUMENT_RECORD_REPLACEMENT_LIMIT',
       message:
         'This draft has reached its file-replacement history limit. Open a new controlled record instead.',
@@ -344,27 +345,27 @@ export const markControlled = mutation({
     );
 
     if ((document.lifecycleStatus ?? 'active') !== 'active') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'DOCUMENT_NOT_FOUND',
         message: 'Document not found',
       });
     }
     if (document.record !== undefined) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'DOCUMENT_ALREADY_CONTROLLED',
         message: 'This document is already a controlled record.',
       });
     }
     const sourceProvider = document.sourceProvider ?? 'upload';
     if (!CONTROLLABLE_SOURCE_PROVIDERS.has(sourceProvider)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'DOCUMENT_RECORD_SOURCE_UNSUPPORTED',
         message: `A "${sourceProvider}" document is owned by its external sync and cannot become a controlled record.`,
         sourceProvider,
       });
     }
     if (document.fileId === undefined) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'DOCUMENT_RECORD_NEEDS_FILE',
         message:
           'Only file-backed documents can become controlled records (approval snapshots the file).',
@@ -445,7 +446,7 @@ export const listEligibleDocumentReviewerIds = query({
   returns: v.array(v.string()),
   handler: async (ctx, args): Promise<string[]> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    if (!authUser) throw new AppError({ code: 'UNAUTHENTICATED' });
     const document = await ctx.db.get(args.documentId);
     if (!document) return [];
     await getOrganizationMember(ctx, document.organizationId, authUser);
@@ -496,7 +497,7 @@ export const submitRecordForReview = mutation({
     const record = requireControlledRecord(document);
 
     if (record.state === 'approved') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'DOCUMENT_RECORD_INVALID_STATE',
         message:
           'This record is approved. Open a new revision before submitting for review.',
@@ -510,7 +511,7 @@ export const submitRecordForReview = mutation({
     if (
       !(await isEligibleDocumentReviewer(ctx, document, args.reviewerUserId))
     ) {
-      throw new ConvexError({ code: 'REVIEWER_NOT_ELIGIBLE' });
+      throw new AppError({ code: 'REVIEWER_NOT_ELIGIBLE' });
     }
 
     const prior: Doc<'approvals'>[] = [];
@@ -648,20 +649,20 @@ export const respondToDocumentRecordReview = mutation({
   ): Promise<{ state: 'approved' | 'draft'; version: number }> => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval || approval.resourceType !== 'document_record_review') {
-      throw new ConvexError({ code: 'REVIEW_NOT_FOUND' });
+      throw new AppError({ code: 'REVIEW_NOT_FOUND' });
     }
     if (approval.status !== 'pending') {
-      throw new ConvexError({ code: 'REVIEW_ALREADY_RESOLVED' });
+      throw new AppError({ code: 'REVIEW_ALREADY_RESOLVED' });
     }
     const feedback = args.feedback?.trim() || undefined;
     if (args.decision === 'request_changes' && !feedback) {
-      throw new ConvexError({ code: 'REVIEW_FEEDBACK_REQUIRED' });
+      throw new AppError({ code: 'REVIEW_FEEDBACK_REQUIRED' });
     }
     if (
       feedback !== undefined &&
       feedback.length > DOCUMENT_RECORD_FEEDBACK_MAX
     ) {
-      throw new ConvexError({ code: 'REVIEW_FEEDBACK_TOO_LONG' });
+      throw new AppError({ code: 'REVIEW_FEEDBACK_TOO_LONG' });
     }
 
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- document_record_review approvals store String(documentId) as resourceId
@@ -671,7 +672,7 @@ export const respondToDocumentRecordReview = mutation({
       documentId,
     );
     if (document.organizationId !== approval.organizationId) {
-      throw new ConvexError({ code: 'REVIEW_NOT_FOUND' });
+      throw new AppError({ code: 'REVIEW_NOT_FOUND' });
     }
     const record = requireControlledRecord(document);
     if (
@@ -679,7 +680,7 @@ export const respondToDocumentRecordReview = mutation({
       approvalRecordVersion(approval) !== record.version
     ) {
       // The record moved on (superseded submission); the row is stale.
-      throw new ConvexError({
+      throw new AppError({
         code: 'DOCUMENT_RECORD_INVALID_STATE',
         message: 'This review no longer matches the record state.',
         state: record.state,
@@ -708,7 +709,7 @@ export const respondToDocumentRecordReview = mutation({
       if (
         record.approvedVersions.length >= DOCUMENT_RECORD_MAX_APPROVED_VERSIONS
       ) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'DOCUMENT_RECORD_VERSION_LIMIT',
           message: `This record already holds ${DOCUMENT_RECORD_MAX_APPROVED_VERSIONS} approved versions — the platform cap. Export and re-create the document to continue.`,
           limit: DOCUMENT_RECORD_MAX_APPROVED_VERSIONS,
@@ -718,7 +719,7 @@ export const respondToDocumentRecordReview = mutation({
       if (fileId === undefined) {
         // markControlled requires a blob and no write path unsets fileId;
         // defensive — an approve MUST snapshot an addressable file.
-        throw new ConvexError({
+        throw new AppError({
           code: 'DOCUMENT_RECORD_NEEDS_FILE',
           message: 'This record has no backing file to approve.',
         });
@@ -850,7 +851,7 @@ export async function openRecordRevisionInTransaction(
 ): Promise<{ record: ControlledRecord; version: number }> {
   const record = requireControlledRecord(args.document);
   if (record.state !== 'approved') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'DOCUMENT_RECORD_INVALID_STATE',
       message: 'Only an approved record can open a new revision.',
       state: record.state,
@@ -928,7 +929,7 @@ export const getPendingDocumentRecordReview = query({
     requestedAt: number;
   } | null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    if (!authUser) throw new AppError({ code: 'UNAUTHENTICATED' });
     const document = await ctx.db.get(args.documentId);
     if (!document) return null;
     await getOrganizationMember(ctx, document.organizationId, authUser);
@@ -1002,7 +1003,7 @@ export const getLastDocumentRecordReview = query({
     version: number;
   } | null> => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    if (!authUser) throw new AppError({ code: 'UNAUTHENTICATED' });
     const document = await ctx.db.get(args.documentId);
     if (!document) return null;
     await getOrganizationMember(ctx, document.organizationId, authUser);

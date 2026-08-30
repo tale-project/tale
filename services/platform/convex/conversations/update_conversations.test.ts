@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { UpdateConversationsArgs } from './types';
@@ -34,20 +34,20 @@ function createMockCtx(conversations: Array<Record<string, unknown>>) {
   return ctx;
 }
 
-describe('updateConversations — client-facing failures use ConvexError (#2049)', () => {
-  it('throws a coded ConvexError when neither id nor org is provided', async () => {
+describe('updateConversations — client-facing failures use AppError (#2049)', () => {
+  it('throws a coded AppError when neither id nor org is provided', async () => {
     const ctx = createMockCtx([]);
     const args = { updates: {} } as UpdateConversationsArgs;
 
     await expect(updateConversations(ctx, args)).rejects.toBeInstanceOf(
-      ConvexError,
+      AppError,
     );
     await expect(updateConversations(ctx, args)).rejects.toMatchObject({
       data: { code: 'conversation_target_required' },
     });
   });
 
-  it('throws a coded ConvexError when the conversation does not exist', async () => {
+  it('throws a coded AppError when the conversation does not exist', async () => {
     const ctx = createMockCtx([]);
     const args = {
       conversationId: 'missing' as Id<'conversations'>,
@@ -55,14 +55,14 @@ describe('updateConversations — client-facing failures use ConvexError (#2049)
     } as UpdateConversationsArgs;
 
     await expect(updateConversations(ctx, args)).rejects.toBeInstanceOf(
-      ConvexError,
+      AppError,
     );
     await expect(updateConversations(ctx, args)).rejects.toMatchObject({
       data: { code: 'conversation_not_found' },
     });
   });
 
-  it('hides cross-tenant targets behind a not-found ConvexError', async () => {
+  it('hides cross-tenant targets behind a not-found AppError', async () => {
     const ctx = createMockCtx([makeConversation('c_1', 'org_other')]);
     const args = {
       conversationId: 'c_1' as Id<'conversations'>,
@@ -71,7 +71,7 @@ describe('updateConversations — client-facing failures use ConvexError (#2049)
     } as UpdateConversationsArgs;
 
     await expect(updateConversations(ctx, args)).rejects.toBeInstanceOf(
-      ConvexError,
+      AppError,
     );
     await expect(updateConversations(ctx, args)).rejects.toMatchObject({
       data: { code: 'conversation_not_found' },

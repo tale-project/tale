@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { BackendError } from '@/app/lib/backend/backend-error';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -104,7 +104,7 @@ describe('ProjectSecretsTab', () => {
       ['PROJECT_NOT_FOUND', /no longer exists/],
       ['UNAUTHENTICATED', /Only project administrators/],
     ])('shows the access notice and no editor for %s', (code, body) => {
-      secretsErrorFixture = new BackendError({ code });
+      secretsErrorFixture = new AppError({ code });
       renderTab();
 
       expect(screen.getByText('Admin access required')).toBeInTheDocument();

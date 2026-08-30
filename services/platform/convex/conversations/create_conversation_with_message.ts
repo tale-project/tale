@@ -5,9 +5,8 @@
  * Useful for email workflows and other scenarios where a conversation always starts with a message.
  */
 
-import { ConvexError } from 'convex/values';
-
 import { nextConversationLastMessageAt } from '../../lib/shared/conversations/message-order';
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
@@ -62,7 +61,7 @@ export async function createConversationWithMessage(
   // Get the conversation to access its channel
   const conversation = await ctx.db.get(conversationId);
   if (!conversation) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_not_found',
       message: 'Failed to retrieve created conversation',
     });

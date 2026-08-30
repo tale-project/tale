@@ -1,4 +1,3 @@
-import { ConvexError } from 'convex/values';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -8,6 +7,7 @@ import { loadConnectorDefinitions } from '../../../convex/connector_credentials/
 import { resolveWorkflowAgentServing } from '../../../convex/lib/providers/agent_serving.ts';
 import { registerConnector } from '../../../lib/connectors/registry.ts';
 import { nodeTypes } from '../../../lib/engine/core/slots.ts';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -112,9 +112,9 @@ function handleError<E extends OrgEnv>(
   if (error instanceof AutomationError) {
     return c.json({ error: error.code, message: error.message }, error.status);
   }
-  // The shared upload lane refuses with the 0.4 `ConvexError({code,message})`
+  // The shared upload lane refuses with the 0.4 `AppError({code,message})`
   // contract — surface it as the structured 4xx the dialog maps.
-  if (error instanceof ConvexError) {
+  if (error instanceof AppError) {
     const data: unknown = error.data;
     if (data !== null && typeof data === 'object') {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed to object; string-typeof guards gate the reads

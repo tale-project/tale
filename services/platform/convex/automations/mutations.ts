@@ -21,7 +21,7 @@
  * belongs to the organization the caller named.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import type {
   Automation,
@@ -29,6 +29,7 @@ import type {
   RunResult,
 } from '../../lib/engine/core/types';
 import { defineAbilityFor } from '../../lib/permissions/ability';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { automationPresentationSchema } from '../../lib/shared/schemas/automation_presentation';
 import { automationSettingsSchema } from '../../lib/shared/schemas/automation_settings';
 import { taskSubjectContractSchema } from '../../lib/shared/schemas/task_contract';
@@ -72,7 +73,7 @@ function parseContractOrThrow(value: unknown): unknown {
   if (value === undefined || value === null) return undefined;
   const parsed = taskSubjectContractSchema.safeParse(value);
   if (!parsed.success) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AUTOMATION_CONTRACT_INVALID',
       message: `subjects.task is not a valid task contract: ${parsed.error.issues
         .slice(0, 3)
@@ -92,7 +93,7 @@ function parsePresentationOrThrow(value: unknown): unknown {
   if (value === undefined || value === null) return undefined;
   const parsed = automationPresentationSchema.safeParse(value);
   if (!parsed.success) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AUTOMATION_PRESENTATION_INVALID',
       message: `the manifest's display half is not valid: ${parsed.error.issues
         .slice(0, 3)
@@ -112,7 +113,7 @@ function parseSettingsOrThrow(value: unknown): unknown {
   if (value === undefined || value === null) return undefined;
   const parsed = automationSettingsSchema.safeParse(value);
   if (!parsed.success) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AUTOMATION_SETTINGS_INVALID',
       message: `settings is not a valid settings declaration: ${parsed.error.issues
         .slice(0, 3)
@@ -150,8 +151,8 @@ const triggerInputValidator = v.object({
 
 /** Convert a thrown store-rule violation into a coded client error. */
 function asStoreError(error: unknown, code: string): never {
-  if (error instanceof ConvexError) throw error;
-  throw new ConvexError({
+  if (error instanceof AppError) throw error;
+  throw new AppError({
     code,
     message: error instanceof Error ? error.message : String(error),
   });
@@ -213,7 +214,7 @@ export const saveAutomation = mutation({
       // its name step), so surface it verbatim rather than folding it into the
       // generic save-rejected envelope.
       if (
-        error instanceof ConvexError &&
+        error instanceof AppError &&
         isRecord(error.data) &&
         error.data.code === 'AUTOMATION_NAME_TAKEN'
       ) {
@@ -390,7 +391,7 @@ export const startRun = mutation({
     } else {
       const authUser = await getAuthUserIdentity(ctx);
       if (!authUser) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'UNAUTHENTICATED',
           message: 'Authentication required.',
         });
@@ -416,7 +417,7 @@ export const startRun = mutation({
       startedBy: `user:${actor}`,
     });
     if (!started) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'AUTOMATION_NOT_DEPLOYED',
         message: `"${args.name}" has no version to run — save a version and deploy it first.`,
       });
@@ -452,7 +453,7 @@ async function cancelRunRow(
 ): Promise<{ cancelled: boolean }> {
   const row = await ctx.db.get(runId);
   if (!row || row.organizationId !== organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AUTOMATION_RUN_NOT_FOUND',
       message: 'No such run for this organization.',
     });
@@ -707,7 +708,7 @@ async function authorizeActorRun(
 ): Promise<void> {
   const userId = actorUserId(actor);
   if (userId === '') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'UNAUTHENTICATED',
       message: 'The caller could not be identified.',
     });
@@ -724,7 +725,7 @@ async function authorizeActorRun(
       '[automations] run control refused — membership could not be resolved',
       error instanceof Error ? error.message : error,
     );
-    throw new ConvexError({
+    throw new AppError({
       code: 'ORG_FORBIDDEN',
       message: 'The caller is not a member of this organization.',
     });
@@ -733,7 +734,7 @@ async function authorizeActorRun(
     need === 'developer' &&
     defineAbilityFor(role).cannot('read', 'developerSettings')
   ) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'FORBIDDEN_DEVELOPER_SETTINGS',
       message: `Role "${role}" lacks the developer-settings capability required to perform this action.`,
     });
@@ -774,7 +775,7 @@ export const storeStartRun = internalMutation({
     if (args.projectId !== undefined) {
       const normalized = ctx.db.normalizeId('projects', args.projectId);
       if (normalized === null) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'PROJECT_NOT_FOUND',
           message: `No such project: ${args.projectId}`,
         });
@@ -963,7 +964,7 @@ async function requireRun(
 ) {
   const row = await ctx.db.get(runId);
   if (!row || row.organizationId !== organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AUTOMATION_RUN_NOT_FOUND',
       message: 'No such run for this organization.',
     });

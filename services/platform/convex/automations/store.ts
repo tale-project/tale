@@ -26,11 +26,10 @@
  * therefore exist in exactly one place whatever the caller.
  */
 
-import { ConvexError } from 'convex/values';
-
 import type { DispatchStore, TriggerSpec } from '../../lib/engine/api/dispatch';
 import type { StoreAdapter } from '../../lib/engine/core/slots';
 import type { Automation, RunResult } from '../../lib/engine/core/types';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { ActionCtx, MutationCtx, QueryCtx } from '../_generated/server';
@@ -257,7 +256,7 @@ export async function soleBindingProject(
  * and — when the automation is BOUND to projects — one of them (running a
  * project-bound automation "for" an unbound project would escape its scope). An
  * org-level automation (no bindings) may run for any project. Throws a coded
- * `ConvexError` on violation; used by the run-control entry points that accept
+ * `AppError` on violation; used by the run-control entry points that accept
  * a caller `projectId` (manual UI, REST, MCP). The task-surface path trusts the
  * task's own project and does not go through here.
  */
@@ -269,7 +268,7 @@ export async function assertRunProjectAllowed(
 ): Promise<void> {
   const project = await ctx.db.get(projectId);
   if (project === null || project.organizationId !== organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'PROJECT_NOT_FOUND',
       message: 'No such project in this organization.',
     });
@@ -279,7 +278,7 @@ export async function assertRunProjectAllowed(
     bindings.length > 0 &&
     !bindings.some((binding) => binding.projectId === projectId)
   ) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'PROJECT_NOT_BOUND',
       message:
         'This automation is bound to specific projects; a run can only ' +
@@ -476,7 +475,7 @@ export async function deleteAutomationCascade(
   const name = assertAutomationName(args.name);
   const versions = await versionsOf(ctx, args.organizationId, name);
   if (versions.length === 0) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AUTOMATION_NOT_FOUND',
       message: 'No such automation for this organization.',
     });
@@ -498,7 +497,7 @@ export async function deleteAutomationCascade(
     )
     .first();
   if (activeRun !== null) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AUTOMATION_HAS_ACTIVE_RUNS',
       message: `A run of "${name}" is still ${activeRun.status} — cancel it (or let it finish) before deleting the automation.`,
     });
@@ -570,7 +569,7 @@ export function automationStore(
       // insert share one transaction, so a concurrent create loses the OCC race
       // and retries into this same refusal rather than minting a second v1.
       if (options?.create === true && rows.length > 0) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'AUTOMATION_NAME_TAKEN',
           message: `An automation named "${name}" already exists.`,
         });

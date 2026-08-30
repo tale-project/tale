@@ -1,5 +1,6 @@
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -95,7 +96,7 @@ async function assertNoHeldDescendantDocs(
     // pivot; the user-custodian cascade now triggers when any
     // descendant document's `createdBy` is on a userMembership hold.
     if (doc.createdBy && holds.userMembershipIds.has(doc.createdBy)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'LEGAL_HOLD_ACTIVE',
         message:
           'A document inside this folder is owned by a user on a custodian legal hold. Release the user-level hold before deleting the folder.',
@@ -140,7 +141,7 @@ async function assertNoProtectedDescendantRecords(
   for await (const doc of childDocs) {
     const refusal = recordTrashRefusal(doc.record);
     if (refusal === null) continue;
-    throw new ConvexError({
+    throw new AppError({
       code: 'DOCUMENT_RECORD_PROTECTED',
       message:
         refusal === 'in_review'
@@ -201,14 +202,14 @@ async function assertFolderMutable(
       organizationId: folder.organizationId,
     });
     if (!access?.canEdit) {
-      throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+      throw new AppError({ code: 'PROJECT_FORBIDDEN' });
     }
     return;
   }
   if (folder.teamId || folder.teamTags?.length) {
     const userTeamIds = await getUserTeamIds(ctx, userId);
     if (!hasTeamAccess(folder, userTeamIds)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_ACCESS_DENIED',
         message: 'Access denied',
       });
@@ -223,25 +224,25 @@ const RESERVED_NAMES = new Set(['.', '..']);
 export function validateFolderName(name: string): string {
   const trimmed = name.trim();
   if (trimmed.length === 0) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'FOLDER_NAME_EMPTY',
       message: 'Folder name cannot be empty',
     });
   }
   if (trimmed.length > MAX_FOLDER_NAME_LENGTH) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'FOLDER_NAME_TOO_LONG',
       message: 'Folder name is too long',
     });
   }
   if (RESERVED_NAMES.has(trimmed)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'FOLDER_NAME_INVALID',
       message: 'Invalid folder name',
     });
   }
   if (trimmed.includes('/') || trimmed.includes('\\')) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'FOLDER_NAME_HAS_SEPARATOR',
       message: 'Folder name cannot contain path separators',
     });
@@ -294,7 +295,7 @@ export async function assertChildDepthAllowed(
     ancestorId = ancestor.parentId;
   }
   if (depth >= MAX_FOLDER_DEPTH) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'FOLDER_MAX_DEPTH_EXCEEDED',
       message: 'Maximum folder nesting depth exceeded',
     });
@@ -318,7 +319,7 @@ async function checkDuplicateName(
   );
 
   if (existing && existing._id !== excludeId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'FOLDER_DUPLICATE_NAME',
       message: 'A folder with this name already exists',
     });
@@ -340,7 +341,7 @@ export const createFolder = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
+      throw new AppError({ code: 'UNAUTHENTICATED' });
     }
 
     await getOrganizationMember(ctx, args.organizationId, authUser);
@@ -350,7 +351,7 @@ export const createFolder = mutation({
     const trimmedName = validateFolderName(args.name);
 
     if (args.projectId && args.teamId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_SCOPE_CONFLICT',
         message: 'A project folder cannot also carry a team',
       });
@@ -362,7 +363,7 @@ export const createFolder = mutation({
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId);
       if (!parent || parent.organizationId !== args.organizationId) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'FOLDER_PARENT_NOT_FOUND',
           message: 'Parent folder not found',
         });
@@ -371,7 +372,7 @@ export const createFolder = mutation({
       // child: a subfolder of a project folder is a folder of that project;
       // a hub parent cannot hold a project child (and vice versa).
       if (args.projectId && parent.projectId !== args.projectId) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'FOLDER_SCOPE_CONFLICT',
           message: 'Parent folder belongs to a different scope',
         });
@@ -381,7 +382,7 @@ export const createFolder = mutation({
         if (parent.teamId || parent.teamTags?.length) {
           const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
           if (!hasTeamAccess(parent, userTeamIds)) {
-            throw new ConvexError({
+            throw new AppError({
               code: 'FOLDER_PARENT_NOT_ACCESSIBLE',
               message: 'Parent folder not accessible',
             });
@@ -407,13 +408,13 @@ export const createFolder = mutation({
         { userId: authUser.userId, organizationId: args.organizationId },
       );
       if (!access.canRead) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'PROJECT_FORBIDDEN',
           message: 'You do not have access to this project',
         });
       }
       if (!access.canEdit) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'RBAC_FORBIDDEN',
           message: 'You do not have permission to add folders to this project',
         });
@@ -421,7 +422,7 @@ export const createFolder = mutation({
     } else if (effectiveTeamId) {
       const userTeamIds = await getUserTeamIds(ctx, authUser.userId);
       if (!userTeamIds.includes(effectiveTeamId)) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'FOLDER_TEAM_FORBIDDEN',
           message: 'Cannot create folder in a team you do not belong to',
         });
@@ -457,12 +458,12 @@ export const renameFolder = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
+      throw new AppError({ code: 'UNAUTHENTICATED' });
     }
 
     const folder = await ctx.db.get(args.folderId);
     if (!folder) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_NOT_FOUND',
         message: 'Folder not found',
       });
@@ -502,12 +503,12 @@ export const deleteFolder = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
+      throw new AppError({ code: 'UNAUTHENTICATED' });
     }
 
     const folder = await ctx.db.get(args.folderId);
     if (!folder) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_NOT_FOUND',
         message: 'Folder not found',
       });
@@ -579,12 +580,12 @@ export const updateFolderTeams = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
+      throw new AppError({ code: 'UNAUTHENTICATED' });
     }
 
     const folder = await ctx.db.get(args.folderId);
     if (!folder) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_NOT_FOUND',
         message: 'Folder not found',
       });
@@ -601,7 +602,7 @@ export const updateFolderTeams = mutation({
     // Team assignment is a Knowledge Hub concept — a project folder never
     // carries teams (projectId/teamId mutual exclusivity).
     if (isProjectScopedFolder(folder)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_SCOPE_CONFLICT',
         message: 'A project folder cannot be assigned to teams',
       });
@@ -610,7 +611,7 @@ export const updateFolderTeams = mutation({
     if (folder.parentId) {
       const parent = await ctx.db.get(folder.parentId);
       if (parent?.teamId) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'FOLDER_TEAM_INHERITED',
           message: 'Cannot change team: inherited from parent folder',
         });
@@ -621,7 +622,7 @@ export const updateFolderTeams = mutation({
 
     if (folder.teamId || folder.teamTags?.length) {
       if (!hasTeamAccess(folder, userTeamIds)) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'FOLDER_ACCESS_DENIED',
           message: 'Access denied',
         });
@@ -630,7 +631,7 @@ export const updateFolderTeams = mutation({
 
     for (const tid of args.teamIds) {
       if (!userTeamIds.includes(tid)) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'FOLDER_TEAM_FORBIDDEN',
           message: 'Cannot assign folder to a team you do not belong to',
         });

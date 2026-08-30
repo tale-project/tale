@@ -329,7 +329,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       // A wrong current password is an expected, recoverable failure — surface
       // it as an inline field error on the current-password input (mirroring
       // the 2FA / add-member flows) rather than a generic destructive toast
-      // (#1945). The backend raises a structured BackendError for this case.
+      // (#1945). The backend raises a structured AppError for this case.
       if (backendErrorCode(error) === 'INVALID_CURRENT_PASSWORD') {
         setError('currentPassword', {
           type: 'manual',

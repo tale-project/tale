@@ -1,4 +1,3 @@
-import { ConvexError } from 'convex/values';
 import type { Sql } from 'postgres';
 
 import {
@@ -16,6 +15,7 @@ import {
   listSkillBundleFileEntries,
   writeSkillBundleFiles,
 } from '../../../convex/skills/file_utils.ts';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { MAX_SKILL_BUNDLE_TOTAL_BYTES } from '../../../lib/shared/schemas/skills.ts';
 import { readOrgSkill } from '../../../lib/skills/listing.ts';
 import { SkillParseError } from '../../../lib/skills/parse.ts';
@@ -55,7 +55,7 @@ export async function uploadSkillBundlePg(
     key = null;
   }
   if (key === null || !s3KeyBelongsToOrg(key, args.orgSlug)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'STORAGE_NOT_OWNED',
       message:
         'Upload session is missing or belongs to a different organization. Re-open the upload dialog and try again.',
@@ -75,14 +75,14 @@ export async function uploadSkillBundlePg(
   try {
     bytes = await s3GetObjectBytes(store, stagedKey);
   } catch {
-    throw new ConvexError({
+    throw new AppError({
       code: 'STORAGE_NOT_FOUND',
       message: 'Uploaded bundle is missing from storage',
     });
   }
   if (bytes.byteLength > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
     await cleanup();
-    throw new ConvexError({
+    throw new AppError({
       code: 'BUNDLE_TOO_LARGE',
       message: `Bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes`,
     });
@@ -93,8 +93,8 @@ export async function uploadSkillBundlePg(
     parsed = await parseSkillBundleZip(Buffer.from(bytes));
   } catch (err) {
     await cleanup();
-    if (err instanceof ConvexError) throw err;
-    throw new ConvexError({
+    if (err instanceof AppError) throw err;
+    throw new AppError({
       code: 'INVALID_BUNDLE',
       message:
         err instanceof Error ? err.message : 'Failed to read uploaded zip',
@@ -131,7 +131,7 @@ export async function uploadSkillBundlePg(
         : args.viewer.isOrgAdmin;
     if (!allowed) {
       await cleanup();
-      throw new ConvexError({
+      throw new AppError({
         code: 'SKILL_FORBIDDEN',
         message: `You cannot replace the skill "${parsed.slug}".`,
       });
@@ -154,8 +154,8 @@ export async function uploadSkillBundlePg(
       );
     });
   } catch (err) {
-    if (err instanceof ConvexError) throw err;
-    throw new ConvexError({
+    if (err instanceof AppError) throw err;
+    throw new AppError({
       code: 'WRITE_FAILED',
       message:
         err instanceof Error ? err.message : 'Failed to write skill bundle',

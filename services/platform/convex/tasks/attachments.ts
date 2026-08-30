@@ -1,5 +1,6 @@
-import { ConvexError, type Infer } from 'convex/values';
+import { type Infer } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   TASK_MAX_ATTACHMENTS,
   TASK_UPLOAD_ALLOWED_TYPES,
@@ -27,7 +28,7 @@ export async function validateTaskAttachments(
 ): Promise<TaskAttachmentInput[] | undefined> {
   if (attachments == null) return undefined;
   if (attachments.length > TASK_MAX_ATTACHMENTS) {
-    throw new ConvexError({ code: 'TASK_ATTACHMENTS_TOO_MANY' });
+    throw new AppError({ code: 'TASK_ATTACHMENTS_TOO_MANY' });
   }
   const seen = new Set<string>();
   const result: TaskAttachmentInput[] = [];
@@ -43,14 +44,14 @@ export async function validateTaskAttachments(
       !TASK_UPLOAD_ALLOWED_TYPES.includes(att.fileType) &&
       !isTextBasedFile(att.fileName, att.fileType)
     ) {
-      throw new ConvexError({ code: 'TASK_ATTACHMENT_TYPE_INVALID' });
+      throw new AppError({ code: 'TASK_ATTACHMENT_TYPE_INVALID' });
     }
     const meta = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', att.fileId))
       .first();
     if (!meta || meta.organizationId !== organizationId) {
-      throw new ConvexError({ code: 'TASK_ATTACHMENT_NOT_FOUND' });
+      throw new AppError({ code: 'TASK_ATTACHMENT_NOT_FOUND' });
     }
     result.push({
       fileId: att.fileId,

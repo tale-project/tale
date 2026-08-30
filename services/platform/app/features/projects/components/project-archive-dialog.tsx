@@ -4,8 +4,8 @@ import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useArchiveProject, useRestoreProject } from '../hooks/mutations';
 
@@ -41,7 +41,7 @@ export function ProjectArchiveDialog({
       }
       onOpenChange(false);
     } catch (error) {
-      if (error instanceof BackendError) {
+      if (error instanceof AppError) {
         const code = error.data?.code;
         if (code) {
           toast({

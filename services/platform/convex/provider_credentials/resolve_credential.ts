@@ -24,9 +24,9 @@
  * only failure classes and actionable hints.
  */
 
-import { ConvexError } from 'convex/values';
 import { z } from 'zod/v4';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   BROKER_SECRET_ENV_REGEX,
   brokerCredentialDataSchema,
@@ -122,10 +122,10 @@ export type ResolvedProviderCredential =
       readonly endpointUrl?: string;
     };
 
-type CredentialError = ConvexError<{ code: string; message: string }>;
+type CredentialError = AppError<{ code: string; message: string }>;
 
 function credentialError(code: string, message: string): CredentialError {
-  return new ConvexError({ code, message });
+  return new AppError({ code, message });
 }
 
 /** Decrypt with the rotation mismatch mapped to an actionable refusal. */
@@ -255,7 +255,7 @@ async function resolveBroker(
       JSON.parse(decryptOrExplain(row, row.encryptedData)),
     );
   } catch (err) {
-    if (err instanceof ConvexError) throw err;
+    if (err instanceof AppError) throw err;
     if (err instanceof z.ZodError || err instanceof SyntaxError) {
       throw shapeError(row);
     }

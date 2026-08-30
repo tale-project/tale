@@ -9,8 +9,8 @@ import {
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useDuplicateProject } from '../hooks/mutations';
 import { ProjectArchiveDialog } from './project-archive-dialog';
@@ -54,7 +54,7 @@ export function ProjectRowActions({
         },
       });
     } catch (error) {
-      if (error instanceof BackendError) {
+      if (error instanceof AppError) {
         const code = error.data?.code;
         if (code === 'RATE_LIMITED') {
           toast({ title: t('errors.RATE_LIMITED'), variant: 'destructive' });

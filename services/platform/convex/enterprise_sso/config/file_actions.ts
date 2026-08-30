@@ -26,8 +26,9 @@
  * client, never mirrored into the cache.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   type SsoConnectionFile,
   type SsoConnectionSecrets,
@@ -166,7 +167,7 @@ export const writeOidcConnection = internalAction({
     if (!clientSecret) {
       // Coded + localizable (the client maps the code to a translated string);
       // a raw Error would be redacted to a generic "Server Error" in prod (#2057).
-      throw new ConvexError({
+      throw new AppError({
         code: 'sso_client_secret_required',
         message: 'Client secret is required.',
         userMessage: 'Client secret is required.',

@@ -1,6 +1,6 @@
 /**
  * Readers for a STRUCTURED error's `{ code, message, userMessage }` payload —
- * the shape both the app's `BackendError` and the 0.4 `ConvexError` carry.
+ * the shape both the app's `BackendError` and the 0.4 `AppError` carry.
  *
  * Duck-typed on `data` rather than `instanceof`: Vite's chunk splitting can
  * emit more than one copy of a class, and a prototype check then fails on an

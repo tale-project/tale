@@ -20,7 +20,7 @@ describe('isOpaqueServerErrorMessage', () => {
 });
 
 describe('mapCredentialError', () => {
-  it('returns structured BackendError messages', () => {
+  it('returns structured AppError messages', () => {
     expect(
       mapCredentialError({ data: { message: 'Name already taken' } }),
     ).toBe('Name already taken');

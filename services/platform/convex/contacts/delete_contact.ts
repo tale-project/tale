@@ -2,8 +2,7 @@
  * Delete a contact (business logic)
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { emitEvent } from '../events/emit';
@@ -15,7 +14,7 @@ export async function deleteContact(
 ): Promise<null> {
   const contact = await ctx.db.get(contactId);
   if (!contact) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CONTACT_NOT_FOUND',
       message: 'Contact not found',
     });

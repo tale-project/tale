@@ -26,10 +26,10 @@ for (const [key, loader] of Object.entries(rawModules)) {
 
 const ORG = 'org_dupguard';
 
-// Read the `{ code }` off a thrown ConvexError. convex-test surfaces the error
+// Read the `{ code }` off a thrown AppError. convex-test surfaces the error
 // `data` as the serialized JSON string (the real Convex client deserializes it
 // to an object), so accept either form. Duck-typed because convex-test can also
-// bundle a second ConvexError class copy, making `instanceof` unreliable.
+// bundle a second AppError class copy, making `instanceof` unreliable.
 function codeOf(err: unknown): string | undefined {
   if (err === null || typeof err !== 'object' || !('data' in err)) {
     return undefined;
@@ -82,9 +82,9 @@ describe('URL-list provisioning', () => {
 
 describe('createWebsite duplicate guard (#2056)', () => {
   // Regression: the duplicate-domain rejection must carry a structured
-  // ConvexError code. A raw `Error` is redacted to "Server Error" in prod, so
+  // AppError code. A raw `Error` is redacted to "Server Error" in prod, so
   // the client cannot tell a duplicate apart from a generic failure.
-  it('throws ConvexError({ code: WEBSITE_DUPLICATE_DOMAIN }) on a normalized-domain collision', async () => {
+  it('throws AppError({ code: WEBSITE_DUPLICATE_DOMAIN }) on a normalized-domain collision', async () => {
     const t = convexTest(schema, modules);
 
     await t.run(async (ctx) => {

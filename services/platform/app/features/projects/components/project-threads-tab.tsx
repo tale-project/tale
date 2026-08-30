@@ -20,8 +20,8 @@ import { ContentArea } from '@/app/components/layout/content-area';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useSetThreadSharedWithProject } from '../hooks/mutations';
 import { useProjectChatThreads } from '../hooks/queries';
@@ -58,7 +58,7 @@ export function ProjectThreadsTab({
         variant: 'success',
       });
     } catch (error) {
-      if (error instanceof BackendError) {
+      if (error instanceof AppError) {
         const code = error.data?.code;
         if (code) {
           toast({

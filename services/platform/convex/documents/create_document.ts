@@ -2,8 +2,7 @@
  * Create a new document
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { MutationCtx } from '../_generated/server';
 import { isProjectScopedFolder } from '../folders/access';
 import { buildFolderPath } from '../folders/queries';
@@ -19,7 +18,7 @@ export async function createDocument(
   // A document carries `teamId` OR `projectId`, never both — the same
   // invariant `attachDocumentToProject` enforces (documents/schema.ts).
   if (args.projectId && args.teamId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'DOCUMENT_SCOPE_CONFLICT',
       message: 'A document cannot be both project- and team-scoped',
     });
@@ -28,7 +27,7 @@ export async function createDocument(
   if (args.folderId) {
     const folder = await ctx.db.get(args.folderId);
     if (!folder || folder.organizationId !== args.organizationId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_NOT_FOUND',
         message: 'Folder not found',
       });
@@ -39,14 +38,14 @@ export async function createDocument(
     // project folders, so they cannot learn one exists).
     if (args.projectId) {
       if (folder.projectId !== args.projectId) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'DOCUMENT_SCOPE_CONFLICT',
           message:
             'A project document can only live in a folder of the same project',
         });
       }
     } else if (isProjectScopedFolder(folder)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_NOT_FOUND',
         message: 'Folder not found',
       });

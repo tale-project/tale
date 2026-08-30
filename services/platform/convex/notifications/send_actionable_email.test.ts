@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   buildActionableEmailInput,
   pickSendableMailbox,
@@ -169,7 +169,7 @@ describe('sendActionableEmail', () => {
 
   it('returns the connector error when the send refuses', async () => {
     const runAction = vi.fn(async () => {
-      throw new ConvexError({
+      throw new AppError({
         code: 'CREDENTIAL_NONE_CONFIGURED',
         message: 'No default credential is configured for "gmail".',
       });

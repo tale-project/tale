@@ -525,7 +525,7 @@ function EventDetailSheet({
       // `NotAllowedError: Write permission denied.`) — log for debugging, but
       // never surface the raw message in the toast (#2669 sibling: the same
       // "raw thrown-error text reaches the user" defect class as the
-      // BackendError save-error toasts this file's siblings route through
+      // AppError save-error toasts this file's siblings route through
       // `mapGovernanceSaveError`).
       console.warn('[guardrails] clipboard write failed', err);
       toast({

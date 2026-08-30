@@ -10,8 +10,8 @@ import {
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { PROJECT_INSTRUCTIONS_MAX_CHARS } from '@/lib/shared/schemas/projects';
 import { cn } from '@/lib/utils/cn';
 
@@ -57,7 +57,7 @@ export function ProjectInstructionsEditor({
         // can pin it under the field; anything else surfaces as the cluster's
         // one generic save toast.
         if (
-          error instanceof BackendError &&
+          error instanceof AppError &&
           error.data?.code === 'PROJECT_INSTRUCTIONS_TOO_LONG'
         ) {
           throw error;
@@ -72,7 +72,7 @@ export function ProjectInstructionsEditor({
   const mapServerError = useCallback(
     (error: unknown) => {
       if (
-        error instanceof BackendError &&
+        error instanceof AppError &&
         error.data?.code === 'PROJECT_INSTRUCTIONS_TOO_LONG'
       ) {
         return [

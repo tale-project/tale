@@ -41,7 +41,7 @@ const RETRYABLE_ERROR_CODES = new Set(['RATE_LIMITED', 'CONTENTION']);
 const FALLBACK_SENTENCE_BOUNDARY = /(?<=[.!?。！？])\s+|\n{2,}/g;
 
 /**
- * Extract a Convex error's structured `code` (set via `new BackendError({
+ * Extract a Convex error's structured `code` (set via `new AppError({
  * code, message })` on the server). Used by the chunker to surface
  * pre-reservation errors to the indicator's error-code path. Returns
  * `undefined` for plain `Error` instances so the catch can fall back to
@@ -52,7 +52,7 @@ const FALLBACK_SENTENCE_BOUNDARY = /(?<=[.!?。！？])\s+|\n{2,}/g;
  * with the structured payload sometimes stringified into `err.message`.
  * Try both shapes.
  */
-function extractConvexErrorCode(err: unknown): string | undefined {
+function extractBackendErrorCode(err: unknown): string | undefined {
   if (err && typeof err === 'object' && 'data' in err) {
     const data = (err as { data?: unknown }).data;
     if (data && typeof data === 'object' && 'code' in data) {
@@ -474,7 +474,7 @@ export function useVoiceOutputChunker(opts: {
           .catch((err) => {
             // Pre-reservation throws (BUDGET_EXCEEDED, MESSAGE_CHAR_LIMIT,
             // RATE_LIMITED, forbidden, TTS_CHUNK_LIMIT, …) come out of
-            // the action as plain Errors with a `BackendError`-wrapped
+            // the action as plain Errors with a `AppError`-wrapped
             // `data.code`. Surface the code through the per-message
             // sink so the indicator's `errorMessageForCode()` can show
             // an actionable message — without this, the only signal was
@@ -483,7 +483,7 @@ export function useVoiceOutputChunker(opts: {
             // `UNKNOWN_NETWORK` so the indicator still renders an
             // actionable message instead of leaving the user staring at
             // a stuck spinner with no clue what failed.
-            const code = extractConvexErrorCode(err) ?? 'UNKNOWN_NETWORK';
+            const code = extractBackendErrorCode(err) ?? 'UNKNOWN_NETWORK';
             errorSink.set(payload.messageId, code);
             console.error('[tts] synthesize action failed', err);
           })

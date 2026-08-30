@@ -32,8 +32,9 @@
  * these rows through the same columns they already read.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { approvalPolicyConfigSchema } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Id } from '../_generated/dataModel';
@@ -109,7 +110,7 @@ export const evaluateApprovalGate = internalMutation({
   ),
   handler: async (ctx, args): Promise<ApprovalGateDecision> => {
     if (!args.organizationId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'ORGANIZATION_REQUIRED',
         message: 'an approval decision must name the organization it acts for',
       });
@@ -199,7 +200,7 @@ export const evaluateApprovalGate = internalMutation({
         }
         default: {
           const exhaustive: never = existing.status;
-          throw new ConvexError({
+          throw new AppError({
             code: 'APPROVAL_STATUS_UNKNOWN',
             message: `unhandled approval status: ${String(exhaustive)}`,
           });

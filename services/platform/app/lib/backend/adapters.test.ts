@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { BackendError } from '@/app/lib/backend/backend-error';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { retryAdaptedRead, runAdapted, toBackendError } from './adapters';
 import { BackendApiError } from './api-client';
 
 describe('toBackendError', () => {
-  it('turns a deterministic 4xx into a BackendError carrying code + data', () => {
+  it('turns a deterministic 4xx into a AppError carrying code + data', () => {
     const normalized = toBackendError(
       new BackendApiError(
         400,
@@ -17,8 +17,8 @@ describe('toBackendError', () => {
         },
       ),
     );
-    expect(normalized).toBeInstanceOf(BackendError);
-    if (!(normalized instanceof BackendError)) return;
+    expect(normalized).toBeInstanceOf(AppError);
+    if (!(normalized instanceof AppError)) return;
     expect(normalized.data).toEqual({
       code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
       automations: ['weekly-report'],
@@ -43,13 +43,13 @@ describe('runAdapted', () => {
           new BackendApiError(403, 'No project access', 'PROJECT_FORBIDDEN'),
         ),
       ),
-    ).rejects.toBeInstanceOf(BackendError);
+    ).rejects.toBeInstanceOf(AppError);
   });
 });
 
 describe('retryAdaptedRead', () => {
   it('never retries a deterministic answer, retries transport 3x', () => {
-    expect(retryAdaptedRead(0, new BackendError({ code: 'X' }))).toBe(false);
+    expect(retryAdaptedRead(0, new AppError({ code: 'X' }))).toBe(false);
     expect(retryAdaptedRead(0, new BackendApiError(404, 'nope'))).toBe(false);
     expect(retryAdaptedRead(0, new BackendApiError(503, 'later'))).toBe(true);
     expect(retryAdaptedRead(2, new Error('network'))).toBe(true);

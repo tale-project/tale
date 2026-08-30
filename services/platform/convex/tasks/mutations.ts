@@ -12,8 +12,9 @@
  * Mirrors the structure of `projects/mutations.ts`.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { parseTaskSubjectContract } from '../../lib/shared/schemas/task_contract';
 import { defaultTaskLabelColor } from '../../lib/shared/task-label-colors';
 import { components, internal } from '../_generated/api';
@@ -126,10 +127,10 @@ const TASK_DEPENDENCIES_CAP = 5000;
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
-/** Map rate-limiter exceptions to a structured ConvexError the UI handles. */
+/** Map rate-limiter exceptions to a structured AppError the UI handles. */
 function mapRateLimitError(error: unknown): never {
   if (error instanceof RateLimitExceededError) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'RATE_LIMITED',
       data: { retryAfterMs: error.retryAfter },
     });
@@ -149,7 +150,7 @@ async function getAuthContext(
   organizationId: string,
 ): Promise<AuthContext> {
   const authUser = await getAuthUserIdentity(ctx);
-  if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+  if (!authUser) throw new AppError({ code: 'UNAUTHENTICATED' });
 
   const member = await getOrganizationMember(ctx, organizationId, authUser);
   const teamIds = await getUserTeamIds(ctx, member.userId);
@@ -166,7 +167,7 @@ async function loadTaskOrThrow(
   taskId: Id<'tasks'>,
 ): Promise<Doc<'tasks'>> {
   const task = await ctx.db.get(taskId);
-  if (!task) throw new ConvexError({ code: 'TASK_NOT_FOUND' });
+  if (!task) throw new AppError({ code: 'TASK_NOT_FOUND' });
   return task;
 }
 
@@ -175,20 +176,20 @@ async function loadProjectOrThrow(
   projectId: Id<'projects'>,
 ): Promise<Doc<'projects'>> {
   const project = await ctx.db.get(projectId);
-  if (!project) throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
+  if (!project) throw new AppError({ code: 'PROJECT_NOT_FOUND' });
   return project;
 }
 
 function assertTaskReadable(project: Doc<'projects'>, auth: AuthContext): void {
   if (!checkProjectAccess(project, auth.teamIds, auth.role).canRead) {
-    throw new ConvexError({ code: 'TASK_FORBIDDEN' });
+    throw new AppError({ code: 'TASK_FORBIDDEN' });
   }
 }
 
 function assertTaskWritable(project: Doc<'projects'>, auth: AuthContext): void {
   const access = checkProjectAccess(project, auth.teamIds, auth.role);
-  if (!access.canRead) throw new ConvexError({ code: 'TASK_FORBIDDEN' });
-  if (!access.canEdit) throw new ConvexError({ code: 'RBAC_FORBIDDEN' });
+  if (!access.canRead) throw new AppError({ code: 'TASK_FORBIDDEN' });
+  if (!access.canEdit) throw new AppError({ code: 'RBAC_FORBIDDEN' });
 }
 
 /**
@@ -198,13 +199,13 @@ function assertTaskWritable(project: Doc<'projects'>, auth: AuthContext): void {
  */
 function assertTaskNotArchived(task: Doc<'tasks'>): void {
   if (task.archivedAt !== undefined)
-    throw new ConvexError({ code: 'TASK_ARCHIVED' });
+    throw new AppError({ code: 'TASK_ARCHIVED' });
 }
 
 function validateTitle(title: string): string {
   const trimmed = title.trim();
   if (trimmed.length === 0 || trimmed.length > TASK_TITLE_MAX) {
-    throw new ConvexError({ code: 'TASK_TITLE_INVALID' });
+    throw new AppError({ code: 'TASK_TITLE_INVALID' });
   }
   return trimmed;
 }
@@ -214,7 +215,7 @@ function validateDescription(
 ): string | undefined {
   if (description == null) return undefined;
   if (description.length > TASK_DESCRIPTION_MAX) {
-    throw new ConvexError({ code: 'TASK_DESCRIPTION_TOO_LONG' });
+    throw new AppError({ code: 'TASK_DESCRIPTION_TOO_LONG' });
   }
   const trimmed = description.trim();
   return trimmed.length > 0 ? trimmed : undefined;
@@ -226,7 +227,7 @@ function assertScheduleOrder(
   dueDate: number | undefined,
 ): void {
   if (!isScheduleOrderValid(startDate, dueDate)) {
-    throw new ConvexError({ code: 'TASK_SCHEDULE_INVALID' });
+    throw new AppError({ code: 'TASK_SCHEDULE_INVALID' });
   }
 }
 
@@ -329,7 +330,7 @@ async function assertAutomationAssigneeDeployed(
     )
     .unique();
   if (!deployment) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'TASK_ASSIGNEE_INVALID',
       message: `No deployed automation named "${name}" in this organization`,
     });
@@ -356,7 +357,7 @@ export const createTask = mutation({
   handler: async (ctx, args) => {
     const project = await loadProjectOrThrow(ctx, args.projectId);
     if (project.organizationId !== args.organizationId) {
-      throw new ConvexError({ code: 'ORG_FORBIDDEN' });
+      throw new AppError({ code: 'ORG_FORBIDDEN' });
     }
     const auth = await getAuthContext(ctx, args.organizationId);
     assertTaskWritable(project, auth);
@@ -411,10 +412,10 @@ export const createTask = mutation({
     if (args.parentTaskId) {
       const parent = await loadTaskOrThrow(ctx, args.parentTaskId);
       if (parent.projectId !== args.projectId) {
-        throw new ConvexError({ code: 'TASK_PARENT_PROJECT_MISMATCH' });
+        throw new AppError({ code: 'TASK_PARENT_PROJECT_MISMATCH' });
       }
       if (parent.archivedAt) {
-        throw new ConvexError({ code: 'TASK_PARENT_ARCHIVED' });
+        throw new AppError({ code: 'TASK_PARENT_ARCHIVED' });
       }
     }
 
@@ -711,7 +712,7 @@ export const updateTaskStatus = mutation({
       TERMINAL_STATUSES.has(args.status) &&
       (await hasOpenChildren(ctx, args.taskId))
     ) {
-      throw new ConvexError({ code: 'TASK_HAS_OPEN_SUBTASKS' });
+      throw new AppError({ code: 'TASK_HAS_OPEN_SUBTASKS' });
     }
 
     // Leaving `in_review` closes the review gate: Done records the approve
@@ -842,7 +843,7 @@ async function applyAssigneeChange(
         taskId: task._id,
       }));
     if (liveRun !== null) {
-      throw new ConvexError({ code: 'TASK_HAS_LIVE_RUN' });
+      throw new AppError({ code: 'TASK_HAS_LIVE_RUN' });
     }
   }
   const previousAssigneeId = task.assigneeId ?? null;
@@ -1072,7 +1073,7 @@ export const addTaskDependency = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     if (args.blockerTaskId === args.blockedTaskId) {
-      throw new ConvexError({ code: 'TASK_DEPENDENCY_SELF' });
+      throw new AppError({ code: 'TASK_DEPENDENCY_SELF' });
     }
     const blocked = await loadTaskOrThrow(ctx, args.blockedTaskId);
     const blocker = await loadTaskOrThrow(ctx, args.blockerTaskId);
@@ -1081,7 +1082,7 @@ export const addTaskDependency = mutation({
     assertTaskWritable(project, auth);
 
     if (blocker.projectId !== blocked.projectId) {
-      throw new ConvexError({ code: 'TASK_DEPENDENCY_PROJECT_MISMATCH' });
+      throw new AppError({ code: 'TASK_DEPENDENCY_PROJECT_MISMATCH' });
     }
 
     const existing = await ctx.db
@@ -1102,7 +1103,7 @@ export const addTaskDependency = mutation({
         String(args.blockedTaskId),
       )
     ) {
-      throw new ConvexError({ code: 'TASK_DEPENDENCY_CYCLE' });
+      throw new AppError({ code: 'TASK_DEPENDENCY_CYCLE' });
     }
 
     const now = Date.now();
@@ -1231,7 +1232,7 @@ async function applyUserTaskComment(
 
   const body = args.body.trim();
   if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
-    throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
+    throw new AppError({ code: 'TASK_COMMENT_INVALID' });
   }
 
   try {
@@ -1422,7 +1423,7 @@ export const addTaskCommentForUser = internalMutation({
     args,
   ): Promise<{ messageId: string; threadId: string }> => {
     const notFound = () =>
-      new ConvexError({ code: 'TASK_NOT_FOUND', message: 'Task not found' });
+      new AppError({ code: 'TASK_NOT_FOUND', message: 'Task not found' });
     const taskId = ctx.db.normalizeId('tasks', args.taskId);
     if (taskId === null) throw notFound();
     const task = await ctx.db.get(taskId);
@@ -1760,7 +1761,7 @@ async function loadTaskMessageContext(ctx: MutationCtx, messageId: string) {
     .withIndex('by_messageId', (q) => q.eq('messageId', messageId))
     .first();
   if (!meta) {
-    throw new ConvexError({ code: 'TASK_COMMENT_NOT_FOUND' });
+    throw new AppError({ code: 'TASK_COMMENT_NOT_FOUND' });
   }
   const task = await loadTaskOrThrow(ctx, meta.taskId);
   const project = await loadProjectOrThrow(ctx, task.projectId);
@@ -1784,12 +1785,12 @@ export const editTaskDiscussionMessage = mutation({
     assertTaskReadable(project, auth);
     // Only the human author can edit their own comment.
     if (meta.authorType !== 'user' || meta.authorId !== auth.userId) {
-      throw new ConvexError({ code: 'TASK_COMMENT_FORBIDDEN' });
+      throw new AppError({ code: 'TASK_COMMENT_FORBIDDEN' });
     }
 
     const body = args.body.trim();
     if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
-      throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
+      throw new AppError({ code: 'TASK_COMMENT_INVALID' });
     }
 
     const directory = await buildMentionDirectory(ctx, {
@@ -1857,7 +1858,7 @@ export const deleteTaskDiscussionMessage = mutation({
     const isAuthor =
       meta.authorType === 'user' && meta.authorId === auth.userId;
     if (!isAuthor && !ADMIN_ROLES.has(auth.role)) {
-      throw new ConvexError({ code: 'TASK_COMMENT_FORBIDDEN' });
+      throw new AppError({ code: 'TASK_COMMENT_FORBIDDEN' });
     }
 
     // Flat model (matches project discussions): no reply tree to cascade. Hard
@@ -2008,7 +2009,7 @@ export const moveTask = mutation({
       TERMINAL_STATUSES.has(args.status) &&
       (await hasOpenChildren(ctx, args.taskId))
     ) {
-      throw new ConvexError({ code: 'TASK_HAS_OPEN_SUBTASKS' });
+      throw new AppError({ code: 'TASK_HAS_OPEN_SUBTASKS' });
     }
 
     // Dragging out of `in_review` closes the review gate: dropping on Done IS
@@ -2139,7 +2140,7 @@ export const bulkUpdateTasks = mutation({
   handler: async (ctx, args) => {
     if (args.taskIds.length === 0) return { updated: 0, skipped: 0 };
     if (args.taskIds.length > BULK_UPDATE_MAX) {
-      throw new ConvexError({ code: 'TASK_BULK_TOO_LARGE' });
+      throw new AppError({ code: 'TASK_BULK_TOO_LARGE' });
     }
 
     const assignee = args.clearAssignee
@@ -2439,18 +2440,18 @@ export const saveBoardView = mutation({
 
     const name = args.name.trim();
     if (name.length === 0 || name.length > 80) {
-      throw new ConvexError({ code: 'BOARD_VIEW_NAME_INVALID' });
+      throw new AppError({ code: 'BOARD_VIEW_NAME_INVALID' });
     }
     const now = Date.now();
 
     if (args.viewId) {
       const existing = await ctx.db.get(args.viewId);
       if (!existing || existing.projectId !== args.projectId) {
-        throw new ConvexError({ code: 'BOARD_VIEW_NOT_FOUND' });
+        throw new AppError({ code: 'BOARD_VIEW_NOT_FOUND' });
       }
       // Personal views can only be edited by their owner.
       if (existing.scope === 'personal' && existing.ownerId !== auth.userId) {
-        throw new ConvexError({ code: 'BOARD_VIEW_FORBIDDEN' });
+        throw new AppError({ code: 'BOARD_VIEW_FORBIDDEN' });
       }
       await ctx.db.patch(args.viewId, {
         name,
@@ -2517,7 +2518,7 @@ export const createTaskLabel = mutation({
 
     const names = normalizeLabelNames([args.name]);
     const name = names?.[0];
-    if (!name) throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+    if (!name) throw new AppError({ code: 'TASK_LABELS_INVALID' });
 
     const existing = await ctx.db
       .query('taskLabels')
@@ -2525,7 +2526,7 @@ export const createTaskLabel = mutation({
         q.eq('projectId', args.projectId).eq('name', name),
       )
       .unique();
-    if (existing) throw new ConvexError({ code: 'TASK_LABEL_NAME_TAKEN' });
+    if (existing) throw new AppError({ code: 'TASK_LABEL_NAME_TAKEN' });
 
     const now = Date.now();
     return await ctx.db.insert('taskLabels', {
@@ -2552,14 +2553,14 @@ export const updateTaskLabel = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const label = await ctx.db.get(args.labelId);
-    if (!label) throw new ConvexError({ code: 'TASK_LABEL_NOT_FOUND' });
+    if (!label) throw new AppError({ code: 'TASK_LABEL_NOT_FOUND' });
     const project = await loadProjectOrThrow(ctx, label.projectId);
     const auth = await getAuthContext(ctx, project.organizationId);
     assertTaskWritable(project, auth);
 
     const names = normalizeLabelNames([args.name]);
     const name = names?.[0];
-    if (!name) throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+    if (!name) throw new AppError({ code: 'TASK_LABELS_INVALID' });
     if (name === label.name) return null;
 
     const clash = await ctx.db
@@ -2568,7 +2569,7 @@ export const updateTaskLabel = mutation({
         q.eq('projectId', label.projectId).eq('name', name),
       )
       .unique();
-    if (clash) throw new ConvexError({ code: 'TASK_LABEL_NAME_TAKEN' });
+    if (clash) throw new AppError({ code: 'TASK_LABEL_NAME_TAKEN' });
 
     await ctx.db.patch(args.labelId, {
       name,
@@ -2609,7 +2610,7 @@ export const deleteTaskLabel = mutation({
       .withIndex('by_project', (q) => q.eq('projectId', label.projectId))) {
       if (!task.labelIds?.includes(args.labelId)) continue;
       if (!detach) {
-        throw new ConvexError({ code: 'TASK_LABEL_IN_USE' });
+        throw new AppError({ code: 'TASK_LABEL_IN_USE' });
       }
       const next = task.labelIds.filter((id) => id !== args.labelId);
       await ctx.db.patch(task._id, {
@@ -2641,7 +2642,7 @@ export const setLabelColor = mutation({
 
     const names = normalizeLabelNames([args.label]);
     const name = names?.[0];
-    if (!name) throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+    if (!name) throw new AppError({ code: 'TASK_LABELS_INVALID' });
 
     const existing = await ctx.db
       .query('taskLabels')
@@ -2675,7 +2676,7 @@ export const deleteBoardView = mutation({
     const auth = await getAuthContext(ctx, project.organizationId);
     assertTaskWritable(project, auth);
     if (view.scope === 'personal' && view.ownerId !== auth.userId) {
-      throw new ConvexError({ code: 'BOARD_VIEW_FORBIDDEN' });
+      throw new AppError({ code: 'BOARD_VIEW_FORBIDDEN' });
     }
     await ctx.db.delete(args.viewId);
     return null;
@@ -2695,7 +2696,7 @@ export const deleteTask = mutation({
     const auth = await getAuthContext(ctx, task.organizationId);
     assertTaskReadable(project, auth);
     if (!ADMIN_ROLES.has(auth.role)) {
-      throw new ConvexError({ code: 'ROLE_FORBIDDEN' });
+      throw new AppError({ code: 'ROLE_FORBIDDEN' });
     }
 
     const deletedChildren = await deleteTaskTree(ctx, args.taskId);

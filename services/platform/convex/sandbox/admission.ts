@@ -14,8 +14,9 @@
 // concurrency cap. Only the `sandboxSessions` row it eventually inserts does.
 // This is why a parked request burns no agent wall-clock budget while it waits.
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
@@ -34,7 +35,7 @@ import { SANDBOX_ADMISSION_TICKET_STALE_MS } from './sessions_schema';
 // stay put; the retired 'oneshot' value is gone.
 export type AdmissionKind = 'session';
 
-/** ConvexError code thrown by the reserve mutations when a parking caller is not
+/** AppError code thrown by the reserve mutations when a parking caller is not
  * yet at the front of its org's FIFO queue. The caller re-parks (sleeps + polls
  * again) instead of failing — distinct from `QUOTA_EXCEEDED` (a hard policy stop
  * like the daily CPU budget, which never parks). */
@@ -43,13 +44,13 @@ export const WAIT_FIFO_CODE = 'WAIT_FIFO';
 export const admissionKindValidator = v.literal('session');
 
 /** True if a thrown error is the FIFO "wait, don't fail" signal a reserve
- * mutation raises (a ConvexError whose data.code is WAIT_FIFO, preserved across
+ * mutation raises (a AppError whose data.code is WAIT_FIFO, preserved across
  * the runMutation/runAction boundary). Distinct from QUOTA_EXCEEDED (a hard
  * policy stop like the daily CPU budget, which never parks). */
 export function isWaitFifoError(e: unknown): boolean {
-  if (!(e instanceof ConvexError)) return false;
+  if (!(e instanceof AppError)) return false;
   if (typeof e.data !== 'object' || e.data === null) return false;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError data shape is loose
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- AppError data shape is loose
   return (e.data as { code?: string }).code === WAIT_FIFO_CODE;
 }
 
@@ -269,7 +270,7 @@ export async function assertFifoEligible(
   const inFlight = await admissionInFlight(ctx, organizationId, sessionBudget);
   const slotsOpen = cap - inFlight;
   if (slotsOpen <= 0) {
-    throw new ConvexError({
+    throw new AppError({
       code: WAIT_FIFO_CODE,
       message: 'No sandbox slot open yet; waiting.',
     });
@@ -283,7 +284,7 @@ export async function assertFifoEligible(
     sessionBudget,
   );
   if (rank >= slotsOpen) {
-    throw new ConvexError({
+    throw new AppError({
       code: WAIT_FIFO_CODE,
       message: 'Waiting for an earlier sandbox request to start.',
     });

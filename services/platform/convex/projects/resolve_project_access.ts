@@ -5,8 +5,7 @@
  * role, team ids — and fails CLOSED (no access) on any resolution error.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
@@ -102,7 +101,7 @@ export async function assertHumanAssigneeAccess(
   ) {
     return;
   }
-  throw new ConvexError({ code: 'ASSIGNEE_NO_PROJECT_ACCESS' });
+  throw new AppError({ code: 'ASSIGNEE_NO_PROJECT_ACCESS' });
 }
 
 /**
@@ -131,6 +130,6 @@ export async function assertAgentAssigneeInProject(
   assigneeId: string,
 ): Promise<void> {
   if (!(await agentAssigneeInProject(ctx, projectId, assigneeId))) {
-    throw new ConvexError({ code: 'AGENT_NOT_ALLOWED_IN_PROJECT' });
+    throw new AppError({ code: 'AGENT_NOT_ALLOWED_IN_PROJECT' });
   }
 }

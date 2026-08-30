@@ -27,7 +27,7 @@ import { parseDeploymentSecrets } from './file_utils';
  * Thrown when an existing secrets file can't be read — decrypt failure,
  * JSON parse failure, or a shape that fails `deploymentSecretsSchema` —
  * and the caller didn't pass `force: true`. The Convex action layer turns
- * this into a `ConvexError` with `data.kind = 'undecryptable_existing'` so
+ * this into a `AppError` with `data.kind = 'undecryptable_existing'` so
  * the UI can offer a confirm dialog and retry with `force: true`.
  *
  * `reason` is the inner cause's message, unwrapped. It's what the UI's

@@ -1,5 +1,4 @@
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import { SafeFetchError } from '../lib/http/safe_fetch';
 
 /**
@@ -33,7 +32,7 @@ export const ttsErrorCodeLiterals = [
   'BUDGET_EXCEEDED',
   // Kept for schema back-compat: reservation-throws bypass the classifier
   // (synthesize.ts intentionally does not catch them; the client handles
-  // the ConvexError directly), but existing rows may carry this code and
+  // the AppError directly), but existing rows may carry this code and
   // removing it would fail the read validator.
   'MESSAGE_CHAR_LIMIT',
   'TIMEOUT',
@@ -66,7 +65,7 @@ export interface ClassifiedFailure {
   code: TtsErrorCode;
   /**
    * Provider-supplied retry hint in milliseconds, threaded from the
-   * upstream `Retry-After` header on 429 responses or `ConvexError.data`
+   * upstream `Retry-After` header on 429 responses or `AppError.data`
    * on rate-limiter throws. The client's retry-loop prefers this over its
    * jittered backoff when present.
    */
@@ -117,7 +116,7 @@ export class TtsProviderHttpError extends Error {
 /**
  * Classify a thrown error into a stable `TtsErrorCode`.
  *
- * The resolver raises coded `ConvexError`s (`NO_PROVIDER`, …); a legacy
+ * The resolver raises coded `AppError`s (`NO_PROVIDER`, …); a legacy
  * `NoProviderAvailableError` reserialized across an action boundary still
  * matches by message substring.
  *
@@ -132,15 +131,15 @@ export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
   if (rawMessage.includes('noprovideravailableerror')) {
     return { code: 'NO_PROVIDER' };
   }
-  if (err instanceof ConvexError) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError.data is typed as `any`; we only read `code`/`retryAfterMs` defensively
+  if (err instanceof AppError) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- AppError.data is typed as `any`; we only read `code`/`retryAfterMs` defensively
     const data = err.data as
       | { code?: string; retryAfterMs?: number; retryAfter?: number }
       | undefined;
     const code = data?.code;
     // The rate-limiter sets `retryAfter` (seconds) or `retryAfterMs`; honor
     // either so the client's retry-loop gets the same hint regardless of
-    // which path filled the ConvexError.
+    // which path filled the AppError.
     const retryAfterMs =
       typeof data?.retryAfterMs === 'number'
         ? data.retryAfterMs

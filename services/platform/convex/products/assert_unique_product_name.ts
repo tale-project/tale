@@ -1,5 +1,4 @@
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
@@ -30,7 +29,7 @@ export async function assertUniqueProductName(
     )) {
     if (excludeProductId && product._id === excludeProductId) continue;
     if (normalizeProductName(product.name) === target) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'DUPLICATE_PRODUCT_NAME',
         message: `A product named "${name.trim()}" already exists.`,
         userMessage: `A product named "${name.trim()}" already exists.`,

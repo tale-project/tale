@@ -31,8 +31,9 @@
  * hands out POST URLs with no claim row either.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
@@ -43,8 +44,8 @@ import { resolveProjectAccessForUser } from './resolve_project_access';
 export const REST_UPLOAD_INTENT_TTL_MS = 60 * 60 * 1000;
 
 /** The one opaque refusal every bad handshake answers. */
-function uploadRefusal(): ConvexError<{ code: string; message: string }> {
-  return new ConvexError({
+function uploadRefusal(): AppError<{ code: string; message: string }> {
+  return new AppError({
     code: 'UPLOAD_BLOB_INVALID',
     message: 'Upload not found or expired',
   });
@@ -83,7 +84,7 @@ export const createRestUploadIntent = internalMutation({
   ): Promise<{ uploadId: Id<'restUploadIntents'>; expiresAt: number }> => {
     const projectId = ctx.db.normalizeId('projects', args.projectId);
     if (projectId === null) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'PROJECT_NOT_FOUND',
         message: 'Project not found',
       });
@@ -96,13 +97,13 @@ export const createRestUploadIntent = internalMutation({
       organizationId: args.organizationId,
     });
     if (!access.canRead) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'PROJECT_NOT_FOUND',
         message: 'Project not found',
       });
     }
     if (!access.canEdit) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'RBAC_FORBIDDEN',
         message: 'You do not have permission to add files to this project',
       });

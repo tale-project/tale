@@ -4,8 +4,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { AppError } from '../../lib/shared/errors/app-error';
 
 // Replace the Convex function builders with identity functions so each loaded
 // action is the plain `{ args, returns, handler }` object and its handler can
@@ -85,7 +86,7 @@ const bob = userViewer('user_bob');
 const admin = userViewer('user_admin', { isOrgAdmin: true });
 
 function errorCode(err: unknown): string | undefined {
-  if (err instanceof ConvexError) {
+  if (err instanceof AppError) {
     const data: unknown = err.data;
     if (typeof data === 'object' && data !== null && 'code' in data) {
       return String(data.code);
@@ -281,7 +282,7 @@ describe('readSkill', () => {
       expect.unreachable('a malformed bundle must not read as absent');
     } catch (err) {
       expect(errorCode(err)).toBe('SKILL_MALFORMED');
-      expect((err as ConvexError<{ message: string }>).data.message).toContain(
+      expect((err as AppError<{ message: string }>).data.message).toContain(
         'skills/broken/SKILL.md',
       );
     }
@@ -296,7 +297,7 @@ describe('readSkill', () => {
         slug: '../../etc',
         ...alice,
       }),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
   });
 });
 

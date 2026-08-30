@@ -16,8 +16,7 @@
  * domain's full audit/event trail via the internal mutation it calls.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { extractExtension } from '../../../lib/shared/file-types';
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
 import { internal } from '../../_generated/api';
@@ -102,13 +101,13 @@ function readLabels(raw: unknown): string[] | undefined {
 
 /**
  * Map a failed domain call to a structured result the model can act on. The
- * internal mutations refuse with coded `ConvexError`s (TASK_NOT_FOUND,
+ * internal mutations refuse with coded `AppError`s (TASK_NOT_FOUND,
  * TASK_TITLE_INVALID, …); anything else (a Convex arg-validator rejection of
  * a malformed id, a transient failure) reads as its message, truncated —
  * these carry validator prose, never secrets.
  */
 function toolResultFromError(error: unknown): ToolResult {
-  if (error instanceof ConvexError) {
+  if (error instanceof AppError) {
     const data: unknown = error.data;
     const code =
       isRecord(data) && typeof data.code === 'string' ? data.code : 'REFUSED';

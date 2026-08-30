@@ -5,9 +5,8 @@
  * accept strings, and size limits across the entire platform.
  */
 
-import { ConvexError } from 'convex/values';
-
 import { isTextBasedFile, TEXT_FILE_ACCEPT } from '../utils/text-file-types';
+import { AppError } from './errors/app-error';
 
 // ---------------------------------------------------------------------------
 // MIME type constants
@@ -656,20 +655,20 @@ export function validateAttachmentCaps(
 ): void {
   if (!attachments || attachments.length === 0) return;
   if (attachments.length > config.maxCount) {
-    throw new ConvexError({ code: config.errorCodes.tooMany });
+    throw new AppError({ code: config.errorCodes.tooMany });
   }
   let totalSize = 0;
   for (const attachment of attachments) {
     if (!config.isAllowedType(attachment)) {
-      throw new ConvexError({ code: config.errorCodes.typeInvalid });
+      throw new AppError({ code: config.errorCodes.typeInvalid });
     }
     if (attachment.fileSize > config.maxSizeForType(attachment.fileType)) {
-      throw new ConvexError({ code: config.errorCodes.tooLarge });
+      throw new AppError({ code: config.errorCodes.tooLarge });
     }
     totalSize += attachment.fileSize;
   }
   if (totalSize > config.totalMaxSize) {
-    throw new ConvexError({ code: config.errorCodes.totalTooLarge });
+    throw new AppError({ code: config.errorCodes.totalTooLarge });
   }
 }
 

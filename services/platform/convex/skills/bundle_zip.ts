@@ -12,9 +12,9 @@
  * top-level folder, that folder is stripped before further processing.
  */
 
-import { ConvexError } from 'convex/values';
 import JSZip from 'jszip';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   MAX_SKILL_BUNDLE_FILE_BYTES,
   MAX_SKILL_BUNDLE_FILES,
@@ -73,13 +73,13 @@ export function detectSingleTopLevelFolder(
   return prefix;
 }
 
-/** Decode and validate one uploaded zip. Throws `ConvexError` on refusal. */
+/** Decode and validate one uploaded zip. Throws `AppError` on refusal. */
 export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
   let zip: JSZip;
   try {
     zip = await JSZip.loadAsync(buf);
   } catch (err) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'INVALID_BUNDLE',
       message: `Not a valid zip archive: ${err instanceof Error ? err.message : String(err)}`,
     });
@@ -89,13 +89,13 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
     ([name]) => !isOsMetadataEntry(name),
   );
   if (rawEntries.length === 0) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'INVALID_BUNDLE',
       message: 'Zip is empty',
     });
   }
   if (rawEntries.length > MAX_SKILL_BUNDLE_FILES) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'INVALID_BUNDLE',
       message: `Bundle contains ${rawEntries.length} entries (max ${MAX_SKILL_BUNDLE_FILES})`,
     });
@@ -111,13 +111,13 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
     const rel = stripPrefix ? name.slice(stripPrefix.length) : name;
     if (rel === '') continue;
     if (rel.includes('\0')) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'INVALID_BUNDLE',
         message: `Bundle entry path contains NUL byte`,
       });
     }
     if (rel.startsWith('/') || /^[A-Za-z]:/.test(rel)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'INVALID_BUNDLE',
         message: `Bundle entry uses absolute path: ${rel}`,
       });
@@ -125,7 +125,7 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
     const segments = rel.split('/');
     for (const seg of segments) {
       if (seg === '' || seg === '..' || seg === '.') {
-        throw new ConvexError({
+        throw new AppError({
           code: 'INVALID_BUNDLE',
           message: `Bundle entry path is unsafe: ${rel}`,
         });
@@ -141,7 +141,7 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
   }
 
   if (!skillMdEntry) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'MISSING_SKILL_MD',
       message: 'Bundle is missing SKILL.md at the root',
     });
@@ -153,7 +153,7 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
   try {
     ({ meta, body } = parseSkillMd(skillMdContent, 'SKILL.md'));
   } catch (err) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'INVALID_SKILL_MD',
       message: `SKILL.md frontmatter rejected: ${err instanceof Error ? err.message : String(err)}`,
     });
@@ -161,7 +161,7 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
 
   const slug = meta.name;
   if (!isValidSkillSlug(slug)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'INVALID_SKILL_SLUG',
       message: `Frontmatter name "${slug}" is not a valid skill slug`,
     });
@@ -171,7 +171,7 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
   let totalBytes = 0;
   const skillMdBuf = Buffer.from(skillMdContent, 'utf-8');
   if (skillMdBuf.length > MAX_SKILL_BUNDLE_FILE_BYTES) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'FILE_TOO_LARGE',
       message: `SKILL.md exceeds per-file cap of ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
     });
@@ -182,14 +182,14 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
   for (const { relPath, entry } of assetEntries) {
     const assetBuf = Buffer.from(await entry.async('uint8array'));
     if (assetBuf.length > MAX_SKILL_BUNDLE_FILE_BYTES) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FILE_TOO_LARGE',
         message: `Asset "${relPath}" exceeds per-file cap of ${MAX_SKILL_BUNDLE_FILE_BYTES} bytes`,
       });
     }
     totalBytes += assetBuf.length;
     if (totalBytes > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'BUNDLE_TOO_LARGE',
         message: `Decompressed bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes`,
       });

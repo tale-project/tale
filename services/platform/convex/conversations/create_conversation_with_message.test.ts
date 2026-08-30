@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { emitEvent } from '../events/emit';
@@ -35,8 +35,8 @@ function makeArgs(): CreateConversationWithMessageArgs {
   };
 }
 
-describe('createConversationWithMessage — client-facing failures use ConvexError (#2049)', () => {
-  it('throws a coded ConvexError when the created conversation cannot be retrieved', async () => {
+describe('createConversationWithMessage — client-facing failures use AppError (#2049)', () => {
+  it('throws a coded AppError when the created conversation cannot be retrieved', async () => {
     // The conversation is created but the immediate read-back returns null,
     // exercising the post-create retrieval invariant.
     const ctx = {
@@ -49,7 +49,7 @@ describe('createConversationWithMessage — client-facing failures use ConvexErr
 
     await expect(
       createConversationWithMessage(ctx, makeArgs()),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
     await expect(
       createConversationWithMessage(ctx, makeArgs()),
     ).rejects.toMatchObject({

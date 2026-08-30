@@ -1,4 +1,3 @@
-import { ConvexError } from 'convex/values';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -16,6 +15,7 @@ import {
   saveSkillForViewer,
 } from '../../convex/skills/file_actions.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
 import { getUserTeamIds } from '../auth/membership.ts';
 import {
@@ -766,7 +766,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     c: Context<RestEnv>,
     error: unknown,
   ): Response => {
-    if (error instanceof ConvexError) {
+    if (error instanceof AppError) {
       const data: unknown = error.data;
       if (data !== null && typeof data === 'object' && 'code' in data) {
         const record = data as { code?: unknown; message?: unknown };

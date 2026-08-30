@@ -1,5 +1,4 @@
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -320,7 +319,7 @@ export async function updateApprovalStatus(
 ): Promise<void> {
   const current = await ctx.db.get(args.approvalId);
   if (!current) {
-    throw new ConvexError({ code: 'NOT_FOUND' });
+    throw new AppError({ code: 'NOT_FOUND' });
   }
 
   // Approval FSM guard. A user-initiated approve/reject is only valid from
@@ -332,13 +331,13 @@ export async function updateApprovalStatus(
   // approve/reject race: the loser retries, sees the now-resolved status, and
   // is rejected instead of silently clobbering the winner's decision.
   if (current.status !== 'pending') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'ALREADY_RESOLVED',
       currentStatus: current.status,
     });
   }
   if (args.status !== 'executing' && args.status !== 'rejected') {
-    throw new ConvexError({ code: 'INVALID_DECISION', status: args.status });
+    throw new AppError({ code: 'INVALID_DECISION', status: args.status });
   }
 
   let approverName: string | undefined;
@@ -373,11 +372,11 @@ export async function removeRecommendedProduct(
 ): Promise<void> {
   const approval = await ctx.db.get(args.approvalId);
   if (!approval) {
-    throw new ConvexError({ code: 'NOT_FOUND' });
+    throw new AppError({ code: 'NOT_FOUND' });
   }
 
   if (approval.status !== 'pending') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'ALREADY_RESOLVED',
       currentStatus: approval.status,
     });

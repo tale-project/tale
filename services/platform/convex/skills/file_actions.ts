@@ -15,8 +15,9 @@
  * alone, which is what keeps one org's library out of another's.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   isValidSkillSlug,
   MAX_SKILL_BUNDLE_TOTAL_BYTES,
@@ -91,7 +92,7 @@ function toSummary(skill: OrgSkill, viewer: SkillViewer): SkillSummaryView {
 
 function assertValidSlug(slug: string): void {
   if (!isValidSkillSlug(slug)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'INVALID_SKILL_SLUG',
       message: `"${slug}" is not a valid skill slug — use lowercase letters, digits and single hyphens.`,
     });
@@ -105,7 +106,7 @@ function assertValidSlug(slug: string): void {
  */
 function assertUserViewer(viewer: SkillViewer): UserSkillViewer {
   if (viewer.kind !== 'user') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'SKILL_FORBIDDEN',
       message: 'Only a member can create, edit or delete a skill.',
     });
@@ -285,7 +286,7 @@ export async function saveSkillForViewer(
     const existing = await loadSkillOrThrow(args.orgSlug, args.slug);
 
     if (existing !== null && !canEditSkill(existing.meta, viewer)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'SKILL_FORBIDDEN',
         message: `You cannot edit the skill "${args.slug}".`,
       });
@@ -293,7 +294,7 @@ export async function saveSkillForViewer(
 
     const visibility = args.visibility ?? existing?.meta.visibility ?? 'org';
     if (visibility === 'private' && existing?.meta.visibility !== 'private') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'SKILL_PRIVATE_RETIRED',
         message:
           'Private skills are retired — nothing can equip one. Share the skill with a team or the organization instead.',
@@ -332,7 +333,7 @@ export async function saveSkillForViewer(
       );
     } catch (err) {
       if (err instanceof SkillParseError) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'INVALID_SKILL',
           message: `The skill could not be saved: ${err.detail}`,
         });
@@ -463,7 +464,7 @@ export const uploadSkillBundle = internalAction({
       { organizationId: args.organizationId, storageId: args.storageId },
     );
     if (!intentMatch) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'STORAGE_NOT_OWNED',
         message:
           'Upload session is missing or belongs to a different organization. Re-open the upload dialog and try again.',
@@ -476,14 +477,14 @@ export const uploadSkillBundle = internalAction({
         internal.skills.upload_mutations.deleteSkillUploadIntent,
         { storageId: args.storageId },
       );
-      throw new ConvexError({
+      throw new AppError({
         code: 'STORAGE_NOT_FOUND',
         message: 'Uploaded bundle is missing from storage',
       });
     }
     if (blob.size > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
       await cleanupUploadResources(ctx, args.storageId);
-      throw new ConvexError({
+      throw new AppError({
         code: 'BUNDLE_TOO_LARGE',
         message: `Bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes`,
       });
@@ -495,8 +496,8 @@ export const uploadSkillBundle = internalAction({
       parsed = await parseSkillBundleZip(buf);
     } catch (err) {
       await cleanupUploadResources(ctx, args.storageId);
-      if (err instanceof ConvexError) throw err;
-      throw new ConvexError({
+      if (err instanceof AppError) throw err;
+      throw new AppError({
         code: 'INVALID_BUNDLE',
         message:
           err instanceof Error ? err.message : 'Failed to read uploaded zip',
@@ -539,7 +540,7 @@ export const uploadSkillBundle = internalAction({
           : viewer.isOrgAdmin;
       if (!allowed) {
         await cleanupUploadResources(ctx, args.storageId);
-        throw new ConvexError({
+        throw new AppError({
           code: 'SKILL_FORBIDDEN',
           message: `You cannot replace the skill "${parsed.slug}".`,
         });
@@ -553,7 +554,7 @@ export const uploadSkillBundle = internalAction({
       existing?.meta.visibility !== 'private'
     ) {
       await cleanupUploadResources(ctx, args.storageId);
-      throw new ConvexError({
+      throw new AppError({
         code: 'SKILL_PRIVATE_RETIRED',
         message:
           'Private skills are retired — nothing can equip one. Remove `visibility: private` from SKILL.md or declare `team` or `org` sharing.',
@@ -576,8 +577,8 @@ export const uploadSkillBundle = internalAction({
         normalizedBundleFiles(parsed, viewer),
       );
     } catch (err) {
-      if (err instanceof ConvexError) throw err;
-      throw new ConvexError({
+      if (err instanceof AppError) throw err;
+      throw new AppError({
         code: 'WRITE_FAILED',
         message:
           err instanceof Error ? err.message : 'Failed to write skill bundle',
@@ -609,7 +610,7 @@ export async function deleteSkillForViewer(args: {
   const existing = await loadSkillOrThrow(args.orgSlug, args.slug);
   if (existing === null) return false;
   if (!canEditSkill(existing.meta, viewer)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'SKILL_FORBIDDEN',
       message: `You cannot delete the skill "${args.slug}".`,
     });
@@ -643,13 +644,13 @@ function resolveTeams(
     ...new Set((source ?? []).map((teamId) => teamId.trim()).filter(Boolean)),
   ];
   if (teams.length === 0) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'INVALID_SKILL',
       message: 'A team skill needs at least one team to be shared with.',
     });
   }
   if (teams.length > MAX_SKILL_TEAMS) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'INVALID_SKILL',
       message: `A skill can be shared with at most ${MAX_SKILL_TEAMS} teams.`,
     });
@@ -673,7 +674,7 @@ async function loadVisibleSkill(args: {
 }
 
 /**
- * Read one bundle, turning a malformed document into a ConvexError that names
+ * Read one bundle, turning a malformed document into a AppError that names
  * the org-relative path. The caller sees which file to fix rather than a
  * bundle that silently is not there.
  */
@@ -688,7 +689,7 @@ async function loadSkillOrThrow(
       console.error(`[skills] ${orgSlug}: ${err.message}`);
       // The client gets the org-relative path; the absolute one stays in the
       // server log where the operator reads it.
-      throw new ConvexError({
+      throw new AppError({
         code: 'SKILL_MALFORMED',
         message: `${relativeSkillPath(slug)} could not be read: ${err.detail}`,
       });

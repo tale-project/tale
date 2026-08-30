@@ -1,6 +1,7 @@
 import type { GenericQueryCtx } from 'convex/server';
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   DEFAULT_DSAR_GOVERNANCE,
   type DsarGovernanceConfig,
@@ -168,7 +169,7 @@ export const getDsarPolicyForUi = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser)
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });
@@ -178,7 +179,7 @@ export const getDsarPolicyForUi = query({
       authUser,
     );
     if (member.role !== 'owner' && member.role !== 'admin') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FORBIDDEN',
         message: 'Reading dsar_governance requires admin or owner role.',
       });
@@ -240,7 +241,7 @@ export const proposeDsarPolicy = action({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -258,7 +259,7 @@ export const proposeDsarPolicy = action({
       },
     );
     if (member.role !== 'owner') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message:
           'Only the org owner can change the DSAR governance policy. Admins can read it.',
@@ -267,7 +268,7 @@ export const proposeDsarPolicy = action({
 
     const parsed = dsarGovernanceConfigSchema.safeParse(args.config);
     if (!parsed.success) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'validation',
         message: `Invalid DSAR governance configuration: ${parsed.error.message}`,
       });
@@ -279,7 +280,7 @@ export const proposeDsarPolicy = action({
       { organizationId: args.organizationId },
     );
     if (state.pending) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'pendingChangeExists',
         message:
           'A pending DSAR policy change is already staged. Cancel it before proposing a new one.',
@@ -425,7 +426,7 @@ export const cancelPendingDsarPolicyChange = mutation({
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -437,7 +438,7 @@ export const cancelPendingDsarPolicyChange = mutation({
       name: authUser.name,
     });
     if (member.role !== 'owner' && !isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Only org admins or the owner can cancel a pending change.',
       });
@@ -450,7 +451,7 @@ export const cancelPendingDsarPolicyChange = mutation({
       )
       .first();
     if (!pending) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'not_found',
         message: 'No pending DSAR policy change to cancel.',
       });

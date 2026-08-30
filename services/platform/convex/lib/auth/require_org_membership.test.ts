@@ -1,5 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { AppError } from '../../../lib/shared/errors/app-error';
 
 const mockGetAuthUser = vi.fn();
 
@@ -125,11 +126,11 @@ describe('requireOrgMembershipById', () => {
     });
   });
 
-  it('uses ConvexError so codes are dispatchable on the wire', async () => {
+  it('uses AppError so codes are dispatchable on the wire', async () => {
     mockGetAuthUser.mockResolvedValue(null);
     const ctx = makeCtx({});
     await expect(
       requireOrgMembershipById(ctx as never, 'org_a'),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
   });
 });

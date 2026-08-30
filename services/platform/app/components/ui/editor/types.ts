@@ -46,7 +46,7 @@ export interface EditorController {
   save: () => Promise<void>;
   reset: () => void;
   /**
-   * RHF-backed editors map a Convex `BackendError({code, issues})` payload
+   * RHF-backed editors map a Convex `AppError({code, issues})` payload
    * into per-field `form.setError` calls; JSON-config editors leave it
    * undefined and rely on the destructive toast in `EditorActions`.
    */

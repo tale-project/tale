@@ -1,7 +1,7 @@
-import { ConvexError } from 'convex/values';
 import type { Sql } from 'postgres';
 
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/convex-shim.ts';
@@ -147,10 +147,10 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       try {
         return await runConnectorAction(sql, args);
       } catch (error) {
-        // The 0.4 wire carried coded refusals as ConvexError data; the
+        // The 0.4 wire carried coded refusals as AppError data; the
         // stepper branches on `code` — keep that contract.
         if (error instanceof ConnectorError) {
-          throw new ConvexError({
+          throw new AppError({
             code: error.code,
             message: error.message,
             connector: error.connector ?? args.connector,

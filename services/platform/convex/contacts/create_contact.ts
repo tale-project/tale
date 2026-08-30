@@ -2,8 +2,7 @@
  * Create a new contact (business logic)
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { DataSource } from '../../lib/shared/schemas/common';
 import type { MutationCtx } from '../_generated/server';
 import { emitEvent } from '../events/emit';
@@ -34,7 +33,7 @@ export async function createContact(ctx: MutationCtx, args: CreateContactArgs) {
   // it). Email is optional here (agents may create a contact with only a name).
   const email = args.email?.toLowerCase().trim() || undefined;
 
-  // Reject duplicate adds with a structured ConvexError instead of letting a
+  // Reject duplicate adds with a structured AppError instead of letting a
   // second row slip in (or — pre-#1993 — surfacing a raw `Error` that Convex
   // redacts to "Server Error" in prod). Callers match on `code`, not the
   // message string. Mirrors the `WEBSITE_DUPLICATE_DOMAIN` precedent.
@@ -47,7 +46,7 @@ export async function createContact(ctx: MutationCtx, args: CreateContactArgs) {
       .first();
 
     if (existing) {
-      throw new ConvexError({ code: 'CONTACT_DUPLICATE_EMAIL', email });
+      throw new AppError({ code: 'CONTACT_DUPLICATE_EMAIL', email });
     }
   }
 
@@ -63,7 +62,7 @@ export async function createContact(ctx: MutationCtx, args: CreateContactArgs) {
       .first();
 
     if (existing) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'CONTACT_DUPLICATE_EXTERNAL_ID',
         externalId: String(externalId),
       });

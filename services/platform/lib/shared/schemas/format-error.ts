@@ -1,6 +1,6 @@
 /**
  * Shared ZodError → human-readable-string formatters. Every parse site that
- * surfaces a schema failure to a log line, a thrown `Error`/`ConvexError`, or
+ * surfaces a schema failure to a log line, a thrown `Error`/`AppError`, or
  * an admin-facing message should go through one of these instead of
  * hand-rolling a summary or (worse) interpolating `error.message`, which is
  * the raw `[{"expected":...,"path":[...]}]` JSON dump zod/v4 produces — an
@@ -57,7 +57,7 @@ export function formatZodErrorFull(error: z.ZodError): string {
 
 /**
  * `formatZodError` prefixed with a caller-supplied label — the common shape
- * for a thrown `Error`/`ConvexError` message: `${label}: ${formatZodError()}`.
+ * for a thrown `Error`/`AppError` message: `${label}: ${formatZodError()}`.
  */
 export function zodErrorMessage(
   label: string,

@@ -13,8 +13,9 @@
  * Internal functions are unreachable from clients.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalQuery, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -80,7 +81,7 @@ export const listCredentials = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Authentication required.',
       });
@@ -124,7 +125,7 @@ export const getCredential = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Authentication required.',
       });
@@ -132,7 +133,7 @@ export const getCredential = query({
     await getOrganizationMember(ctx, args.organizationId, authUser);
     const row = await ctx.db.get(args.credentialId);
     if (!row || row.organizationId !== args.organizationId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'CREDENTIAL_NOT_FOUND',
         message: 'Credential not found.',
       });

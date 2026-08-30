@@ -9,9 +9,10 @@
 // reserve/watchdog pattern.
 
 import type { WithoutSystemFields } from 'convex/server';
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import { mergeTimelineParts } from '../../lib/harnesses/timeline';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
@@ -76,7 +77,7 @@ export const reserveSessionSlotAndInsert = internalMutation({
       if (row.status === 'creating' || row.status === 'active') {
         ownerActive += 1;
         if (ownerActive >= SANDBOX_MAX_SESSIONS_PER_OWNER) {
-          throw new ConvexError({
+          throw new AppError({
             code: 'QUOTA_EXCEEDED',
             message: `This ${args.ownerType} already has an active sandbox session.`,
             userMessage: `This ${args.ownerType} already has an active sandbox session.`,
@@ -133,7 +134,7 @@ export const reserveSessionSlotAndInsert = internalMutation({
           if (sessionBudgetForOwnerType(row.ownerType) !== budget) continue;
           orgActive += 1;
           if (orgActive >= cap) {
-            throw new ConvexError({
+            throw new AppError({
               code: 'QUOTA_EXCEEDED',
               message: `At most ${cap} ${budget} sandbox sessions can be active for this organization.`,
             });
@@ -927,7 +928,7 @@ export const resumeSessionSlotWithCapCheck = internalMutation({
           if (sessionBudgetForOwnerType(active.ownerType) !== budget) continue;
           orgActive += 1;
           if (orgActive >= cap) {
-            throw new ConvexError({
+            throw new AppError({
               code: 'QUOTA_EXCEEDED',
               message: `At most ${cap} ${budget} sandbox sessions can be active for this organization.`,
             });

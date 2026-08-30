@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   argsOf,
   jsonBody,
@@ -58,11 +58,11 @@ function ctxWith(runMutation: ReturnType<typeof vi.fn>): HttpCtx {
 }
 
 /**
- * The REST wrapper (`withRestAuth`) maps typed `ConvexError` codes to HTTP
+ * The REST wrapper (`withRestAuth`) maps typed `AppError` codes to HTTP
  * statuses via `httpStatusForConvexCode`; any code resolving to a 4xx is
  * forwarded to the client, everything else falls through to a generic 500.
  *
- * `validateProductFields` throws `ConvexError({ code: 'too_long' })` on the
+ * `validateProductFields` throws `AppError({ code: 'too_long' })` on the
  * REST product write paths (`POST`/`PATCH /api/v1/products`), so `too_long`
  * must map to 400 — otherwise an over-length client input surfaces as a 500
  * (server error) instead of a 400 (client error).
@@ -456,7 +456,7 @@ describe('withRestAuth — organization resolution plumbing', () => {
     getSession.mockResolvedValue(testSession());
     const { ctx } = restCtx({
       [RESOLVE_ORG]: () => {
-        throw new ConvexError({
+        throw new AppError({
           code: 'ORG_FORBIDDEN',
           message: 'Not a member of organization acme-two',
         });
@@ -500,7 +500,7 @@ describe('withRestAuth — organization resolution plumbing', () => {
     getSession.mockResolvedValue(testSession());
     const { ctx, calls } = restCtx({
       [RESOLVE_ORG]: () => {
-        throw new ConvexError({
+        throw new AppError({
           code: 'ORG_SLUG_REQUIRED',
           message:
             'User belongs to multiple organizations. Provide X-Organization-Slug header.',
@@ -551,7 +551,7 @@ describe('withRestAuth — organization resolution plumbing', () => {
       const { ctx } = restCtx();
       const handler = asInvoke(
         withRestAuth('rest:api', async () => {
-          throw new ConvexError(payload);
+          throw new AppError(payload);
         }),
       );
 

@@ -7,9 +7,9 @@
  * so they are contract, not detail.
  */
 
-import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import type { ActionCtx } from '../../_generated/server';
 
 const resolveProvidersMock = vi.fn();
@@ -62,7 +62,7 @@ async function caughtCode(promise: Promise<unknown>): Promise<string> {
   try {
     await promise;
   } catch (err) {
-    if (err instanceof ConvexError) {
+    if (err instanceof AppError) {
       const data: unknown = err.data;
       if (data && typeof data === 'object' && 'code' in data) {
         const code = (data as { code?: unknown }).code;

@@ -1,8 +1,8 @@
 import rateLimiterComponent from '@convex-dev/rate-limiter/test';
 import { convexTest, type TestConvex } from 'convex-test';
-import { ConvexError } from 'convex/values';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { api } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { teamIdsToFields } from '../documents/team_fields';
@@ -27,20 +27,20 @@ for (const [key, loader] of Object.entries(rawModules)) {
 }
 
 /**
- * Run `fn` and return the `code` of the ConvexError it throws. Fails the
- * assertion if it doesn't throw a ConvexError. Folder validation now raises
- * structured `ConvexError({ code, message })` (issue #2005) so the frontend
+ * Run `fn` and return the `code` of the AppError it throws. Fails the
+ * assertion if it doesn't throw a AppError. Folder validation now raises
+ * structured `AppError({ code, message })` (issue #2005) so the frontend
  * can branch on the code instead of substring-matching a redacted message.
  */
-function expectConvexErrorCode(fn: () => unknown): string {
+function expectAppErrorCode(fn: () => unknown): string {
   try {
     fn();
   } catch (err) {
-    expect(err).toBeInstanceOf(ConvexError);
-    const data = (err as ConvexError<{ code: string }>).data;
+    expect(err).toBeInstanceOf(AppError);
+    const data = (err as AppError<{ code: string }>).data;
     return data.code;
   }
-  throw new Error('Expected function to throw a ConvexError');
+  throw new Error('Expected function to throw a AppError');
 }
 
 type MockFolder = {
@@ -141,32 +141,32 @@ describe('validateFolderName', () => {
   });
 
   it('throws FOLDER_NAME_EMPTY for empty name', () => {
-    expect(expectConvexErrorCode(() => validateFolderName(''))).toBe(
+    expect(expectAppErrorCode(() => validateFolderName(''))).toBe(
       'FOLDER_NAME_EMPTY',
     );
   });
 
   it('throws FOLDER_NAME_EMPTY for whitespace-only name', () => {
-    expect(expectConvexErrorCode(() => validateFolderName('   '))).toBe(
+    expect(expectAppErrorCode(() => validateFolderName('   '))).toBe(
       'FOLDER_NAME_EMPTY',
     );
   });
 
   it('throws FOLDER_NAME_INVALID for reserved name "."', () => {
-    expect(expectConvexErrorCode(() => validateFolderName('.'))).toBe(
+    expect(expectAppErrorCode(() => validateFolderName('.'))).toBe(
       'FOLDER_NAME_INVALID',
     );
   });
 
   it('throws FOLDER_NAME_INVALID for reserved name ".."', () => {
-    expect(expectConvexErrorCode(() => validateFolderName('..'))).toBe(
+    expect(expectAppErrorCode(() => validateFolderName('..'))).toBe(
       'FOLDER_NAME_INVALID',
     );
   });
 
   it('throws FOLDER_NAME_TOO_LONG for names exceeding max length', () => {
     const longName = 'a'.repeat(256);
-    expect(expectConvexErrorCode(() => validateFolderName(longName))).toBe(
+    expect(expectAppErrorCode(() => validateFolderName(longName))).toBe(
       'FOLDER_NAME_TOO_LONG',
     );
   });
@@ -177,15 +177,15 @@ describe('validateFolderName', () => {
   });
 
   it('throws FOLDER_NAME_HAS_SEPARATOR for names containing forward slash', () => {
-    expect(
-      expectConvexErrorCode(() => validateFolderName('reports/2024')),
-    ).toBe('FOLDER_NAME_HAS_SEPARATOR');
+    expect(expectAppErrorCode(() => validateFolderName('reports/2024'))).toBe(
+      'FOLDER_NAME_HAS_SEPARATOR',
+    );
   });
 
   it('throws FOLDER_NAME_HAS_SEPARATOR for names containing backslash', () => {
-    expect(
-      expectConvexErrorCode(() => validateFolderName('reports\\2024')),
-    ).toBe('FOLDER_NAME_HAS_SEPARATOR');
+    expect(expectAppErrorCode(() => validateFolderName('reports\\2024'))).toBe(
+      'FOLDER_NAME_HAS_SEPARATOR',
+    );
   });
 });
 

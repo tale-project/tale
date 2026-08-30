@@ -9,8 +9,8 @@ import { Select } from '@/app/components/ui/forms/select';
 import { TeamMultiSelect } from '@/app/features/documents/components/team-multi-select';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useUpdateProjectSharing } from '../hooks/mutations';
 
@@ -97,7 +97,7 @@ export function ProjectSharingSection({
         toast({ title: t('settings.saveSuccess'), variant: 'success' });
         setPendingNarrowChange(null);
       } catch (error) {
-        if (error instanceof BackendError) {
+        if (error instanceof AppError) {
           const code = error.data?.code;
           if (
             code === 'PROJECT_SHARING_INVALID' ||

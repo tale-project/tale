@@ -8,8 +8,8 @@ import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useDeleteProject } from '../hooks/mutations';
 
@@ -81,7 +81,7 @@ export function ProjectDeleteDialog({
         });
       }
     } catch (error) {
-      if (error instanceof BackendError) {
+      if (error instanceof AppError) {
         const code = error.data?.code;
         if (code === 'PROJECT_CONFIRM_PHRASE_MISMATCH') {
           toast({

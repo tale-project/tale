@@ -40,10 +40,10 @@ vi.mock('convex/values', () => {
       null: stub,
       bytes: stub,
     },
-    ConvexError: class ConvexError extends Error {
+    AppError: class AppError extends Error {
       data: unknown;
       constructor(data: unknown) {
-        super(typeof data === 'string' ? data : 'ConvexError');
+        super(typeof data === 'string' ? data : 'AppError');
         this.data = data;
       }
     },
@@ -715,8 +715,8 @@ describe('transcribeAudio — failure handling', () => {
     });
   });
 
-  it('stores a ConvexError payload as prose, not as raw JSON', async () => {
-    // `transcriptionError` is read by a person. A ConvexError stringifies its
+  it('stores a AppError payload as prose, not as raw JSON', async () => {
+    // `transcriptionError` is read by a person. A AppError stringifies its
     // whole payload into `.message`, which put
     // `{"code":"NO_TRANSCRIPTION_MODEL","message":"…"}` on the row verbatim.
     mockResolveModel.mockRejectedValue(

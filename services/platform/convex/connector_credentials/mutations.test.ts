@@ -33,7 +33,7 @@ for (const [key, loader] of Object.entries(rawModules)) {
 }
 const authModules = import.meta.glob('../betterAuth/**/*.*s');
 
-// convex-test surfaces ConvexError data as a (possibly double-encoded) JSON
+// convex-test surfaces AppError data as a (possibly double-encoded) JSON
 // string; unwrap it to the structured payload — same helper as
 // provider_credentials/mutations.test.ts.
 function dataOf(err: unknown): Record<string, unknown> | undefined {

@@ -1,5 +1,4 @@
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { QueryCtx } from '../_generated/server';
 
 // The org-level agent catalog (install/enable/uninstall, `agentInstallations`)
@@ -28,7 +27,7 @@ export async function assertAgentAssigneeLive(
   const agentId = ctx.db.normalizeId('projectAgents', assignee.assigneeId);
   const agent = agentId === null ? null : await ctx.db.get(agentId);
   if (agent === null || agent.organizationId !== organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AGENT_NOT_LIVE',
       message: `No agent "${assignee.assigneeId}" exists in this organization.`,
     });

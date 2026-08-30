@@ -1,5 +1,6 @@
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { resolveFileType } from '../../lib/shared/file-types';
 import { isTextBasedFile } from '../../lib/utils/text-file-types';
 import { internal } from '../_generated/api';
@@ -126,7 +127,7 @@ export const ingestPutBlob = internalMutation({
   },
   async handler(ctx, args) {
     if (args.pathSegments.length === 0) {
-      throw new ConvexError({ code: 'INVALID_PATH' });
+      throw new AppError({ code: 'INVALID_PATH' });
     }
     const parentSegments = args.pathSegments.slice(0, -1).map(nfc);
     const fileName = nfc(args.pathSegments[args.pathSegments.length - 1]);
@@ -164,7 +165,7 @@ export const ingestPutBlob = internalMutation({
         parentSegments,
       );
       if (!found) {
-        throw new ConvexError({ code: 'CONFLICT' });
+        throw new AppError({ code: 'CONFLICT' });
       }
       folderId = found;
     }
@@ -314,7 +315,7 @@ async function assertVisibleFolderSrc(
     folder.organizationId !== organizationId ||
     !isWebdavVisibleFolder(folder)
   ) {
-    throw new ConvexError({ code: 'NOT_FOUND' });
+    throw new AppError({ code: 'NOT_FOUND' });
   }
 }
 
@@ -335,7 +336,7 @@ export const mkcol = internalMutation({
     // helpers can traverse — otherwise such folders become un-deletable,
     // un-movable, and un-copyable (every attempt 409s).
     if (parentSegments.length + 1 > MAX_FOLDER_DEPTH) {
-      throw new ConvexError({ code: 'CONFLICT' });
+      throw new AppError({ code: 'CONFLICT' });
     }
 
     // RFC 4918 §9.3.1: parent must already exist (when there are parents).
@@ -346,7 +347,7 @@ export const mkcol = internalMutation({
         args.organizationId,
         parentSegments,
       );
-      if (!found) throw new ConvexError({ code: 'CONFLICT' });
+      if (!found) throw new AppError({ code: 'CONFLICT' });
       parentId = found;
     }
 
@@ -360,7 +361,7 @@ export const mkcol = internalMutation({
       parentId ?? null,
       name,
     );
-    if (existing) throw new ConvexError({ code: 'METHOD_NOT_ALLOWED' });
+    if (existing) throw new AppError({ code: 'METHOD_NOT_ALLOWED' });
 
     const id = await ctx.db.insert('folders', {
       organizationId: args.organizationId,
@@ -408,7 +409,7 @@ export const moveResource = internalMutation({
         args.organizationId,
         destParentSegments,
       );
-      if (!found) throw new ConvexError({ code: 'DEST_PARENT_MISSING' });
+      if (!found) throw new AppError({ code: 'DEST_PARENT_MISSING' });
       destFolderId = found;
     }
 
@@ -425,7 +426,7 @@ export const moveResource = internalMutation({
       collision.kind === args.src.kind &&
       collision.id === args.src.id
     ) {
-      throw new ConvexError({ code: 'SELF_DESTINATION' });
+      throw new AppError({ code: 'SELF_DESTINATION' });
     }
 
     // Folder-into-own-descendant guard. Walk parentId up from the
@@ -435,7 +436,7 @@ export const moveResource = internalMutation({
     }
 
     if (collision && !args.overwrite) {
-      throw new ConvexError({ code: 'DEST_EXISTS' });
+      throw new AppError({ code: 'DEST_EXISTS' });
     }
     if (collision && args.overwrite) {
       // Route through softDeleteDocument / cascadeDeleteFolderRecursive
@@ -456,7 +457,7 @@ export const moveResource = internalMutation({
       const existing = await ctx.db.get(args.src.id);
       // Project-scoped docs are not WebDAV resources (#2545).
       if (!existing || isProjectScopedDocument(existing)) {
-        throw new ConvexError({ code: 'NOT_FOUND' });
+        throw new AppError({ code: 'NOT_FOUND' });
       }
       const newFolderPath = destFolderId
         ? await buildFolderPath(ctx, destFolderId)
@@ -571,7 +572,7 @@ export const copyResource = internalMutation({
         args.organizationId,
         destParentSegments,
       );
-      if (!found) throw new ConvexError({ code: 'DEST_PARENT_MISSING' });
+      if (!found) throw new AppError({ code: 'DEST_PARENT_MISSING' });
       destFolderId = found;
     }
 
@@ -589,14 +590,14 @@ export const copyResource = internalMutation({
       collision.kind === args.src.kind &&
       collision.id === args.src.id
     ) {
-      throw new ConvexError({ code: 'SELF_DESTINATION' });
+      throw new AppError({ code: 'SELF_DESTINATION' });
     }
     if (args.src.kind === 'folder' && destFolderId) {
       await assertNotDescendantOf(ctx, destFolderId, args.src.id);
     }
 
     if (collision && !args.overwrite) {
-      throw new ConvexError({ code: 'DEST_EXISTS' });
+      throw new AppError({ code: 'DEST_EXISTS' });
     }
     if (collision && args.overwrite) {
       if (collision.kind === 'document') {
@@ -614,7 +615,7 @@ export const copyResource = internalMutation({
       const src = await ctx.db.get(args.src.id);
       // Project-scoped docs are not WebDAV resources (#2545).
       if (!src || isProjectScopedDocument(src)) {
-        throw new ConvexError({ code: 'NOT_FOUND' });
+        throw new AppError({ code: 'NOT_FOUND' });
       }
       // Same storageId — Convex _storage is content-hashed, so the
       // destination is just another reference to the same bytes.
@@ -664,7 +665,7 @@ async function softDeleteDocumentInner(
     doc.organizationId !== organizationId ||
     isProjectScopedDocument(doc)
   ) {
-    throw new ConvexError({ code: 'NOT_FOUND' });
+    throw new AppError({ code: 'NOT_FOUND' });
   }
   if ((doc.lifecycleStatus ?? 'active') !== 'active') return;
   // Legal-hold gate: DELETE / MOVE-overwrite / COPY-overwrite all route a
@@ -743,7 +744,7 @@ async function cascadeDeleteFolderRecursive(
     await assertWebdavFolderTreeNotHeld(ctx, organizationId, folderId);
   }
   if (depth > MAX_FOLDER_DEPTH) {
-    throw new ConvexError({ code: 'CONFLICT' });
+    throw new AppError({ code: 'CONFLICT' });
   }
   const children = await ctx.db
     .query('folders')
@@ -802,7 +803,7 @@ async function copyFolderRecursive(
   budget: ReadBudget = newReadBudget(),
 ): Promise<Id<'folders'>> {
   if (depth > MAX_FOLDER_DEPTH) {
-    throw new ConvexError({ code: 'CONFLICT' });
+    throw new AppError({ code: 'CONFLICT' });
   }
   const newFolderId = await ctx.db.insert('folders', {
     organizationId,
@@ -871,7 +872,7 @@ async function assertNotDescendantOf(
   for (let i = 0; i < MAX_FOLDER_DEPTH; i++) {
     if (!cursor) return;
     if (cursor === ancestorId) {
-      throw new ConvexError({ code: 'DEST_IS_DESCENDANT' });
+      throw new AppError({ code: 'DEST_IS_DESCENDANT' });
     }
     const row: { parentId?: Id<'folders'> } | null = await ctx.db.get(cursor);
     if (!row) return;
@@ -879,7 +880,7 @@ async function assertNotDescendantOf(
   }
   // Walked past MAX_FOLDER_DEPTH without resolving — treat as corrupt
   // tree and reject conservatively.
-  throw new ConvexError({ code: 'CONFLICT' });
+  throw new AppError({ code: 'CONFLICT' });
 }
 
 // Wire path used as the lock key — mirrors lockKeyFromParsed in
@@ -943,7 +944,7 @@ async function fixupMovedFolderDescendants(
   }>,
 ): Promise<void> {
   if (depth > MAX_FOLDER_DEPTH) {
-    throw new ConvexError({ code: 'CONFLICT' });
+    throw new AppError({ code: 'CONFLICT' });
   }
   const folderPath = await buildFolderPath(ctx, folderId);
   const docs = await ctx.db

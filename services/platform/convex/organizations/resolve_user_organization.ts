@@ -22,8 +22,9 @@
  *     redirect a write-capable machine key to another tenant.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { isRecord, getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { internalQuery } from '../_generated/server';
@@ -51,7 +52,7 @@ export const resolveUserOrganization = internalQuery({
         ? getString(orgRecord, 'slug')
         : undefined;
       if (!orgId || !canonicalSlug) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'ORG_SLUG_INVALID',
           message: `Organization not found: ${args.orgSlug}`,
         });
@@ -72,7 +73,7 @@ export const resolveUserOrganization = internalQuery({
       const member = memberRes?.page?.[0];
       if (!member || getString(member, 'role') === 'disabled') {
         // Same code resolveRestOrgRole answers with → 403 at the REST boundary.
-        throw new ConvexError({
+        throw new AppError({
           code: 'ORG_FORBIDDEN',
           message: `Not a member of organization ${canonicalSlug}`,
         });
@@ -96,7 +97,7 @@ export const resolveUserOrganization = internalQuery({
     );
 
     if (members.length === 0) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'ORG_FORBIDDEN',
         message: 'User has no organization memberships',
       });
@@ -134,7 +135,7 @@ export const resolveUserOrganization = internalQuery({
         }
       }
       if (!pickedOrgId) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'ORG_SLUG_REQUIRED',
           message:
             'User belongs to multiple organizations. Provide X-Organization-Slug header.',

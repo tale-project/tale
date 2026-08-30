@@ -1,4 +1,3 @@
-import { ConvexError } from 'convex/values';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { normalizeAuthEmail } from '../../../convex/lib/auth/normalize_auth_email.ts';
@@ -8,6 +7,7 @@ import {
   composeDesiredMembers,
   planActivation,
 } from '../../../convex/scim/internal_mutations.ts';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveProvisioning } from '../sso/config.ts';
 
@@ -329,7 +329,7 @@ export async function provisionUser(
         classifyUserOwnership(memberships, args.organizationId) ===
         'owned-elsewhere'
       ) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'scim_user_conflict',
           message: `User ${args.email} belongs to another organization`,
         });

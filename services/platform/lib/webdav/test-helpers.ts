@@ -5,9 +5,9 @@
 
 import type { ConvexHttpClient } from 'convex/browser';
 import { getFunctionName } from 'convex/server';
-import { ConvexError } from 'convex/values';
 import { XMLParser } from 'fast-xml-parser';
 
+import { AppError } from '../shared/errors/app-error';
 import type { WebDAVCtx, WebDAVRequest } from './types';
 
 // Same shape `handler.ts:getHmacSecret()` expects: 32+ chars of hex.
@@ -74,7 +74,7 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
   };
   const mutations: Record<string, StubHandler> = {
     // Failed-auth throttle charge — default to "not rate limited" (null).
-    // Override to throw ConvexError({ code: 'RATE_LIMITED' }) to exercise
+    // Override to throw AppError({ code: 'RATE_LIMITED' }) to exercise
     // the throttled path.
     'webdav/app_password_queries:chargeWebdavAuthFailure': () => null,
     'webdav/app_password_mutations:recordAppPasswordUse': () => null,
@@ -197,7 +197,7 @@ function bytesToHex(bytes: Uint8Array): string {
 
 // Re-export so tests can compare against the same code referenced in
 // move/etc. without re-importing convex/values directly.
-export { ConvexError };
+export { AppError };
 
 // Read a WebDAVResponse body as text. Handlers occasionally return
 // Uint8Array or null; we collapse those for assertion convenience.

@@ -9,7 +9,7 @@
  * Delete in the UI or hitting the public REST API.
  *
  * Contract: callers invoke `assertNotHeld` BEFORE any `ctx.db.delete` or
- * cascade. The helper throws `ConvexError({ code: 'LEGAL_HOLD_ACTIVE' })`
+ * cascade. The helper throws `AppError({ code: 'LEGAL_HOLD_ACTIVE' })`
  * when the entity is held, surfacing both `targetType` and `targetId` so
  * the UI can show the operator which hold blocks the action.
  *
@@ -24,8 +24,7 @@
  * does NOT participate in the hold-matching dispatch any more.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { loadActiveHolds, type ActiveHolds } from './legal_hold';
 
@@ -63,7 +62,7 @@ export async function assertNotHeld(
 ): Promise<void> {
   const holds = preloaded ?? (await loadActiveHolds(ctx, organizationId));
   if (holds.orgHeld) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'LEGAL_HOLD_ACTIVE',
       message:
         'This organization is under an active legal hold. Release the hold before deleting.',
@@ -73,7 +72,7 @@ export async function assertNotHeld(
     });
   }
   if (authorUserId && holds.userMembershipIds.has(authorUserId)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'LEGAL_HOLD_ACTIVE',
       message: `This ${targetType} is owned by a user on a custodian legal hold. Release the user-level hold before deleting.`,
       targetType,

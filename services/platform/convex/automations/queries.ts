@@ -17,8 +17,9 @@
  * another tenant's document.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { DAY_MS, dailyKeys, utcDateKey } from '../../lib/shared/metrics-window';
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
@@ -53,7 +54,7 @@ async function requireMember(
 ): Promise<void> {
   const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'UNAUTHENTICATED',
       message: 'Authentication required.',
     });

@@ -8,7 +8,7 @@
  * the create/edit dialog Zod schemas.
  */
 
-import { ConvexError } from 'convex/values';
+import { AppError } from '../../lib/shared/errors/app-error';
 
 /** Maximum length of a product display name (characters). */
 export const PRODUCT_NAME_MAX = 255;
@@ -39,7 +39,7 @@ function assertMax(
   field: string,
 ): void {
   if (value != null && value.length > max) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'too_long',
       message: `Product ${field} exceeds ${max} characters (got ${value.length}).`,
       userMessage: `Product ${field} exceeds ${max} characters.`,
@@ -48,7 +48,7 @@ function assertMax(
 }
 
 /**
- * Throw a `too_long` ConvexError if any provided product string field exceeds
+ * Throw a `too_long` AppError if any provided product string field exceeds
  * its cap. Only validates fields that are present, so it is safe to call from
  * both create (all fields) and partial-update paths. Per-translation
  * `name`/`description`/`category` reuse the same base-field limits.

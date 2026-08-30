@@ -2,8 +2,7 @@
  * Delete a conversation (business logic)
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { assertNotHeld } from '../governance/legal_hold_guard';
@@ -14,7 +13,7 @@ export async function deleteConversation(
 ): Promise<void> {
   const conversation = await ctx.db.get(conversationId);
   if (!conversation) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_not_found',
       message: 'Conversation not found',
     });

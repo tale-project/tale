@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { normalizeTopicKey } from './constants';
 import {
   findActiveEntryByTopicKey,
@@ -128,14 +128,14 @@ describe('validateTopicAndContent', () => {
     expect(result.content).toBe('Open 9-5');
   });
 
-  // #2000: validation rejects with structured ConvexError codes (not raw
+  // #2000: validation rejects with structured AppError codes (not raw
   // `Error`), so the client receives a readable code instead of an opaque
   // "Server Error".
   function codeOf(fn: () => unknown): string | undefined {
     try {
       fn();
     } catch (err) {
-      if (!(err instanceof ConvexError)) return undefined;
+      if (!(err instanceof AppError)) return undefined;
       const data: unknown = err.data;
       if (typeof data !== 'object' || data === null || !('code' in data)) {
         return undefined;

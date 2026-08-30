@@ -20,9 +20,10 @@
  * custom connectors is filesystem work.
  */
 
-import { ConvexError, v, type Infer } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 
 import { loadConnectorDefinitions } from '../../lib/connectors/catalog';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { api, internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
@@ -325,7 +326,7 @@ export const listProjectCapabilities = action({
       },
     );
     if (!access.allowed) {
-      throw new ConvexError({
+      throw new AppError({
         code:
           access.reason === 'not_found'
             ? 'PROJECT_NOT_FOUND'

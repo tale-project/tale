@@ -17,8 +17,7 @@
  * and `check_unchanged` would skip the retry forever.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -113,7 +112,7 @@ export async function upsertDocumentByExternalId(
     newFolderPath !== undefined &&
     !isPathUnderPrefix(newFolderPath, args.folderPathPrefix)
   ) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'PREFIX_VIOLATION',
       message: `Target folderPath "${newFolderPath}" is outside the sync prefix "${args.folderPathPrefix}".`,
     });

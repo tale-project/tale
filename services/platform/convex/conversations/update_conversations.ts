@@ -2,10 +2,10 @@
  * Update conversations with flexible filtering and updates (business logic)
  */
 
-import { ConvexError } from 'convex/values';
 import merge from 'lodash/merge';
 import set from 'lodash/set';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -44,7 +44,7 @@ export async function updateConversations(
 ): Promise<UpdateConversationsResult> {
   // Validate: must provide either conversationId or organizationId
   if (!args.conversationId && !args.organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_target_required',
       message:
         'Must provide either conversationId or organizationId for safety',
@@ -58,7 +58,7 @@ export async function updateConversations(
     // Update by ID (most common case)
     const conversation = await ctx.db.get(args.conversationId);
     if (!conversation) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'conversation_not_found',
         message: 'Conversation not found',
       });
@@ -73,7 +73,7 @@ export async function updateConversations(
       args.organizationId &&
       conversation.organizationId !== args.organizationId
     ) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'conversation_not_found',
         message: 'Conversation not found',
       });

@@ -1,7 +1,7 @@
 /**
  * Map a thrown error from a legal-hold mutation into operator-facing
- * strings. Uses duck-typing for `BackendError.data` since Vite's chunk
- * splitting can produce multiple `BackendError` class copies which
+ * strings. Uses duck-typing for `AppError.data` since Vite's chunk
+ * splitting can produce multiple `AppError` class copies which
  * breaks `instanceof` (see retention-edit-drawer.tsx for context).
  *
  * Error codes that should appear inline next to a form field (e.g. the

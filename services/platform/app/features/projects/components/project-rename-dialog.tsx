@@ -8,8 +8,8 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useUpdateProjectIdentity } from '../hooks/mutations';
 
@@ -74,7 +74,7 @@ export function ProjectRenameDialog({
       toast({ title: t('create.successToast'), variant: 'success' });
       onOpenChange(false);
     } catch (error) {
-      if (error instanceof BackendError) {
+      if (error instanceof AppError) {
         const code = error.data?.code;
         if (code === 'PROJECT_NAME_INVALID') {
           setError('name', { message: t('errors.PROJECT_NAME_INVALID') });

@@ -5,9 +5,8 @@
  * URL parsing, and CORS handling used across all /api/v1/* REST routes.
  */
 
-import { ConvexError } from 'convex/values';
-
 import { defineAbilityFor } from '../../../lib/permissions/ability';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { components, internal } from '../../_generated/api';
 import { httpAction } from '../../_generated/server';
 import { createAuth } from '../../auth';
@@ -274,7 +273,7 @@ export async function resolveRestOrgRole(rc: RestContext): Promise<string> {
     { userId: rc.user.userId, organizationId: rc.org.organizationId },
   );
   if (role === null || role === 'disabled') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'ORG_FORBIDDEN',
       message: `Not a member of organization "${rc.org.orgSlug}".`,
     });
@@ -302,7 +301,7 @@ export async function restCallerIsOrgAdmin(rc: RestContext): Promise<boolean> {
 export async function requireRestDeveloper(rc: RestContext): Promise<void> {
   const role = await resolveRestOrgRole(rc);
   if (defineAbilityFor(role).cannot('read', 'developerSettings')) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'FORBIDDEN_DEVELOPER_SETTINGS',
       message: `Role "${role}" lacks the developer-settings capability required to perform this action.`,
     });
@@ -614,7 +613,7 @@ export interface RestAuthOptions {
 }
 
 /**
- * The retry-after milliseconds a `RATE_LIMITED` ConvexError carries. Both
+ * The retry-after milliseconds a `RATE_LIMITED` AppError carries. Both
  * producer shapes appear in the codebase: flat `retryAfterMs`
  * (documents/validate_upload.ts) and nested `data.retryAfterMs`
  * (projects/tasks mutations' mapRateLimitError).
@@ -677,13 +676,13 @@ export function withRestAuth(
         requireExplicitOrgSlug: options.requireExplicitOrgSlug,
       });
     } catch (error) {
-      // The resolver refuses with coded ConvexErrors (ORG_SLUG_REQUIRED,
+      // The resolver refuses with coded AppErrors (ORG_SLUG_REQUIRED,
       // ORG_SLUG_INVALID, ORG_FORBIDDEN) whose data survives runQuery — map
       // them like handler errors. Every client-fixable refusal is coded, so
       // anything UNCODED is a server fault: answer 500 with a fixed message
       // rather than leaking the Convex error prelude (function path, request
       // id, stack line) into the body — the details are in the server log.
-      if (error instanceof ConvexError && isPlainObject(error.data)) {
+      if (error instanceof AppError && isPlainObject(error.data)) {
         const code =
           typeof error.data.code === 'string' ? error.data.code : undefined;
         const message =
@@ -704,11 +703,11 @@ export function withRestAuth(
       if (error instanceof BadRequestError) {
         return jsonError(error.message, 400);
       }
-      // Map structured ConvexError codes to proper HTTP statuses so
+      // Map structured AppError codes to proper HTTP statuses so
       // typed errors thrown by mutations (e.g. cross-tenant rejections,
       // legal-hold blocks) surface to REST clients as actionable
       // 4xx responses rather than opaque 500s.
-      if (error instanceof ConvexError) {
+      if (error instanceof AppError) {
         const data = error.data;
         const code =
           typeof data === 'object' &&

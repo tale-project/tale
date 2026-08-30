@@ -23,9 +23,10 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import { defineAbilityFor } from '../../lib/permissions/ability';
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   type FilePolicyType,
   isFilePolicyType,
@@ -124,14 +125,14 @@ export const persistGovernancePolicyFile = internalAction({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     if (!isFilePolicyType(args.policyType)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'validation',
         message: `Unknown governance policy type: ${args.policyType}`,
       });
     }
     const parsed = POLICY_SCHEMAS[args.policyType].safeParse(args.config);
     if (!parsed.success) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'validation',
         message: `Invalid ${args.policyType} configuration: ${parsed.error.message}`,
       });
@@ -167,14 +168,14 @@ export const saveGovernancePolicy = action({
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     if (!isFilePolicyType(args.policyType)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'validation',
         message: `Unknown governance policy type: ${args.policyType}`,
       });
     }
     const policyType = args.policyType;
     if (SPECIAL_WRITE_POLICY_TYPES.has(policyType)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'use_special_action',
         message: `${policyType} has a dedicated write action; do not route it through saveGovernancePolicy.`,
       });
@@ -182,7 +183,7 @@ export const saveGovernancePolicy = action({
 
     const auth = await requireOrgMembershipById(ctx, args.organizationId);
     if (defineAbilityFor(auth.member.role).cannot('write', 'orgSettings')) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'ORG_FORBIDDEN',
         message: `Role "${auth.member.role}" cannot modify governance policies.`,
       });
@@ -191,7 +192,7 @@ export const saveGovernancePolicy = action({
 
     const parsed = POLICY_SCHEMAS[policyType].safeParse(args.config);
     if (!parsed.success) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'validation',
         message: `Invalid ${policyType} configuration: ${parsed.error.message}`,
       });

@@ -1,4 +1,4 @@
-import { ConvexError } from 'convex/values';
+import { AppError } from '../../lib/shared/errors/app-error';
 
 // Convex bounds a single function execution to ~32k documents read / 16 MiB
 // total. The WebDAV recursive subtree walks — cascade DELETE, server-side
@@ -36,6 +36,6 @@ export function budgetTake(budget: ReadBudget): number {
 export function chargeReadBudget(budget: ReadBudget, rowsRead: number): void {
   budget.remaining -= rowsRead;
   if (budget.remaining < 0) {
-    throw new ConvexError({ code: 'SUBTREE_TOO_LARGE' });
+    throw new AppError({ code: 'SUBTREE_TOO_LARGE' });
   }
 }

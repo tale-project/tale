@@ -1,6 +1,5 @@
-import { ConvexError } from 'convex/values';
-
 import { nextConversationLastMessageAt } from '../../lib/shared/conversations/message-order';
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { emitAuditSuccess } from '../audit_logs/emit';
@@ -55,14 +54,14 @@ export async function addMessageToConversation(
 ): Promise<Id<'conversations'>> {
   const parentConversation = await ctx.db.get(args.conversationId);
   if (!parentConversation) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_not_found',
       message: 'Parent conversation not found',
     });
   }
 
   if (parentConversation.organizationId !== args.organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_org_mismatch',
       message: 'Conversation does not belong to organization',
     });

@@ -206,7 +206,7 @@ function ProjectDetailLayout() {
       // sensitive (per the query doc comment). Hide the tab from non-admin
       // readers so they never land on the misleading empty state with a dead
       // Add-secret button; the backend still enforces access by throwing a
-      // structured `BackendError({ code: 'PROJECT_FORBIDDEN' })`.
+      // structured `AppError({ code: 'PROJECT_FORBIDDEN' })`.
       ...(project?.canAdminister
         ? [
             {

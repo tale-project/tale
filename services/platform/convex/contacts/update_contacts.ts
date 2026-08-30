@@ -13,10 +13,10 @@
  * SAFETY: At least one of contactId OR organizationId is required
  */
 
-import { ConvexError } from 'convex/values';
 import merge from 'lodash/merge';
 import set from 'lodash/set';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -74,7 +74,7 @@ export async function updateContacts(
 ): Promise<UpdateContactsResult> {
   // Validate: must provide either contactId or organizationId
   if (!args.contactId && !args.organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'MISSING_FILTER',
       message: 'Must provide either contactId or organizationId for safety',
     });
@@ -87,7 +87,7 @@ export async function updateContacts(
     // Update by ID (most common case)
     const contact = await ctx.db.get(args.contactId);
     if (!contact) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'CONTACT_NOT_FOUND',
         message: `Contact not found: ${args.contactId}`,
       });
@@ -96,7 +96,7 @@ export async function updateContacts(
     // workflow action passes it), the target contact must belong to it.
     // Closes the by-id IDOR; mirrors updateConversations.
     if (args.organizationId && contact.organizationId !== args.organizationId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'CONTACT_NOT_FOUND',
         message: `Contact not found: ${args.contactId}`,
       });

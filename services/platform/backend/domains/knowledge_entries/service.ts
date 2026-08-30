@@ -48,7 +48,7 @@ function validate(
   try {
     return validateTopicAndContent(topic, content);
   } catch (error) {
-    // The reused validator throws ConvexError with {code}; re-shape it.
+    // The reused validator throws AppError with {code}; re-shape it.
     const code =
       error !== null &&
       typeof error === 'object' &&

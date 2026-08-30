@@ -2,8 +2,7 @@
  * Update a document (internal helper)
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -61,7 +60,7 @@ async function applyDocumentUpdate(
   const { documentId, contentHash, deferContentReindex, ...updateData } = args;
   const document = await ctx.db.get(documentId);
   if (!document) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'DOCUMENT_NOT_FOUND',
       message: 'Document not found',
     });
@@ -85,7 +84,7 @@ async function applyDocumentUpdate(
     } else {
       assertRecordContentWritable(document);
       if (document.record === undefined) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'DOCUMENT_NOT_CONTROLLED',
           message: 'This document is not a controlled record.',
         });
@@ -97,7 +96,7 @@ async function applyDocumentUpdate(
   // attachDocumentToProject) — hold the invariant for every caller,
   // including REST and sync paths.
   if (updateData.teamId !== undefined && document.projectId != null) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'DOCUMENT_SCOPE_CONFLICT',
       message:
         'A project document cannot be assigned to a team. Detach it from the project first.',
@@ -107,7 +106,7 @@ async function applyDocumentUpdate(
   if (updateData.folderId) {
     const folder = await ctx.db.get(updateData.folderId);
     if (!folder || folder.organizationId !== document.organizationId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_NOT_FOUND',
         message: 'Folder not found',
       });
@@ -119,14 +118,14 @@ async function applyDocumentUpdate(
     // cannot see project folders.
     if (document.projectId != null) {
       if (folder.projectId !== document.projectId) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'DOCUMENT_SCOPE_CONFLICT',
           message:
             'A project document can only live in a folder of the same project',
         });
       }
     } else if (folder.projectId != null) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_NOT_FOUND',
         message: 'Folder not found',
       });

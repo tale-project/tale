@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { DsarGovernanceConfig } from '../../lib/shared/schemas/governance';
 import { isLoosening } from './dsar_policy';
 
@@ -303,7 +303,7 @@ describe('proposeDsarPolicy', () => {
           dailyLimitPerAdmin: 5,
         },
       }),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
     // No file write or staging for a rejected caller.
     expect(state.runActions).toHaveLength(0);
     expect(state.runMutations).toHaveLength(0);
@@ -429,7 +429,7 @@ describe('proposeDsarPolicy', () => {
           dailyLimitPerAdmin: 5,
         },
       }),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
     expect(state.scheduled).toHaveLength(0);
     expect(state.runActions).toHaveLength(0);
   });
@@ -544,7 +544,7 @@ describe('cancelPendingDsarPolicyChange', () => {
       m.cancelPendingDsarPolicyChange.handler(ctx, {
         organizationId: 'org_A',
       }),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
   });
 
   it('refuses a non-admin, non-owner caller', async () => {
@@ -569,7 +569,7 @@ describe('cancelPendingDsarPolicyChange', () => {
       m.cancelPendingDsarPolicyChange.handler(ctx, {
         organizationId: 'org_A',
       }),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
     expect(state.cancels).toHaveLength(0);
     expect(state.deletes).toHaveLength(0);
   });
@@ -649,7 +649,7 @@ describe('applyPendingDsarPolicyChange', () => {
   });
 });
 
-// #2016: the read gate must throw `ConvexError({ code })` so the client can
+// #2016: the read gate must throw `AppError({ code })` so the client can
 // branch — UNAUTHENTICATED when signed out, FORBIDDEN for a non-admin/owner.
 // Message-only assertions would pass against a raw throw, so assert data.code.
 describe('getDsarPolicyForUi', () => {
@@ -657,7 +657,7 @@ describe('getDsarPolicyForUi', () => {
     vi.clearAllMocks();
   });
 
-  it('throws ConvexError UNAUTHENTICATED when not signed in', async () => {
+  it('throws AppError UNAUTHENTICATED when not signed in', async () => {
     mockGetAuthUser.mockResolvedValue(null);
     const m = await loadDsarPolicy();
     const ctx = createMockCtx(emptyState());
@@ -666,10 +666,10 @@ describe('getDsarPolicyForUi', () => {
     ).rejects.toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
     await expect(
       m.getDsarPolicyForUi.handler(ctx, { organizationId: 'org_A' }),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
   });
 
-  it('throws ConvexError FORBIDDEN for a non-admin/owner member', async () => {
+  it('throws AppError FORBIDDEN for a non-admin/owner member', async () => {
     mockGetAuthUser.mockResolvedValue({
       _id: 'member_user',
       email: 'member@example.com',

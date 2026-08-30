@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { render, waitFor } from '@/tests/utils/render';
 
 import type { KnowledgeEntryItem } from '../hooks/queries';
@@ -38,13 +38,13 @@ beforeEach(() => {
 describe('EditKnowledgeEntryDialog', () => {
   // Regression for #2056: a topic rename that collides with another live entry
   // must surface the duplicate toast. The backend throws
-  // BackendError({ code: 'KNOWLEDGE_ENTRY_DUPLICATE' }); the dialog reads the
+  // AppError({ code: 'KNOWLEDGE_ENTRY_DUPLICATE' }); the dialog reads the
   // code rather than the prod-redacted error message.
   it('surfaces the duplicate toast when the server throws the duplicate code', async () => {
     updateEntryMock.mockImplementation(
       (_args: unknown, opts: { onError: (e: unknown) => void }) => {
         opts.onError(
-          new BackendError({
+          new AppError({
             code: 'KNOWLEDGE_ENTRY_DUPLICATE',
             topic: 'Refunds',
           }),

@@ -1,5 +1,6 @@
-import { ConvexError, v, type Infer } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   jsonValueValidator,
   jsonRecordValidator,
@@ -49,7 +50,7 @@ export const updateDocument = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });
@@ -57,7 +58,7 @@ export const updateDocument = mutation({
 
     const document = await ctx.db.get(args.documentId);
     if (!document) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'DOCUMENT_NOT_FOUND',
         message: 'Document not found',
       });
@@ -83,7 +84,7 @@ export const updateDocument = mutation({
         organizationId: document.organizationId,
       });
       if (!access?.canEdit) {
-        throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+        throw new AppError({ code: 'PROJECT_FORBIDDEN' });
       }
     }
 
@@ -103,7 +104,7 @@ export const deleteDocument = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });
@@ -111,7 +112,7 @@ export const deleteDocument = mutation({
 
     const document = await ctx.db.get(args.documentId);
     if (!document) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'DOCUMENT_NOT_FOUND',
         message: 'Document not found',
       });
@@ -135,7 +136,7 @@ export const deleteDocument = mutation({
         organizationId: document.organizationId,
       });
       if (!access?.canEdit) {
-        throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+        throw new AppError({ code: 'PROJECT_FORBIDDEN' });
       }
     }
 
@@ -251,19 +252,19 @@ export async function createDocumentFromUploadCore(
   const project = args.projectId ? await ctx.db.get(args.projectId) : null;
   if (args.projectId) {
     if (args.teamId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'DOCUMENT_SCOPE_CONFLICT',
         message: 'A project document cannot also carry a team',
       });
     }
     if (!project) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'PROJECT_NOT_FOUND',
         message: 'Project not found',
       });
     }
     if (project.organizationId !== args.organizationId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'ORG_FORBIDDEN',
         message: 'Project belongs to a different organization',
       });
@@ -271,13 +272,13 @@ export async function createDocumentFromUploadCore(
     const teamIds = await getUserTeamIds(ctx, args.userId);
     const access = checkProjectAccess(project, teamIds, member.role);
     if (!access.canRead) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'PROJECT_FORBIDDEN',
         message: 'You do not have access to this project',
       });
     }
     if (!access.canEdit) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'RBAC_FORBIDDEN',
         message: 'You do not have permission to add files to this project',
       });
@@ -294,7 +295,7 @@ export async function createDocumentFromUploadCore(
         folder.organizationId !== args.organizationId ||
         folder.projectId !== args.projectId
       ) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'FOLDER_NOT_FOUND',
           message: 'Folder not found',
         });
@@ -325,7 +326,7 @@ export async function createDocumentFromUploadCore(
       folder.organizationId !== args.organizationId ||
       folder.projectId != null
     ) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_NOT_FOUND',
         message: 'Folder not found',
       });
@@ -333,7 +334,7 @@ export async function createDocumentFromUploadCore(
     if (folder.teamId) {
       const userTeamIds = await getUserTeamIds(ctx, args.userId);
       if (!hasTeamAccess(folder, userTeamIds)) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'FOLDER_NOT_ACCESSIBLE',
           message: 'Folder not accessible',
         });
@@ -454,7 +455,7 @@ export const createDocumentFromUpload = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });

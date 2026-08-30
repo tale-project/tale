@@ -14,22 +14,22 @@
 import { useCallback, useMemo } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import {
   invalidateVoiceMode,
   setThreadVoiceOverrideRequest,
   setUserVoiceOutputRequest,
 } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { useChatQueryClient } from './chat-backend';
 
-/** Prefer the server's own explanation (a BackendError payload message, e.g.
+/** Prefer the server's own explanation (a AppError payload message, e.g.
  * the governance-veto wording) over the generic fallback. */
 function voiceSaveFailedToast(error: unknown, fallbackTitle: string) {
   const serverMessage =
-    error instanceof BackendError && isRecord(error.data)
+    error instanceof AppError && isRecord(error.data)
       ? error.data.message
       : undefined;
   toast({

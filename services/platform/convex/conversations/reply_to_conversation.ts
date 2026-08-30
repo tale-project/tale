@@ -10,8 +10,7 @@
  * to a default provider.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { sendMessageViaConnector } from './send_message_via_connector';
@@ -62,14 +61,14 @@ export async function replyToConversation(
 ): Promise<Id<'conversationMessages'>> {
   const conversation = await ctx.db.get(args.conversationId);
   if (!conversation) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_not_found',
       message: 'Conversation not found',
     });
   }
 
   if (conversation.organizationId !== args.organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_org_mismatch',
       message: 'Conversation does not belong to organization',
     });
@@ -77,7 +76,7 @@ export async function replyToConversation(
 
   const connectorName = conversation.connectorName;
   if (!connectorName) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_connector_missing',
       message:
         'Conversation has no connector to reply through — reply is unavailable until a sync stamps its connectorName',
@@ -90,7 +89,7 @@ export async function replyToConversation(
     : null;
   const recipientEmail = contact?.email;
   if (!recipientEmail || recipientEmail === UNKNOWN_CONTACT_EMAIL) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'customer_email_not_found',
       message: 'Conversation has no contact email to reply to',
     });
@@ -122,7 +121,7 @@ export async function bulkReplyToConversations(
   },
 ): Promise<BulkOperationResult> {
   if (args.conversationIds.length > BULK_REPLY_CAP) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'bulk_reply_too_many',
       message: `Cannot reply to more than ${BULK_REPLY_CAP} conversations at once`,
     });

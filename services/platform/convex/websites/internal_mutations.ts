@@ -1,5 +1,6 @@
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
 import { writeNotificationForOrgs } from '../notifications/helpers';
@@ -23,7 +24,7 @@ import {
 // migration is needed — the guard is a runtime check, not a schema change.
 function assertScanInterval(scanInterval: string): void {
   if (!isValidScanInterval(scanInterval)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'INVALID_SCAN_INTERVAL',
       scanInterval,
       allowed: [...SCAN_INTERVAL_VALUES],

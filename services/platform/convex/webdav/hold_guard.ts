@@ -1,5 +1,4 @@
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { MAX_FOLDER_DEPTH } from '../folders/mutations';
@@ -23,7 +22,7 @@ import {
 // helper in folders/mutations.ts) so it matches the webdav cascade's bounded
 // .collect() recursion + MAX_FOLDER_DEPTH style.
 
-// Single-document gate. Throws ConvexError({code:'LEGAL_HOLD_ACTIVE'}) when the
+// Single-document gate. Throws AppError({code:'LEGAL_HOLD_ACTIVE'}) when the
 // org is held or the document's author is on a custodian hold.
 export async function assertWebdavDocNotHeld(
   ctx: QueryCtx | MutationCtx,
@@ -59,7 +58,7 @@ export async function assertWebdavFolderTreeNotHeld(
     await assertNotHeld(ctx, organizationId, 'folder', folderId, holds);
   }
   if (depth > MAX_FOLDER_DEPTH) {
-    throw new ConvexError({ code: 'CONFLICT' });
+    throw new AppError({ code: 'CONFLICT' });
   }
 
   const childFolders = await ctx.db
@@ -90,7 +89,7 @@ export async function assertWebdavFolderTreeNotHeld(
   for (const d of docs) {
     if ((d.lifecycleStatus ?? 'active') !== 'active') continue;
     if (d.createdBy && holds.userMembershipIds.has(d.createdBy)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'LEGAL_HOLD_ACTIVE',
         message:
           'A document in this folder is owned by a user on a custodian legal hold. Release the user-level hold before deleting.',

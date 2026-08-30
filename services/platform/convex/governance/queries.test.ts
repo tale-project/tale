@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // #2016: the admin/auth gates in governance/queries.ts must throw
-// `ConvexError({ code })` (UNAUTHENTICATED / FORBIDDEN) so the client can
+// `AppError({ code })` (UNAUTHENTICATED / FORBIDDEN) so the client can
 // branch on the structured code — not a raw `Error`. The message-only
 // assertions elsewhere would pass identically against a raw throw, so these
 // tests lock the `data.code` contract on the file named in the issue title.
@@ -61,7 +61,7 @@ vi.mock('convex/values', () => {
       any: stub,
       record: stub,
     },
-    ConvexError: class ConvexError extends Error {
+    AppError: class AppError extends Error {
       data: unknown;
       constructor(data: unknown) {
         super(typeof data === 'string' ? data : JSON.stringify(data));
@@ -132,7 +132,7 @@ describe('governance/queries admin-gate error codes (#2016)', () => {
   });
 
   it.each(ADMIN_GATED)(
-    '$name throws ConvexError UNAUTHENTICATED when not signed in',
+    '$name throws AppError UNAUTHENTICATED when not signed in',
     async ({ name, args }) => {
       const handlers = await importQueries();
       const ctx = createMockCtx(null);
@@ -143,7 +143,7 @@ describe('governance/queries admin-gate error codes (#2016)', () => {
   );
 
   it.each(ADMIN_GATED)(
-    '$name throws ConvexError FORBIDDEN for a non-admin member',
+    '$name throws AppError FORBIDDEN for a non-admin member',
     async ({ name, args }) => {
       mockGetOrganizationMember.mockResolvedValue({ role: 'member' });
       const handlers = await importQueries();

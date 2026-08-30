@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   budgetTake,
   chargeReadBudget,
@@ -26,12 +26,12 @@ describe('webdav bulk read budget', () => {
   });
 
   it('throws SUBTREE_TOO_LARGE once a charge exceeds the budget', () => {
-    expect(() => chargeReadBudget(newReadBudget(5), 6)).toThrow(ConvexError);
+    expect(() => chargeReadBudget(newReadBudget(5), 6)).toThrow(AppError);
     try {
       chargeReadBudget(newReadBudget(5), 6);
       throw new Error('should have thrown');
     } catch (err) {
-      const data = (err as ConvexError<{ code: string }>).data;
+      const data = (err as AppError<{ code: string }>).data;
       expect(data.code).toBe('SUBTREE_TOO_LARGE');
     }
   });

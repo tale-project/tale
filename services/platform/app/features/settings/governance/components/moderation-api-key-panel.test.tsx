@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { BackendError } from '@/app/lib/backend/backend-error';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen } from '@/tests/utils/render';
 
 import { ApiKeyPanel } from './moderation-api-key-panel';
@@ -31,13 +31,13 @@ vi.mock('../hooks/queries', () => ({
 
 describe('ApiKeyPanel', () => {
   // #2669: a save failure used to surface the thrown error's raw `.message`
-  // (a dev-facing `BackendError`/stacktrace string) as the toast title
+  // (a dev-facing `AppError`/stacktrace string) as the toast title
   // instead of routing it through `mapGovernanceSaveError` like the rest of
   // the governance editors.
-  it('surfaces a localized message (not the raw BackendError) when saving the key fails', async () => {
+  it('surfaces a localized message (not the raw AppError) when saving the key fails', async () => {
     toastSpy.mockClear();
     saveMutateAsync.mockRejectedValueOnce(
-      new BackendError({
+      new AppError({
         code: 'ORG_FORBIDDEN',
         message: 'Role "member" cannot modify governance policies.',
       }),
@@ -62,7 +62,7 @@ describe('ApiKeyPanel', () => {
       }),
     );
     const [call] = toastSpy.mock.calls.at(-1) ?? [];
-    expect(call?.title).not.toContain('BackendError');
+    expect(call?.title).not.toContain('AppError');
     expect(call?.title).not.toContain('CONVEX');
   });
 });

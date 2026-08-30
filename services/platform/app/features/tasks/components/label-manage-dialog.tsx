@@ -10,8 +10,8 @@ import { useState } from 'react';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import {
   useCreateTaskLabel,
@@ -77,7 +77,7 @@ export function LabelManageDialog({
   };
 
   const onError = (error: unknown, fallback: string) => {
-    if (error instanceof BackendError) {
+    if (error instanceof AppError) {
       const code = error.data?.code;
       if (typeof code === 'string') {
         toast({

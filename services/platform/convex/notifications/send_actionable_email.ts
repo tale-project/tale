@@ -10,8 +10,7 @@
  * has no usable mailbox — the in-app bell row is already written.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
@@ -33,7 +32,7 @@ export {
 } from './actionable_email_input';
 
 function errorMessage(error: unknown): string {
-  if (error instanceof ConvexError) {
+  if (error instanceof AppError) {
     const data = error.data;
     if (
       isRecord(data) &&

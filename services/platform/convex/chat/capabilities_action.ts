@@ -31,7 +31,7 @@
  * capability of those kinds is honest about what it cannot do.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import {
   CapabilityRegistry,
@@ -46,6 +46,7 @@ import {
   type MemoryStore,
 } from '../../lib/chat';
 import type { KnowledgeCorpus } from '../../lib/knowledge/types';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { automationActionStore } from '../automations/store';
@@ -116,7 +117,7 @@ async function runConnector(
   } catch (error) {
     // The dispatcher raises a coded refusal for a rejected or misconfigured
     // action; surface its message and hint so the model can act on it.
-    if (error instanceof ConvexError) {
+    if (error instanceof AppError) {
       const data: unknown = error.data;
       const reason =
         isRecord(data) && typeof data.message === 'string'
@@ -437,7 +438,7 @@ export const dispatchCapabilityAs = internalAction({
     );
     if (role === null || role === 'disabled') {
       // Same answer for "no such organization" and "not your organization".
-      throw new ConvexError({
+      throw new AppError({
         code: 'ORG_FORBIDDEN',
         message: 'The caller is not a member of this organization.',
       });

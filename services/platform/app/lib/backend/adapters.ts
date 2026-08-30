@@ -8,14 +8,14 @@
  * change. (The chat feature predates this seam and keeps its own table in
  * `app/features/chat/data/chat-backend.ts`.)
  *
- * Errors from the adapted lane are normalized to real `BackendError`s
+ * Errors from the adapted lane are normalized to real `AppError`s
  * (`{ code, message, ...data }`) so every existing consumer — `instanceof`
  * branches, `backendErrorCode`, toast fallbacks — behaves exactly as on 0.4.
  */
 
 import type { QueryClient } from '@tanstack/react-query';
 
-import { BackendError } from '@/app/lib/backend/backend-error';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import {
   accountActionQueryAdapters,
@@ -194,13 +194,13 @@ export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
 
 /**
  * A deterministic backend answer (4xx with a machine code) becomes a REAL
- * `BackendError` carrying `{ code, message, ...data }` — the 0.4 error
+ * `AppError` carrying `{ code, message, ...data }` — the 0.4 error
  * contract. Transport-ish failures (5xx, network) pass through untouched so
  * retry policies still see them as transient.
  */
 export function toBackendError(error: unknown): unknown {
   if (error instanceof BackendApiError && error.status < 500) {
-    return new BackendError({
+    return new AppError({
       ...error.data,
       ...(error.code !== undefined ? { code: error.code } : {}),
       message: error.message,
@@ -223,7 +223,7 @@ export function retryAdaptedRead(
   failureCount: number,
   error: unknown,
 ): boolean {
-  if (error instanceof BackendError) return false;
+  if (error instanceof AppError) return false;
   if (error instanceof BackendApiError && error.status < 500) return false;
   return failureCount < 3;
 }

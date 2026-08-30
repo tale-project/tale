@@ -11,8 +11,8 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
 
@@ -54,7 +54,7 @@ export function TaskDependencies({
 
   const onMutationError = (error: unknown) => {
     if (
-      error instanceof BackendError &&
+      error instanceof AppError &&
       error.data?.code === 'TASK_DEPENDENCY_CYCLE'
     ) {
       toast({ title: t('detail.dependencyCycle'), variant: 'destructive' });

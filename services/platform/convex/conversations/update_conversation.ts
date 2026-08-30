@@ -1,5 +1,4 @@
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { emitAuditSuccess } from '../audit_logs/emit';
@@ -21,7 +20,7 @@ export async function updateConversation(
 ): Promise<void> {
   const conversation = await ctx.db.get(args.conversationId);
   if (!conversation) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_not_found',
       message: 'Conversation not found',
     });

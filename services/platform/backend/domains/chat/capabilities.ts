@@ -95,7 +95,7 @@ async function runConnector(
         : result;
     return { status: 'ok', output };
   } catch (error) {
-    // The dispatcher raises coded refusals (ConvexError-shaped `data`, or
+    // The dispatcher raises coded refusals (AppError-shaped `data`, or
     // the 0.5 domain errors carrying `code`); surface message + hint as
     // data so the caller's model can read and act on them. Anything
     // uncoded is an infrastructure failure and re-throws.

@@ -16,8 +16,9 @@
  * compliance-team UX comes later.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -79,7 +80,7 @@ async function assertMatterRefBelongsToOrg(
     matter = null;
   }
   if (!matter || matter.organizationId !== organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'MATTER_NOT_FOUND',
       message: `matterRef does not point at an existing matter in this organization.`,
       matterRef,
@@ -204,7 +205,7 @@ async function resolveAndAssertTarget(
 ): Promise<{ label: string }> {
   if (targetType === 'org') {
     if (targetId !== organizationId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'TARGET_ORG_MISMATCH',
         message: `org-scoped hold targetId must equal organizationId.`,
       });
@@ -231,7 +232,7 @@ async function resolveAndAssertTarget(
       ],
     });
     if (!result?.page?.length) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'TARGET_NOT_IN_ORG',
         message: `user ${targetId} is not a member of this organization.`,
         targetType,
@@ -266,7 +267,7 @@ export const placeLegalHold = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -293,14 +294,14 @@ export const placeLegalHold = mutation({
         errorMessage: 'caller is not an org admin',
         metadata: { role: member.role },
       });
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Only org admins can place legal holds.',
       });
     }
 
     if (!args.reason.trim()) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'validation',
         message: 'reason is required for legal holds.',
       });
@@ -335,7 +336,7 @@ export const placeLegalHold = mutation({
     if (claim?.activeHoldId !== undefined) {
       const heldRow = await ctx.db.get(claim.activeHoldId);
       if (heldRow && heldRow.releasedAt === undefined) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'LEGAL_HOLD_ALREADY_ACTIVE',
           message: `An active legal hold already exists on ${args.targetType}:${args.targetId}.`,
           existingHoldId: claim.activeHoldId,
@@ -434,7 +435,7 @@ export const requestLegalHoldRelease = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -451,7 +452,7 @@ export const requestLegalHoldRelease = mutation({
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Only org admins can request legal-hold release.',
       });
@@ -460,19 +461,19 @@ export const requestLegalHoldRelease = mutation({
     if (!hold || hold.organizationId !== args.organizationId) {
       // Treat cross-org as "not found" so existence does not leak across
       // tenant boundaries.
-      throw new ConvexError({
+      throw new AppError({
         code: 'not_found',
         message: 'Legal hold does not exist.',
       });
     }
     if (hold.releasedAt !== undefined) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'LEGAL_HOLD_ALREADY_RELEASED',
         message: 'This legal hold has already been released.',
       });
     }
     if (!args.reason.trim()) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'validation',
         message: 'reason is required.',
       });
@@ -493,7 +494,7 @@ export const requestLegalHoldRelease = mutation({
       )
       .first();
     if (existing) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'LEGAL_HOLD_RELEASE_ALREADY_PENDING',
         message:
           'A release request is already pending for this hold. Approve or reject it first.',
@@ -551,7 +552,7 @@ export const approveLegalHoldRelease = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -566,7 +567,7 @@ export const approveLegalHoldRelease = mutation({
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Only org admins can approve legal-hold release.',
       });
@@ -574,13 +575,13 @@ export const approveLegalHoldRelease = mutation({
 
     const request = await ctx.db.get(args.requestId);
     if (!request || request.organizationId !== args.organizationId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'not_found',
         message: 'Release request does not exist.',
       });
     }
     if (request.status !== 'pending') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'LEGAL_HOLD_RELEASE_NOT_PENDING',
         message: `Release request is in '${request.status}' state.`,
       });
@@ -593,7 +594,7 @@ export const approveLegalHoldRelease = mutation({
     if (selfApprove) {
       const escape = process.env[SINGLE_ADMIN_OK_ENV] === 'true';
       if (!escape) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'SELF_APPROVAL_BLOCKED',
           message:
             'A different admin must approve the release. Set ' +
@@ -611,7 +612,7 @@ export const approveLegalHoldRelease = mutation({
       const elapsed = Date.now() - request.requestedAt;
       if (elapsed < RELEASE_APPROVAL_MIN_DELAY_MS) {
         const remainingMs = RELEASE_APPROVAL_MIN_DELAY_MS - elapsed;
-        throw new ConvexError({
+        throw new AppError({
           code: 'APPROVAL_TOO_SOON',
           message: `Approval requires at least ${RELEASE_APPROVAL_MIN_DELAY_MS / 1000 / 60} min after the request. Try again in ${Math.ceil(remainingMs / 1000)}s.`,
           remainingMs,
@@ -628,7 +629,7 @@ export const approveLegalHoldRelease = mutation({
           { userId: request.requestedBy, email: '' },
         );
         if (!isAdmin(requesterMember.role)) {
-          throw new ConvexError({
+          throw new AppError({
             code: 'REQUESTER_NO_LONGER_ADMIN',
             message:
               'The original requester is no longer an admin of this org. ' +
@@ -636,10 +637,10 @@ export const approveLegalHoldRelease = mutation({
           });
         }
       } catch (err) {
-        if (err instanceof ConvexError) throw err;
+        if (err instanceof AppError) throw err;
         // Membership lookup failed (caller removed entirely) — same
         // treatment as demoted.
-        throw new ConvexError({
+        throw new AppError({
           code: 'REQUESTER_NO_LONGER_ADMIN',
           message:
             'The original requester is no longer a member of this org. ' +
@@ -692,7 +693,7 @@ export const rejectLegalHoldRelease = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -705,20 +706,20 @@ export const rejectLegalHoldRelease = mutation({
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Only org admins can reject legal-hold release.',
       });
     }
     const request = await ctx.db.get(args.requestId);
     if (!request || request.organizationId !== args.organizationId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'not_found',
         message: 'Release request does not exist.',
       });
     }
     if (request.status !== 'pending') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'LEGAL_HOLD_RELEASE_NOT_PENDING',
         message: `Release request is in '${request.status}' state.`,
       });
@@ -843,14 +844,14 @@ export const bulkPlaceLegalHold = mutation({
       return { placed: 0, skipped: [] };
     }
     if (args.holds.length > 200) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'BULK_HOLD_TOO_LARGE',
         message: `bulkPlaceLegalHold capped at 200 per call (got ${args.holds.length}).`,
       });
     }
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -861,7 +862,7 @@ export const bulkPlaceLegalHold = mutation({
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Only org admins can place legal holds.',
       });
@@ -914,7 +915,7 @@ export const bulkPlaceLegalHold = mutation({
             targetType: h.targetType,
             targetId: h.targetId,
             reason:
-              err instanceof ConvexError
+              err instanceof AppError
                 ? 'matterRef not found in this organization'
                 : 'matterRef validation failed',
           });
@@ -934,7 +935,7 @@ export const bulkPlaceLegalHold = mutation({
           targetType: h.targetType,
           targetId: h.targetId,
           reason:
-            err instanceof ConvexError
+            err instanceof AppError
               ? `target not in this organization`
               : 'target validation failed',
         });
@@ -1014,7 +1015,7 @@ export const upsertLegalMatter = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -1025,13 +1026,13 @@ export const upsertLegalMatter = mutation({
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Only org admins can manage legal matters.',
       });
     }
     if (!args.name.trim()) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'validation',
         message: 'name is required.',
       });
@@ -1040,7 +1041,7 @@ export const upsertLegalMatter = mutation({
     if (args.matterId) {
       const existing = await ctx.db.get(args.matterId);
       if (!existing || existing.organizationId !== args.organizationId) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'not_found',
           message: 'Matter does not exist.',
         });
@@ -1117,7 +1118,7 @@ export const closeLegalMatter = mutation({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -1125,7 +1126,7 @@ export const closeLegalMatter = mutation({
     const callerId = authUser.userId;
     const matter = await ctx.db.get(args.matterId);
     if (!matter) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'not_found',
         message: 'Matter does not exist.',
       });
@@ -1135,7 +1136,7 @@ export const closeLegalMatter = mutation({
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Only org admins can close legal matters.',
       });

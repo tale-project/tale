@@ -10,7 +10,7 @@
  * There is currently no live caller (the only caller was the moved
  * `agent_tools/documents/` plane, via `documents/internal_actions.ts`'s thin
  * `generateDocument` wrapper), but this stays a throwing stub — the same
- * "offline" `ConvexError` this would raise once the agent-tools plane is
+ * "offline" `AppError` this would raise once the agent-tools plane is
  * rewritten to call it again — rather than a silent success, since callers
  * expect a real generated file back.
  *
@@ -18,8 +18,7 @@
  * `convex/documents/internal_actions.ts`.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { ActionCtx } from '../_generated/server';
 import type { GenerateDocumentArgs, GenerateDocumentResult } from './types';
 
@@ -30,7 +29,7 @@ export async function generateDocument(
   _ctx: ActionCtx,
   _args: GenerateDocumentArgs,
 ): Promise<GenerateDocumentResult> {
-  throw new ConvexError(
+  throw new AppError(
     'Document generation is offline while the platform AI backend is rewritten.',
   );
 }

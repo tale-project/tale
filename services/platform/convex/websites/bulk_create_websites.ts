@@ -2,8 +2,7 @@
  * Bulk create websites
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { MutationCtx } from '../_generated/server';
 import { ensureUrl } from './create_website';
 import type { BulkCreateWebsitesResult, BulkWebsiteData } from './types';
@@ -41,7 +40,7 @@ export async function bulkCreateWebsites(
         .first();
 
       if (existing) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'DUPLICATE_DOMAIN',
           message: `Website with domain ${normalized} already exists`,
         });

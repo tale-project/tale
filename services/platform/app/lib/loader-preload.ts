@@ -2,11 +2,11 @@ import {
   activeOrganizationId,
   READ_ADAPTERS,
 } from '@/app/lib/backend/adapters';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 import type { RouterContext } from '@/app/router';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 type QueryArgs<Name extends QueryName> =
   Record<string, never> extends ArgsOf<Name>
@@ -50,12 +50,12 @@ type GovernancePolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];
 /**
  * A render-gating read can reject during the brief pre-auth window (the Convex
  * client has not attached the auth token yet), which surfaces as an
- * `UNAUTHENTICATED` BackendError. The reactive subscription re-runs the moment
+ * `UNAUTHENTICATED` AppError. The reactive subscription re-runs the moment
  * auth lands, so this case is expected, not a preload failure worth logging —
  * anything else propagates to the caller for diagnostics.
  */
 function isPreAuthError(error: unknown): boolean {
-  if (!(error instanceof BackendError)) return false;
+  if (!(error instanceof AppError)) return false;
   const data: unknown = error.data;
   return (
     typeof data === 'object' &&

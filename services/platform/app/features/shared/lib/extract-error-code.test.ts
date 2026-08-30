@@ -11,7 +11,7 @@ describe('extractErrorCode', () => {
     expect(extractErrorCode(true)).toBeNull();
   });
 
-  it('returns code from BackendError-shaped object', () => {
+  it('returns code from AppError-shaped object', () => {
     const err = { data: { code: 'version_conflict' } };
     expect(extractErrorCode(err)).toBe('version_conflict');
   });
@@ -26,7 +26,7 @@ describe('extractErrorCode', () => {
   });
 
   it('normalizes RateLimitExceededError into rate_limited (Convex-wrapped wire format)', () => {
-    // Convex wraps non-BackendError server throws with "[Request ID: xxx] Server
+    // Convex wraps non-AppError server throws with "[Request ID: xxx] Server
     // Error\nUncaught Error: ..." — the matcher must substring-match.
     const wireFormat = new Error(
       '[Request ID: abc123] Server Error\n' +

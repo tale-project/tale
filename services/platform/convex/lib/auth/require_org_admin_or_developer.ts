@@ -17,9 +17,8 @@
  * and V8 actions.
  */
 
-import { ConvexError } from 'convex/values';
-
 import { defineAbilityFor } from '../../../lib/permissions/ability';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import type { ActionCtx, MutationCtx } from '../../_generated/server';
 import {
   requireOrgMembershipById,
@@ -36,7 +35,7 @@ export async function requireOrgAdminOrDeveloper(
     // Distinct from the inner helper's `ORG_FORBIDDEN` so the UI can
     // distinguish "not a member" from "wrong role" and surface different
     // toasts. The settings/providers dispatcher already maps this code.
-    throw new ConvexError({
+    throw new AppError({
       code: 'FORBIDDEN_DEVELOPER_SETTINGS',
       message: `Role "${auth.member.role}" lacks the developer-settings capability required to perform this action.`,
     });

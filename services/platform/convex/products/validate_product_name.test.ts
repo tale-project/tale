@@ -1,13 +1,13 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   PRODUCT_NAME_MAX_LENGTH,
   validateProductName,
 } from './validate_product_name';
 
 /**
- * Assert that `fn` throws a `ConvexError` whose `data.code` is `'validation'`
+ * Assert that `fn` throws a `AppError` whose `data.code` is `'validation'`
  * (so the REST wrapper maps it to a 400), whose `data.message` matches, and
  * which carries the `userMessage` the toast layer is allowed to render
  * verbatim (see `convexUserMessage`). Asserting `userMessage` here rather than
@@ -25,10 +25,10 @@ function expectValidationError(
   } catch (error) {
     thrown = error;
   }
-  expect(thrown).toBeInstanceOf(ConvexError);
+  expect(thrown).toBeInstanceOf(AppError);
   expect(
     (
-      thrown as ConvexError<{
+      thrown as AppError<{
         code: string;
         message: string;
         userMessage: string;
@@ -43,7 +43,7 @@ describe('validateProductName', () => {
     expect(validateProductName('Widget')).toBe('Widget');
   });
 
-  it('throws a validation ConvexError on an empty name', () => {
+  it('throws a validation AppError on an empty name', () => {
     expectValidationError(
       () => validateProductName(''),
       'Product name is required',
@@ -51,7 +51,7 @@ describe('validateProductName', () => {
     );
   });
 
-  it('throws a validation ConvexError on a whitespace-only name', () => {
+  it('throws a validation AppError on a whitespace-only name', () => {
     expectValidationError(
       () => validateProductName('   '),
       'Product name is required',
@@ -69,7 +69,7 @@ describe('validateProductName', () => {
     expect(validateProductName(name)).toBe(name);
   });
 
-  it('throws a validation ConvexError when the trimmed name exceeds the max length', () => {
+  it('throws a validation AppError when the trimmed name exceeds the max length', () => {
     const name = 'a'.repeat(PRODUCT_NAME_MAX_LENGTH + 1);
     expectValidationError(
       () => validateProductName(name),

@@ -1,4 +1,3 @@
-import { ConvexError } from 'convex/values';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
@@ -21,6 +20,7 @@ import {
   KeyRotatedError,
   type EncryptedSecret,
 } from '../../../convex/lib/secret_box.ts';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { toJson } from '../../db/sql.ts';
 
 /**
@@ -55,10 +55,10 @@ export class ConnectorCredentialError extends Error {
   }
 }
 
-/** The 0.4 modules throw coded ConvexErrors; translate them onto the 0.5
+/** The 0.4 modules throw coded AppErrors; translate them onto the 0.5
  * domain error so the routes' structural mapping serves them. */
-function translateConvexError(error: unknown): never {
-  if (error instanceof ConvexError) {
+function translateAppError(error: unknown): never {
+  if (error instanceof AppError) {
     const data: unknown = error.data;
     if (data !== null && typeof data === 'object' && 'code' in data) {
       const record = data as { code?: unknown; message?: unknown };
@@ -172,7 +172,7 @@ function normalizeEndpointUrl(
     try {
       return normalizeEndpointOrigin(raw);
     } catch (error) {
-      translateConvexError(error);
+      translateAppError(error);
     }
   }
   if (raw !== undefined) {
@@ -499,7 +499,7 @@ export async function createCredential(
       args.secret.username,
     );
   } catch (error) {
-    translateConvexError(error);
+    translateAppError(error);
   }
   const name = normalizeName(args.name);
   const sealed = sealPayload(buildPayload(args.authMethod, args.secret));
@@ -595,7 +595,7 @@ export async function updateCredential(
             args.secret?.username,
           ) ?? null;
       } catch (error) {
-        translateConvexError(error);
+        translateAppError(error);
       }
     }
     if (args.isDefault === true) {

@@ -1,5 +1,6 @@
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { getString, isRecord } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
@@ -241,7 +242,7 @@ export const provisionUser = internalMutation({
         classifyUserOwnership(memberships, args.organizationId) ===
         'owned-elsewhere'
       ) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'scim_user_conflict',
           message: `User ${args.email} belongs to another organization`,
         });

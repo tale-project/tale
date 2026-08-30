@@ -1,4 +1,4 @@
-import { ConvexError } from 'convex/values';
+import { AppError } from '../../lib/shared/errors/app-error';
 
 /**
  * Maximum length of a product name (characters).
@@ -21,24 +21,24 @@ export const PRODUCT_NAME_MAX_LENGTH = 200;
  * This mirrors `validateTopicAndContent` for knowledge entries: trim, reject
  * empty, and cap the length.
  *
- * Throws a `ConvexError` with `code: 'validation'` (rather than a plain
+ * Throws a `AppError` with `code: 'validation'` (rather than a plain
  * `Error`) so the REST wrapper (`withRestAuth`) maps it to an HTTP 400 instead
  * of an opaque 500 — products are REST-exposed, unlike knowledge entries.
  *
  * @returns the trimmed name to persist.
- * @throws {ConvexError} if the name is empty/whitespace-only or exceeds the max length.
+ * @throws {AppError} if the name is empty/whitespace-only or exceeds the max length.
  */
 export function validateProductName(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'validation',
       message: 'Product name is required',
       userMessage: 'Product name is required.',
     });
   }
   if (trimmed.length > PRODUCT_NAME_MAX_LENGTH) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'validation',
       message: `Product name exceeds ${PRODUCT_NAME_MAX_LENGTH} characters`,
       userMessage: `Product name exceeds ${PRODUCT_NAME_MAX_LENGTH} characters.`,

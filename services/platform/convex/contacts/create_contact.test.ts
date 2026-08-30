@@ -25,7 +25,7 @@ for (const [key, loader] of Object.entries(rawModules)) {
 
 const ORG = 'org_contacts_create';
 
-// Read the `{ code }` off a thrown ConvexError. convex-test surfaces the error
+// Read the `{ code }` off a thrown AppError. convex-test surfaces the error
 // `data` as the serialized JSON string (the real Convex client deserializes it
 // to an object), so accept either form.
 function codeOf(err: unknown): string | undefined {
@@ -89,7 +89,7 @@ describe('createContact (#2639 structured create form)', () => {
     expect(row?.locale).toBeUndefined();
   });
 
-  it('throws ConvexError({ code: CONTACT_DUPLICATE_EMAIL }) on a repeat email', async () => {
+  it('throws AppError({ code: CONTACT_DUPLICATE_EMAIL }) on a repeat email', async () => {
     const t = convexTest(schema, modules);
 
     await t.run((ctx) =>

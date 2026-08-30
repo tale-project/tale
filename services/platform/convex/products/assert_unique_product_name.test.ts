@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { assertUniqueProductName } from './assert_unique_product_name';
@@ -76,7 +76,7 @@ describe('assertUniqueProductName', () => {
         'Gadget',
         'p_1' as Id<'products'>,
       ),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
   });
 
   it('skips the scan for an empty/whitespace name', async () => {

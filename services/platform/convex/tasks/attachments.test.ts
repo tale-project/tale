@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { MutationCtx } from '../_generated/server';
 import {
   cleanupRemovedAttachments,
@@ -83,7 +83,7 @@ describe('validateTaskAttachments', () => {
     const many = Array.from({ length: 11 }, (_, i) => img(`s${i}`));
     await expect(
       validateTaskAttachments(ctxWith({}), ORG, many),
-    ).rejects.toThrow(ConvexError);
+    ).rejects.toThrow(AppError);
   });
 
   it('rejects a disallowed MIME type (e.g. video)', async () => {
@@ -92,7 +92,7 @@ describe('validateTaskAttachments', () => {
       validateTaskAttachments(ctx, ORG, [
         { ...img('s1'), fileType: 'video/mp4' },
       ]),
-    ).rejects.toThrow(ConvexError);
+    ).rejects.toThrow(AppError);
   });
 
   it('accepts text-based files the shared picker offers (md/json/yaml/py)', async () => {
@@ -113,14 +113,14 @@ describe('validateTaskAttachments', () => {
   it('rejects a storage id with no fileMetadata row', async () => {
     await expect(
       validateTaskAttachments(ctxWith({}), ORG, [img('ghost')]),
-    ).rejects.toThrow(ConvexError);
+    ).rejects.toThrow(AppError);
   });
 
   it('rejects a file owned by another org (forged storage id)', async () => {
     const ctx = ctxWith({ s1: 'org_other' });
     await expect(
       validateTaskAttachments(ctx, ORG, [img('s1')]),
-    ).rejects.toThrow(ConvexError);
+    ).rejects.toThrow(AppError);
   });
 });
 

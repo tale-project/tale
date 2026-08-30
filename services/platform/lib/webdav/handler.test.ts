@@ -11,7 +11,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { dispatch } from './handler';
 import {
   bodyToText,
-  ConvexError,
+  AppError,
   makeRequest,
   makeStubCtx,
   setupHmacEnv,
@@ -389,7 +389,7 @@ describe('MKCOL', () => {
       },
       mutations: {
         'webdav/tree_mutations:mkcol': () => {
-          throw new ConvexError({ code: 'METHOD_NOT_ALLOWED' });
+          throw new AppError({ code: 'METHOD_NOT_ALLOWED' });
         },
       },
     });
@@ -412,7 +412,7 @@ describe('MKCOL', () => {
       },
       mutations: {
         'webdav/tree_mutations:mkcol': () => {
-          throw new ConvexError({ code: 'CONFLICT' });
+          throw new AppError({ code: 'CONFLICT' });
         },
       },
     });
@@ -680,7 +680,7 @@ describe('MOVE', () => {
       },
       mutations: {
         'webdav/tree_mutations:moveResource': () => {
-          throw new ConvexError({ code: 'CONFLICT' });
+          throw new AppError({ code: 'CONFLICT' });
         },
       },
     });
@@ -737,7 +737,7 @@ describe('MOVE', () => {
         'webdav/tree_mutations:moveResource': () => {
           // Overwrite:F + existing destination throws DEST_EXISTS, which the
           // handler maps to 412 (distinct from a missing-parent 409).
-          throw new ConvexError({ code: 'DEST_EXISTS' });
+          throw new AppError({ code: 'DEST_EXISTS' });
         },
       },
     });
@@ -933,7 +933,7 @@ describe('LOCK', () => {
       },
       mutations: {
         'webdav/lock_mutations:createLock': () => {
-          throw new ConvexError({ code: 'LOCKED' });
+          throw new AppError({ code: 'LOCKED' });
         },
       },
     });
@@ -1027,7 +1027,7 @@ describe('UNLOCK', () => {
     const ctx = makeStubCtx({
       mutations: {
         'webdav/lock_mutations:releaseLock': () => {
-          throw new ConvexError({ code: 'NOT_FOUND' });
+          throw new AppError({ code: 'NOT_FOUND' });
         },
       },
     });
@@ -1047,7 +1047,7 @@ describe('UNLOCK', () => {
     const ctx = makeStubCtx({
       mutations: {
         'webdav/lock_mutations:releaseLock': () => {
-          throw new ConvexError({ code: 'FORBIDDEN' });
+          throw new AppError({ code: 'FORBIDDEN' });
         },
       },
     });
@@ -1273,7 +1273,7 @@ describe('conditional preconditions + conflict mapping (F17 / F19 / F62)', () =>
       },
       mutations: {
         'webdav/tree_mutations:moveResource': () => {
-          throw new ConvexError({ code: 'DEST_PARENT_MISSING' });
+          throw new AppError({ code: 'DEST_PARENT_MISSING' });
         },
       },
     });
@@ -1301,7 +1301,7 @@ describe('conditional preconditions + conflict mapping (F17 / F19 / F62)', () =>
       },
       mutations: {
         'webdav/tree_mutations:moveResource': () => {
-          throw new ConvexError({ code: 'SELF_DESTINATION' });
+          throw new AppError({ code: 'SELF_DESTINATION' });
         },
       },
     });
@@ -1321,7 +1321,7 @@ describe('conditional preconditions + conflict mapping (F17 / F19 / F62)', () =>
     const ctx = makeStubCtx({
       mutations: {
         'webdav/app_password_queries:chargeWebdavAuthFailure': () => {
-          throw new ConvexError({ code: 'RATE_LIMITED' });
+          throw new AppError({ code: 'RATE_LIMITED' });
         },
       },
     });

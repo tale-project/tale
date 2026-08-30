@@ -15,8 +15,7 @@
  * `convex/documents/internal_actions.ts`.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 
@@ -64,7 +63,7 @@ export async function generateDocx(
   _ctx: ActionCtx,
   _args: GenerateDocxArgs,
 ): Promise<GenerateDocxResult> {
-  throw new ConvexError(
+  throw new AppError(
     'DOCX generation is offline while the platform AI backend is rewritten.',
   );
 }

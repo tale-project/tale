@@ -2,8 +2,7 @@
  * Update an existing website
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id, Doc } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { ensureUrl } from './create_website';
@@ -41,7 +40,7 @@ export async function updateWebsite(
   // Get the existing website to check organization
   const existingWebsite = await ctx.db.get(websiteId);
   if (!existingWebsite) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'WEBSITE_NOT_FOUND',
       message: 'Website not found',
     });
@@ -52,7 +51,7 @@ export async function updateWebsite(
     callerOrgId !== undefined &&
     existingWebsite.organizationId !== callerOrgId
   ) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'WEBSITE_NOT_FOUND',
       message: 'Website not found',
     });
@@ -74,7 +73,7 @@ export async function updateWebsite(
         .first();
 
       if (conflictingWebsite && conflictingWebsite._id !== websiteId) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'DUPLICATE_DOMAIN',
           message: `Website with domain ${normalized} already exists`,
         });

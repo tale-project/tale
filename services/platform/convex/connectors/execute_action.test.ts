@@ -12,7 +12,7 @@ import type { Id } from '../_generated/dataModel';
  * The Convex surface is wiring, so this suite proves the wiring: the shipped
  * catalog is assembled, the credential seam is consulted only when a call goes
  * live, every completed invocation lands in the org's audit chain, and a coded
- * refusal crosses the boundary as a coded `ConvexError`.
+ * refusal crosses the boundary as a coded `AppError`.
  *
  * The codegen surface is mocked the way the org-provisioning action suite does
  * it — `internalAction(config)` hands back the config, so the handler is
@@ -278,7 +278,7 @@ describe('runConnectorAction', () => {
     );
   });
 
-  it('surfaces a coded refusal as a ConvexError payload', async () => {
+  it('surfaces a coded refusal as a AppError payload', async () => {
     await expect(
       handler(ctx, {
         organizationId: 'org_1',

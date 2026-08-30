@@ -41,9 +41,9 @@ import {
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { cn } from '@/lib/utils/cn';
 
 import { useAddTaskComment, useUpdateTaskStatus } from '../hooks/mutations';
@@ -301,7 +301,7 @@ export function TaskSubjectPanel({
       // hear the reason, not a generic error.
       const reviewRefusal = reviewPolicyErrorMessage(error, t);
       if (
-        error instanceof BackendError &&
+        error instanceof AppError &&
         error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
       ) {
         toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });

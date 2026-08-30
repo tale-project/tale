@@ -27,8 +27,8 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Label } from '@/app/components/ui/forms/label';
 import { useAbility } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useDeleteAgentSecret, useUpsertAgentSecret } from '../hooks/mutations';
 import type { AgentSecretSummary } from '../hooks/queries';
@@ -121,7 +121,7 @@ export function AgentSecretsField({
       resetForm();
     } catch (error) {
       const message =
-        error instanceof BackendError && typeof error.data?.message === 'string'
+        error instanceof AppError && typeof error.data?.message === 'string'
           ? error.data.message
           : t('agents.secrets.saveError');
       toast({ title: message, variant: 'destructive' });

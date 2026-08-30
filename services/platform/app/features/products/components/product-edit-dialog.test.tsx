@@ -2,11 +2,11 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BackendError } from '@/app/lib/backend/backend-error';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 // Verifies the user-facing half of the duplicate-name fix in the edit flow: a
-// BackendError with code `DUPLICATE_PRODUCT_NAME` surfaces as a field error on
+// AppError with code `DUPLICATE_PRODUCT_NAME` surfaces as a field error on
 // the name input (not a toast). The backend rule itself is covered by
 // `assert_unique_product_name.test.ts`.
 
@@ -70,7 +70,7 @@ describe('ProductEditDialog', () => {
 
   it('sets a name field error when update rejects with DUPLICATE_PRODUCT_NAME', async () => {
     mockMutate.mockImplementation((_args, opts) => {
-      opts.onError(new BackendError({ code: 'DUPLICATE_PRODUCT_NAME' }));
+      opts.onError(new AppError({ code: 'DUPLICATE_PRODUCT_NAME' }));
     });
 
     const { user } = renderDialog();
@@ -98,7 +98,7 @@ describe('ProductEditDialog', () => {
 
   it('keeps the duplicate-name error and typed name across the optimistic update + rollback', async () => {
     mockMutate.mockImplementation((_args, opts) => {
-      opts.onError(new BackendError({ code: 'DUPLICATE_PRODUCT_NAME' }));
+      opts.onError(new AppError({ code: 'DUPLICATE_PRODUCT_NAME' }));
     });
 
     const { user, rerender } = renderDialog();

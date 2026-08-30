@@ -1,4 +1,3 @@
-import { ConvexError } from 'convex/values';
 import type { Sql } from 'postgres';
 
 import { s3GetObjectBytes } from '../../../convex/lib/storage/object_store.ts';
@@ -6,6 +5,7 @@ import {
   WebdavStoreError,
   type WebdavStore,
 } from '../../../lib/connectors/natives/index.ts';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { putOrgBlobBytes } from '../files/service.ts';
@@ -21,7 +21,7 @@ import { webdavHandlers } from './handlers.ts';
  */
 
 function code(error: unknown): string | undefined {
-  if (!(error instanceof ConvexError)) return undefined;
+  if (!(error instanceof AppError)) return undefined;
   const data: unknown = error.data;
   if (data === null || typeof data !== 'object' || !('code' in data)) {
     return undefined;

@@ -26,8 +26,9 @@
  * them; reads live in `queries.ts` under plain org membership.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { internalMutation, mutation } from '../_generated/server';
@@ -44,7 +45,7 @@ const NAME_MAX = 100;
 function normalizeName(raw: string): string {
   const name = raw.trim();
   if (name.length === 0 || name.length > NAME_MAX) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CREDENTIAL_NAME_INVALID',
       message: `Credential name must be 1..${NAME_MAX} characters.`,
       userMessage: `Credential name must be 1–${NAME_MAX} characters.`,
@@ -65,21 +66,21 @@ export function normalizeEndpointOrigin(raw: string): string {
   try {
     url = new URL(value);
   } catch {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
       message: `Endpoint "${value}" is not a URL — enter the API origin, e.g. https://your-site.atlassian.net.`,
       userMessage: `Endpoint "${value}" is not a valid URL — enter the API origin, e.g. https://your-site.atlassian.net.`,
     });
   }
   if (url.protocol !== 'https:') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
       message: `Endpoint "${value}" must use https.`,
       userMessage: `Endpoint "${value}" must use https.`,
     });
   }
   if (url.username !== '' || url.password !== '') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
       message: `Endpoint "${value}" must not embed credentials — store them on the credential itself.`,
       userMessage: `Endpoint "${value}" must not embed credentials — store them on the credential itself.`,
@@ -87,7 +88,7 @@ export function normalizeEndpointOrigin(raw: string): string {
   }
   const hasPath = url.pathname !== '' && url.pathname !== '/';
   if (hasPath || url.search !== '' || url.hash !== '') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
       message: `Endpoint "${value}" must be an origin only — drop everything after the host (e.g. https://${url.host}).`,
       userMessage: `Endpoint "${value}" must be an origin only — drop everything after the host (e.g. https://${url.host}).`,
@@ -120,7 +121,7 @@ function assertNameFree(
     (row) => row._id !== excludeId && row.name.toLowerCase() === needle,
   );
   if (clash) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CREDENTIAL_NAME_TAKEN',
       message: `A credential named "${clash.name}" already exists for this connector — pick a different name.`,
       userMessage: `A credential named "${clash.name}" already exists for this connector — pick a different name.`,
@@ -137,7 +138,7 @@ async function requireOwnRow(
 ): Promise<Doc<'connectorCredentials'>> {
   const row = await ctx.db.get(credentialId);
   if (!row || row.organizationId !== organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CREDENTIAL_NOT_FOUND',
       message: 'Credential not found.',
     });
@@ -385,14 +386,14 @@ export const setDefaultCredential = mutation({
       args.credentialId,
     );
     if (row.status === 'disabled') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'CREDENTIAL_DISABLED',
         message: `Credential "${row.name}" is disabled — enable it before making it the default.`,
         userMessage: `Credential "${row.name}" is disabled — enable it before making it the default.`,
       });
     }
     if (row.status === 'needs-reauth') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'CREDENTIAL_NEEDS_REAUTH',
         message: `Credential "${row.name}" needs to be reconnected before it can be the default.`,
         userMessage: `Credential "${row.name}" needs to be reconnected before it can be the default.`,

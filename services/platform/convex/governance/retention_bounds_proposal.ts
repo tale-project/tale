@@ -23,8 +23,9 @@
  * refetches instead of writing yesterday's proposal over today's edit.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   RETENTION_CATEGORIES,
   type AppliedBoundsByCategory,
@@ -71,7 +72,7 @@ async function loadOrgRetentionConfig(
  *
  * Both failure modes — operator never installed the file, AND env
  * tightening references a category the file doesn't declare — surface
- * as the SAME `ConvexError({code: 'RETENTION_CONFIG_MISSING'})`. Lifting
+ * as the SAME `AppError({code: 'RETENTION_CONFIG_MISSING'})`. Lifting
  * the translation here keeps every caller's body straight-line — the
  * earlier pattern had four duplicated try/catches around this call.
  */
@@ -81,7 +82,7 @@ async function computeEffectiveAppliedBounds(
 ): Promise<AppliedBoundsByCategory> {
   const orgConfig = await loadOrgRetentionConfig(ctx, orgSlug);
   if (!orgConfig) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'RETENTION_CONFIG_MISSING',
       message: `Retention config not yet installed. Copy configs/platform/custom/governance/retention.yml to $TALE_CONFIG_DIR/${orgSlug}/governance/retention.yml then reload.`,
     });
@@ -91,7 +92,7 @@ async function computeEffectiveAppliedBounds(
     all = applyEnvTighteningAll(orgConfig);
   } catch (err) {
     if (err instanceof RetentionConfigMissingError) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'RETENTION_CONFIG_MISSING',
         category: err.category,
         message: err.message,
@@ -330,7 +331,7 @@ export const getPendingBoundsProposal = action({
   handler: async (ctx, args): Promise<PendingBoundsProposal | null> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -347,7 +348,7 @@ export const getPendingBoundsProposal = action({
     // normal page loads (e.g. a fresh org), not an error: there is no
     // proposal to surface until the operator installs the config. Return
     // null (banner stays silent) instead of throwing a
-    // RETENTION_CONFIG_MISSING ConvexError on every load. The write paths
+    // RETENTION_CONFIG_MISSING AppError on every load. The write paths
     // (apply/reject/seed) still throw — you cannot act on bounds that the
     // operator has not installed yet.
     let proposedBounds: AppliedBoundsByCategory;
@@ -355,7 +356,7 @@ export const getPendingBoundsProposal = action({
       proposedBounds = await computeEffectiveAppliedBounds(ctx, orgSlug);
     } catch (err) {
       if (
-        err instanceof ConvexError &&
+        err instanceof AppError &&
         isRecord(err.data) &&
         err.data.code === 'RETENTION_CONFIG_MISSING'
       ) {
@@ -434,7 +435,7 @@ export const applyBoundsProposal = action({
   handler: async (ctx, args): Promise<Id<'retentionAppliedBounds'>> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -449,7 +450,7 @@ export const applyBoundsProposal = action({
       },
     );
     if (!member) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Only admins can apply bound proposals.',
       });
@@ -459,7 +460,7 @@ export const applyBoundsProposal = action({
     const proposedBounds = await computeEffectiveAppliedBounds(ctx, orgSlug);
     const liveHash = await hashAppliedBounds(proposedBounds);
     if (liveHash !== args.proposedHash) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'STALE_PROPOSAL',
         message:
           'Operator config changed while you were reviewing. Refresh the editor to see the new proposal.',
@@ -499,7 +500,7 @@ export const rejectBoundsProposal = action({
   handler: async (ctx, args): Promise<null> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -514,7 +515,7 @@ export const rejectBoundsProposal = action({
       },
     );
     if (!member) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Only admins can reject bound proposals.',
       });
@@ -525,7 +526,7 @@ export const rejectBoundsProposal = action({
       { organizationId: args.organizationId },
     );
     if (!applied) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'no_applied_bounds',
         message:
           'No applied bounds yet — you must Apply once before you can Reject. Save retention policy in the editor or have the operator run the seed migration.',
@@ -536,7 +537,7 @@ export const rejectBoundsProposal = action({
     const proposedBounds = await computeEffectiveAppliedBounds(ctx, orgSlug);
     const liveHash = await hashAppliedBounds(proposedBounds);
     if (liveHash !== args.proposedHash) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'STALE_PROPOSAL',
         message:
           'Operator config changed while you were reviewing. Refresh the editor to see the new proposal.',
@@ -602,7 +603,7 @@ export const seedInitialBoundsInternal = internalAction({
       // (cleanup already skips orgs without applied rows). Other errors
       // are real bugs — propagate.
       if (
-        err instanceof ConvexError &&
+        err instanceof AppError &&
         isRecord(err.data) &&
         err.data.code === 'RETENTION_CONFIG_MISSING'
       ) {

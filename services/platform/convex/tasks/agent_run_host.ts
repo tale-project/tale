@@ -17,10 +17,11 @@
 
 import { randomBytes } from 'node:crypto';
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import { buildStdinUserMessage } from '../../lib/harnesses/parsers/claude-stream-json';
 import { isHarnessSlug } from '../../lib/harnesses/types';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
@@ -1116,7 +1117,7 @@ export async function startTaskAgentTurnImpl(
 /** The `QUOTA_EXCEEDED` shape thrown by the slot reserve and the cap-checked
  * resume — the one start failure that parks instead of failing. */
 function isQuotaExceededError(err: unknown): boolean {
-  if (err instanceof ConvexError) {
+  if (err instanceof AppError) {
     const data: unknown = err.data;
     return (
       typeof data === 'object' &&
@@ -1124,7 +1125,7 @@ function isQuotaExceededError(err: unknown): boolean {
       (data as { code?: unknown }).code === 'QUOTA_EXCEEDED'
     );
   }
-  // A ConvexError thrown inside a sub-mutation reaches the action wrapped as
+  // A AppError thrown inside a sub-mutation reaches the action wrapped as
   // a plain Error whose message carries the payload — match the code there.
   return err instanceof Error && err.message.includes('QUOTA_EXCEEDED');
 }

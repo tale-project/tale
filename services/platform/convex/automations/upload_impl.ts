@@ -10,7 +10,6 @@
  * drift.
  */
 
-import { ConvexError } from 'convex/values';
 import { parse as parseYaml } from 'yaml';
 
 import {
@@ -21,6 +20,7 @@ import { registerConnector } from '../../lib/connectors/registry';
 import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner';
 import { validate } from '../../lib/engine/core/validate';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { MAX_AUTOMATION_BUNDLE_TOTAL_BYTES } from '../../lib/shared/schemas/automations';
 import { readOrgSkill } from '../../lib/skills/listing';
 import {
@@ -103,7 +103,7 @@ export interface UploadHost {
 }
 
 function refuse(code: string, message: string): never {
-  throw new ConvexError({ code, message });
+  throw new AppError({ code, message });
 }
 
 function parseYamlRecord(name: string, text: string): Record<string, unknown> {

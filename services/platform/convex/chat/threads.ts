@@ -19,8 +19,9 @@
  * turns that follow. Other organizations still see nothing.
  */
 
-import { ConvexError, v, type Infer } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import {
@@ -176,7 +177,7 @@ function sanitizeThreadCapabilities(capabilities: {
     capabilities.skills.length > MAX_THREAD_SKILLS ||
     capabilities.connectors.length > MAX_THREAD_CONNECTORS
   ) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'too_many_bindings',
       message: `A conversation may equip at most ${MAX_THREAD_SKILLS} skills and ${MAX_THREAD_CONNECTORS} connectors.`,
     });
@@ -440,7 +441,7 @@ export const setThreadSharedWithProject = mutation({
     if (!thread) return false;
     if (thread.arena !== undefined) return false;
     if (thread.projectId === undefined) {
-      throw new ConvexError({ code: 'THREAD_NOT_IN_PROJECT' });
+      throw new AppError({ code: 'THREAD_NOT_IN_PROJECT' });
     }
 
     await ctx.db.patch(thread._id, { sharedWithProject: args.shared });
@@ -588,7 +589,7 @@ export const createThread = mutation({
     if (args.projectId !== undefined) {
       const normalized = ctx.db.normalizeId('projects', args.projectId);
       if (normalized === null) {
-        throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
+        throw new AppError({ code: 'PROJECT_NOT_FOUND' });
       }
       const access = await ctx.runQuery(
         internal.projects.internal_queries.assertProjectAccessForChat,
@@ -599,7 +600,7 @@ export const createThread = mutation({
         },
       );
       if (!access.allowed) {
-        throw new ConvexError({
+        throw new AppError({
           code:
             access.reason === 'not_found'
               ? 'PROJECT_NOT_FOUND'
@@ -731,7 +732,7 @@ export const moveThreadToProject = mutation({
 
     const normalized = ctx.db.normalizeId('projects', args.projectId);
     if (normalized === null) {
-      throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
+      throw new AppError({ code: 'PROJECT_NOT_FOUND' });
     }
     const access = await ctx.runQuery(
       internal.projects.internal_queries.assertProjectAccessForChat,
@@ -742,7 +743,7 @@ export const moveThreadToProject = mutation({
       },
     );
     if (!access.allowed) {
-      throw new ConvexError({
+      throw new AppError({
         code:
           access.reason === 'not_found'
             ? 'PROJECT_NOT_FOUND'

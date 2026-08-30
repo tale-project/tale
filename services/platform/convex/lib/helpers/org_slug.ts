@@ -7,8 +7,7 @@
  * carry `organizationId`; this helper bridges to the slug.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { getString, isRecord } from '../../../lib/utils/type-utils';
 import { components } from '../../_generated/api';
 import { looksLikeConvexDocumentId } from './id_shape';
@@ -28,7 +27,7 @@ type CtxWithRunQuery = {
  * succeed, so callers (`orgSlugFromIdOrNull`, retry-on-throw layers)
  * should treat this distinctly from transient transport errors.
  *
- * Extends `ConvexError` with `code: 'ORG_NOT_FOUND'` so that when it does
+ * Extends `AppError` with `code: 'ORG_NOT_FOUND'` so that when it does
  * propagate uncaught out of a public function (a stale client whose
  * persisted active org was deleted), the client receives a structured,
  * dispatchable error — the same code `require_org_membership.ts` and the
@@ -37,7 +36,7 @@ type CtxWithRunQuery = {
  * `super()` so server logs keep the human sentence (the wire serializes
  * `data`, not `message`).
  */
-export class OrgSlugUnresolvableError extends ConvexError<{
+export class OrgSlugUnresolvableError extends AppError<{
   code: string;
   message: string;
 }> {

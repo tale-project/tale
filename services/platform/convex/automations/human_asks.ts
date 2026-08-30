@@ -14,8 +14,9 @@
  * proves membership and reads through the run's own organization.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
@@ -51,7 +52,7 @@ const TEXT_MAX = 8_000;
 function cleanText(raw: string, label: string): string {
   const text = raw.trim();
   if (text === '') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'HUMAN_ASK_INVALID',
       message: `${label} must not be empty`,
     });
@@ -375,17 +376,17 @@ export const answerAsk = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new ConvexError({ code: 'UNAUTHORIZED' });
+    if (!authUser) throw new AppError({ code: 'UNAUTHORIZED' });
     await getOrganizationMember(ctx, args.organizationId, authUser);
     const ask = await ctx.db.get(args.askId);
     if (ask === null || ask.organizationId !== args.organizationId) {
-      throw new ConvexError({ code: 'HUMAN_ASK_NOT_FOUND' });
+      throw new AppError({ code: 'HUMAN_ASK_NOT_FOUND' });
     }
     if (ask.status !== 'pending') {
-      throw new ConvexError({ code: 'HUMAN_ASK_NOT_PENDING' });
+      throw new AppError({ code: 'HUMAN_ASK_NOT_PENDING' });
     }
     if (Date.now() > ask.expiresAt) {
-      throw new ConvexError({ code: 'HUMAN_ASK_EXPIRED' });
+      throw new AppError({ code: 'HUMAN_ASK_EXPIRED' });
     }
     const answer = cleanText(args.answer, 'answer');
     await ctx.db.patch(args.askId, {

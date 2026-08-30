@@ -12,8 +12,9 @@
  *    via `buildExternalTurnExec({ extraEnv })`.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import { action, internalAction } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
@@ -38,7 +39,7 @@ export const upsertAgentSecret = action({
 
     const nameCheck = validateAgentSecretName(args.name);
     if (!nameCheck.ok) {
-      throw new ConvexError({ code: 'invalid', message: nameCheck.reason });
+      throw new AppError({ code: 'invalid', message: nameCheck.reason });
     }
     // Trim surrounding whitespace — a pasted token very commonly carries a
     // trailing newline that silently corrupts it (→ 401). Interior whitespace
@@ -46,14 +47,14 @@ export const upsertAgentSecret = action({
     const value = args.value.trim();
     const valueCheck = validateAgentSecretValue(value);
     if (!valueCheck.ok) {
-      throw new ConvexError({ code: 'invalid', message: valueCheck.reason });
+      throw new AppError({ code: 'invalid', message: valueCheck.reason });
     }
     const description = args.description?.trim();
     if (
       description !== undefined &&
       description.length > MAX_AGENT_SECRET_DESCRIPTION_LEN
     ) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'invalid',
         message: `Description exceeds ${MAX_AGENT_SECRET_DESCRIPTION_LEN} characters.`,
       });

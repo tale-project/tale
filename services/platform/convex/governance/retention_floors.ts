@@ -262,7 +262,7 @@ export function isRetentionDisabled(): boolean {
 
 /**
  * Throws if `value` is outside `[boundDef.min, boundDef.max]`. Caller
- * catches and converts to a `ConvexError` with the specific code.
+ * catches and converts to a `AppError` with the specific code.
  */
 export function assertWithinBounds(
   boundDef: EffectiveBoundDef,

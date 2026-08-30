@@ -64,7 +64,7 @@ function whisperSegmentsToParagraphSegments(
 /**
  * The prose inside an error, for a field a person reads.
  *
- * A `ConvexError` carrying a structured payload stringifies its whole payload
+ * A `AppError` carrying a structured payload stringifies its whole payload
  * into `.message`, so the plain `err.message` path stored
  * `{"code":"NO_TRANSCRIPTION_MODEL","message":"No transcription model is
  * configured for this organization."}` — raw JSON — into `transcriptionError`.

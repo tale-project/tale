@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
 import { BackendApiError } from '@/app/lib/backend/api-client';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import {
   cancelVideoLinkRequest,
   ingestVideoUrlRequest,
@@ -14,6 +13,7 @@ import {
   videoJobsUnboundQuery,
 } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { extractVideoUrls } from '@/lib/shared/video-url';
 
 import { useChatQueryClient } from '../data/chat-backend';
@@ -62,11 +62,11 @@ const NON_TERMINAL: ReadonlySet<string> = new Set([
 ]);
 
 /** Structured `code` off a refusal — the 0.5 backend answers coded JSON
- * (`BackendApiError.code`), the legacy path a BackendError `data.code`;
+ * (`BackendApiError.code`), the legacy path a AppError `data.code`;
  * both map 1:1 to `videoLink.errors.*` keys. */
 function backendErrorCode(err: unknown): string | undefined {
   if (err instanceof BackendApiError) return err.code;
-  return err instanceof BackendError &&
+  return err instanceof AppError &&
     typeof err.data === 'object' &&
     err.data !== null &&
     'code' in err.data

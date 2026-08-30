@@ -52,8 +52,8 @@ import { useUploadPolicy } from '@/app/features/settings/governance/hooks/querie
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   resolveFileType,
@@ -543,7 +543,7 @@ export function ProjectFilesTab({
         if (cached === DUPLICATE_PATH) {
           // This exact path already failed on a duplicate name this batch —
           // fail its remaining files without re-hitting the server per file.
-          throw new BackendError({ code: 'FOLDER_DUPLICATE_NAME' });
+          throw new AppError({ code: 'FOLDER_DUPLICATE_NAME' });
         }
         if (cached !== undefined) {
           parentId = cached;
@@ -568,7 +568,7 @@ export function ProjectFilesTab({
             // already owns this name server-side — poison the path so the
             // batch reports it once, then rethrow for the per-file handler.
             if (
-              error instanceof BackendError &&
+              error instanceof AppError &&
               error.data?.code === 'FOLDER_DUPLICATE_NAME'
             ) {
               cache.set(key, DUPLICATE_PATH);
@@ -647,7 +647,7 @@ export function ProjectFilesTab({
           okCount++;
         } catch (error) {
           console.error('project file upload failed', file.name, error);
-          if (error instanceof BackendError) {
+          if (error instanceof AppError) {
             const code = error.data?.code;
             if (
               code === 'DOCUMENT_SCOPE_CONFLICT' ||
@@ -742,7 +742,7 @@ export function ProjectFilesTab({
         await detachDocument({ documentId, destination: 'organization' });
         toast({ title: t('files.detachSuccess'), variant: 'success' });
       } catch (error) {
-        if (error instanceof BackendError) {
+        if (error instanceof AppError) {
           const code = error.data?.code;
           if (code === 'PROJECT_FORBIDDEN' || code === 'RBAC_FORBIDDEN') {
             toast({
@@ -772,8 +772,7 @@ export function ProjectFilesTab({
         });
       } catch (error) {
         console.error('deleteFolder failed', error);
-        const code =
-          error instanceof BackendError ? error.data?.code : undefined;
+        const code = error instanceof AppError ? error.data?.code : undefined;
         toast({
           title:
             code === 'LEGAL_HOLD_ACTIVE'

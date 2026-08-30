@@ -425,7 +425,7 @@ export type RetentionPolicyConfig = z.infer<typeof retentionPolicyConfigSchema>;
  * Server floor for `maxContextTokens` below. Exported so the feature-flags
  * editor can enforce the identical floor client-side (#2660) — without it, a
  * sub-floor value optimistically renders as a saved rule, the server rejects
- * it with an uncaught `ConvexError`, and nothing actually persists.
+ * it with an uncaught `AppError`, and nothing actually persists.
  */
 export const MIN_MAX_CONTEXT_TOKENS = 4096;
 

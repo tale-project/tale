@@ -1,5 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+import { AppError } from '../../lib/shared/errors/app-error';
 
 // Regression coverage for #2044: `saveGovernancePolicy` is a WRITE action and
 // must gate on the `write orgSettings` capability. Only owner/admin hold it;
@@ -65,10 +66,10 @@ function mockMember(role: string): void {
 }
 
 function errorCode(err: unknown): string | undefined {
-  if (err instanceof ConvexError) {
+  if (err instanceof AppError) {
     const data = err.data;
     if (typeof data === 'object' && data !== null && 'code' in data) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError data shape is { code, message }
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- AppError data shape is { code, message }
       return (data as { code?: string }).code;
     }
   }
@@ -101,7 +102,7 @@ describe('saveGovernancePolicy authorization (#2044)', () => {
         () => null,
         (e: unknown) => e,
       );
-      expect(err).toBeInstanceOf(ConvexError);
+      expect(err).toBeInstanceOf(AppError);
       expect(errorCode(err)).toBe('ORG_FORBIDDEN');
     },
   );

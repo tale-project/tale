@@ -5,9 +5,9 @@
 // away.
 
 import { convexTest, type TestConvex } from 'convex-test';
-import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import schema from '../schema';
 import { isWaitFifoError, WAIT_FIFO_CODE } from './admission';
@@ -314,7 +314,7 @@ describe('atomic reserve + claim', () => {
     }
     await poll(t, 'owner_a');
     await expect(reserve(t, 'owner_a')).rejects.toThrow(
-      // ConvexError message carries the WAIT_FIFO copy.
+      // AppError message carries the WAIT_FIFO copy.
       /waiting|slot open yet/i,
     );
     // The waiter's ticket stays WAITING (never claimed) so it keeps its place.
@@ -324,19 +324,17 @@ describe('atomic reserve + claim', () => {
 });
 
 describe('isWaitFifoError (the park-vs-fail discriminator)', () => {
-  // The reserve mutations raise a ConvexError({ code: WAIT_FIFO }); callers use
+  // The reserve mutations raise a AppError({ code: WAIT_FIFO }); callers use
   // this predicate to PARK (re-enter) rather than fail. (convex-test drops
-  // ConvexError.data across a t.mutation rejection, so this exercises the
+  // AppError.data across a t.mutation rejection, so this exercises the
   // detector directly — the same .data.code mechanism the QUOTA_EXCEEDED path
   // already relies on in production.)
-  it('matches a WAIT_FIFO ConvexError and nothing else', () => {
-    expect(isWaitFifoError(new ConvexError({ code: WAIT_FIFO_CODE }))).toBe(
-      true,
-    );
-    expect(isWaitFifoError(new ConvexError({ code: 'QUOTA_EXCEEDED' }))).toBe(
+  it('matches a WAIT_FIFO AppError and nothing else', () => {
+    expect(isWaitFifoError(new AppError({ code: WAIT_FIFO_CODE }))).toBe(true);
+    expect(isWaitFifoError(new AppError({ code: 'QUOTA_EXCEEDED' }))).toBe(
       false,
     );
-    expect(isWaitFifoError(new ConvexError('plain string'))).toBe(false);
+    expect(isWaitFifoError(new AppError('plain string'))).toBe(false);
     expect(isWaitFifoError(new Error('boom'))).toBe(false);
     expect(isWaitFifoError(undefined)).toBe(false);
   });

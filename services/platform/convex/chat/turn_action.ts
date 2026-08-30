@@ -26,7 +26,7 @@
  * where a silent empty turn is not.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import { CHAT_ASSISTANT } from '../../lib/chat/assistant';
 import {
@@ -65,6 +65,7 @@ import {
   classifyChatErrorCode,
   encodeChatError,
 } from '../../lib/shared/chat-errors';
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   CHAT_MAX_FILE_COUNT,
   CHAT_UPLOAD_ALLOWED_TYPES,
@@ -149,7 +150,7 @@ async function resolveModel(
     const entry = catalog.find((candidate) => candidate.id === modelId);
     if (entry) return { entry, connector };
   }
-  throw new ConvexError({
+  throw new AppError({
     code: 'CHAT_MODEL_UNKNOWN',
     message: `No model "${modelId}" is available in this organization. Pick a model the organization has configured.`,
   });
@@ -179,14 +180,14 @@ async function resolveDirectWire(
     providerSlug: connector.name,
   });
   if (credential.authMethod !== 'api-key' && credential.authMethod !== 'env') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CHAT_CREDENTIAL_UNSUPPORTED',
       message: `The default "${connector.name}" credential is a ${credential.authMethod} credential, which is bound to a vendor harness and only runs in a sandbox. Configure an API-key or environment-variable credential to chat with this model directly.`,
     });
   }
   const baseUrl = credential.endpointUrl ?? connector.baseUrl;
   if (!baseUrl) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CHAT_PROVIDER_ENDPOINT_MISSING',
       message: `Provider "${connector.name}" has no API endpoint configured.`,
     });
@@ -599,7 +600,7 @@ export function createDirectModelCall(
     request,
   ): AsyncGenerator<ModelStreamChunk> {
     if (request.execution.mode !== 'direct') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'CHAT_EXECUTION_UNAVAILABLE',
         message:
           'Sandbox execution is not available for chat turns yet — only direct model calls run here.',
@@ -1666,7 +1667,7 @@ export const startTurnForApiKey = internalAction({
       });
     } catch (error) {
       const reason =
-        error instanceof ConvexError && typeof error.data === 'object'
+        error instanceof AppError && typeof error.data === 'object'
           ? (readErrorMessage(error.data) ?? error.message)
           : error instanceof Error
             ? error.message
@@ -1691,7 +1692,7 @@ export const startTurnForApiKey = internalAction({
   },
 });
 
-/** The `message` a coded ConvexError carries, when it carries one. */
+/** The `message` a coded AppError carries, when it carries one. */
 function readErrorMessage(data: unknown): string | undefined {
   return isRecord(data) && typeof data.message === 'string'
     ? data.message

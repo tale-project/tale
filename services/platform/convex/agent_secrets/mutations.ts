@@ -4,8 +4,9 @@
  * envelope; the public delete is a plain V8 mutation (no crypto needed).
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internalMutation, mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { encryptedSecretValidator } from '../connector_credentials/schema';
@@ -69,7 +70,7 @@ export const upsertAgentSecretInternal = internalMutation({
           .collect()
       ).length;
       if (count >= MAX_AGENT_SECRETS_PER_ORG) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'AGENT_SECRET_LIMIT',
           message: `An organization may store at most ${MAX_AGENT_SECRETS_PER_ORG} agent secrets.`,
         });
@@ -128,7 +129,7 @@ export const deleteAgentSecret = mutation({
       )
       .first();
     if (existing === null) {
-      throw new ConvexError({ code: 'AGENT_SECRET_NOT_FOUND' });
+      throw new AppError({ code: 'AGENT_SECRET_NOT_FOUND' });
     }
     await ctx.db.delete(existing._id);
     await createAuditLog(ctx, {

@@ -20,12 +20,13 @@
  * identity.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import {
   classifyChatErrorCode,
   decodeChatError,
 } from '../../lib/shared/chat-errors';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { DAY_MS, dailyKeys, utcDateKey } from '../../lib/shared/metrics-window';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
@@ -781,7 +782,7 @@ export const reportPerceivedWait = mutation({
     const messageId = ctx.db.normalizeId('messages', args.messageId);
     const message = messageId ? await ctx.db.get(messageId) : null;
     if (!message || message.role !== 'assistant') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'not_found',
         message: 'Only an assistant reply of this conversation can be timed.',
       });
@@ -793,7 +794,7 @@ export const reportPerceivedWait = mutation({
     const threadId = ctx.db.normalizeId('threads', message.threadId);
     const thread = threadId ? await ctx.db.get(threadId) : null;
     if (!thread || thread.userId !== authUser.userId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'not_found',
         message: 'This conversation does not exist.',
       });

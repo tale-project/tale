@@ -1,8 +1,8 @@
 /**
  * Map a thrown error from a data-subject-requests mutation into
  * operator-facing strings. Mirrors the legal-hold pattern (duck-type
- * `BackendError.data` because Vite chunk-splitting can produce multiple
- * `BackendError` class copies that break `instanceof`).
+ * `AppError.data` because Vite chunk-splitting can produce multiple
+ * `AppError` class copies that break `instanceof`).
  *
  * `LEGAL_HOLD_BLOCKS_ERASURE` does NOT toast — the file-request dialog
  * renders an inline panel showing the held thread / document ids so the

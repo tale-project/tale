@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { updateProducts } from './update_products';
@@ -97,7 +97,7 @@ describe('updateProducts — name uniqueness on the non-UI path', () => {
         organizationId: 'org_1',
         updates: { name: 'Merged' },
       }),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
 
     expect(patch).not.toHaveBeenCalled();
   });

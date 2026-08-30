@@ -1,5 +1,4 @@
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
@@ -30,7 +29,7 @@ export async function applyConversationAssignment(
       },
     );
     if (role === null) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'user_not_in_org',
         message: 'Assignee is not a member of this organization',
       });
@@ -42,7 +41,7 @@ export async function applyConversationAssignment(
       { teamId: next.assigneeTeamId },
     );
     if (teamOrgId !== conversation.organizationId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'team_not_in_org',
         message: 'Team does not belong to this organization',
       });

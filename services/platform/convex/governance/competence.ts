@@ -13,8 +13,9 @@
  * trail keeps pointing at the record that justified it.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Doc } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { mutation, query } from '../_generated/server';
@@ -91,7 +92,7 @@ async function requireAdminForWrite(
 ): Promise<{ userId: string; email: string }> {
   const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'unauthenticated',
       message: 'Sign in required.',
     });
@@ -119,7 +120,7 @@ async function requireAdminForWrite(
       errorMessage: 'caller is not an org admin',
       metadata: { role: member.role },
     });
-    throw new ConvexError({
+    throw new AppError({
       code: 'forbidden',
       message: 'Only org admins can manage competence records.',
     });
@@ -154,27 +155,27 @@ export const grantCompetence = mutation({
     );
 
     if (competence.length === 0 || competence.length > COMPETENCE_SLUG_MAX) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'COMPETENCE_INVALID',
         message: `competence must be 1..${COMPETENCE_SLUG_MAX} characters`,
       });
     }
     if (args.userId.trim().length === 0) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'COMPETENCE_USER_REQUIRED',
         message: 'the grant must name the member who holds the competence',
       });
     }
     const now = Date.now();
     if (args.expiresAt !== undefined && args.expiresAt <= now) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'COMPETENCE_EXPIRY_IN_PAST',
         message: 'expiresAt must be in the future (or absent for no expiry)',
       });
     }
     const evidence = args.evidence?.trim();
     if (evidence !== undefined && evidence.length > COMPETENCE_EVIDENCE_MAX) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'COMPETENCE_EVIDENCE_TOO_LONG',
         message: `evidence must be at most ${COMPETENCE_EVIDENCE_MAX} characters`,
       });
@@ -190,7 +191,7 @@ export const grantCompetence = mutation({
       args.userId,
     );
     if (holder === null) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'COMPETENCE_USER_NOT_MEMBER',
         message: 'the named user is not a member of this organization',
       });
@@ -207,7 +208,7 @@ export const grantCompetence = mutation({
         row.competence === competence && isCompetenceRecordActive(row, now),
     );
     if (duplicate !== undefined) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'COMPETENCE_ALREADY_GRANTED',
         message:
           'this member already holds an active grant of this competence — revoke it first to re-grant',
@@ -270,13 +271,13 @@ export const revokeCompetence = mutation({
 
     const record = await ctx.db.get(args.recordId);
     if (!record || record.organizationId !== args.organizationId) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'COMPETENCE_NOT_FOUND',
         message: 'no such competence record in this organization',
       });
     }
     if (record.revokedAt !== undefined) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'COMPETENCE_ALREADY_REVOKED',
         message: 'this competence record is already revoked',
       });
@@ -342,7 +343,7 @@ export const listOrgCompetences = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -352,7 +353,7 @@ export const listOrgCompetences = query({
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Only org admins can list competence records.',
       });
@@ -377,7 +378,7 @@ export const listUserCompetences = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -387,7 +388,7 @@ export const listUserCompetences = query({
       email: authUser.email ?? '',
     });
     if (authUser.userId !== args.userId && !isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: "Only org admins can list another member's competences.",
       });

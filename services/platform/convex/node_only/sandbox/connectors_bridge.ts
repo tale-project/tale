@@ -19,12 +19,13 @@
  * `'use node'` because the shipped connector catalog is filesystem work.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import {
   findConnector,
   loadConnectorDefinitions,
 } from '../../../lib/connectors/catalog';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { internal } from '../../_generated/api';
 import { internalAction } from '../../_generated/server';
 
@@ -204,10 +205,10 @@ export async function runBridgeConnectorImpl(
       isRecord(result) && 'output' in result ? result.output : result;
     return { status: 'ok', output };
   } catch (error) {
-    // The dispatcher refuses with a coded ConvexError (no credential,
+    // The dispatcher refuses with a coded AppError (no credential,
     // schema mismatch, vendor failure) — surface its message and hint so
     // the agent can relay something actionable.
-    if (error instanceof ConvexError) {
+    if (error instanceof AppError) {
       const data: unknown = error.data;
       const message =
         isRecord(data) && typeof data.message === 'string'

@@ -3,7 +3,7 @@
  *
  * Convex composes every client-visible failure as
  * `[CONVEX A(agents/actions:listAgents)] [Request ID: 018f2a…] Server Error
- *  Uncaught BackendError: …` — and the convex client also `console.error`s the
+ *  Uncaught AppError: …` — and the convex client also `console.error`s the
  * same line, which `captureConsoleIntegration` promotes to a message event.
  * Sentry groups message events by their text, so the per-call request id
  * defeats grouping and every occurrence opens a NEW issue (observed as ~40

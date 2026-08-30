@@ -1,9 +1,9 @@
 // @vitest-environment node
 
-import { ConvexError } from 'convex/values';
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   MAX_SKILL_BUNDLE_FILE_BYTES,
   MAX_SKILL_BUNDLE_FILES,
@@ -31,7 +31,7 @@ async function zipOf(files: Record<string, string | Buffer>): Promise<Buffer> {
 }
 
 function codeOf(err: unknown): string | undefined {
-  if (err instanceof ConvexError) {
+  if (err instanceof AppError) {
     const data: unknown = err.data;
     if (typeof data === 'object' && data !== null && 'code' in data) {
       return String(data.code);

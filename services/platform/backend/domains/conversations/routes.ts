@@ -1,8 +1,8 @@
-import { ConvexError } from 'convex/values';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
@@ -46,8 +46,8 @@ function handleError<E extends OrgEnv>(
   if (error instanceof ConversationError) {
     return c.json({ error: error.code, message: error.message }, error.status);
   }
-  // The reused attachment-cap validator refuses with coded ConvexErrors.
-  if (error instanceof ConvexError) {
+  // The reused attachment-cap validator refuses with coded AppErrors.
+  if (error instanceof AppError) {
     const data: unknown = error.data;
     if (data !== null && typeof data === 'object' && 'code' in data) {
       const code = Reflect.get(data, 'code');

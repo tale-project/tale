@@ -1,9 +1,9 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
-import { ConvexError } from 'convex/values';
 import type { Sql } from 'postgres';
 
 import { readSkillBundleForViewer } from '../../../convex/skills/file_actions.ts';
 import { isAutoRetryableFailure } from '../../../convex/tasks/task_auto_retry.ts';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers } from '../../lib/convex-shim.ts';
@@ -26,7 +26,7 @@ import {
  * (`convex/tasks/agent_run_host.ts` — start/drive/settle) — everything the
  * sandbox tool shim already answers plus the run-ledger contract, the
  * durable op-row upserts, the trusted task writers, and the session slot
- * verbs. Quota throws are re-shaped into the `ConvexError QUOTA_EXCEEDED`
+ * verbs. Quota throws are re-shaped into the `AppError QUOTA_EXCEEDED`
  * the host's park branch matches on — that mapping is what makes
  * capacity parking work at all.
  *
@@ -35,9 +35,9 @@ import {
  * block below for what each guarantees.
  */
 
-function quotaAsConvexError(error: unknown): never {
+function quotaAsAppError(error: unknown): never {
   if (error instanceof SandboxQuotaError || error instanceof WaitFifoError) {
-    throw new ConvexError({ code: 'QUOTA_EXCEEDED', message: error.message });
+    throw new AppError({ code: 'QUOTA_EXCEEDED', message: error.message });
   }
   throw error;
 }
@@ -638,7 +638,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       try {
         return await reserveSessionSlot(sql, args);
       } catch (error) {
-        return quotaAsConvexError(error);
+        return quotaAsAppError(error);
       }
     },
 
@@ -662,7 +662,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       try {
         return await resumeSessionSlot(sql, args);
       } catch (error) {
-        return quotaAsConvexError(error);
+        return quotaAsAppError(error);
       }
     },
 

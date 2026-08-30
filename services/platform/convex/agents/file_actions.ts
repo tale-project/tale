@@ -15,7 +15,7 @@
  * out of another's.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import {
   canEditAgent,
@@ -31,6 +31,7 @@ import {
   serializeAgentYaml,
 } from '../../lib/agents/parse';
 import { resolveAgentForTurn } from '../../lib/agents/resolve';
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   isValidAgentSlug,
   type AgentDefinition,
@@ -102,7 +103,7 @@ function toDocument(agent: OrgAgent, viewer: AgentViewer): AgentDocumentView {
 
 function assertValidSlug(slug: string): void {
   if (!isValidAgentSlug(slug)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'INVALID_AGENT_SLUG',
       message: `"${slug}" is not a valid agent slug — use lowercase letters, digits and single hyphens or underscores.`,
     });
@@ -249,7 +250,7 @@ export async function saveAgentForCaller(
   const existing = await loadAgentOrThrow(args.orgSlug, args.slug);
 
   if (existing !== null && !canEditAgent(existing.definition, viewer)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AGENT_FORBIDDEN',
       message: `You cannot edit the agent "${args.slug}".`,
     });
@@ -299,7 +300,7 @@ export async function saveAgentForCaller(
     );
   } catch (err) {
     if (err instanceof AgentParseError) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'INVALID_AGENT',
         message: `The agent could not be saved: ${err.detail}`,
       });
@@ -369,7 +370,7 @@ export async function restoreFromHistoryForCaller(
   const viewer = viewerFrom(args);
   const existing = await loadAgentOrThrow(args.orgSlug, args.slug);
   if (existing === null || !canEditAgent(existing.definition, viewer)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AGENT_FORBIDDEN',
       message: `You cannot restore the agent "${args.slug}".`,
     });
@@ -381,7 +382,7 @@ export async function restoreFromHistoryForCaller(
     args.entry,
   );
   if (content === null) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AGENT_HISTORY_ENTRY_NOT_FOUND',
       message: `History entry "${args.entry}" no longer exists for "${args.slug}".`,
     });
@@ -395,7 +396,7 @@ export async function restoreFromHistoryForCaller(
     );
   } catch (err) {
     if (err instanceof AgentParseError) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'INVALID_AGENT',
         message: `The snapshot could not be restored: ${err.detail}`,
       });
@@ -435,7 +436,7 @@ export async function deleteAgentForCaller(
   const existing = await loadAgentOrThrow(args.orgSlug, args.slug);
   if (existing === null) return false;
   if (!canEditAgent(existing.definition, viewer)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'AGENT_FORBIDDEN',
       message: `You cannot delete the agent "${args.slug}".`,
     });
@@ -450,7 +451,7 @@ export const deleteAgent = internalAction({
 });
 
 /**
- * Read one agent, turning a malformed file into a ConvexError that names the
+ * Read one agent, turning a malformed file into a AppError that names the
  * org-relative path. The caller sees which file to fix rather than an agent
  * that silently is not there.
  */
@@ -465,7 +466,7 @@ async function loadAgentOrThrow(
       console.error(`[agents] ${orgSlug}: ${err.message}`);
       // The client gets the org-relative path; the absolute one stays in the
       // server log where the operator reads it.
-      throw new ConvexError({
+      throw new AppError({
         code: 'AGENT_MALFORMED',
         message: `${relativeAgentPath(slug)} could not be read: ${err.detail}`,
       });

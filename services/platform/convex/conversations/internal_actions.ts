@@ -1,7 +1,8 @@
 'use node';
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { backendErrorCode } from '../../lib/utils/backend-error';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
@@ -17,7 +18,7 @@ import {
 const DELIVERY_CHECK_DELAY_MS = 60_000;
 
 function errorMessage(error: unknown): string {
-  if (error instanceof ConvexError) {
+  if (error instanceof AppError) {
     const data = error.data;
     if (
       isRecord(data) &&

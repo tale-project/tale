@@ -29,7 +29,7 @@
  *    attachment actions say so, rather than silently dropping bytes.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import {
   executeConnectorAction,
@@ -55,6 +55,7 @@ import {
   type CodeRunner,
 } from '../../lib/engine/core/runner';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { backendErrorCode } from '../../lib/utils/backend-error';
 import { lockKeyFromParsed } from '../../lib/webdav/paths';
 import { internal } from '../_generated/api';
@@ -385,7 +386,7 @@ function approvalGate(ctx: ActionCtx): ApprovalGate {
       if (decision.decision === 'needs-approval') {
         return { status: 'required', approvalId: decision.approvalId };
       }
-      throw new ConvexError({
+      throw new AppError({
         code: 'APPROVAL_REJECTED',
         approvalId: decision.approvalId,
         message:
@@ -556,7 +557,7 @@ export const runConnectorAction = internalAction({
       // Coded refusals cross the wire as coded errors: a caller branches on
       // `code` instead of matching prose, and the hint reaches the operator.
       if (error instanceof ConnectorError) {
-        throw new ConvexError({
+        throw new AppError({
           code: error.code,
           message: error.message,
           connector: error.connector ?? args.connector,

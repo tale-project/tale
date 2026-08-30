@@ -1,4 +1,3 @@
-import { ConvexError } from 'convex/values';
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
@@ -7,6 +6,7 @@ import {
 } from '../../../convex/documents/access.ts';
 import { extractExtension } from '../../../convex/documents/extract_extension.ts';
 import { canonicalResourcePath } from '../../../convex/webdav/helpers.ts';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { resolveFileType } from '../../../lib/shared/file-types.ts';
 import { isTextBasedFile } from '../../../lib/utils/text-file-types.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -82,7 +82,7 @@ function newReadBudget(): ReadBudget {
 function chargeReadBudget(budget: ReadBudget, rowsRead: number): void {
   budget.remaining -= rowsRead;
   if (budget.remaining < 0) {
-    throw new ConvexError({ code: 'SUBTREE_TOO_LARGE' });
+    throw new AppError({ code: 'SUBTREE_TOO_LARGE' });
   }
 }
 
@@ -306,14 +306,14 @@ async function loadDoc(
 // ------------------------------------------------------- destructive core
 
 /** The 0.5 hold guard throws its own LegalHoldError class; the REUSED DAV
- * method handlers branch on ConvexError codes (403 for LEGAL_HOLD_ACTIVE) —
+ * method handlers branch on AppError codes (403 for LEGAL_HOLD_ACTIVE) —
  * translate so a held delete never reads as a 500. */
 async function translateHoldError<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
     if (error instanceof LegalHoldError) {
-      throw new ConvexError({ code: 'LEGAL_HOLD_ACTIVE' });
+      throw new AppError({ code: 'LEGAL_HOLD_ACTIVE' });
     }
     throw error;
   }
@@ -345,7 +345,7 @@ async function softDeleteDocumentInner(
   // A project-scoped doc is not a WebDAV resource (#2545) — behave exactly
   // as if the path never resolved.
   if (!doc || doc.projectId !== null) {
-    throw new ConvexError({ code: 'NOT_FOUND' });
+    throw new AppError({ code: 'NOT_FOUND' });
   }
   if ((doc.lifecycleStatus ?? 'active') !== 'active') return;
   await assertWebdavDocNotHeld(tx, organizationId, doc);
@@ -369,7 +369,7 @@ async function assertFolderTreeNotHeld(
   );
   const budget = newReadBudget();
   const walk = async (id: string, depth: number): Promise<void> => {
-    if (depth > MAX_FOLDER_DEPTH) throw new ConvexError({ code: 'CONFLICT' });
+    if (depth > MAX_FOLDER_DEPTH) throw new AppError({ code: 'CONFLICT' });
     const docs = await tx<DocRow[]>`
       SELECT ${tx.unsafe(DOC_COLUMNS)} FROM app.documents
       WHERE org_id = ${organizationId} AND folder_id = ${id}
@@ -411,7 +411,7 @@ async function cascadeDeleteFolderRecursive(
   if (depth === 0) {
     await assertFolderTreeNotHeld(tx, organizationId, folderId);
   }
-  if (depth > MAX_FOLDER_DEPTH) throw new ConvexError({ code: 'CONFLICT' });
+  if (depth > MAX_FOLDER_DEPTH) throw new AppError({ code: 'CONFLICT' });
   const children = await tx<{ id: string }[]>`
     SELECT id FROM app.folders
     WHERE org_id = ${organizationId} AND parent_id = ${folderId}
@@ -460,7 +460,7 @@ async function assertVisibleFolderSrc(
     WHERE id = ${folderId} AND org_id = ${organizationId} LIMIT 1
   `;
   if (!rows[0] || rows[0].projectId !== null) {
-    throw new ConvexError({ code: 'NOT_FOUND' });
+    throw new AppError({ code: 'NOT_FOUND' });
   }
 }
 
@@ -473,7 +473,7 @@ async function assertNotDescendantOf(
   for (let i = 0; i < MAX_FOLDER_DEPTH; i++) {
     if (cursor === null) return;
     if (cursor === ancestorId) {
-      throw new ConvexError({ code: 'DEST_IS_DESCENDANT' });
+      throw new AppError({ code: 'DEST_IS_DESCENDANT' });
     }
     const rows: { parentId: string | null }[] = await db<
       { parentId: string | null }[]
@@ -484,7 +484,7 @@ async function assertNotDescendantOf(
     if (!rows[0]) return;
     cursor = rows[0].parentId;
   }
-  throw new ConvexError({ code: 'CONFLICT' });
+  throw new AppError({ code: 'CONFLICT' });
 }
 
 function lockKeyForSegments(segments: string[]): string {
@@ -560,7 +560,7 @@ async function copyFolderRecursive(
   depth: number,
   budget: ReadBudget = newReadBudget(),
 ): Promise<string> {
-  if (depth > MAX_FOLDER_DEPTH) throw new ConvexError({ code: 'CONFLICT' });
+  if (depth > MAX_FOLDER_DEPTH) throw new AppError({ code: 'CONFLICT' });
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.folders (org_id, name, parent_id, created_by,
                              created_at_ms)
@@ -622,7 +622,7 @@ async function fixupMovedFolderDescendants(
   depth: number,
   budget: ReadBudget,
 ): Promise<void> {
-  if (depth > MAX_FOLDER_DEPTH) throw new ConvexError({ code: 'CONFLICT' });
+  if (depth > MAX_FOLDER_DEPTH) throw new AppError({ code: 'CONFLICT' });
   const folderPath = await buildFolderPath(tx, folderId);
   const docs = await tx<DocRow[]>`
     SELECT ${tx.unsafe(DOC_COLUMNS)} FROM app.documents
@@ -723,7 +723,7 @@ export function webdavHandlers(
         }
       } catch (error) {
         if (error instanceof RateLimitExceededError) {
-          throw new ConvexError({ code: 'RATE_LIMITED' });
+          throw new AppError({ code: 'RATE_LIMITED' });
         }
         throw error;
       }
@@ -914,7 +914,7 @@ export function webdavHandlers(
     'files/blob_actions:generateWebdavBlobUpload': async (raw) => {
       const args = asArgs<{ organizationId: string; contentType: string }>(raw);
       const orgSlug = await resolveOrgSlug(sql, args.organizationId);
-      if (!orgSlug) throw new ConvexError({ code: 'NOT_FOUND' });
+      if (!orgSlug) throw new AppError({ code: 'NOT_FOUND' });
       const store = await resolveObjectStore(orgSlug);
       const key = buildObjectKey(store, orgSlug);
       const url = await s3PresignPutUrl(store, key, {
@@ -927,7 +927,7 @@ export function webdavHandlers(
       // 0.5 is S3-only and a presigned PUT needs a Content-Length. A
       // chunked PUT (no declared length) is refused loudly — the handler
       // maps this to 502 with its own log line.
-      throw new ConvexError({ code: 'CHUNKED_PUT_UNSUPPORTED' });
+      throw new AppError({ code: 'CHUNKED_PUT_UNSUPPORTED' });
     },
     'webdav/tree_mutations:deleteWebdavBlob': async (raw) => {
       const args = asArgs<{ storageId: string; organizationId?: string }>(raw);
@@ -954,7 +954,7 @@ export function webdavHandlers(
         sourceModifiedAtMs?: number;
       }>(raw);
       if (args.pathSegments.length === 0) {
-        throw new ConvexError({ code: 'INVALID_PATH' });
+        throw new AppError({ code: 'INVALID_PATH' });
       }
       const parentSegments = args.pathSegments.slice(0, -1).map(nfc);
       const fileName = nfc(args.pathSegments[args.pathSegments.length - 1]);
@@ -981,7 +981,7 @@ export function webdavHandlers(
             args.organizationId,
             parentSegments,
           );
-          if (folderId === null) throw new ConvexError({ code: 'CONFLICT' });
+          if (folderId === null) throw new AppError({ code: 'CONFLICT' });
         }
         const matches = await tx<DocRow[]>`
           SELECT ${tx.unsafe(DOC_COLUMNS)} FROM app.documents
@@ -1083,7 +1083,7 @@ export function webdavHandlers(
       const name = nfc(args.name);
       const parentSegments = args.parentSegments.map(nfc);
       if (parentSegments.length + 1 > MAX_FOLDER_DEPTH) {
-        throw new ConvexError({ code: 'CONFLICT' });
+        throw new AppError({ code: 'CONFLICT' });
       }
       return sql.begin(async (tx) => {
         let parentId: string | null = null;
@@ -1093,7 +1093,7 @@ export function webdavHandlers(
             args.organizationId,
             parentSegments,
           );
-          if (parentId === null) throw new ConvexError({ code: 'CONFLICT' });
+          if (parentId === null) throw new AppError({ code: 'CONFLICT' });
         }
         const existing = await findCollision(
           tx,
@@ -1101,7 +1101,7 @@ export function webdavHandlers(
           parentId,
           name,
         );
-        if (existing) throw new ConvexError({ code: 'METHOD_NOT_ALLOWED' });
+        if (existing) throw new AppError({ code: 'METHOD_NOT_ALLOWED' });
         const inserted = await tx<{ id: string }[]>`
           INSERT INTO app.folders (org_id, name, parent_id, created_by,
                                    created_at_ms)
@@ -1138,7 +1138,7 @@ export function webdavHandlers(
             destParentSegments,
           );
           if (destFolderId === null) {
-            throw new ConvexError({ code: 'DEST_PARENT_MISSING' });
+            throw new AppError({ code: 'DEST_PARENT_MISSING' });
           }
         }
         const collision = await findCollision(
@@ -1152,13 +1152,13 @@ export function webdavHandlers(
           collision.kind === args.src.kind &&
           collision.id === args.src.id
         ) {
-          throw new ConvexError({ code: 'SELF_DESTINATION' });
+          throw new AppError({ code: 'SELF_DESTINATION' });
         }
         if (args.src.kind === 'folder' && destFolderId !== null) {
           await assertNotDescendantOf(tx, destFolderId, args.src.id);
         }
         if (collision && !args.overwrite) {
-          throw new ConvexError({ code: 'DEST_EXISTS' });
+          throw new AppError({ code: 'DEST_EXISTS' });
         }
         if (collision && args.overwrite) {
           if (collision.kind === 'document') {
@@ -1178,7 +1178,7 @@ export function webdavHandlers(
         if (args.src.kind === 'document') {
           const existing = await loadDoc(tx, args.organizationId, args.src.id);
           if (!existing || existing.projectId !== null) {
-            throw new ConvexError({ code: 'NOT_FOUND' });
+            throw new AppError({ code: 'NOT_FOUND' });
           }
           const newFolderPath =
             destFolderId !== null
@@ -1245,7 +1245,7 @@ export function webdavHandlers(
             destParentSegments,
           );
           if (destFolderId === null) {
-            throw new ConvexError({ code: 'DEST_PARENT_MISSING' });
+            throw new AppError({ code: 'DEST_PARENT_MISSING' });
           }
         }
         const collision = await findCollision(
@@ -1259,13 +1259,13 @@ export function webdavHandlers(
           collision.kind === args.src.kind &&
           collision.id === args.src.id
         ) {
-          throw new ConvexError({ code: 'SELF_DESTINATION' });
+          throw new AppError({ code: 'SELF_DESTINATION' });
         }
         if (args.src.kind === 'folder' && destFolderId !== null) {
           await assertNotDescendantOf(tx, destFolderId, args.src.id);
         }
         if (collision && !args.overwrite) {
-          throw new ConvexError({ code: 'DEST_EXISTS' });
+          throw new AppError({ code: 'DEST_EXISTS' });
         }
         if (collision && args.overwrite) {
           if (collision.kind === 'document') {
@@ -1285,7 +1285,7 @@ export function webdavHandlers(
         if (args.src.kind === 'document') {
           const src = await loadDoc(tx, args.organizationId, args.src.id);
           if (!src || src.projectId !== null) {
-            throw new ConvexError({ code: 'NOT_FOUND' });
+            throw new AppError({ code: 'NOT_FOUND' });
           }
           const now = Date.now();
           await tx`
@@ -1417,7 +1417,7 @@ export function webdavHandlers(
           WHERE app_password_id = ${args.appPasswordId}
         `;
         if (Number(live[0]?.count ?? '0') >= MAX_LOCKS_PER_APP_PASSWORD) {
-          throw new ConvexError({ code: 'RATE_LIMITED' });
+          throw new AppError({ code: 'RATE_LIMITED' });
         }
         const existing = await tx<{ id: string; expiresAt: number }[]>`
           SELECT id, expires_at_ms::float8 AS "expiresAt"
@@ -1427,7 +1427,7 @@ export function webdavHandlers(
           FOR UPDATE
         `;
         if (existing[0] && existing[0].expiresAt > now) {
-          throw new ConvexError({ code: 'LOCKED' });
+          throw new AppError({ code: 'LOCKED' });
         }
         if (existing[0]) {
           await tx`DELETE FROM app.webdav_locks WHERE id = ${existing[0].id}`;
@@ -1444,7 +1444,7 @@ export function webdavHandlers(
             LIMIT 1
           `;
           if (anc[0] && anc[0].depth === 'infinity' && anc[0].expiresAt > now) {
-            throw new ConvexError({ code: 'LOCKED' });
+            throw new AppError({ code: 'LOCKED' });
           }
         }
         // RFC §7.4: no new depth-infinity lock over a locked subtree.
@@ -1457,7 +1457,7 @@ export function webdavHandlers(
               AND resource_path < ${path + '/￿'}
           `;
           if (descendants.some((d) => d.expiresAt > now)) {
-            throw new ConvexError({ code: 'LOCKED' });
+            throw new AppError({ code: 'LOCKED' });
           }
         }
         const timeoutMs = Math.min(args.timeoutMs, MAX_LOCK_TIMEOUT_MS);
@@ -1506,13 +1506,13 @@ export function webdavHandlers(
           FOR UPDATE
         `;
         const row = rows[0];
-        if (!row) throw new ConvexError({ code: 'NOT_FOUND' });
+        if (!row) throw new AppError({ code: 'NOT_FOUND' });
         if (row.expiresAt <= Date.now()) {
           await tx`DELETE FROM app.webdav_locks WHERE id = ${row._id}`;
-          throw new ConvexError({ code: 'NOT_FOUND' });
+          throw new AppError({ code: 'NOT_FOUND' });
         }
         if (row.ownerUserId !== args.ownerUserId) {
-          throw new ConvexError({ code: 'FORBIDDEN' });
+          throw new AppError({ code: 'FORBIDDEN' });
         }
         const timeoutMs = Math.min(args.timeoutMs, MAX_LOCK_TIMEOUT_MS);
         const newExpiresAt = Date.now() + timeoutMs;
@@ -1547,18 +1547,18 @@ export function webdavHandlers(
           FOR UPDATE
         `;
         const row = rows[0];
-        if (!row) throw new ConvexError({ code: 'NOT_FOUND' });
+        if (!row) throw new AppError({ code: 'NOT_FOUND' });
         if (row.organizationId !== args.organizationId) {
-          throw new ConvexError({ code: 'NOT_FOUND' });
+          throw new AppError({ code: 'NOT_FOUND' });
         }
         if (args.resourcePath !== undefined) {
           const canonical = canonicalResourcePath(args.resourcePath);
           if (row.resourcePath !== canonical) {
-            throw new ConvexError({ code: 'NOT_FOUND' });
+            throw new AppError({ code: 'NOT_FOUND' });
           }
         }
         if (row.ownerUserId !== args.ownerUserId) {
-          throw new ConvexError({ code: 'FORBIDDEN' });
+          throw new AppError({ code: 'FORBIDDEN' });
         }
         await tx`DELETE FROM app.webdav_locks WHERE id = ${row.id}`;
         return null;

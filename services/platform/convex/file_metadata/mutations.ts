@@ -1,5 +1,6 @@
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   extractExtension,
   isRagIndexableFile,
@@ -58,7 +59,7 @@ export const saveFileMetadata = mutation({
   async handler(ctx, args) {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
+      throw new AppError({ code: 'UNAUTHENTICATED' });
     }
 
     // Authorization boundary: the caller must be an (enabled) member of the
@@ -86,7 +87,7 @@ export const saveFileMetadata = mutation({
       // is redacted to "Server Error" by Convex in prod. `reasonCode` +
       // usage bytes let the client show an actionable, localized message
       // (e.g. a full per-user volume quota rather than a generic failure).
-      throw new ConvexError({
+      throw new AppError({
         code: 'UPLOAD_REJECTED',
         reason: check.reason ?? 'Upload rejected by organization policy',
         reasonCode: check.reasonCode,
@@ -110,7 +111,7 @@ export const saveFileMetadata = mutation({
         threadMeta.organizationId !== undefined &&
         threadMeta.organizationId !== args.organizationId
       ) {
-        throw new ConvexError({ code: 'THREAD_ORG_MISMATCH' });
+        throw new AppError({ code: 'THREAD_ORG_MISMATCH' });
       }
     }
 
@@ -323,21 +324,21 @@ export const skipTranscription = mutation({
   async handler(ctx, args) {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
+      throw new AppError({ code: 'UNAUTHENTICATED' });
     }
 
     const metadata = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
-    if (!metadata) throw new ConvexError({ code: 'FILE_NOT_FOUND' });
+    if (!metadata) throw new AppError({ code: 'FILE_NOT_FOUND' });
     // Authorization boundary: assert membership against the row's own org.
     // The self-reported organizationId === metadata.organizationId check
     // below catches caller mistakes but is not an authorization boundary on
     // its own (both values are caller-controlled).
     await getOrganizationMember(ctx, metadata.organizationId, authUser);
     if (metadata.organizationId !== args.organizationId) {
-      throw new ConvexError({ code: 'NOT_AUTHORIZED' });
+      throw new AppError({ code: 'NOT_AUTHORIZED' });
     }
 
     // Source-state precondition. `skipTranscription` is the Skip button
@@ -349,7 +350,7 @@ export const skipTranscription = mutation({
       metadata.transcriptionStatus !== 'queued' &&
       metadata.transcriptionStatus !== 'running'
     ) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'TRANSCRIPTION_NOT_SKIPPABLE',
         status: metadata.transcriptionStatus ?? 'none',
       });
@@ -386,21 +387,21 @@ export const retryTranscription = mutation({
   async handler(ctx, args) {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({ code: 'UNAUTHENTICATED' });
+      throw new AppError({ code: 'UNAUTHENTICATED' });
     }
 
     const metadata = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
-    if (!metadata) throw new ConvexError({ code: 'FILE_NOT_FOUND' });
+    if (!metadata) throw new AppError({ code: 'FILE_NOT_FOUND' });
     // Authorization boundary: assert membership against the row's own org.
     // The self-reported organizationId === metadata.organizationId check
     // below catches caller mistakes but is not an authorization boundary on
     // its own (both values are caller-controlled).
     await getOrganizationMember(ctx, metadata.organizationId, authUser);
     if (metadata.organizationId !== args.organizationId) {
-      throw new ConvexError({ code: 'NOT_AUTHORIZED' });
+      throw new AppError({ code: 'NOT_AUTHORIZED' });
     }
 
     // Source-state precondition. Retry is only valid from a terminal
@@ -412,7 +413,7 @@ export const retryTranscription = mutation({
       metadata.transcriptionStatus !== 'failed' &&
       metadata.transcriptionStatus !== 'skipped'
     ) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'TRANSCRIPTION_NOT_RETRYABLE',
         status: metadata.transcriptionStatus ?? 'none',
       });

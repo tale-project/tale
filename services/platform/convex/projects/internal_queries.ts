@@ -138,7 +138,7 @@ export const getProjectIdForThread = internalQuery({
  * Server-side defense-in-depth for the chat send path. The composer UI
  * already enforces `hasProjectAccess`, but a direct API call must not
  * bypass it. Returns a structured allow/deny shape so the caller can
- * map to typed ConvexError codes.
+ * map to typed AppError codes.
  *
  * Outcomes:
  *  - `{ allowed: true }` — the user is in the project (admin / owning

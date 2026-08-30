@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, it, expect } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   ASSIGNABLE_STATUSES,
   canClaimTask,
@@ -106,7 +106,7 @@ describe('checkProjectAccess (re-exported)', () => {
 });
 
 /**
- * The half-set assignee pair must surface a coded ConvexError (#2049[58]) so
+ * The half-set assignee pair must surface a coded AppError (#2049[58]) so
  * production returns the `task_assignee_invalid` code instead of a redacted
  * generic "Server Error".
  */
@@ -116,15 +116,15 @@ describe('normalizeAssignee coded errors', () => {
     expect(() => normalizeAssignee({ assigneeId: 'user-1' })).toThrow();
   });
 
-  it('throws a ConvexError carrying the task_assignee_invalid code', () => {
+  it('throws a AppError carrying the task_assignee_invalid code', () => {
     let thrown: unknown;
     try {
       normalizeAssignee({ assigneeType: 'user' });
     } catch (error) {
       thrown = error;
     }
-    expect(thrown).toBeInstanceOf(ConvexError);
-    expect((thrown as ConvexError<{ code: string }>).data.code).toBe(
+    expect(thrown).toBeInstanceOf(AppError);
+    expect((thrown as AppError<{ code: string }>).data.code).toBe(
       'task_assignee_invalid',
     );
   });

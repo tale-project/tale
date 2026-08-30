@@ -2,8 +2,7 @@
  * Update an existing contact with validation (business logic for public API)
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { DataSource } from '../../lib/shared/schemas/common';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -43,7 +42,7 @@ export async function updateContact(
   // Get the existing contact to check organization
   const existingContact = await ctx.db.get(contactId);
   if (!existingContact) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CONTACT_NOT_FOUND',
       message: 'Contact not found',
     });
@@ -80,14 +79,14 @@ export async function updateContact(
   ]);
 
   if (emailConflict && emailConflict._id !== contactId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'DUPLICATE_EMAIL',
       message: `Contact with email ${updateData.email} already exists`,
     });
   }
 
   if (externalIdConflict && externalIdConflict._id !== contactId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'DUPLICATE_EXTERNAL_ID',
       message: `Contact with external ID ${updateData.externalId} already exists`,
     });

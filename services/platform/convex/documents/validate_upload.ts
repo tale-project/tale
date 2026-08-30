@@ -1,5 +1,4 @@
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   DOCUMENT_MAX_FILE_SIZE,
   DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
@@ -45,7 +44,7 @@ export async function validateDocumentUpload(
     await checkOrganizationRateLimit(ctx, 'file:upload', args.organizationId);
   } catch (error) {
     if (error instanceof RateLimitExceededError) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'RATE_LIMITED',
         message: error.message,
         retryAfterMs: error.retryAfter,
@@ -68,7 +67,7 @@ export async function validateDocumentUpload(
       ? null
       : ctx.db.system.normalizeId('_storage', rawConvexId);
   if (rawConvexId !== null && convexFileId === null) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'UPLOAD_BLOB_INVALID',
       message: 'The uploaded file reference is invalid.',
     });
@@ -76,20 +75,20 @@ export async function validateDocumentUpload(
   const storageMeta =
     convexFileId === null ? null : await ctx.db.system.get(convexFileId);
   if (convexFileId !== null && storageMeta === null) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'UPLOAD_BLOB_INVALID',
       message: 'The uploaded file no longer exists.',
     });
   }
   const size = storageMeta?.size ?? args.verifiedSize ?? args.fileSize;
   if (size != null && (!Number.isFinite(size) || size < 0)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'UPLOAD_BLOB_INVALID',
       message: 'The uploaded file size is invalid.',
     });
   }
   if (size != null && size > DOCUMENT_MAX_FILE_SIZE) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'FILE_TOO_LARGE',
       message: `File exceeds the ${Math.round(
         DOCUMENT_MAX_FILE_SIZE / (1024 * 1024),
@@ -111,7 +110,7 @@ export async function validateDocumentUpload(
     size,
   );
   if (!policyCheck.allowed) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'UPLOAD_POLICY_REJECTED',
       message: policyCheck.reason ?? 'Upload rejected by organization policy',
       reasonCode: policyCheck.reasonCode,
@@ -125,7 +124,7 @@ export async function validateDocumentUpload(
   }
 
   if (!isAllowedDocumentUpload(contentType, args.fileName)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'UNSUPPORTED_FILE_TYPE',
       // Derived from the one allowlist so this message can never drift from
       // what the gate actually accepts (it reaches REST/API callers verbatim;

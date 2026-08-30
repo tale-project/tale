@@ -5,8 +5,9 @@
 // mocked at ctx.runAction — its own behavior is covered by the connectors
 // suite; here we lock the bridge's mapping and gating.
 
-import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+import { AppError } from '../../../lib/shared/errors/app-error';
 
 vi.mock('../../_generated/server', async (importOriginal) => {
   const mod = await importOriginal<Record<string, unknown>>();
@@ -185,7 +186,7 @@ describe('dispatchBridgeConnector', () => {
 
   it("surfaces the dispatcher's coded refusal with its hint", async () => {
     const runAction = vi.fn().mockRejectedValue(
-      new ConvexError({
+      new AppError({
         message: 'No credential is connected.',
         hint: 'Connect one under Settings → Connectors.',
       }),

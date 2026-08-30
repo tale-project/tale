@@ -1,5 +1,4 @@
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../../../lib/shared/errors/app-error';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { components } from '../../../_generated/api';
 import type { Doc } from '../../../_generated/dataModel';
@@ -247,7 +246,7 @@ export async function assertThreadAccessAnyModel(
   if (
     !(await canAccessThreadAnyModel(ctx, threadId, authUser, expectedOrgId))
   ) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'forbidden',
       message: 'Not authorized to access this thread.',
     });
@@ -255,7 +254,7 @@ export async function assertThreadAccessAnyModel(
 }
 
 /**
- * Throws `ConvexError({ code: 'forbidden' })` when access is denied or the
+ * Throws `AppError({ code: 'forbidden' })` when access is denied or the
  * thread is missing. Use from mutations and from queries that should hard-fail
  * rather than silently return empty.
  */
@@ -272,7 +271,7 @@ export async function assertThreadAccess(
     expectedOrgId,
   );
   if (!metadata) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'forbidden',
       message: 'Not authorized to access this thread.',
     });

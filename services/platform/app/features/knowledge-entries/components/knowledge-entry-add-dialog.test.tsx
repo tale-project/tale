@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { toast } from '@/app/hooks/use-toast';
-import { BackendError } from '@/app/lib/backend/backend-error';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { render, waitFor } from '@/tests/utils/render';
 
 import { AddKnowledgeEntryDialog } from './knowledge-entry-add-dialog';
@@ -52,13 +52,13 @@ describe('AddKnowledgeEntryDialog', () => {
   // Regression for #2056: in prod Convex redacts raw Error messages to "Server
   // Error", so the old `error.message.includes('already exists')` check was
   // dead and the duplicate toast never appeared. The backend now throws
-  // BackendError({ code: 'KNOWLEDGE_ENTRY_DUPLICATE' }) and the dialog reads the
+  // AppError({ code: 'KNOWLEDGE_ENTRY_DUPLICATE' }) and the dialog reads the
   // code, which survives the redaction.
   it('surfaces the duplicate toast when the server throws the duplicate code', async () => {
     createEntryMock.mockImplementation(
       (_args: unknown, opts: { onError: (e: unknown) => void }) => {
         opts.onError(
-          new BackendError({
+          new AppError({
             code: 'KNOWLEDGE_ENTRY_DUPLICATE',
             topic: 'Refunds',
           }),
@@ -88,7 +88,7 @@ describe('AddKnowledgeEntryDialog', () => {
   it('falls back to the generic error toast for a non-duplicate failure', async () => {
     createEntryMock.mockImplementation(
       (_args: unknown, opts: { onError: (e: unknown) => void }) => {
-        opts.onError(new BackendError({ code: 'SOMETHING_ELSE' }));
+        opts.onError(new AppError({ code: 'SOMETHING_ELSE' }));
       },
     );
 

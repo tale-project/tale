@@ -1,4 +1,3 @@
-import { ConvexError } from 'convex/values';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -11,6 +10,7 @@ import {
   saveSkillForViewer,
 } from '../../../convex/skills/file_actions.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -54,7 +54,7 @@ function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
 ): Response {
-  if (error instanceof ConvexError) {
+  if (error instanceof AppError) {
     const data: unknown = error.data;
     if (data !== null && typeof data === 'object' && 'code' in data) {
       const record = data as { code?: unknown; message?: unknown };

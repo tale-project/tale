@@ -4,7 +4,7 @@ import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 /**
  * Upsert one of the calling user's env/secret rows. This is a Node `action`
  * (it authenticates, validates, and encrypts secrets before persisting) and
- * throws a `BackendError` with `{ code, message }` on invalid input — callers
+ * throws a `AppError` with `{ code, message }` on invalid input — callers
  * surface `message` inline.
  */
 export function useUpsertMyEnvVar() {

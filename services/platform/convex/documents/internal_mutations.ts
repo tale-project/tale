@@ -1,5 +1,6 @@
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation } from '../_generated/server';
@@ -46,7 +47,7 @@ export const updateDocument = internalMutation({
         // instead of silently 204'ing the caller into thinking the patch
         // succeeded. Existence is already gated by `callerOrgId`, so this
         // does not leak document presence across tenants.
-        throw new ConvexError({
+        throw new AppError({
           code: 'not_found',
           message: 'Document not found',
         });
@@ -256,14 +257,14 @@ export const createDocumentFromUploadForUser = internalMutation({
     }
     const projectId = ctx.db.normalizeId('projects', args.projectId);
     if (projectId === null) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'PROJECT_NOT_FOUND',
         message: 'Project not found',
       });
     }
     const folderId = ctx.db.normalizeId('folders', args.folderId);
     if (folderId === null) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FOLDER_NOT_FOUND',
         message: 'Folder not found',
       });

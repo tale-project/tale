@@ -3,8 +3,7 @@
  * user-facing `mutations.ts` and the agent-facing `internal_mutations.ts`.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
@@ -32,14 +31,14 @@ export function normalizeLabelNames(
 ): string[] | undefined {
   if (labels == null) return undefined;
   if (labels.length > TASK_LABELS_MAX) {
-    throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+    throw new AppError({ code: 'TASK_LABELS_INVALID' });
   }
   const normalized: string[] = [];
   const seen = new Set<string>();
   for (const raw of labels) {
     const label = raw.trim().toLowerCase();
     if (label.length === 0 || label.length > TASK_LABEL_CHARS_MAX) {
-      throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+      throw new AppError({ code: 'TASK_LABELS_INVALID' });
     }
     if (!seen.has(label)) {
       seen.add(label);
@@ -85,7 +84,7 @@ export async function resolveProjectLabels(
       continue;
     }
     if (!createIfMissing) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'TASK_LABEL_UNKNOWN',
         data: { name },
       });

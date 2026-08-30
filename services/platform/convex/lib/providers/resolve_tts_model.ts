@@ -6,13 +6,12 @@
  * DIRECT credential (api-key/env), with the voice and speaking instructions
  * picked by locale → base language → default.
  *
- * Failures are coded `ConvexError`s that `errorCodeFromCaught` classifies
+ * Failures are coded `AppError`s that `errorCodeFromCaught` classifies
  * into the closed `TtsErrorCode` enum — the codes fan out to every org
  * member on the chunk rows, so no free text ever leaves here.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../../lib/shared/errors/app-error';
 import type { AudioFormat } from '../../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../../_generated/server';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
@@ -91,7 +90,7 @@ export async function resolveTtsModel(
       tts?.voicesByLocale?.[baseLocale] ??
       tts?.defaultVoice;
     if (voice === undefined) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNKNOWN_VOICE',
         message: `Model "${entry.id}" declares no voice for locale "${opts.locale}" and no default voice.`,
       });
@@ -115,7 +114,7 @@ export async function resolveTtsModel(
     };
   }
 
-  throw new ConvexError({
+  throw new AppError({
     code: 'NO_PROVIDER',
     message: 'No text-to-speech model is configured for this organization.',
   });

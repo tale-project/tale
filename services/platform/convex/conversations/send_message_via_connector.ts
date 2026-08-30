@@ -1,5 +1,4 @@
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -55,14 +54,14 @@ export async function sendMessageViaConnector(
 
   const conversation = await ctx.db.get(args.conversationId);
   if (!conversation) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_not_found',
       message: 'Conversation not found',
     });
   }
 
   if (conversation.organizationId !== args.organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_org_mismatch',
       message: 'Conversation does not belong to organization',
     });

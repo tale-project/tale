@@ -3,8 +3,7 @@
  * Does NOT deregister from crawler — that's handled by the calling action.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
@@ -14,7 +13,7 @@ export async function deleteWebsite(
 ): Promise<string> {
   const website = await ctx.db.get(websiteId);
   if (!website) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'WEBSITE_NOT_FOUND',
       message: 'Website not found',
     });

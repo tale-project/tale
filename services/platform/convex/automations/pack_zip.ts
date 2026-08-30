@@ -28,9 +28,9 @@
  * `'use node'` modules; see the note in `convex/documents/helpers.ts`.
  */
 
-import { ConvexError } from 'convex/values';
 import JSZip from 'jszip';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   MAX_AUTOMATION_BUNDLE_ENTRIES,
   MAX_AUTOMATION_BUNDLE_FILE_BYTES,
@@ -77,7 +77,7 @@ export interface ParsedAutomationPackZip {
 }
 
 function refuse(code: string, message: string): never {
-  throw new ConvexError({ code, message });
+  throw new AppError({ code, message });
 }
 
 /** OS-injected metadata that would defeat wrapper detection. */

@@ -19,9 +19,8 @@
  * secret on every turn buys nothing.
  */
 
-import { ConvexError } from 'convex/values';
-
 import type { BuilderModel } from '../../lib/automations_builder/session';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { providerAttributionHeaders } from '../../lib/shared/providers/attribution';
 import type {
   ApiFormat,
@@ -81,7 +80,7 @@ async function resolveWireTarget(
     (entry) => entry.name === target.providerSlug,
   );
   if (!connector) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'PROVIDER_UNKNOWN',
       message: `Unknown provider "${target.providerSlug}" — no shipped or org-defined connector by that name.`,
     });
@@ -92,7 +91,7 @@ async function resolveWireTarget(
     providerSlug: target.providerSlug,
   });
   if (credential.authMethod !== 'api-key' && credential.authMethod !== 'env') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'BUILDER_MODEL_CREDENTIAL_UNSUPPORTED',
       message: `The default "${target.providerSlug}" credential is a ${credential.authMethod} credential, which is bound to a vendor harness and cannot serve a direct model call. Configure an API-key or environment-variable credential for the automation builder.`,
     });
@@ -100,7 +99,7 @@ async function resolveWireTarget(
 
   const baseUrl = credential.endpointUrl ?? connector.baseUrl;
   if (!baseUrl) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'PROVIDER_ENDPOINT_MISSING',
       message: `Provider "${target.providerSlug}" has no API endpoint — a per-credential connector needs the endpoint stored on the credential.`,
     });

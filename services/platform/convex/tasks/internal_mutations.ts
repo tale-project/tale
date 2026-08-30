@@ -12,9 +12,10 @@
  */
 
 import { createThread, saveMessage } from '@convex-dev/agent';
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import { DEFAULT_DISCUSSION_CATEGORY } from '../../lib/shared/constants/discussions';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
@@ -124,7 +125,7 @@ async function loadTaskInOrg(
 ): Promise<Doc<'tasks'>> {
   const task = await ctx.db.get(taskId);
   if (!task || task.organizationId !== organizationId) {
-    throw new ConvexError({ code: 'TASK_NOT_FOUND' });
+    throw new AppError({ code: 'TASK_NOT_FOUND' });
   }
   return task;
 }
@@ -136,7 +137,7 @@ async function loadProjectInOrg(
 ): Promise<Doc<'projects'>> {
   const project = await ctx.db.get(projectId);
   if (!project || project.organizationId !== organizationId) {
-    throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
+    throw new AppError({ code: 'PROJECT_NOT_FOUND' });
   }
   return project;
 }
@@ -144,7 +145,7 @@ async function loadProjectInOrg(
 function trimTitle(title: string): string {
   const t = title.trim();
   if (t.length === 0 || t.length > TASK_TITLE_MAX) {
-    throw new ConvexError({ code: 'TASK_TITLE_INVALID' });
+    throw new AppError({ code: 'TASK_TITLE_INVALID' });
   }
   return t;
 }
@@ -204,14 +205,14 @@ export const agentCreateTask = internalMutation({
         args.organizationId,
       );
       if (parent.projectId !== args.projectId) {
-        throw new ConvexError({ code: 'TASK_PARENT_PROJECT_MISMATCH' });
+        throw new AppError({ code: 'TASK_PARENT_PROJECT_MISMATCH' });
       }
       // Task-ops loop-safety invariant (v): decomposition depth = 1. Agents
       // and automations may create subtasks of ROOT tasks only — a subtask
       // never gets agent-created children of its own, so decomposition
       // cannot recurse.
       if (parent.parentTaskId) {
-        throw new ConvexError({ code: 'TASK_DEPTH_EXCEEDED' });
+        throw new AppError({ code: 'TASK_DEPTH_EXCEEDED' });
       }
     }
 
@@ -1123,7 +1124,7 @@ export const agentAddComment = internalMutation({
     );
     const body = args.body.trim();
     if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
-      throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
+      throw new AppError({ code: 'TASK_COMMENT_INVALID' });
     }
     let bodyByLocale = args.bodyByLocale;
     if (bodyByLocale) {
@@ -1140,7 +1141,7 @@ export const agentAddComment = internalMutation({
         trimmed.de.length > TASK_COMMENT_MAX ||
         trimmed.fr.length > TASK_COMMENT_MAX
       ) {
-        throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
+        throw new AppError({ code: 'TASK_COMMENT_INVALID' });
       }
       bodyByLocale = trimmed;
     }
@@ -1240,7 +1241,7 @@ export const agentCreateProject = internalMutation({
   handler: async (ctx, args): Promise<{ projectId: Id<'projects'> }> => {
     const name = args.name.trim();
     if (name.length === 0 || name.length > 80) {
-      throw new ConvexError({ code: 'PROJECT_NAME_INVALID' });
+      throw new AppError({ code: 'PROJECT_NAME_INVALID' });
     }
     const now = Date.now();
     const projectId = await ctx.db.insert('projects', {
@@ -1292,7 +1293,7 @@ export const agentUpdateProject = internalMutation({
     if (args.name !== undefined) {
       const name = args.name.trim();
       if (name.length === 0 || name.length > 80) {
-        throw new ConvexError({ code: 'PROJECT_NAME_INVALID' });
+        throw new AppError({ code: 'PROJECT_NAME_INVALID' });
       }
       patch.name = name;
       changedFields.push('name');

@@ -16,8 +16,9 @@
  *     "longest-running cleanup" panel.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internalMutation, internalQuery, query } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -229,7 +230,7 @@ export const getRetentionRunStatus = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'unauthenticated',
         message: 'Sign in required.',
       });
@@ -240,7 +241,7 @@ export const getRetentionRunStatus = query({
       authUser,
     );
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'forbidden',
         message: 'Admin role required to view retention run status.',
       });

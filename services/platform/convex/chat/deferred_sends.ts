@@ -20,8 +20,9 @@
  *  - image: never gated.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { CHAT_MAX_FILE_COUNT } from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
@@ -63,7 +64,7 @@ async function requireOrgUser(
   organizationId: string,
 ): Promise<string> {
   const authUser = await getAuthUserIdentity(ctx);
-  if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+  if (!authUser) throw new AppError({ code: 'UNAUTHENTICATED' });
   await getOrganizationMember(ctx, organizationId, authUser);
   return authUser.userId;
 }
@@ -93,7 +94,7 @@ export const enqueueDeferredSend = mutation({
   returns: v.object({ deferredSendId: v.id('deferredSends') }),
   handler: async (ctx, args) => {
     if ((args.modelId === undefined) === (args.modelSelection === undefined)) {
-      throw new ConvexError({ code: 'MODEL_REQUIRED' });
+      throw new AppError({ code: 'MODEL_REQUIRED' });
     }
     const userId = await requireOrgUser(ctx, args.organizationId);
     const thread = await loadOwnedThread(
@@ -103,17 +104,17 @@ export const enqueueDeferredSend = mutation({
       args.threadId,
     );
     if (thread === null) {
-      throw new ConvexError({ code: 'THREAD_NOT_FOUND' });
+      throw new AppError({ code: 'THREAD_NOT_FOUND' });
     }
 
     const trimmed = args.userText.trim();
     const mediaCount =
       (args.attachments?.length ?? 0) + (args.videoJobIds?.length ?? 0);
     if (trimmed.length === 0 && mediaCount === 0) {
-      throw new ConvexError({ code: 'EMPTY_MESSAGE' });
+      throw new AppError({ code: 'EMPTY_MESSAGE' });
     }
     if ((args.attachments?.length ?? 0) > CHAT_MAX_FILE_COUNT) {
-      throw new ConvexError({ code: 'TOO_MANY_ATTACHMENTS' });
+      throw new AppError({ code: 'TOO_MANY_ATTACHMENTS' });
     }
 
     const pending = await ctx.db
@@ -121,7 +122,7 @@ export const enqueueDeferredSend = mutation({
       .withIndex('by_thread_status', (q) => q.eq('threadId', args.threadId))
       .collect();
     if (pending.length >= MAX_DEFERRED_PER_THREAD) {
-      throw new ConvexError({ code: 'QUEUE_FULL' });
+      throw new AppError({ code: 'QUEUE_FULL' });
     }
 
     const claimed = await bindJobsForDeferredSend(ctx, {

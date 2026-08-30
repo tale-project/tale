@@ -1,5 +1,6 @@
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internalQuery, query } from '../_generated/server';
 import type { QueryCtx } from '../_generated/server';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
@@ -35,7 +36,7 @@ export const getPendingRetentionChange = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });
@@ -45,7 +46,7 @@ export const getPendingRetentionChange = query({
       email: authUser.email ?? '',
     });
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FORBIDDEN',
         message: 'Admin role required.',
       });
@@ -106,7 +107,7 @@ export const getPolicy = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });
@@ -124,7 +125,7 @@ export const getPolicy = query({
       !POLICY_TYPES_READABLE_BY_MEMBER.has(args.policyType) &&
       !isAdmin(member.role)
     ) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FORBIDDEN',
         message: `Reading ${args.policyType} requires admin role.`,
       });
@@ -170,7 +171,7 @@ export const listPolicies = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });
@@ -227,7 +228,7 @@ export const getUsageSummary = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });
@@ -239,7 +240,7 @@ export const getUsageSummary = query({
       name: authUser.name,
     });
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FORBIDDEN',
         message: 'Only admins can view usage summaries',
       });
@@ -323,7 +324,7 @@ export const getOrgUsageMetrics = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });
@@ -335,7 +336,7 @@ export const getOrgUsageMetrics = query({
       name: authUser.name,
     });
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FORBIDDEN',
         message: 'Only admins can view usage metrics',
       });
@@ -352,7 +353,7 @@ export const getMyFeatureFlags = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });
@@ -533,7 +534,7 @@ export const getAccessibleModelsForUser = query({
   handler: async (ctx, args) => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });
@@ -646,7 +647,7 @@ export const listTrashedRows = query({
   ): Promise<{ rows: TrashRow[]; nextCursor: TrashCursor | null }> => {
     const authUser = await getAuthUserIdentity(ctx);
     if (!authUser)
-      throw new ConvexError({
+      throw new AppError({
         code: 'UNAUTHENTICATED',
         message: 'Unauthenticated',
       });
@@ -656,7 +657,7 @@ export const listTrashedRows = query({
       name: authUser.name,
     });
     if (!isAdmin(member.role)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'FORBIDDEN',
         message: 'Trash listing requires admin role.',
       });

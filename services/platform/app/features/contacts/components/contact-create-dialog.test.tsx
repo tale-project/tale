@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BackendError } from '@/app/lib/backend/backend-error';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
@@ -104,7 +104,7 @@ describe('ContactCreateDialog', () => {
 
   it('shows a duplicate-email error toast on CONTACT_DUPLICATE_EMAIL', async () => {
     mockMutateAsync.mockRejectedValueOnce(
-      new BackendError({ code: 'CONTACT_DUPLICATE_EMAIL' }),
+      new AppError({ code: 'CONTACT_DUPLICATE_EMAIL' }),
     );
 
     const { user } = render(

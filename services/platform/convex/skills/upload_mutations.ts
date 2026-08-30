@@ -20,8 +20,9 @@
  * can't host V8 mutations.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { isValidSkillSlug } from '../../lib/shared/schemas/skills';
 import { internalMutation, mutation } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
@@ -59,7 +60,7 @@ export const recordSkillUploadIntent = mutation({
       if (existing.organizationId !== args.organizationId) {
         // Another org already claimed this storageId — refuse so we don't
         // accidentally re-bind the blob across tenants.
-        throw new ConvexError({
+        throw new AppError({
           code: 'STORAGE_INTENT_CONFLICT',
           message: 'Storage blob already bound to a different organization',
         });
@@ -122,7 +123,7 @@ export const claimSkillUploadSlot = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     if (!isValidSkillSlug(args.slug)) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'INVALID_SKILL_SLUG',
         message: `Invalid skill slug: ${args.slug}`,
       });
@@ -136,7 +137,7 @@ export const claimSkillUploadSlot = internalMutation({
       .first();
     if (existing) {
       if (existing.expiresAt > now) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'LOCK_HELD',
           message:
             'Another upload to this skill is already in progress. Try again in a moment.',

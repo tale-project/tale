@@ -34,9 +34,8 @@
  * the streamable-HTTP transport specifies.
  */
 
-import { ConvexError } from 'convex/values';
-
 import { MCP_TOOLS, mcpToolKind } from '../../lib/mcp/tools';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import {
   jsonError,
@@ -68,7 +67,7 @@ async function developerRefusal(rc: RestContext): Promise<string | null> {
     await requireRestDeveloper(rc);
     return null;
   } catch (error) {
-    if (error instanceof ConvexError) {
+    if (error instanceof AppError) {
       const data: unknown = error.data;
       return isRecord(data) && typeof data.message === 'string'
         ? data.message

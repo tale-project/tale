@@ -1,6 +1,6 @@
 import type { GenericDatabaseReader } from 'convex/server';
-import { ConvexError } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   DEFAULT_SANDBOX_QUOTA,
   sandboxQuotaConfigSchema,
@@ -70,7 +70,7 @@ export function requireSessionBudgetForOwnerType(
 ): SessionBudget {
   const budget = sessionBudgetForOwnerType(ownerType);
   if (budget === null) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'SESSION_LANE_RETIRED',
       message: `Sandbox sessions owned by '${ownerType}' can no longer be created or resumed.`,
     });

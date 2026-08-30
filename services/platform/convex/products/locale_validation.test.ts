@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { createProductWithTranslations } from './create_product_with_translations';
@@ -16,9 +16,9 @@ describe('assertSupportedProductLocale', () => {
   });
 
   it.each(['xyz', 'not-a-locale', 'EN', 'en-US', '', 'x'.repeat(10_000)])(
-    'rejects unsupported locale %p with a ConvexError',
+    'rejects unsupported locale %p with a AppError',
     (locale) => {
-      expect(() => assertSupportedProductLocale(locale)).toThrow(ConvexError);
+      expect(() => assertSupportedProductLocale(locale)).toThrow(AppError);
     },
   );
 
@@ -27,9 +27,8 @@ describe('assertSupportedProductLocale', () => {
       assertSupportedProductLocale('klingon');
       throw new Error('expected assertSupportedProductLocale to throw');
     } catch (error) {
-      expect(error).toBeInstanceOf(ConvexError);
-      const data = (error as ConvexError<{ code: string; message: string }>)
-        .data;
+      expect(error).toBeInstanceOf(AppError);
+      const data = (error as AppError<{ code: string; message: string }>).data;
       expect(data.code).toBe('invalid_locale');
       expect(data.message).toContain('klingon');
       expect(data.message).toContain('en, de, fr');
@@ -58,7 +57,7 @@ describe('product translation handlers reject unsupported locales', () => {
         language: 'not-a-locale',
         name: 'Test',
       }),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
 
     expect(db.get).not.toHaveBeenCalled();
     expect(db.patch).not.toHaveBeenCalled();
@@ -73,7 +72,7 @@ describe('product translation handlers reject unsupported locales', () => {
         name: 'Widget',
         translations: [{ language: 'xyz', lastUpdated: 1 }],
       }),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
 
     expect(db.insert).not.toHaveBeenCalled();
   });
@@ -86,7 +85,7 @@ describe('product translation handlers reject unsupported locales', () => {
         productId: PRODUCT_ID,
         translations: [{ language: 'xyz', lastUpdated: 1 }],
       }),
-    ).rejects.toBeInstanceOf(ConvexError);
+    ).rejects.toBeInstanceOf(AppError);
 
     expect(db.patch).not.toHaveBeenCalled();
   });

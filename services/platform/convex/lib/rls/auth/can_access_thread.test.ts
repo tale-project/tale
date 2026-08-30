@@ -594,7 +594,7 @@ describe('assertThreadAccess', () => {
     expect(result).toEqual(meta);
   });
 
-  it('throws ConvexError(forbidden) when access is denied', async () => {
+  it('throws AppError(forbidden) when access is denied', async () => {
     const meta: MockMetadata = {
       _id: 'tm_1',
       threadId: 't_1',
