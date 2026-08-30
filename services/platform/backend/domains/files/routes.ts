@@ -17,7 +17,7 @@ import {
   deleteFile,
   deleteRejectedUploadBlob,
   FileError,
-  getFileMetadata,
+  getFileMetadataByIdOrRef,
   getFileUrl,
   putOrgBlobBytes,
   registerUpload,
@@ -348,7 +348,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       if (seen.has(fileId)) continue;
       seen.add(fileId);
       try {
-        const meta = await getFileMetadata(deps.sql, orgId, fileId);
+        const meta = await getFileMetadataByIdOrRef(deps.sql, orgId, fileId);
         urls.push({
           fileId,
           url:
@@ -370,7 +370,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
 
   app.get('/:fileId', async (c) => {
     try {
-      const meta = await getFileMetadata(
+      const meta = await getFileMetadataByIdOrRef(
         deps.sql,
         c.get('orgId'),
         c.req.param('fileId'),
@@ -387,7 +387,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.get('/:fileId/url', async (c) => {
     try {
       const orgId = c.get('orgId');
-      const meta = await getFileMetadata(
+      const meta = await getFileMetadataByIdOrRef(
         deps.sql,
         orgId,
         c.req.param('fileId'),
@@ -410,7 +410,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     try {
       const orgId = c.get('orgId');
       const session = c.get('sessionBundle');
-      const meta = await getFileMetadata(
+      const meta = await getFileMetadataByIdOrRef(
         deps.sql,
         orgId,
         c.req.param('fileId'),

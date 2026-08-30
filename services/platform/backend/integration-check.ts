@@ -1891,6 +1891,26 @@ async function checkFiles(
   const roundTrip = urlRes.success
     ? await (await fetch(urlRes.data.url)).text()
     : '';
+  // The SAME lane addressed by the blob ref. The app's identifier vocabulary
+  // is mixed by contract — the POST upload lane's storageId IS the ref, task
+  // deliverables carry it, and the 0.4 `getFileUrl` took it — and the 0.5
+  // routes resolved only the row id, so every ref-addressed preview 404ed
+  // (the task deliverable dialog's "Failed to load document").
+  const urlByRef = z
+    .object({ url: z.string().url() })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/files/${encodeURIComponent(
+            registered.success ? handoff.data.storageRef : '',
+          )}/url?orgId=${orgId}`,
+          { headers: { cookie } },
+        )
+      ).json(),
+    );
+  const refRoundTrip = urlByRef.success
+    ? await (await fetch(urlByRef.data.url)).text()
+    : '';
   const deleted = await send(
     'DELETE',
     `/api/app/files/${fileId}?orgId=${orgId}`,
@@ -1904,9 +1924,10 @@ async function checkFiles(
       registered.success &&
       registered.data.size === payload.length &&
       roundTrip === payload &&
+      refRoundTrip === payload &&
       deleted.ok &&
       blobGone,
-    `put → ${put.status}, size=${registered.success ? registered.data.size : 'ERR'}, roundtrip=${roundTrip === payload}, delete → ${deleted.status}, blobGone=${blobGone}`,
+    `put → ${put.status}, size=${registered.success ? registered.data.size : 'ERR'}, roundtrip=${roundTrip === payload}, refRoundtrip=${refRoundTrip === payload}, delete → ${deleted.status}, blobGone=${blobGone}`,
   );
 }
 

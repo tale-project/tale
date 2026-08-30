@@ -187,6 +187,36 @@ export async function getFileMetadata(
   return rows[0] ?? null;
 }
 
+/**
+ * Resolve a file row by EITHER identifier the app uses.
+ *
+ * The identifier vocabulary is genuinely mixed: listings hand out the row's
+ * own id, while the POST upload lane's `storageId` IS the blob ref, and the
+ * 0.4 `getFileUrl` contract took the ref. The `s3:` prefix makes the two
+ * unambiguous, and a ref is org-scoped twice over — by this WHERE and by the
+ * key's own org prefix at presign time.
+ */
+export async function getFileMetadataByIdOrRef(
+  sql: Sql,
+  organizationId: string,
+  idOrRef: string,
+): Promise<FileMetadataRow | null> {
+  if (!idOrRef.startsWith('s3:')) {
+    return getFileMetadata(sql, organizationId, idOrRef);
+  }
+  const rows = await sql<FileMetadataRow[]>`
+    SELECT id, org_id AS "organizationId", storage_ref AS "storageRef",
+           file_name AS "fileName", content_type AS "contentType",
+           size::float8 AS size, uploaded_by AS "uploadedBy",
+           thread_id AS "threadId", created_at_ms::float8 AS "createdAt"
+    FROM app.file_metadata
+    WHERE storage_ref = ${idOrRef} AND org_id = ${organizationId}
+    ORDER BY created_at_ms ASC
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
 /** Presigned GET for a blob ref the caller's org owns. */
 export async function getFileUrl(
   sql: Sql,
