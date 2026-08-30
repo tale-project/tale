@@ -72,9 +72,18 @@ install_ssrf_firewall() {
   # cloud VPC peers). Without the ACCEPTs the backend fences off its own
   # database and crash-loops on CONNECT_TIMEOUT: TCP treats the ICMP
   # reject as a soft error and retries SYN until the client gives up.
+  # `scope link` keeps the pass-list to genuinely attached subnets — a
+  # via-learned route (say 10.0.0.0/8 through some gateway) must not
+  # widen it. No derivable subnets (no iproute2, or an empty scope-link
+  # table) skips the RFC1918 fence rather than self-severing; IMDS and
+  # link-local stay rejected regardless.
   # Non-default docker-network modes: TALE_SKIP_SSRF_FIREWALL=1.
+  connected_subnets=""
   if command -v ip >/dev/null 2>&1; then
-    for subnet in $(ip -4 route show | awk '$1 ~ /\// {print $1}'); do
+    connected_subnets="$(ip -4 route show scope link | awk '{print $1}')"
+  fi
+  if [ -n "$connected_subnets" ]; then
+    for subnet in $connected_subnets; do
       iptables -A OUTPUT -d "$subnet" -j ACCEPT 2>/dev/null || \
         log_warn "iptables: failed to accept connected subnet ${subnet}"
     done
@@ -82,7 +91,7 @@ install_ssrf_firewall() {
     iptables -A OUTPUT -d 172.16.0.0/12 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
     iptables -A OUTPUT -d 192.168.0.0/16 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
   else
-    log_warn "ip (iproute2) unavailable — RFC1918 fence NOT installed (IMDS + link-local guards active); same-compose subnets cannot be derived"
+    log_warn "no directly-connected IPv4 subnets derivable (iproute2 missing or empty scope-link table) — RFC1918 fence NOT installed; IMDS + link-local guards active"
   fi
 }
 
