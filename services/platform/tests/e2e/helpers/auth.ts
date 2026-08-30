@@ -186,33 +186,33 @@ export async function createOrgViaWizard(
 /**
  * Block until the org's async post-create hooks have landed. The
  * deterministic "org ready" gate is the backend-seeded starter project
- * (`seed_starter.ts`, scheduled ~15s after create) appearing in the projects
- * list. Gating on it does two jobs: it proves the `afterCreateOrganization`
- * pipeline ran to its last step, and it stops the starter content from
- * materializing MID-SUITE under a spec that counts or manipulates projects.
- * (The old gate — a seeded org-custom AI provider on the providers settings
- * page — is gone: the AI-backend rewrite's interim scaffolder seeds only the
- * domains registered in `lib/shared/config/registry.ts`, which no longer
- * include `providers`, so no fixture provider can ever appear.)
+ * (`seedStarterContent`, from the `org.scaffold` job) appearing in the
+ * projects list. Gating on it does two jobs: it proves the
+ * `afterCreateOrganization` pipeline ran to its last step, and it stops
+ * the starter content from materializing MID-SUITE under a spec that
+ * counts or manipulates projects.
  */
 export async function waitForSeededOrg(
   page: Page,
   organizationId: string,
 ): Promise<void> {
-  await page.goto(`/dashboard/${organizationId}/projects`);
+  const projectsUrl = `/dashboard/${organizationId}/projects`;
 
-  // The projects list is a reactive Convex query, so the row appears live
-  // once the (deliberately delayed) seeder commits — one generous wait beats
-  // reload loops. EXECUTION covers the 15s schedule delay plus a cold CI
-  // backend actually running the action.
-  const starterRow = page.getByText(STARTER_PROJECT_NAME).first();
+  // The 0.5 projects list is an HTTP read, not a Convex live query. If the
+  // page paints before `org.scaffold` commits, the empty list stays empty
+  // until the next navigation — so reload-poll until the row appears.
   try {
-    await expect(starterRow).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+    await expect(async () => {
+      await page.goto(projectsUrl);
+      await expect(page.getByText(STARTER_PROJECT_NAME).first()).toBeVisible({
+        timeout: TIMEOUT.VISIBLE,
+      });
+    }).toPass({ timeout: TIMEOUT.EXECUTION });
   } catch (err) {
     throw new Error(
       `Starter project "${STARTER_PROJECT_NAME}" never appeared for org ${organizationId} at ${BASE_URL}. ` +
-        `The seeder (convex/provisioning/seed_starter.ts) is scheduled ~15s after org create; if it never lands, ` +
-        `the afterCreateOrganization pipeline is broken — check the [WebServer] logs for scheduler/action errors. ` +
+        `The seeder (backend/domains/provisioning/service.ts seedStarterContent) runs from the org.scaffold job after org create; if it never lands, ` +
+        `the afterCreateOrganization pipeline is broken — check the [WebServer] logs for scaffold/provisioning errors. ` +
         `If a dev stack was already running on this port, Playwright reused it (reuseExistingServer) — inspect THAT ` +
         `stack's logs, or stop it so the suite boots its own. See tests/e2e/README.md ("Running locally").`,
       { cause: err },

@@ -133,6 +133,12 @@ export default createPlaywrightConfig({
         TALE_DEV_SKIP_DOCKER: '1',
         // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret
         DATABASE_URL: E2E_DATABASE_URL,
+        // Job env still exports DB_PASSWORD. If Playwright merges that into
+        // the webServer child, deriveDevSecrets would mint knowledge-db on
+        // :5433 (not running here). Pin the URL at the app database so the
+        // knowledge bootstrap hits Postgres instead of ECONNREFUSED.
+        // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret
+        KNOWLEDGE_DATABASE_URL: E2E_DATABASE_URL,
         // Same E2E marker CI exports at the workflow level: skips the
         // video-toolchain apt install in scripts/dev.ts (a slow mirror has
         // burned the webServer boot budget). Only applies when Playwright

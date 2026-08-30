@@ -138,14 +138,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     'org.scaffold': async (payload) => {
       const input = orgScaffoldSchema.parse(payload);
       const result = await scaffoldNewOrganization(input);
-      if (!result.ok) {
-        // Throw so pg-boss retries — scaffold is idempotent per domain.
-        throw new Error(`org scaffold failed: ${result.error}`);
-      }
-      // Provisioning (the 0.4 afterCreateOrganization schedule): default
-      // automation packs + starter content. Both idempotent, so the
-      // scaffold's own retries stay safe; a provisioning failure logs and
-      // retries with the job.
+      // Starter content is a DB row, not a catalog file. Seed it even when
+      // the filesystem scaffold skips (misconfigured catalog / invalid slug)
+      // so a fresh org is usable and e2e can gate on "Getting started".
+      // Packs stay after starter so a pack-parse throw cannot block it.
       const orgs = await deps.sql<{ id: string }[]>`
         SELECT "id" FROM "organization" WHERE "slug" = ${input.orgSlug}
         LIMIT 1
@@ -160,6 +156,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       ) {
         const { seedDefaultAutomationPacks, seedStarterContent } =
           await import('../domains/provisioning/service.ts');
+        await seedStarterContent(deps.sql, organizationId);
         const seeded = await seedDefaultAutomationPacks(
           deps.sql,
           organizationId,
@@ -169,7 +166,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             `[provisioning] seeded packs for ${input.orgSlug}: ${seeded.provisioned.join(', ')}`,
           );
         }
-        await seedStarterContent(deps.sql, organizationId);
+      }
+      if (!result.ok) {
+        // Throw so pg-boss retries — scaffold is idempotent per domain.
+        throw new Error(`org scaffold failed: ${result.error}`);
       }
     },
     'connector.slack_event': (payload) => {

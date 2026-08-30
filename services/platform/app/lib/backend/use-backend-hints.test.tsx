@@ -4,6 +4,7 @@ import { renderHook } from '@testing-library/react';
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { isBackendReachable, reportBackendReachable } from './connection-state';
 import { useBackendHints } from './use-backend-hints';
 
 /** A controllable EventSource double: tests dispatch named SSE events. */
@@ -69,6 +70,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   delete window.__ENV__;
+  reportBackendReachable();
 });
 
 describe('useBackendHints', () => {
@@ -114,6 +116,15 @@ describe('useBackendHints', () => {
 
     unmount();
     expect(FakeEventSource.instances[1]?.closed).toBe(true);
+  });
+
+  it('keeps the backend reachable when EventSource errors', () => {
+    expect(isBackendReachable()).toBe(true);
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() => {
+      FakeEventSource.instances[0]?.emit('error', '');
+    });
+    expect(isBackendReachable()).toBe(true);
   });
 
   it('opens nothing without an org scope', () => {

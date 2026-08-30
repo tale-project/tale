@@ -25,7 +25,14 @@ const BACKEND_BASE = process.env.TALE_BACKEND_URL || 'http://127.0.0.1:3005';
 // and Vite's SPA catch-all would otherwise answer PROPFIND with index.html.
 const backendProxy = {
   '/api': { target: BACKEND_BASE, changeOrigin: true },
-  '/events': { target: BACKEND_BASE, changeOrigin: true },
+  // SSE hint stream: default proxy timeouts close the lane, which EventSource
+  // reports as `error`. Keep it open for the server's 15s heartbeat.
+  '/events': {
+    target: BACKEND_BASE,
+    changeOrigin: true,
+    timeout: 0,
+    proxyTimeout: 0,
+  },
   '/dav': { target: BACKEND_BASE, changeOrigin: true },
   '/scim': { target: BACKEND_BASE, changeOrigin: true },
 };

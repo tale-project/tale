@@ -10,6 +10,11 @@
  * recovery) can act on.
  */
 
+import {
+  reportBackendReachable,
+  reportBackendUnreachable,
+} from './connection-state';
+
 export class BackendApiError extends Error {
   readonly status: number;
   /** The backend's machine-readable error code, when the body carried one. */
@@ -68,17 +73,27 @@ export async function backendFetch<T>(
   route: string,
   options: BackendFetchOptions = {},
 ): Promise<T> {
-  const response = await fetch(backendUrl(route, options.orgId), {
-    method: options.method ?? (options.body !== undefined ? 'POST' : 'GET'),
-    credentials: 'include',
-    ...(options.body !== undefined
-      ? {
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(options.body),
-        }
-      : {}),
-    ...(options.signal !== undefined ? { signal: options.signal } : {}),
-  });
+  let response: Response;
+  try {
+    response = await fetch(backendUrl(route, options.orgId), {
+      method: options.method ?? (options.body !== undefined ? 'POST' : 'GET'),
+      credentials: 'include',
+      ...(options.body !== undefined
+        ? {
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(options.body),
+          }
+        : {}),
+      ...(options.signal !== undefined ? { signal: options.signal } : {}),
+    });
+  } catch (error) {
+    // No HTTP response (refused, DNS, offline). Statused replies — including
+    // 5xx — still mean the server is reachable; the offline overlay must not
+    // fire for those.
+    reportBackendUnreachable();
+    throw error;
+  }
+  reportBackendReachable();
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
     let code: string | undefined;

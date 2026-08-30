@@ -2,10 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
 import { eventsUrl } from './api-client';
-import {
-  reportBackendReachable,
-  reportBackendUnreachable,
-} from './connection-state';
+import { reportBackendReachable } from './connection-state';
 import { backendEntityPrefix } from './query-keys';
 
 /**
@@ -46,22 +43,19 @@ export function useBackendHints(orgId: string | undefined): void {
         console.warn('[backend-hints] unparseable hint event:', error);
       }
     };
-    // This stream is also the app's reachability signal: it is the one lane
-    // that stays open, so its transitions are what the offline overlay
-    // reasons on (the 0.5 replacement for the WebSocket's state).
+    // `open` is positive evidence the backend answered. `error` is not the
+    // inverse: EventSource emits it on every reconnect and when a proxy
+    // (Vite preview in E2E, Caddy idle timeout) drops the lane — the
+    // browser retries on its own. The offline overlay reasons on HTTP
+    // `fetch` failures in `backendFetch`, not on this stream.
     const onOpen = (): void => {
       reportBackendReachable();
     };
-    const onError = (): void => {
-      reportBackendUnreachable();
-    };
     source.addEventListener('hint', onHint);
     source.addEventListener('open', onOpen);
-    source.addEventListener('error', onError);
     return () => {
       source.removeEventListener('hint', onHint);
       source.removeEventListener('open', onOpen);
-      source.removeEventListener('error', onError);
       source.close();
       // A closed stream is not an outage — the next mount reopens it.
       reportBackendReachable();

@@ -7,6 +7,11 @@ import {
   backendUrl,
   eventsUrl,
 } from './api-client';
+import {
+  isBackendReachable,
+  reportBackendReachable,
+  reportBackendUnreachable,
+} from './connection-state';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -22,6 +27,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   delete window.__ENV__;
+  reportBackendReachable();
 });
 
 describe('backendUrl', () => {
@@ -125,6 +131,26 @@ describe('backendFetch', () => {
       expect(error.message).toBe('Request failed with status 502');
       expect(error.code).toBeUndefined();
     }
+  });
+
+  it('marks the backend reachable on any HTTP response, including 4xx', async () => {
+    reportBackendUnreachable();
+    expect(isBackendReachable()).toBe(false);
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(404, { error: 'missing' }),
+    );
+    await backendFetch('/tasks', { orgId: 'org1' }).catch(() => undefined);
+    expect(isBackendReachable()).toBe(true);
+  });
+
+  it('marks the backend unreachable when fetch never gets a response', async () => {
+    vi.spyOn(window, 'fetch').mockRejectedValue(
+      new TypeError('Failed to fetch'),
+    );
+    await expect(backendFetch('/tasks', { orgId: 'org1' })).rejects.toThrow(
+      'Failed to fetch',
+    );
+    expect(isBackendReachable()).toBe(false);
   });
 
   it('returns undefined for a 204', async () => {

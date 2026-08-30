@@ -6,11 +6,10 @@ import { useEffect, useState } from 'react';
  * connection state.
  *
  * There is no persistent socket to watch any more: every read is an
- * authenticated HTTP request, and the only always-on lane is the org's
- * `/events` hint stream. So reachability is reported by the two things that
- * actually know — the hint stream's own open/error transitions, and the
- * browser's `navigator.onLine` — and stays OPTIMISTIC until something fails:
- * a request that has not been tried is not evidence of an outage.
+ * authenticated HTTP request. Reachability is OPTIMISTIC until an HTTP
+ * `fetch` to the backend fails to get a response (refused, DNS, offline).
+ * The `/events` hint stream is not this signal — EventSource fires `error`
+ * on proxy blips and its own reconnects, which is not "the server is down".
  */
 let reachable = true;
 const listeners = new Set<() => void>();
@@ -21,19 +20,23 @@ function publish(next: boolean): void {
   for (const listener of listeners) listener();
 }
 
-/** The hint stream opened — the backend is answering. */
+/** An HTTP request reached the backend (any status). */
 export function reportBackendReachable(): void {
   publish(true);
 }
 
-/** The hint stream dropped — the backend is unreachable from here. The
- * browser reconnects on its own, which re-reports reachable. */
+/** An HTTP request never got a response — the backend is unreachable. */
 export function reportBackendUnreachable(): void {
   publish(false);
 }
 
+/** Sync snapshot for tests and for the hook's first paint. */
+export function isBackendReachable(): boolean {
+  return reachable;
+}
+
 export function useBackendReachable(): boolean {
-  const [value, setValue] = useState(reachable);
+  const [value, setValue] = useState(isBackendReachable);
   useEffect(() => {
     const listener = (): void => {
       setValue(reachable);
