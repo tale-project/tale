@@ -28,7 +28,7 @@ set -e
 # kernel connect(). Block those targets at the IP layer so the entire
 # tunnel surface is fenced regardless of hostname.
 #
-# Mirrors services/convex/docker-entrypoint.sh lines 59-83. Requires
+# Mirrors services/platform/docker-entrypoint.sh install_ssrf_firewall(). Requires
 # NET_ADMIN; cap_add: ['NET_ADMIN'] is set in compose.yml and the CLI
 # compose generator. Skipped (with a loud warn) when iptables is missing
 # or the capability isn't granted, so dev environments still boot.

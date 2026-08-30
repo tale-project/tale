@@ -3,7 +3,6 @@ import {
   type StatefulService,
   type StopGatedService,
   ALWAYS_ROLL_SERVICES,
-  BACKEND_TIER_SERVICES,
   ROTATABLE_SERVICES,
   STOP_GATED_SERVICES,
 } from './types';

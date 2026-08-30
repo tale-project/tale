@@ -18,7 +18,7 @@ export {
 
 export { classifyDockerCompose } from './sources/docker-compose';
 export { classifyBuildKit } from './sources/buildkit';
-export { classifyConvex } from './sources/convex';
+export { classifyBackend } from './sources/backend';
 export { classifyVite } from './sources/vite';
 export { classifyPlatformContainer } from './sources/platform-container';
 

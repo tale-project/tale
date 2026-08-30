@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { chain, createStreamClassifier } from './combinators.ts';
+import { classifyBackend } from './sources/backend.ts';
 import { classifyBuildKit } from './sources/buildkit.ts';
-import { classifyConvex } from './sources/convex.ts';
 import { classifyDockerCompose } from './sources/docker-compose.ts';
 import { classifyPlatformContainer } from './sources/platform-container.ts';
 import { classifyVite } from './sources/vite.ts';
@@ -31,7 +31,7 @@ describe('chain', () => {
     const start = chain(
       classifyBuildKit,
       classifyDockerCompose,
-      classifyConvex,
+      classifyBackend,
       classifyVite,
       classifyPlatformContainer,
     );
@@ -41,7 +41,7 @@ describe('chain', () => {
   });
 
   it('matches the dev-output 3-classifier wiring', () => {
-    const dev = chain(classifyBuildKit, classifyDockerCompose, classifyConvex);
+    const dev = chain(classifyBuildKit, classifyDockerCompose, classifyBackend);
     expect(dev('#5 [stage 1/2] RUN x').kind).toBe('progress');
     expect(dev('✖ schema.ts Type error').kind).toBe('error');
   });
@@ -60,13 +60,13 @@ describe('createStreamClassifier (sticky multi-line errors)', () => {
   });
 
   it('keeps a Convex push error + trailing frame surfaced', () => {
-    const s = createStreamClassifier(classifyConvex);
+    const s = createStreamClassifier(classifyBackend);
     expect(s('✖ chat.ts:42 Type error: foo').kind).toBe('error');
     expect(s('    at handler (chat.ts:42)').kind).toBe('error');
   });
 
   it('keeps a Convex push error body surfaced even when left-aligned (block error)', () => {
-    const s = createStreamClassifier(classifyConvex);
+    const s = createStreamClassifier(classifyBackend);
     // The header flags a block error; the server message underneath is plain,
     // left-aligned prose that does NOT look like a stack continuation — it must
     // still be surfaced (the regression: this body was being dropped as noise).
@@ -88,7 +88,7 @@ describe('createStreamClassifier (sticky multi-line errors)', () => {
   });
 
   it('treats caret-only and code-frame lines as continuations', () => {
-    const s = createStreamClassifier(classifyConvex);
+    const s = createStreamClassifier(classifyBackend);
     s('Error: nope');
     expect(s('       ^^^^').kind).toBe('error');
     expect(s('  12 │ const x = 1').kind).toBe('error');
@@ -121,7 +121,7 @@ describe('createStreamClassifier (sticky multi-line errors)', () => {
 
 describe('createStreamClassifier — blockEnd', () => {
   it('a blockEnd line closes an armed error block (failed push must not paint later runtime logs)', () => {
-    const stream = createStreamClassifier(classifyConvex);
+    const stream = createStreamClassifier(classifyBackend);
     expect(stream('✖ Hit an error while pushing:').kind).toBe('error');
     // Push-error prose stays surfaced…
     expect(stream('TypeScript typecheck failed').kind).toBe('error');

@@ -3,7 +3,8 @@
  *
  * `tale deploy` recreates the single sandbox spawner in-place on a version
  * change (the tier dropped blue-green — it's now one container,
- * `tale-<proj>-sandbox`, rolled in place via the stateful compose like convex).
+ * `tale-<proj>-sandbox`, rolled in place via the stateful compose like the
+ * backend tier).
  * The recreate restarts the spawner and would SIGKILL its in-flight one-shot
  * executions. `drainSandbox` tells the spawner to refuse NEW work (POST
  * /v1/drain; spawner_client retries land on the restarted spawner) and waits

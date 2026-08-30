@@ -33,13 +33,15 @@ const backendProxy = {
 export default defineConfig({
   base: './',
   resolve: {
-    dedupe: ['convex', 'convex/react', 'react', 'react-dom'],
+    // `convex` is still the source of the wire types + ConvexError the
+    // adapter seam is keyed on; the React bindings are gone.
+    dedupe: ['convex', 'react', 'react-dom'],
     tsconfigPaths: true,
   },
   server: {
     port: 3000,
     // Fail loudly if 3000 is taken instead of silently moving to the next free
-    // port: SITE_URL, the Convex proxy, and the dev orchestrator all assume the
+    // port: SITE_URL, the backend proxy, and the dev orchestrator all assume the
     // app is on 3000, so a silent port shift just looks like "localhost:3000 is
     // broken". The dev orchestrator passes --strictPort too; this keeps direct
     // `vite`/preview invocations consistent.
@@ -48,7 +50,7 @@ export default defineConfig({
   },
   // Preview server (`vite preview`) — the prod-build E2E serving path. Serves
   // the built `dist/` assets (no on-the-fly transpilation, the dev-mode CPU
-  // hog that starved the Convex backend on CI) and proxies Convex the same way
+  // hog that starved the backend on CI) and proxies the backend the same way
   // the dev server does. Dev-only middleware routes (`__ENV__` injection,
   // branding images, canvas preview, status) are re-registered on the preview
   // server via each plugin's `configurePreviewServer` hook.
@@ -62,10 +64,8 @@ export default defineConfig({
       'react',
       'react-dom',
       'react/jsx-runtime',
-      'convex/react',
       '@tanstack/react-router',
       '@tanstack/react-query',
-      '@convex-dev/react-query',
       'lucide-react',
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',

@@ -1,14 +1,14 @@
 /**
- * The Convex health/restart state machine, as PURE reducers.
+ * The backend's health/restart state machine, as PURE reducers.
  *
- * This is the safety-critical logic behind `bun run dev`: a flapping or crashed
- * local Convex backend is detected by a periodic health probe and restarted up to
- * a cap, and a backend that has been stable long enough has its restart budget
- * forgiven. A soft mistake here (e.g. counting a failure twice while a restart is
- * already in flight, or never forgiving the budget) strands the WS unauthenticated
- * — the documented cold-start-auth-recovery failure — so the logic is extracted
- * here as pure functions and exhaustively unit-tested, separate from the effectful
- * spawn/kill/probe wiring in `dev.ts`.
+ * This is the safety-critical logic behind `bun run dev`: a flapping or
+ * crashed local backend is detected by a periodic health probe and restarted
+ * up to a cap, and a backend that has been stable long enough has its restart
+ * budget forgiven. A soft mistake here (counting a failure twice while a
+ * restart is already in flight, never forgiving the budget) leaves the dev
+ * loop either thrashing or wedged, so the logic lives here as pure functions,
+ * exhaustively unit-tested, separate from the effectful spawn/kill/probe
+ * wiring in the dev engine.
  *
  * node-only by policy (consumed by the dev orchestrator), but contains no I/O —
  * the caller performs the kill/spawn/probe and threads the state through.
@@ -29,7 +29,7 @@ export interface SupervisorState {
   /** Restart attempts within the current (unstable) window. */
   restartCount: number;
   /** Timestamp (ms) the backend last became ready; 0 if never. */
-  convexReadyAt: number;
+  backendReadyAt: number;
   /** Consecutive failed health probes since the last success. */
   consecutiveFailures: number;
   /** A restart is currently in flight (suppresses the health loop). */
@@ -41,7 +41,7 @@ export interface SupervisorState {
 export function initialSupervisorState(): SupervisorState {
   return {
     restartCount: 0,
-    convexReadyAt: 0,
+    backendReadyAt: 0,
     consecutiveFailures: 0,
     restarting: false,
     shuttingDown: false,
@@ -53,10 +53,8 @@ export type HealthAction = 'none' | 'warn' | 'restart';
 export interface HealthTickInput {
   /** Did the readiness probe (TCP) succeed this tick? */
   alive: boolean;
-  /** Is our spawned child still running? (Ignored in external mode.) */
+  /** Is our spawned child still running? */
   childAlive: boolean;
-  /** Are we probing an externally-owned backend (no child to inspect)? */
-  external: boolean;
 }
 
 /**
@@ -78,7 +76,7 @@ export function onHealthTick(
     return { state: { ...state, consecutiveFailures: 0 }, action: 'none' };
   }
   // Local child already gone — the exit handler owns that, don't double-count.
-  if (!input.external && !input.childAlive) return { state, action: 'none' };
+  if (!input.childAlive) return { state, action: 'none' };
 
   const consecutiveFailures = state.consecutiveFailures + 1;
   if (consecutiveFailures >= SUPERVISOR_LIMITS.MAX_CONSECUTIVE_FAILURES) {
@@ -87,17 +85,12 @@ export function onHealthTick(
   return { state: { ...state, consecutiveFailures }, action: 'warn' };
 }
 
-export type RestartAction =
-  | 'noop'
-  | 'noop-external'
-  | 'restart'
-  | 'shutdown-cap';
+export type RestartAction = 'noop' | 'restart' | 'shutdown-cap';
 
 /**
  * Decide whether (and how) to restart, given the current time.
  *
  *  - already shutting down / restarting → `noop`;
- *  - external backend (not ours to restart) → `noop-external`;
  *  - a backend stable past the threshold has its restart budget forgiven first;
  *  - over the restart cap → `shutdown-cap` (clears `restarting`, the caller shuts down);
  *  - otherwise → `restart` (sets `restarting`, increments the count).
@@ -105,15 +98,13 @@ export type RestartAction =
 export function planRestart(
   state: SupervisorState,
   now: number,
-  input: { external: boolean },
 ): { state: SupervisorState; action: RestartAction } {
   if (state.shuttingDown || state.restarting) return { state, action: 'noop' };
-  if (input.external) return { state, action: 'noop-external' };
 
   let restartCount = state.restartCount;
   if (
-    state.convexReadyAt > 0 &&
-    now - state.convexReadyAt > SUPERVISOR_LIMITS.STABLE_THRESHOLD_MS
+    state.backendReadyAt > 0 &&
+    now - state.backendReadyAt > SUPERVISOR_LIMITS.STABLE_THRESHOLD_MS
   ) {
     restartCount = 0; // stable long enough — forgive the budget
   }
@@ -131,11 +122,11 @@ export function planRestart(
 }
 
 /** Mark the backend ready: clear the failure counter and stamp the ready time. */
-export function onConvexReady(
+export function onBackendReady(
   state: SupervisorState,
   now: number,
 ): SupervisorState {
-  return { ...state, convexReadyAt: now, consecutiveFailures: 0 };
+  return { ...state, backendReadyAt: now, consecutiveFailures: 0 };
 }
 
 /** Settle the in-flight restart (after a recover attempt resolves). */

@@ -2,40 +2,26 @@
 /*
   Pre-flight validation a contributor runs before `bun run dev`.
 
-  `bun run dev` spawns a local Convex backend, syncs env, runs codegen, then
-  boots Vite — a 30-90s chain on a cold machine. When a prerequisite is
-  missing (wrong Bun, a port already bound) the failure surfaces
-  deep inside that chain with a stack trace, not a sentence. This script
-  front-loads the cheap checks and prints a clear pass/fail with the exact
-  remediation, so a missing tool is a five-second fix instead of a confusing
-  mid-boot crash.
+  `bun run dev` spawns the platform backend, waits for it to bind, then boots
+  Vite — a 20-60s chain on a cold machine. When a prerequisite is missing
+  (wrong Bun, a port already bound) the failure surfaces deep inside that
+  chain with a stack trace, not a sentence. This script front-loads the cheap
+  checks and prints a clear pass/fail with the exact remediation, so a missing
+  prerequisite is a five-second fix instead of a confusing mid-boot crash.
 
   It validates:
-    - Bun >= 1.3            (the workspace runtime)
-    - Port 3000 free        (the Vite dev server binds it)
-    - Port 3210 free        (the local Convex backend binds it)
-    - Convex CLI reachable  (`bunx convex --version`)
-    - Convex module storage (soft warn when function-bundle blobs are bloated)
+    - Bun >= 1.3      (the workspace runtime)
+    - Port 3000 free  (the Vite dev server binds it)
+    - Port 3005 free  (the platform backend binds it)
 
   The core lives in `runSetupChecks(deps)`, which takes injected probes so a
   unit test can pass fakes and assert on structured results. `main()` wires
-  the real probes (a TCP probe mirroring `dev.ts`, a version reader, and a
-  command runner) and renders the output.
+  the real probes (a TCP probe mirroring `dev.ts` and the runtime version) and
+  renders the output.
 */
 
-import { existsSync, readdirSync, statSync } from 'node:fs';
 import { createConnection } from 'node:net';
-import { join } from 'node:path';
 import process from 'node:process';
-
-import {
-  convexLocalPaths,
-  formatBytes,
-  listModuleBlobEntries,
-  MODULE_BLOB_PRUNE_BYTES_THRESHOLD,
-  MODULE_BLOB_PRUNE_COUNT_THRESHOLD,
-  summarizeModuleBlobs,
-} from './convex-local-maintenance';
 
 /** A single check's outcome. `ok` gates the exit code; `hard` failures exit
  *  non-zero, soft ones only warn. */
@@ -52,28 +38,18 @@ export interface CheckResult {
 
 /** Injected probes. Real implementations live in `main()`; tests pass fakes.
  *
- *  - `commandVersion(cmd, args)` runs a `--version`-style command and resolves
- *    its trimmed stdout, or `null` when the binary is missing / errors.
  *  - `portInUse(port)` resolves true when something is already listening.
  *  - `bunVersion` is read from the running runtime (Bun.version), passed in so
  *    the pure function never touches a global. */
 export interface SetupCheckDeps {
   bunVersion: string;
-  commandVersion: (cmd: string, args: string[]) => Promise<string | null>;
   portInUse: (port: number) => Promise<boolean>;
-  /** Optional probe for local Convex module blob bloat. Tests omit this. */
-  convexModuleStats?: () => ModuleBlobStats | null;
-}
-
-interface ModuleBlobStats {
-  count: number;
-  totalBytes: number;
 }
 
 const MIN_BUN_MAJOR = 1;
 const MIN_BUN_MINOR = 3;
 const APP_PORT = 3000;
-const CONVEX_PORT = 3210;
+const BACKEND_PORT = 3005;
 
 /** Parse the leading `x.y.z` out of arbitrary version output. Returns the
  *  numeric major/minor/patch triple, or `null` when nothing parses. */
@@ -140,48 +116,6 @@ async function checkPort(
   };
 }
 
-async function checkConvexCli(
-  commandVersion: SetupCheckDeps['commandVersion'],
-): Promise<CheckResult> {
-  const raw = await commandVersion('bunx', ['convex', '--version']);
-  const ok = raw !== null;
-  return {
-    name: 'Convex CLI reachable',
-    ok,
-    hard: true,
-    detail: ok ? `found ${raw}` : 'bunx convex --version failed',
-    remediation: ok
-      ? undefined
-      : 'Run `bun install` so the Convex CLI is available, then re-run this check.',
-  };
-}
-
-async function checkConvexModuleStorage(
-  stats: ModuleBlobStats | null,
-): Promise<CheckResult> {
-  if (!stats) {
-    return {
-      name: 'Convex module storage lean',
-      ok: true,
-      hard: false,
-      detail: 'no local deployment yet',
-    };
-  }
-  const overCount = stats.count > MODULE_BLOB_PRUNE_COUNT_THRESHOLD;
-  const overBytes = stats.totalBytes > MODULE_BLOB_PRUNE_BYTES_THRESHOLD;
-  const ok = !overCount && !overBytes;
-  const detail = `${stats.count} blob(s), ${formatBytes(stats.totalBytes)}`;
-  return {
-    name: 'Convex module storage lean',
-    ok,
-    hard: false,
-    detail,
-    remediation: ok
-      ? undefined
-      : '`bun run dev` prunes stale module blobs automatically. If cold start still fails, see contributor-setup (resetting local Convex dev data) — do not delete `.convex/local/` unless you intend to lose all local tables and uploads.',
-  };
-}
-
 /**
  * Run every pre-flight check with the injected probes and return the
  * structured results in display order. Pure: no I/O of its own, no
@@ -192,21 +126,11 @@ export async function runSetupChecks(
 ): Promise<CheckResult[]> {
   // Bun is synchronous (version is already in hand); the rest run in parallel
   // since they're independent probes.
-  const [appPort, convexPort, convexCli] = await Promise.all([
+  const [appPort, backendPort] = await Promise.all([
     checkPort(APP_PORT, 'Vite app', deps.portInUse),
-    checkPort(CONVEX_PORT, 'Convex backend', deps.portInUse),
-    checkConvexCli(deps.commandVersion),
+    checkPort(BACKEND_PORT, 'Backend', deps.portInUse),
   ]);
-  const moduleStorage = await checkConvexModuleStorage(
-    deps.convexModuleStats?.() ?? null,
-  );
-  return [
-    checkBun(deps.bunVersion),
-    appPort,
-    convexPort,
-    convexCli,
-    moduleStorage,
-  ];
+  return [checkBun(deps.bunVersion), appPort, backendPort];
 }
 
 /** True when no hard check failed — the gate `main()` uses for its exit code. */
@@ -261,48 +185,10 @@ function realPortInUse(port: number, timeoutMs = 1_000): Promise<boolean> {
   });
 }
 
-/** Run `cmd args` and resolve trimmed stdout, or `null` when the binary is
- *  missing or exits non-zero. Uses Bun's spawn so no extra dependency. */
-async function realCommandVersion(
-  cmd: string,
-  args: string[],
-): Promise<string | null> {
-  try {
-    const proc = Bun.spawn([cmd, ...args], {
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
-    if (exitCode !== 0) return null;
-    // Some tools print the version to stderr; fall back to it.
-    const out = stdout.trim() || stderr.trim();
-    return out.length > 0 ? out : null;
-  } catch {
-    // ENOENT or spawn failure — treat as "binary not present".
-    return null;
-  }
-}
-
 async function main() {
-  const platformRoot = join(import.meta.dir, '..');
-  const paths = convexLocalPaths(platformRoot);
-  const moduleEntries = existsSync(paths.modulesDir)
-    ? listModuleBlobEntries(
-        readdirSync,
-        (path) => statSync(path),
-        paths.modulesDir,
-      )
-    : [];
   const results = await runSetupChecks({
     bunVersion: Bun.version,
-    commandVersion: realCommandVersion,
     portInUse: realPortInUse,
-    convexModuleStats: () =>
-      moduleEntries.length > 0 ? summarizeModuleBlobs(moduleEntries) : null,
   });
   console.log(renderResults(results));
   process.exit(allHardChecksPassed(results) ? 0 : 1);

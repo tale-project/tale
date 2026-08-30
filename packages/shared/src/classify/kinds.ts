@@ -14,7 +14,7 @@ export type LineKind = 'noise' | 'progress' | 'info' | 'warn' | 'error';
 export type LineSource =
   | 'docker-compose'
   | 'buildkit'
-  | 'convex'
+  | 'backend'
   | 'vite'
   | 'platform-container'
   | 'generic';

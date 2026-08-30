@@ -5,9 +5,10 @@ PostgreSQL. It lives inside `@tale/platform` and ships in the **platform
 image**: the same image starts as an `api` container or a `worker` container
 (role picked at boot), replacing the separate Convex container. The default
 deployment runs one of each; either role scales horizontally on its own. 0.5
-is a fresh instance (no data migration), so this backend grows feature by
-feature until it carries the whole product surface, then `services/convex`
-and `convex/` are removed at cutover.
+is a fresh instance (no data migration). This backend now carries the whole
+product surface: the Convex service is deleted and the remaining `convex/`
+tree holds only the 0.4 function layer the app's adapter seam still types
+itself against — see `MIGRATION.md` for what is left to remove.
 
 ## Constitution
 
@@ -72,23 +73,35 @@ data layer for these lanes lives in `app/lib/backend/` (fetch client,
 - Unit tests ride the platform vitest `server` project:
   `bun run --filter @tale/platform test`.
 - `bun run --filter @tale/platform backend:integration` — the real-Postgres
-  proof (22 checks: boot migrations, serializable retry, transactional
-  enqueue, worker pickup latency, auth + SSE replay, org scaffold drain,
-  notifications bell, identity-domain smoke, login lockout, audit-chain
-  verification). Needs a **throwaway** database:
+  proof (247 checks: boot migrations, serializable retry, transactional
+  enqueue, worker pickup latency, auth + SSE replay, org scaffold drain, every
+  migrated domain's surface, the REST machine door, SSO/SCIM, the task-agent
+  and automation lanes, governance, cloud import, login lockout, audit-chain
+  verification, the dev seeder). Needs a **throwaway** database and an S3 —
+  the blob-backed lanes (files, documents, knowledge, residency, chat) skip
+  visibly without `ITEST_S3_ENDPOINT`, and `TALE_CONFIG_DIR` is where the
+  probes write the deployment-default config tree:
 
   ```sh
   docker run --rm -d --name tale-backend-itest \
     -e POSTGRES_PASSWORD=itest -p 54329:5432 \
     ghcr.io/tale-project/tale/tale-db:latest
+  docker run --rm -d --name tale-itest-minio -p 59000:9000 \
+    -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+    minio/minio:latest server /data
   # Wait for REAL readiness: pg_isready lies during first-boot init (the
   # bootstrap server accepts connections, then shuts down). The image writes
   # /tmp/.db_ready after init scripts + migrations — same gate compose uses.
   until docker exec tale-backend-itest test -f /tmp/.db_ready; do sleep 1; done
   DATABASE_URL=postgres://tale:itest@127.0.0.1:54329/tale \
+    ITEST_S3_ENDPOINT=http://127.0.0.1:59000 \
+    TALE_CONFIG_DIR=$(mktemp -d) \
     bun run --filter @tale/platform backend:integration
-  docker stop tale-backend-itest
+  docker stop tale-backend-itest tale-itest-minio
   ```
+
+  Credentials default to `minioadmin` / `minioadmin`; override with
+  `ITEST_S3_ACCESS_KEY` / `ITEST_S3_SECRET_KEY`.
 
 ## Auth & migrations
 

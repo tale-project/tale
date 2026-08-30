@@ -30,7 +30,6 @@
     "knip:check": "bunx knip",
     "setup": "bunx turbo run setup",
     "setup:check": "bun services/platform/scripts/setup-check.ts",
-    "setup:clean": "bun services/platform/scripts/setup-clean.ts",
     "docker:build": "bunx turbo run docker:build",
     "docker:up": "docker compose up -d",
     "docker:dev": "bun scripts/ensure-sandbox-runtime-image.ts && ( docker network inspect tale-sandbox-net >/dev/null 2>&1 || docker network create --internal --ipv6=false --driver=bridge tale-sandbox-net ) && bun scripts/docker-dev-env-override.ts | docker compose -f compose.yml -f compose.dev.yml -f compose.docs.yml -f - up --build -d",

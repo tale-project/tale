@@ -302,7 +302,7 @@ export async function ensureEnv(
       'INSTANCE_SECRET',
       'DB_PASSWORD',
       'SOPS_AGE_KEY',
-      // Shared HMAC secret for Convex → sandbox spawner. Generated as
+      // Shared HMAC secret for the backend → sandbox spawner. Generated as
       // 32 random bytes (hex); see services/sandbox/src/auth.ts.
       'SANDBOX_TOKEN',
       // HMAC key that signs audit-log retention/scrub checkpoints, making the
@@ -669,7 +669,7 @@ function generateEnvContent(config: EnvConfig): string {
     '# ============================================================================',
     '# Sandbox (artifact_run) Configuration',
     '# ============================================================================',
-    '# Shared HMAC secret. Convex signs every request to the sandbox spawner',
+    '# Shared HMAC secret. The backend signs every request to the spawner',
     '# with this; the spawner rejects unsigned/wrong-signed requests. Rotate',
     '# by setting a new value and restarting both `platform` and `sandbox`.',
     `SANDBOX_TOKEN=${config.sandboxToken}`,
@@ -678,7 +678,7 @@ function generateEnvContent(config: EnvConfig): string {
     '# (TALE_BROWSER_CDP) and the platform attaches Playwright MCP over CDP, so',
     "# the agent's browser is streamed read-only into the web page.",
     '# ONE value drives BOTH sides: the sandbox spawner reads it directly and the',
-    '# platform entrypoint pushes it to Convex (run_external_agent gates on it),',
+    '# backend reads it from its environment (agent runs gate on it),',
     '# so they stay in lockstep. Set to 0 to opt out — the agent then uses a',
     '# headless browser, just with no live preview.',
     '# SANDBOX_BROWSER_VIEW=0',

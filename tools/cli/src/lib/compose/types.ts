@@ -42,7 +42,7 @@ export interface ComposeService {
   networks?: string[] | Record<string, { aliases?: string[] }>;
   extra_hosts?: string[];
   // Linux capability + resource flags. Previously absent from the generator,
-  // which silently dropped them on the convex service (R1.17 latent bug)
+  // which silently dropped them on the retired convex service (R1.17 latent bug)
   // and made sandbox impossible. All optional; emit only when set.
   cap_add?: string[];
   cap_drop?: string[];
@@ -73,6 +73,11 @@ export interface ServiceConfig {
 }
 
 export const ROTATABLE_SERVICES = ['platform'] as const;
+
+/** The application backend tier — named once and spread into every list
+ *  below, so the deploy flow and the drain lane cannot drift apart. */
+export const BACKEND_TIER_SERVICES = ['backend-api', 'backend-worker'] as const;
+
 export const STATEFUL_SERVICES = [
   'db',
   'proxy',
@@ -84,8 +89,7 @@ export const STATEFUL_SERVICES = [
   'sandbox-egress',
   // The application backend tier: the api that serves every door and the
   // worker that runs the jobs.
-  'backend-api',
-  'backend-worker',
+  ...BACKEND_TIER_SERVICES,
 ] as const;
 export const ALL_SERVICES = [
   ...ROTATABLE_SERVICES,
@@ -117,13 +121,8 @@ export const ALWAYS_ROLL_SERVICES = [
   // The backend ships the SAME image as platform and shares its wire
   // contracts, so it must never version-skew from it: rolled in place on
   // every deploy, drained first (drain-backend.ts).
-  'backend-api',
-  'backend-worker',
+  ...BACKEND_TIER_SERVICES,
 ] as const;
-
-/** The application backend tier — named once so the deploy flow and the
- * drain lane cannot drift apart. */
-export const BACKEND_TIER_SERVICES = ['backend-api', 'backend-worker'] as const;
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];

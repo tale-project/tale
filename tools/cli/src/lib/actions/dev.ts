@@ -3,7 +3,7 @@ import { join, relative } from 'node:path';
 import {
   chain,
   classifyBuildKit,
-  classifyConvex,
+  classifyBackend,
   classifyDockerCompose,
   classifyPlatformContainer,
   classifyVite,
@@ -37,7 +37,6 @@ import { getContainerHealth } from '../docker/get-container-health';
 import { findChildProject, findProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
 import { withLock } from '../state/with-lock';
-import { getAdminKey } from './convex-admin';
 import { init } from './init';
 
 async function assertDockerAvailable(): Promise<void> {
@@ -96,37 +95,10 @@ async function waitForHealth(
   return false;
 }
 
-/**
- * Derive the Convex dashboard admin key once the platform container is up,
- * retrying while it boots. Best-effort: a failure must never fail `tale dev`.
- */
-async function fetchAdminKeyWhenReady(
-  signal?: AbortSignal,
-): Promise<string | null> {
-  const maxAttempts = 60;
-  for (let i = 0; i < maxAttempts; i++) {
-    if (signal?.aborted) return null;
-    try {
-      return await getAdminKey();
-    } catch (err) {
-      logger.debug(
-        `Admin key fetch attempt ${i + 1} failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-    await Bun.sleep(1000);
-  }
-  return null;
-}
-
-/** The clean READY block: an ASCII rule, the app URL, the fixed Convex sub-paths
- *  (derived host-side — no log scraping), and the dashboard admin key. */
-function printReadyBlock(url: string, adminKey: string | null): void {
+/** The clean READY block: an ASCII rule and the app URL. */
+function printReadyBlock(url: string): void {
   rule();
   doneLine(`Tale is running — open ${url}`);
-  infoLine(`Convex API   ${url}/ws_api`);
-  infoLine(`Actions      ${url}/http_api`);
-  infoLine(`Dashboard    ${url}/convex-dashboard`);
-  if (adminKey) infoLine(`Admin key    ${adminKey}`);
   rule();
 }
 
@@ -251,7 +223,7 @@ export async function runDev(options: DevOptions): Promise<void> {
     const healthy = await runStep(
       { active: 'Waiting for services', done: 'Services healthy' },
       async () => {
-        // First boot bootstraps Convex functions and migrations inside the
+        // First boot runs the database migrations inside the
         // platform container — allow up to 10 minutes before warning.
         if (!(await waitForHealth(abortController.signal, 300))) {
           throw new StepWarning(
@@ -261,9 +233,8 @@ export async function runDev(options: DevOptions): Promise<void> {
         return true;
       },
     );
-    const adminKey = await fetchAdminKeyWhenReady(abortController.signal);
     if (healthy) void openBrowser(url);
-    printReadyBlock(url, adminKey);
+    printReadyBlock(url);
     infoLine(`Stop with: docker compose -p ${projectName} down`);
     return;
   }
@@ -278,7 +249,7 @@ export async function runDev(options: DevOptions): Promise<void> {
     chain(
       classifyBuildKit,
       classifyDockerCompose,
-      classifyConvex,
+      classifyBackend,
       classifyVite,
       classifyPlatformContainer,
     ),
@@ -304,10 +275,9 @@ export async function runDev(options: DevOptions): Promise<void> {
       }
     }
     if (!ok || abortController.signal.aborted) return;
-    const adminKey = await fetchAdminKeyWhenReady(abortController.signal);
     if (abortController.signal.aborted) return;
     void openBrowser(url);
-    printReadyBlock(url, adminKey);
+    printReadyBlock(url);
   })();
 
   infoLine('Starting Tale — press Ctrl-C to stop.');

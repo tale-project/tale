@@ -36,7 +36,7 @@ import { z } from 'zod';
 
 import { computeAuditHash } from '../convex/lib/helpers/audit_hash.ts';
 import { createApp } from './app.ts';
-import { createAuth } from './auth/auth.ts';
+import { createAuth, type Auth } from './auth/auth.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
@@ -7824,6 +7824,87 @@ async function checkProjectTail(
       secondRepair.repaired === 0,
     `repaired=${firstRepair.repaired}, counts=${afterRepair[0]?.open}/${afterRepair[0]?.done}/${afterRepair[0]?.agents} (want 2/1/1 — cancelled counts in neither), secondPass=${secondRepair.repaired} (want 0)`,
   );
+}
+
+/**
+ * The dev-login seeder (`domains/provisioning/dev-seed.ts`): the gate is
+ * loopback-only, the seed is idempotent, and it goes through the SAME Better
+ * Auth endpoints the wizard uses (so `afterCreateOrganization` fires — proven
+ * here by the `org.scaffold` job the seeded org enqueues).
+ */
+async function checkDevSeed(sql: Sql, auth: Auth): Promise<void> {
+  const { seedDevUser } = await import('./domains/provisioning/dev-seed.ts');
+  const email = `itest-devseed-${Date.now() % 100_000}@tale.test`;
+  const base = {
+    TALE_DEV_SEED_USER: '1',
+    TALE_DEV_SEED_USER_EMAIL: email,
+    TALE_DEV_SEED_USER_PASSWORD: 'TaleDev!Passw0rd',
+    SITE_URL: 'http://localhost:3000',
+  };
+
+  const off = await seedDevUser({
+    sql,
+    auth,
+    env: { ...base, TALE_DEV_SEED_USER: '0' },
+  });
+  const reachable = await seedDevUser({
+    sql,
+    auth,
+    env: { ...base, SITE_URL: 'https://tale.example.com' },
+  });
+  const noUser = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "user" WHERE lower("email") = ${email}
+  `;
+  record(
+    'dev seed refuses when disabled or off-loopback',
+    off.status === 'skipped' &&
+      reachable.status === 'skipped' &&
+      Number(noUser[0]?.count ?? '1') === 0,
+    `flag-off=${off.status}, reachable-site=${reachable.status} (${reachable.detail}), users=${noUser[0]?.count}`,
+  );
+
+  const first = await seedDevUser({ sql, auth, env: base });
+  const seededUser = await sql<{ id: string }[]>`
+    SELECT "id" FROM "user" WHERE lower("email") = ${email}
+  `;
+  const userId = seededUser[0]?.id ?? '';
+  const membership = await sql<{ organizationId: string }[]>`
+    SELECT "organizationId" FROM "member" WHERE "userId" = ${userId}
+  `;
+  const orgId = membership[0]?.organizationId ?? '';
+  const scaffold = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job WHERE name = 'org.scaffold'
+  `;
+  record(
+    'dev seed creates the owner + workspace through Better Auth',
+    first.status === 'seeded' &&
+      userId !== '' &&
+      membership.length === 1 &&
+      Number(scaffold[0]?.count ?? '0') >= 1,
+    `${first.detail}; user=${userId !== '' ? 'present' : 'MISSING'}, memberships=${membership.length}, org.scaffold jobs=${scaffold[0]?.count}`,
+  );
+
+  const second = await seedDevUser({ sql, auth, env: base });
+  const afterUsers = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "user" WHERE lower("email") = ${email}
+  `;
+  const afterMemberships = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "member" WHERE "userId" = ${userId}
+  `;
+  record(
+    'dev seed is idempotent on a second boot',
+    second.status === 'seeded' &&
+      second.detail.includes('already existed') &&
+      Number(afterUsers[0]?.count ?? '0') === 1 &&
+      Number(afterMemberships[0]?.count ?? '0') === 1,
+    `${second.detail}; users=${afterUsers[0]?.count}, memberships=${afterMemberships[0]?.count}`,
+  );
+
+  // Leave the throwaway org out of every later listing probe's way.
+  if (orgId !== '') {
+    await sql`DELETE FROM "member" WHERE "organizationId" = ${orgId}`;
+    await sql`DELETE FROM "organization" WHERE "id" = ${orgId}`;
+  }
 }
 
 async function checkCompetences(
@@ -20321,8 +20402,11 @@ async function checkDataResidency(
 
   // --- Object storage: connection files + probe + blob backfill ---------
   const endpoint = process.env.ITEST_S3_ENDPOINT ?? '';
-  const accessKeyId = process.env.ITEST_S3_ACCESS_KEY ?? '';
-  const secretAccessKey = process.env.ITEST_S3_SECRET_KEY ?? '';
+  // Same defaults as checkFiles — a run that only sets ITEST_S3_ENDPOINT
+  // (the documented minimum) must reach MinIO here too, not sign with an
+  // empty key and fail the bucket create.
+  const accessKeyId = process.env.ITEST_S3_ACCESS_KEY ?? 'minioadmin';
+  const secretAccessKey = process.env.ITEST_S3_SECRET_KEY ?? 'minioadmin';
   const byoBucket = 'itest-byo';
   // Create the BYO bucket directly (MinIO: signed PUT on the bucket URL).
   const { buildS3ObjectStore } =
@@ -23480,6 +23564,15 @@ async function main(): Promise<void> {
     `app_migrations rows=${migrationRows[0]?.count}, better-auth user table=${authTable[0]?.ok ? 'present' : 'MISSING'}`,
   );
 
+  // The knowledge corpus schema is what the websites/crawler lanes write
+  // through, and `main.ts` bootstraps it on every worker boot — do the same
+  // here so those probes don't run against whatever shape the image shipped.
+  // (It used to be bootstrapped only inside checkKnowledge, which skips
+  // without ITEST_S3_ENDPOINT, so a run without S3 hit the legacy tables.)
+  const { ensureDefaultCorpusSchema } =
+    await import('./domains/knowledge/service.ts');
+  await ensureDefaultCorpusSchema();
+
   const app = createApp({ sql, auth });
   const server = serve({ fetch: app.fetch, port });
   try {
@@ -23620,6 +23713,7 @@ async function main(): Promise<void> {
       authCtx,
       `itest-${orgSuffix}@example.com`,
     );
+    await checkDevSeed(sql, auth);
   } finally {
     await boss.stop({ graceful: false });
     await new Promise<void>((resolve) => {

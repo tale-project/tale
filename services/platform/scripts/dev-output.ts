@@ -4,16 +4,16 @@
  * commands render identically).
  *
  * `pipeChild` swaps child `stdio:'inherit'` for capture, with two modes:
- *   - `silent` (discrete steps: docker up, convex CLI, codegen, env-sync) —
+ *   - `silent` (discrete steps: docker up, migrations, gates) —
  *     capture into a ring and surface NOTHING; a failing step dumps its tail.
  *     This is the robust default: success is clean by construction, so benign
  *     noise (e.g. docker's orphan-container warning) can never leak.
- *   - `stream` (the persistent servers: convex dev, vite) — surface the
+ *   - `stream` (the persistent servers: backend, vite) — surface the
  *     meaningful lines (`info`/`warn`/`error`) as tagged reporter lines and drop
  *     the rest (layer pulls, HMR churn, "Watching for file changes...").
  *
  * Children stay node `ChildProcess`es with piped stdio, so the orchestrator's
- * `tree-kill` shutdown + the convex restart state machine are untouched.
+ * `tree-kill` shutdown + the backend restart state machine are untouched.
  */
 
 import type { ChildProcess } from 'node:child_process';
@@ -22,7 +22,7 @@ import {
   type Classifier,
   chain,
   classifyBuildKit,
-  classifyConvex,
+  classifyBackend,
   classifyDockerCompose,
   classifyVite,
   createStreamClassifier,
@@ -44,18 +44,19 @@ export {
   warnLine,
 } from '@tale/shared/tux';
 
-/** Discrete steps (docker/convex CLI) mix compose, BuildKit and convex shapes. */
+/** Discrete steps (docker + the backend) mix compose, BuildKit and backend
+ * shapes. */
 export const devStepClassifier: Classifier = chain(
   classifyBuildKit,
   classifyDockerCompose,
-  classifyConvex,
+  classifyBackend,
 );
 
 export const dockerClassifier: Classifier = chain(
   classifyBuildKit,
   classifyDockerCompose,
 );
-export const convexClassifier: Classifier = classifyConvex;
+export const backendClassifier: Classifier = classifyBackend;
 export const viteClassifier: Classifier = classifyVite;
 
 export type PipeMode = 'silent' | 'errors';
@@ -68,7 +69,7 @@ export interface PipeChildHandle {
 }
 
 export interface PipeChildOptions {
-  /** Source tag on surfaced lines, e.g. `docker` / `convex` / `vite`. */
+  /** Source tag on surfaced lines, e.g. `docker` / `backend` / `vite`. */
   label: string;
   classifier?: Classifier;
   /**

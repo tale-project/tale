@@ -860,7 +860,6 @@ import type * as provider_credentials_token_hash from "../provider_credentials/t
 import type * as provisioning from "../provisioning.js";
 import type * as provisioning_provision_default_agents from "../provisioning/provision_default_agents.js";
 import type * as provisioning_provision_default_automations from "../provisioning/provision_default_automations.js";
-import type * as provisioning_seed_dev_user from "../provisioning/seed_dev_user.js";
 import type * as provisioning_seed_starter from "../provisioning/seed_starter.js";
 import type * as sandbox_admission from "../sandbox/admission.js";
 import type * as sandbox_agent_deadline from "../sandbox/agent_deadline.js";
@@ -1881,7 +1880,6 @@ declare const fullApi: ApiFromModules<{
   provisioning: typeof provisioning;
   "provisioning/provision_default_agents": typeof provisioning_provision_default_agents;
   "provisioning/provision_default_automations": typeof provisioning_provision_default_automations;
-  "provisioning/seed_dev_user": typeof provisioning_seed_dev_user;
   "provisioning/seed_starter": typeof provisioning_seed_starter;
   "sandbox/admission": typeof sandbox_admission;
   "sandbox/agent_deadline": typeof sandbox_agent_deadline;

@@ -3,7 +3,7 @@
 /**
  * Self-provisioning toolchain for the LIVE YouTube-ingest test
  * (`ytdlp_live.test.ts`). Production bakes yt-dlp + deno + ffmpeg + the bgutil
- * PO-token plugin into the convex image (`services/convex/Dockerfile`); this
+ * PO-token plugin into the platform image (`services/platform/Dockerfile`); this
  * module reproduces that set ON DEMAND so the live test runs on a bare laptop
  * or CI runner without a bespoke install step.
  *
@@ -58,7 +58,7 @@ const BGUTIL_POT_VERSION = '1.3.1';
  * yt-dlp's `candidate_plugin_paths` does `Path(dir).iterdir()` then looks for
  * `yt_dlp_plugins/` under each child — so the zip (which already contains
  * `yt_dlp_plugins/`) must land in `<plugin-dirs>/bgutil/`, not directly in
- * `<plugin-dirs>/`. Must stay in lockstep with `services/convex/Dockerfile`.
+ * `<plugin-dirs>/`. Must stay in lockstep with `services/platform/Dockerfile`.
  */
 export const BGUTIL_PLUGIN_NEST_DIR = 'bgutil';
 

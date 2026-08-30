@@ -5,6 +5,7 @@ import { createAuth, type Auth } from './auth/auth.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { ensureDefaultCorpusSchema } from './domains/knowledge/service.ts';
+import { seedDevUser } from './domains/provisioning/dev-seed.ts';
 import { loadEnv } from './env.ts';
 import { createBoss, ensureQueues } from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
@@ -65,6 +66,20 @@ async function main(): Promise<void> {
     await ensureDefaultCorpusSchema().catch((error: unknown) => {
       console.warn('[backend] default corpus bootstrap failed:', error);
     });
+  }
+
+  // Loopback-only dev convenience: seed the owner account + workspace so a
+  // fresh stack is testable without a manual /setup pass. Gated inside on
+  // TALE_DEV_SEED_USER + a loopback SITE_URL; never fails boot.
+  if (auth !== null) {
+    try {
+      const seeded = await seedDevUser({ sql, auth });
+      if (seeded.status === 'seeded') {
+        console.log(`[backend] dev seed: ${seeded.detail}`);
+      }
+    } catch (error: unknown) {
+      console.warn('[backend] dev seed failed:', error);
+    }
   }
 
   const server =

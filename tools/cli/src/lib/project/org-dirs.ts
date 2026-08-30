@@ -33,7 +33,7 @@ const TEMPLATE_DIR = 'default';
 /**
  * Org-slug regex aligned with
  * services/platform/lib/shared/constants/org-slug.ts (64-char cap). Duplicated
- * here because the compiled CLI binary cannot import convex sources at runtime.
+ * here because the compiled CLI binary cannot import platform sources at runtime.
  */
 const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 

@@ -14,15 +14,11 @@ import {
  * `main()`. No `mock.module`; the seam is the `SetupCheckDeps` parameter.
  */
 
-/** Build a deps object where every tool reports a healthy version and every
- *  port is free. Individual tests override one field to exercise a failure. */
+/** Build a deps object where the runtime is healthy and every port is free.
+ *  Individual tests override one field to exercise a failure. */
 function passingDeps(overrides: Partial<SetupCheckDeps> = {}): SetupCheckDeps {
   return {
     bunVersion: '1.3.10',
-    commandVersion: async (cmd) => {
-      if (cmd === 'bunx') return 'convex 1.17.0';
-      return null;
-    },
     portInUse: async () => false,
     ...overrides,
   };
@@ -55,43 +51,25 @@ describe('runSetupChecks', () => {
   it('passes every check when all tools are present and ports are free', async () => {
     const results = await runSetupChecks(passingDeps());
 
-    expect(results).toHaveLength(5);
+    expect(results).toHaveLength(3);
     expect(results.every((r) => r.ok)).toBe(true);
     expect(allHardChecksPassed(results)).toBe(true);
     // No remediation is offered when a check passes.
     expect(results.every((r) => r.remediation === undefined)).toBe(true);
   });
 
-  it('fails the matching check when a tool is missing', async () => {
-    const results = await runSetupChecks(
-      passingDeps({
-        // The Convex CLI is unreachable; every other probe still passes.
-        commandVersion: async () => null,
-      }),
-    );
-
-    const convexCli = find(results, 'Convex CLI');
-    expect(convexCli.ok).toBe(false);
-    expect(convexCli.hard).toBe(true);
-    expect(convexCli.remediation).toContain('bun install');
-
-    // The missing tool is the only failure; everything else still passes.
-    expect(results.filter((r) => !r.ok)).toHaveLength(1);
-    expect(allHardChecksPassed(results)).toBe(false);
-  });
-
   it('fails a port check when the port is busy', async () => {
     const results = await runSetupChecks(
       passingDeps({
-        // Convex's 3210 is taken; the app's 3000 is free.
-        portInUse: async (port) => port === 3210,
+        // The backend's 3005 is taken; the app's 3000 is free.
+        portInUse: async (port) => port === 3005,
       }),
     );
 
-    const convexPort = find(results, '3210');
-    expect(convexPort.ok).toBe(false);
-    expect(convexPort.detail).toBe('in use');
-    expect(convexPort.remediation).toContain('lsof');
+    const backendPort = find(results, '3005');
+    expect(backendPort.ok).toBe(false);
+    expect(backendPort.detail).toBe('in use');
+    expect(backendPort.remediation).toContain('lsof');
 
     const appPort = find(results, '3000');
     expect(appPort.ok).toBe(true);
@@ -106,22 +84,5 @@ describe('runSetupChecks', () => {
     expect(bun.ok).toBe(false);
     expect(bun.remediation).toContain('bun upgrade');
     expect(allHardChecksPassed(results)).toBe(false);
-  });
-
-  it('warns when local Convex module storage is bloated', async () => {
-    const results = await runSetupChecks(
-      passingDeps({
-        convexModuleStats: () => ({
-          count: 5_000,
-          totalBytes: 10 * 1024 ** 3,
-        }),
-      }),
-    );
-
-    const modules = find(results, 'Convex module storage');
-    expect(modules.ok).toBe(false);
-    expect(modules.hard).toBe(false);
-    expect(modules.remediation).toContain('contributor-setup');
-    expect(allHardChecksPassed(results)).toBe(true);
   });
 });
