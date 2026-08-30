@@ -1,3 +1,4 @@
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import {
@@ -6,6 +7,7 @@ import {
   READ_ADAPTERS,
   runAdapted,
   WRITE_ADAPTERS,
+  type WriteAdapter,
 } from '@/app/lib/backend/adapters';
 import type {
   ActionName,
@@ -49,8 +51,29 @@ function adapterCtx(): { organizationId?: string } {
    the SAME name, so the row's projection IS that name's return shape. The
    assertions below are where that fact is stated once. */
 
+/**
+ * Run a write row, then fire the same `invalidate` the hook wrappers run on
+ * success. The imperative client is the hook twin — skipping invalidation
+ * here left listings stale after Convex reactivity went away (upload
+ * succeeded, the automations table stayed on its cached empty page).
+ */
+async function runWrite(
+  write: WriteAdapter,
+  args: Record<string, unknown>,
+  queryClient: QueryClient | undefined,
+): Promise<unknown> {
+  const ctx = adapterCtx();
+  const result = await runAdapted(() => write.run(args, ctx));
+  if (queryClient !== undefined && write.invalidate !== undefined) {
+    write.invalidate(queryClient, args, ctx);
+  }
+  return result;
+}
+
 /** Pure client — exported for tests; the hook memoizes it. */
-export function makeAdapterAwareClient(): BackendClient {
+export function makeAdapterAwareClient(
+  queryClient?: QueryClient,
+): BackendClient {
   return {
     query: <Name extends QueryName>(name: Name, args: ArgsOf<Name>) => {
       const read = READ_ADAPTERS[name];
@@ -63,16 +86,15 @@ export function makeAdapterAwareClient(): BackendClient {
       return Promise.reject(new MissingBackendRowError(name));
     },
     action: <Name extends BackendName>(name: Name, args: ArgsOf<Name>) => {
-      const ctx = adapterCtx();
       const write = WRITE_ADAPTERS[name];
       if (write !== undefined) {
-        return runAdapted(() =>
-          write.run((args ?? {}) as Record<string, unknown>, ctx),
-        ) as Promise<ReturnsOf<Name>>;
+        return runWrite(write, { ...args }, queryClient) as Promise<
+          ReturnsOf<Name>
+        >;
       }
       const actionQuery = ACTION_QUERY_ADAPTERS[name];
       if (actionQuery !== undefined) {
-        const adapted = actionQuery(args ?? {}, ctx);
+        const adapted = actionQuery(args ?? {}, adapterCtx());
         if (adapted !== null) {
           return runAdapted(adapted) as Promise<ReturnsOf<Name>>;
         }
@@ -82,9 +104,9 @@ export function makeAdapterAwareClient(): BackendClient {
     mutation: <Name extends MutationName>(name: Name, args: ArgsOf<Name>) => {
       const write = WRITE_ADAPTERS[name];
       if (write !== undefined) {
-        return runAdapted(() =>
-          write.run((args ?? {}) as Record<string, unknown>, adapterCtx()),
-        ) as Promise<ReturnsOf<Name>>;
+        return runWrite(write, { ...args }, queryClient) as Promise<
+          ReturnsOf<Name>
+        >;
       }
       return Promise.reject(new MissingBackendRowError(name));
     },
@@ -92,7 +114,8 @@ export function makeAdapterAwareClient(): BackendClient {
 }
 
 export function useBackendClient(): BackendClient {
-  return useMemo(() => makeAdapterAwareClient(), []);
+  const queryClient = useQueryClient();
+  return useMemo(() => makeAdapterAwareClient(queryClient), [queryClient]);
 }
 
 export type { ActionName, BackendClient };

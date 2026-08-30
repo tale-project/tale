@@ -12,7 +12,8 @@ import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
  * because "something went wrong" would hide the one sentence that says what to
  * do next.
  *
- * The listings are reactive queries, so none of these invalidate anything.
+ * Listings refresh through each write adapter's `invalidate` (and the
+ * org `/events` hint stream) — Convex reactivity is gone.
  */
 
 /** Append a version of the automation's document. */

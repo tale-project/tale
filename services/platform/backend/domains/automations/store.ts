@@ -6,6 +6,7 @@ import {
 } from '../../../convex/automations/webhook_token.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { dismissAgentQuestionNotifications } from '../collab/service.ts';
 
@@ -129,6 +130,11 @@ export async function saveVersion(
         ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
       `;
     }
+    await emitHintInTx(tx, {
+      orgId: args.organizationId,
+      entity: 'automation',
+      entityId: name,
+    });
     return { name, version };
   });
 }
