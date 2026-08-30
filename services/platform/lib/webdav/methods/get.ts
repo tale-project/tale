@@ -1,6 +1,6 @@
 import { anyApi } from 'convex/server';
 
-import { rewriteStorageOrigin } from '../ctx';
+import { rewriteStorageOrigin } from '../paths';
 import type {
   AuthContext,
   ParsedPath,

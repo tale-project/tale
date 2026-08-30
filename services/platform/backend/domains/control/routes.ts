@@ -2,12 +2,15 @@ import { timingSafeEqual } from 'node:crypto';
 
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
+import { z } from 'zod';
 
 import {
   beginDrain,
+  ControlError,
   drainStatus,
   endDrain,
   provisionAllOrganizations,
+  resetOwnerCredentials,
 } from './service.ts';
 
 /**
@@ -61,6 +64,29 @@ export function createControlRoutes(deps: { sql: Sql }): Hono {
   /** `tale migrate` — re-seed every org's provisioned content (idempotent).
    * Schema migrations are not here on purpose: the backend applies them at
    * boot under its advisory lock. */
+  /**
+   * Owner recovery (`tale auth reset-owner`). The operator is on the host
+   * with docker access, so the control token IS the authorization — there is
+   * no session to present.
+   */
+  app.post('/reset-owner', async (c) => {
+    const body = z
+      .object({
+        newEmail: z.string().max(320).optional(),
+        newPassword: z.string().max(1024).optional(),
+      })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      return c.json(await resetOwnerCredentials(deps.sql, body.data));
+    } catch (error) {
+      if (error instanceof ControlError) {
+        return c.json({ error: error.code, message: error.message }, 400);
+      }
+      throw error;
+    }
+  });
+
   app.post('/provision', async (c) => {
     return c.json(await provisionAllOrganizations(deps.sql));
   });

@@ -18,9 +18,9 @@ import { DEFAULT_LOGGING } from '../types';
  * egress fence; with an allowlist they additionally cover DNS-rebind
  * flipping an allowlisted hostname to a private IP between tinyproxy's
  * lookup and the kernel connect(). Mirrors
- * services/convex/docker-entrypoint.sh.
+ * services/platform/docker-entrypoint.sh.
  *
- * Egress IS reachable from `internal` peers (platform, convex, web) —
+ * Egress IS reachable from `internal` peers (platform, backend, web) —
  * but the IMDS/RFC1918 rules still apply and the proxy only
  * reaches the same internet those peers can reach directly via their
  * own NAT. The proxy is not a meaningful new attack surface for those

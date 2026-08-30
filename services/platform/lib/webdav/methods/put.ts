@@ -1,8 +1,8 @@
 import { anyApi } from 'convex/server';
 
-import { rewriteStorageOrigin } from '../ctx';
 import { convexErrorCode } from '../errors';
 import { checkResourceLock } from '../locks';
+import { rewriteStorageOrigin } from '../paths';
 import {
   WEBDAV_MAX_PUT_BYTES,
   WebDAVBodyTooLarge,

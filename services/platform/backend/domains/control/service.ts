@@ -1,6 +1,14 @@
+import { transactSerializable } from '@tale/shared/db/serializable';
+import { hashPassword } from 'better-auth/crypto';
 import type { Sql } from 'postgres';
 
+import { normalizeAuthEmail } from '../../../convex/lib/auth/normalize_auth_email.ts';
+import {
+  isPasswordValid,
+  passwordPolicyViolations,
+} from '../../../lib/shared/schemas/password.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { recordPasswordChange } from '../users/service.ts';
 
 /**
  * Deploy DRAIN control plane — the 0.5 twin of `convex/control/drain.ts`.
@@ -104,4 +112,107 @@ export async function provisionAllOrganizations(
     await addJobInTx(sql, 'org.scaffold', { orgSlug: org.slug });
   }
   return { organizations: orgs.length };
+}
+
+/**
+ * Recover the owner's sign-in — the machine door behind `tale auth
+ * reset-owner`, reached through the control token (the operator is on the
+ * host with docker access; there is no session to authenticate).
+ *
+ * It deliberately validates against the BUILT-IN policy, not the org's: this
+ * is the way back in when an admin has locked themselves out with an
+ * unreachably strict one, so honoring that policy here would make recovery
+ * impossible. Every live session of that account is dropped, so a stolen
+ * cookie cannot outlive the reset.
+ */
+export async function resetOwnerCredentials(
+  sql: Sql,
+  args: { newEmail?: string; newPassword?: string },
+): Promise<{ email: string; updated: { email: boolean; password: boolean } }> {
+  if ((args.newEmail ?? '') === '' && (args.newPassword ?? '') === '') {
+    throw new ControlError(
+      'INVALID_ARGUMENT',
+      'At least one of newEmail or newPassword is required',
+    );
+  }
+  const owners = await sql<{ userId: string; email: string }[]>`
+    SELECT m."userId", u."email"
+    FROM "member" m JOIN "user" u ON u."id" = m."userId"
+    WHERE lower(m."role") = 'owner'
+    ORDER BY m."createdAt" ASC
+    LIMIT 1
+  `;
+  const owner = owners[0];
+  if (owner === undefined) {
+    throw new ControlError('NO_OWNER', 'No owner found in this deployment');
+  }
+
+  let email = owner.email;
+  let updatedEmail = false;
+  let updatedPassword = false;
+
+  if (args.newEmail !== undefined && args.newEmail !== '') {
+    const normalized = normalizeAuthEmail(args.newEmail);
+    const taken = await sql<{ id: string }[]>`
+      SELECT "id" FROM "user"
+      WHERE lower("email") = ${normalized} AND "id" <> ${owner.userId}
+      LIMIT 1
+    `;
+    if (taken.length > 0) {
+      throw new ControlError(
+        'EMAIL_IN_USE',
+        `Email "${normalized}" is already in use by another user`,
+      );
+    }
+    await sql`
+      UPDATE "user" SET "email" = ${normalized}, "updatedAt" = ${new Date()}
+      WHERE "id" = ${owner.userId}
+    `;
+    email = normalized;
+    updatedEmail = true;
+  }
+
+  if (args.newPassword !== undefined && args.newPassword !== '') {
+    if (!isPasswordValid(args.newPassword)) {
+      throw new ControlError(
+        'PASSWORD_POLICY_VIOLATION',
+        `Password does not meet recovery defaults (failed: ${passwordPolicyViolations(
+          args.newPassword,
+        ).join(', ')})`,
+      );
+    }
+    const passwordHash = await hashPassword(args.newPassword);
+    await sql`
+      INSERT INTO "account" (
+        "id", "userId", "providerId", "accountId", "password",
+        "createdAt", "updatedAt"
+      ) VALUES (
+        gen_random_uuid(), ${owner.userId}, 'credential', ${owner.userId},
+        ${passwordHash}, ${new Date()}, ${new Date()}
+      )
+      ON CONFLICT DO NOTHING
+    `;
+    await sql`
+      UPDATE "account"
+      SET "password" = ${passwordHash}, "updatedAt" = ${new Date()}
+      WHERE "userId" = ${owner.userId} AND "providerId" = 'credential'
+    `;
+    await sql`DELETE FROM "session" WHERE "userId" = ${owner.userId}`;
+    await transactSerializable(sql, (tx) =>
+      recordPasswordChange(tx, owner.userId),
+    );
+    updatedPassword = true;
+  }
+
+  return { email, updated: { email: updatedEmail, password: updatedPassword } };
+}
+
+/** A refusal the control door answers as a 400 with its code. */
+export class ControlError extends Error {
+  readonly code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = 'ControlError';
+    this.code = code;
+  }
 }

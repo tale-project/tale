@@ -1,5 +1,5 @@
 # =============================================================================
-# Tale Platform (TanStack Start + Convex) — Dockerfile.dockerignore
+# Tale Platform (TanStack Start + the Postgres backend) — Dockerfile.dockerignore
 # =============================================================================
 # BuildKit picks this file (adjacent to the Dockerfile) over the root
 # .dockerignore. It does NOT merge — so this file must list everything we want
@@ -123,10 +123,14 @@ compose.*.yml
 # so the workspace dep stage can resolve cross-service references)
 services/web/
 !services/web/package.json
-services/convex/
-!services/convex/package.json
 services/db/
 !services/db/package.json
+# The knowledge corpus migrations ship IN the image: a new BYO corpus is
+# prepared at runtime from these files, and without them that degrades to a
+# "apply them yourself" notice (the guard test in convex/knowledge pins both
+# the COPY and the ENV).
+!services/db/migrations/
+!services/db/migrations/knowledge-db/**
 services/proxy/
 !services/proxy/package.json
 services/sandbox/

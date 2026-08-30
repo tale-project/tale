@@ -20,13 +20,6 @@ import {
 import { injectBootShell, shouldServeBootShell } from './lib/shared/boot-shell';
 import { isValidOrgSlug } from './lib/shared/constants/org-slug';
 import { parseSessionIdleTimeoutMinutes } from './lib/shared/session-idle';
-import { fetchAdapter as webdavFetchAdapter } from './lib/webdav/adapters/fetch';
-import { makeWebdavCtx } from './lib/webdav/ctx';
-import {
-  ensureWebdavHmacKey,
-  WEBDAV_HMAC_KEY_MIN_LENGTH,
-} from './lib/webdav/hmac-key';
-import { WEBDAV_METHODS } from './lib/webdav/types';
 import { slaRulesResponse } from './sla-targets';
 import {
   buildStatusFeed,
@@ -836,67 +829,6 @@ export function createApp(
       },
     });
   });
-
-  // WebDAV server (/dav/<orgSlug>/...). HTTP Basic auth with per-user
-  // app-passwords; Caddy default fallback already routes /dav/* here so
-  // no proxy rule is needed. Code lives in `lib/webdav/`; the same
-  // protocol layer is mirrored into Vite dev by `vite-plugins/serve-webdav.ts`.
-  //
-  // CSP / security-headers from `secureHeaders` would clobber blob
-  // responses on GET — webdav handlers set their own Content-Type and
-  // we want the raw bytes through. Skip the middleware on this path.
-  const webdavAdminKey = process.env.ADMIN_KEY ?? '';
-  // Dev parity: `docker-entrypoint.sh` derives this deterministically from
-  // INSTANCE_SECRET in prod; ensureWebdavHmacKey mirrors that derivation so
-  // `bun dev` works without an explicit operator step. An explicit env var
-  // always wins — operators rotating the HMAC key set it directly in
-  // .env.local.
-  const webdavHmacKey = ensureWebdavHmacKey() ?? '';
-  const webdavConvexUrl = process.env.CONVEX_URL ?? 'http://convex:3210';
-  // Boot-time visibility into the two preconditions for /dav/*. We log
-  // and continue instead of throwing so the rest of the platform serves
-  // even when the operator hasn't configured WebDAV yet; the per-request
-  // handler then 500s with an actionable message.
-  if (!webdavAdminKey) {
-    console.warn(
-      '[webdav] ADMIN_KEY unset — /dav/* will 500. Set via docker-entrypoint (prod) or .env.local (dev).',
-    );
-  }
-  if (!webdavHmacKey || webdavHmacKey.length < WEBDAV_HMAC_KEY_MIN_LENGTH) {
-    console.warn(
-      `[webdav] WEBDAV_APP_PASSWORD_HMAC_KEY unset or too short (need ${WEBDAV_HMAC_KEY_MIN_LENGTH} hex chars) — /dav/* will 500.`,
-    );
-  }
-  let webdavCtx: ReturnType<typeof makeWebdavCtx> | null = null;
-  function getWebdavCtx() {
-    if (!webdavAdminKey) {
-      throw new Error(
-        'ADMIN_KEY not set — required for /dav/* (webdav server reads Convex via admin auth)',
-      );
-    }
-    if (!webdavCtx) {
-      webdavCtx = makeWebdavCtx({
-        convexUrl: webdavConvexUrl,
-        adminKey: webdavAdminKey,
-        // Escape hatch for the GET storage-proxy fallback when the Convex
-        // site origin isn't `<backend host>:3211` — e.g. an external Convex
-        // on non-default ports or a single-origin HTTPS front. Defaults to
-        // the :3211 derivation when unset.
-        convexSiteUrl: process.env.WEBDAV_CONVEX_SITE_URL || undefined,
-      });
-    }
-    return webdavCtx;
-  }
-  const webdavHandler = (c: { req: { raw: Request } }) =>
-    webdavFetchAdapter(c.req.raw, getWebdavCtx());
-  // Hono's `Method` union covers RFC 7231 verbs only. WebDAV adds
-  // PROPFIND/PROPPATCH/MKCOL/MOVE/COPY/LOCK/UNLOCK, which Hono's router
-  // accepts at runtime via `app.on(string[], ...)` but the TS overload
-  // declares the narrower `Method[]`. Cast intentionally.
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  app.on(WEBDAV_METHODS as unknown as string[], '/dav/*', webdavHandler);
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  app.on(WEBDAV_METHODS as unknown as string[], '/dav', webdavHandler);
 
   // Dev live-reload build-id endpoint (polled by DEV_RELOAD_SCRIPT). Registered
   // before the SPA catch-all so it is not swallowed by it; dev-only.

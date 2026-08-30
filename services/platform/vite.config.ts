@@ -11,66 +11,23 @@ import { serveBrandingImages } from './vite-plugins/serve-branding-images';
 import { serveCanvasPreview } from './vite-plugins/serve-canvas-preview';
 import { serveScreencast } from './vite-plugins/serve-screencast';
 import { serveStatus } from './vite-plugins/serve-status';
-import { serveWebdav } from './vite-plugins/serve-webdav';
 import { stubSSRImports } from './vite-plugins/stub-ssr';
 import { watchExamples } from './vite-plugins/watch-examples';
 
-// Convex service endpoints for dev proxy. Defaults to localhost so local
-// developers running `bunx convex-local-backend` standalone just work; for
-// compose-based dev (`docker compose up convex` + `bun run dev`) set
-// CONVEX_URL=http://localhost:3210 in .env.local or similar.
-const CONVEX_BASE = process.env.CONVEX_URL || 'http://127.0.0.1:3210';
-// Site-proxy lives on a separate port (default 3211) on the same host.
-const CONVEX_SITE_PROXY =
-  process.env.CONVEX_SITE_PROXY_URL || CONVEX_BASE.replace(/:\d+$/, ':3211');
+// The backend for the dev proxy. In a real deployment Caddy fronts these
+// same paths; locally Vite stands in for it. Defaults to the api's own port
+// so `bun dev` works with no extra configuration.
+const BACKEND_BASE = process.env.TALE_BACKEND_URL || 'http://127.0.0.1:3005';
 
-// 0.5 backend for dev proxy. When TALE_BACKEND_URL is set, auth + the app
-// API + the hint stream route to the Postgres backend instead of Convex —
-// the migration's incremental dev posture (Convex still serves everything
-// not yet ported through the entries below).
-const BACKEND_BASE = process.env.TALE_BACKEND_URL;
-
-// Convex routing, shared by the dev server (`vite dev`) and the preview server
-// (`vite preview`, used by the prod-build E2E mode — see scripts/dev.ts). In a
-// real deployment Caddy fronts these same paths; locally Vite stands in for it.
-const convexProxy = {
-  ...(BACKEND_BASE
-    ? {
-        // 0.5 backend lanes — listed BEFORE the '/api' catch-all below
-        // (Vite picks the first matching prefix in insertion order), so
-        // everything not named here keeps flowing to Convex during the
-        // migration.
-        '/api/auth': { target: BACKEND_BASE, changeOrigin: true },
-        '/api/app': { target: BACKEND_BASE, changeOrigin: true },
-        '/events': { target: BACKEND_BASE, changeOrigin: true },
-      }
-    : {}),
-  // Proxy Convex API requests to the (possibly remote) convex service.
-  '/ws_api': {
-    target: CONVEX_BASE,
-    changeOrigin: true,
-    ws: true,
-    rewrite: (p: string) => p.replace(/^\/ws_api/, ''),
-  },
-  '/http_api': {
-    target: CONVEX_SITE_PROXY,
-    changeOrigin: true,
-    rewrite: (p: string) => p.replace(/^\/http_api/, ''),
-  },
-  // Storage and internal action callbacks go to the Convex backend (3210)
-  '/api/storage': {
-    target: CONVEX_BASE,
-    changeOrigin: true,
-  },
-  '/api/actions': {
-    target: CONVEX_BASE,
-    changeOrigin: true,
-  },
-  // All other /api/* requests to Convex HTTP endpoint (auth, SSO, documents, workflows, etc.)
-  '/api': {
-    target: CONVEX_SITE_PROXY,
-    changeOrigin: true,
-  },
+// Backend routing, shared by the dev server (`vite dev`) and the preview
+// server (`vite preview`, used by the prod-build E2E mode — see
+// scripts/dev.ts). `/dav` is here too: the protocol door lives on the api,
+// and Vite's SPA catch-all would otherwise answer PROPFIND with index.html.
+const backendProxy = {
+  '/api': { target: BACKEND_BASE, changeOrigin: true },
+  '/events': { target: BACKEND_BASE, changeOrigin: true },
+  '/dav': { target: BACKEND_BASE, changeOrigin: true },
+  '/scim': { target: BACKEND_BASE, changeOrigin: true },
 };
 
 export default defineConfig({
@@ -87,7 +44,7 @@ export default defineConfig({
     // broken". The dev orchestrator passes --strictPort too; this keeps direct
     // `vite`/preview invocations consistent.
     strictPort: true,
-    proxy: convexProxy,
+    proxy: backendProxy,
   },
   // Preview server (`vite preview`) — the prod-build E2E serving path. Serves
   // the built `dist/` assets (no on-the-fly transpilation, the dev-mode CPU
@@ -98,7 +55,7 @@ export default defineConfig({
   preview: {
     port: 3000,
     strictPort: true,
-    proxy: convexProxy,
+    proxy: backendProxy,
   },
   optimizeDeps: {
     include: [
@@ -233,7 +190,6 @@ export default defineConfig({
     serveBrandingImages(),
     serveCanvasPreview(),
     serveStatus(),
-    serveWebdav(),
     serveScreencast(),
     // Before injectEnv: its middlewares only patch `res.end`, and the patch
     // must be installed before injectEnv's preview SPA-fallback middleware

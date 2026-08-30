@@ -116,8 +116,9 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
 describe('bgutil PO-token provider parity (zero-config YouTube ingestion)', () => {
   // The sidecar must exist in BOTH pipelines, on the same image tag, or one
   // path silently loses PO tokens (YouTube bot wall returns). The tag must also
-  // match BGUTIL_POT_VERSION in services/convex/Dockerfile (checked there via
-  // the pinned SHA256) — asserted here as a constant so a bump touches both.
+  // match BGUTIL_POT_VERSION in services/platform/Dockerfile (checked there
+  // via the pinned SHA256) — asserted here as a constant so a bump touches
+  // both.
   const EXPECTED_IMAGE = 'brainicism/bgutil-ytdlp-pot-provider:1.3.1';
 
   test('compose.yml defines bgutil-provider on the pinned image', () => {
@@ -148,7 +149,7 @@ describe('bgutil PO-token provider parity (zero-config YouTube ingestion)', () =
   // Dockerfile must nest under /opt/yt-dlp/plugins/bgutil/.
   test('Dockerfile unzips the bgutil plugin under a named child of plugin-dirs', () => {
     const dockerfile = readFileSync(
-      resolve(repoRoot, 'services/convex/Dockerfile'),
+      resolve(repoRoot, 'services/platform/Dockerfile'),
       'utf8',
     );
     expect(dockerfile).toContain(

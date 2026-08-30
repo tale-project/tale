@@ -215,17 +215,12 @@ if [ -z "${RAG_DATABASE_URL:-}" ] && [ -n "${POSTGRES_URL:-}" ]; then
   export RAG_DATABASE_URL="${POSTGRES_URL}/tale_knowledge"
 fi
 
-# Admin key + WebDAV HMAC key. Both must be readable from `bun server.ts`'s
-# process.env. `ADMIN_KEY` was once a `local` and silently went out of scope
-# before the platform Hono server started — every `/dav/*` request then
-# 500'd. Both
-# are deterministic from $INSTANCE_SECRET so they survive restarts and
-# operators don't need to set them by hand.
-#
-# `WEBDAV_APP_PASSWORD_HMAC_KEY` accepts an explicit override (.env) for
-# operators who want a key rotation independent of INSTANCE_SECRET. When
-# unset, we derive a 64-char hex via sha256(secret || ':webdav-hmac:v1').
-export ADMIN_KEY="$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")"
+# WebDAV app-password HMAC key. The backend hashes app passwords with it and
+# the protocol door verifies against the same value, so it is derived
+# deterministically from $INSTANCE_SECRET — it survives restarts and no
+# operator has to set it by hand. An explicit override (.env) is honored for
+# a rotation independent of INSTANCE_SECRET; otherwise a 64-char hex from
+# sha256(secret || ':webdav-hmac:v1').
 if [ -z "${WEBDAV_APP_PASSWORD_HMAC_KEY:-}" ]; then
   WEBDAV_APP_PASSWORD_HMAC_KEY="$(printf '%s' "${INSTANCE_SECRET}:webdav-hmac:v1" | sha256sum | awk '{print $1}')"
 fi
