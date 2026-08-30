@@ -25,16 +25,11 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'server',
-          // Use node by default, but run tests under convex/** in edge-runtime per convex-test docs
           environment: 'node',
-          // Most server tests boot a convex-test world (full-tree module
-          // globs); under the fully parallel suite the 5s vitest default
-          // starves whichever file lands on a saturated worker — the same
-          // budget the chain/scim/slack suites size individually. 30s is a
-          // per-TEST ceiling, not added wall-clock.
+          // A per-TEST ceiling, not added wall-clock: under the fully parallel
+          // suite the 5s vitest default starves whichever file lands on a
+          // saturated worker.
           testTimeout: 30_000,
-          environmentMatchGlobs: [['convex/**', 'edge-runtime']],
-          server: { deps: { inline: ['convex-test'] } },
           include: ['**/*.test.{ts,tsx}'],
           exclude: [
             'node_modules',
