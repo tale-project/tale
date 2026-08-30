@@ -274,6 +274,28 @@ async function readGeneration(
   return rows[0] ?? null;
 }
 
+/**
+ * The assistant row's parts AS THEY STAND mid-turn.
+ *
+ * The turn writes them a step at a time (`updateAssistantParts`), so this is
+ * where a tool call becomes visible before the turn ends — the transcript
+ * itself is only refetched at settle. Read separately from the generation
+ * row because it is only worth reading once a message id exists.
+ */
+async function readLiveParts(
+  sql: Sql,
+  organizationId: string,
+  messageId: string,
+): Promise<unknown[] | null> {
+  const rows = await sql<{ parts: unknown }[]>`
+    SELECT parts FROM app.messages
+    WHERE id = ${messageId} AND org_id = ${organizationId}
+    LIMIT 1
+  `;
+  const parts = rows[0]?.parts;
+  return Array.isArray(parts) ? parts : null;
+}
+
 export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
@@ -1316,6 +1338,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
     return streamSSE(c, async (stream) => {
       let lastSeenUpdate = 0;
+      let lastSentParts: string | null = null;
       let lastMessageId: string | null = null;
       let generating = false;
       let lastBeatAt = Date.now();
@@ -1348,6 +1371,24 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
             lastMessageId = generation.messageId ?? lastMessageId;
             if (generation.updatedAt > lastSeenUpdate) {
               lastSeenUpdate = generation.updatedAt;
+              // Parts ride along only when they CHANGED. Text ticks at the
+              // store's throttle while a tool result can be large (a RAG
+              // page), so resending an unchanged array four times a second
+              // would pay for the trace over and over. The client keeps the
+              // last one it saw.
+              let parts: unknown[] | null = null;
+              if (generation.messageId != null) {
+                const live = await readLiveParts(
+                  deps.sql,
+                  organizationId,
+                  generation.messageId,
+                );
+                const serialized = live === null ? null : JSON.stringify(live);
+                if (serialized !== null && serialized !== lastSentParts) {
+                  lastSentParts = serialized;
+                  parts = live;
+                }
+              }
               await stream.writeSSE({
                 event: 'progress',
                 data: JSON.stringify({
@@ -1355,6 +1396,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
                   text: generation.text,
                   reasoning: generation.reasoning,
                   cancelRequested: generation.cancelRequested,
+                  ...(parts !== null ? { parts } : {}),
                   serverNow: Date.now(),
                 }),
               });
@@ -1364,6 +1406,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
             // The row's absence is the settle signal — ship the final row.
             generating = false;
             lastSeenUpdate = 0;
+            lastSentParts = null;
             const messages = await listMessageViews(
               deps.sql,
               organizationId,

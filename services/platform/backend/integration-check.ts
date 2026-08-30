@@ -3743,6 +3743,12 @@ async function checkChat(
   const { createServer } = await import('node:http');
 
   const SLOW_MARKER = 'COUNT SLOWLY';
+  // The trace turn's final round waits, so the tool parts the engine
+  // persisted at the round boundary sit visible for at least one poll of the
+  // 250ms progress lane. Without the pause this fake provider answers inside
+  // a single tick and the stream only ever sees the settled state — the
+  // probe would pass or fail on scheduling luck, not on behaviour.
+  const TRACE_MARKER = 'TRACE THE TOOLS';
   const FINAL_ANSWER = 'The ledger mentions verdigris pigments.';
   const SLOW_CHUNKS = 40;
 
@@ -3887,16 +3893,27 @@ async function checkChat(
         return;
       }
       // Round 2 (after the tool result): the final answer.
-      for (const word of FINAL_ANSWER.split(' ')) {
-        res.write(
-          sse({
-            choices: [
-              { index: 0, delta: { content: `${word} ` }, finish_reason: null },
-            ],
-          }),
-        );
+      const answer = (): void => {
+        for (const word of FINAL_ANSWER.split(' ')) {
+          res.write(
+            sse({
+              choices: [
+                {
+                  index: 0,
+                  delta: { content: `${word} ` },
+                  finish_reason: null,
+                },
+              ],
+            }),
+          );
+        }
+        finish('stop');
+      };
+      if (transcript.includes(TRACE_MARKER)) {
+        setTimeout(answer, 900);
+        return;
       }
-      finish('stop');
+      answer();
     });
   });
   await new Promise<void>((resolve) => {
@@ -4119,6 +4136,64 @@ async function checkChat(
         !finalText.includes(`tick${SLOW_CHUNKS}`) &&
         genGone[0]?.count === '0',
       `progressSeen=${progressed}, cancel=${cancelRes.status}, settledLen=${finalText.length} (cancelled before tick${SLOW_CHUNKS}=${!finalText.includes(`tick${SLOW_CHUNKS}`)}), genGone=${genGone[0]?.count === '0'}`,
+    );
+
+    // Turn 3 — the TOOL TRACE reaches the page while the turn is still
+    // running. The turn writes its parts a step at a time, but the progress
+    // lane used to ship only text and reasoning, so a tool round was
+    // invisible until settle: a browser sat through seven searches with
+    // nothing on screen. Assert a `progress` frame carries the tool call
+    // BEFORE the turn ends.
+    // A FRESH thread: the fake provider only asks for a tool when the
+    // transcript carries no tool result yet, and this thread's first turn
+    // already spent that round.
+    const traceThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Itest tool trace',
+        })
+      ).json(),
+    );
+    const traceThreadId = traceThread.success ? traceThread.data.id : '';
+    const traceController = new AbortController();
+    const traceRes = await fetch(
+      `${base}/api/app/chat/threads/${traceThreadId}/stream?orgId=${orgId}`,
+      { headers: { cookie }, signal: traceController.signal },
+    );
+    const traceReader = traceRes.body?.getReader();
+    const sawToolPart = (async (): Promise<boolean> => {
+      if (!traceReader) return false;
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { done, value } = await traceReader.read();
+        if (done) return false;
+        buffer += decoder.decode(value, { stream: true });
+        // The frame must be a `progress` one: finding the part only in the
+        // `settled` payload is exactly the behaviour this guards against.
+        const upToSettle = buffer.split('event: settled')[0] ?? '';
+        if (upToSettle.includes('"type":"tool-call"')) return true;
+        if (buffer.includes('event: settled')) return false;
+      }
+    })();
+    const traceSend = send(
+      `/api/app/chat/threads/${traceThreadId}/messages?orgId=${orgId}`,
+      {
+        text: `${TRACE_MARKER} please`,
+        modelId: 'itest-chat',
+        providerSlug: 'itestchat',
+      },
+    );
+    const tracedLive = await Promise.race([
+      sawToolPart,
+      sleep(20_000).then(() => false),
+    ]);
+    await traceSend;
+    traceController.abort();
+    record(
+      'chat tool trace streams while the turn runs',
+      tracedLive,
+      `toolPartInProgressFrame=${tracedLive} (want true — not only in the settled payload)`,
     );
   } finally {
     await new Promise<void>((resolve) => {

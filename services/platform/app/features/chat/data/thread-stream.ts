@@ -22,6 +22,7 @@ import {
   invalidateChatMessages,
   invalidateChatThreads,
 } from '@/app/lib/backend/chat';
+import type { MessagePart } from '@/lib/chat/types';
 
 export interface ThreadStreamGeneration {
   readonly status:
@@ -37,6 +38,14 @@ export interface ThreadStreamText {
   readonly messageId?: string;
   readonly text: string;
   readonly reasoning?: string;
+  /**
+   * The assistant row's parts as they stand mid-turn — how a tool call shows
+   * up WHILE it runs instead of all at once when the turn settles. Sent only
+   * when they changed (a large tool result must not be resent on every text
+   * tick), so an event without them means "unchanged", not "none": the last
+   * value is carried forward here rather than clearing the trace.
+   */
+  readonly parts?: readonly MessagePart[];
   /** The backend clock at emit — feeds the thinking timer's offset. */
   readonly serverNow?: number;
 }
@@ -99,10 +108,19 @@ function openStream(
         messageId?: unknown;
         text?: unknown;
         reasoning?: unknown;
+        parts?: unknown;
         serverNow?: unknown;
       };
       const messageId =
         typeof record.messageId === 'string' ? record.messageId : undefined;
+      // Absent parts mean unchanged, so carry the last ones forward — a
+      // text tick must not blank the trace the previous event painted.
+      const carried = streams.get(key)?.state.generationText ?? undefined;
+      const parts = Array.isArray(record.parts)
+        ? (record.parts as readonly MessagePart[])
+        : carried?.messageId === messageId
+          ? carried?.parts
+          : undefined;
       publish(key, {
         generation: {
           status: 'streaming',
@@ -114,6 +132,7 @@ function openStream(
           ...(typeof record.reasoning === 'string' && record.reasoning !== ''
             ? { reasoning: record.reasoning }
             : {}),
+          ...(parts !== undefined ? { parts } : {}),
           ...(typeof record.serverNow === 'number'
             ? { serverNow: record.serverNow }
             : {}),

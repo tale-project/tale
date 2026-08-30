@@ -167,6 +167,16 @@ export function createPgTurnStore(sql: Sql): TurnStore {
         UPDATE app.messages SET parts = ${sql.json(toJson([...update.parts]))}
         WHERE id = ${update.messageId} AND org_id = ${update.organizationId}
       `;
+      // A tool step is turn PROGRESS, and the progress lane watches the
+      // generation row's clock — without this bump the stream sees nothing
+      // move and the trace stays invisible until the turn settles. Text
+      // ticks already bump it; parts wrote silently.
+      await sql`
+        UPDATE app.generations
+        SET heartbeat_at_ms = ${Date.now()}, updated_at_ms = ${Date.now()}
+        WHERE thread_id = ${update.threadId}
+          AND org_id = ${update.organizationId}
+      `;
       await notifyThread(sql, update.threadId);
     },
 
