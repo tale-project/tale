@@ -5,7 +5,7 @@ import {
   signUpViaApi,
   uniqueCredentials,
 } from '../helpers/auth';
-import { ENTITY_ID, TIMEOUT } from '../helpers/env';
+import { ENTITY_ID, ORG_DASHBOARD_URL, TIMEOUT } from '../helpers/env';
 import { t } from '../helpers/i18n';
 import { generateTotp } from '../helpers/totp';
 
@@ -22,8 +22,6 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 const LOGIN_URL = /\/log-in(?:[/?#]|$)/;
 const TWO_FA_URL = /\/2fa(?![-\w])/;
-const ORG_DASHBOARD_URL = new RegExp(`/dashboard/(${ENTITY_ID})(?:[/?#]|$)`);
-
 /**
  * Drive the add-org wizard for a user who ALREADY has an organization, and
  * return the new org id.

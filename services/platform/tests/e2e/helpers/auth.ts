@@ -1,7 +1,7 @@
 import type { APIRequestContext, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
-import { BASE_URL, ENTITY_ID, TIMEOUT } from './env';
+import { BASE_URL, ORG_DASHBOARD_URL, TIMEOUT } from './env';
 import { t } from './i18n';
 import { STARTER_PROJECT_NAME } from './seed';
 
@@ -35,9 +35,8 @@ export function uniqueCredentials(label: string): E2ECredentials {
 }
 
 /** A fresh-account-resolved URL: either an org dashboard or the create-org wizard. */
-const ORG_ID_URL = new RegExp(`/dashboard/(${ENTITY_ID})(?:[/?#]|$)`);
 const RESOLVED_URL = new RegExp(
-  `(?:${ORG_ID_URL.source})|/dashboard/create-organization`,
+  `(?:${ORG_DASHBOARD_URL.source})|/dashboard/create-organization`,
 );
 
 /**
@@ -172,8 +171,8 @@ export async function createOrgViaWizard(
       await finishButton.click();
     }
 
-    await page.waitForURL(ORG_ID_URL, { timeout: TIMEOUT.FIRST_PAINT });
-    const organizationId = ORG_ID_URL.exec(page.url())?.[1];
+    await page.waitForURL(ORG_DASHBOARD_URL, { timeout: TIMEOUT.FIRST_PAINT });
+    const organizationId = ORG_DASHBOARD_URL.exec(page.url())?.[1];
     if (!organizationId) {
       throw new Error(`Could not extract organization id from ${page.url()}`);
     }
