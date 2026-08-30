@@ -35,7 +35,6 @@ COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
 COPY services/sandbox/package.json ./services/sandbox/
 COPY services/sandbox-runtime/daemon/package.json ./services/sandbox-runtime/daemon/
-COPY services/controller/package.json ./services/controller/
 COPY services/web/package.json ./services/web/
 COPY services/docs/package.json ./services/docs/
 COPY tools/cli/package.json ./tools/cli/
@@ -215,7 +214,6 @@ COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services
 COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/
 COPY --from=workspace-deps /app/services/sandbox/package.json /tmp/workspace/services/sandbox/
 COPY --from=workspace-deps /app/services/sandbox-runtime/daemon/package.json /tmp/workspace/services/sandbox-runtime/daemon/
-COPY --from=workspace-deps /app/services/controller/package.json /tmp/workspace/services/controller/
 COPY --from=workspace-deps /app/services/web/package.json /tmp/workspace/services/web/
 COPY --from=workspace-deps /app/services/docs/package.json /tmp/workspace/services/docs/
 COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
