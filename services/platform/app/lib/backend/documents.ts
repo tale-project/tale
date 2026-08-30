@@ -213,6 +213,60 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
   // Attachment pipeline statuses — the same row the chat seam serves, here
   // for every OTHER surface that renders an attachment (task files, the
   // conversation composer and message list).
+  'files/queries:getFileUrl': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const fileId = textArg(args, 'fileId');
+    if (fileId === '') return null;
+    return {
+      queryKey: backendKey(orgId, 'file', 'url', fileId),
+      queryFn: () =>
+        backendFetch<{ url: string | null }>(
+          `/files/${encodeURIComponent(fileId)}/url`,
+          { orgId },
+        )
+          .then((body) => body.url)
+          // A blob the caller cannot resolve reads as `null` — the 0.4
+          // query's answer, which every consumer already renders as "no
+          // preview" rather than an error.
+          .catch(() => null),
+    };
+  },
+  'files/queries:getFileUrls': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const fileIds = Array.isArray(args.fileIds)
+      ? args.fileIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    if (fileIds.length === 0) return null;
+    return {
+      queryKey: backendKey(
+        orgId,
+        'file',
+        'urls',
+        [...fileIds].sort().join(','),
+      ),
+      queryFn: () =>
+        backendFetch<{ urls: { fileId: string; url: string | null }[] }>(
+          '/files/urls',
+          { orgId, body: { fileIds } },
+        ).then((body) => body.urls),
+    };
+  },
+  'folders/queries:getFolderBreadcrumb': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const folderId = textArg(args, 'folderId');
+    if (folderId === '') return null;
+    return {
+      queryKey: backendKey(orgId, 'folder', 'breadcrumb', folderId),
+      queryFn: () =>
+        backendFetch<{ breadcrumb: unknown }>(
+          `/folders/${encodeURIComponent(folderId)}/breadcrumb`,
+          { orgId },
+        ).then((body) => body.breadcrumb),
+    };
+  },
   'file_metadata/queries:getByStorageIds': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -645,6 +699,59 @@ export const documentActionQueryAdapters: Record<string, ActionQueryAdapter> = {
 };
 
 export const documentWriteAdapters: Record<string, WriteAdapter> = {
+  /**
+   * Document comparison is OFFLINE in 0.4 too — the action runs its gates
+   * and then refuses with this exact message, which the comparison view
+   * shows. Answering it here keeps that behaviour after cutover instead of
+   * leaving the button on a lane that will not exist.
+   */
+  'documents/compare_documents:compareDocuments': {
+    run: () =>
+      Promise.reject(
+        new BackendApiError(
+          400,
+          'Document comparison is offline while the platform AI backend is rewritten.',
+          'COMPARISON_OFFLINE',
+        ),
+      ),
+  },
+  'projects/mutations:detachDocumentFromProject': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/documents/${encodeURIComponent(textArg(args, 'documentId'))}/detach-from-project`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ).then(() => null),
+    invalidate: invalidateDocuments,
+  },
+  'file_metadata/mutations:saveFileMetadata': {
+    run: (args, ctx) =>
+      backendFetch<{ fileId: string }>('/files/register', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          storageRef: textArg(args, 'storageId'),
+          fileName: textArg(args, 'fileName'),
+          contentType: textArg(args, 'contentType'),
+          ...(typeof args.threadId === 'string'
+            ? { threadId: args.threadId }
+            : {}),
+          ...(typeof args.source === 'string' ? { source: args.source } : {}),
+        },
+      }).then((body) => body.fileId),
+  },
+  'file_metadata/mutations:skipTranscription': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/files/transcription/skip', {
+        orgId: requireOrg(args, ctx),
+        body: { storageRef: textArg(args, 'storageId') },
+      }).then(() => null),
+  },
+  'file_metadata/mutations:retryTranscription': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>('/files/transcription/retry', {
+        orgId: requireOrg(args, ctx),
+        body: { storageRef: textArg(args, 'storageId') },
+      }).then(() => null),
+  },
   'documents/public_actions:ensureProjectTextDocument': {
     run: (args, ctx) => {
       const orgId = orgOf(args, ctx);

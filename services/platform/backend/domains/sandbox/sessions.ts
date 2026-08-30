@@ -7,6 +7,7 @@ import {
   DEFAULT_SANDBOX_QUOTA,
   type SessionBudget,
 } from '../../../convex/sandbox/quota_policy.ts';
+import { sessionIdForWorkflowExecution } from '../../../convex/sandbox/session_naming.ts';
 import {
   SANDBOX_MAX_SESSIONS_PER_OWNER,
   SANDBOX_SESSION_LIVE_STATUSES,
@@ -1042,4 +1043,67 @@ export async function listSandboxViewsForOrg(
     return b.createdAt - a.createdAt;
   });
   return views;
+}
+
+/**
+ * The agent-node op behind one automation run — what the run dialog's
+ * execution log renders (its live timeline, the model that actually served
+ * the turn, and where it got to). The session id is DERIVED from the run
+ * (`sessionIdForWorkflowExecution`), so the lookup needs no join table.
+ *
+ * Returns null for a run that is not this org's, or one that has never
+ * reached its agent node — the log then renders nothing rather than an
+ * error.
+ */
+export async function getAgentNodeSandboxOp(
+  sql: Sql,
+  args: { organizationId: string; runId: string },
+): Promise<Record<string, unknown> | null> {
+  const runs = await sql<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+    LIMIT 1
+  `;
+  if (runs[0] === undefined) return null;
+  const sessionId = sessionIdForWorkflowExecution(args.runId);
+  const rows = await sql<
+    {
+      execId: string;
+      status: string;
+      progressText: string | null;
+      liveTimeline: unknown;
+      modelRef: string | null;
+      visionModelRef: string | null;
+      startedAt: number;
+      finishedAt: number | null;
+      lastEventAt: number | null;
+    }[]
+  >`
+    SELECT exec_id AS "execId", status, progress_text AS "progressText",
+           live_timeline AS "liveTimeline", model_ref AS "modelRef",
+           vision_model_ref AS "visionModelRef",
+           started_at_ms::float8 AS "startedAt",
+           finished_at_ms::float8 AS "finishedAt",
+           last_event_at_ms::float8 AS "lastEventAt"
+    FROM app.sandbox_session_ops
+    WHERE session_id = ${sessionId} AND org_id = ${args.organizationId}
+      AND kind = 'workflow-agent'
+    ORDER BY started_at_ms DESC, id DESC
+    LIMIT 1
+  `;
+  const op = rows[0];
+  if (op === undefined) return null;
+  return {
+    execId: op.execId,
+    status: op.status,
+    ...(op.progressText !== null ? { progressText: op.progressText } : {}),
+    ...(op.liveTimeline !== null ? { liveTimeline: op.liveTimeline } : {}),
+    ...(op.modelRef !== null ? { modelRef: op.modelRef } : {}),
+    ...(op.visionModelRef !== null
+      ? { visionModelRef: op.visionModelRef }
+      : {}),
+    startedAt: op.startedAt,
+    ...(op.finishedAt !== null ? { finishedAt: op.finishedAt } : {}),
+    ...(op.lastEventAt !== null ? { lastEventAt: op.lastEventAt } : {}),
+  };
 }

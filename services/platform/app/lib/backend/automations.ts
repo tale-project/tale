@@ -240,6 +240,24 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
         ),
     };
   },
+  'sandbox/session_queries_public:getAgentNodeSandboxOp': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    if (orgId === undefined || typeof runId !== 'string' || runId === '') {
+      return null;
+    }
+    return {
+      queryKey: backendKey(orgId, 'automation', 'agent-node-op', runId),
+      queryFn: () =>
+        backendFetch<{ op: unknown }>(
+          `/sandbox/agent-node-op?runId=${encodeURIComponent(runId)}`,
+          { orgId },
+        ).then((body) => body.op),
+      // The execution log follows a LIVE turn: poll while the dialog is
+      // open (the WS lane pushed; the HTTP lane asks).
+      refetchInterval: 2000,
+    };
+  },
   'approvals/queries:getApproval': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const approvalId = args.approvalId;
@@ -438,6 +456,22 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
         `/automations/runs/${encodeURIComponent(stringArg(args, 'runId'))}/cancel`,
         { orgId: requireOrg(args, ctx), body: {} },
       ),
+    invalidate: invalidateRuns,
+  },
+  'approvals/mutations:updateApprovalStatus': {
+    run: (args, ctx) =>
+      backendFetch<{ ok: boolean }>(
+        `/approvals/${encodeURIComponent(stringArg(args, 'approvalId'))}/decide`,
+        {
+          orgId: requireOrg(args, ctx),
+          body: {
+            status: stringArg(args, 'status'),
+            ...(typeof args.comments === 'string'
+              ? { comments: args.comments }
+              : {}),
+          },
+        },
+      ).then(() => null),
     invalidate: invalidateRuns,
   },
   'automations/human_asks:answerAsk': {

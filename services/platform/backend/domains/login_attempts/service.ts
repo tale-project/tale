@@ -293,3 +293,59 @@ export async function getLockState(
   `;
   return { lockedUntil: rows[0]?.lockedUntil ?? null };
 }
+
+/**
+ * The org's sign-in block activity — the security page's table. Counters are
+ * keyed by EMAIL (a blocked sign-in has no user yet), so the org scope is
+ * this org's member emails: a counter for someone who is not a member here
+ * is another tenant's security event and must not surface.
+ */
+export async function listBlockCounters(
+  sql: Sql,
+  organizationId: string,
+  limit = 200,
+): Promise<
+  {
+    id: string;
+    email: string;
+    windowStart: number;
+    lockoutCount: number;
+    ipLimitCount: number;
+    lastIp: string | null;
+    updatedAt: number;
+  }[]
+> {
+  const rows = await sql<
+    {
+      email: string;
+      windowStart: number;
+      lockoutCount: number;
+      ipLimitCount: number;
+      lastIp: string | null;
+      updatedAt: number;
+    }[]
+  >`
+    SELECT c.email, c.window_start::float8 AS "windowStart",
+           c.lockout_count AS "lockoutCount",
+           c.ip_limit_count AS "ipLimitCount",
+           c.last_ip AS "lastIp", c.updated_at::float8 AS "updatedAt"
+    FROM app.login_block_counters c
+    WHERE lower(c.email) IN (
+      SELECT lower(u."email") FROM "member" m
+      JOIN "user" u ON u."id" = m."userId"
+      WHERE m."organizationId" = ${organizationId}
+    )
+    ORDER BY c.updated_at DESC
+    LIMIT ${Math.min(Math.max(limit, 1), 500)}
+  `;
+  return rows.map((row) => ({
+    // The 0.4 row carried a document id; the pg key is the pair itself.
+    id: `${row.email}:${row.windowStart}`,
+    email: row.email,
+    windowStart: row.windowStart,
+    lockoutCount: row.lockoutCount,
+    ipLimitCount: row.ipLimitCount,
+    lastIp: row.lastIp,
+    updatedAt: row.updatedAt,
+  }));
+}

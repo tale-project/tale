@@ -18,6 +18,7 @@ import { requireSession } from '../../auth/session.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { pinSession, reconcileSession, teardownSession } from './service.ts';
 import {
+  getAgentNodeSandboxOp,
   listRunningOpsBySession,
   listSandboxViewsForOrg,
   listSessionsForOrg,
@@ -247,6 +248,16 @@ export function createSandboxRoutes(deps: {
 
   /** Recent per-harness failure ratios (the 0.4 `getHarnessHealth` hint) —
    * pg derives it from settled agent ops joined to their session's kind. */
+  /** The agent-node op behind one automation run (its execution log). */
+  app.get('/agent-node-op', async (c) => {
+    return c.json({
+      op: await getAgentNodeSandboxOp(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId: c.req.query('runId') ?? '',
+      }),
+    });
+  });
+
   app.get('/harness-health', async (c) => {
     const organizationId = c.get('orgId');
     const since = Date.now() - 30 * 60 * 1000;

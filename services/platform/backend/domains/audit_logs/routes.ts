@@ -13,6 +13,7 @@ import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { listBlockCounters } from '../login_attempts/service.ts';
 import {
   buildAuditExport,
   getActivitySummary,
@@ -86,6 +87,21 @@ export function createAuditLogRoutes(deps: {
   });
 
   /** Errors-only lane (status failure/denied) — same keyset envelope. */
+  /** Sign-in block activity (admin) — the security page's table. */
+  app.get('/block-counters', async (c: Context<OrgEnv>) => {
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'FORBIDDEN' }, 403);
+    }
+    const limitRaw = Number(c.req.query('limit') ?? '200');
+    return c.json({
+      counters: await listBlockCounters(
+        deps.sql,
+        c.get('orgId'),
+        Number.isFinite(limitRaw) ? limitRaw : 200,
+      ),
+    });
+  });
+
   app.get('/errors', async (c: Context<OrgEnv>) => {
     if (!authorizeRls(c.get('orgMember').role, 'auditLogs', 'read')) {
       return c.json({ error: 'forbidden' }, 403);

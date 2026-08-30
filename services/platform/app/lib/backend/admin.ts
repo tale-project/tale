@@ -142,6 +142,19 @@ function auditFilterQs(filter: unknown): string {
 }
 
 export const adminReadAdapters: Record<string, ReadAdapter> = {
+  'login_attempts/queries:listBlockCounters': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const limit = typeof args.limit === 'number' ? args.limit : 200;
+    return {
+      queryKey: backendKey(orgId, 'audit_log', 'block-counters', String(limit)),
+      queryFn: () =>
+        backendFetch<{ counters: unknown[] }>(
+          `/audit-logs/block-counters?limit=${limit}`,
+          { orgId },
+        ).then((body) => body.counters),
+    };
+  },
   'audit_logs/queries:listAuditLogs': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;

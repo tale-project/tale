@@ -16114,7 +16114,7 @@ async function checkLoginThrottleAndAuditChain(
   ctx: { cookie: string; orgId: string; userId: string },
   email: string,
 ): Promise<void> {
-  const { orgId } = ctx;
+  const { cookie, orgId } = ctx;
   const signIn = (password: string): Promise<Response> =>
     fetch(`${base}/api/auth/sign-in/email`, {
       method: 'POST',
@@ -16213,6 +16213,59 @@ async function checkLoginThrottleAndAuditChain(
       })
     ).json(),
   );
+  // The security page's table: this org's members only, admin-gated.
+  const counters = z
+    .object({
+      counters: z.array(
+        z
+          .object({
+            id: z.string(),
+            email: z.string(),
+            lockoutCount: z.number(),
+          })
+          .loose(),
+      ),
+    })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/audit-logs/block-counters?orgId=${orgId}`,
+          {
+            headers: { cookie, origin: base },
+          },
+        )
+      ).json(),
+    );
+  await sql`
+    INSERT INTO app.login_block_counters (
+      email, window_start, lockout_count, ip_limit_count, updated_at
+    ) VALUES ('stranger@other.test', ${Date.now()}, 9, 0, ${Date.now()})
+  `;
+  const countersAfter = z
+    .object({ counters: z.array(z.object({ email: z.string() }).loose()) })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/audit-logs/block-counters?orgId=${orgId}`,
+          {
+            headers: { cookie, origin: base },
+          },
+        )
+      ).json(),
+    );
+  record(
+    'sign-in block counters list this org only',
+    counters.success &&
+      counters.data.counters.some((row) => row.lockoutCount >= 1) &&
+      countersAfter.success &&
+      // A counter for someone who is not a member here is another tenant's
+      // security event — it must never surface on this page.
+      !countersAfter.data.counters.some(
+        (row) => row.email === 'stranger@other.test',
+      ),
+    `rows=${counters.success ? counters.data.counters.length : 'ERR'}, strangerHidden=${countersAfter.success ? !countersAfter.data.counters.some((row) => row.email === 'stranger@other.test') : 'ERR'}`,
+  );
+
   record(
     'lockout raises security notification',
     unread.success && unread.data.count >= 1,
@@ -21517,6 +21570,83 @@ async function checkMetricsSurface(
       ? `total=${turns.data.total} c/f/x/t=${turns.data.completed}/${turns.data.failed}/${turns.data.cancelled}/${turns.data.timeout} rec=${turns.data.recovered} p95=${turns.data.durationP95Ms} spent=${turns.data.spentCents}`
       : 'shape-fail',
   );
+
+  // ---- the run dialog's execution log ---------------------------------
+  const { sessionIdForWorkflowExecution } =
+    await import('../convex/sandbox/session_naming.ts');
+  const logRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, started_at_ms
+    ) VALUES (
+      ${orgId}, 'itest/exec-log', 1, 'running', 'live', 'itest:log',
+      ${Date.now()}
+    ) RETURNING id
+  `;
+  const logRunId = logRun[0]?.id ?? '';
+  const logSessionId = sessionIdForWorkflowExecution(logRunId);
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${logSessionId}, 'active', 'workflow_run',
+      ${`${logRunId}:@workflow`}, 'itest:log', ${Date.now()},
+      ${Date.now() + 3_600_000}
+    )
+  `;
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, progress_text, model_ref,
+      started_at_ms
+    ) VALUES (
+      ${orgId}, ${logSessionId}, 'exec-log-1', 'workflow-agent', 'running',
+      'Reading the ledger…', 'openai/gpt-x', ${Date.now()}
+    )
+  `;
+  const opView = z
+    .object({
+      op: z
+        .object({
+          execId: z.string(),
+          status: z.string(),
+          progressText: z.string(),
+          modelRef: z.string(),
+        })
+        .loose()
+        .nullable(),
+    })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/sandbox/agent-node-op?orgId=${orgId}&runId=${logRunId}`,
+        )
+      ).json(),
+    );
+  const opMissing = z
+    .object({ op: z.null() })
+    .safeParse(
+      await (
+        await get(
+          `/api/app/sandbox/agent-node-op?orgId=${orgId}&runId=00000000-0000-0000-0000-000000000000`,
+        )
+      ).json(),
+    );
+  record(
+    'execution log: the agent-node op reads by run id',
+    opView.success &&
+      opView.data.op?.execId === 'exec-log-1' &&
+      opView.data.op.status === 'running' &&
+      opView.data.op.progressText === 'Reading the ledger…' &&
+      // The model that SERVED the turn, not what the org resolves to today.
+      opView.data.op.modelRef === 'openai/gpt-x' &&
+      // A run from another org (or none) is null, never an error.
+      opMissing.success,
+    `op=${opView.success ? `${opView.data.op?.execId}/${opView.data.op?.status}/${opView.data.op?.modelRef}` : 'ERR'}, unknownRun=${opMissing.success ? 'null' : 'ERR'}`,
+  );
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'destroyed'
+    WHERE session_id = ${logSessionId}
+  `;
 }
 
 async function checkArenaAndQuestions(

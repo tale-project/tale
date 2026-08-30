@@ -331,6 +331,43 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return c.json({ statuses });
   });
 
+  /**
+   * URLs for several blobs at once — the attachment lists. Never truncates
+   * (a cap here used to silently drop thumbnails while titles rendered); an
+   * unresolvable ref answers `url: null` rather than failing the batch.
+   */
+  app.post('/urls', async (c) => {
+    const body = z
+      .object({ fileIds: z.array(z.string().min(1).max(1024)).max(200) })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    const orgId = c.get('orgId');
+    const seen = new Set<string>();
+    const urls: { fileId: string; url: string | null }[] = [];
+    for (const fileId of body.data.fileIds) {
+      if (seen.has(fileId)) continue;
+      seen.add(fileId);
+      try {
+        const meta = await getFileMetadata(deps.sql, orgId, fileId);
+        urls.push({
+          fileId,
+          url:
+            meta === null
+              ? null
+              : await getFileUrl(
+                  deps.sql,
+                  { organizationId: orgId },
+                  meta.storageRef,
+                ),
+        });
+      } catch (error) {
+        console.warn(`[files] url resolve failed for ${fileId}:`, error);
+        urls.push({ fileId, url: null });
+      }
+    }
+    return c.json({ urls });
+  });
+
   app.get('/:fileId', async (c) => {
     try {
       const meta = await getFileMetadata(
