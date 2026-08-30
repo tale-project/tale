@@ -56,8 +56,6 @@ tale config show
 
 Der Host, auf dem der Proxy antwortet, die TLS-Einstellungen und alle Secrets liegen im `.env` des Projekts. Um den Host zu ändern, bearbeite dort `HOST` oder übergib `--host` an `tale dev` / `tale deploy`. Um einen entfernten Host zu betreiben, richte den Docker-Kontext deiner Shell (oder `DOCKER_HOST`) darauf aus — die CLI spricht denselben Docker-Endpunkt an wie jeder `docker`-Befehl.
 
-Der Admin-Key fürs Convex-Dashboard ist von der CLI-Konfiguration getrennt — er hat mit der Anmeldung nichts zu tun und ist deterministisch (abgeleitet aus `INSTANCE_NAME` und `INSTANCE_SECRET`, bleibt also über Neustarts hinweg gleich). Erzeug ihn mit `tale convex admin`, wenn du das Backend inspizieren willst (siehe [Erster Admin](/de/self-hosted/install/first-admin)).
-
 ## Schritt 4 — tale deploy ausführen
 
 ```bash
@@ -83,7 +81,7 @@ Führe `tale <befehl> --help` für die massgebliche Liste deiner installierten V
 - `-q, --quiet` — nur Warnungen und Fehler.
 - `-y, --yes` — bei allen Rückfragen «ja» annehmen (nicht-interaktiv).
 - `--no-color` — ANSI-Farben deaktivieren (berücksichtigt auch `NO_COLOR` / `FORCE_COLOR`).
-- `--json` — maschinenlesbares JSON auf stdout, menschliche Meldungen auf stderr; unterstützt von `status`, `config show` und `migrate status`.
+- `--json` — maschinenlesbares JSON auf stdout, menschliche Meldungen auf stderr; unterstützt von `status` und `config show`.
 - `--ci` — erzwingt nicht-interaktive, rein anhängende Ausgabe (keine Cursor-Steuerung).
 
 Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer nicht erfüllten Voraussetzung (kein Projekt, Docker läuft nicht, Port belegt), `4` bei einem Abbruch durch dich (Ctrl-C oder eine erforderliche Rückfrage ohne Terminal) und `5` beim Fehler einer externen Abhängigkeit — so können Skripte anhand der Ursache verzweigen.
@@ -145,7 +143,9 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 - `-f, --force` — Re-Sync erzwingen und lokal geänderte Projektdateien überschreiben.
 - `--dry-run` — anzeigen, was sich ändern würde, ohne etwas zu ändern.
 
-`tale migrate` — die mitgelieferten Defaults neu provisionieren und die sicheren, ausstehenden Daten-Migrationen auf das laufende Deployment anwenden — dieselben idempotenten Schritte, die jeder Deploy ausführt, nur auf Zuruf. Die Subcommands geben dir gezielte, umkehrbare Kontrolle: `migrate status` zeigt angewendete und ausstehende Migrationen, `migrate up [--to <version>]` wendet ausstehende an (destruktive Schritte brauchen `-y, --yes` oder `--step`), `migrate down --to <version>` rollt zurück.
+`tale migrate` — die mitgelieferten Defaults für jede Organisation auf dem laufenden Deployment neu provisionieren — derselbe idempotente Schritt, den jeder Deploy ausführt, nur auf Zuruf. Schema-Migrationen sind kein Command: Das Backend wendet sie beim Start an, ein deployter Container ist also immer auf seinem eigenen Schema.
+
+- `--dry-run` — zeigen, was laufen würde, ohne es auszuführen.
 
 `tale cleanup` — inaktive (nicht-aktuelle) Container entfernen. Keine Argumente.
 
@@ -170,13 +170,10 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 - `-e, --email <email>` — eine neue Owner-E-Mail-Adresse setzen.
 - `-p, --password <password>` — ein neues Owner-Passwort setzen.
 
-`tale convex admin` — einen Admin-Key für das Convex-Dashboard erzeugen. Keine Argumente.
-
 ## Fehlersuche
 
 - **`tale deploy` trifft die falsche Maschine.** Die CLI nutzt den Docker-Kontext / `DOCKER_HOST` deiner Shell. Wechsle mit `docker context use …` (oder setz `DOCKER_HOST`), sodass er auf den gewünschten Host zeigt, und lauf erneut.
 - **`tale deploy` nutzt den falschen Host-Alias.** Der Host, auf dem der Proxy antwortet, kommt aus `HOST` im `.env` des Projekts, nicht aus einem separaten CLI-Speicher. Bearbeite `.env` oder übergib `--host`, um ihn für einen Lauf zu überschreiben.
-- **Das Convex-Dashboard weist den Admin-Key ab.** Die Anmeldung fragt nie nach dem Key — nur das Dashboard. Der Key ist deterministisch (abgeleitet aus `INSTANCE_NAME` und `INSTANCE_SECRET`); eine Ablehnung heißt also meist, dass sich diese Werte zwischen Platform- und Convex-Service unterscheiden, oder die Deployment-URL falsch ist — nimm `SITE_URL`. Generier mit `tale convex admin` neu, um sicherzugehen, dass du den aktuellen Wert kopiert hast.
 - **Installer scheitert auf macOS, weil das Binary nicht ausführbar ist.** Verweigert das frisch installierte Binary den Start (z. B. weil Gatekeeper es beendet), bricht der Installer mit Hinweisen zur Behebung ab, statt Erfolg zu melden — folg ihnen und lauf den Installer erneut.
 - **`tale` nach der Installation auf Linux nicht gefunden.** Der Installer legt das Binary in `/usr/local/bin` ab; verifizier, dass das Verzeichnis im `PATH` des Users ist (`echo $PATH`).
 

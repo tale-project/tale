@@ -8,6 +8,7 @@ import {
   passwordPolicyViolations,
 } from '../../../lib/shared/schemas/password.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { scaffoldNewOrganization } from '../organizations/scaffold.ts';
 import { recordPasswordChange } from '../users/service.ts';
 
 /**
@@ -112,6 +113,75 @@ export async function provisionAllOrganizations(
     await addJobInTx(sql, 'org.scaffold', { orgSlug: org.slug });
   }
   return { organizations: orgs.length };
+}
+
+export interface ReseedOrgResult {
+  slug: string;
+  status: 'ok' | 'error';
+  error?: string;
+}
+
+export interface ReseedResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: ReseedOrgResult[];
+}
+
+/**
+ * FACTORY RESEED of every registered organization — the door behind `tale
+ * deploy --override-all`. Unlike {@link provisionAllOrganizations} this runs
+ * SYNCHRONOUSLY, org by org, because the operator is standing at a prompt
+ * waiting for a per-org verdict: a queued job could only report "queued", and
+ * a destructive reseed that silently failed for one org is exactly the
+ * outcome the command exists to make visible.
+ *
+ * `override` overwrites each domain's files from the builtin catalog;
+ * `strict` turns a misconfigured deployment into a raise instead of a silent
+ * skip. `*.secrets.json`, `.history/` trails and uploaded branding images
+ * survive — the scaffolder's own per-domain rules decide, unchanged.
+ *
+ * Filesystem-only org subtrees (no organization row) are NOT touched:
+ * "--override-all" means every REGISTERED org, not every directory on disk.
+ * One org's failure never stops the sweep; the caller decides what a partial
+ * outcome means.
+ */
+export async function reseedAllOrganizations(sql: Sql): Promise<ReseedResult> {
+  const orgs = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" ORDER BY "slug"
+  `;
+  const results: ReseedOrgResult[] = [];
+  for (const org of orgs) {
+    try {
+      const outcome = await scaffoldNewOrganization({
+        orgSlug: org.slug,
+        override: true,
+        strict: true,
+      });
+      results.push(
+        outcome.ok
+          ? { slug: org.slug, status: 'ok' }
+          : {
+              slug: org.slug,
+              status: 'error',
+              error: outcome.error ?? 'unknown error',
+            },
+      );
+    } catch (error) {
+      results.push({
+        slug: org.slug,
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  const failed = results.filter((r) => r.status === 'error').length;
+  return {
+    total: results.length,
+    succeeded: results.length - failed,
+    failed,
+    results,
+  };
 }
 
 /**

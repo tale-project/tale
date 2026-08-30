@@ -310,7 +310,7 @@ export async function ensureEnv(
       // control is ON by default and STABLE across deploys — a missing or
       // changing key is what makes the daily integrity cron raise a scary
       // "Audit log integrity check failed" alert on an otherwise-clean stack.
-      // See convex/audit_logs/{internal_mutations,verify_integrity}.ts.
+      // See services/platform/backend/domains/audit_logs/.
       'TALE_AUDIT_SIGNING_KEY',
       // Admin password for the sandbox LLM gateway's management API (the platform
       // pushes provider keys / mints virtual keys through it). Auto-generated

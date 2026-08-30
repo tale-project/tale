@@ -214,8 +214,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
         statefulToUpdate = services.filter(isStatefulService);
       } else {
         // Default deploy uses the three-tier policy (see select-services.ts):
-        // rotatable (platform) blue-green; the always-roll tier (convex,
-        // sandbox-llm-gateway, sandbox, sandbox-egress) rolls in-place via the
+        // rotatable (platform) blue-green; the always-roll tier (backend-api,
+        // backend-worker, sandbox-llm-gateway, sandbox, sandbox-egress) rolls
+        // in-place via the
         // stateful compose (sandbox drained first via /v1/drain); stop-gated
         // (db, proxy) only when stopped / first deploy / --stop, else left
         // running with a hint.
@@ -273,7 +274,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
       // Pull all required images first. The sandbox tier (sandbox +
       // sandbox-egress) is now a stateful always-roll singleton, so its images
-      // are pulled here via statefulToUpdate like convex — no special-casing.
+      // are pulled here via statefulToUpdate like the rest — no special-casing.
       logger.step(`${prefix}Pulling images...`);
       const imagesToPull = [
         ...rotatableToUpdate.map(
@@ -415,7 +416,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
             (await getContainerVersion(backendApiContainer())) !== version);
 
         // Will this deploy actually recreate the sandbox spawner? Same logic as
-        // convex: drain in-flight one-shot executions only when the single
+        // the backend tier: drain in-flight one-shot executions only when the single
         // sandbox container's image version is changing (or a forced recreate),
         // so a no-op deploy doesn't refuse executions for nothing.
         const sandboxWillRecreate =
@@ -809,9 +810,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
         logger.info(`${prefix}Services updated to version ${version}.`);
       }
 
-      // Sync project files to the convex container (owns convex-data volume rw)
+      // Sync project files to the backend api container — the tier that
+      // mounts the org config store (the `convex-data` volume, so named since
+      // before the Convex retirement) read-WRITE.
       await syncProjectFiles(
-        `${getProjectId()}-convex`,
+        backendApiContainer(),
         env.DEPLOY_DIR,
         dryRun,
         prefix,
@@ -819,9 +822,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
         options.override ?? false,
       );
 
-      // After deploy + optional host-push, trigger server-side reseed of
-      // builtin catalog into every org. Runs against the platform container
-      // (which holds the convex function source + admin key derivation).
+      // After deploy + optional host-push, trigger the server-side reseed of
+      // the builtin catalog into every org, through the backend's control
+      // door.
       if (options.overrideAll) {
         await reseedAllOrgsFromBuiltin({
           dryRun,

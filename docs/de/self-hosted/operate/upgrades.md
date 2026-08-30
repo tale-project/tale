@@ -77,27 +77,19 @@ Drei Garantien, die das Pattern dir gibt:
 
 Die vollständige Deploy-Prozedur inklusive der Cleanup-Phase lebt in `tale --help`; das operatorseitige Rezept ist `tale update && tale deploy && tale status` und visuelle Bestätigung im Browser.
 
-## Mit Datenmigrationen arbeiten
+## Wie Schema-Änderungen in ein Deployment kommen
 
-Die Migrationskette beginnt an der **0.4.0-Baseline**: Releases ab 0.4.0 tragen versionierte Migrationen für die Änderungen, die sie ausliefern, und nichts Älteres — die Prä-0.4-Historie steckt in keinem Binary (genau das macht den 0.3 → 0.4 Cutover breaking). Innerhalb der 0.4.x-Linie wendet jedes Deploy ausstehende Datenmigrationen automatisch an — aber nur die nicht-destruktiven. Migrationen, die Daten entfernen oder überschreiben (ein Tabellen-Drop, eine entfernte Spalte), laufen nie unbeaufsichtigt: Das Deploy überspringt sie, listet auf, welche warten, und überlässt dir die Entscheidung.
+Schema-Änderungen an der Datenbank sind kein eigener Schritt, den du ausführst. Das Backend jeder Release wendet seine eigenen SQL-Migrationen **beim Start** an, unter einem Advisory Lock — die api- und worker-Container (und beliebige skalierte Repliken) wenden sie also genau einmal an, während die anderen warten. Ein deployter Container ist damit immer auf seinem eigenen Schema; es gibt nichts von Hand zu prüfen, anzuwenden oder nachzuziehen.
+
+Migrationen laufen **nur vorwärts** und sind so geschrieben, dass sie unter einem rollenden Deploy sicher sind: Die vorherige Version bedient weiter Requests, während die neue migriert — eine Release liefert also nie eine Änderung aus, die die Version kaputtmacht, die sie ablöst. Eine Version ZURÜCK ist ein Snapshot-Restore, keine Down-Migration — deshalb weigert sich `tale rollback` bei Minor- und Major-Downgrades (siehe unten).
 
 ```bash
-# Was angewendet ist, was aussteht, was fehlgeschlagen ist
-tale migrate status
-
-# Ausstehende Migrationen anwenden, jeden destruktiven Schritt einzeln prüfen
-tale migrate up --step
-
-# Alles ohne Rückfragen anwenden (CI / nach Prüfung des Plans)
-tale migrate up --yes
-
-# Daten auf eine frühere Version zurückrollen (0.4.0 oder neuer)
-tale migrate down --to 0.4.0
+# Die mitgelieferten Defaults in jede Organisation neu provisionieren (idempotent).
+# Derselbe Schritt, den jeder Deploy ausführt — auf Zuruf.
+tale migrate
 ```
 
-Destruktive Migrationen sichern die betroffenen Zeilen bzw. Konfigurationsdateien, bevor sie sie anfassen — `tale migrate down` kann so wiederherstellen, was sie entfernt haben. Beide Richtungen sind fortsetzbar: Der Fortschritt wird pro Migration festgehalten (bei Konfigurationsdatei-Migrationen pro Organisation), ein Absturz oder Timeout setzt also dort wieder an, wo er unterbrochen wurde.
-
-Schlägt eine Migration während eines Deploys fehl, bootet die Plattform trotzdem auf ihrem aktuellen Schema — das Boot-Log zeigt einen deutlichen Fehler, und `tale migrate status` nennt die fehlgeschlagene Migration samt Fehlermeldung. Ursache beheben, dann `tale migrate up` erneut ausführen; bereits erledigte Arbeit wird übersprungen.
+Kann das Backend eine Migration nicht anwenden, startet es nicht, und der Healthcheck des Deploys blockiert den Traffic-Wechsel: Die alte Farbe bedient weiter, während du `docker compose logs` liest und die Ursache behebst. Halb migrierter Zustand kommt nie vor Nutzer.
 
 ## Zurückrollen
 

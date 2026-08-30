@@ -77,27 +77,19 @@ Three guarantees the pattern gives you:
 
 The full deploy procedure including the cleanup phase lives in `tale --help`; the operator-facing recipe is `tale update && tale deploy && tale status` and visual confirmation in the browser.
 
-## Working with data migrations
+## How schema changes reach a deployment
 
-The migration chain starts at the **0.4.0 baseline**: releases from 0.4.0 on carry versioned migrations for the changes they ship, and nothing older — pre-0.4 history is not in the binary (that is what makes the 0.3 → 0.4 cutover breaking). Within the 0.4.x line, every deploy applies pending data migrations automatically — but only the non-destructive ones. Migrations that remove or overwrite data (a table drop, a column removal) are never run unattended: the deploy skips them, prints which ones are waiting, and leaves the decision to you.
+Database schema changes are not a separate step you run. Each release's backend applies its own SQL migrations **at boot**, under an advisory lock so the api and worker containers (and any scaled replicas) apply them exactly once while the others wait. A deployed container is therefore always at its own schema — there is nothing to check, apply, or roll forward by hand.
+
+Migrations are **forward-only** and written to be safe under a rolling deploy: the previous version keeps serving while the new one migrates, so a release never ships a change that breaks the version it is replacing. Going BACK a version is a snapshot restore, not a down-migration — which is why `tale rollback` refuses minor and major downgrades (see below).
 
 ```bash
-# What is applied, what is pending, what failed
-tale migrate status
-
-# Apply pending migrations, reviewing each destructive step
-tale migrate up --step
-
-# Apply everything without prompting (CI / after reviewing the plan)
-tale migrate up --yes
-
-# Roll data back to an earlier version (0.4.0 or later)
-tale migrate down --to 0.4.0
+# Re-provision the built-in defaults into every organization (idempotent).
+# The same step every deploy runs — use it when you want it on demand.
+tale migrate
 ```
 
-Destructive migrations snapshot the affected rows or config files before touching them, so `tale migrate down` can rebuild what they removed. Both directions are resumable: progress is tracked per migration (and per organization for config-file migrations), so a crash or timeout picks up where it stopped instead of starting over.
-
-If a migration fails during a deploy, the platform still boots on its current schema — the boot log prints a prominent error and `tale migrate status` shows the failed migration with the recorded error. Fix the cause, then re-run `tale migrate up`; already-completed work is skipped.
+If the backend cannot apply a migration it fails to start, and the deploy's healthcheck blocks the traffic flip: the previous colour keeps serving while you read `docker compose logs` and fix the cause. Nothing half-migrated is ever put in front of users.
 
 ## Rolling back
 

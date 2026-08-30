@@ -56,8 +56,6 @@ tale config show
 
 L'hôte sur lequel le proxy répond, les réglages TLS et tous les secrets vivent dans le `.env` du projet. Pour changer l'hôte, modifie `HOST` là-bas ou passe `--host` à `tale dev` / `tale deploy`. Pour piloter un hôte distant, pointe le contexte Docker de ton shell (ou `DOCKER_HOST`) dessus — la CLI parle au même endpoint Docker que n'importe quelle commande `docker`.
 
-La clé admin du tableau de bord Convex est séparée de la configuration de la CLI — elle ne conditionne jamais l'inscription et elle est déterministe (dérivée de `INSTANCE_NAME` et `INSTANCE_SECRET`, donc identique d'un redémarrage à l'autre). Génère-la avec `tale convex admin` quand tu veux inspecter le backend (voir [Premier admin](/fr/self-hosted/install/first-admin)).
-
 ## Étape 4 — Lancer tale deploy
 
 ```bash
@@ -83,7 +81,7 @@ Lance `tale <commande> --help` pour la liste de référence de ta version instal
 - `-q, --quiet` — uniquement les avertissements et les erreurs.
 - `-y, --yes` — répondre « oui » à toutes les questions (non interactif).
 - `--no-color` — désactiver les couleurs ANSI (respecte aussi `NO_COLOR` / `FORCE_COLOR`).
-- `--json` — JSON lisible par machine sur stdout, messages humains sur stderr ; pris en charge par `status`, `config show` et `migrate status`.
+- `--json` — JSON lisible par machine sur stdout, messages humains sur stderr ; pris en charge par `status` et `config show`.
 - `--ci` — forcer une sortie non interactive en mode ajout seul (sans contrôle du curseur).
 
 Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'utilisation, `3` pour une condition préalable non remplie (pas de projet, Docker arrêté, port occupé), `4` pour une interruption par l'utilisateur (Ctrl-C, ou une question requise sans terminal) et `5` pour l'échec d'une dépendance externe — ainsi les scripts peuvent se ramifier selon la cause.
@@ -145,7 +143,9 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 - `-f, --force` — forcer la re-synchronisation et écraser les fichiers projet modifiés localement.
 - `--dry-run` — montrer ce qui changerait sans rien modifier.
 
-`tale migrate` — reprovisionner les valeurs par défaut intégrées et appliquer les migrations de données sûres en attente sur le déploiement en cours — les mêmes étapes idempotentes que chaque déploiement exécute, à la demande. Les sous-commandes donnent un contrôle fin et réversible : `migrate status` montre les migrations appliquées et en attente, `migrate up [--to <version>]` applique celles en attente (les étapes destructives demandent `-y, --yes` ou `--step`), `migrate down --to <version>` revient en arrière.
+`tale migrate` — reprovisionner les valeurs par défaut intégrées pour chaque organisation sur le déploiement en cours — la même étape idempotente que chaque déploiement exécute, à la demande. Les migrations de schéma ne sont pas une commande : le backend les applique au démarrage, donc un conteneur déployé est toujours sur son propre schéma.
+
+- `--dry-run` — montrer ce qui serait exécuté sans l'exécuter.
 
 `tale cleanup` — supprimer les conteneurs inactifs (couleur non courante). Aucun argument.
 
@@ -170,13 +170,10 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 - `-e, --email <email>` — définir une nouvelle adresse e-mail du propriétaire.
 - `-p, --password <password>` — définir un nouveau mot de passe du propriétaire.
 
-`tale convex admin` — générer une clé admin pour le tableau de bord Convex. Aucun argument.
-
 ## Dépannage
 
 - **`tale deploy` vise la mauvaise machine.** La CLI utilise le contexte Docker / `DOCKER_HOST` de ton shell. Bascule avec `docker context use …` (ou définis `DOCKER_HOST`) pour qu'il pointe sur l'hôte voulu, puis relance.
 - **`tale deploy` utilise le mauvais alias d'hôte.** L'hôte sur lequel le proxy répond vient de `HOST` dans le `.env` du projet, pas d'un stockage CLI séparé. Modifie `.env` ou passe `--host` pour le remplacer le temps d'un lancement.
-- **Le tableau de bord Convex rejette la clé admin.** L'inscription ne demande jamais la clé — seul le tableau de bord le fait. La clé est déterministe (dérivée de `INSTANCE_NAME` et `INSTANCE_SECRET`), donc un rejet signifie généralement que ces valeurs diffèrent entre les services platform et Convex, ou que l'URL de déploiement est fausse — utilise `SITE_URL`. Régénère avec `tale convex admin` pour être sûr d'avoir copié la valeur actuelle.
 - **L'installeur échoue sur macOS parce que le binaire ne peut pas s'exécuter.** Quand le binaire fraîchement installé refuse de démarrer (p. ex. Gatekeeper le tue), l'installeur échoue avec des pistes de récupération au lieu d'annoncer un succès — suis-les, puis relance l'installeur.
 - **`tale` introuvable après installation sous Linux.** L'installeur dépose le binaire dans `/usr/local/bin` ; vérifie que le répertoire est dans le `PATH` de l'utilisateur (`echo $PATH`).
 

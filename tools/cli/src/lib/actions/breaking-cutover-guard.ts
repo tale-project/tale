@@ -12,9 +12,9 @@ import { getPreviousVersion } from '../state/get-previous-version';
  * instance created by an older release cannot work: the old data has no
  * upgrade path and the new schema will not even push over it.
  *
- * Mirrors `services/platform/convex/migrations/framework/baseline.ts`
- * (BASELINE_VERSION) — the CLI is a standalone binary, so the constant is
- * duplicated by design; bump both together at the next breaking cutover.
+ * The CLI is a standalone binary, so this constant lives here on its own —
+ * it used to mirror the retired Convex migration framework's BASELINE_VERSION.
+ * Bump it at the next breaking cutover.
  */
 export const BREAKING_BASELINE = '0.4.0';
 

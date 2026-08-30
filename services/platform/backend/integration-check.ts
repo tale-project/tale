@@ -7907,6 +7907,194 @@ async function checkDevSeed(sql: Sql, auth: Auth): Promise<void> {
   }
 }
 
+/**
+ * The two ORACLES the platform web tier calls with a forwarded cookie
+ * (`realtime/oracle-routes.ts`): which org slugs may this session receive
+ * file events for, and may it watch (or drive) a thread's live browser.
+ *
+ * These answer the web process, which has no database — so their refusals
+ * ARE the browser-facing contract, headers included.
+ */
+async function checkWebTierOracles(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+
+  // --- /api/sse/auth ---------------------------------------------------
+  const anon = await fetch(`${base}/api/sse/auth`);
+  record(
+    'sse-auth refuses an anonymous caller',
+    anon.status === 401 &&
+      anon.headers.get('vary') === 'Cookie' &&
+      anon.headers.get('cache-control') === 'no-store',
+    `no cookie → ${anon.status} (want 401), vary=${anon.headers.get('vary')}, cache-control=${anon.headers.get('cache-control')}`,
+  );
+
+  const slugRows = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
+  `;
+  const orgSlug = slugRows[0]?.slug ?? '';
+  const authed = await fetch(`${base}/api/sse/auth`, { headers: { cookie } });
+  const feed = z
+    .object({ userId: z.string(), orgSlugs: z.array(z.string()) })
+    .safeParse(await authed.json());
+  record(
+    'sse-auth answers the session its own org slugs',
+    authed.status === 200 &&
+      feed.success &&
+      feed.data.userId === userId &&
+      feed.data.orgSlugs.includes(orgSlug),
+    `→ ${authed.status}, userId match=${feed.success && feed.data.userId === userId}, slugs=${feed.success ? feed.data.orgSlugs.join(',') : 'UNPARSEABLE'} (want ${orgSlug})`,
+  );
+
+  // A soft-removed member keeps NO event access: the fan-out is the only
+  // thing standing between a kicked member and another org's file names.
+  const beforeRole = await sql<{ role: string }[]>`
+    SELECT "role" FROM "member"
+    WHERE "userId" = ${userId} AND "organizationId" = ${orgId}
+  `;
+  await sql`
+    UPDATE "member" SET "role" = 'disabled'
+    WHERE "userId" = ${userId} AND "organizationId" = ${orgId}
+  `;
+  const disabled = await fetch(`${base}/api/sse/auth`, { headers: { cookie } });
+  const disabledFeed = z
+    .object({ orgSlugs: z.array(z.string()) })
+    .safeParse(await disabled.json());
+  await sql`
+    UPDATE "member" SET "role" = ${beforeRole[0]?.role ?? 'owner'}
+    WHERE "userId" = ${userId} AND "organizationId" = ${orgId}
+  `;
+  record(
+    'sse-auth drops a soft-removed member from the fan-out',
+    disabled.status === 200 &&
+      disabledFeed.success &&
+      !disabledFeed.data.orgSlugs.includes(orgSlug),
+    `role='disabled' → slugs=${disabledFeed.success ? `[${disabledFeed.data.orgSlugs.join(',')}]` : 'UNPARSEABLE'} (want the org absent)`,
+  );
+
+  // --- /api/sandbox/screencast-auth ------------------------------------
+  const noThread = await fetch(`${base}/api/sandbox/screencast-auth`, {
+    headers: { cookie },
+  });
+  record(
+    'screencast-auth refuses a call with no threadId',
+    noThread.status === 400,
+    `no threadId → ${noThread.status} (want 400)`,
+  );
+
+  const now = Date.now();
+  const threadRows = await sql<{ id: string }[]>`
+    INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${orgId}, ${userId}, 'Screencast probe', 'chat', ${now}, ${now})
+    RETURNING id
+  `;
+  const threadId = threadRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.thread_metadata (
+      thread_id, org_id, user_id, chat_type, status, created_at_ms
+    ) VALUES (${threadId}, ${orgId}, ${userId}, 'chat', 'active', ${now})
+  `;
+
+  const screencast = (query: string, headers: Record<string, string> = {}) =>
+    fetch(`${base}/api/sandbox/screencast-auth?${query}`, { headers });
+
+  const unknown = await screencast('threadId=itest-no-such-thread', { cookie });
+  record(
+    'screencast-auth conflates a missing thread with a denied one',
+    unknown.status === 403,
+    `unknown threadId → ${unknown.status} (want 403 — never 404, which would confirm existence)`,
+  );
+
+  const noSession = await screencast(`threadId=${threadId}`, { cookie });
+  const noSessionBody = z
+    .object({ error: z.string() })
+    .safeParse(await noSession.json());
+  record(
+    'screencast-auth answers 409 when nothing is live to stream',
+    noSession.status === 409 &&
+      noSessionBody.success &&
+      noSessionBody.data.error === 'session_not_running',
+    `no live session → ${noSession.status} (want 409), body=${noSessionBody.success ? noSessionBody.data.error : 'UNPARSEABLE'}`,
+  );
+
+  // A live, ACTIVE session for this thread's owner key makes it streamable.
+  const sessions = await import('./domains/sandbox/sessions.ts');
+  const sessionId = `itest-screencast-${now % 100_000}`;
+  await sessions.reserveSessionSlot(sql, {
+    organizationId: orgId,
+    sessionId,
+    profile: { image: 'itest' },
+    ownerType: 'user',
+    ownerId: `${orgId}:${userId}`,
+    createdBy: userId,
+  });
+  const creating = await screencast(`threadId=${threadId}`, { cookie });
+  await sessions.setSessionStatus(sql, {
+    organizationId: orgId,
+    sessionId,
+    status: 'active',
+  });
+
+  const view = await screencast(`threadId=${threadId}`, { cookie });
+  const viewBody = z
+    .object({ sessionId: z.string(), control: z.boolean() })
+    .safeParse(await view.json());
+  record(
+    'screencast-auth streams only an ACTIVE session, read-only by default',
+    creating.status === 409 &&
+      view.status === 200 &&
+      viewBody.success &&
+      viewBody.data.sessionId === sessionId &&
+      !viewBody.data.control,
+    `creating → ${creating.status} (want 409); active → ${view.status} sessionId=${viewBody.success ? viewBody.data.sessionId : 'UNPARSEABLE'}, control=${viewBody.success ? viewBody.data.control : '?'} (want false without ?control=1)`,
+  );
+
+  const control = await screencast(`threadId=${threadId}&control=1`, {
+    cookie,
+  });
+  const controlBody = z
+    .object({ control: z.boolean() })
+    .safeParse(await control.json());
+  record(
+    'screencast-auth grants writable control to the thread owner',
+    control.status === 200 && controlBody.success && controlBody.data.control,
+    `owner ?control=1 → ${control.status}, control=${controlBody.success ? controlBody.data.control : 'UNPARSEABLE'} (want true)`,
+  );
+
+  // A DIFFERENT member of the same org is not the owner: no view, and
+  // therefore no control either.
+  const otherEmail = `itest-screencast-other-${now % 100_000}@example.com`;
+  const otherSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: otherEmail,
+      password: 'itest-password-1',
+      name: 'Other',
+    }),
+  });
+  const otherCookie = cookieHeaderFrom(otherSignUp);
+  const stranger = await screencast(`threadId=${threadId}&control=1`, {
+    cookie: otherCookie,
+  });
+  record(
+    "screencast-auth refuses another user's thread",
+    stranger.status === 403,
+    `non-owner ?control=1 → ${stranger.status} (want 403)`,
+  );
+
+  await sessions.markSessionDestroyed(sql, {
+    organizationId: orgId,
+    sessionId,
+  });
+  await sql`DELETE FROM app.thread_metadata WHERE thread_id = ${threadId}`;
+  await sql`DELETE FROM app.threads WHERE id = ${threadId}`;
+}
+
 async function checkCompetences(
   sql: Sql,
   base: string,
@@ -23714,6 +23902,7 @@ async function main(): Promise<void> {
       `itest-${orgSuffix}@example.com`,
     );
     await checkDevSeed(sql, auth);
+    await checkWebTierOracles(sql, baseUrl, authCtx);
   } finally {
     await boss.stop({ graceful: false });
     await new Promise<void>((resolve) => {

@@ -895,7 +895,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Créer le premier admin",
-      "description": "Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique — le premier compte devient Owner sans clé, les nouveaux arrivent par invitation, et la clé admin ne sert qu'au tableau de bord Convex."
+      "description": "Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique — le premier compte devient Owner sans clé et les nouveaux arrivent par invitation."
     }
   },
   "fr:self-hosted/install/linux-server": {
@@ -2072,7 +2072,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Create the first admin",
-      "description": "Walk a brand-new self-hosted instance through its one-time setup wizard — first account becomes Owner with no key, new people join by invite, and the admin key is only for the Convex dashboard."
+      "description": "Walk a brand-new self-hosted instance through its one-time setup wizard — the first account becomes Owner with no key, and new people join by invite."
     }
   },
   "en:self-hosted/install/linux-server": {
@@ -3249,7 +3249,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Den ersten Admin erstellen",
-      "description": "Eine brandneue self-hosted Instanz durch ihren einmaligen Setup-Wizard führen — das erste Konto wird ohne Key zum Owner, neue Leute kommen per Einladung dazu, und der Admin-Key ist nur fürs Convex-Dashboard."
+      "description": "Eine brandneue self-hosted Instanz durch ihren einmaligen Setup-Wizard führen — das erste Konto wird ohne Key zum Owner, neue Leute kommen per Einladung dazu."
     }
   },
   "de:self-hosted/install/linux-server": {

@@ -6,6 +6,8 @@
  */
 export const SNAPSHOT_VOLUMES = [
   'db-data',
+  // The org config store. The name predates the Convex retirement and is
+  // kept so no operator has to migrate a volume for a rename.
   'convex-data',
   'caddy-data',
   'caddy-config',

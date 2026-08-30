@@ -1,59 +1,39 @@
 /**
- * `tale deploy --override-all` orchestration: invoke the convex-side
- * `reseedAllOrgsFromBuiltin` action via `docker exec` into the running
- * platform container. Uses the same in-container incantation as the deploy
- * entrypoint: source env.sh, ensure_instance_secret, compute the admin key
- * inline, then run the convex CLI.
+ * `tale deploy --override-all` orchestration: POST the backend's
+ * `/api/control/reseed` door (docker/control-call.ts) and report the per-org
+ * verdict it returns.
  *
- * Destructive: factory-reseeds every registered org's non-secret config
- * from the builtin catalog. `*.secrets.json` files and `.history/` trails
- * are preserved server-side by `scaffoldNewOrganization({override:true,
- * strict:true})`. Uploaded branding `images/` survive (branding is
- * treated as a tree with per-file overwrite). Everything else under each
- * `<org>/<domain>/` is overwritten with builtin content.
+ * Destructive: factory-reseeds every registered org's non-secret config from
+ * the builtin catalog. `*.secrets.json` files and `.history/` trails are
+ * preserved server-side by the scaffolder's `override:true, strict:true`
+ * pass. Uploaded branding `images/` survive (branding is treated as a tree
+ * with per-file overwrite). Everything else under each `<org>/<domain>/` is
+ * overwritten with builtin content.
  *
- * Filesystem-only org subtrees (no Better Auth row) are NOT touched —
+ * Filesystem-only org subtrees (no organization row) are NOT touched —
  * `--override-all` means "all registered orgs", not "every dir on disk".
  *
- * Failure semantics: the convex-side action throws on any per-org failure
- * (so `bunx convex run` exits non-zero), which surfaces as
- * `result.success === false` here and is converted to a CLI throw with
- * the per-org detail attached.
+ * Failure semantics: the door sweeps every org and reports each outcome, so a
+ * partial run names the orgs that failed instead of stopping at the first.
+ * Any failure is a CLI throw with that detail attached; the reseed is
+ * idempotent, so re-running after a fix is always safe.
  */
 
 import * as logger from '../../utils/logger';
 import { confirm } from '../../utils/prompt';
 import {
-  buildConvexRunScript,
-  parseSentinelJson,
-  redactAdminKey,
-} from '../docker/convex-run';
-import { exec } from '../docker/exec';
-import { findPlatformContainer } from '../docker/find-platform-container';
+  backendApiContainer,
+  controlCall,
+  isBackendTierRunning,
+} from '../docker/control-call';
 
 interface ReseedAllOrgsOptions {
   dryRun: boolean;
   assumeYes: boolean;
 }
 
-/**
- * The bash script piped into the platform container is the shared
- * `buildConvexRunScript` incantation (docker/convex-run.ts): source env.sh so
- * `INSTANCE_SECRET` is guaranteed populated, derive the admin key exactly as
- * the deploy entrypoint does, run the deployed action with `--no-push`, and
- * frame the JSON return value between the stdout sentinels.
- *
- * Runtime workdir is `/app` (services/platform/Dockerfile sets `WORKDIR /app`;
- * flattens services/platform/{convex,lib,env.sh,…} into `/app/`). No
- * `cd /app/services/platform` — that path does not exist at runtime.
- */
 const RESEED_TIMEOUT_S = 1800;
 const RESEED_TIMEOUT_EXIT = 124;
-
-const RESEED_SCRIPT = buildConvexRunScript(
-  'organizations/reseed_all_orgs:reseedAllOrgsFromBuiltin',
-  { timeoutS: RESEED_TIMEOUT_S },
-);
 
 const CONFIRM_MESSAGE =
   '--override-all will factory-reset every registered org from the builtin catalog. ' +
@@ -72,9 +52,8 @@ type ReseedResult = {
 };
 
 /**
- * Shape guard over the sentinel-framed return value — the action returns a
- * summary object; anything else (a bare `null` from an older backend, noise)
- * degrades to the raw-stdout fallback below.
+ * Shape guard over the door's JSON. Anything else (an older backend, noise)
+ * degrades to the raw-stdout fallback rather than a confident wrong summary.
  */
 function isReseedResult(value: unknown): value is ReseedResult {
   return (
@@ -87,25 +66,32 @@ function isReseedResult(value: unknown): value is ReseedResult {
   );
 }
 
+/** The failed orgs, one `slug: error` line each. */
+function failureLines(result: ReseedResult): string[] {
+  return result.results
+    .filter(
+      (r): r is { slug: string; status: 'error'; error: string } =>
+        r.status === 'error',
+    )
+    .map((r) => `  ${r.slug}: ${r.error}`);
+}
+
 export async function reseedAllOrgsFromBuiltin(
   options: ReseedAllOrgsOptions,
 ): Promise<void> {
   const { dryRun, assumeYes } = options;
+  const container = backendApiContainer();
 
-  // Dry-run gate sits BEFORE the destructive confirm prompt + the
-  // platform-container lookup. Otherwise `tale deploy --override-all
-  // --dry-run` would (a) still ask the operator to confirm a
-  // destructive-shape operation that won't run, and (b) hard-throw
-  // on hosts where no platform container is up yet — defeating the
+  // Dry-run gate sits BEFORE the destructive confirm prompt + the container
+  // check. Otherwise `tale deploy --override-all --dry-run` would (a) still
+  // ask the operator to confirm a destructive-shape operation that won't run,
+  // and (b) hard-throw on hosts where no backend is up yet — defeating the
   // point of a dry-run preview.
   if (dryRun) {
     logger.blank();
     logger.info(
-      '[DRY-RUN] Would run reseed script against the platform container:',
+      `[DRY-RUN] Would factory-reseed every registered org via POST /api/control/reseed in ${container}.`,
     );
-    for (const line of RESEED_SCRIPT.split('\n')) {
-      logger.info(`  ${line}`);
-    }
     return;
   }
 
@@ -124,63 +110,66 @@ export async function reseedAllOrgsFromBuiltin(
     }
   }
 
-  const container = await findPlatformContainer();
+  if (!(await isBackendTierRunning())) {
+    throw new Error(
+      `--override-all needs the backend tier: no ${container} container is running. ` +
+        'Start the deployment (`tale start`), then re-run.',
+    );
+  }
 
   logger.blank();
   logger.step('Reseeding builtin catalog into all registered orgs...');
 
-  // Pipe the script via stdin instead of embedding in argv — avoids shell
-  // escaping pitfalls and keeps the script source readable.
-  const result = await exec('docker', ['exec', '-i', container, 'bash', '-s'], {
-    stdin: RESEED_SCRIPT,
+  const result = await controlCall('POST', '/api/control/reseed', {
+    container,
+    timeoutS: RESEED_TIMEOUT_S,
   });
 
-  // The convex action throws on any per-org failure, which propagates to
-  // `bunx convex run`'s exit code, which propagates to `docker exec`'s
-  // exit code, which becomes `result.success === false` here.
   if (!result.success) {
-    if (result.stdout) {
-      logger.info(redactAdminKey(result.stdout.trim()));
-    }
-    if (result.stderr) {
-      logger.error(redactAdminKey(result.stderr.trim()));
-    }
-
-    // Special-case `timeout(1)`'s SIGTERM exit so the operator sees
-    // "timed out" rather than a generic "raised". The action is
-    // idempotent so re-running is always safe.
+    if (result.stderr) logger.error(result.stderr.trim());
+    // Special-case `timeout(1)`'s SIGTERM exit so the operator sees "timed
+    // out" rather than a generic refusal. The reseed is idempotent, so
+    // re-running is always safe.
     if (result.exitCode === RESEED_TIMEOUT_EXIT) {
       throw new Error(
         `--override-all timed out after ${RESEED_TIMEOUT_S}s in ${container}. ` +
-          `The reseed action may still be running on the convex side; ` +
-          `wait a minute, then re-run (idempotent).`,
+          'The reseed may still be running in the backend; wait a minute, ' +
+          'then re-run (idempotent).',
       );
     }
-
-    // The convex-side action `console.log`s a human-readable failure
-    // summary then `throw`s — `bunx convex run` does NOT emit the
-    // action's return value on the throw path, so any attempt to parse
-    // structured failure detail here is dead code. The stdout logged
-    // above already surfaces the per-slug detail to the operator / CI.
     throw new Error(
-      `--override-all failed: reseed action raised in ${container}. ` +
-        `Per-org detail above; partial state on disk — re-run --override-all ` +
-        `after addressing failures (the action is idempotent).`,
+      `--override-all failed: the control door refused in ${container}. ` +
+        `${result.stderr.trim().slice(0, 200)} — the reseed is idempotent, so ` +
+        're-run after addressing the failure.',
     );
   }
 
-  // All orgs succeeded. Parse and summarize.
-  const value = parseSentinelJson<unknown>(result.stdout);
-  const parsed = isReseedResult(value) ? value : null;
-  if (parsed) {
-    logger.info(
-      `Reseeded ${parsed.succeeded}/${parsed.total} orgs from builtin catalog.`,
-    );
-  } else if (result.stdout) {
-    // Couldn't parse — surface raw stdout (redacted) so the operator
-    // isn't flying blind. Should be rare given the sentinel framing.
-    logger.info(redactAdminKey(result.stdout.trim()));
+  let parsed: ReseedResult | null = null;
+  try {
+    const value: unknown = JSON.parse(result.stdout);
+    parsed = isReseedResult(value) ? value : null;
+  } catch (err) {
+    logger.debug(`reseed response parse failed: ${String(err)}`);
   }
 
+  if (!parsed) {
+    // Couldn't parse — surface raw stdout so the operator isn't flying blind.
+    if (result.stdout) logger.info(result.stdout.trim());
+    logger.success('Reseed complete.');
+    return;
+  }
+
+  if (parsed.failed > 0) {
+    for (const line of failureLines(parsed)) logger.error(line);
+    throw new Error(
+      `--override-all failed for ${parsed.failed}/${parsed.total} org(s). ` +
+        'Per-org detail above; partial state on disk — re-run --override-all ' +
+        'after addressing the failures (the reseed is idempotent).',
+    );
+  }
+
+  logger.info(
+    `Reseeded ${parsed.succeeded}/${parsed.total} orgs from builtin catalog.`,
+  );
   logger.success('Reseed complete.');
 }

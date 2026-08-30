@@ -5,16 +5,17 @@ import { DEFAULT_LOGGING } from '../types';
 /**
  * Controller — privileged control-plane sidecar (OPT-IN).
  *
- * Restarts the allowlisted compose service {convex} on an HMAC-signed
- * request so a deployment-config change (external knowledge Postgres / Convex
- * S3 storage) takes effect — WITHOUT giving the browser-facing platform
- * docker-socket access.
+ * Restarts the allowlisted compose services {backend-api, backend-worker,
+ * sandbox} on an HMAC-signed request so a deployment-config change (external
+ * knowledge Postgres / object storage) takes effect — WITHOUT giving the
+ * browser-facing platform docker-socket access.
  *
  * SECURITY: mounts /var/run/docker.sock = host root, the same accepted
  * boundary as the sandbox spawner, but far more constrained — list+restart of
- * the convex service only (no run/exec), HMAC-verified, internal-network-only, no
+ * those services only (no run/exec), HMAC-verified, internal-network-only, no
  * published port. Emitted only when CONTROLLER_TOKEN is set (the shared HMAC
- * secret); the platform/convex sign restart requests with the same token.
+ * secret); the platform and backend sign restart requests with the same
+ * token. The allowlist itself lives in services/controller/src/server.ts.
  *
  * COMPOSE_PROJECT_NAME scopes restarts to this project so another stack on the
  * same host is never touched.

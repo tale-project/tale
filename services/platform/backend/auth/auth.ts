@@ -81,7 +81,7 @@ async function jitterDelay(): Promise<void> {
  * `default` config tree's login policy, with built-in defaults. (0.4 read
  * the same policy through the legacy `default` org's configCache row.)
  */
-async function loadTrustedProxies(): Promise<string[]> {
+export async function loadTrustedProxies(): Promise<string[]> {
   const policy = await readGovernancePolicy('default', 'login_policy');
   return policy && policy.trustedProxies.length > 0
     ? policy.trustedProxies

@@ -1,0 +1,17 @@
+-- {{subject}}
+--
+-- TODO: say WHY this shape exists — which rule it encodes, what reads it, and
+-- anything a later reader would otherwise have to guess. Comment any column
+-- whose meaning is not obvious from its name.
+--
+-- Rolling-deploy safe: the previous image is still serving while this applies.
+
+-- TODO: the DDL. Everything belongs in the `app` schema.
+--
+-- CREATE TABLE app.{{slug}} (
+--   id text PRIMARY KEY DEFAULT gen_random_uuid(),
+--   org_id text NOT NULL,
+--   created_at_ms bigint NOT NULL
+-- );
+--
+-- CREATE INDEX {{slug}}_org ON app.{{slug}} (org_id, created_at_ms DESC);

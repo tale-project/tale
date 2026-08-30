@@ -1,6 +1,5 @@
 import * as logger from '../../utils/logger';
-import { exec } from '../docker/exec';
-import { backendApiContainer } from './drain-backend';
+import { backendApiContainer, controlCall } from '../docker/control-call';
 
 interface ResetOwnerOptions {
   email?: string;
@@ -26,25 +25,13 @@ export async function resetOwner(options: ResetOwnerOptions): Promise<void> {
   const container = backendApiContainer();
   logger.step(`Resetting owner credentials via ${container}...`);
 
-  const body = JSON.stringify({
-    ...(email ? { newEmail: email } : {}),
-    ...(password ? { newPassword: password } : {}),
+  const result = await controlCall('POST', '/api/control/reset-owner', {
+    container,
+    body: {
+      ...(email ? { newEmail: email } : {}),
+      ...(password ? { newPassword: password } : {}),
+    },
   });
-
-  const result = await exec(
-    'docker',
-    [
-      'exec',
-      '-i',
-      container,
-      'sh',
-      '-c',
-      'curl -fsS -X POST -H "Authorization: Bearer $TALE_CONTROL_TOKEN" ' +
-        '-H "Content-Type: application/json" --data-binary @- ' +
-        'http://localhost:3005/api/control/reset-owner',
-    ],
-    { stdin: body },
-  );
   if (!result.success) {
     throw new Error(
       result.stderr.trim() || 'Failed to reset owner credentials',

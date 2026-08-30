@@ -77,27 +77,19 @@ Trois garanties que le pattern te donne :
 
 La procédure complète de déploiement, y compris la phase de cleanup, vit dans `tale --help` ; la recette côté opérateur est `tale update && tale deploy && tale status` et confirmation visuelle dans le navigateur.
 
-## Travailler avec les migrations de données
+## Comment les changements de schéma arrivent sur un déploiement
 
-La chaîne de migrations démarre à la **baseline 0.4.0** : les releases à partir de la 0.4.0 embarquent des migrations versionnées pour les changements qu'elles livrent, et rien de plus ancien — l'historique pré-0.4 n'est dans aucun binaire (c'est ce qui rend la rupture 0.3 → 0.4 définitive). Au sein de la ligne 0.4.x, chaque déploiement applique automatiquement les migrations de données en attente — mais seulement celles qui ne détruisent rien. Les migrations qui suppriment ou écrasent des données (suppression d'une table, retrait d'une colonne) ne tournent jamais sans surveillance : le déploiement les saute, affiche celles qui attendent et vous laisse la décision.
+Les changements de schéma de la base de données ne sont pas une étape séparée que tu exécutes. Le backend de chaque version applique ses propres migrations SQL **au démarrage**, sous un verrou consultatif : les conteneurs api et worker (et toute réplique mise à l'échelle) les appliquent exactement une fois pendant que les autres attendent. Un conteneur déployé est donc toujours sur son propre schéma — il n'y a rien à vérifier, appliquer ou rattraper à la main.
+
+Les migrations sont **uniquement vers l'avant** et écrites pour être sûres sous un déploiement progressif : la version précédente continue de servir pendant que la nouvelle migre, donc une version ne livre jamais un changement qui casse celle qu'elle remplace. Revenir EN ARRIÈRE d'une version est une restauration de snapshot, pas une migration descendante — c'est pourquoi `tale rollback` refuse les downgrades mineurs et majeurs (voir ci-dessous).
 
 ```bash
-# Ce qui est appliqué, en attente, en échec
-tale migrate status
-
-# Appliquer les migrations en attente, en validant chaque étape destructrice
-tale migrate up --step
-
-# Tout appliquer sans confirmation (CI / après revue du plan)
-tale migrate up --yes
-
-# Ramener les données à une version antérieure (0.4.0 ou plus récente)
-tale migrate down --to 0.4.0
+# Reprovisionner les valeurs par défaut intégrées dans chaque organisation (idempotent).
+# La même étape que chaque déploiement exécute — à la demande.
+tale migrate
 ```
 
-Les migrations destructrices sauvegardent les lignes ou fichiers de configuration concernés avant d'y toucher : `tale migrate down` peut ainsi reconstruire ce qu'elles ont retiré. Les deux sens sont reprenables : la progression est suivie par migration (et par organisation pour les migrations de fichiers de configuration), un crash ou un timeout reprend donc là où il s'était arrêté.
-
-Si une migration échoue pendant un déploiement, la plateforme démarre quand même sur son schéma actuel — le journal de démarrage affiche une erreur bien visible et `tale migrate status` montre la migration en échec avec son message. Corrigez la cause, puis relancez `tale migrate up` ; le travail déjà accompli est sauté.
+Si le backend ne peut pas appliquer une migration, il ne démarre pas, et le healthcheck du déploiement bloque le basculement du trafic : l'ancienne couleur continue de servir pendant que tu lis `docker compose logs` et corriges la cause. Rien de à moitié migré n'est jamais mis devant les utilisateurs.
 
 ## Rollback
 

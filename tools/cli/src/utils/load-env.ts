@@ -12,11 +12,9 @@ export interface DeploymentEnv {
   DRAIN_TIMEOUT: number;
   DEPLOY_DIR: string;
   /**
-   * Has this deployment cut over to the Postgres backend? `BACKEND_UPSTREAM`
-   * is the proxy's cutover switch (`backend-api:3005`), and it is the ONE
-   * source of truth: set it and the proxy routes the migrated lanes there,
-   * `tale deploy` rolls the backend tier, and the drain runs against its
-   * control door instead of convex's.
+   * Where the proxy sends the app's API lanes (`backend-api:3005`). Kept as
+   * an override so an operator can point the proxy at a differently-named or
+   * externally-hosted backend without editing the generated Caddyfile.
    */
   BACKEND_UPSTREAM: string;
 }

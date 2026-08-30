@@ -10,6 +10,7 @@ import {
   drainStatus,
   endDrain,
   provisionAllOrganizations,
+  reseedAllOrganizations,
   resetOwnerCredentials,
 } from './service.ts';
 
@@ -89,6 +90,13 @@ export function createControlRoutes(deps: { sql: Sql }): Hono {
 
   app.post('/provision', async (c) => {
     return c.json(await provisionAllOrganizations(deps.sql));
+  });
+
+  /** `tale deploy --override-all` — the DESTRUCTIVE factory reseed. Runs
+   *  synchronously so the operator gets a per-org verdict; a partial outcome
+   *  is reported, never swallowed. */
+  app.post('/reseed', async (c) => {
+    return c.json(await reseedAllOrganizations(deps.sql));
   });
 
   return app;

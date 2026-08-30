@@ -12,10 +12,19 @@ import { scaffoldOrgFromCatalog } from '../../../convex/organizations/scaffold.t
 export async function scaffoldNewOrganization(args: {
   orgSlug: string;
   cleanFirst?: boolean;
+  /** Reseed: overwrite each domain's files from the builtin catalog instead
+   *  of skipping a directory that already has content. `tale deploy
+   *  --override-all` only. */
+  override?: boolean;
+  /** Raise instead of returning a skip when the deployment is misconfigured —
+   *  an operator running a factory reseed must not get a silent no-op. */
+  strict?: boolean;
 }): Promise<{ ok: boolean; error?: string }> {
   const result = await scaffoldOrgFromCatalog({
     orgSlug: args.orgSlug,
     ...(args.cleanFirst !== undefined ? { cleanFirst: args.cleanFirst } : {}),
+    ...(args.override !== undefined ? { override: args.override } : {}),
+    ...(args.strict !== undefined ? { strict: args.strict } : {}),
   });
   if (result.ok) {
     return { ok: true };

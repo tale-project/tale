@@ -1,165 +1,93 @@
 ---
 name: create-migration
-description: Use this skill whenever you add, change, move, test, or operate a versioned data migration — a Convex table reshape, an org-config file cutover, a Better Auth component transform, or a red migrations:check / check-migration-corpus gate. It owns the authoring contract (scaffold with gen:migration, define<Kind>Migration in one migration.ts, derived identity, declared subjects), the reversibility doctrine (idempotent up AND down, snapshot strategies, downTable for table moves), version truth (the per-release checkpoint store, the versions suite, re-homing with formerIds ledger aliases), the test contract (defineMigrationTest + the chain suite + the world corpus duty incl. version-boundary injections), and the operator surface (tale migrate status/up/down, the deploy hook, failure surfacing). Load it before touching anything under convex/migrations/; never hand-edit a registry.gen file or ship a migration the chain cannot cover.
+description: Use this skill whenever you change the shape of the 0.5 backend database — a new table, a new column, an index, a constraint, a backfill, or a data reshape. It owns the authoring contract (one numbered .sql file under services/platform/backend/db/migrations/, applied at boot in filename order inside one advisory lock), the forward-only doctrine (every migration must be safe to apply to a live deployment mid-roll, because the previous image is still serving while the new one migrates), the org-config file lane (config trees are NOT database rows — they move through the scaffolder), and the proof duty (the real-Postgres integration check). Load it before adding anything under backend/db/migrations/.
 ---
 
-# Convex migrations
+# Backend database migrations (0.5)
 
-Every data-shape change ships as a **versioned, reversible, idempotent** migration under
-`services/platform/convex/migrations/versions/<vX_Y_Z>/<NN_slug>/`. The framework proves — per
-migration and across the whole chain — that data survives `up ↔ down` byte-for-byte. Your job is
-to keep that proof true; the gates make it hard to do otherwise.
+Every database-shape change ships as a numbered SQL file under
+`services/platform/backend/db/migrations/`. `runBootMigrations` (`backend/db/migrate.ts`) applies
+them **at every backend boot**, in filename order, each in its own transaction, tracked by
+filename in `app_migrations` — all inside one session-scoped advisory lock, so N concurrently
+booting containers (api + worker, or scaled replicas) apply everything exactly once while the
+others wait.
 
-## The one-command start
+There is no `tale migrate up/down`, no versioned framework, no rollback ledger: a deployed image
+is at its own schema by construction. `tale migrate` means something else entirely — re-provision
+built-in defaults into every org (`/api/control/provision`).
 
-```bash
-bun run gen:migration        # scaffolds migration.ts + migration.test.ts, registers it
-```
-
-Never hand-copy a neighbouring folder. The generator computes the `NN` prefix, picks the kind's
-snapshot strategy, and runs `migrations:sync` so the scaffold is registered and shape-validated
-before you write a line.
+> The 0.4 Convex versioned-migration framework (`defineDbMigration`, `migrations:runAll`,
+> `tale migrate status/up/down`, the world corpus) is **retired**. 0.5 is a fresh instance and
+> carries no data forward from it.
 
 ## The authoring contract
 
-One `migration.ts` per folder, exporting exactly one factory call:
-
-| Kind        | Factory                                         | Runs as                                | Typical job                                             |
-| ----------- | ----------------------------------------------- | -------------------------------------- | ------------------------------------------------------- |
-| `db`        | `defineDbMigration`                             | batched per-row mutations over `table` | reshape/backfill/move Convex rows                       |
-| `node`      | `defineNodeMigration` (`'use node'` first line) | once per organization                  | rewrite org-config JSON under `$TALE_CONFIG_DIR/<org>/` |
-| `component` | `defineComponentMigration`                      | batched over the Better Auth adapter   | transform auth component rows                           |
-| `reference` | `defineReferenceMigration`                      | **never**                              | document an already-shipped change (audit trail)        |
-
-Identity is **derived from the folder path** (`id`, `semver`, `numericId`, `slug`) — you write only
-`title`, `description` (≥ 40 chars: say what `up` does AND how `down` reverses it), `destructive`,
-`snapshot`, `subjects`, kind fields, and the handlers. The generated registries
-(`framework/registry.gen.ts`, `registry.node.gen.ts`) are codegen output — regenerate with
-`bun run --filter @tale/platform migrations:sync`, never edit.
-
-Rules the factories and `migrations:check` enforce (so you don't have to remember them):
-unique ids/orderKeys, contiguous `NN`, `'use node'` ⟺ node kind, destructive ⇒ snapshot,
-`table-rows` never on a `v.id()`-referenced table, a sibling `migration.test.ts` that uses
-`defineMigrationTest` for db/node kinds, a version checkpoint fixture for every version
-folder (see "Version truth" below), and index truth — every `withIndex` in a runnable
-migration must name an index the CURRENT schema defines (the live backend serves no
-custom indexes on a table that left the schema; read legacy tables with a filtered scan —
-the world schema keeps era indexes for shape validation, so vitest alone won't catch it).
-
-### Re-homing a migration — `formerIds`
-
-A migration lives in the version folder whose **release actually shipped its change** (the
-versions suite proves this against real per-release schemas). If a shipped migration turns out to
-be mis-homed, move the folder AND declare its shipped id:
-
-```ts
-formerIds: ['0.2.89/02_thread_files_absolute_paths'],
+```
+services/platform/backend/db/migrations/NNNN_snake_case_subject.sql
 ```
 
-Deployments that applied it under the old id never re-run it: the apply actions adopt former-id
-ledger rows before planning, status/plan queries fold them read-only, and snapshot restores
-(table-rows pages, fs-tree sidecars) fall back to former-id captures. The codegen rejects
-formerIds that collide with a live id. Two things NEVER change on a re-home: `formerIds` values
-(they are live ledger keys) and any **persisted marker** the handlers write (e.g. an
-`installedBy: 'migration:v0_2_90_…'` stamp or a sidecar filename) — those are frozen at the
-original name even though the folder moved.
+- **`NNNN`** is the next zero-padded number, no gaps, no reuse. Filename order IS apply order, and
+  the filename is the identity recorded in `app_migrations` — **never rename a file that has
+  shipped**, or every existing deployment re-applies it.
+- **One subject per file.** The name says what it is (`0057_competence_records.sql`), not what you
+  did (`0057_fix.sql`).
+- **Everything lands in the `app` schema** (`CREATE TABLE app.x`), the app's own namespace. Better
+  Auth owns the unqualified tables (`"user"`, `"member"`, `"organization"`) and migrates itself;
+  pg-boss owns `pgboss`. Never write either from here.
+- **Comment the WHY at the top**, and on any column whose meaning is not obvious from its name —
+  these files are the schema's documentation. Look at `0057_competence_records.sql` for the house
+  style (what the table is for, which rule an index encodes, why a row is retained rather than
+  deleted).
+- Timestamps are `bigint` epoch-millis columns named `*_at_ms` (the app's clock is JS). `id text
+  PRIMARY KEY DEFAULT gen_random_uuid()` is the standard key.
 
-### Reversibility doctrine
+## Forward-only, and safe to apply under a rolling deploy
 
-- `up` and `down` are **idempotent**: the runner replays the crash batch (db) or the crashed
-  org's page (node) on resume — a replayed, already-transformed row/org must be a no-op.
-- `snapshot: 'table-rows'` — `up` backs each row up via `run.snapshotRow(scope, doc)` **before**
-  destroying it; the generic restore rebuilds them on `down` (with fresh `_id`s — hence the FK
-  guard). `'fs-tree'` — `up` calls `helpers.snapshotFsTree(dir)` first; `down` restores.
-- **Moving rows to another table?** Declare `downTable: '<target>'` — `down` must walk the
-  populated target; the legacy table is empty after `up` and a down over it silently restores
-  nothing (a real bug the chain suite caught on its first run).
-- `subjects` declares every table/domain the handlers touch. The corpus guard
-  (`check-migration-corpus`) fails when the world cannot exercise a subject — a subject is covered
-  when it is seeded at baseline, produced by an earlier migration (manifest `produces`), or
-  injected at a version boundary (`world/injections.testkit.ts`).
-- **Corpus rows live at their true version.** The baseline world must be a valid deployment of
-  `BASELINE_VERSION` (`convex/migrations/framework/baseline.ts` — currently **0.4.0**), which the
-  versions suite validates against that release's real schema. A row whose table
-  or shape was born later goes into `WORLD_INJECTIONS` keyed by the release that introduced it —
-  the versions suite seeds it when its walk crosses that boundary; chains A/B/C run
-  injection-free by design.
-- Module scope must stay side-effect-free — the codegen imports every migration module.
+The previous image keeps serving while the new one migrates, so **every migration must leave the
+OLD code working**. That is the whole discipline:
 
-## The test contract
+| Change                  | How                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| New table               | Just create it.                                                                             |
+| New column              | Nullable, or `NOT NULL DEFAULT …`. Never bare `NOT NULL` on a populated table.               |
+| Retire a column         | Stop reading it in code and ship that FIRST; drop it in a later release.                     |
+| Rename a column         | Two steps: add the new one + backfill, ship the code that writes both, then drop the old.    |
+| New constraint          | Only if existing rows already satisfy it — otherwise clean the data in the same file, first. |
+| New index               | Plain `CREATE INDEX` (each migration is one transaction, so `CONCURRENTLY` is unavailable).  |
+| Backfill                | Set-based `UPDATE … WHERE` in the same file; it must be idempotent and bounded.              |
 
-`migration.test.ts` is a single `defineMigrationTest({ id, modules, seed, expectUp, … })` call
-(see `convex/migrations/testing/harness.testkit.ts`). You provide data and migration-specific
-truth; the harness runs the ritual through the **real production path**: real-runner up, TRUE
-handler idempotency over migrated state, digest-equal down (the seeded world must come back
-byte-for-byte), ledger transitions, snapshot hygiene, destructive gating, and — for node kinds —
-the real org fleet loop with the registered betterAuth component. Edge scenarios go in `cases`;
-pure transforms in `unit`. Reference tests call the handlers directly; the component kind's test
-is hand-written until a sanctioned user-seeding support fn exists.
+**Encode the rule in the schema when you can.** A partial unique index that says "at most one live
+grant per member" is a rule the database cannot forget; the same rule written as a scan-and-compare
+in a service is a rule the next handler will miss.
 
-The chain suite (`convex/migrations/testing/chain.test.ts`) then runs EVERY runnable migration
-baseline → newest → baseline on every PR and requires frontier-by-frontier digest equality. The
-real-stack twin (`bun run docker:test:migrations`, CI `migrations-e2e.yml`) replays the operator
-surface against the live compose stack — never run it beside a running dev stack (it pins the
-`tale-*` container names).
+Use `IF NOT EXISTS` / `IF EXISTS` freely — a migration file runs once, but a re-run after a
+half-failed deploy must not be a landmine.
 
-## Version truth: the checkpoint store + versions suite
+## What does NOT belong here
 
-`testing/versions/` holds the **ground truth of every released version**, extracted from git tags
-into a content-addressed store: the Convex schema fingerprint, the org-config Zod schemas (as
-JSON Schema), and the initialized-project scaffold of that era. The versions suite
-(`testing/versions.test.ts`) holds the chain against it on every PR:
+- **Org config files** (agents, automations, connectors, providers, skills, governance policies)
+  live on the config volume, not in Postgres. They move through the org scaffolder
+  (`backend/domains/organizations/scaffold.ts`), which is idempotent per domain and re-runnable
+  via `tale migrate` / `tale deploy --override-all`.
+- **The knowledge corpus schema** has its own migrations under `services/db/migrations/knowledge-db/`,
+  applied by `ensureDefaultCorpusSchema()`; a BYO corpus bootstraps on first use.
+- **pg-boss queues** — declared in `backend/jobs/boss.ts`, created by `ensureQueues`.
 
-- the seed corpus must be a valid **`BASELINE_VERSION`** deployment;
-- after the last migration of each version X, the world must be a valid **release-X** deployment
-  (no rows in tables X does not declare, every row valid under X's real schema) — a mis-homed
-  migration fails here with the release and table named;
-- for each version X: a fresh project migrated `up --to X` validates as X, continues to newest,
-  and `down --to X` restores the at-X world byte-identically.
+## Prove it
 
-**Cutting a release / creating a new version folder?** Run
-`bun services/platform/scripts/dump-version-schemas.ts` once — the corpus guard fails any
-migration version without a checkpoint fixture. `scripts/audit-migration-versions.ts` is the
-read-only placement report (schema-diff + first-shipping-tag evidence).
+A migration is not done until something exercises the shape it created:
 
-## Schema changes: the snapshot ritual
-
-`migrations:check` fingerprints the Convex schema and every org-config Zod schema against the
-committed baselines. **Data-safe growth** (new optional field, widened union, removed config
-field) → refresh with `bun run --filter @tale/platform migrations:snapshot`. **Data-incompatible**
-(new required field, retype, narrowed union/literal, optional→required) → ship the migration that
-reshapes existing data FIRST, then refresh — `migrations:check` names every drifted baseline.
-
-**The no-migration-for-unreleased rule.** A migration exists to reshape rows on deployments that
-already exist. A table or field that was added AND changed on the same unreleased line has no such
-deployment: no tag ships it, so no rows carry the old shape. Rename it in place and let the
-snapshot refresh record the decision in the diff — that is what `migrations:check` means by "if a
-change above is a deliberate, data-safe shape change that needs no migration, refreshing the
-baseline records that decision". Check `git tag --sort=v:refname` against `BASELINE_VERSION` before
-relying on this; a shape that any released tag shipped needs a real migration, however recent.
-Worked precedents: `5939888e0` (four tables renamed in place), `5ea141203` (one field), and the
-connector rename, which also moved the vendor-facing OAuth callback path on the same grounds.
-
-When you do rename in place, the `0.4.0` checkpoint under `testing/versions/` is hand-maintained —
-`dump-version-schemas.ts` only refreshes tagged releases plus the in-development HEAD, so an
-unreleased baseline is not regenerated for you. Patch that blob with the same rename and leave
-everything else in it alone; syncing it forward to HEAD would silently weaken the boundary walk.
-
-## Operating migrations
-
-- Every deploy runs `migrations:runAll`: non-destructive pending migrations apply automatically;
-  destructive ones are skipped and warned. A failed migration never wedges the boot — it prints a
-  grep-stable `[migrations][deploy-failure]` line, the entrypoint banners it, and
-  `tale migrate status` shows the FAILED section with the recorded error.
-- `tale migrate status` — frontier, pending, destructive flags, failures. `tale migrate up`
-  (`--step` to review each, `--yes` for CI) applies pending; destructive steps snapshot first.
-  `tale migrate down --to <version>` rolls back — the ledger makes both directions resumable.
+- `bun run --filter @tale/platform backend:integration` — the real-Postgres proof. It runs boot
+  migrations twice CONCURRENTLY (the advisory lock's own test) and then drives every domain over
+  the real schema. Add a probe for the behaviour your migration enables; see the backend README
+  for the throwaway-Postgres + MinIO invocation.
+- `bunx vitest --run --project server` — the unit layer for the service that reads the new shape.
 
 ## Definition of done
 
-- [ ] `bun run --filter @tale/platform migrations:check` green (registries, guards, corpus, snapshots, checkpoints)
-- [ ] `bunx vitest --run --project server convex/migrations` green — including the chain AND versions suites
-- [ ] Schema change ⇒ snapshot ritual completed (safe refresh, or migration-first)
-- [ ] New subject ⇒ corpus extended at its TRUE version (baseline seed, `produces`, or injection)
-- [ ] New version folder ⇒ checkpoint fixtures dumped (`dump-version-schemas.ts`)
-- [ ] Re-homed migration ⇒ `formerIds` declared; persisted markers untouched
+- [ ] One numbered `.sql` file, no gap, never renamed after shipping
+- [ ] Applies cleanly to a FRESH database and to one at the previous release
+- [ ] The old code still works against the new schema (rolling-deploy safe)
+- [ ] Rules that can be constraints/indexes are constraints/indexes
+- [ ] A probe in `backend/integration-check.ts` covers what it enables
+- [ ] `bun run --filter @tale/platform backend:integration` green
