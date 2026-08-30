@@ -130,7 +130,8 @@ async function main(): Promise<number> {
     for (const svc of [
       'db',
       'knowledge-db',
-      'convex',
+      'object-store',
+      'backend-api',
       'platform',
       'proxy',
       'sandbox',
@@ -172,10 +173,13 @@ async function main(): Promise<number> {
   // 3. Wait for health checks
   header(`Waiting for services to become healthy (timeout: ${TIMEOUT}s)`);
 
+  // `backend-worker` shares the api's image but disables its healthcheck (no
+  // HTTP surface), so the wait list carries only the health-checked tier.
   const services = [
     'db',
     'knowledge-db',
-    'convex',
+    'object-store',
+    'backend-api',
     'platform',
     'proxy',
     'sandbox',
@@ -219,7 +223,8 @@ async function main(): Promise<number> {
   // Through-proxy platform health: the documented external readiness probe
   // ({SITE_URL}/api/health — README.md, tests/manual/SETUP.md §1C). Guards the
   // Caddyfile route: without an explicit /api/health handle the generic /api/*
-  // catch-all sends it to Convex, which 404s (#2553). Self-signed cert, so
+  // catch-all sends it to the backend, whose 404 would fail the documented
+  // probe (#2553). Self-signed cert, so
   // skip verification; busybox wget --spider fails on any non-2xx status.
   if (
     await dockerExecOk(proxyContainer, [
@@ -262,25 +267,18 @@ async function main(): Promise<number> {
     r.fail('Knowledge DB pg_isready');
   }
 
-  // Convex lives in its own container — probe it directly.
-  const convexContainer = await compose.containerName('convex');
+  // The application backend lives in its own container — probe it directly.
+  const backendContainer = await compose.containerName('backend-api');
   if (
-    await dockerExecOk(convexContainer, [
+    await dockerExecOk(backendContainer, [
       'curl',
       '-sf',
-      'http://localhost:3210/version',
+      'http://localhost:3005/ping',
     ])
   ) {
-    r.pass('Convex backend /version');
+    r.pass('Backend api /ping');
   } else {
-    r.fail('Convex backend /version');
-  }
-  if (
-    await dockerExecOk(convexContainer, ['test', '-f', '/tmp/convex-ready'])
-  ) {
-    r.pass('Convex readiness marker (/tmp/convex-ready)');
-  } else {
-    r.fail('Convex readiness marker (/tmp/convex-ready)');
+    r.fail('Backend api /ping');
   }
 
   // Platform: Vite server with platform-ready marker.
@@ -302,22 +300,34 @@ async function main(): Promise<number> {
   // 5. Validate inter-service connectivity
   header('Validating inter-service connectivity');
 
-  // Phase 2 critical path: Platform must reach Convex over the docker network.
+  // Critical path: the web tier must reach the application backend over the
+  // docker network — every /api lane the proxy and the SPA use rides it.
   if (
     await dockerExecOk(platformContainer, [
       'curl',
       '-sf',
-      'http://convex:3210/version',
+      'http://backend-api:3005/ping',
     ])
   ) {
-    r.pass('Platform → Convex /version connectivity');
+    r.pass('Platform → backend-api /ping connectivity');
   } else {
-    r.fail('Platform → Convex /version connectivity');
+    r.fail('Platform → backend-api /ping connectivity');
+  }
+  // The backend must reach the blob store it seeds the deployment default
+  // against at boot — an unreachable store means every upload 503s.
+  if (
+    await dockerExecOk(backendContainer, [
+      'curl',
+      '-sf',
+      'http://object-store:9000/minio/health/live',
+    ])
+  ) {
+    r.pass('Backend → object-store health connectivity');
+  } else {
+    r.fail('Backend → object-store health connectivity');
   }
   // NOTE: knowledge-db reachability is covered by the `Knowledge DB pg_isready`
-  // datastore check above. The Convex node-actions are the only consumer (via
-  // KNOWLEDGE_DATABASE_URL); there's no HTTP endpoint to probe cross-container,
-  // so we don't add a synthetic connectivity check here.
+  // datastore check above.
 
   // 6. Sandbox session API end-to-end probe
   await sandboxSessionProbe();
@@ -353,8 +363,8 @@ async function waitForHealthy(service: string): Promise<boolean> {
         console.log(`  ${GREEN}✓${NC} ${service}: healthy (${elapsed}s)`);
         return true;
       case 'unhealthy':
-        // Don't fail immediately — Docker may mark unhealthy during long
-        // startup (e.g. platform Convex deploy). Keep waiting.
+        // Don't fail immediately — Docker may mark unhealthy during a long
+        // first boot (migrations, the platform's vite build). Keep waiting.
         process.stdout.write(
           `\r  ⏳ ${service}: unhealthy (${elapsed}s) — still waiting...          `,
         );

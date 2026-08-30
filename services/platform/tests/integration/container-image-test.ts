@@ -37,12 +37,9 @@ const r = new Results();
 
 // Image size budgets (in MB) — based on optimized sizes + 10% headroom.
 const SIZE_BUDGETS: Record<string, number> = {
-  crawler: 2100,
-  rag: 1400,
   platform: 2900,
   db: 1200,
   proxy: 100,
-  convex: 2500,
   sandbox: 320,
   'sandbox-egress': 80,
   // Debian-slim + the verbatim BuildKit static binaries + redsocks/iptables —
@@ -64,12 +61,9 @@ const SIZE_BUDGETS: Record<string, number> = {
 };
 
 const SERVICES = [
-  'crawler',
-  'rag',
   'platform',
   'db',
   'proxy',
-  'convex',
   'sandbox',
   'sandbox-egress',
   'sandbox-buildkitd',
@@ -176,19 +170,10 @@ async function main(): Promise<number> {
         r.pass(`${svc}: root (expected — gosu to app at runtime)`);
         break;
       case 'db':
-      case 'convex':
-        r.pass(`${svc}: root (expected — gosu to app/postgres at runtime)`);
+        r.pass(`${svc}: root (expected — gosu to postgres at runtime)`);
         break;
       case 'proxy':
         r.pass(`${svc}: base Caddy image (acceptable)`);
-        break;
-      case 'crawler':
-      case 'rag':
-        if (nonRoot) r.pass(`${svc}: runs as user '${user}' (non-root)`);
-        else
-          r.warn(
-            `${svc}: runs as root (consider adding non-root user in future)`,
-          );
         break;
       case 'sandbox':
       case 'sandbox-egress':
@@ -306,25 +291,6 @@ async function main(): Promise<number> {
       );
       r.fail(`${svc}: ${sizeMb} MB exceeds ${budget} MB budget`);
     }
-  }
-
-  // 6. No unnecessary package managers (Python images)
-  header('Checking for unnecessary packages (Python images)');
-  for (const svc of ['crawler', 'rag']) {
-    const img = images.get(svc);
-    if (!img) continue;
-    const pip = await capture([
-      'docker',
-      'run',
-      '--rm',
-      '--entrypoint=',
-      img,
-      'pip',
-      '--version',
-    ]);
-    if (pip.exitCode === 0)
-      r.warn(`${svc}: pip still installed (consider removing)`);
-    else r.pass(`${svc}: pip removed`);
   }
 
   return r.failed === 0 ? 0 : 1;
