@@ -4026,6 +4026,40 @@ async function checkChat(
       `outcome=${outcome.success ? outcome.data.status : 'ERR'}${outcome.success && outcome.data.reason !== undefined ? ` (${outcome.data.reason})` : ''}, messages=${history.success ? history.data.messages.length : 'ERR'}, toolRound=${assistantRaw.includes('rag_search') && assistantRaw.includes('verdigris')}, usageRows=${usageRows[0]?.count}, genSettled=${settledGen[0]?.count === '0'}`,
     );
 
+    // First-token UX metric. Covered because it was NOT: the statement that
+    // stamps it built a `jsonb_build_object` around an uncast parameter, so
+    // Postgres could infer nothing and every report failed to parse (42P18)
+    // — an endpoint that answered 200 and wrote nothing, for as long as it
+    // has existed.
+    const assistantId =
+      assistantRow !== undefined && 'id' in assistantRow
+        ? String(assistantRow.id)
+        : '';
+    const waitRes = await send(
+      `/api/app/chat/messages/${assistantId}/perceived-wait?orgId=${orgId}`,
+      { perceivedWaitMs: 1234 },
+    );
+    const stamped = await sql<{ value: string | null }[]>`
+      SELECT usage->>'perceivedWaitMs' AS value FROM app.messages
+      WHERE id = ${assistantId}
+    `;
+    // Stamped ONCE: a second report must not overwrite the first.
+    await send(
+      `/api/app/chat/messages/${assistantId}/perceived-wait?orgId=${orgId}`,
+      { perceivedWaitMs: 9999 },
+    );
+    const restamped = await sql<{ value: string | null }[]>`
+      SELECT usage->>'perceivedWaitMs' AS value FROM app.messages
+      WHERE id = ${assistantId}
+    `;
+    record(
+      'chat perceived-wait stamps the message once',
+      waitRes.status === 200 &&
+        Number(stamped[0]?.value ?? '0') === 1234 &&
+        Number(restamped[0]?.value ?? '0') === 1234,
+      `post=${waitRes.status}, stamped=${stamped[0]?.value ?? 'NONE'} (want 1234), afterSecondReport=${restamped[0]?.value ?? 'NONE'} (want 1234)`,
+    );
+
     // Turn 2 — SSE progress + mid-stream cancel: subscribe the stream lane,
     // start a slow turn, cancel after the first progress event, and verify
     // the turn settles early with a prefix of the drip.

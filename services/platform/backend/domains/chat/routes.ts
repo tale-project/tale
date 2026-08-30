@@ -1262,7 +1262,12 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     await deps.sql`
       UPDATE app.messages m
       SET usage = coalesce(m.usage, '{}'::jsonb)
-        || jsonb_build_object('perceivedWaitMs', ${body.data.perceivedWaitMs})
+        -- jsonb_build_object takes "any", so an uncast parameter leaves
+        -- Postgres nothing to infer from and the statement fails to PARSE
+        -- (42P18) — every report was dropped before it ran.
+        || jsonb_build_object(
+          'perceivedWaitMs', ${body.data.perceivedWaitMs}::numeric
+        )
       FROM app.threads t
       WHERE m.id = ${c.req.param('messageId')}
         AND m.org_id = ${organizationId}
