@@ -58,6 +58,12 @@ export default {
         'convex/**/*.ts',
         '!convex/_generated/**',
         '!convex/betterAuth/_generated/**',
+        // 0.5 Postgres backend — same shape as Convex: a separate Node runtime
+        // not reachable via the SPA's import graph. Domain files are the public
+        // surface (name-dispatched via the `internal.x.y.z` shim); knip cannot
+        // see that second graph, so they must be entries. Covers
+        // `backend/integration-check.ts` (invoked by `backend:integration`).
+        'backend/**/*.ts',
         'app/features/**/*.{ts,tsx}',
         'app/hooks/**/*.{ts,tsx}',
         'app/components/**/*.{ts,tsx}',

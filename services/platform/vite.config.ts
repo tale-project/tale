@@ -74,7 +74,6 @@ export default defineConfig({
       '@radix-ui/react-slot',
       'framer-motion',
       'zod',
-      'lodash',
       'date-fns',
       // Markdown rendering stack. Every consumer (chat, skills, workflows,
       // changelog, workspace viewers, docs bodies) lives behind a code-split

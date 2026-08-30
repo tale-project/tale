@@ -232,27 +232,12 @@ export function trashChatThread(
   return threadVerb(organizationId, threadId, 'trash', {});
 }
 
-export function restoreChatThread(
-  organizationId: string,
-  threadId: string,
-): Promise<boolean> {
-  return threadVerb(organizationId, threadId, 'restore', {});
-}
-
 export function moveChatThreadToProject(
   organizationId: string,
   threadId: string,
   projectId: string | null,
 ): Promise<boolean> {
   return threadVerb(organizationId, threadId, 'project', { projectId });
-}
-
-export function setChatThreadCapabilities(
-  organizationId: string,
-  threadId: string,
-  capabilities: unknown,
-): Promise<boolean> {
-  return threadVerb(organizationId, threadId, 'capabilities', capabilities);
 }
 
 export function setChatThreadReasoningEffort(
@@ -396,29 +381,6 @@ export function deferredSendsQuery(organizationId: string, threadId: string) {
         { signal, orgId: organizationId },
       ).then((body) => body.sends),
   });
-}
-
-/** One video-link job as the chips render it (the 0.4 projection). */
-export interface VideoLinkJobView {
-  jobId: string;
-  sourceUrl: string;
-  sourcePlatform: string;
-  pastedToken: string;
-  videoTitle?: string;
-  videoUploader?: string;
-  videoDurationSec?: number;
-  transcriptSource?: string;
-  captionLang?: string;
-  displayStatus: string;
-  progress?: string;
-  errorReasonCode?: string;
-  errorMessage?: string;
-  attempts?: number;
-  storageId?: string;
-  fileSize?: number;
-  lifecycleStatus?: string;
-  uploadedBy: string;
-  createdAt: number;
 }
 
 /** The thread's video-link jobs (the tray's live-status join). */

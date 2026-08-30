@@ -29,13 +29,3 @@ export type TaskRow =
 
 /** A conversation row from the inbox listing. */
 export type ConversationRow = ItemOf<'conversations/queries:listConversations'>;
-
-/** The inbox status vocabulary, taken from the row that carries it. */
-export type ConversationStatus = ConversationRow extends { status: infer S }
-  ? S
-  : never;
-
-/** A whole conversation with its thread, as the detail view reads it. */
-export type ConversationDetail = NonNullable<
-  ReturnsOf<'conversations/queries:getConversationWithMessages'>
->;

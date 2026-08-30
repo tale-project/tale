@@ -20,7 +20,7 @@
  */
 
 /** Region is meaningless for a self-hosted S3 but required by the signer. */
-export const BUNDLED_OBJECT_STORE_REGION = 'us-east-1';
+const BUNDLED_OBJECT_STORE_REGION = 'us-east-1';
 
 /** Default bucket the seeder creates when the operator names none. */
 export const BUNDLED_OBJECT_STORE_BUCKET = 'tale-blobs';

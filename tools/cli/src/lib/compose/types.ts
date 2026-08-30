@@ -79,7 +79,7 @@ export const ROTATABLE_SERVICES = ['platform'] as const;
 
 /** The application backend tier — named once and spread into every list
  *  below, so the deploy flow and the drain lane cannot drift apart. */
-export const BACKEND_TIER_SERVICES = ['backend-api', 'backend-worker'] as const;
+const BACKEND_TIER_SERVICES = ['backend-api', 'backend-worker'] as const;
 
 export const STATEFUL_SERVICES = [
   'db',

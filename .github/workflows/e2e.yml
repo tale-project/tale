@@ -1,16 +1,14 @@
 name: E2E
 
 # Playwright suites for the frontend services. The platform job boots the real
-# stack (anonymous Convex + Vite) with the hermetic fixture config and the mock
-# LLM; the web/docs jobs are smoke suites against each static site's own dev
-# server (no Convex, no mock LLM). All share the shared config in `@tale/e2e`.
+# 0.5 stack (Hono backend + Vite preview + Postgres) with the hermetic fixture
+# config and the mock LLM; the web/docs jobs are smoke suites against each
+# static site's own dev server (no backend, no mock LLM). All share the shared
+# config in `@tale/e2e`.
 #
 # Policy (issue #179): the suite is strict on every trigger — PRs, nightly, and
-# manual runs all fail loudly. The burn-in is over; the auth-cost reductions in
-# the backend (lazy team-id resolution in the RLS wrappers) brought the local
-# Convex backend's per-query load under its hard 1s function timeout on the
-# 4-vCPU runner, so a red E2E run now signals a real regression. Keep it that
-# way: investigate failures, don't reach for `continue-on-error`.
+# manual runs all fail loudly. A red E2E run signals a real regression.
+# Investigate failures; don't reach for `continue-on-error`.
 
 on:
   pull_request:
@@ -126,22 +124,44 @@ jobs:
     # red shards (`gh run rerun --failed`) converges to green.
     #
     # Shard count: 16. Each shard's cost is the FIXED per-shard boot (Chromium +
-    # Convex + Vite preview + @tale/mocks) plus its serial test slice; a single
-    # worker per shard is mandatory (two starve the local Convex backend on the
-    # 4-vCPU runner — see the run step). Parallelism therefore comes only from
-    # shards, so the lever for wall-clock is the test slice: 16 shards puts ~5 of
-    # the ~74 tests per job. The boot floor dominates at this slice size, so this
-    # trades extra CI minutes for the shortest serial test time per shard —
-    # chosen deliberately so a shard is far less likely to hit the 30-min timeout
-    # when the local Convex backend runs slow under runner CPU contention. The
-    # prod build sits in the upstream `build` job (built or cache-restored once
-    # per run) and arrives here as an artifact, so no shard ever builds.
+    # Hono backend + Postgres + Vite preview + @tale/mocks) plus its serial test
+    # slice; a single worker per shard is mandatory (two starve the backend on
+    # the 4-vCPU runner — see the run step). Parallelism therefore comes only
+    # from shards, so the lever for wall-clock is the test slice: 16 shards puts
+    # ~5 of the ~74 tests per job. The boot floor dominates at this slice size,
+    # so this trades extra CI minutes for the shortest serial test time per
+    # shard. The prod build sits in the upstream `build` job (built or
+    # cache-restored once per run) and arrives here as an artifact, so no shard
+    # ever builds.
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     permissions:
       contents: read
+
+    # App Postgres only — not the compose stack. `TALE_DEV_SKIP_DOCKER=1` in
+    # playwright.config.ts leaves sandbox/gateway/knowledge-db/object-store
+    # down; the Hono backend applies SQL migrations at boot against this
+    # empty database. Credentials match playwright.config.ts + `.env.test`.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tale
+          POSTGRES_PASSWORD: test_password_e2e
+          POSTGRES_DB: tale_app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tale -d tale_app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_PASSWORD: test_password_e2e
+      DATABASE_URL: postgresql://tale:test_password_e2e@127.0.0.1:5432/tale_app
 
     steps:
       - name: Checkout
@@ -163,14 +183,6 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: |
             playwright-${{ runner.os }}-
-
-      - name: Cache Convex local backend
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: ~/.cache/convex
-          key: convex-backend-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            convex-backend-${{ runner.os }}-
 
       - name: Install Playwright Chromium
         working-directory: services/platform
@@ -200,21 +212,16 @@ jobs:
       - name: Run E2E suite (shard ${{ matrix.shard }}/16)
         working-directory: services/platform
         # One worker per shard. Two workers over-subscribed the 4-vCPU runner
-        # (Vite + Convex + mock + the browser workers all share it): the local
-        # Convex backend starved and queries blew its hard 1s function-execution
-        # timeout in floods (100s+ per shard), stranding the WS unauthenticated
-        # and failing tests non-deterministically. Parallelism comes from the 16
-        # shards; each single-worker shard still finishes well inside the 30-min
-        # budget. Tune via E2E_WORKERS.
+        # (Vite + backend + mock + the browser workers all share it).
+        # Parallelism comes from the 16 shards; each single-worker shard still
+        # finishes well inside the 30-min budget. Tune via E2E_WORKERS.
         env:
           E2E_WORKERS: '1'
           # Serve the prebuilt dist/ via `vite preview` (see the build step
           # above) instead of the CPU-heavy dev server.
           TALE_E2E_SERVE_BUILD: '1'
-          # Drops the sub-hourly cron sweeps (convex/crons.ts reads this at
-          # registration). Those minutely/5-min background UDF bursts otherwise
-          # starve interactive queries past the backend's hard 1s timeout
-          # mid-test. Passed through to the deployment env by sync-convex-env.
+          # Skips the video-toolchain apt install in scripts/dev.ts (a slow
+          # mirror has burned the webServer boot budget).
           TALE_E2E: '1'
         run: bunx playwright test --shard=${{ matrix.shard }}/16
 
@@ -230,7 +237,7 @@ jobs:
           if-no-files-found: ignore
 
   # Smoke suites for the static sites — each boots only its own Vite dev server
-  # (no Convex, no mock LLM), so the job is much lighter than platform's.
+  # (no backend, no mock LLM), so the job is much lighter than platform's.
   static-sites:
     name: Playwright (${{ matrix.service }})
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true

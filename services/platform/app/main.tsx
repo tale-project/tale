@@ -66,27 +66,25 @@ function App() {
   return (
     <StrictMode>
       <SiteUrlProvider>
-        <>
-          <ColdLoadProbe />
-          <AppShell
-            i18n={i18n}
-            locale={{ mode: 'client', onChange: loadDayjsLocale }}
-            theme
-          >
-            <QueryClientProvider client={queryClient}>
-              <LazyMotion features={domAnimation} strict>
-                <BrandingProvider>
-                  <BackupCodesDialogProvider>
-                    <OnlineGate>
-                      <RouterProvider router={router} />
-                    </OnlineGate>
-                    <SwUpdateListener />
-                  </BackupCodesDialogProvider>
-                </BrandingProvider>
-              </LazyMotion>
-            </QueryClientProvider>
-          </AppShell>
-        </>
+        <AppShell
+          i18n={i18n}
+          locale={{ mode: 'client', onChange: loadDayjsLocale }}
+          theme
+        >
+          <QueryClientProvider client={queryClient}>
+            <ColdLoadProbe />
+            <LazyMotion features={domAnimation} strict>
+              <BrandingProvider>
+                <BackupCodesDialogProvider>
+                  <OnlineGate>
+                    <RouterProvider router={router} />
+                  </OnlineGate>
+                  <SwUpdateListener />
+                </BackupCodesDialogProvider>
+              </BrandingProvider>
+            </LazyMotion>
+          </QueryClientProvider>
+        </AppShell>
       </SiteUrlProvider>
     </StrictMode>
   );

@@ -128,7 +128,7 @@ function orgOf(
 }
 
 /** Hub root listing options — shared by the hook row and route loaders. */
-export function hubDocumentsQuery(orgId: string): {
+function hubDocumentsQuery(orgId: string): {
   queryKey: readonly unknown[];
   queryFn: () => Promise<DocumentItem[]>;
 } {
@@ -141,7 +141,7 @@ export function hubDocumentsQuery(orgId: string): {
   };
 }
 
-/** Approximate org document count — exported for the route loader. */
+/** Approximate org document count. */
 export function approxDocumentCountQuery(orgId: string): {
   queryKey: readonly unknown[];
   queryFn: () => Promise<number>;

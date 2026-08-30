@@ -124,10 +124,6 @@ vi.mock('@/app/features/changelog/components/changelog-toast-trigger', () => ({
   ChangelogToastTrigger: () => null,
 }));
 
-vi.mock('@convex-dev/react-query', () => ({
-  convexQuery: vi.fn(),
-}));
-
 vi.mock('@/app/components/branding/branding-provider', () => ({
   BrandingProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>

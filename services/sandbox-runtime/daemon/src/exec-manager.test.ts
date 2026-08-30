@@ -311,16 +311,31 @@ describe('ExecManager', () => {
   test('a re-attach slides the deadline forward (exec outlives its window)', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
+    // Wide window: a loaded runner's 100ms sleep can overshoot a 150ms
+    // deadline and reap the exec before attach. Wait until live first so
+    // spawn delay does not eat the window.
+    const windowMs = 3_000;
     const done = mgr.run(
-      { ...base, execId: 'eg2', timeoutMs: 150, shell: 'sleep 30', cwd: ROOT },
+      {
+        ...base,
+        execId: 'eg2',
+        timeoutMs: windowMs,
+        shell: 'sleep 30',
+        cwd: ROOT,
+      },
       emit,
     );
-    await new Promise((r) => setTimeout(r, 100)); // before the 150ms window
-    // Re-attach re-arms the deadline to now+150 → NOT killed at the original 150.
+    const started = Date.now();
+    while (!mgr.has('eg2')) {
+      if (Date.now() - started > 5_000) throw new Error('eg2 never started');
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    await new Promise((r) => setTimeout(r, 600)); // into the window, far from the edge
+    // Re-attach re-arms the deadline to now+window → NOT killed at the original.
     const follower = collect();
     const stream = mgr.attach('eg2', follower.emit, 0);
     expect(stream).not.toBeNull();
-    await new Promise((r) => setTimeout(r, 130)); // t≈230, past the original 150
+    await new Promise((r) => setTimeout(r, 2_600)); // past the original 3s
     expect(mgr.has('eg2')).toBe(true); // survived: the attach slid the deadline
     expect(mgr.cancel('eg2')).toBe(true); // clean up
     await Promise.all([done, stream]);
@@ -329,13 +344,25 @@ describe('ExecManager', () => {
   test('extendDeadline keeps a live exec alive; no-op once exited', async () => {
     const mgr = new ExecManager(new EnvStore(), () => {});
     const { emit } = collect();
+    const windowMs = 3_000;
     const done = mgr.run(
-      { ...base, execId: 'eg3', timeoutMs: 150, shell: 'sleep 30', cwd: ROOT },
+      {
+        ...base,
+        execId: 'eg3',
+        timeoutMs: windowMs,
+        shell: 'sleep 30',
+        cwd: ROOT,
+      },
       emit,
     );
-    await new Promise((r) => setTimeout(r, 100));
-    expect(mgr.extendDeadline('eg3')).toBe(true); // re-arms to now+150
-    await new Promise((r) => setTimeout(r, 130)); // past the original 150
+    const started = Date.now();
+    while (!mgr.has('eg3')) {
+      if (Date.now() - started > 5_000) throw new Error('eg3 never started');
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    await new Promise((r) => setTimeout(r, 600));
+    expect(mgr.extendDeadline('eg3')).toBe(true); // re-arms to now+window
+    await new Promise((r) => setTimeout(r, 2_600)); // past the original 3s
     expect(mgr.has('eg3')).toBe(true);
     expect(mgr.cancel('eg3')).toBe(true);
     await done;

@@ -34,10 +34,10 @@ export type FunctionRef = {
 } & Record<string, unknown>;
 
 /** Where a reference stores its name. Global, matching the retired runtime. */
-export const FUNCTION_NAME = Symbol.for('functionName');
+const FUNCTION_NAME = Symbol.for('functionName');
 
 /** Where a COMPONENT reference stores its path (components have no name). */
-export const REFERENCE_PATH = Symbol.for('toReferencePath');
+const REFERENCE_PATH = Symbol.for('toReferencePath');
 
 /** `['a','b','c']` → `'a/b:c'`; a `default` export is just its path. */
 function joinFunctionName(parts: readonly string[]): string {

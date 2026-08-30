@@ -82,7 +82,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function projectConversationMessage(
+function projectConversationMessage(
   message: ProjectableMessage,
 ): ProjectedMessage {
   const metadata = isRecord(message.metadata) ? message.metadata : {};

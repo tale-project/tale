@@ -9,14 +9,3 @@
  * Used by `LocaleTabs` and any feature that authors localizable JSON content.
  */
 export const SUPPORTED_LOCALES = ['en', 'de', 'fr'] as const;
-
-type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
-
-/**
- * Soft check — does NOT throw. Narrows an arbitrary string to a
- * {@link SupportedLocale}. Kept here (Node-runtime-neutral, dependency-free)
- * so both Convex modules and the React side can share the whitelist.
- */
-export function isSupportedLocale(value: string): value is SupportedLocale {
-  return (SUPPORTED_LOCALES as readonly string[]).includes(value);
-}

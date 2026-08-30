@@ -4,7 +4,7 @@ import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING } from '../types';
 
 /** The api's container port — the proxy's `BACKEND_UPSTREAM` target. */
-export const BACKEND_API_PORT = 3005;
+const BACKEND_API_PORT = 3005;
 
 function backendBase(config: ServiceConfig): ComposeService {
   return {

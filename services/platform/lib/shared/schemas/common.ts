@@ -28,4 +28,3 @@ const dataSourceLiterals = [
   'custom',
 ] as const;
 export const dataSourceSchema = z.enum(dataSourceLiterals);
-export type DataSource = z.infer<typeof dataSourceSchema>;
