@@ -12,8 +12,8 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
 import { deleteBlob, putBlob } from '../../lib/storage/blob_access';
 import { convexStorageId, type BlobRef } from '../../lib/storage/blob_ref';

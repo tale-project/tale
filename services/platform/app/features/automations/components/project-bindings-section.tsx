@@ -8,7 +8,6 @@ import { useEffect, useId, useMemo, useState } from 'react';
 
 import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useSetAutomationProjects } from '../hooks/mutations';
@@ -69,7 +68,7 @@ export function ProjectBindingsSection({
   }, [selection, stored]);
 
   const options = projects.map((project) => ({
-    value: String(project._id),
+    value: project._id,
     label: project.name,
   }));
 
@@ -80,7 +79,7 @@ export function ProjectBindingsSection({
         organizationId,
         name,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every value came from the projects listing
-        projectIds: selection as Array<Id<'projects'>>,
+        projectIds: selection,
       },
       {
         onError: (error) => {

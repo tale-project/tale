@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { chain, createStreamClassifier } from './combinators.ts';
+import type { Classifier } from './kinds.ts';
+import { classifyBackend } from './sources/backend.ts';
 import { classifyBuildKit } from './sources/buildkit.ts';
-import { classifyConvex } from './sources/convex.ts';
 import { classifyDockerCompose } from './sources/docker-compose.ts';
 import { classifyPlatformContainer } from './sources/platform-container.ts';
 import { classifyVite } from './sources/vite.ts';
@@ -27,23 +28,26 @@ describe('chain', () => {
     expect(r.raw).toBe('totally unremarkable');
   });
 
-  it('matches the start.ts 5-classifier wiring on representative lines', () => {
+  it('matches the tale-dev 5-classifier wiring on representative lines', () => {
+    // Same chain as `tools/cli/src/lib/actions/dev.ts` (compose attach).
     const start = chain(
       classifyBuildKit,
       classifyDockerCompose,
-      classifyConvex,
+      classifyBackend,
       classifyVite,
       classifyPlatformContainer,
     );
-    expect(start('✔ 318 functions ready! (3s)').kind).toBe('info');
+    expect(start('[boot] listening on :3005').kind).toBe('info');
     expect(start('X [ERROR] Transform failed').kind).toBe('error');
     expect(start(' Container tale-db-1  Started').kind).toBe('info');
   });
 
   it('matches the dev-output 3-classifier wiring', () => {
-    const dev = chain(classifyBuildKit, classifyDockerCompose, classifyConvex);
+    const dev = chain(classifyBuildKit, classifyDockerCompose, classifyBackend);
     expect(dev('#5 [stage 1/2] RUN x').kind).toBe('progress');
-    expect(dev('✖ schema.ts Type error').kind).toBe('error');
+    expect(dev('2026-08-30T00:00:00Z ERROR job failed: boom').kind).toBe(
+      'error',
+    );
   });
 });
 
@@ -59,25 +63,19 @@ describe('createStreamClassifier (sticky multi-line errors)', () => {
     expect(out.every((c) => c.kind === 'error')).toBe(true);
   });
 
-  it('keeps a Convex push error + trailing frame surfaced', () => {
-    const s = createStreamClassifier(classifyConvex);
-    expect(s('✖ chat.ts:42 Type error: foo').kind).toBe('error');
-    expect(s('    at handler (chat.ts:42)').kind).toBe('error');
+  it('keeps a backend error + trailing frame surfaced', () => {
+    const s = createStreamClassifier(classifyBackend);
+    expect(s('2026-08-30T00:00:00Z ERROR job failed: boom').kind).toBe('error');
+    expect(s('    at handler (jobs.ts:42)').kind).toBe('error');
   });
 
-  it('keeps a Convex push error body surfaced even when left-aligned (block error)', () => {
-    const s = createStreamClassifier(classifyConvex);
-    // The header flags a block error; the server message underneath is plain,
-    // left-aligned prose that does NOT look like a stack continuation — it must
-    // still be surfaced (the regression: this body was being dropped as noise).
-    expect(s('✖ Hit an error while pushing:').kind).toBe('error');
-    expect(s('InternalServerError: function timed out').kind).toBe('error');
-    expect(s('Some additional server detail on its own line').kind).toBe(
-      'error',
-    );
-    // A genuine milestone (a retry's progress / functions-ready) ends the block.
-    expect(s('Preparing Convex functions...').kind).toBe('progress');
-    expect(s('Watching for file changes...').kind).toBe('noise');
+  it('keeps a backend error stack surfaced, then resets on a boot milestone', () => {
+    const s = createStreamClassifier(classifyBackend);
+    expect(s('Uncaught TypeError: x is not a function').kind).toBe('error');
+    expect(s('    at runJob (jobs.ts:12:3)').kind).toBe('error');
+    // A boot milestone is a clearly-new line — the stream returns to normal.
+    expect(s('[boot] listening on :3005').kind).toBe('info');
+    expect(s('served GET /api/app/tasks 200 in 3ms').kind).toBe('noise');
   });
 
   it('treats a blank line inside a trace as a continuation (stays sticky)', () => {
@@ -88,7 +86,7 @@ describe('createStreamClassifier (sticky multi-line errors)', () => {
   });
 
   it('treats caret-only and code-frame lines as continuations', () => {
-    const s = createStreamClassifier(classifyConvex);
+    const s = createStreamClassifier(classifyBackend);
     s('Error: nope');
     expect(s('       ^^^^').kind).toBe('error');
     expect(s('  12 │ const x = 1').kind).toBe('error');
@@ -119,18 +117,24 @@ describe('createStreamClassifier (sticky multi-line errors)', () => {
   });
 });
 
-describe('createStreamClassifier — blockEnd', () => {
-  it('a blockEnd line closes an armed error block (failed push must not paint later runtime logs)', () => {
-    const stream = createStreamClassifier(classifyConvex);
-    expect(stream('✖ Hit an error while pushing:').kind).toBe('error');
-    // Push-error prose stays surfaced…
-    expect(stream('TypeScript typecheck failed').kind).toBe('error');
-    // …until a runtime function log arrives, which is clearly a new event.
-    const success = stream(
-      "7/3/2026, 5:44:46 PM [CONVEX A(agents/x:y)] [LOG] 'tool success' {",
-    );
-    expect(success.kind).toBe('noise');
-    // And the stream is back to normal afterwards.
+describe('createStreamClassifier — errorBlock / blockEnd', () => {
+  it('a blockEnd line closes an armed error block', () => {
+    // classifyBackend does not set these flags (they were Convex-era). The
+    // stream machine still honors them when a classifier does — left-aligned
+    // body stays surfaced until an explicit breaker, not a stack-shaped line.
+    const classify: Classifier = (line) => {
+      if (line.startsWith('ERROR')) {
+        return { kind: 'error', raw: line, text: line, errorBlock: true };
+      }
+      if (line.startsWith('[ok]')) {
+        return { kind: 'noise', raw: line, blockEnd: true };
+      }
+      return { kind: 'noise', raw: line };
+    };
+    const stream = createStreamClassifier(classify);
+    expect(stream('ERROR job failed').kind).toBe('error');
+    expect(stream('left-aligned detail').kind).toBe('error');
+    expect(stream('[ok] next event').kind).toBe('noise');
     expect(stream('some unrelated chatter').kind).toBe('noise');
   });
 });

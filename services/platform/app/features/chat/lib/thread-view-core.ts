@@ -21,6 +21,8 @@
  * Convex — so the whole contract runs in a unit test.
  */
 
+import type { MessagePart } from '@/lib/chat/types';
+
 import type {
   ChatGenerationView,
   ChatMessageItem,
@@ -39,6 +41,9 @@ export interface GenerationTextView {
   readonly messageId?: string;
   readonly text: string;
   readonly reasoning?: string;
+  /** The assistant row's parts mid-turn — how a tool call reaches the
+   *  transcript before the turn settles. */
+  readonly parts?: readonly MessagePart[];
 }
 
 /** What the reducer consumes each render. `undefined` = that subscription is
@@ -280,6 +285,10 @@ export function reduceThreadView(
     let text = rowText;
     let reasoningText = reasoningOfParts(row.parts);
     let isStreaming = false;
+    // The live row's parts, when the stream is ahead of the transcript. The
+    // transcript is refetched only at settle, so without this a tool call
+    // stays invisible for the whole turn — which is what shipped.
+    let liveParts: readonly MessagePart[] | undefined;
 
     if (targetId === row.id) {
       // The live row. Its text is the settled parts' text (earlier tool
@@ -314,6 +323,16 @@ export function reduceThreadView(
           : heldReasoning;
       if (reasoningText !== undefined) {
         state.streamReasoningByKey.set(key, reasoningText);
+      }
+      // Parts only ever grow within a turn, so the longer list is the newer
+      // one — and preferring the row on a tie keeps the settle write (which
+      // carries the full tool results) authoritative the moment it lands.
+      const streamedParts = generationText?.parts;
+      if (
+        streamedParts !== undefined &&
+        streamedParts.length > row.parts.length
+      ) {
+        liveParts = streamedParts;
       }
       isStreaming = true;
     } else if (state.streamTextByKey.has(key)) {
@@ -350,6 +369,7 @@ export function reduceThreadView(
 
     const item: ChatMessageItem = {
       ...row,
+      ...(liveParts !== undefined ? { parts: liveParts } : {}),
       key,
       text,
       ...(reasoningText !== undefined ? { reasoningText } : {}),

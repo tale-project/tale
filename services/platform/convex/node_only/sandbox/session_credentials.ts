@@ -21,9 +21,9 @@
 // (sandboxCredentialAccess). This is the deliberate, scoped Tier-2
 // relaxation: explicit per-turn grant + audit + per-exec lifetime.
 
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
 import { resolveConnectorCredential } from '../../connector_credentials/resolve_credential';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 
 /**
  * The connector grants the broker may resolve into in-container env — an

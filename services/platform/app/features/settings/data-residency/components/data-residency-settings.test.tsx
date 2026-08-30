@@ -196,7 +196,6 @@ vi.mock('../hooks/mutations', () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
-  useRequestRestart: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSaveOrgObjectStorageConnection: () => ({
     mutateAsync: saveStorage,
     isPending: false,

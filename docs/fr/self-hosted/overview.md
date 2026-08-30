@@ -23,8 +23,6 @@ Lis ceci avant de `docker compose up`. Reviens-y quand tu débogues un incident 
 
 **tale-sandbox** et **tale-sandbox-egress** exécutent du code en sandbox pour le compte de l'outil **Exécuter du code** et des scripts de compétence, et servent de runtime de navigateur headless que le backend convex appelle pour le rendu web et la génération de documents. Le conteneur egress est le seul chemin que la sandbox a vers le réseau. L'egress est ouvert par défaut — le code en sandbox atteint n'importe quel hôte public en HTTPS, tandis que les métadonnées cloud et les plages d'adresses privées restent bloquées au niveau IP ; restreins-le à une allowlist d'hôtes avec `SANDBOX_EGRESS_ALLOWLIST`, décrite dans [Durcissement](/fr/self-hosted/operate/security/hardening).
 
-Un service de plus est livré mais reste éteint par défaut : **tale-controller** est un sidecar à activer explicitement (le profil compose `controller`) qui redémarre le conteneur convex sur une requête signée venant de l'app, pour qu'un changement de résidence des données s'applique sans donner à la plateforme exposée au navigateur l'accès au socket Docker.
-
 ## Données sur le disque
 
 Quatre volumes survivent à un `docker compose down` :

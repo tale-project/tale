@@ -2,11 +2,7 @@
  * Get authenticated user from context, returning null if not authenticated
  */
 
-import type {
-  QueryCtx,
-  MutationCtx,
-  ActionCtx,
-} from '../../../_generated/server';
+import type { QueryCtx, MutationCtx, ActionCtx } from '../../ctx';
 import { UnauthenticatedError } from '../errors';
 import type { AuthenticatedUser } from '../types';
 import { requireAuthenticatedUser } from './require_authenticated_user';

@@ -3,20 +3,9 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useState, useRef, useCallback } from 'react';
 
-import {
-  removeItemFromListQuery,
-  updateItemInListQuery,
-} from '@/app/hooks/optimistic-updates';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import {
-  removeItemFromPaginatedQuery,
-  updateItemInPaginatedQuery,
-} from '@/app/hooks/use-convex-paginated-query';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { resolveFileType } from '@/lib/shared/file-types';
 import { calculateFileHash } from '@/lib/utils/file-hash';
@@ -277,41 +266,39 @@ export function useDocumentUpload(options: UploadOptions) {
   // Backend-aware upload handoff: routes to the org's own S3 bucket when
   // configured, else Convex `_storage`. An ACTION (not a mutation) because
   // presigning S3 needs the node runtime.
-  const { mutateAsync: generateBlobUpload } = useConvexAction(
-    api.files.blob_actions.generateBlobUpload,
+  const { mutateAsync: generateBlobUpload } = useBackendAction(
+    'files/blob_actions:generateBlobUpload',
   );
-  const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
-    api.documents.mutations.createDocumentFromUpload,
+  const { mutateAsync: createDocumentFromUpload } = useBackendMutation(
+    'documents/mutations:createDocumentFromUpload',
   );
   const { mutateAsync: beginControlledDocumentReplacementUpload } =
-    useConvexAction(
-      api.documents.record_actions.beginControlledDocumentReplacementUpload,
+    useBackendAction(
+      'documents/record_actions:beginControlledDocumentReplacementUpload',
       { errorToast: false },
     );
   const { mutateAsync: finalizeControlledDocumentReplacementUpload } =
-    useConvexAction(
-      api.documents.record_actions.finalizeControlledDocumentReplacementUpload,
+    useBackendAction(
+      'documents/record_actions:finalizeControlledDocumentReplacementUpload',
       { errorToast: false },
     );
   const { mutateAsync: reconcileControlledDocumentReplacementUpload } =
-    useConvexAction(
-      api.documents.record_actions.reconcileControlledDocumentReplacementUpload,
+    useBackendAction(
+      'documents/record_actions:reconcileControlledDocumentReplacementUpload',
       { errorToast: false },
     );
   const { mutateAsync: registerControlledDocumentReplacementUpload } =
-    useConvexMutation(
-      api.documents.replacement_uploads
-        .registerControlledDocumentReplacementUpload,
+    useBackendMutation(
+      'documents/replacement_uploads:registerControlledDocumentReplacementUpload',
       { errorToast: false },
     );
   const { mutateAsync: cancelControlledDocumentReplacementUpload } =
-    useConvexMutation(
-      api.documents.replacement_uploads
-        .cancelControlledDocumentReplacementUpload,
+    useBackendMutation(
+      'documents/replacement_uploads:cancelControlledDocumentReplacementUpload',
       { errorToast: false },
     );
-  const { mutateAsync: deleteRejectedUploadBlob } = useConvexMutation(
-    api.files.mutations.deleteRejectedUploadBlob,
+  const { mutateAsync: deleteRejectedUploadBlob } = useBackendMutation(
+    'files/mutations:deleteRejectedUploadBlob',
     { errorToast: false },
   );
 
@@ -394,9 +381,7 @@ export function useDocumentUpload(options: UploadOptions) {
       // which cannot delete it itself — a throwing mutation rolls back its
       // own storage.delete). The ref is a Convex `_storage` id OR an `s3:` key.
       let uploadedRef: string | undefined;
-      let replacementIntentId:
-        | Id<'controlledDocumentReplacementUploads'>
-        | undefined;
+      let replacementIntentId: string | undefined;
       let replacementFinalizeStarted = false;
       let replacementIntentCancelled = false;
       try {
@@ -415,7 +400,7 @@ export function useDocumentUpload(options: UploadOptions) {
         if (options.replacementTarget) {
           const beginPromise = beginControlledDocumentReplacementUpload({
             organizationId: options.organizationId,
-            documentId: toId<'documents'>(options.replacementTarget.documentId),
+            documentId: options.replacementTarget.documentId,
             expectedRecordState: options.replacementTarget.expectedRecordState,
             expectedVersion: options.replacementTarget.expectedVersion,
             expectedFileId: options.replacementTarget.expectedFileId,
@@ -499,7 +484,7 @@ export function useDocumentUpload(options: UploadOptions) {
           }
           const convexStorageId =
             uploadMethod === 'POST' && storageId !== undefined
-              ? toId<'_storage'>(storageId)
+              ? storageId
               : undefined;
           if (uploadMethod === 'POST') {
             if (convexStorageId === undefined) {
@@ -608,10 +593,10 @@ export function useDocumentUpload(options: UploadOptions) {
                 },
                 teamId,
                 folderId: uploadOptions?.folderId
-                  ? toId<'folders'>(uploadOptions.folderId)
+                  ? uploadOptions.folderId
                   : undefined,
                 projectId: uploadOptions?.projectId
-                  ? toId<'projects'>(uploadOptions.projectId)
+                  ? uploadOptions.projectId
                   : undefined,
                 fileSize: file.size,
               });
@@ -631,10 +616,10 @@ export function useDocumentUpload(options: UploadOptions) {
               },
               teamId: undefined,
               folderId: uploadOptions?.folderId
-                ? toId<'folders'>(uploadOptions.folderId)
+                ? uploadOptions.folderId
                 : undefined,
               projectId: uploadOptions?.projectId
-                ? toId<'projects'>(uploadOptions.projectId)
+                ? uploadOptions.projectId
                 : undefined,
               fileSize: file.size,
             });
@@ -949,65 +934,37 @@ export function useDocumentUpload(options: UploadOptions) {
 }
 
 export function useCreateFolder() {
-  return useConvexMutation(api.folders.mutations.createFolder);
+  return useBackendMutation('folders/mutations:createFolder');
 }
 
 export function useDeleteFolder() {
-  return useConvexMutation(api.folders.mutations.deleteFolder);
+  return useBackendMutation('folders/mutations:deleteFolder');
 }
 
 export function useCancelOneDriveSync() {
-  return useConvexMutation(api.onedrive.mutations.cancelSyncConfig);
+  return useBackendMutation('onedrive/mutations:cancelSyncConfig');
 }
 
 export function useCancelGoogleDriveSync() {
-  return useConvexMutation(api.google_drive.mutations.cancelSyncConfig);
+  return useBackendMutation('google_drive/mutations:cancelSyncConfig');
 }
 
 export function useDeleteDocument() {
-  return useConvexMutation(api.documents.mutations.deleteDocument, {
+  return useBackendMutation('documents/mutations:deleteDocument', {
     // EntityDeleteDialog shows its own specific error toast.
     errorToast: false,
-    optimisticUpdate: (store, args) => {
-      removeItemFromListQuery(
-        store,
-        api.documents.queries.listDocuments,
-        args.documentId,
-      );
-      removeItemFromPaginatedQuery(
-        store,
-        api.documents.queries.listDocumentsPaginated,
-        args.documentId,
-      );
-    },
   });
 }
 
 export function useUpdateDocument() {
-  return useConvexMutation(api.documents.mutations.updateDocument, {
+  return useBackendMutation('documents/mutations:updateDocument', {
     // The team-tags dialog shows its own specific error toast.
     errorToast: false,
-    optimisticUpdate: (store, args) => {
-      const { title } = args;
-      if (title === undefined) return;
-      updateItemInListQuery(
-        store,
-        api.documents.queries.listDocuments,
-        args.documentId,
-        (document) => ({ ...document, title }),
-      );
-      updateItemInPaginatedQuery(
-        store,
-        api.documents.queries.listDocumentsPaginated,
-        args.documentId,
-        (document) => ({ ...document, title }),
-      );
-    },
   });
 }
 
 export function useUpdateFolderTeams() {
-  return useConvexMutation(api.folders.mutations.updateFolderTeams);
+  return useBackendMutation('folders/mutations:updateFolderTeams');
 }
 
 // ---------------------------------------------------------------------------
@@ -1017,26 +974,25 @@ export function useUpdateFolderTeams() {
 
 export function useMarkDocumentControlled() {
   // Callers toast the specific refusal (already controlled / sync-owned).
-  return useConvexMutation(api.documents.records.markControlled, {
+  return useBackendMutation('documents/records:markControlled', {
     errorToast: false,
   });
 }
 
 export function useSubmitRecordForReview() {
-  return useConvexMutation(api.documents.records.submitRecordForReview, {
+  return useBackendMutation('documents/records:submitRecordForReview', {
     errorToast: false,
   });
 }
 
 export function useRespondToDocumentRecordReview() {
-  return useConvexMutation(
-    api.documents.records.respondToDocumentRecordReview,
-    { errorToast: false },
-  );
+  return useBackendMutation('documents/records:respondToDocumentRecordReview', {
+    errorToast: false,
+  });
 }
 
 export function useOpenRecordRevision() {
-  return useConvexMutation(api.documents.records.openRecordRevision, {
+  return useBackendMutation('documents/records:openRecordRevision', {
     errorToast: false,
   });
 }

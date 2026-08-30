@@ -1,6 +1,6 @@
-import { getFunctionName } from 'convex/server';
 import { describe, expect, it, vi } from 'vitest';
 
+import { functionRefName } from '../../lib/shared/handlers/function-refs';
 import { resolveProjectContext } from './project_context';
 
 /**
@@ -14,7 +14,7 @@ function createCtx(opts: {
 }) {
   const calls: string[] = [];
   const runQuery = vi.fn((ref: unknown, _args: unknown) => {
-    const name = getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
+    const name = functionRefName(ref);
     calls.push(name);
     if (name.includes('assertProjectAccessForChat')) {
       return Promise.resolve(

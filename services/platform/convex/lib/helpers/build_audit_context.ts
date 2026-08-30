@@ -1,5 +1,5 @@
-import type { MutationCtx } from '../../_generated/server';
 import type { AuditContext } from '../../audit_logs/types';
+import type { MutationCtx } from '../ctx';
 import { getAuthenticatedUser } from '../rls/auth/get_authenticated_user';
 
 export async function buildAuditContext(

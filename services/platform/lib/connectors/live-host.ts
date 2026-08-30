@@ -171,7 +171,7 @@ export function checkConnectorRequestUrl(
   }
 
   // Metadata endpoints and private/loopback space, from the platform's one
-  // audited outbound policy. It throws a ConvexError; re-raise it as this
+  // audited outbound policy. It throws a AppError; re-raise it as this
   // layer's coded refusal so callers branch on one error type.
   try {
     checkProviderHostPolicy(parsed.toString());

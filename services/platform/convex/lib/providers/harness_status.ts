@@ -32,13 +32,6 @@ import type {
   HarnessDefinition,
   ModelCatalogEntry,
 } from '../../../lib/shared/schemas/providers';
-import { api } from '../../_generated/api';
-import { action } from '../../_generated/server';
-import { requireOrgAdminOrDeveloper } from '../auth/require_org_admin_or_developer';
-import { credentialAuthFor } from './credential_auth';
-import { loadHarnesses } from './load_system_config';
-import { resolveProvidersForOrgId } from './org_providers';
-
 const harnessManagedStatusValidator = v.union(
   v.object({
     available: v.literal(true),
@@ -147,51 +140,3 @@ export function deriveHarnessStatus(inputs: {
       };
     });
 }
-
-/**
- * The status of every managed-capable shipped harness for one org. Gated
- * like the rest of the AI-providers settings page; the listing is non-secret
- * capability metadata — credential SHAPES and counts, never secret material.
- */
-export const listHarnessStatus = action({
-  args: { organizationId: v.string() },
-  returns: v.array(harnessStatusValidator),
-  handler: async (ctx, args): Promise<HarnessStatusEntry[]> => {
-    await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-
-    const listing = await ctx.runAction(api.chat.composer.listComposerModels, {
-      organizationId: args.organizationId,
-    });
-    const directModels = listing.models.filter(
-      (model) =>
-        model.credential.authMethod === 'api-key' ||
-        model.credential.authMethod === 'env',
-    );
-
-    const credentials = await ctx.runQuery(
-      api.provider_credentials.queries.listCredentials,
-      { organizationId: args.organizationId },
-    );
-    const providers = await resolveProvidersForOrgId(ctx, args.organizationId);
-    const providerByName = new Map(
-      providers.map((provider) => [provider.name, provider] as const),
-    );
-    const subscriptions = credentials
-      .filter((credential) => credential.status === 'active')
-      .flatMap((credential): SubscriptionCredentialFact[] => {
-        const provider = providerByName.get(credential.providerSlug);
-        if (!provider) return [];
-        const auth = credentialAuthFor(provider, credential.authMethod);
-        return auth?.authMethod === 'subscription-key' ||
-          auth?.authMethod === 'subscription-broker'
-          ? [{ providerSlug: credential.providerSlug, credential: auth }]
-          : [];
-      });
-
-    return deriveHarnessStatus({
-      harnesses: loadHarnesses(),
-      directModels,
-      subscriptions,
-    });
-  },
-});

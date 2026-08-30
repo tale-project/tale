@@ -1,6 +1,5 @@
-import { anyApi } from 'convex/server';
-
-import { convexErrorCode } from '../errors';
+import { anyRefs } from '../../shared/handlers/function-refs';
+import { backendErrorCode } from '../errors';
 import { lockKeyFromParsed, parseDavPath } from '../paths';
 import type {
   AuthContext,
@@ -35,14 +34,14 @@ export async function handleUnlock(
   }
 
   try {
-    await ctx.convex.mutation(anyApi.webdav.lock_mutations.releaseLock, {
+    await ctx.convex.mutation(anyRefs.webdav.lock_mutations.releaseLock, {
       lockToken: token,
       ownerUserId: auth.userId,
       organizationId: auth.organizationId,
       resourcePath,
     });
   } catch (err) {
-    const code = convexErrorCode(err);
+    const code = backendErrorCode(err);
     if (code === 'FORBIDDEN') {
       return {
         status: 403,

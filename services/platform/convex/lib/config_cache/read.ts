@@ -1,6 +1,4 @@
-import type { GenericDatabaseReader } from 'convex/server';
-
-import type { DataModel } from '../../_generated/dataModel';
+import type { DatabaseReader } from '../ctx';
 
 /** The readable subset of a `configCache` row (the file-derived mirror that
  *  V8 readers consult). */
@@ -23,7 +21,7 @@ export interface ConfigCacheRow {
  * `DatabaseWriter` is assignable to `DatabaseReader`).
  */
 export async function readConfigCacheRow(
-  db: GenericDatabaseReader<DataModel>,
+  db: DatabaseReader,
   organizationId: string,
   domain: string,
   key: string,

@@ -63,7 +63,7 @@ vi.mock('@/app/features/conversations/hooks/queries', () => ({
     contactId ? mockComposeContactName : { name: undefined, isLoading: false },
 }));
 
-vi.mock('@/app/hooks/use-convex-auth', () => ({
+vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => ({ user: { userId: 'user-1' } }),
 }));
 

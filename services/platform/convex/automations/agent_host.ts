@@ -25,13 +25,7 @@
 
 import { randomBytes, randomUUID } from 'node:crypto';
 
-import { v } from 'convex/values';
-
 import type { SkillViewer } from '../../lib/skills/visibility';
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
-import { internalAction } from '../_generated/server';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
@@ -42,9 +36,12 @@ import {
   isManagedHarness,
   SKILLS_DIR,
 } from '../chat/external_turn_shared';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { resolveWorkflowAgentServing } from '../lib/providers/agent_serving';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
+import type { Id } from '../lib/rows';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   SessionDuplicateError,
@@ -84,6 +81,12 @@ import {
   promptWithAnsweredAsks,
 } from './ask_answer_carryover';
 import type { AgentTurnFile, AgentTurnResult } from './checkpoints';
+
+/** One file out of a skill bundle, as `readSkillBundle` returns it. */
+interface SkillBundleFile {
+  path: string;
+  contentBase64: string;
+}
 
 // The turn's wall-clock deadline is the shared work-turn knob
 // (`agentWorkTurnDeadlineMs`) — the exec's own `timeoutMs` is only a sliding
@@ -189,8 +192,7 @@ function readAskRow(value: unknown): AskRow | null {
     return null;
   }
   return {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the row came from the automationHumanAsks table read
-    _id: record._id as Id<'automationHumanAsks'>,
+    _id: record._id,
     runId: record.runId,
     nodeId: record.nodeId,
     execId: record.execId,
@@ -648,14 +650,13 @@ export async function ensureWorkflowSession(
 export async function resolveRunSkillViewer(
   ctx: ActionCtx,
   organizationId: string,
-  runId: Id<'automationRuns'> | string,
+  runId: Id<'automationRuns'>,
 ): Promise<SkillViewer> {
   const projectId = await ctx.runQuery(
     internal.automations.queries.getRunProjectId,
     {
       organizationId,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper hands the durable run id through as a string
-      runId: runId as Id<'automationRuns'>,
+      runId: runId,
     },
   );
   if (projectId === null) return { kind: 'org' };
@@ -692,7 +693,7 @@ export async function stageSkillBundle(
       `the skill "${slug}" is not available to this run — it does not exist or is not shared with the run's scope`,
     );
   }
-  const files = bundle.files.map((file) => ({
+  const files = bundle.files.map((file: SkillBundleFile) => ({
     path: `${destDir}/${file.path}`,
     contentBase64: file.contentBase64,
   }));
@@ -859,18 +860,6 @@ export async function stageWorkflowFiles(
   }
   return mounts;
 }
-
-const requestValidator = v.object({
-  model: v.string(),
-  prompt: v.string(),
-  system: v.optional(v.string()),
-  skills: v.optional(v.array(v.string())),
-  connectors: v.optional(v.array(v.string())),
-  tools: v.optional(v.array(v.string())),
-  secrets: v.optional(v.array(v.string())),
-  files: v.optional(v.any()),
-});
-
 /** What one workflow agent turn's exec authenticates with, minted per lane
  * (the task lane's `mintTurnServing` shape, automation-scoped). */
 interface WorkflowTurnAuth {
@@ -982,43 +971,43 @@ async function mintWorkflowTurnAuth(
   };
 }
 
-/**
- * The scheduled turn start — everything slow: session ensure, staging, key
- * mint, exec build, first window. Any throw settles the node with the error
- * instead of stranding the parked run.
- */
-export const startWorkflowAgentTurn = internalAction({
-  args: {
-    organizationId: v.string(),
-    runId: v.id('automationRuns'),
-    nodeId: v.string(),
-    execId: v.string(),
-    sessionId: v.string(),
-    harness: v.string(),
-    /** The serving lane the kick resolved; absent on in-flight calls from
-     * before the subscription lane existed — those are gateway turns. */
-    lane: v.optional(v.union(v.literal('gateway'), v.literal('subscription'))),
-    providerSlug: v.string(),
-    modelId: v.string(),
-    /** The exec's model string: the gateway ref on the gateway lane, the
-     * vendor-native catalog id on the subscription lane. */
-    gatewayModel: v.string(),
-    /** Subscription lane only — the vendor API base the CLI calls. */
-    apiBaseUrl: v.optional(v.string()),
-    /** Vision-polyfill model (absent when the serving model reads images
-     * itself, and always on the subscription lane) — provisioned onto the
-     * turn key and armed on the exec. */
-    visionProviderSlug: v.optional(v.string()),
-    visionModelId: v.optional(v.string()),
-    /** Broker accounts burned by prior failed attempts of this node
-     * execution — absent on first kicks and on in-flight calls from before
-     * auto-retry existed. */
-    excludeBrokerTokenHashes: v.optional(v.array(v.string())),
-    deadlineAt: v.number(),
-    request: requestValidator,
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
+/** The start's argument shape — the validator above, as data. */
+export interface StartWorkflowAgentTurnArgs {
+  organizationId: string;
+  runId: Id<'automationRuns'>;
+  nodeId: string;
+  execId: string;
+  sessionId: string;
+  harness: string;
+  lane?: 'gateway' | 'subscription';
+  providerSlug: string;
+  modelId: string;
+  gatewayModel: string;
+  apiBaseUrl?: string;
+  visionProviderSlug?: string;
+  visionModelId?: string;
+  excludeBrokerTokenHashes?: string[];
+  deadlineAt: number;
+  request: {
+    model: string;
+    prompt: string;
+    system?: string;
+    skills?: string[];
+    connectors?: string[];
+    tools?: string[];
+    secrets?: string[];
+    files?: unknown;
+  };
+}
+
+/** The start as a PLAIN exported function — the internalAction above wraps
+ * it, and the 0.5 backend's `automation.agent_turn` job runs it on the ctx
+ * shim (same pattern as the task-agent lane). */
+export async function startWorkflowAgentTurnImpl(
+  ctx: ActionCtx,
+  args: StartWorkflowAgentTurnArgs,
+): Promise<null> {
+  {
     try {
       await ensureWorkflowSession(ctx, args.organizationId, args.runId);
 
@@ -1235,124 +1224,17 @@ export const startWorkflowAgentTurn = internalAction({
       });
     }
     return null;
-  },
-});
+  }
+}
 
-/** The self-chaining drainer: one attach window per invocation. */
-export const driveWorkflowAgentTurn = internalAction({
-  args: {
-    organizationId: v.string(),
-    runId: v.id('automationRuns'),
-    nodeId: v.string(),
-    execId: v.string(),
-    sessionId: v.string(),
-    harness: v.string(),
-    providerSlug: v.string(),
-    gatewayModel: v.string(),
-    deadlineAt: v.number(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    // Orphan check: the run may have been cancelled, failed by the stepper's
-    // deadline, or moved past this node. An orphan turn is cut, its key
-    // revoked, and nothing else touched.
-    const state = await ctx.runQuery(
-      internal.automations.queries.readAgentCursor,
-      { organizationId: args.organizationId, runId: args.runId },
-    );
-    const agent = state?.cursor?.agent;
-    const live =
-      state !== null &&
-      (state.status === 'waiting' ||
-        state.status === 'running' ||
-        state.status === 'queued') &&
-      state.cursor?.node === args.nodeId &&
-      agent?.execId === args.execId &&
-      agent.result === undefined;
-    if (!live) {
-      await sessionCancelExec(args.sessionId, args.execId).catch(() => {
-        // Already gone — the reap is best-effort.
-        console.warn('[agent-host] orphan exec reap failed (already gone?)');
-      });
-      await closePendingAskForExec(ctx, args.sessionId, args.execId);
-      await releaseTurnKey(ctx, {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        execId: args.execId,
-        status: 'cancelled',
-      });
-      // The run went terminal while this turn was live, so the terminal
-      // hooks' hibernate skipped past it — the op is terminal now.
-      await ctx
-        .runMutation(
-          internal.sandbox.session_mutations.hibernateAutomationScopedSession,
-          { executionId: args.runId },
-        )
-        .catch((err) =>
-          console.warn('[agent-host] orphan slot release failed:', err),
-        );
-      return null;
-    }
-
-    if (Date.now() > args.deadlineAt) {
-      await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
-        console.warn('[agent-host] deadline exec cancel failed:', err),
-      );
-      await settleWorkflowAgentTurn(ctx, args, {
-        errored: true,
-        reason: 'the agent turn ran past its time limit and was stopped',
-        failureCode: 'deadline',
-        text: '',
-        files: [],
-      });
-      return null;
-    }
-
-    const progress = liveProgressSink(ctx, args, 'workflow-agent');
-    let window;
-    try {
-      window = await drainHarnessWindow({
-        sessionId: args.sessionId,
-        execId: args.execId,
-        harness: args.harness,
-        onText: progress.onText,
-        onTimeline: progress.onTimeline,
-      });
-    } catch (err) {
-      console.error('[agent-host] drive window threw:', err);
-      await progress.flush();
-      // A drain that died at the deadline is the deadline, not a crash — a
-      // retry of a burned 12h window would be pure waste.
-      const pastDeadline = Date.now() > args.deadlineAt;
-      await settleWorkflowAgentTurn(ctx, args, {
-        errored: true,
-        reason: `the agent turn stopped unexpectedly: ${err instanceof Error ? err.message : String(err)}`,
-        failureCode: pastDeadline ? 'deadline' : 'turn_crashed',
-        text: '',
-        files: [],
-      });
-      return null;
-    }
-    await progress.flush();
-    await continueOrSettle(ctx, args, window);
-    return null;
-  },
-});
-
-/**
- * A member answered a parked ask: resume the SAME harness conversation on a
- * fresh exec whose first message is the answer. Everything upstream of the
- * node keeps its checkpoints; the session keeps its files; the conversation
- * keeps its context (`--resume`). Guarded end-to-end — a stale answer (run
- * moved on, cancelled, superseded) retargets nothing and starts nothing.
- */
-export const resumeWorkflowAgentTurnWithAnswer = internalAction({
-  args: {
-    organizationId: v.string(),
-    askId: v.id('automationHumanAsks'),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
+/** The answered-ask resume as a PLAIN exported function — the internalAction
+ * above wraps it, and the 0.5 backend's `automation.ask_resume` job runs it
+ * on the ctx shim (same pattern as the turn start). */
+export async function resumeWorkflowAgentTurnWithAnswerImpl(
+  ctx: ActionCtx,
+  args: { organizationId: string; askId: Id<'automationHumanAsks'> },
+): Promise<null> {
+  {
     const ask = readAskRow(
       await ctx.runQuery(internal.automations.human_asks.getAskForResume, {
         askId: args.askId,
@@ -1662,8 +1544,8 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
       );
     }
     return null;
-  },
-});
+  }
+}
 
 /** Narrow the cursor's recorded request (stored as plain JSON) back to the
  * fields the resume needs. Absent fields degrade, never throw — the resume

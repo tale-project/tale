@@ -30,11 +30,11 @@ vi.mock('@/lib/i18n/client', () => ({ useT: () => ({ t: h.t }) }));
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => h.state.orgId,
 }));
-vi.mock('@/app/hooks/use-convex-auth', () => ({
-  useConvexAuth: () => ({ isAuthenticated: h.state.isAuthenticated }),
+vi.mock('@/app/hooks/use-session-user', () => ({
+  useSessionUser: () => ({ isAuthenticated: h.state.isAuthenticated }),
 }));
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: (_fn: unknown, args: unknown) => ({
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (_fn: unknown, args: unknown) => ({
     // Mirror the real skip semantics: a skipped query is still in-flight
     // (`undefined`), never a resolved value.
     data: args === 'skip' ? undefined : h.state.policyRow,

@@ -52,6 +52,8 @@ entries:
   - 'notifications.agentBudgetExceededBody'
   - 'notifications.agentCircuitTrippedTitle'
   - 'notifications.agentCircuitTrippedBody'
+  - 'notifications.accountLocked'
+  - 'notifications.lockoutDetails'
 
   # `tEntity('searchPlaceholder')` in app/hooks/use-table-config-factory.ts is
   # resolved against a runtime `entityNamespace` parameter — the regex scanner

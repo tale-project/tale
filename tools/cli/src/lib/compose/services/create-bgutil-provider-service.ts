@@ -4,18 +4,17 @@ import { DEFAULT_LOGGING } from '../types';
 
 /**
  * bgutil PO-token provider — serves GVS proof-of-origin tokens to the yt-dlp
- * bgutil plugin baked into the convex image, so video-link ingestion survives
+ * bgutil plugin baked into the platform image, so video-link ingestion survives
  * YouTube's "confirm you're not a bot" wall on datacenter/flagged IPs with zero
  * operator config.
  *
  * Third-party image (not a `tale-*` build), so it is NOT part of the
  * always-roll stateful tier (whose deploy pulls `tale-<name>:<version>`).
  * `deploy.ts` brings it up in its OWN best-effort `up -d` after the core
- * services are healthy — mirroring the `controller` sidecar — and video ingest
- * degrades gracefully (no token) if it never starts, so it can never fail a
- * deploy. Reached only by convex over the `internal` network (no published
+ * services are healthy, and video ingest degrades gracefully (no token) if it
+ * never starts, so it can never fail a deploy. Reached only by the backend over the `internal` network (no published
  * ports). The image tag MUST match `BGUTIL_POT_VERSION` in
- * services/convex/Dockerfile — bump both together.
+ * services/platform/Dockerfile — bump both together.
  */
 export function createBgutilProviderService(
   _config: ServiceConfig,

@@ -93,10 +93,6 @@ jobs:
               - 'services/db/**'
             proxy:
               - 'services/proxy/**'
-            convex:
-              - 'services/convex/**'
-            controller:
-              - 'services/controller/**'
             sandbox-llm-gateway:
               - 'services/sandbox-llm-gateway/**'
             web:
@@ -126,7 +122,6 @@ jobs:
               - '.env.test'
               - '.github/workflows/build.yml'
               - 'services/db/**'
-              - 'services/convex/**'
               - 'services/platform/**'
               - 'services/proxy/**'
               - 'services/sandbox-llm-gateway/**'
@@ -147,7 +142,7 @@ jobs:
           # trio that `build` actually pushes to GHCR. Web and docs use their
           # own compose stacks and are reachable via security.yml's
           # filesystem scan.
-          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "convex" or . == "controller" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")]')
+          SCANNABLE=$(echo "${SERVICES}" | jq -c '[.[] | select(. == "db" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")]')
           echo "scannable=${SCANNABLE}" >> "$GITHUB_OUTPUT"
           echo "Services to scan: ${SCANNABLE}"
 
@@ -200,8 +195,6 @@ jobs:
         service:
           [
             db,
-            convex,
-            controller,
             platform,
             proxy,
             sandbox-llm-gateway,
@@ -216,7 +209,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Reclaim disk space
-        if: matrix.service == 'platform' || matrix.service == 'convex' || matrix.service == 'sandbox-runtime'
+        if: matrix.service == 'platform' || matrix.service == 'sandbox-runtime'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune -af
@@ -369,7 +362,7 @@ jobs:
           # locally so smoke tests with PULL_POLICY=never find it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db convex controller platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+          for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"
@@ -590,7 +583,7 @@ jobs:
           # locally so PULL_POLICY=never validation finds it.
           TAG="${{ needs.changes.outputs.image_tag }}"
           REGISTRY_PATH="${{ env.REGISTRY }}/${{ github.repository }}"
-          for svc in db convex controller platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+          for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
             IMAGE="${REGISTRY_PATH}/tale-${svc}:${TAG}"
             echo "Pulling ${IMAGE}..."
             docker pull "${IMAGE}"

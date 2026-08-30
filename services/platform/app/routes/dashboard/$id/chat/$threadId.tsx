@@ -1,7 +1,6 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
-import { api } from '@/convex/_generated/api';
+import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 
 /**
  * One open conversation. The surface itself is rendered by the parent layout
@@ -14,12 +13,10 @@ export const Route = createFileRoute('/dashboard/$id/chat/$threadId')({
   // router preloads on hover intent, so pointing at a thread in the list
   // usually has its conversation ready before the click.
   loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.chat.messages.listMessages, {
-        organizationId: params.id,
-        threadId: params.threadId,
-      }),
-    );
+    prefetchAdaptedQuery(context.queryClient, 'chat/messages:listMessages', {
+      organizationId: params.id,
+      threadId: params.threadId,
+    });
   },
   component: () => null,
 });

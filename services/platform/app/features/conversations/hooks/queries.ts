@@ -1,11 +1,9 @@
 import { useMemo } from 'react';
 
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { api } from '@/convex/_generated/api';
-import { toId } from '@/convex/lib/type_cast_helpers';
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
+import type { ItemOf } from '@/app/lib/backend/contract';
 
 import {
   resolvedEmailOption,
@@ -13,13 +11,11 @@ import {
 } from '../lib/email-connectors';
 import { useInboxAvailability } from './use-inbox-availability';
 
-export type Conversation = ConvexItemOf<
-  typeof api.conversations.queries.listConversations
->;
+export type Conversation = ItemOf<'conversations/queries:listConversations'>;
 
 export function useConversations(organizationId: string) {
-  const { data, isLoading } = useConvexQuery(
-    api.conversations.queries.listConversations,
+  const { data, isLoading } = useBackendQuery(
+    'conversations/queries:listConversations',
     { organizationId },
   );
 
@@ -45,7 +41,7 @@ export function useListConversationsPaginated(
 ) {
   const { initialNumItems, ...queryArgs } = args;
   return useCachedPaginatedQuery(
-    api.conversations.queries.listConversationsPaginated,
+    'conversations/queries:listConversationsPaginated',
     queryArgs,
     { initialNumItems },
   );
@@ -55,8 +51,8 @@ export function useApproxConversationCountByStatus(
   organizationId: string,
   status: 'open' | 'closed' | 'spam' | 'archived',
 ) {
-  return useConvexQuery(
-    api.conversations.queries.approxCountConversationsByStatus,
+  return useBackendQuery(
+    'conversations/queries:approxCountConversationsByStatus',
     {
       organizationId,
       status,
@@ -78,8 +74,8 @@ export function useComposeContactName(
   organizationId: string,
   contactId: string | undefined,
 ): { name: string | undefined; isLoading: boolean } {
-  const { data, isLoading } = useConvexQuery(
-    api.contacts.queries.listContacts,
+  const { data, isLoading } = useBackendQuery(
+    'contacts/queries:listContacts',
     contactId ? { organizationId } : 'skip',
   );
 
@@ -120,8 +116,8 @@ export function useEmailConnectors(organizationId: string): {
     [inboxAutomations],
   );
 
-  const { data: credentials, isLoading: credentialsLoading } = useConvexQuery(
-    api.connector_credentials.queries.listCredentials,
+  const { data: credentials, isLoading: credentialsLoading } = useBackendQuery(
+    'connector_credentials/queries:listCredentials',
     organizationId ? { organizationId } : 'skip',
   );
 
@@ -159,11 +155,11 @@ const EMPTY_EMAIL_CONNECTORS: EmailConnectorOption[] = [];
 
 export function useConversationWithMessages(conversationId: string | null) {
   const organizationId = useOrganizationId();
-  return useConvexQuery(
-    api.conversations.queries.getConversationWithMessages,
+  return useBackendQuery(
+    'conversations/queries:getConversationWithMessages',
     conversationId && organizationId
       ? {
-          conversationId: toId<'conversations'>(conversationId),
+          conversationId: conversationId,
           organizationId,
         }
       : 'skip',

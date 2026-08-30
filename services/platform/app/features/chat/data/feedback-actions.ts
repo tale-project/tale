@@ -9,10 +9,15 @@
  * failure state without wrapping every call site.
  */
 
-import { useConvex } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import {
+  invalidateThreadFeedback,
+  removeMessageFeedbackRequest,
+  submitMessageFeedbackRequest,
+} from '@/app/lib/backend/chat';
+
+import { useChatQueryClient } from './chat-backend';
 
 export type FeedbackRating = 'positive' | 'negative';
 
@@ -28,7 +33,7 @@ export interface FeedbackActions {
 }
 
 export function useFeedbackActions(organizationId: string): FeedbackActions {
-  const convex = useConvex();
+  const queryClient = useChatQueryClient();
 
   const submit = useCallback(
     async (
@@ -37,31 +42,29 @@ export function useFeedbackActions(organizationId: string): FeedbackActions {
       rating: FeedbackRating,
       comment?: string,
     ): Promise<boolean> => {
-      if (!convex) return false;
       try {
-        await convex.mutation(api.feedback.mutations.submitFeedback, {
-          organizationId,
+        await submitMessageFeedbackRequest(organizationId, {
           threadId,
           messageId,
           rating,
           ...(comment !== undefined && comment.length > 0 ? { comment } : {}),
         });
+        invalidateThreadFeedback(queryClient, organizationId, threadId);
         return true;
       } catch (error) {
         console.error('[chat] submitting feedback failed', error);
         return false;
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const remove = useCallback(
     async (messageId: string): Promise<boolean> => {
-      if (!convex) return false;
       try {
-        await convex.mutation(api.feedback.mutations.deleteFeedback, {
-          organizationId,
-          messageId,
+        await removeMessageFeedbackRequest(organizationId, messageId);
+        void queryClient.invalidateQueries({
+          queryKey: ['backend', organizationId, 'chat_feedback'],
         });
         return true;
       } catch (error) {
@@ -69,11 +72,8 @@ export function useFeedbackActions(organizationId: string): FeedbackActions {
         return false;
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
-  return useMemo(
-    () => ({ available: convex !== undefined, submit, remove }),
-    [convex, submit, remove],
-  );
+  return useMemo(() => ({ available: true, submit, remove }), [submit, remove]);
 }

@@ -1,6 +1,5 @@
-import { anyApi } from 'convex/server';
-
-import { rewriteStorageOrigin } from '../ctx';
+import { anyRefs } from '../../shared/handlers/function-refs';
+import { rewriteStorageOrigin } from '../paths';
 import type {
   AuthContext,
   ParsedPath,
@@ -194,7 +193,7 @@ export async function handleGet(
   req?: WebDAVRequest,
 ): Promise<WebDAVResponse> {
   const resolved = await ctx.convex.query(
-    anyApi.webdav.tree_queries.resolvePath,
+    anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
       namespace: parsed.namespace,
@@ -216,7 +215,7 @@ export async function handleGet(
   }
 
   const doc = await ctx.convex.query(
-    anyApi.webdav.tree_queries.getDocumentProps,
+    anyRefs.webdav.tree_queries.getDocumentProps,
     {
       organizationId: auth.organizationId,
       documentId: resolved.documentId,
@@ -303,7 +302,7 @@ export async function handleGet(
   // isolate and caps at its memory limit — keep it only as a fallback for
   // deployments where the direct URL isn't reachable from this process.
   const directUrl: unknown = await ctx.convex
-    .query(anyApi.webdav.tree_queries.getWebdavBlobUrl, {
+    .query(anyRefs.webdav.tree_queries.getWebdavBlobUrl, {
       storageId: doc.fileId,
     })
     .catch((err: unknown) => {

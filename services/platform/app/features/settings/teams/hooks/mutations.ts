@@ -1,14 +1,13 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 export function useCreateTeamMember() {
-  return useConvexMutation(api.team_members.mutations.addMember);
+  return useBackendMutation('team_members/mutations:addMember');
 }
 
 export function useAddTeamMember() {
-  return useConvexMutation(api.team_members.mutations.addMember);
+  return useBackendMutation('team_members/mutations:addMember');
 }
 
 export function useRemoveTeamMember() {
-  return useConvexMutation(api.team_members.mutations.removeMember);
+  return useBackendMutation('team_members/mutations:removeMember');
 }

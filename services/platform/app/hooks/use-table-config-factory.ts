@@ -4,7 +4,6 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 import * as columnBuilders from '@/app/components/ui/data-table/column-builders';
-import type { Doc, TableNames } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import type { Namespace } from '@/lib/i18n/types';
 
@@ -29,13 +28,13 @@ interface TableConfig<TData> extends TableConfigMetadata {
   columns: ColumnDef<TData>[];
 }
 
-interface CreateTableConfigOptions<TTableName extends TableNames> {
+interface CreateTableConfigOptions<TRow> {
   /** Translation namespace for entity-specific translations */
   entityNamespace: Namespace;
   /** Additional translation namespaces (e.g., ['common']) */
   additionalNamespaces?: Namespace[];
   /** Default sort field */
-  defaultSort: keyof Doc<TTableName> | (string & {});
+  defaultSort: keyof TRow | (string & {});
   /** Sort descending by default (default: true) */
   defaultSortDesc?: boolean;
   /** Page size (default: {@link DEFAULT_TABLE_PAGE_SIZE}) */
@@ -69,7 +68,7 @@ type ColumnsBuilder<TData> = (ctx: ColumnBuilderContext) => ColumnDef<TData>[];
  *
  * @example
  * ```tsx
- * export const useCustomersTableConfig = createTableConfigHook<'customers'>(
+ * export const useCustomersTableConfig = createTableConfigHook<CustomerDoc>(
  *   {
  *     entityNamespace: 'customers',
  *     defaultSort: '_creationTime',
@@ -89,10 +88,10 @@ type ColumnsBuilder<TData> = (ctx: ColumnBuilderContext) => ColumnDef<TData>[];
  * );
  * ```
  */
-export function createTableConfigHook<TTableName extends TableNames>(
-  options: CreateTableConfigOptions<TTableName>,
-  columnsBuilder: ColumnsBuilder<Doc<TTableName>>,
-): () => TableConfig<Doc<TTableName>> {
+export function createTableConfigHook<TRow>(
+  options: CreateTableConfigOptions<TRow>,
+  columnsBuilder: ColumnsBuilder<TRow>,
+): () => TableConfig<TRow> {
   const {
     entityNamespace,
     additionalNamespaces = [],
@@ -103,7 +102,7 @@ export function createTableConfigHook<TTableName extends TableNames>(
     infiniteScroll = true,
   } = options;
 
-  return function useTableConfig(): TableConfig<Doc<TTableName>> {
+  return function useTableConfig(): TableConfig<TRow> {
     const { t: tTables } = useT('tables');
     const { t: tEntity } = useT(entityNamespace);
 
@@ -135,7 +134,7 @@ export function createTableConfigHook<TTableName extends TableNames>(
       searchPlaceholder: tEntity('searchPlaceholder'),
       stickyLayout,
       pageSize,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- keyof Doc<TTableName> is always string; narrowing for TableConfig interface
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- keyof TRow is always string here; narrowing for the TableConfig interface
       defaultSort: defaultSort as string,
       defaultSortDesc,
       infiniteScroll,

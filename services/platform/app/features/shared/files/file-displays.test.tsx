@@ -18,10 +18,10 @@ vi.mock('./use-file-url', () => ({
   },
 }));
 
-// FileAttachmentDisplay's audio-transcript lookup subscribes via the raw
-// convex `useQuery` (needs a live ConvexProvider); not under test here.
-vi.mock('convex/react', () => ({
-  useQuery: () => undefined,
+// FileAttachmentDisplay's audio-transcript lookup rides the adapter-aware
+// read wrapper (a live provider or backend either way); not under test here.
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: undefined }),
 }));
 
 // The real preview dialog subscribes to Convex (document metadata, file URL).

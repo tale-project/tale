@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Doc } from '../_generated/dataModel';
+import type { Doc } from '../lib/rows';
 import { computeFeedbackStats, UNATTRIBUTED_AGENT_SLUG } from './stats';
 
 type FeedbackRow = Doc<'messageFeedback'>;

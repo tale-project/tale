@@ -7,7 +7,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../_generated/api', () => ({
+vi.mock('../../lib/handler_names', () => ({
   internal: {
     sandbox: {
       session_mutations: {

@@ -1,29 +1,20 @@
 /*
-  Dev orchestrator for LOCAL development — the library half.
+  Dev orchestrator for `bun run dev` (and `tale dev`'s host mode).
 
-  `runDevFleet()` is the whole orchestration; the thin `./dev.ts` shim is the
-  entry point (kept at that path so turbo `@tale/platform#dev`, playwright's
-  webServer, and the root `scripts/dev.ts` supervisor all keep spawning it). The
-  pure, tested pieces live in their own modules: `./convex-supervisor` (restart
-  state machine), `./dev-secrets`, `./dev-modes`, `./dev-gates`, `./dev-output`.
+  What it runs, in order:
+   1) The docker backing services this host loop depends on (db, knowledge-db,
+      the LLM gateway, the sandbox tier) with the dev overlays.
+   2) The video toolchain (yt-dlp + deno + ffmpeg), resolved into the env the
+      backend inherits.
+   3) The BACKEND — the same `backend/main.ts` entry the container runs, in
+      role `all` (api + worker in one process) — supervised by a health probe
+      that restarts it up to a cap.
+   4) Vite (dev server, or `vite preview` over a production build in E2E),
+      proxying /api, /events and /dav to the backend.
 
-  IMPORTANT: This script uses Convex in LOCAL mode. When running Convex for the
-  first time, you may see a setup prompt — ALWAYS choose "Local development" to
-  avoid cloud dependencies.
-
-  Process:
-  1) Load environment variables from .env and .env.local files
-     Priority: services/platform/.env.local > services/platform/.env > repo root/.env.local > repo root/.env
-  2) Start Convex dev server in LOCAL mode (listening on 127.0.0.1:3210)
-  3) Wait until it's listening on the local port (using wait-on library)
-  4) Sync .env vars into Convex (SITE_URL, Entra ID keys, etc.)
-  5) Trigger code generation with updated environment
-  6) Start TanStack Start dev server with loaded environment variables
-  7) Handle Ctrl+C (SIGINT/SIGTERM) to cleanly shut down both processes
-
-  This ensures local development without cloud dependencies and avoids timing issues.
-
-  Uses Bun native spawn + wait-on library for proper signal handling (Ctrl+C works correctly).
+  The restart/health DECISIONS live in `./backend-supervisor` as pure,
+  exhaustively tested reducers; this file owns the effectful spawn/kill/probe
+  wiring and the reporter output.
 */
 
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
@@ -38,26 +29,18 @@ import { detectCapabilities } from '@tale/shared/terminal';
 import { configureReporter } from '@tale/shared/tux';
 import kill from 'tree-kill';
 
-import { runConvexLocalMaintenance } from './convex-local-maintenance';
 import {
-  onConvexReady,
+  onBackendReady,
   onHealthTick,
   onRestartSettled,
   planRestart,
   type SupervisorState,
   SUPERVISOR_LIMITS,
-} from './convex-supervisor';
+} from './backend-supervisor';
 import { DEV_GATES } from './dev-gates';
+import { isTruthy, shouldOpenBrowser } from './dev-modes';
 import {
-  adoptCliEndpoints,
-  DEFAULT_CONVEX_HOST,
-  DEFAULT_CONVEX_PORT,
-  isTruthy,
-  resolveConvexProbeTarget,
-  shouldOpenBrowser,
-} from './dev-modes';
-import {
-  convexClassifier,
+  backendClassifier,
   detailLines,
   dockerClassifier,
   doneLine,
@@ -71,41 +54,43 @@ import {
   warnLine,
 } from './dev-output';
 import { deriveDevSecrets } from './dev-secrets';
-import { probeNodeExecutor } from './node-executor-probe';
 
 const platformRoot = join(import.meta.dir, '..');
 const repoRoot = join(import.meta.dir, '..', '..', '..');
 
 // Wall-clock boot start, so the orchestrator can show how long each phase took.
-// Convex pre-warm dominates a cold boot (30-90s) — surfacing it turns an opaque
+// A cold boot is dominated by docker bring-up + the toolchain fetch — surfacing it turns an opaque
 // wait into a measurable number.
 const BOOT_STARTED_AT = Date.now();
 const sinceBoot = (): string =>
   `${((Date.now() - BOOT_STARTED_AT) / 1000).toFixed(1)}s`;
 
-// Docker backing services the HOST `bun dev` depends on (Convex + Vite run on
-// the host; these run in docker). Excludes the host-run convex/platform and the
-// dev-irrelevant proxy/docs/controller. `sandbox-llm-gateway` is the one with no
+// Docker backing services the HOST `bun dev` depends on (the backend + Vite
+// run on the host; these run in docker). Excludes the host-run backend and the
+// dev-irrelevant proxy/docs. `sandbox-llm-gateway` is the one with no
 // published port in base compose.yml — see DEV_COMPOSE_FILES.
 //
-// Note: knowledge-db `depends_on convex` in base compose.yml only to wait for it
-// to seed the shared convex-data config volume. compose.sandbox-llm-gateway.dev.yml
+// compose.sandbox-llm-gateway.dev.yml
 // (host bun-dev only) drops that edge via `!override` — the host backend owns
-// config here, not the docker convex — so this bring-up does NOT pull up a
-// redundant convex container alongside the host one.
+// config here — so this bring-up does NOT pull up a redundant backend
+// container alongside the host one.
 const DEV_DOCKER_SERVICES = [
   'db',
   // ParadeDB for the knowledge base / RAG search corpus (formerly the separate
   // rag + crawler services, consolidated into the tale-db image — see the
   // knowledge-db migration wiring).
   'knowledge-db',
+  // The blob store. S3-compatible storage is the ONLY blob backend, so
+  // without this every upload in the dev stack fails closed — the host
+  // backend seeds the deployment-default connection against it at boot.
+  'object-store',
   'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',
-  // socat relay aliased `convex` on the sandbox net → host-run convex :3211,
-  // so the in-container MCP connector bridge can reach convex http actions
+  // socat relay aliased `backend-api` on the sandbox net → the host-run
+  // backend, so the in-container tool + connector bridges reach its doors
   // (the `--internal` sandbox net can't otherwise reach the host).
-  'convex-relay',
+  'backend-relay',
 ];
 // Overlay chain for local dev (matches docs/.../docker-compose-reference): base
 // + source-mounts/debug/extra_hosts (dev) + the loopback gateway port publish
@@ -169,25 +154,22 @@ function envNormalizeCommon() {
     process.env.SITE_URL = `http://${host}${host === 'localhost' ? `:${port}` : ''}`;
   }
 
-  // Sandbox → Convex reachability. The URLs the platform hands the sandbox are
-  // fetched by the SESSION CONTAINER's daemon (not the spawner), which sits on
-  // the `--internal` sandbox net and whose undici fetch ignores the egress
-  // proxy — so it can only reach Convex via the `convex` alias carried on that
-  // network. In `bun dev` Convex runs on the host, so the `convex-relay` socat
-  // (compose.dev.yml) bridges :3210/:3211 → host Convex. (`host.docker.internal`
-  // resolves for the spawner but NOT for session containers, which is why it
-  // never worked for storage staging — see SANDBOX_CONVEX_STORAGE_BASE_DEFAULT.)
+  // Sandbox → backend reachability. These URLs are fetched by the SESSION
+  // CONTAINER's daemon (not the spawner), which sits on the `--internal`
+  // sandbox net and whose undici fetch ignores the egress proxy — so it can
+  // only reach hosts ON that network. In `bun dev` the backend runs on the
+  // host, so the `backend-relay` socat (compose.dev.yml) carries the
+  // `backend-api` alias there. (`host.docker.internal` resolves for the
+  // spawner but NOT for session containers, which is why it never worked for
+  // storage staging.)
   //
   // Override in `services/platform/.env.local` only for a non-standard topology.
-  if (!process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL) {
-    process.env.SANDBOX_STORAGE_INTERNAL_BASE_URL = 'http://convex:3210';
-  }
   if (!process.env.SANDBOX_HTTP_API_BASE_URL) {
-    process.env.SANDBOX_HTTP_API_BASE_URL = 'http://convex:3211';
+    process.env.SANDBOX_HTTP_API_BASE_URL = 'http://backend-api:3005';
   }
 
   // Writable per-org config ROOT (org-first: `<root>/<orgSlug>/<domain>/`).
-  // Convex derives sub-dirs from TALE_CONFIG_DIR via `convex/*/file_utils.ts`.
+  // The backend derives its sub-dirs from TALE_CONFIG_DIR.
   // Default to a gitignored repo-relative dir: each org's files are seeded into
   // it from the built-in catalog at org-create. NOT the built-in catalog itself
   // (that is `configs/platform/custom/`, which is not org-shaped). An explicit env wins
@@ -202,9 +184,9 @@ function envNormalizeCommon() {
   // governance, skills), with no org level, so the seeder reads
   // `<catalog>/<domain>` with no `default` join. System config
   // (`configs/platform/system/`) is org-independent and deliberately NOT part
-  // of this root. Prod sets this in the image (services/convex/Dockerfile copies
-  // the catalog → /app/builtin; services/platform/Dockerfile sets the env to
-  // /app/builtin). Dev has no build step, so default it to the repo's tracked
+  // of this root. Prod sets this in the image (services/platform/Dockerfile
+  // copies the catalog → /app/builtin and sets the env). Dev has no build
+  // step, so default it to the repo's tracked
   // catalog. Hermetic setups (E2E) pin their own builtin explicitly rather than
   // inheriting this default.
   if (!process.env.TALE_CONFIG_BUILTIN_DIR) {
@@ -221,42 +203,9 @@ function envNormalizeCommon() {
 // encryption) lives in `./dev-secrets` — pure, tested, and reusing the SAME
 // `ensureWebdavHmacKey` the platform verifies with (no second formula).
 
-// WebDAV's dev route (vite-plugins/serve-webdav.ts) talks to Convex with the
-// deployment ADMIN_KEY to call internal functions; without it the plugin
-// disables /dav/* and every request returns 503. Prod derives the key with the
-// `generate_key` binary in docker-entrypoint.sh, but the Convex CLI does NOT
-// download that binary for local dev — it instead writes the anonymous
-// deployment's admin key in cleartext to .convex/local/default/config.json.
-// Read it from there so `bun dev` enables WebDAV with zero manual setup. Only
-// meaningful for the local backend (the file is a local-CLI artifact); an
-// explicit ADMIN_KEY (.env) always wins. MUST run after waitForConvex() so the
-// CLI has created the config file.
-function ensureLocalAdminKey() {
-  if (process.env.ADMIN_KEY) return;
-  const configPath = join(platformRoot, '.convex/local/default/config.json');
-  if (!existsSync(configPath)) {
-    warnLine(
-      `${configPath} not found; ADMIN_KEY unset, WebDAV /dav/* will 503.`,
-    );
-    return;
-  }
-  try {
-    const adminKey = JSON.parse(readFileSync(configPath, 'utf8'))?.adminKey;
-    if (typeof adminKey !== 'string' || adminKey.length === 0) {
-      warnLine('No adminKey in local Convex config; WebDAV /dav/* will 503.');
-      return;
-    }
-    process.env.ADMIN_KEY = adminKey;
-    // ADMIN_KEY loaded → WebDAV /dav/* enabled (routine, no log).
-  } catch (err) {
-    warnLine(
-      `Failed to read local Convex admin key (${configPath}); WebDAV /dav/* will 503. Underlying: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-}
-
-// Video-link ingestion (chat "paste a YouTube URL") spawns yt-dlp + ffmpeg from
-// a Convex node action. Production BAKES those binaries into the convex image on
+// The video toolchain the ingest lane spawns.
+//
+// Production BAKES those binaries into the platform image on
 // pinned paths; a host `bun dev` backend has neither, so ingestion used to fail
 // "yt-dlp binary not found" until the operator hand-set VIDEO_INGEST_* (#2746).
 // Reuse the SAME self-provisioner the live YouTube test uses — download yt-dlp +
@@ -265,7 +214,7 @@ function ensureLocalAdminKey() {
 // The explicit-value-wins rule (only fill gaps) lets a self-hoster pin their own
 // baked paths. Best-effort: a download/network failure warns and continues —
 // video ingestion is optional and the rest of the stack must still boot. The
-// exported vars are synced into the Convex deployment env by the caller.
+// backend inherits the exported vars from this process.
 async function provisionVideoToolchain(): Promise<void> {
   // The hermetic E2E stack (TALE_E2E, set by playwright.config.ts's webServer
   // and the CI workflow) exercises no video ingestion — but on a bare CI
@@ -367,7 +316,7 @@ function runCommand(
 ) {
   return new Promise<void>((resolve, reject) => {
     // Capture (not inherit) so the raw subprocess firehose — docker pull/build
-    // layers, convex push spam, codegen output — is classified and collapsed
+    // layers, boot chatter — is classified and collapsed
     // to clean status instead of dumped to the terminal. A failing step prints
     // its captured tail before rejecting, so the cause is never silently lost.
     const child = spawn(cmd, args, {
@@ -400,7 +349,7 @@ function runCommand(
 }
 
 // The restart/health thresholds live with the (tested) state machine in
-// `./convex-supervisor`; the orchestrator only needs them for its probe timer
+// `./backend-supervisor`; the orchestrator only needs them for its probe timer
 // and user-facing messages.
 const {
   HEALTH_CHECK_INTERVAL_MS,
@@ -408,12 +357,6 @@ const {
   MAX_CONSECUTIVE_FAILURES,
   MAX_AUTO_RESTARTS,
 } = SUPERVISOR_LIMITS;
-
-/** Resolve the Convex probe/proxy target (honoring CONVEX_URL), surfacing a
- *  malformed-URL warning through the reporter. Pure logic lives in `./dev-modes`. */
-function probeTarget() {
-  return resolveConvexProbeTarget(process.env, warnLine);
-}
 
 function tcpProbe(
   host: string,
@@ -625,11 +568,11 @@ async function waitForLlmGateway(
 }
 
 /** Bring up the docker backing services the host `bun dev` depends on, WITH the
- *  dev overlays. Host bun dev runs Convex + Vite on the host, but the LLM
+ *  dev overlays. Host bun dev runs the backend + Vite on the host, but the LLM
  *  gateway, sandbox spawner, db and knowledge-db run in docker. The base
  *  compose.yml publishes NO gateway port (prod posture) — only
  *  compose.sandbox-llm-gateway.dev.yml maps 127.0.0.1:8080 — so a plain `docker compose
- *  up` silently drops the loopback binding and the host Convex action can't
+ *  up` silently drops the loopback binding and the host backend can't
  *  reach the gateway (every external-agent turn then dies with "fetch failed").
  *  Doing the bring-up here, with the overlay chain, makes `bun dev`
  *  self-sufficient and keeps the port from drifting.
@@ -642,13 +585,13 @@ async function waitForLlmGateway(
  *  A stopped engine is auto-started first (Docker Desktop / systemd) so a dev
  *  machine where Docker simply isn't running doesn't have to start it by hand.
  *  Docker absent (or unstartable) is NON-FATAL: warn with the concrete
- *  side-effects and let the app come up anyway (pure frontend/Convex work
+ *  side-effects and let the app come up anyway (pure frontend work
  *  doesn't need it). */
 async function ensureDockerDependencies(): Promise<void> {
-  // The hermetic E2E stack (playwright.config.ts) is anonymous-Convex + mock
+  // The hermetic E2E stack (playwright.config.ts) is a local backend + mock
   // LLM with "no external services" — the backing images aren't built in the
   // E2E CI job, so `docker compose up` can only ever fail there. Attempting it
-  // wastes the cold-boot budget and destabilizes the Convex pre-warm that
+  // wastes the cold-boot budget and destabilizes the boot that
   // follows. Let the E2E webServer opt out explicitly.
   if (isTruthy(process.env.TALE_DEV_SKIP_DOCKER)) {
     infoLine('Skipping Docker backing services (TALE_DEV_SKIP_DOCKER set)');
@@ -663,7 +606,7 @@ async function ensureDockerDependencies(): Promise<void> {
   // even a 100%-cached build re-exports a NEW image manifest digest. compose
   // then sees the service image no longer matches the running container's image
   // and recreates the container — every single run. (External-image services
-  // like sandbox-llm-gateway/convex-relay are never built, so they stay put — which is
+  // like sandbox-llm-gateway/backend-relay are never built, so they stay put — which is
   // why only the build-services churned.) Disabling the default attestation makes
   // the cached build reproduce a stable image ID, so an already-up stack
   // converges to a no-op. Scoped to dev: CI/release builds run in their own
@@ -713,7 +656,7 @@ async function ensureDockerDependencies(): Promise<void> {
       // `tale-sandbox-llm-gateway` can't bind :8080 ("port is already allocated") and the
       // whole bring-up fails. The flag is project-scoped and only removes
       // containers for services no longer defined ANYWHERE in the compose files —
-      // services defined-but-not-started here (platform/controller/proxy/docs) are
+      // services defined-but-not-started here (platform/proxy/docs) are
       // NOT orphans and stay put, and modern blue-green deploys run under their own
       // `…-blue`/`…-green` projects, so a live deploy is never touched.
       const up = (extra: string[]) =>
@@ -737,7 +680,7 @@ async function ensureDockerDependencies(): Promise<void> {
       // don't need a rebuild). Only a missing image (fresh checkout) falls through
       // to `--build`. The step is silent on success; the build firehose stays in
       // the ring and is dumped only if both attempts fail. A final failure is
-      // non-fatal — degrade to `[ ! ]` and continue (pure frontend/Convex work
+      // non-fatal — degrade to `[ ! ]` and continue (pure frontend work
       // doesn't need the backing services). Force a rebuild with `--build`
       // yourself, or `PULL_POLICY=build`, after changing a service Dockerfile.
       try {
@@ -758,38 +701,22 @@ async function ensureDockerDependencies(): Promise<void> {
   if (dockerUp) await waitForLlmGateway();
 }
 
-/** Probe the Better Auth HTTP surface (served by the Convex site proxy on
- *  :3211) until `/api/auth/ok` answers 200. This is a true end-to-end auth
- *  readiness check: it proves the http router is pushed AND the better-auth
+/** Probe the Better Auth surface until `/api/auth/ok` answers 200 — a true
+ *  end-to-end readiness check: it proves the routes are mounted AND the
  *  handler can execute with its env (BETTER_AUTH_SECRET etc.). On the FIRST
  *  run in a clean repo the browser used to race this bootstrap — the page's
- *  initial session/token fetches failed, the auth provider latched the
- *  failure, and the app sat in skeletons until a manual reload. Probing
- *  before Vite starts means the app is never reachable before auth is.
- *  Warn-and-continue on timeout: a genuinely broken auth route fails loudly
- *  in the browser anyway, and the client now retries transient failures. */
+ *  initial session fetch failed, the auth provider latched the failure, and
+ *  the app sat in skeletons until a manual reload. Probing before Vite starts
+ *  means the app is never reachable before auth is. Warn-and-continue on
+ *  timeout: a genuinely broken auth route fails loudly in the browser anyway,
+ *  and the client retries transient failures. */
 async function waitForAuthRoutes(
   timeoutMs = DEV_GATES.authOk.timeoutMs,
 ): Promise<void> {
-  const convexBase =
-    process.env.CONVEX_URL ||
-    `http://${DEFAULT_CONVEX_HOST}:${DEFAULT_CONVEX_PORT}`;
-  // Derive the Convex site-proxy origin (:3211) from CONVEX_URL. Parse with
-  // URL and set the port explicitly so a trailing slash or path on CONVEX_URL
-  // (e.g. `http://127.0.0.1:3210/`) can't defeat a `:\d+$` swap and leave the
-  // probe pointed at the backend port — which would block startup for the full
-  // timeout despite auth being healthy on :3211.
-  const siteBase =
-    process.env.CONVEX_SITE_PROXY_URL ||
-    (() => {
-      const u = new URL(convexBase);
-      u.port = '3211';
-      u.pathname = '';
-      u.search = '';
-      u.hash = '';
-      return u.toString();
-    })();
-  const url = `${siteBase.replace(/\/$/, '')}/api/auth/ok`;
+  const base = (
+    process.env.TALE_BACKEND_URL || 'http://127.0.0.1:3005'
+  ).replace(/\/$/, '');
+  const url = `${base}/api/auth/ok`;
   const deadline = Date.now() + timeoutMs;
   let lastError = 'no response yet';
   while (Date.now() < deadline) {
@@ -813,7 +740,7 @@ async function waitForAuthRoutes(
  *  unmistakable READY banner. This matters because (a) the log line printed
  *  just before spawning Vite only *promises* the URL — the socket isn't bound
  *  yet — and (b) under `turbo run dev` the platform is the MAIN app but the
- *  SLOWEST to start (it waits on the Convex pre-warm), coming up ~20-60s after
+ *  SLOWEST to start (it waits on the backend), coming up ~20-60s after
  *  the lighter web/docs servers print their own "Local: …" lines. Without a
  *  distinct post-bind signal, developers open :3000 too early, hit
  *  connection-refused, and assume it's broken. */
@@ -857,42 +784,32 @@ function killProcessTree(
 }
 
 export async function runDevFleet() {
-  // Phase 2 (split architecture): if CONVEX_EXTERNAL=true, the developer has
-  // a convex backend running externally (e.g., `docker compose up convex`).
-  // Skip spawning a local `bunx convex dev` and just run Vite with env sync.
-  // Accept any case-variant truthy value so CONVEX_EXTERNAL=1 / True / yes work.
-  const useExternalConvex = isTruthy(process.env.CONVEX_EXTERNAL);
-
   infoLine('Starting Tale dev environment');
-  if (useExternalConvex) {
-    infoLine(
-      `Using external Convex (${process.env.CONVEX_URL || 'http://127.0.0.1:3210'})`,
-    );
-  }
 
-  let convexProcess: ChildProcess | null = null;
+  let backendProcess: ChildProcess | null = null;
   let viteProcess: ChildProcess | null = null;
   let healthCheckTimer: ReturnType<typeof setInterval> | null = null;
   let shuttingDown = false;
   let restartCount = 0;
-  let convexReadyAt = 0;
+  let backendReadyAt = 0;
   let consecutiveFailures = 0;
   let restarting = false;
 
   // The restart/health DECISIONS live in the pure, tested reducers in
-  // `./convex-supervisor`; these two helpers snapshot the orchestrator's mutable
-  // state into the reducer and write the result back. `shuttingDown` is owned by
-  // `shutdown()` (the reducers only read it), so it is never written back here.
+  // `./backend-supervisor`; these two helpers snapshot the orchestrator's
+  // mutable state into the reducer and write the result back. `shuttingDown`
+  // is owned by `shutdown()` (the reducers only read it), so it is never
+  // written back here.
   const snapshot = (): SupervisorState => ({
     restartCount,
-    convexReadyAt,
+    backendReadyAt,
     consecutiveFailures,
     restarting,
     shuttingDown,
   });
   const applyState = (s: SupervisorState): void => {
     restartCount = s.restartCount;
-    convexReadyAt = s.convexReadyAt;
+    backendReadyAt = s.backendReadyAt;
     consecutiveFailures = s.consecutiveFailures;
     restarting = s.restarting;
   };
@@ -906,25 +823,6 @@ export async function runDevFleet() {
 
     envNormalizeCommon();
     deriveDevSecrets(process.env);
-    const deployment = process.env.CONVEX_DEPLOYMENT;
-    const hasLocalDeployment = deployment?.startsWith('anonymous:');
-    // A cloud deployment in env would override local dev — drop it (routine, no log).
-    if (deployment && !hasLocalDeployment) {
-      delete process.env.CONVEX_DEPLOYMENT;
-    }
-
-    // Run every local Convex CLI invocation in anonymous (local-only) mode.
-    // Besides skipping the cloud login flow, an explicit
-    // CONVEX_AGENT_MODE=anonymous also SUPPRESSES the CLI's repeated
-    //   "Run `npx convex login` at any time to create an account ..."
-    // hint — the CLI only prints that when this var is *not* 'anonymous'
-    // (see convex/src/cli/lib/init.ts). Setting it on process.env means the
-    // pre-warm, the spawned `convex dev`, env-sync and codegen all inherit it.
-    // We never force it in external mode — that backend may be a real
-    // cloud/self-hosted deployment where anonymous mode would be wrong.
-    if (!useExternalConvex) {
-      process.env.CONVEX_AGENT_MODE = 'anonymous';
-    }
 
     // Port + URL are fully resolved now (envNormalizeCommon set PORT/SITE_URL),
     // so derive the app's address from those — honouring PORT/SITE_URL
@@ -932,401 +830,167 @@ export async function runDevFleet() {
     const appPort = Number(process.env.PORT || '3000');
     const appUrl = process.env.SITE_URL || `http://localhost:${appPort}`;
 
-    // Fail fast (before the slow Convex pre-warm) if the app's port is taken —
-    // otherwise Vite silently moves to another port and every "${appUrl}"
-    // message we print becomes a lie.
+    // Fail fast if the app's port is taken — otherwise Vite silently moves to
+    // another port and every "${appUrl}" message we print becomes a lie.
     await assertPortFree(appPort);
 
-    // Heads up first, before any of the slow work: a cold start can take
-    // 30-90s (the Convex pre-warm dominates); the app stays unreachable until
-    // the READY banner below. Everything between "Starting" and here is silent,
-    // so this lands as the second line the developer sees.
-    infoLine(
-      `Cold start takes 30-90s — ${appUrl} won't load until the READY banner below.`,
-    );
-
     // Bring up the docker backing stack (gateway, sandbox, db, knowledge-db)
-    // WITH the dev overlays before Convex/Vite. Host bun dev runs Convex+Vite on
-    // the host but depends on these in docker; the LLM gateway in particular
-    // has no published port in base compose.yml, so without this an external
-    // agent turn dies with "fetch failed". Runs in BOTH local and external
-    // Convex modes; non-fatal if docker is absent (warns + continues).
+    // WITH the dev overlays before the backend and Vite. `bun dev` runs the
+    // backend + Vite on the HOST but depends on those in docker; the LLM
+    // gateway in particular has no published port in base compose.yml, so
+    // without this an external agent turn dies with "fetch failed".
+    // Non-fatal if docker is absent (warns + continues).
     await ensureDockerDependencies();
 
-    // Inherits CONVEX_AGENT_MODE=anonymous from process.env (set above) in
-    // local mode, so the spawned backend runs anonymous and stays quiet.
-    const convexEnv = { ...process.env };
+    // yt-dlp + deno + ffmpeg, resolved before the backend starts so their
+    // paths are in the environment it inherits (the ingest lane spawns them).
+    // Own step because a cold cache downloads two binaries.
+    await runStep(
+      { active: 'Provisioning video toolchain', done: 'Video toolchain ready' },
+      provisionVideoToolchain,
+    );
 
-    function spawnConvex() {
-      convexProcess = spawn('npx', ['convex', 'dev'], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        cwd: platformRoot,
-        env: convexEnv,
-      });
-      // Persistent server: surface milestones ("N functions ready") + errors,
-      // collapse the push/codegen/idle-watch noise.
-      pipeChild(convexProcess, {
-        label: 'convex',
-        classifier: convexClassifier,
+    const backendPort = Number(process.env.BACKEND_PORT || '3005');
+    process.env.TALE_BACKEND_URL ??= `http://127.0.0.1:${backendPort}`;
+
+    function spawnBackend() {
+      // The SAME entry the container runs (role `all`: api + worker in one
+      // process), so dev and prod exercise one boot path — including the
+      // node-loader that lets it import the shared pure modules unchanged.
+      backendProcess = spawn(
+        'node',
+        [
+          '--experimental-transform-types',
+          '--disable-warning=ExperimentalWarning',
+          '--import',
+          join(platformRoot, 'backend', 'node-loader.mjs'),
+          join(platformRoot, 'backend', 'main.ts'),
+        ],
+        {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          cwd: platformRoot,
+          env: { ...process.env, TALE_ROLE: 'all', PORT: String(backendPort) },
+        },
+      );
+      pipeChild(backendProcess, {
+        label: 'backend',
+        classifier: backendClassifier,
         mode: 'errors',
       });
-      convexProcess.on('exit', (code) => {
+      backendProcess.on('exit', (code) => {
         if (shuttingDown || restarting) return;
-        infoLine(`Convex exited with code ${code}`);
+        infoLine(`Backend exited with code ${code}`);
         void shutdown();
       });
     }
 
-    // E2E mitigation: on the shared 4-vCPU CI runner the local backend competes
-    // with Vite + the browser for CPU and blows its hard ~1s function timeout.
-    // Give `convex-local-backend` a scheduling-priority edge so its UDFs win the
-    // race. Best-effort and E2E/Linux-only — never blocks or fails the boot
-    // (renice needs CAP_SYS_NICE, available via passwordless sudo on GH runners;
-    // a no-op everywhere else). Pairs with the sub-hourly cron skip in crons.ts.
-    function prioritizeConvexForE2E() {
-      if (process.env.TALE_E2E !== '1' || process.platform !== 'linux') return;
-      try {
-        const found = spawnSync('pgrep', ['-f', 'convex-local-backend'], {
-          encoding: 'utf8',
-        });
-        const pids = (found.stdout ?? '')
-          .split('\n')
-          .map((line) => line.trim())
-          .filter(Boolean);
-        if (pids.length === 0) return;
-        spawnSync('sudo', ['-n', 'renice', '-n', '-10', '-p', ...pids], {
-          stdio: 'ignore',
-        });
-        // Raised Convex backend priority for E2E (routine, no log).
-      } catch {
-        // Best-effort only; starvation mitigation, not a correctness gate.
-      }
-    }
-
-    // Re-read the CLI-written .env.local and back-fill CONVEX_DEPLOYMENT /
-    // CONVEX_URL / CONVEX_SITE_PROXY_URL (see adoptCliEndpoints in dev-modes:
-    // a fresh checkout beside another stack gets NON-default ports, and the
-    // probes + Vite proxy would otherwise silently target the neighbour).
-    function adoptCliEndpointsFromEnvLocal() {
-      adoptCliEndpoints(
-        process.env,
-        parseDotEnv(join(platformRoot, '.env.local')),
-      );
-    }
-
-    async function waitForConvex() {
-      if (!useExternalConvex) adoptCliEndpointsFromEnvLocal();
-      const target = probeTarget();
+    async function waitForBackend() {
       try {
         await runCommand('bunx', [
           'wait-on',
-          `tcp:${target.host}:${target.port}`,
+          `tcp:127.0.0.1:${backendPort}`,
           '--timeout',
-          String(DEV_GATES.convexTcp.timeoutMs),
+          String(DEV_GATES.backendTcp.timeoutMs),
           '--interval',
           '250',
         ]);
       } catch (err) {
-        // Re-throw with a clearer message for the external case so the
-        // developer immediately understands which target failed.
         throw new Error(
-          useExternalConvex
-            ? `External Convex backend at ${target.url} is not reachable. Is it running? (set CONVEX_URL to override.) Underlying: ${err instanceof Error ? err.message : String(err)}`
-            : `Local Convex backend at ${target.host}:${target.port} did not start within 180s. Underlying: ${err instanceof Error ? err.message : String(err)}`,
+          `The backend did not start on 127.0.0.1:${backendPort} in time. Is another one holding the port (lsof -i :${backendPort}), or is the database unreachable? Underlying: ${err instanceof Error ? err.message : String(err)}`,
           { cause: err },
         );
       }
-      applyState(onConvexReady(snapshot(), Date.now()));
-      prioritizeConvexForE2E();
+      applyState(onBackendReady(snapshot(), Date.now()));
     }
 
-    async function restartConvex() {
-      const plan = planRestart(snapshot(), Date.now(), {
-        external: useExternalConvex,
-      });
+    async function restartBackend() {
+      const plan = planRestart(snapshot(), Date.now());
       if (plan.action === 'noop') return;
-      if (plan.action === 'noop-external') {
-        // We don't own the external backend's process; restart is a no-op.
-        warnLine(
-          'External Convex appears unreachable; cannot restart it from here. Check the external backend and re-run `tale dev` / `bun run dev` if needed.',
-        );
-        return;
-      }
       applyState(plan.state);
 
       if (plan.action === 'shutdown-cap') {
         errorLine(
-          `Convex failed ${MAX_AUTO_RESTARTS} times in quick succession, shutting down`,
+          `The backend failed ${MAX_AUTO_RESTARTS} times in quick succession, shutting down`,
         );
         void shutdown();
         return;
       }
 
-      // plan.action === 'restart'
       warnLine(
-        `Convex unresponsive, restarting (attempt ${restartCount}/${MAX_AUTO_RESTARTS})`,
+        `Backend unresponsive, restarting (attempt ${restartCount}/${MAX_AUTO_RESTARTS})`,
       );
-
       try {
-        await killProcessTree(convexProcess, 'SIGKILL');
-        spawnConvex();
-        await waitForConvex();
-        doneLine('Convex recovered');
+        await killProcessTree(backendProcess, 'SIGKILL');
+        spawnBackend();
+        await waitForBackend();
+        doneLine('Backend recovered');
       } catch (err) {
         errorLine(
-          `Convex failed to recover: ${err instanceof Error ? err.message : String(err)}`,
+          `Backend failed to recover: ${err instanceof Error ? err.message : String(err)}`,
         );
         applyState(onRestartSettled(snapshot()));
         void shutdown();
         return;
       }
-
       applyState(onRestartSettled(snapshot()));
     }
 
     function startHealthCheck() {
-      const target = probeTarget();
       healthCheckTimer = setInterval(async () => {
         // Don't even probe while a restart/shutdown is in flight (the reducer
         // would also no-op, but skipping the probe avoids a redundant socket).
         if (shuttingDown || restarting) return;
 
         const alive = await tcpProbe(
-          target.host,
-          target.port,
+          '127.0.0.1',
+          backendPort,
           HEALTH_CHECK_TIMEOUT_MS,
         );
         const childAlive = !(
-          convexProcess?.killed || convexProcess?.exitCode != null
+          backendProcess?.killed || backendProcess?.exitCode != null
         );
-
-        const tick = onHealthTick(snapshot(), {
-          alive,
-          childAlive,
-          external: useExternalConvex,
-        });
+        const tick = onHealthTick(snapshot(), { alive, childAlive });
         applyState(tick.state);
 
         if (tick.action === 'warn') {
           warnLine(
-            `Convex health check failed at ${target.host}:${target.port} (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`,
+            `Backend health check failed on :${backendPort} (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`,
           );
         } else if (tick.action === 'restart') {
           warnLine(
-            `Convex health check failed at ${target.host}:${target.port} (${MAX_CONSECUTIVE_FAILURES}/${MAX_CONSECUTIVE_FAILURES})`,
+            `Backend health check failed on :${backendPort} (${MAX_CONSECUTIVE_FAILURES}/${MAX_CONSECUTIVE_FAILURES})`,
           );
-          void restartConvex();
+          void restartBackend();
         }
       }, HEALTH_CHECK_INTERVAL_MS);
 
       healthCheckTimer.unref();
     }
 
-    if (useExternalConvex) {
-      await runStep(
-        {
-          active: 'Connecting to external Convex',
-          done: 'Connected to external Convex',
-        },
-        () => waitForConvex(),
-      );
-    } else {
-      // Make Convex `node.externalPackages` resolvable from
-      // services/platform/node_modules (they're hoisted to the repo root in
-      // this bun workspace, where Convex's bundler can't find them). Without
-      // this the heavy node-only libs get bundled inline and the push fails
-      // (canvas.node / jsdom default-stylesheet / module-size). Idempotent.
-      try {
-        await runCommand('bun', ['scripts/link-convex-externals.ts']);
-      } catch (err) {
-        warnLine(
-          `Failed to link Convex external packages; the push may fail. Underlying: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-
-      // Non-essential prune/snapshot cleanup must never block backend bring-up,
-      // but a missing live module blob is fatal — continuing would boot into
-      // the half-dead state (chat/crons InternalServerError + WS drop).
-      // Gate on the typed `integrityError` field (not a message substring) so a
-      // wording change cannot demote the fatal path to a warn.
-      let maintenance: ReturnType<typeof runConvexLocalMaintenance> | null =
-        null;
-      try {
-        maintenance = runConvexLocalMaintenance(platformRoot);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        warnLine(`Convex local maintenance skipped (non-fatal): ${msg}`);
-      }
-      if (maintenance?.integrityError) {
-        throw new Error(maintenance.integrityError);
-      }
-      if (maintenance?.warning) {
-        warnLine(maintenance.warning);
-      }
-      if (maintenance?.message) {
-        infoLine(maintenance.message);
-      }
-
-      // One live line for the whole backend bring-up: the `npx convex dev
-      // --once` pre-warm (binary download, SQLite bootstrap, migrations,
-      // function push) then the persistent `convex dev` + a port-ready wait.
-      // `npx` (not `bunx`) runs the CLI under Node — Bun's timing quirks can
-      // blow the CLI's 30s port-ready window even when it's coming up fine.
-      await runStep(
-        { active: 'Starting Convex backend', done: 'Convex backend started' },
-        async () => {
-          try {
-            await runCommand(
-              'npx',
-              ['convex', 'dev', '--once'],
-              {},
-              platformRoot,
-              { label: 'convex', classifier: convexClassifier },
-            );
-          } catch (err) {
-            throw new Error(
-              `Convex preflight (npx convex dev --once) failed. This usually means a stale backend is holding port 3210, or the local deployment state is corrupt. Try: lsof -i :3210 and kill any leftover 'convex-local-backend' processes. Underlying: ${err instanceof Error ? err.message : String(err)}`,
-              { cause: err },
-            );
-          }
-          spawnConvex();
-          await waitForConvex();
-        },
-      );
-    }
-
-    // Re-read .env.local in case `convex dev` wrote it after our initial
-    // loadEnvFiles() call (happens on first run with a fresh DB) — picks up
-    // CONVEX_DEPLOYMENT and the CLI-allocated backend endpoints. Idempotent
-    // with the adoption inside waitForConvex (external mode skips that one).
-    adoptCliEndpointsFromEnvLocal();
-
-    // Load the local deployment's admin key now that `convex dev` has written
-    // it — enables the WebDAV /dav/* route in dev. External backends supply
-    // ADMIN_KEY via .env instead (no local config file to read).
-    if (!useExternalConvex) {
-      ensureLocalAdminKey();
-    }
-
-    // Download/resolve yt-dlp + deno + ffmpeg before the env sync so their paths
-    // are in process.env when the explicit-key loop below pushes them to Convex.
-    // Own step (own progress line) because a cold cache downloads two binaries.
+    // One live line for the whole backend bring-up: boot migrations run
+    // inside the process (advisory-locked), so "listening" is the ready
+    // signal.
     await runStep(
-      {
-        active: 'Provisioning video toolchain',
-        done: 'Video toolchain ready',
+      { active: 'Starting backend', done: 'Backend started' },
+      async () => {
+        spawnBackend();
+        await waitForBackend();
       },
-      provisionVideoToolchain,
     );
-
-    try {
-      await runStep(
-        {
-          active: 'Syncing environment to Convex',
-          done: 'Environment synced to Convex',
-        },
-        async () => {
-          await runCommand(
-            'bun',
-            ['scripts/sync-convex-env-from-dotenv.ts'],
-            {},
-            platformRoot,
-            { label: 'env' },
-          );
-
-          // Sync the orchestrator-managed keys explicitly — each is set
-          // dynamically (envNormalizeCommon / provisionVideoToolchain), not in
-          // any .env file, and Convex reads them from the deployment env (else
-          // new-org seeding falls back to the live `default` org, and the video
-          // node action can't find yt-dlp/ffmpeg → chat video links fail).
-          for (const key of [
-            'TALE_CONFIG_DIR',
-            'TALE_CONFIG_BUILTIN_DIR',
-            'VIDEO_INGEST_BIN_DIR',
-            'VIDEO_INGEST_FFMPEG_LOCATION',
-            'VIDEO_INGEST_YTDLP_PLUGIN_DIRS',
-          ]) {
-            const value = process.env[key];
-            if (value) {
-              await runCommand(
-                'npx',
-                ['convex', 'env', 'set', `${key}=${value}`],
-                {},
-                platformRoot,
-                { label: 'convex', classifier: convexClassifier },
-              );
-            }
-          }
-        },
-      );
-    } catch (err) {
-      warnLine(
-        `Env sync had errors: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-
-    // The pre-warm (`convex dev --once`) and the persistent `convex dev` both
-    // write convex/_generated/, so a separate `convex codegen` is normally
-    // redundant (and env vars don't affect generated types). Only run it as a
-    // fallback if the generated output is somehow missing.
-    const generatedApi = join(platformRoot, 'convex', '_generated', 'api.d.ts');
-    if (!existsSync(generatedApi)) {
-      await runStep(
-        { active: 'Generating Convex types', done: 'Convex types generated' },
-        () =>
-          runCommand('npx', ['convex', 'codegen'], {}, platformRoot, {
-            label: 'convex',
-            classifier: convexClassifier,
-          }),
-      );
-    }
 
     await runStep(
       { active: 'Waiting for auth routes', done: 'Auth routes ready' },
       () => waitForAuthRoutes(),
     );
 
-    // Preserve any existing CONVEX_URL the user set (external mode); only
-    // synthesize one for local mode where we own the spawned backend.
-    const convexUrl =
-      process.env.CONVEX_URL ||
-      process.env.NEXT_PUBLIC_CONVEX_URL ||
-      `http://${DEFAULT_CONVEX_HOST}:${DEFAULT_CONVEX_PORT}`;
-    process.env.CONVEX_URL = convexUrl;
-    // CONVEX_URL set for the Vite proxy (routine, no log).
-
-    // #2631 mitigation: a rare local-backend boot race leaves the node action
-    // executor unable to resolve its own extracted module while the backend
-    // otherwise looks healthy (TCP up, auth OK) — nothing above this point
-    // catches it, so a broken boot used to only surface ~15 minutes later as
-    // opaque per-spec retries. Probe BEFORE Vite binds its port: Playwright's
-    // webServer only watches the port, so failing (and exiting) here — instead
-    // of after Vite is already reachable — is what turns this into an
-    // immediate boot failure rather than a race with the first spec. E2E-only
-    // (TALE_E2E, set by playwright.config.ts's webServer): `bun run dev`
-    // shouldn't pay this extra round-trip. Root cause is NOT this probe's
-    // job — see the issue for the boot-sequence investigation notes.
-    if (isTruthy(process.env.TALE_E2E)) {
-      await runStep(
-        { active: 'Probing node executor', done: 'Node executor healthy' },
-        () =>
-          probeNodeExecutor({
-            convexUrl,
-            timeoutMs: DEV_GATES.nodeExecutor.timeoutMs,
-          }),
-      );
-    }
-
     const port = String(appPort);
 
     // Prod-build serve mode (E2E): serve a production build via `vite preview`
     // instead of the dev server. `vite dev` transpiles on the fly, which is the
-    // dominant CPU consumer — on the 4-vCPU CI runner it starved the local
-    // Convex backend hard enough to blow its 1s function-execution timeout in
-    // floods and flake the suite. A pre-built `dist/` removes that load: preview
-    // just serves static assets and proxies Convex (see vite.config.ts
-    // `preview.proxy` + the plugins' `configurePreviewServer` hooks). Gated to
-    // E2E so `bun run dev` keeps its HMR loop.
+    // dominant CPU consumer on a small CI runner; a pre-built `dist/` removes
+    // that load (preview just serves static assets and proxies the backend —
+    // see vite.config.ts `preview.proxy`). Gated to E2E so `bun run dev` keeps
+    // its HMR loop.
     const serveBuild = isTruthy(process.env.TALE_E2E_SERVE_BUILD);
 
     if (serveBuild) {
@@ -1346,9 +1010,9 @@ export async function runDevFleet() {
       } else {
         infoLine('Reusing existing dist/ (skipping vite build)');
       }
-      // No `--bun`: preview proxies Convex (preview.proxy in vite.config.ts),
-      // and Vite 7's proxy calls `socket.destroySoon`, which Bun 1.3.x's
-      // runtime lacks — the same reason `vite dev` runs on Node below.
+      // No `--bun`: preview proxies the backend, and Vite 7's proxy calls
+      // `socket.destroySoon`, which Bun 1.3.x's runtime lacks — the same
+      // reason `vite dev` runs on Node below.
       viteProcess = spawn(
         'bun',
         [
@@ -1372,12 +1036,11 @@ export async function runDevFleet() {
         mode: 'errors',
       });
     } else {
-      // Run Vite on Node.js (no --bun flag): Bun 1.3.x lacks socket.destroySoon,
-      // which Vite 7's dev proxy requires. Build/preview still use --bun.
-      // `--strictPort`: if 3000 is taken, FAIL loudly instead of silently moving
-      // to the next free port (which would break SITE_URL, the Convex proxy, and
-      // every "localhost:3000" message). The assertPortFree() preflight above
-      // catches this earlier with a friendlier message; this is the safety net.
+      // Run Vite on Node.js (no --bun flag): Bun 1.3.x lacks
+      // socket.destroySoon, which Vite 7's dev proxy requires. Build/preview
+      // still use --bun. `--strictPort`: if 3000 is taken, FAIL loudly instead
+      // of silently moving to the next free port (which would break SITE_URL,
+      // the proxy, and every "localhost:3000" message).
       viteProcess = spawn(
         'bun',
         ['vite', 'dev', '--port', port, '--strictPort', '--host', '0.0.0.0'],
@@ -1415,7 +1078,7 @@ export async function runDevFleet() {
       forceExit.unref();
 
       await Promise.all([
-        killProcessTree(convexProcess, 'SIGTERM'),
+        killProcessTree(backendProcess, 'SIGTERM'),
         killProcessTree(viteProcess, 'SIGTERM'),
       ]);
 

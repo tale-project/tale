@@ -12,7 +12,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { convexErrorCode } from '@/lib/utils/convex-error';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useCreateWebsite } from '../hooks/mutations';
 
@@ -193,7 +193,7 @@ export function AddWebsiteDialog({
         onError: (error) => {
           console.error('Failed to add website:', error);
           const isDuplicate =
-            convexErrorCode(error) === 'WEBSITE_DUPLICATE_DOMAIN';
+            backendErrorCode(error) === 'WEBSITE_DUPLICATE_DOMAIN';
           toast({
             title: isDuplicate
               ? tWebsites('toast.addErrorDuplicate')

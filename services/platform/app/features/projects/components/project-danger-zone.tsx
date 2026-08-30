@@ -13,7 +13,6 @@ import { AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { ProjectDeleteDialog } from './project-delete-dialog';
@@ -27,7 +26,7 @@ export function ProjectDangerZone({
   projectName,
 }: {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   projectName: string;
 }) {
   const { t } = useT('projects');

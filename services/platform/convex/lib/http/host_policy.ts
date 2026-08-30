@@ -18,8 +18,7 @@
  * with a `lookup` callback.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { isPrivateIp } from './safe_fetch';
 
 /**
@@ -42,7 +41,7 @@ export function checkProviderHostPolicy(rawUrl: string): URL {
   try {
     parsed = new URL(rawUrl);
   } catch {
-    throw new ConvexError({
+    throw new AppError({
       code: 'INVALID_URL',
       message: `Invalid URL: ${rawUrl}`,
     });
@@ -55,7 +54,7 @@ export function checkProviderHostPolicy(rawUrl: string): URL {
     .replace(/^\[|\]$/g, '')
     .replace(/\.$/, '');
   if (BLOCKED_METADATA_HOSTS.has(host)) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'BLOCKED_HOST',
       message: `Host "${host}" is blocked (cloud metadata endpoint).`,
     });
@@ -64,7 +63,7 @@ export function checkProviderHostPolicy(rawUrl: string): URL {
     isPrivateIp(host) &&
     process.env.TALE_ALLOW_PRIVATE_PROVIDER_HOSTS !== '1'
   ) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'PRIVATE_HOST_BLOCKED',
       message:
         `Host "${host}" is a private/loopback address and is blocked. ` +

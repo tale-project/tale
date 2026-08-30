@@ -3,8 +3,8 @@
  */
 
 import type { MemberRole } from '../../../../lib/shared/schemas/organizations';
-import { components } from '../../../_generated/api';
-import type { QueryCtx } from '../../../_generated/server';
+import type { QueryCtx } from '../../ctx';
+import { components } from '../../handler_names';
 import { getTrustedAuthData } from '../auth/get_trusted_auth_data';
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
 import type { AuthenticatedUser, OrganizationMember } from '../types';

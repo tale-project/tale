@@ -1,6 +1,5 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
 /**
  * Read hooks for the connectors settings page. Credentials come from a
@@ -14,14 +13,14 @@ import { api } from '@/convex/_generated/api';
 export function useConnectors(organizationId: string) {
   return useActionQuery(
     ['connectors', 'connectors', organizationId],
-    api.connector_credentials.connector_catalog.listConnectors,
+    'connector_credentials/connector_catalog:listConnectors',
     { organizationId },
   );
 }
 
 /** Every connector credential of the organization, masked. */
 export function useConnectorCredentials(organizationId: string) {
-  return useConvexQuery(api.connector_credentials.queries.listCredentials, {
+  return useBackendQuery('connector_credentials/queries:listCredentials', {
     organizationId,
   });
 }

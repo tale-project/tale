@@ -11,13 +11,12 @@
  * operators through the notification bell.
  */
 
-import { useConvex } from 'convex/react';
 import { AlertTriangle, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import { requestUsageCreditsRequest } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -31,7 +30,6 @@ function formatAmount(code: string, value: number): string {
 
 export function BudgetBanner({ organizationId }: { organizationId: string }) {
   const { t } = useT('chat');
-  const convex = useConvex();
   const teamFilter = useOptionalTeamFilter();
   const { data: budgetStatus } = useMyBudgetStatus(
     organizationId,
@@ -60,12 +58,9 @@ export function BudgetBanner({ organizationId }: { organizationId: string }) {
   if (!exceeded && (dismissed || !budgetStatus.warnings?.length)) return null;
 
   const requestCredits = () => {
-    if (requested || !convex) return;
+    if (requested) return;
     setRequested(true);
-    convex
-      .mutation(api.governance.mutations.requestUsageCredits, {
-        organizationId,
-      })
+    requestUsageCreditsRequest(organizationId)
       .then((sent) => {
         if (sent) {
           toast({ title: t('budgetRequestCreditsSent') });

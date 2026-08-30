@@ -12,10 +12,15 @@ import type { ChatMessageView } from '../types';
 const voiceUsage = vi.hoisted(() => ({ current: undefined as unknown }));
 
 vi.mock('../data/chat-backend', () => ({
-  useChatQuery: (_fn: unknown, args: unknown) =>
-    args === 'skip'
-      ? { status: 'loading' }
-      : { status: 'ready', data: voiceUsage.current ?? null },
+  useChatQueryClient: () => ({}) as never,
+}));
+// The voice-usage read is HTTP now; feed it through react-query's mock.
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQuery: (options: { enabled?: boolean }) =>
+    options.enabled === false
+      ? { data: undefined }
+      : { data: voiceUsage.current ?? null },
 }));
 
 import { MessageInfoDialog } from './message-info-dialog';
@@ -141,6 +146,7 @@ describe('MessageInfoDialog', () => {
       <MessageInfoDialog
         message={MESSAGE}
         threadId="t-1"
+        organizationId="org-1"
         open
         onOpenChange={vi.fn()}
       />,

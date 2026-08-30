@@ -1,10 +1,9 @@
-import { ConvexError } from 'convex/values';
-
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import { AppError } from '../../lib/shared/errors/app-error';
 import { emitAuditSuccess } from '../audit_logs/emit';
+import type { MutationCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
+import type { Id } from '../lib/rows';
 import { validateConversationAttachmentCaps } from './attachments';
 import { buildThreadingHeaders } from './build_threading_headers';
 import { inboundRecipientAddress } from './reply_from';
@@ -55,14 +54,14 @@ export async function sendMessageViaConnector(
 
   const conversation = await ctx.db.get(args.conversationId);
   if (!conversation) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_not_found',
       message: 'Conversation not found',
     });
   }
 
   if (conversation.organizationId !== args.organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'conversation_org_mismatch',
       message: 'Conversation does not belong to organization',
     });
@@ -183,7 +182,7 @@ export async function sendMessageViaConnector(
   await ctx.db.patch(messageId, {
     metadata: {
       ...messageMetadata,
-      scheduledSendId: String(scheduledSendId),
+      scheduledSendId,
     },
   });
 
@@ -233,10 +232,10 @@ export async function sendMessageViaConnector(
     action: 'send_message_via_connector',
     category: 'data',
     resourceType: 'conversationMessage',
-    resourceId: String(messageId),
+    resourceId: messageId,
     resourceName: args.subject,
     newState: {
-      conversationId: String(args.conversationId),
+      conversationId: args.conversationId,
       connectorName: args.connectorName,
       to: args.to,
       subject: args.subject,

@@ -3,7 +3,8 @@
  *
  * `tale deploy` recreates the single sandbox spawner in-place on a version
  * change (the tier dropped blue-green — it's now one container,
- * `tale-<proj>-sandbox`, rolled in place via the stateful compose like convex).
+ * `tale-<proj>-sandbox`, rolled in place via the stateful compose like the
+ * backend tier).
  * The recreate restarts the spawner and would SIGKILL its in-flight one-shot
  * executions. `drainSandbox` tells the spawner to refuse NEW work (POST
  * /v1/drain; spawner_client retries land on the restarted spawner) and waits
@@ -11,8 +12,8 @@
  *
  * The control channel is `docker exec <sandbox-container> curl localhost:8003`
  * — the spawner is not host-exposed, and `docker exec` implies host-root.
- * Mirrors the convex tier's drain (drain-convex.ts), which uses `bunx convex
- * run` through the platform container instead.
+ * Mirrors the backend tier's drain (drain-backend.ts), which reaches its own
+ * control door through the api container instead.
  *
  * Best-effort by design: an older spawner that predates the drain endpoint, a
  * spawner that isn't running yet (first deploy), or any transient error just

@@ -1,5 +1,5 @@
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 
 // Error messages carry Graph/AADSTS response bodies and stack fragments; cap the
 // audited length so one row can't balloon (the chain hashes every field).

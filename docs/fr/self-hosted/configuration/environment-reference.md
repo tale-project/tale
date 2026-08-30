@@ -128,15 +128,6 @@ Bascules optionnelles pour des fonctionnalités non activées par défaut. Chaqu
 | `FILE_EVENTS_ENABLED`           | `false`    | Active les événements de surveillance de fichiers pour le connector OneDrive-sync.                                                                                                   |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS` | non défini | Allowlist de courriels (séparés par des virgules) des opérateurs autorisés à modifier la résidence des données du déploiement. Vide/non défini = lecture seule pour tous les admins. |
 
-## Contrôleur de redémarrage
-
-Le sidecar `controller`, à activer explicitement, alimente le bouton en un clic **Appliquer & redémarrer** de la page [Résidence des données](/fr/self-hosted/configuration/data-residency) : il redémarre le conteneur `convex` après un changement de configuration, pour que la plateforme exposée au navigateur n'ait jamais besoin d'accéder au socket Docker. Active-le avec `docker compose --profile controller up -d`, puis définis les deux variables ci-dessous. Laisse-les non définies pour continuer à redémarrer `convex` à la main.
-
-| Nom                | Défaut     | Description                                                                                                                                                                                                                                           |
-| ------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CONTROLLER_TOKEN` | non défini | Secret HMAC partagé pour **Appliquer & redémarrer**. Le `controller` refuse de démarrer sans lui, et la plateforme signe chaque requête de redémarrage avec lui — les deux valeurs doivent correspondre. Génère-le avec `openssl rand -hex 32`.       |
-| `CONTROLLER_URL`   | non défini | URL de base que la plateforme utilise pour joindre le sidecar `controller` (p. ex. `http://controller:8004` sur le réseau interne). Si celle-ci ou `CONTROLLER_TOKEN` est non définie, **Appliquer & redémarrer** montre plutôt la commande manuelle. |
-
 ## Réglage du retrieval RAG
 
 Réglages optionnels pour la recherche dans la base de connaissances. Le chemin RAG en in-process (node-actions Convex) re-note les résultats avec un cross-encoder quand le re-ranking est activé. Tous portent le préfixe `RAG_` et sont lus par les conteneurs `platform` et `convex` au boot ; après un changement, lance `docker compose restart platform convex` pour qu'il prenne effet.

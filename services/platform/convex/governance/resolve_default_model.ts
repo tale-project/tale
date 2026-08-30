@@ -1,10 +1,8 @@
-import type { GenericQueryCtx } from 'convex/server';
-
 import type {
   DefaultModelsConfig,
   DefaultModelRule,
 } from '../../lib/shared/schemas/governance';
-import type { DataModel } from '../_generated/dataModel';
+import type { QueryCtx } from '../lib/ctx';
 import { readPolicyConfig } from './helpers';
 import { checkModelAccess } from './model_access_enforcement';
 
@@ -17,7 +15,7 @@ interface DefaultModelOverride {
  * Find the most specific model rule that applies.
  * Priority: team > role > default
  */
-function findApplicableModelRule(
+export function findApplicableModelRule(
   rules: DefaultModelRule[],
   teamIds: string[],
   userRole?: string,
@@ -46,7 +44,7 @@ function findApplicableModelRule(
  * model that will be rejected downstream).
  */
 export async function resolveDefaultModel(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   userId: string,
   teamIds: string[],

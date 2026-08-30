@@ -24,19 +24,19 @@
  * only failure classes and actionable hints.
  */
 
-import { ConvexError } from 'convex/values';
 import { z } from 'zod/v4';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   BROKER_SECRET_ENV_REGEX,
   brokerCredentialDataSchema,
   SECRETS_ENV_REGEX,
   type BrokerCredentialData,
 } from '../../lib/shared/schemas/providers';
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
+import type { Id } from '../lib/rows';
 import {
   decryptSecret,
   KeyRotatedError,
@@ -122,10 +122,10 @@ export type ResolvedProviderCredential =
       readonly endpointUrl?: string;
     };
 
-type CredentialError = ConvexError<{ code: string; message: string }>;
+type CredentialError = AppError<{ code: string; message: string }>;
 
 function credentialError(code: string, message: string): CredentialError {
-  return new ConvexError({ code, message });
+  return new AppError({ code, message });
 }
 
 /** Decrypt with the rotation mismatch mapped to an actionable refusal. */
@@ -150,11 +150,10 @@ async function loadRow(
   args: ResolveCredentialArgs,
 ): Promise<CredentialRow> {
   if (args.credentialId !== undefined) {
-    const row = (await ctx.runQuery(
+    const row: CredentialRow | null = await ctx.runQuery(
       internal.provider_credentials.queries.getCredentialInternal,
       { credentialId: args.credentialId },
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the internal query returns the full row as v.any(); this names its shape
-    )) as CredentialRow | null;
+    );
     if (!row || row.organizationId !== args.organizationId) {
       throw credentialError('CREDENTIAL_NOT_FOUND', 'Credential not found.');
     }
@@ -166,14 +165,13 @@ async function loadRow(
     }
     return row;
   }
-  const fallback = (await ctx.runQuery(
+  const fallback: CredentialRow | null = await ctx.runQuery(
     internal.provider_credentials.queries.getDefaultCredentialInternal,
     {
       organizationId: args.organizationId,
       providerSlug: args.providerSlug,
     },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the internal query returns the full row as v.any(); this names its shape
-  )) as CredentialRow | null;
+  );
   if (!fallback) {
     throw credentialError(
       'CREDENTIAL_NONE_CONFIGURED',
@@ -255,7 +253,7 @@ async function resolveBroker(
       JSON.parse(decryptOrExplain(row, row.encryptedData)),
     );
   } catch (err) {
-    if (err instanceof ConvexError) throw err;
+    if (err instanceof AppError) throw err;
     if (err instanceof z.ZodError || err instanceof SyntaxError) {
       throw shapeError(row);
     }

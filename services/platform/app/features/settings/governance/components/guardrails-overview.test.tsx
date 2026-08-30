@@ -35,8 +35,8 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({
     data: state.isLoading ? undefined : state.events,
     isLoading: state.isLoading,
   }),

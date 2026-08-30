@@ -1,6 +1,5 @@
-import { anyApi } from 'convex/server';
-
-import { convexErrorCode } from '../errors';
+import { anyRefs } from '../../shared/handlers/function-refs';
+import { backendErrorCode } from '../errors';
 import { checkCollectionDescendantLocks, checkResourceLock } from '../locks';
 import { lockKeyFromParsed } from '../paths';
 import type {
@@ -38,7 +37,7 @@ export async function handleDelete(
   }
 
   const resolved = await ctx.convex.query(
-    anyApi.webdav.tree_queries.resolvePath,
+    anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
       namespace: parsed.namespace,
@@ -52,7 +51,7 @@ export async function handleDelete(
   try {
     if (resolved.kind === 'document') {
       await ctx.convex.mutation(
-        anyApi.webdav.tree_mutations.softDeleteDocument,
+        anyRefs.webdav.tree_mutations.softDeleteDocument,
         {
           organizationId: auth.organizationId,
           documentId: resolved.documentId,
@@ -76,7 +75,7 @@ export async function handleDelete(
         };
       }
       await ctx.convex.mutation(
-        anyApi.webdav.tree_mutations.deleteFolderCascade,
+        anyRefs.webdav.tree_mutations.deleteFolderCascade,
         {
           organizationId: auth.organizationId,
           folderId: resolved.folderId,
@@ -84,7 +83,7 @@ export async function handleDelete(
       );
     }
   } catch (err) {
-    const code = convexErrorCode(err);
+    const code = backendErrorCode(err);
     if (code === 'LEGAL_HOLD_ACTIVE') {
       // The org or a descendant doc's author is on a legal hold — refuse.
       // 403, not 423 (a legal hold is not a client-clearable WebDAV lock).
@@ -116,7 +115,7 @@ export async function handleDelete(
   // lock row(s) for this path and any descendants so a stale lock can't
   // 423 a later recreate of the same name.
   await ctx.convex
-    .mutation(anyApi.webdav.lock_mutations.deleteLocksUnderPath, {
+    .mutation(anyRefs.webdav.lock_mutations.deleteLocksUnderPath, {
       organizationId: auth.organizationId,
       resourcePath: lockKeyFromParsed(parsed),
     })

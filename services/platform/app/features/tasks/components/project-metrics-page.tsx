@@ -28,7 +28,6 @@ import {
 } from '@/app/components/metrics/metrics-period';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 interface ProjectMetricsDay {
@@ -125,7 +124,7 @@ function shortDay(dateKey: string): string {
 interface ProjectMetricsPageProps {
   /** Kept in the contract for the rollup rebuild — the page currently has no
    *  per-project data source to feed it to (see the component comment). */
-  projectId: Id<'projects'>;
+  projectId: string;
   periodDays: MetricsPeriodDays;
   onChangePeriod: (period: MetricsPeriodDays) => void;
   /** The host's scope picker (the project select on Settings → Metrics →

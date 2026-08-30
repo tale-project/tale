@@ -10,14 +10,13 @@ import { useForm } from '@/app/components/ui/forms/use-form';
 import { useCreateFolder } from '@/app/features/documents/hooks/mutations';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useToast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 interface ProjectCreateFolderDialogProps {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   /** Create inside this folder; omitted = at the project root. */
-  parentFolderId?: Id<'folders'>;
+  parentFolderId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

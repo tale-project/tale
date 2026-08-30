@@ -21,11 +21,9 @@ import {
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import type {
   CrawlerChunk,
   CrawlerPage,
@@ -38,7 +36,7 @@ const PAGE_SIZE = 20;
 interface WebsitePagesDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  websiteId: Id<'websites'>;
+  websiteId: string;
   websiteDomain: string;
 }
 
@@ -59,14 +57,14 @@ function PageRow({
   websiteId,
 }: {
   page: CrawlerPage;
-  websiteId: Id<'websites'>;
+  websiteId: string;
 }) {
   const { t } = useT('websites');
   const { formatDate } = useFormatDate();
   const [chunks, setChunks] = useState<CrawlerChunk[] | null>(null);
 
-  const { mutate: fetchChunks, isPending } = useConvexAction(
-    api.websites.actions.fetchChunks,
+  const { mutate: fetchChunks, isPending } = useBackendAction(
+    'websites/actions:fetchChunks',
     {
       onSuccess: (data) => setChunks(data.chunks),
     },
@@ -202,8 +200,8 @@ export function WebsitePagesDialog({
 
   const isSearchMode = activeQuery.length > 0;
 
-  const { mutate: fetchPages, isPending } = useConvexAction(
-    api.websites.actions.fetchPages,
+  const { mutate: fetchPages, isPending } = useBackendAction(
+    'websites/actions:fetchPages',
     {
       errorToast: false,
       onSuccess: (data) => {
@@ -222,8 +220,8 @@ export function WebsitePagesDialog({
     },
   );
 
-  const { mutate: searchContent } = useConvexAction(
-    api.websites.actions.searchContent,
+  const { mutate: searchContent } = useBackendAction(
+    'websites/actions:searchContent',
     {
       errorToast: false,
       onSuccess: (data) => {

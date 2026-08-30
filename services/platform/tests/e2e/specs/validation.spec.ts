@@ -1,6 +1,6 @@
 import { type Locator, type Page } from '@playwright/test';
 
-import { TIMEOUT } from '../helpers/env';
+import { ENTITY_ID, TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
 
@@ -58,7 +58,7 @@ test.describe('validation — project delete confirmation gating', () => {
       .fill(projectName);
     await dialogButton(createDialog, t('projects.create.submit')).click();
     await page.waitForURL(
-      new RegExp(`/dashboard/${organizationId}/projects/[A-Za-z0-9]{16,}`),
+      new RegExp(`/dashboard/${organizationId}/projects/${ENTITY_ID}`),
       { timeout: TIMEOUT.NAV },
     );
 

@@ -4,7 +4,6 @@ import { Row, VStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useQuery } from 'convex/react';
 import {
   AudioLines,
   Code2,
@@ -23,8 +22,7 @@ import { memo, useState } from 'react';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
 import { formatFileSize, middleEllipsis } from '@/lib/utils/format/file';
@@ -198,8 +196,8 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
 
   // For audio/video attachments in sent messages, fetch the transcript via
   // the existing plural query (skip when not media to avoid subscriptions).
-  const audioMetadataList = useQuery(
-    api.file_metadata.queries.getByStorageIds,
+  const { data: audioMetadataList } = useBackendQuery(
+    'file_metadata/queries:getByStorageIds',
     isMedia && organizationId
       ? { organizationId, storageIds: [attachment.fileId] }
       : 'skip',
@@ -399,9 +397,7 @@ export const FilePartDisplay = memo(function FilePartDisplay({
   // cards. While the query is loading (undefined) keep rendering, so history
   // doesn't flash.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storage id parsed from our own download URL; branded at runtime
-  const fileId = extractStorageFileId(filePart.url) as
-    | Id<'_storage'>
-    | undefined;
+  const fileId = extractStorageFileId(filePart.url);
   const { data: liveUrl } = useFileUrl(fileId);
   if (fileId !== undefined && liveUrl === null) return null;
 

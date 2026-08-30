@@ -10,7 +10,6 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useRequestLegalHoldRelease } from '../hooks/mutations';
@@ -19,7 +18,7 @@ import { mapLegalHoldError } from './legal-hold-errors';
 interface RequestReleaseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  holdId: Id<'legalHolds'> | undefined;
+  holdId: string | undefined;
 }
 
 interface FormValues {

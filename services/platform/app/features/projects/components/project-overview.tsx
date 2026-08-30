@@ -18,13 +18,12 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SECTION_DIVIDER_CLASS } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   PROJECT_DESCRIPTION_MAX,
   PROJECT_NAME_MAX,
 } from '@/lib/shared/schemas/projects';
-import { convexErrorCode } from '@/lib/utils/convex-error';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useUpdateProjectIdentity } from '../hooks/mutations';
 import { useProject } from '../hooks/queries';
@@ -36,7 +35,7 @@ import { ProjectSharingSection } from './project-sharing-section';
 
 interface ProjectOverviewProps {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
 }
 
 type IdentityForm = {
@@ -53,7 +52,7 @@ const PROJECT_OVERVIEW_FORM_ID = 'project-overview-identity-form';
  * destructive toast the save cluster raises.
  */
 function identityErrorField(error: unknown): keyof IdentityForm | undefined {
-  switch (convexErrorCode(error)) {
+  switch (backendErrorCode(error)) {
     case 'PROJECT_NAME_INVALID':
       return 'name';
     case 'PROJECT_DESCRIPTION_INVALID':

@@ -33,9 +33,8 @@ interface RestoreOptions {
 const RESTORE_TIMEOUT_SECONDS = 1800;
 
 /**
- * Every container name this project can run: stateful + controller (one
- * instance each), rotatable both uncolored (dev stack) and per blue/green
- * color (prod stack).
+ * Every container name this project can run: stateful (one instance each),
+ * rotatable both uncolored (dev stack) and per blue/green color (prod stack).
  */
 async function findRunningProjectContainers(): Promise<string[]> {
   const projectId = getProjectId();
@@ -43,7 +42,6 @@ async function findRunningProjectContainers(): Promise<string[]> {
   for (const service of STATEFUL_SERVICES) {
     candidates.push(`${projectId}-${service}`);
   }
-  candidates.push(`${projectId}-controller`);
   for (const service of ROTATABLE_SERVICES) {
     candidates.push(`${projectId}-${service}`);
     candidates.push(`${projectId}-${service}-blue`);

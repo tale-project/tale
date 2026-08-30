@@ -1,13 +1,13 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { classifyTranscriptionError } from './classify_transcription_error';
 
 describe('classifyTranscriptionError', () => {
   it('treats a missing transcription model as permanent', () => {
     expect(
       classifyTranscriptionError(
-        new ConvexError({
+        new AppError({
           code: 'NO_TRANSCRIPTION_MODEL',
           message:
             'No transcription model is configured for this organization.',

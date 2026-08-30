@@ -15,23 +15,22 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// Unique sentinels that must be embedded in the compiled binary. Each
-// sentinel is a bash comment that exists ONLY inside the embedded template
-// literal it pins — never in a TS comment or another string. Convex
-// function references (`migrations:runAll`, …) are deliberately NOT used
-// as markers: they also appear in error-message strings that survive
-// bundling, so a script that regressed to a runtime fs read would still
-// pass the check (false negative). Pair each sentinel with the action
-// whose script contains it so the failure message points the operator at
-// the right place.
+// Strings the compiled binary MUST carry: the in-container command the CLI's
+// machine channel runs. They exist only inside `control-call.ts`'s command
+// template, so their absence means the channel stopped being compiled in —
+// the regression this check exists to catch (a shell command assembled from
+// a file at runtime is not bundled by `bun --compile`, and the failure only
+// shows up on an operator's machine). Control-door PATHS are deliberately
+// NOT used as markers: they also appear in error-message strings that survive
+// bundling, so a broken channel would still pass (false negative).
 const REQUIRED_MARKERS: ReadonlyArray<readonly [string, string]> = [
   [
-    '# tale-bundle-sentinel:migrate-script-v2',
-    'run-migrations.ts (MIGRATE_SCRIPT)',
+    'Bearer $TALE_CONTROL_TOKEN',
+    'control-call.ts (the token is expanded inside the container)',
   ],
   [
-    '# tale-bundle-sentinel:convex-run-script-v2',
-    'convex-run.ts (buildConvexRunScript — migrate/reseed/drain transport)',
+    '--data-binary @-',
+    'control-call.ts (request bodies ride stdin, never argv)',
   ],
 ];
 

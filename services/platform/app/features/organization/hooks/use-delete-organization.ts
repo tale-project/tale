@@ -2,12 +2,12 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useMutation } from 'convex/react';
 import { useCallback, useState } from 'react';
 
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
@@ -34,8 +34,8 @@ export function useDeleteOrganization() {
   const { toast } = useToast();
 
   const { organizations: userOrgs } = useUserOrganizationsWithDetails();
-  const prepareOrganizationDeletion = useMutation(
-    api.organizations.delete_cleanup.prepareOrganizationDeletion,
+  const prepareOrganizationDeletion = useBackendMutation(
+    'organizations/delete_cleanup:prepareOrganizationDeletion',
   );
 
   const [isDeleting, setIsDeleting] = useState(false);
@@ -44,7 +44,7 @@ export function useDeleteOrganization() {
     async ({ organizationId, isCurrent }: DeleteOrganizationArgs) => {
       setIsDeleting(true);
       try {
-        await prepareOrganizationDeletion({ organizationId });
+        await prepareOrganizationDeletion.mutateAsync({ organizationId });
 
         const result = await authClient.organization.delete({
           organizationId,
@@ -69,9 +69,7 @@ export function useDeleteOrganization() {
               replace: true,
             });
           } else {
-            await queryClient.invalidateQueries({
-              queryKey: ['auth', 'session'],
-            });
+            await invalidateAuthState(queryClient);
             void navigate({
               to: '/dashboard/create-organization',
               replace: true,

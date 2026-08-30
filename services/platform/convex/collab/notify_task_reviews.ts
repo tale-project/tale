@@ -10,8 +10,8 @@
  * #2651) — see `prefAllows` below.
  */
 
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../lib/ctx';
+import type { Doc, Id } from '../lib/rows';
 import { resolveUserDisplayName } from '../notifications/actor_name';
 import { writeCoalescedNotification } from './coalesce';
 
@@ -129,12 +129,12 @@ export async function notifyTaskReviewRequested(
     titleKey: 'taskReviewRequested',
     bodyKey,
     params: reviewParams(args.task, {
-      approvalId: String(args.approvalId),
+      approvalId: args.approvalId,
       ...(agentName ? { agentSlug: agentName } : {}),
       ...(actorName ? { actor: actorName } : {}),
     }),
     resourceType: 'task_review',
-    resourceId: String(args.approvalId),
+    resourceId: args.approvalId,
     taskId: args.task._id,
     ...(args.submitter.kind === 'user'
       ? { actorType: 'user' as const, actorId: args.submitter.userId }

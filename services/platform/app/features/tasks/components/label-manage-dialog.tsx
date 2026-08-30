@@ -4,15 +4,14 @@ import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { ConvexError } from 'convex/values';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import {
   useCreateTaskLabel,
@@ -42,7 +41,7 @@ export function LabelManageDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: Id<'projects'>;
+  projectId: string;
   canEdit: boolean;
 }) {
   const { t } = useT('tasks');
@@ -54,10 +53,10 @@ export function LabelManageDialog({
   const ensureDefaults = useEnsureDefaultTaskLabels();
 
   const [newName, setNewName] = useState('');
-  const [editingId, setEditingId] = useState<Id<'taskLabels'> | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [pendingDelete, setPendingDelete] = useState<{
-    id: Id<'taskLabels'>;
+    id: string;
     name: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -78,7 +77,7 @@ export function LabelManageDialog({
   };
 
   const onError = (error: unknown, fallback: string) => {
-    if (error instanceof ConvexError) {
+    if (error instanceof AppError) {
       const code = error.data?.code;
       if (typeof code === 'string') {
         toast({
@@ -105,7 +104,7 @@ export function LabelManageDialog({
     }
   };
 
-  const onSaveRename = async (labelId: Id<'taskLabels'>) => {
+  const onSaveRename = async (labelId: string) => {
     const name = editName.trim().toLowerCase();
     if (!name || !canEdit) return;
     setBusy(true);

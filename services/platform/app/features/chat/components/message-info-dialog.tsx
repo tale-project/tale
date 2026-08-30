@@ -23,6 +23,7 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { type StatGridItem, StatGrid } from '@tale/ui/stat-grid';
 import { Text } from '@tale/ui/text';
+import { useQuery as useTanstackQuery } from '@tanstack/react-query';
 import { ArrowLeft, Check, Copy } from 'lucide-react';
 import { useState } from 'react';
 
@@ -31,12 +32,12 @@ import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { useCopyButton } from '@/app/hooks/use-copy';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import { api } from '@/convex/_generated/api';
+import { messageVoiceUsageQuery } from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
 import { formatCostCents, formatNumber } from '@/lib/utils/format/number';
 import { formatRelativeTime } from '@/lib/utils/format/relative-time';
 
-import { useChatQuery } from '../data/chat-backend';
+import { useChatQueryClient } from '../data/chat-backend';
 import type { ChatMessageUsage, ChatMessageView, MessagePart } from '../types';
 
 /** A duration for humans: sub-second stays in ms, everything else in s. */
@@ -144,6 +145,7 @@ function ToolCallCard({
 export function MessageInfoDialog({
   message,
   threadId,
+  organizationId,
   open,
   onOpenChange,
 }: {
@@ -151,6 +153,8 @@ export function MessageInfoDialog({
   /** The conversation the message belongs to. Absent on surfaces without a
    * thread context — the voice-output section is skipped then. */
   threadId?: string;
+  /** The org the voice-usage read is scoped to; absent skips the section. */
+  organizationId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -172,13 +176,18 @@ export function MessageInfoDialog({
   // keeps the steady-state cost at zero. Read through the chat seam, which
   // degrades to unavailable (section hidden) on a provider-less render
   // instead of throwing.
-  const voice = useChatQuery(
-    api.tts.queries.getMessageVoiceUsage,
-    open && threadId !== undefined
-      ? { messageId: message.id, threadId }
-      : 'skip',
+  const voice = useTanstackQuery(
+    {
+      ...messageVoiceUsageQuery(
+        organizationId ?? '',
+        message.id,
+        threadId ?? '',
+      ),
+      enabled: open && threadId !== undefined && organizationId !== undefined,
+    },
+    useChatQueryClient(),
   );
-  const voiceUsage = voice.status === 'ready' ? voice.data : undefined;
+  const voiceUsage = voice.data ?? undefined;
 
   const usage: ChatMessageUsage = message.usage ?? {};
   const toolCalls = pairToolCalls(message.parts);

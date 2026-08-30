@@ -3,7 +3,7 @@
  *
  * A client whose persisted active org was deleted (or whose org context is
  * an empty/garbage id — a stale demo tab) keeps firing org-scoped queries
- * that can only ever fail: the server classifies them as `ConvexError`
+ * that can only ever fail: the server classifies them as `AppError`
  * `code: 'ORG_NOT_FOUND'` (`lib/rls/organization/get_organization_member.ts`,
  * `lib/auth/require_org_membership.ts`, `lib/helpers/org_slug.ts`). Observed
  * as a month of weekly `listAgents` / `readBranding` / `listProviders` error
@@ -26,18 +26,19 @@
  * Deliberately NOT triggered by `ORG_FORBIDDEN` (org exists, caller isn't a
  * member): the dashboard layout renders the intentional "you've been removed"
  * AccessDenied screen for that state (see routes/dashboard/$id.tsx), and a
- * structured ConvexError is never retried, so forbidden states don't loop.
+ * structured AppError is never retried, so forbidden states don't loop.
  */
 
 import type { QueryClient } from '@tanstack/react-query';
 
-import { convexErrorCode } from '@/app/hooks/use-action-query';
+import { backendErrorCode } from '@/app/hooks/use-action-query';
+import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
 import { authClient } from '@/lib/auth-client';
 
 /** True when a query failed because its organization no longer exists. */
 export function isDeadOrgError(error: unknown): boolean {
-  return convexErrorCode(error) === 'ORG_NOT_FOUND';
+  return backendErrorCode(error) === 'ORG_NOT_FOUND';
 }
 
 /**
@@ -112,12 +113,10 @@ async function recoverFromDeadOrg(): Promise<void> {
       err instanceof Error ? err.message : err,
     );
   }
-  await queryClient
-    .invalidateQueries({ queryKey: ['auth', 'session'] })
-    .catch((err: unknown) => {
-      console.warn(
-        '[org-error-recovery] failed to refresh the session cache',
-        err instanceof Error ? err.message : err,
-      );
-    });
+  await invalidateAuthState(queryClient).catch((err: unknown) => {
+    console.warn(
+      '[org-error-recovery] failed to refresh the session cache',
+      err instanceof Error ? err.message : err,
+    );
+  });
 }

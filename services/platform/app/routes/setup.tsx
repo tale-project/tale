@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { useHasAnyUsers } from '@/app/features/auth/hooks/queries';
 import { OnboardingWizard } from '@/app/features/organization/components/onboarding/onboarding-wizard';
-import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { seo } from '@/lib/utils/seo';
 
 /**

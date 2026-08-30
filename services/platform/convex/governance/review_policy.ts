@@ -16,19 +16,17 @@
  * policy audit covers the change; nothing bespoke lives here.
  */
 
-import type { GenericDatabaseReader } from 'convex/server';
-
 import {
   type ReviewPolicyConfig,
   reviewPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
-import type { DataModel } from '../_generated/dataModel';
+import type { DatabaseReader } from '../lib/ctx';
 import { readPolicyRow } from './helpers';
 
 /** The org's effective review policy, or `null` when none is on file (or
  * the file is malformed — logged, treated as absent). */
 export async function readReviewPolicy(
-  db: GenericDatabaseReader<DataModel>,
+  db: DatabaseReader,
   organizationId: string,
 ): Promise<ReviewPolicyConfig | null> {
   const row = await readPolicyRow(db, organizationId, 'review_policy');

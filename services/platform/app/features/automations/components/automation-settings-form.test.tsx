@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import {
   type AutomationSettings,
   parseAutomationSettings,
@@ -15,8 +14,8 @@ const convexMocks = vi.hoisted(() => ({
   read: vi.fn(),
   write: vi.fn(),
 }));
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({ mutateAsync: convexMocks.write }),
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: () => ({ mutateAsync: convexMocks.write }),
 }));
 vi.mock('../hooks/use-settings-values', () => ({
   settingsValuesQueryKey: (
@@ -93,7 +92,7 @@ function mount(onSaved = vi.fn(), onSavingChange = vi.fn()) {
     <QueryClientProvider client={client}>
       <AutomationSettingsForm
         organizationId="org_1"
-        projectId={'project_1' as Id<'projects'>}
+        projectId={'project_1' as string}
         settings={SETTINGS}
         folder="Setup"
         formId="setup-form"

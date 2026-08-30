@@ -26,9 +26,9 @@
 import type { Infer } from 'convex/values';
 
 import { isActionableNotificationType } from '../../lib/shared/attention';
-import { internal } from '../_generated/api';
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
+import type { Doc, Id } from '../lib/rows';
 import type { notificationTypeValidator } from './schema';
 
 type NotificationType = Infer<typeof notificationTypeValidator>;
@@ -101,7 +101,7 @@ function coalesceSubject(args: {
   taskId?: Id<'tasks'>;
   params?: Record<string, unknown>;
 }): string | null {
-  if (args.taskId !== undefined) return `task:${String(args.taskId)}`;
+  if (args.taskId !== undefined) return `task:${args.taskId}`;
   if (args.resourceType === 'task') return `task:${args.resourceId}`;
   const conversationId = args.params?.conversationId;
   if (typeof conversationId === 'string') {

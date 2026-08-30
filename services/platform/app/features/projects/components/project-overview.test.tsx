@@ -1,7 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import { ProjectOverview } from './project-overview';
@@ -65,7 +64,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ),
 }));
 
-const PROJECT_ID = 'proj-1' as Id<'projects'>;
+const PROJECT_ID = 'proj-1' as string;
 
 function renderOverview() {
   return render(
@@ -179,7 +178,7 @@ describe('ProjectOverview', () => {
   describe('save feedback', () => {
     it('places a name the server refused under its own field, with no toast', async () => {
       mockUpdateIdentity.mockRejectedValueOnce(
-        new ConvexError({ code: 'PROJECT_NAME_INVALID' }),
+        new AppError({ code: 'PROJECT_NAME_INVALID' }),
       );
       renderOverview();
 

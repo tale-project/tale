@@ -31,20 +31,17 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 
-import { v } from 'convex/values';
-
 import { CHAT_AUDIO_MAX_DURATION_SEC } from '../../lib/shared/file-types';
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
-import { internalAction } from '../_generated/server';
 import {
   joinSegmentsWithParagraphs,
   CAPTION_PROFILE,
   formatHms,
 } from '../file_metadata/paragraphize';
 import { decryptString } from '../lib/crypto/decrypt_string';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
+import type { Id } from '../lib/rows';
 import { deleteBlob, putBlob } from '../lib/storage/blob_access';
 import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
 import { sanitizeUntrustedField } from '../lib/untrusted_content';
@@ -163,13 +160,13 @@ function selectCaptionLanguage(
 
   return null;
 }
-
-export const ingestVideoLink = internalAction({
-  args: {
-    jobId: v.id('videoLinkJobs'),
-    userLocale: v.optional(v.string()),
-  },
-  async handler(ctx, args) {
+/** The orchestrator body, hoisted so the 0.5 backend can run it on a ctx
+ * shim (the wrapper above keeps the 0.4 wiring). */
+export async function ingestVideoLinkImpl(
+  ctx: ActionCtx,
+  args: { jobId: Id<'videoLinkJobs'>; userLocale?: string },
+): Promise<void> {
+  {
     const job = await ctx.runQuery(
       internal.video_links.internal_queries.getJobById,
       {
@@ -768,8 +765,8 @@ export const ingestVideoLink = internalAction({
     } finally {
       await cleanup();
     }
-  },
-});
+  }
+}
 
 /** Whether a yt-dlp failure is the site actively blocking us (bot wall / 403 /
  *  rate limit) — the signal that burns the pooled session that was used. */

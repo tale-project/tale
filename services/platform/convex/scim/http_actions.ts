@@ -1,25 +1,13 @@
-/**
- * SCIM 2.0 service-provider HTTP handlers (RFC 7644). The IdP is the client; it
- * pushes Users/Groups here over bearer-token auth. The matched token row IS the
- * tenant scope — org is NEVER read from the body or path.
- *
- * Supported: Users + Groups full CRUD, PATCH (active toggle, name, group
- * membership add/remove/replace), `attr eq "value"` filtering, startIndex/count
- * pagination, and the discovery endpoints. Arbitrary filter expressions beyond
- * `userName eq` / `displayName eq` / `members[value eq "…"]` are not supported.
- */
-
-import { ConvexError } from 'convex/values';
-
-import { isRecord } from '../../lib/utils/type-utils';
-import { internal } from '../_generated/api';
-import { type ActionCtx, httpAction } from '../_generated/server';
 import type { PlatformRole } from '../enterprise_sso/types';
 import { normalizeAuthEmail } from '../lib/auth/normalize_auth_email';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { getPublicHttpApiUrl } from '../lib/helpers/public_storage_url';
 import { extractPathParts, parseIntParam } from '../lib/rest/helpers';
-import { serviceProviderConfig, resourceTypes, schemas } from './discovery';
-import { hashScimToken } from './helpers/crypto';
+/** The records the internal queries return — shaped by what the SCIM mappers
+ *  read, so the two cannot drift apart. */
+type ScimUserRecord = Parameters<typeof toScimUser>[0];
+type ScimGroupRecord = Parameters<typeof toScimGroup>[0];
 import {
   parseEqFilter,
   parseGroupPatch,
@@ -31,7 +19,6 @@ import {
   toScimUser,
 } from './mappers';
 import {
-  SCIM_CORS_HEADERS,
   scimError,
   scimJson,
   scimListResponse,
@@ -41,7 +28,7 @@ import {
 const USERS_PREFIX = '/scim/v2/Users/';
 const GROUPS_PREFIX = '/scim/v2/Groups/';
 
-interface ScimRc {
+export interface ScimRc {
   ctx: ActionCtx;
   organizationId: string;
   defaultRole: PlatformRole;
@@ -62,101 +49,7 @@ async function readJson(req: Request): Promise<unknown> {
   } catch {
     return null;
   }
-}
-
-type ScimAuthResult =
-  | { ok: true; organizationId: string; defaultRole: PlatformRole }
-  | { ok: false; response: Response };
-
-async function authenticateScim(
-  ctx: ActionCtx,
-  req: Request,
-): Promise<ScimAuthResult> {
-  const header = req.headers.get('authorization') ?? '';
-  if (!header.toLowerCase().startsWith('bearer ')) {
-    return {
-      ok: false,
-      response: scimError(401, 'Missing or invalid Authorization header'),
-    };
-  }
-  const token = header.slice('bearer '.length).trim();
-  if (!token) {
-    return { ok: false, response: scimError(401, 'Empty bearer token') };
-  }
-  const tokenHash = await hashScimToken(token);
-  const config = await ctx.runQuery(
-    internal.scim.internal_queries.getConfigByTokenHash,
-    { tokenHash },
-  );
-  if (!config || !config.enabled) {
-    return {
-      ok: false,
-      response: scimError(401, 'Invalid or revoked SCIM token'),
-    };
-  }
-  await ctx.runMutation(internal.scim.internal_mutations.touchConfigLastUsed, {
-    configId: config.configId,
-  });
-  return {
-    ok: true,
-    organizationId: config.organizationId,
-    defaultRole: config.defaultRole,
-  };
-}
-
-function withScimAuth(
-  handler: (rc: ScimRc, req: Request) => Promise<Response>,
-) {
-  return httpAction(async (ctx, req) => {
-    const auth = await authenticateScim(ctx, req);
-    if (!auth.ok) return auth.response;
-    try {
-      return await handler(
-        {
-          ctx,
-          organizationId: auth.organizationId,
-          defaultRole: auth.defaultRole,
-        },
-        req,
-      );
-    } catch (error) {
-      // A coded ConvexError from the provisioning layer maps to its SCIM
-      // status — a cross-tenant create collision is a 409, not a 500 (#2036).
-      if (error instanceof ConvexError && isRecord(error.data)) {
-        const data = error.data;
-        if (data.code === 'scim_user_conflict') {
-          const detail =
-            typeof data.message === 'string'
-              ? data.message
-              : 'User already exists';
-          return scimError(409, detail, 'uniqueness');
-        }
-      }
-      console.error('[scim] handler error', error);
-      return scimError(500, 'Internal server error');
-    }
-  });
-}
-
-export const scimOptionsHandler = httpAction(
-  async () => new Response(null, { status: 204, headers: SCIM_CORS_HEADERS }),
-);
-
-// ---------------------------------------------------------------------------
-// Discovery
-// ---------------------------------------------------------------------------
-
-export const scimServiceProviderConfigHandler = withScimAuth(async () =>
-  scimJson(serviceProviderConfig()),
-);
-
-export const scimResourceTypesHandler = withScimAuth(async () =>
-  scimJson(resourceTypes(scimBaseUrl())),
-);
-
-export const scimSchemasHandler = withScimAuth(async () => scimJson(schemas()));
-
-// ---------------------------------------------------------------------------
+} // ---------------------------------------------------------------------------
 // Users
 // ---------------------------------------------------------------------------
 
@@ -185,10 +78,12 @@ async function listUsers(rc: ScimRc, url: URL): Promise<Response> {
     internal.scim.internal_queries.listUserRecords,
     { organizationId: rc.organizationId },
   );
-  all.sort((a, b) => (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0));
+  all.sort((a: ScimUserRecord, b: ScimUserRecord) =>
+    a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0,
+  );
   const page = all.slice(startIndex - 1, startIndex - 1 + count);
   return scimListResponse(
-    page.map((r) => toScimUser(r, baseUrl)),
+    page.map((r: ScimUserRecord) => toScimUser(r, baseUrl)),
     all.length,
     startIndex,
     page.length,
@@ -312,13 +207,22 @@ async function deleteUser(rc: ScimRc, userId: string): Promise<Response> {
   return scimNoContent();
 }
 
-export const scimUsersHandler = withScimAuth(async (rc, req) => {
+/** The Users collection dispatcher body — exported for the 0.5 runtime,
+ * which authenticates with its own token store and calls in with a shimmed
+ * ctx. */
+export async function scimUsersImpl(
+  rc: ScimRc,
+  req: Request,
+): Promise<Response> {
   if (req.method === 'GET') return listUsers(rc, new URL(req.url));
   if (req.method === 'POST') return createUser(rc, req);
   return scimError(405, 'Method not allowed');
-});
-
-export const scimUserResourceHandler = withScimAuth(async (rc, req) => {
+}
+/** One-User dispatcher body — exported for the 0.5 runtime. */
+export async function scimUserResourceImpl(
+  rc: ScimRc,
+  req: Request,
+): Promise<Response> {
   const { id } = extractPathParts(new URL(req.url), USERS_PREFIX);
   if (!id) return scimError(400, 'Missing user id');
   if (req.method === 'GET') return getUser(rc, id);
@@ -326,8 +230,7 @@ export const scimUserResourceHandler = withScimAuth(async (rc, req) => {
   if (req.method === 'PATCH') return patchUserResource(rc, req, id);
   if (req.method === 'DELETE') return deleteUser(rc, id);
   return scimError(405, 'Method not allowed');
-});
-
+}
 // ---------------------------------------------------------------------------
 // Groups
 // ---------------------------------------------------------------------------
@@ -354,10 +257,12 @@ async function listGroups(rc: ScimRc, url: URL): Promise<Response> {
     internal.scim.internal_queries.listGroupRecords,
     { organizationId: rc.organizationId },
   );
-  all.sort((a, b) => (a.teamId < b.teamId ? -1 : a.teamId > b.teamId ? 1 : 0));
+  all.sort((a: ScimGroupRecord, b: ScimGroupRecord) =>
+    a.teamId < b.teamId ? -1 : a.teamId > b.teamId ? 1 : 0,
+  );
   const page = all.slice(startIndex - 1, startIndex - 1 + count);
   return scimListResponse(
-    page.map((r) => toScimGroup(r, baseUrl)),
+    page.map((r: ScimGroupRecord) => toScimGroup(r, baseUrl)),
     all.length,
     startIndex,
     page.length,
@@ -473,13 +378,20 @@ async function deleteGroupResource(
   return scimNoContent();
 }
 
-export const scimGroupsHandler = withScimAuth(async (rc, req) => {
+/** The Groups collection dispatcher body — exported for the 0.5 runtime. */
+export async function scimGroupsImpl(
+  rc: ScimRc,
+  req: Request,
+): Promise<Response> {
   if (req.method === 'GET') return listGroups(rc, new URL(req.url));
   if (req.method === 'POST') return createGroup(rc, req);
   return scimError(405, 'Method not allowed');
-});
-
-export const scimGroupResourceHandler = withScimAuth(async (rc, req) => {
+}
+/** One-Group dispatcher body — exported for the 0.5 runtime. */
+export async function scimGroupResourceImpl(
+  rc: ScimRc,
+  req: Request,
+): Promise<Response> {
   const { id } = extractPathParts(new URL(req.url), GROUPS_PREFIX);
   if (!id) return scimError(400, 'Missing group id');
   if (req.method === 'GET') return getGroup(rc, id);
@@ -487,4 +399,4 @@ export const scimGroupResourceHandler = withScimAuth(async (rc, req) => {
   if (req.method === 'PATCH') return patchGroupResource(rc, req, id);
   if (req.method === 'DELETE') return deleteGroupResource(rc, id);
   return scimError(405, 'Method not allowed');
-});
+}

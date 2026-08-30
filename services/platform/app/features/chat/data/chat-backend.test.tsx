@@ -1,7 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { ConvexProvider, type ConvexReactClient } from 'convex/react';
-import { getFunctionName } from 'convex/server';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -9,7 +7,7 @@ import { render, screen } from '@/tests/utils/render';
 
 import {
   useChatGeneration,
-  useChatMessages,
+  useChatQuery,
   useChatSend,
   useChatThreads,
   useComposerModels,
@@ -17,162 +15,191 @@ import {
 import { storeComposerCatalog } from './composer-catalog-store';
 
 /**
- * The one seam invariant a component can't pin: a live read holds ONE watch
- * per (function, args) pair across re-renders. `api.x.y.z` builds a fresh
- * FunctionReference on every property access and callers build args inline,
- * so a watch keyed by identity is torn down and rebuilt every render — and a
- * fresh watch answers `undefined` before its first result, which oscillates
+ * The one seam invariant a component can't pin: a read holds ONE query per
+ * (name, args) pair across re-renders. Callers build args inline, so a query
+ * keyed by object identity would be torn down and rebuilt every render — and
+ * a fresh query answers `undefined` before its first result, which oscillates
  * the surface between loading and ready as fast as React can render. That
  * oscillation shipped as a whole-page flicker; this file keeps it dead.
  */
 
-function stubClient(result: unknown): {
-  client: ConvexReactClient;
-  watchQuery: ReturnType<typeof vi.fn>;
-} {
-  const watchQuery = vi.fn(() => ({
-    onUpdate: () => () => undefined,
-    localQueryResult: () => result,
-  }));
-  return {
-    client: { watchQuery } as unknown as ConvexReactClient,
-    watchQuery,
-  };
-}
-
 /** Re-renders on demand, passing a FRESH api reference and args each time —
  * exactly what the real callsites do. */
 function Probe() {
-  const threads = useChatThreads('org-1');
+  // A ref the seam has NOT migrated: with the Convex runtime retired there is
+  // nothing behind it, so the surface must degrade — steadily, not by
+  // flickering between states on every render.
+  const read = useChatQuery('chat_filter_events/queries:getGuardrailStats', {
+    organizationId: 'org-1',
+    periodDays: 7,
+  });
   const [, force] = useState(0);
-  return <button onClick={() => force((n) => n + 1)}>{threads.status}</button>;
+  return <button onClick={() => force((n) => n + 1)}>{read.status}</button>;
 }
 
 describe('useChatQuery subscription stability', () => {
-  it('keeps one watch and a steady status across re-renders', async () => {
-    const { client, watchQuery } = stubClient([]);
-    const { user } = render(
-      <ConvexProvider client={client}>
-        <Probe />
-      </ConvexProvider>,
-    );
+  it('holds a steady status across re-renders', async () => {
+    const { user } = render(<Probe />);
 
-    expect(screen.getByRole('button')).toHaveTextContent('ready');
+    expect(screen.getByRole('button')).toHaveTextContent('unavailable');
 
     await user.click(screen.getByRole('button'));
     await user.click(screen.getByRole('button'));
     await user.click(screen.getByRole('button'));
 
-    expect(screen.getByRole('button')).toHaveTextContent('ready');
-    expect(watchQuery).toHaveBeenCalledTimes(1);
+    // Steady: the same answer on every render, never a flicker between
+    // states while the component re-renders around it.
+    expect(screen.getByRole('button')).toHaveTextContent('unavailable');
   });
 });
 
 /**
  * The second seam invariant: a remount must not flash `loading` for an answer
- * this session already has. A watch is torn down on unmount and the client
- * drops its local result, so a fresh mount answers `undefined` for one
- * round-trip — the session cache serves the last answer across that gap while
- * the fresh watch (still subscribed, still live) replaces it. Each test uses
- * its own org so the module-level cache can't leak between cases.
+ * this session already has. A fresh mount has no data until its fetch lands,
+ * so the session cache serves the last answer across that gap while the
+ * revalidation replaces it. Each test uses its own org so the module-level
+ * cache can't leak between cases.
  */
-
-/** A client whose local result can change between mounts, the way the real
- * one loses it when the last subscriber unmounts. */
-function liveStubClient(): {
-  client: ConvexReactClient;
-  watchQuery: ReturnType<typeof vi.fn>;
-  setLocalResult: (result: unknown) => void;
-} {
-  let live: unknown;
-  const watchQuery = vi.fn(() => ({
-    onUpdate: () => () => undefined,
-    localQueryResult: () => live,
-  }));
-  return {
-    client: { watchQuery } as unknown as ConvexReactClient,
-    watchQuery,
-    setLocalResult: (result: unknown) => {
-      live = result;
-    },
-  };
-}
 
 function ThreadsProbe({ org }: { org: string }) {
   return <output>{useChatThreads(org).status}</output>;
 }
 
-function MessagesProbe({ org, threadId }: { org: string; threadId?: string }) {
-  return <output>{useChatMessages(org, threadId).status}</output>;
+function WatchProbe({ org, threadId }: { org: string; threadId?: string }) {
+  // An ADAPTED read, skipped when no thread is selected — what the seam's
+  // 'skip' contract is actually about.
+  const read = useChatQuery(
+    'chat/threads:listThreads',
+    threadId !== undefined ? { organizationId: org } : 'skip',
+  );
+  return <output>{read.status}</output>;
 }
 
 function GenerationProbe({ org, threadId }: { org: string; threadId: string }) {
   return <output>{useChatGeneration(org, threadId).status}</output>;
 }
 
+describe('useChatQuery HTTP lane (migrated thread family)', () => {
+  it('serves ready from the backend with a steady status and ONE fetch', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ threads: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    try {
+      render(<ThreadsProbe org="org-http" />);
+      await screen.findByText('ready');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const firstUrl = fetchSpy.mock.calls[0]?.[0];
+      expect(typeof firstUrl === 'string' ? firstUrl : '').toContain(
+        '/api/app/chat/threads',
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
 describe('useChatQuery session cache', () => {
-  it('serves the last answer across a remount, with a fresh watch live', () => {
-    const { client, watchQuery, setLocalResult } = liveStubClient();
-    setLocalResult(['thread-1']);
-    const first = render(
-      <ConvexProvider client={client}>
-        <ThreadsProbe org="org-remount" />
-      </ConvexProvider>,
-    );
-    expect(screen.getByRole('status')).toHaveTextContent('ready');
-    first.unmount();
+  /** An ADAPTED read (the threads listing) whose answer the seam caches. */
+  function CachedProbe({ org }: { org: string }) {
+    return <output>{useChatThreads(org).status}</output>;
+  }
 
-    // The unmounted watch dropped its local result; without the cache the
-    // remount would render a `loading` frame until the round-trip answers.
-    setLocalResult(undefined);
-    render(
-      <ConvexProvider client={client}>
-        <ThreadsProbe org="org-remount" />
-      </ConvexProvider>,
+  it('serves the last answer across a remount while it revalidates', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ threads: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
     );
-    expect(screen.getByRole('status')).toHaveTextContent('ready');
-    // Served from cache, but revalidating: the remount opened its own watch.
-    expect(watchQuery).toHaveBeenCalledTimes(2);
+    try {
+      const first = render(<CachedProbe org="org-remount" />);
+      await screen.findByText('ready');
+      first.unmount();
+
+      // Without the cache the remount would render a `loading` frame until
+      // the round-trip answers.
+      render(<CachedProbe org="org-remount" />);
+      expect(screen.getByRole('status')).toHaveTextContent('ready');
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
-  it('never serves the cache to a skipped read', () => {
-    const { client, setLocalResult } = liveStubClient();
-    setLocalResult(['message-1']);
-    const first = render(
-      <ConvexProvider client={client}>
-        <MessagesProbe org="org-skip" threadId="thread-1" />
-      </ConvexProvider>,
+  it('never serves the cache to a skipped read', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ stats: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
     );
-    expect(screen.getByRole('status')).toHaveTextContent('ready');
-    first.unmount();
+    try {
+      const first = render(<WatchProbe org="org-skip" threadId="thread-1" />);
+      first.unmount();
 
-    // No thread selected: the read holds closed, cached messages or not.
-    render(
-      <ConvexProvider client={client}>
-        <MessagesProbe org="org-skip" />
-      </ConvexProvider>,
-    );
-    expect(screen.getByRole('status')).toHaveTextContent('loading');
+      // No thread selected: the read holds closed, cached answer or not.
+      render(<WatchProbe org="org-skip" />);
+      expect(screen.getByRole('status')).toHaveTextContent('loading');
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
-  it('never replays a generation — its absence is the settled signal', () => {
-    const { client, setLocalResult } = liveStubClient();
-    setLocalResult({ generationId: 'gen-1' });
-    const first = render(
-      <ConvexProvider client={client}>
-        <GenerationProbe org="org-gen" threadId="thread-1" />
-      </ConvexProvider>,
-    );
-    expect(screen.getByRole('status')).toHaveTextContent('ready');
-    first.unmount();
+  it('never replays a generation — a fresh stream resolves anew', async () => {
+    // The generation rides the thread's SSE lane now: a mount opens its own
+    // EventSource and holds `loading` until the lane's first event.
+    const sources: FakeEventSource[] = [];
+    class FakeEventSource {
+      listeners = new Map<string, (event: MessageEvent<string>) => void>();
+      constructor() {
+        sources.push(this);
+      }
+      addEventListener(
+        name: string,
+        listener: (event: MessageEvent<string>) => void,
+      ) {
+        this.listeners.set(name, listener);
+      }
+      emit(name: string, data: string) {
+        this.listeners.get(name)?.(new MessageEvent(name, { data }));
+      }
+      close() {}
+    }
+    vi.stubGlobal('EventSource', FakeEventSource);
+    try {
+      const first = render(
+        <GenerationProbe org="org-gen" threadId="thread-1" />,
+      );
+      expect(screen.getByRole('status')).toHaveTextContent('loading');
+      const { act } = await import('react');
+      act(() => {
+        sources[0]?.emit(
+          'progress',
+          JSON.stringify({ messageId: 'm-1', text: 'hi' }),
+        );
+      });
+      expect(screen.getByRole('status')).toHaveTextContent('ready');
+      first.unmount();
 
-    setLocalResult(undefined);
-    render(
-      <ConvexProvider client={client}>
-        <GenerationProbe org="org-gen" threadId="thread-1" />
-      </ConvexProvider>,
-    );
-    expect(screen.getByRole('status')).toHaveTextContent('loading');
+      // A remount opens a FRESH stream: nothing replays until it answers.
+      render(<GenerationProbe org="org-gen" threadId="thread-1" />);
+      expect(sources.length).toBe(2);
+      expect(screen.getByRole('status')).toHaveTextContent('loading');
+      act(() => {
+        sources[1]?.emit('idle', '');
+      });
+      expect(screen.getByRole('status')).toHaveTextContent('ready');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
@@ -202,19 +229,23 @@ describe('useComposerModels device store', () => {
       ],
       voice: { ttsAvailable: false, transcriptionAvailable: false },
     });
-    // The refresh action never answers in this test — first paint must not
+    // The HTTP refresh never answers in this test — first paint must not
     // depend on it.
-    const action = vi.fn(() => new Promise(() => {}));
-    const client = { action } as unknown as ConvexReactClient;
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(() => new Promise(() => {}));
+    try {
+      render(<ModelsProbe org="org-reload" />);
 
-    render(
-      <ConvexProvider client={client}>
-        <ModelsProbe org="org-reload" />
-      </ConvexProvider>,
-    );
-
-    expect(screen.getByRole('status')).toHaveTextContent('ready:1');
-    expect(action).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('status')).toHaveTextContent('ready:1');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const refreshUrl = fetchSpy.mock.calls[0]?.[0];
+      expect(typeof refreshUrl === 'string' ? refreshUrl : '').toContain(
+        '/api/app/chat/composer/models',
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });
 
@@ -237,135 +268,185 @@ function SendProbe({
  * generation row — the turn reads the flag on its next streaming write.
  */
 describe('useChatSend', () => {
-  function renderSendProbe(client: ConvexReactClient) {
+  function renderSendProbe() {
     const seam = { current: null as ReturnType<typeof useChatSend> | null };
-    render(
-      <ConvexProvider client={client}>
-        <SendProbe org="org-send" seam={seam} />
-      </ConvexProvider>,
-    );
+    render(<SendProbe org="org-send" seam={seam} />);
     return seam;
   }
 
+  /** One JSON hop of the send choreography, keyed by url suffix. */
+  function mockBackend(answers: Record<string, unknown>) {
+    return vi
+      .spyOn(window, 'fetch')
+      .mockImplementation((input: RequestInfo | URL) => {
+        const url =
+          typeof input === 'string'
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        const hit = Object.entries(answers).find(([suffix]) =>
+          url.split('?')[0]?.endsWith(suffix),
+        );
+        return Promise.resolve(
+          new Response(JSON.stringify(hit?.[1] ?? {}), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      });
+  }
+
+  function callsTo(
+    fetchSpy: ReturnType<typeof mockBackend>,
+    suffix: string,
+  ): { url: string; body: unknown }[] {
+    return fetchSpy.mock.calls
+      .filter(([input]) => {
+        const url =
+          typeof input === 'string'
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        return url.split('?')[0]?.endsWith(suffix) ?? false;
+      })
+      .map(([input, init]) => {
+        const url =
+          typeof input === 'string'
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        const raw = init?.body;
+        return {
+          url,
+          body:
+            typeof raw === 'string' ? (JSON.parse(raw) as unknown) : undefined,
+        };
+      });
+  }
+
   it("starts a fresh turn on a thread it creates as kind 'direct', with no agent", async () => {
-    const mutation = vi.fn().mockResolvedValue('t-new');
-    const action = vi.fn().mockResolvedValue({ status: 'completed' });
-    const client = { mutation, action } as unknown as ConvexReactClient;
-    const seam = renderSendProbe(client);
-
-    const handle = await seam.current?.start({
-      text: 'hello',
-      modelId: 'deepseek-v4-flash',
+    const fetchSpy = mockBackend({
+      '/chat/threads': { id: 't-new' },
+      '/messages': { status: 'completed' },
     });
+    try {
+      const seam = renderSendProbe();
+      const handle = await seam.current?.start({
+        text: 'hello',
+        modelId: 'deepseek-v4-flash',
+      });
+      expect(handle?.threadId).toBe('t-new');
+      await handle?.outcome;
 
-    expect(handle?.threadId).toBe('t-new');
-    const [createRef, createArgs] = mutation.mock.calls[0];
-    expect(getFunctionName(createRef)).toBe('chat/threads:createThread');
-    expect(createArgs).toEqual({ organizationId: 'org-send', kind: 'direct' });
-    // Exactly these fields: no agentSlug, no harness — the only sandbox
-    // mention is the explicit `false`.
-    const [turnRef, turnArgs] = action.mock.calls[0];
-    expect(getFunctionName(turnRef)).toBe('chat/turn_action:startTurn');
-    expect(turnArgs).toEqual({
-      organizationId: 'org-send',
-      threadId: 't-new',
-      userText: 'hello',
-      modelId: 'deepseek-v4-flash',
-      sandbox: false,
-    });
+      const creates = callsTo(fetchSpy, '/chat/threads');
+      expect(creates[0]?.url).toContain('orgId=org-send');
+      expect(creates[0]?.body).toEqual({ kind: 'direct' });
+      // Exactly these fields: no agentSlug, no harness, no sandbox knob —
+      // the route owns the sandbox-off posture server-side.
+      const sends = callsTo(fetchSpy, '/messages');
+      expect(sends[0]?.url).toContain('/chat/threads/t-new/messages');
+      expect(sends[0]?.body).toEqual({
+        text: 'hello',
+        modelId: 'deepseek-v4-flash',
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it('pins the effort pick on the thread it creates, not only on the turn', async () => {
-    const mutation = vi.fn().mockResolvedValue('t-new');
-    const action = vi.fn().mockResolvedValue({ status: 'completed' });
-    const client = { mutation, action } as unknown as ConvexReactClient;
-    const seam = renderSendProbe(client);
+    const fetchSpy = mockBackend({
+      '/chat/threads': { id: 't-new' },
+      '/messages': { status: 'completed' },
+    });
+    try {
+      const seam = renderSendProbe();
+      const handle = await seam.current?.start({
+        text: 'hello',
+        modelId: 'deepseek-v4-flash',
+        reasoningEffort: 'low',
+      });
+      await handle?.outcome;
 
-    await seam.current?.start({
-      text: 'hello',
-      modelId: 'deepseek-v4-flash',
-      reasoningEffort: 'low',
-    });
-
-    const [, createArgs] = mutation.mock.calls[0];
-    expect(createArgs).toEqual({
-      organizationId: 'org-send',
-      kind: 'direct',
-      reasoningEffort: 'low',
-    });
-    const [, turnArgs] = action.mock.calls[0];
-    expect(turnArgs).toEqual({
-      organizationId: 'org-send',
-      threadId: 't-new',
-      userText: 'hello',
-      modelId: 'deepseek-v4-flash',
-      reasoningEffort: 'low',
-      sandbox: false,
-    });
+      expect(callsTo(fetchSpy, '/chat/threads')[0]?.body).toEqual({
+        kind: 'direct',
+        reasoningEffort: 'low',
+      });
+      expect(callsTo(fetchSpy, '/messages')[0]?.body).toEqual({
+        text: 'hello',
+        modelId: 'deepseek-v4-flash',
+        reasoningEffort: 'low',
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it('pins the effort pick when parking a send on a new thread', async () => {
-    const mutation = vi.fn().mockResolvedValue('t-new');
-    const client = { mutation } as unknown as ConvexReactClient;
-    const seam = renderSendProbe(client);
-
-    await seam.current?.defer({
-      text: 'hello',
-      reasoningEffort: 'low',
+    const fetchSpy = mockBackend({
+      '/chat/threads': { id: 't-new' },
+      '/deferred-sends': { deferredSendId: 'd-1' },
     });
+    try {
+      const seam = renderSendProbe();
+      await seam.current?.defer({
+        text: 'hello',
+        reasoningEffort: 'low',
+      });
 
-    const [createRef, createArgs] = mutation.mock.calls[0];
-    expect(getFunctionName(createRef)).toBe('chat/threads:createThread');
-    expect(createArgs).toEqual({
-      organizationId: 'org-send',
-      kind: 'direct',
-      reasoningEffort: 'low',
-    });
+      expect(callsTo(fetchSpy, '/chat/threads')[0]?.body).toEqual({
+        kind: 'direct',
+        reasoningEffort: 'low',
+      });
+      const parked = callsTo(fetchSpy, '/deferred-sends');
+      expect(parked[0]?.url).toContain('/chat/threads/t-new/deferred-sends');
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it('continues an existing thread without creating another', async () => {
-    const mutation = vi.fn();
-    const action = vi.fn().mockResolvedValue({ status: 'completed' });
-    const client = { mutation, action } as unknown as ConvexReactClient;
-    const seam = renderSendProbe(client);
-
-    const handle = await seam.current?.start({
-      threadId: 't-9',
-      text: 'again',
-      modelId: 'deepseek-v4-flash',
-      providerSlug: 'deepseek',
-      reasoningEffort: 'high',
+    const fetchSpy = mockBackend({
+      '/messages': { status: 'completed' },
     });
+    try {
+      const seam = renderSendProbe();
+      const handle = await seam.current?.start({
+        threadId: 't-9',
+        text: 'again',
+        modelId: 'deepseek-v4-flash',
+        providerSlug: 'deepseek',
+        reasoningEffort: 'high',
+      });
+      expect(handle?.threadId).toBe('t-9');
+      await handle?.outcome;
 
-    expect(handle?.threadId).toBe('t-9');
-    expect(mutation).not.toHaveBeenCalled();
-    const [, turnArgs] = action.mock.calls[0];
-    expect(turnArgs).toEqual({
-      organizationId: 'org-send',
-      threadId: 't-9',
-      userText: 'again',
-      modelId: 'deepseek-v4-flash',
-      providerSlug: 'deepseek',
-      reasoningEffort: 'high',
-      sandbox: false,
-    });
+      expect(callsTo(fetchSpy, '/chat/threads')).toHaveLength(0);
+      expect(callsTo(fetchSpy, '/messages')[0]?.body).toEqual({
+        text: 'again',
+        modelId: 'deepseek-v4-flash',
+        providerSlug: 'deepseek',
+        reasoningEffort: 'high',
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
-  it('stops a turn through the cancel-request mutation on the generation row', async () => {
-    const mutation = vi.fn().mockResolvedValue(null);
-    const client = { mutation } as unknown as ConvexReactClient;
-    const seam = renderSendProbe(client);
+  it('stops a turn through the cancel door on the thread', async () => {
+    const fetchSpy = mockBackend({ '/cancel': { cancelled: true } });
+    try {
+      const seam = renderSendProbe();
+      await seam.current?.stop('thread-1');
 
-    await seam.current?.stop('thread-1');
-
-    expect(mutation).toHaveBeenCalledTimes(1);
-    const [cancelRef, cancelArgs] = mutation.mock.calls[0];
-    expect(getFunctionName(cancelRef)).toBe(
-      'chat/generations:requestCancelGeneration',
-    );
-    expect(cancelArgs).toEqual({
-      organizationId: 'org-send',
-      threadId: 'thread-1',
-    });
+      const cancels = callsTo(fetchSpy, '/cancel');
+      expect(cancels).toHaveLength(1);
+      expect(cancels[0]?.url).toContain('/chat/threads/thread-1/cancel');
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });

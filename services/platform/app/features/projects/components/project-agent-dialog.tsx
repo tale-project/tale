@@ -8,7 +8,6 @@
  * `agent` present means edit, absent means create.
  */
 
-import { ConvexError } from 'convex/values';
 import { useEffect, useMemo, useState } from 'react';
 
 import {
@@ -22,9 +21,9 @@ import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { AGENT_TOOL_CATALOG } from '@/convex/sandbox/tool_names';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import {
   useCreateProjectAgent,
@@ -46,7 +45,7 @@ export interface HarnessOption {
 interface ProjectAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: Id<'projects'>;
+  projectId: string;
   organizationId: string;
   harnesses: readonly HarnessOption[];
   models: readonly ModelOption[];
@@ -233,7 +232,7 @@ export function ProjectAgentDialog({
       });
       onOpenChange(false);
     } catch (error) {
-      const code = error instanceof ConvexError ? error.data?.code : undefined;
+      const code = error instanceof AppError ? error.data?.code : undefined;
       if (
         code === 'PROJECT_AGENT_NAME_INVALID' ||
         code === 'PROJECT_AGENT_NAME_TAKEN'

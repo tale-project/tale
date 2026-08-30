@@ -6,12 +6,12 @@ import { render, renderHook, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { i18n } from '@/lib/i18n/i18n';
 
 import { useContactsTableConfig } from './use-contacts-table-config';
 
-type Contact = Doc<'contacts'>;
+type Contact = ContactDoc;
 
 function Providers({ children }: { children: ReactNode }) {
   return (

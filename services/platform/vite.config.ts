@@ -11,87 +11,68 @@ import { serveBrandingImages } from './vite-plugins/serve-branding-images';
 import { serveCanvasPreview } from './vite-plugins/serve-canvas-preview';
 import { serveScreencast } from './vite-plugins/serve-screencast';
 import { serveStatus } from './vite-plugins/serve-status';
-import { serveWebdav } from './vite-plugins/serve-webdav';
 import { stubSSRImports } from './vite-plugins/stub-ssr';
 import { watchExamples } from './vite-plugins/watch-examples';
 
-// Convex service endpoints for dev proxy. Defaults to localhost so local
-// developers running `bunx convex-local-backend` standalone just work; for
-// compose-based dev (`docker compose up convex` + `bun run dev`) set
-// CONVEX_URL=http://localhost:3210 in .env.local or similar.
-const CONVEX_BASE = process.env.CONVEX_URL || 'http://127.0.0.1:3210';
-// Site-proxy lives on a separate port (default 3211) on the same host.
-const CONVEX_SITE_PROXY =
-  process.env.CONVEX_SITE_PROXY_URL || CONVEX_BASE.replace(/:\d+$/, ':3211');
+// The backend for the dev proxy. In a real deployment Caddy fronts these
+// same paths; locally Vite stands in for it. Defaults to the api's own port
+// so `bun dev` works with no extra configuration.
+const BACKEND_BASE = process.env.TALE_BACKEND_URL || 'http://127.0.0.1:3005';
 
-// Convex routing, shared by the dev server (`vite dev`) and the preview server
-// (`vite preview`, used by the prod-build E2E mode — see scripts/dev.ts). In a
-// real deployment Caddy fronts these same paths; locally Vite stands in for it.
-const convexProxy = {
-  // Proxy Convex API requests to the (possibly remote) convex service.
-  '/ws_api': {
-    target: CONVEX_BASE,
+// Backend routing, shared by the dev server (`vite dev`) and the preview
+// server (`vite preview`, used by the prod-build E2E mode — see
+// scripts/dev.ts). `/dav` is here too: the protocol door lives on the api,
+// and Vite's SPA catch-all would otherwise answer PROPFIND with index.html.
+const backendProxy = {
+  '/api': { target: BACKEND_BASE, changeOrigin: true },
+  // SSE hint stream: default proxy timeouts close the lane, which EventSource
+  // reports as `error`. Keep it open for the server's 15s heartbeat.
+  '/events': {
+    target: BACKEND_BASE,
     changeOrigin: true,
-    ws: true,
-    rewrite: (p: string) => p.replace(/^\/ws_api/, ''),
+    timeout: 0,
+    proxyTimeout: 0,
   },
-  '/http_api': {
-    target: CONVEX_SITE_PROXY,
-    changeOrigin: true,
-    rewrite: (p: string) => p.replace(/^\/http_api/, ''),
-  },
-  // Storage and internal action callbacks go to the Convex backend (3210)
-  '/api/storage': {
-    target: CONVEX_BASE,
-    changeOrigin: true,
-  },
-  '/api/actions': {
-    target: CONVEX_BASE,
-    changeOrigin: true,
-  },
-  // All other /api/* requests to Convex HTTP endpoint (auth, SSO, documents, workflows, etc.)
-  '/api': {
-    target: CONVEX_SITE_PROXY,
-    changeOrigin: true,
-  },
+  '/dav': { target: BACKEND_BASE, changeOrigin: true },
+  '/scim': { target: BACKEND_BASE, changeOrigin: true },
 };
 
 export default defineConfig({
   base: './',
   resolve: {
-    dedupe: ['convex', 'convex/react', 'react', 'react-dom'],
+    // `convex` is still the source of the wire types + ConvexError the
+    // adapter seam is keyed on; the React bindings are gone.
+    dedupe: ['convex', 'react', 'react-dom'],
     tsconfigPaths: true,
   },
   server: {
     port: 3000,
     // Fail loudly if 3000 is taken instead of silently moving to the next free
-    // port: SITE_URL, the Convex proxy, and the dev orchestrator all assume the
+    // port: SITE_URL, the backend proxy, and the dev orchestrator all assume the
     // app is on 3000, so a silent port shift just looks like "localhost:3000 is
     // broken". The dev orchestrator passes --strictPort too; this keeps direct
     // `vite`/preview invocations consistent.
     strictPort: true,
-    proxy: convexProxy,
+    proxy: backendProxy,
   },
   // Preview server (`vite preview`) — the prod-build E2E serving path. Serves
   // the built `dist/` assets (no on-the-fly transpilation, the dev-mode CPU
-  // hog that starved the Convex backend on CI) and proxies Convex the same way
+  // hog that starved the backend on CI) and proxies the backend the same way
   // the dev server does. Dev-only middleware routes (`__ENV__` injection,
   // branding images, canvas preview, status) are re-registered on the preview
   // server via each plugin's `configurePreviewServer` hook.
   preview: {
     port: 3000,
     strictPort: true,
-    proxy: convexProxy,
+    proxy: backendProxy,
   },
   optimizeDeps: {
     include: [
       'react',
       'react-dom',
       'react/jsx-runtime',
-      'convex/react',
       '@tanstack/react-router',
       '@tanstack/react-query',
-      '@convex-dev/react-query',
       'lucide-react',
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
@@ -100,7 +81,6 @@ export default defineConfig({
       '@radix-ui/react-slot',
       'framer-motion',
       'zod',
-      'lodash',
       'date-fns',
       // Markdown rendering stack. Every consumer (chat, skills, workflows,
       // changelog, workspace viewers, docs bodies) lives behind a code-split
@@ -216,7 +196,6 @@ export default defineConfig({
     serveBrandingImages(),
     serveCanvasPreview(),
     serveStatus(),
-    serveWebdav(),
     serveScreencast(),
     // Before injectEnv: its middlewares only patch `res.end`, and the patch
     // must be installed before injectEnv's preview SPA-fallback middleware

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { ProjectFilesTab } from './project-files-tab';
@@ -16,13 +15,13 @@ import { ProjectFilesTab } from './project-files-tab';
 // stored file shows no affordance.
 
 type DocFixture = {
-  _id: Id<'documents'>;
+  _id: string;
   _creationTime: number;
   title?: string;
-  fileId?: Id<'_storage'>;
+  fileId?: string;
   mimeType?: string;
   extension?: string;
-  folderId?: Id<'folders'>;
+  folderId?: string;
   indexed?: boolean;
   ragStatus: 'queued' | 'running' | 'completed' | 'failed' | null;
   createdBy?: string;
@@ -38,9 +37,9 @@ type DocFixture = {
 };
 
 type FolderFixture = {
-  _id: Id<'folders'>;
+  _id: string;
   name: string;
-  parentId?: Id<'folders'>;
+  parentId?: string;
 };
 
 let documentsFixture: DocFixture[] = [];
@@ -129,12 +128,12 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({ mutateAsync: vi.fn().mockResolvedValue({}) }),
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => ({ mutateAsync: vi.fn().mockResolvedValue({}) }),
 }));
 
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: () => ({
     mutateAsync: vi.fn().mockResolvedValue(undefined),
   }),
 }));
@@ -170,7 +169,7 @@ vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({
     ) : null,
 }));
 
-const PROJECT_ID = 'proj-1' as Id<'projects'>;
+const PROJECT_ID = 'proj-1' as string;
 
 function renderTab(
   initialFolderId?: string,
@@ -190,10 +189,10 @@ function renderTab(
 
 function makeDoc(overrides: Partial<DocFixture> = {}): DocFixture {
   return {
-    _id: 'doc-1' as Id<'documents'>,
+    _id: 'doc-1' as string,
     _creationTime: 0,
     title: 'Report.pdf',
-    fileId: 'storage-1' as Id<'_storage'>,
+    fileId: 'storage-1' as string,
     mimeType: 'application/pdf',
     ragStatus: 'completed',
     ...overrides,
@@ -341,12 +340,12 @@ describe('ProjectFilesTab', () => {
   // file-tree primitives) — folders expand to reveal their files, a header
   // action creates folders, and folder deletion warns about the cascade.
   it('renders a folder row and reveals its files on expand', async () => {
-    foldersFixture = [{ _id: 'folder-1' as Id<'folders'>, name: 'Reports' }];
+    foldersFixture = [{ _id: 'folder-1' as string, name: 'Reports' }];
     documentsFixture = [
       makeDoc({
-        _id: 'doc-in-folder' as Id<'documents'>,
+        _id: 'doc-in-folder' as string,
         title: 'Q3.pdf',
-        folderId: 'folder-1' as Id<'folders'>,
+        folderId: 'folder-1' as string,
       }),
     ];
     const { user } = renderTab();
@@ -418,7 +417,7 @@ describe('ProjectFilesTab', () => {
   });
 
   it('warns about the cascade before deleting a folder and deletes on confirm', async () => {
-    foldersFixture = [{ _id: 'folder-1' as Id<'folders'>, name: 'Reports' }];
+    foldersFixture = [{ _id: 'folder-1' as string, name: 'Reports' }];
     const { user } = renderTab();
 
     await user.click(screen.getByRole('button', { name: 'Delete folder' }));
@@ -440,7 +439,7 @@ describe('ProjectFilesTab', () => {
   });
 
   it('hides folder management affordances from read-only members', () => {
-    foldersFixture = [{ _id: 'folder-1' as Id<'folders'>, name: 'Reports' }];
+    foldersFixture = [{ _id: 'folder-1' as string, name: 'Reports' }];
     projectFixture = { canEdit: false };
     renderTab();
 
@@ -456,18 +455,18 @@ describe('ProjectFilesTab', () => {
   // ancestors) once folders load; clicking a folder syncs the URL.
   it('hydrates selection and expands ancestors from initialFolderId', async () => {
     foldersFixture = [
-      { _id: 'folder-root' as Id<'folders'>, name: 'Root' },
+      { _id: 'folder-root' as string, name: 'Root' },
       {
-        _id: 'folder-child' as Id<'folders'>,
+        _id: 'folder-child' as string,
         name: 'Child',
-        parentId: 'folder-root' as Id<'folders'>,
+        parentId: 'folder-root' as string,
       },
     ];
     documentsFixture = [
       makeDoc({
-        _id: 'doc-nested' as Id<'documents'>,
+        _id: 'doc-nested' as string,
         title: 'Nested.pdf',
-        folderId: 'folder-child' as Id<'folders'>,
+        folderId: 'folder-child' as string,
       }),
     ];
     renderTab('folder-child');
@@ -490,7 +489,7 @@ describe('ProjectFilesTab', () => {
   });
 
   it('syncs folderId into the URL when a folder is selected', async () => {
-    foldersFixture = [{ _id: 'folder-1' as Id<'folders'>, name: 'Reports' }];
+    foldersFixture = [{ _id: 'folder-1' as string, name: 'Reports' }];
     const { user } = renderTab();
 
     await user.click(screen.getByRole('treeitem', { name: 'Reports' }));
@@ -656,12 +655,12 @@ describe('ProjectFilesTab', () => {
     });
 
     it('reveals the containing folder for a nested ?doc= target', async () => {
-      foldersFixture = [{ _id: 'folder-1' as Id<'folders'>, name: 'SOPs' }];
+      foldersFixture = [{ _id: 'folder-1' as string, name: 'SOPs' }];
       documentsFixture = [
         makeDoc({
-          _id: 'doc-nested' as Id<'documents'>,
+          _id: 'doc-nested' as string,
           title: 'Nested.pdf',
-          folderId: 'folder-1' as Id<'folders'>,
+          folderId: 'folder-1' as string,
         }),
       ];
       renderTab(undefined, undefined, 'doc-nested');

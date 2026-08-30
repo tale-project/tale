@@ -1,6 +1,7 @@
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import { useQuery } from '@tanstack/react-query';
+
+import { currentUserQuery } from '@/app/lib/backend/account';
 
 export function useCurrentUser() {
-  return useConvexQuery(api.users.queries.getCurrentUser);
+  return useQuery(currentUserQuery());
 }

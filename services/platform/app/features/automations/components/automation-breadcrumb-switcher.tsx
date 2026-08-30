@@ -6,7 +6,6 @@ import { useMemo } from 'react';
 
 import { HeaderBreadcrumbSwitcher } from '@/app/components/layout/header-breadcrumb-switcher';
 import type { SearchableSelectOption } from '@/app/components/ui/forms/searchable-select';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
@@ -31,7 +30,7 @@ export function AutomationBreadcrumbSwitcher({
   /** The current automation's display name — the caller already derives it. */
   displayName: string;
   /** When set, offer this project's automations and stay inside its shell. */
-  projectId?: Id<'projects'>;
+  projectId?: string;
 }) {
   const { t } = useT('automations');
   const { locale } = useLocale();

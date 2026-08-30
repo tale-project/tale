@@ -10,7 +10,6 @@ import {
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { Link } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -39,13 +38,12 @@ import {
   projectRun,
   readRunCursorNode,
 } from '@/app/features/automations/lib/run-view';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { cn } from '@/lib/utils/cn';
 
 import { useAddTaskComment, useUpdateTaskStatus } from '../hooks/mutations';
@@ -72,9 +70,9 @@ function TaskRunDetailsDialog({
   onOpenChange,
 }: {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   automationSlug: string;
-  runId: Id<'automationRuns'>;
+  runId: string;
   name: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -164,8 +162,8 @@ export function TaskSubjectPanel({
 }: {
   organizationId: string;
   task: {
-    _id: Id<'tasks'>;
-    projectId: Id<'projects'>;
+    _id: string;
+    projectId: string;
     status: string;
     externalId?: string;
     reviewerUserId?: string;
@@ -194,7 +192,7 @@ export function TaskSubjectPanel({
       ? resolveActor('user', task.reviewerUserId).name
       : undefined;
 
-  const runQuery = useConvexQuery(api.automations.queries.getLiveRunForTask, {
+  const runQuery = useBackendQuery('automations/queries:getLiveRunForTask', {
     organizationId,
     projectId: task.projectId,
     taskId: task._id,
@@ -214,12 +212,14 @@ export function TaskSubjectPanel({
     task.externalId !== '';
   const hasFiles = folderBound && task.hasFiles === true;
 
-  const startRun = useConvexAction(api.tasks.public_actions.startTaskWorkflow, {
+  const startRun = useBackendAction('tasks/public_actions:startTaskWorkflow', {
     errorToast: false,
   });
-  const cancelRun = useConvexAction(
-    api.tasks.public_actions.cancelTaskWorkflow,
-    { errorToast: false },
+  const cancelRun = useBackendAction(
+    'tasks/public_actions:cancelTaskWorkflow',
+    {
+      errorToast: false,
+    },
   );
   const updateStatus = useUpdateTaskStatus();
   const addComment = useAddTaskComment();
@@ -301,7 +301,7 @@ export function TaskSubjectPanel({
       // hear the reason, not a generic error.
       const reviewRefusal = reviewPolicyErrorMessage(error, t);
       if (
-        error instanceof ConvexError &&
+        error instanceof AppError &&
         error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
       ) {
         toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });

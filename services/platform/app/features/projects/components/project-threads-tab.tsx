@@ -14,22 +14,21 @@ import { PageSection } from '@tale/ui/page-section';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import { MessageSquare } from 'lucide-react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useSetThreadSharedWithProject } from '../hooks/mutations';
 import { useProjectChatThreads } from '../hooks/queries';
 
 interface ProjectThreadsTabProps {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
 }
 
 export function ProjectThreadsTab({
@@ -45,7 +44,7 @@ export function ProjectThreadsTab({
     void navigate({
       to: '/dashboard/$id/chat',
       params: { id: organizationId },
-      search: { projectId: String(projectId) },
+      search: { projectId: projectId },
     });
   };
 
@@ -59,7 +58,7 @@ export function ProjectThreadsTab({
         variant: 'success',
       });
     } catch (error) {
-      if (error instanceof ConvexError) {
+      if (error instanceof AppError) {
         const code = error.data?.code;
         if (code) {
           toast({

@@ -70,7 +70,7 @@ export interface CredentialConsentProps<V> {
  * A mutation as the shared UI calls it: loose arguments in, pending flag out.
  *
  * The features' own Convex hooks take precisely-typed arguments (branded
- * `Id<'connectorCredentials'>`, closed auth-method unions), and a function
+ * `string`, closed auth-method unions), and a function
  * taking a narrow parameter is not assignable to one taking a wide parameter.
  * `looseMutation` is the single, deliberate seam where that is bridged.
  */

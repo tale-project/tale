@@ -3,9 +3,7 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import {
   automationDisplayDescription,
   automationDisplayName,
@@ -70,12 +68,12 @@ interface ContractAutomationEntry {
  */
 export function useTaskContractAutomations(
   organizationId: string,
-  projectId: Id<'projects'> | undefined,
+  projectId: string | undefined,
 ): ContractAutomationEntry[] {
   // '' means "not known yet" (empty board, modal still loading) — skip rather
   // than fire a member-gated query for no organization.
-  const orgQuery = useConvexQuery(
-    api.automations.queries.listAutomations,
+  const orgQuery = useBackendQuery(
+    'automations/queries:listAutomations',
     organizationId === ''
       ? 'skip'
       : {
@@ -85,8 +83,8 @@ export function useTaskContractAutomations(
           ...(projectId === undefined ? { includeProjectBound: true } : {}),
         },
   );
-  const projectQuery = useConvexQuery(
-    api.automations.queries.listAutomations,
+  const projectQuery = useBackendQuery(
+    'automations/queries:listAutomations',
     organizationId === '' || projectId === undefined
       ? 'skip'
       : { organizationId, projectId },
@@ -220,10 +218,7 @@ export function resolveTaskSubjectContract(
  * task's project. */
 export function useTaskSubjectContract(
   organizationId: string,
-  task:
-    | (TaskOwnershipFields & { projectId: Id<'projects'> })
-    | null
-    | undefined,
+  task: (TaskOwnershipFields & { projectId: string }) | null | undefined,
 ): ResolvedTaskSubjectContract | null {
   const automations = useTaskContractAutomations(
     organizationId,
@@ -240,7 +235,7 @@ export function useTaskSubjectContract(
  *  creation) — `create.enabled` contracts of deployed automations. */
 export function useTaskSubjectTemplates(
   organizationId: string,
-  projectId: Id<'projects'> | undefined,
+  projectId: string | undefined,
 ): ResolvedTaskSubjectContract[] {
   const automations = useTaskContractAutomations(organizationId, projectId);
   const { locale } = useLocale();

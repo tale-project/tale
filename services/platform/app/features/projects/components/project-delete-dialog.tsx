@@ -2,15 +2,14 @@
 
 import { Stack } from '@tale/ui/layout';
 import { useNavigate } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import { useEffect, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useDeleteProject } from '../hooks/mutations';
 
@@ -18,7 +17,7 @@ interface ProjectDeleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   projectName: string;
   /**
    * Navigate to the projects list after a successful delete. Set to false
@@ -82,7 +81,7 @@ export function ProjectDeleteDialog({
         });
       }
     } catch (error) {
-      if (error instanceof ConvexError) {
+      if (error instanceof AppError) {
         const code = error.data?.code;
         if (code === 'PROJECT_CONFIRM_PHRASE_MISMATCH') {
           toast({

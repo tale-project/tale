@@ -23,10 +23,9 @@ import { useMemo, useState } from 'react';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import {
   chatFilterConfigSchema,
@@ -274,8 +273,8 @@ function RecentEvents({ organizationId, chatFilterLabels }: RecentEventsProps) {
     [organizationId, filterName, kind],
   );
 
-  const { data: events, isLoading } = useConvexQuery(
-    api.chat_filter_events.queries.listRecent,
+  const { data: events, isLoading } = useBackendQuery(
+    'chat_filter_events/queries:listRecent',
     queryArgs,
   );
 
@@ -526,7 +525,7 @@ function EventDetailSheet({
       // `NotAllowedError: Write permission denied.`) — log for debugging, but
       // never surface the raw message in the toast (#2669 sibling: the same
       // "raw thrown-error text reaches the user" defect class as the
-      // ConvexError save-error toasts this file's siblings route through
+      // AppError save-error toasts this file's siblings route through
       // `mapGovernanceSaveError`).
       console.warn('[guardrails] clipboard write failed', err);
       toast({

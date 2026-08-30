@@ -1,7 +1,5 @@
 import { useMemo } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import type { ProjectListItem } from './queries';
 import { useProject } from './queries';
 
@@ -132,9 +130,7 @@ export function deriveEffectiveProjectConfig(
   };
 }
 
-export function useEffectiveProjectConfig(
-  projectId: Id<'projects'> | undefined,
-) {
+export function useEffectiveProjectConfig(projectId: string | undefined) {
   const { project, isLoading } = useProject(projectId);
   const config = useMemo(
     () => deriveEffectiveProjectConfig(project),

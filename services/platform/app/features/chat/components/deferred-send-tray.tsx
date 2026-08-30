@@ -2,15 +2,22 @@
 
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { useMutation, useQuery } from 'convex/react';
+import { useQuery as useTanstackQuery } from '@tanstack/react-query';
 import { FileAudio, FileText, Image, Loader2, X } from 'lucide-react';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import {
+  cancelDeferredSendRequest,
+  deferredSendsQuery,
+  invalidateChatMessages,
+  retryVideoLinkRequest,
+  videoJobsForThreadQuery,
+} from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo, isImage } from '@/lib/shared/file-types';
 import { formatFileSize } from '@/lib/utils/format/file';
 
+import { useChatQueryClient } from '../data/chat-backend';
 import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
 import { useFileTranscriptionStatus } from '../hooks/use-file-transcription-status';
 import { VideoLinkChip } from './video-link-chip';
@@ -39,18 +46,40 @@ export function DeferredSendTray({
   onRestoreText,
 }: DeferredSendTrayProps) {
   const { t } = useT('chat');
-  const rows = useQuery(api.chat.deferred_sends.listDeferredSends, {
-    organizationId,
-    threadId,
-  });
+  const queryClient = useChatQueryClient();
+  const { data: rows } = useTanstackQuery(
+    deferredSendsQuery(organizationId, threadId),
+    queryClient,
+  );
   // The claimed jobs left the composer's chip filter (they are bound), but
   // the thread query still carries them — join by id for live status.
-  const threadJobs = useQuery(api.video_links.queries.listForThread, {
-    organizationId,
-    threadId,
-  });
-  const cancel = useMutation(api.chat.deferred_sends.cancelDeferredSend);
-  const retryVideo = useMutation(api.video_links.mutations.retryVideoLink);
+  const { data: threadJobs } = useTanstackQuery(
+    videoJobsForThreadQuery(organizationId, threadId),
+    queryClient,
+  );
+  const cancel = useCallback(
+    async (args: {
+      organizationId: string;
+      deferredSendId: string;
+    }): Promise<boolean> => {
+      const cancelled = await cancelDeferredSendRequest(
+        args.organizationId,
+        args.deferredSendId,
+      );
+      invalidateChatMessages(queryClient, args.organizationId, threadId);
+      return cancelled;
+    },
+    [queryClient, threadId],
+  );
+  const retryVideo = useCallback(
+    async (args: { jobId: string }) => {
+      await retryVideoLinkRequest(organizationId, args.jobId);
+      void queryClient.invalidateQueries({
+        queryKey: videoJobsForThreadQuery(organizationId, threadId).queryKey,
+      });
+    },
+    [queryClient, organizationId, threadId],
+  );
 
   // Every parked attachment across rows, for the two status hooks.
   const parkedAttachments = useMemo(
@@ -68,9 +97,7 @@ export function DeferredSendTray({
 
   if (rows === undefined || rows.length === 0) return null;
 
-  const jobById = new Map(
-    (threadJobs ?? []).map((job) => [String(job.jobId), job]),
-  );
+  const jobById = new Map((threadJobs ?? []).map((job) => [job.jobId, job]));
 
   const attachmentStatus = (attachment: {
     fileId: string;
@@ -167,11 +194,11 @@ export function DeferredSendTray({
           {(row.videoJobIds.length > 0 || row.attachments.length > 0) && (
             <Row gap={2} wrap align="center" className="pl-5">
               {row.videoJobIds.map((jobId) => {
-                const job = jobById.get(String(jobId));
+                const job = jobById.get(jobId);
                 if (job === undefined) return null;
                 return (
                   <VideoLinkChip
-                    key={String(jobId)}
+                    key={jobId}
                     job={job}
                     onRetry={() => void retryVideo({ jobId })}
                   />

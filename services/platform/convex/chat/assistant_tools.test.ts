@@ -8,7 +8,6 @@
 // database, or network. The executor's contract is that `execute` NEVER
 // rejects, so every failure case here asserts through `.resolves`.
 
-import { getFunctionName } from 'convex/server';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -17,6 +16,7 @@ import {
   RAG_SEARCH_MAX_LIMIT,
   RAG_SEARCH_MIN_SIMILARITY,
 } from '../../lib/chat';
+import { functionRefName } from '../../lib/shared/handlers/function-refs';
 import { SafeFetchError } from '../lib/http/safe_fetch';
 
 const searchKnowledgeMock = vi.fn();
@@ -92,7 +92,7 @@ async function getFactory(): Promise<ExecutorFactory> {
 }
 
 function fnName(ref: unknown): string {
-  return getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
+  return functionRefName(ref);
 }
 
 const ACCESS_FN = 'sandbox/workspace_access:resolveWorkspaceReadAccess';

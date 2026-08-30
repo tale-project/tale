@@ -17,7 +17,7 @@ import {
 } from '@/lib/shared/schemas/retention';
 import { structuralEqual } from '@/lib/utils/structural-equal';
 
-import { readConvexErrorData } from '../convex-error-data';
+import { readBackendErrorData } from '../backend-error-data';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertRetentionPolicy } from '../hooks/mutations';
 import type { CategoryBounds } from '../hooks/use-retention-bounds';
@@ -130,7 +130,7 @@ function RetentionEditFormBody({
         });
         onClose();
       } catch (error: unknown) {
-        const errData = readConvexErrorData(error);
+        const errData = readBackendErrorData(error);
         const code =
           typeof errData?.code === 'string' ? errData.code : undefined;
         const offending =

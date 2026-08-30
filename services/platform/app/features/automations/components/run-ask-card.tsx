@@ -9,7 +9,6 @@ import { useId, useState } from 'react';
 
 import { QuestionFlow } from '@/app/components/ui/forms/question-flow';
 import { MarkdownContent } from '@/app/features/shared/markdown/markdown-renderer';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   formatAnswerSetForModel,
@@ -23,7 +22,7 @@ import { automationErrorMessage } from '../lib/errors';
 /** The pending-ask shape `getPendingAskForRun` returns — the caller queries
  * it (the panel also drives its state line from it) and hands it in. */
 export interface RunPendingAsk {
-  askId: Id<'automationHumanAsks'>;
+  askId: string;
   question: string;
   /** Present when the agent offered choices — the operator then gets the same
    *  one-question-at-a-time flow the chat composer shows, instead of a box. */

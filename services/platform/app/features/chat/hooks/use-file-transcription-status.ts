@@ -1,12 +1,14 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { useQuery as useTanstackQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import type { FileAttachment } from '@/app/features/shared/files/types';
-import { api } from '@/convex/_generated/api';
+import { fileStatusesQuery } from '@/app/lib/backend/chat';
 import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
+
+import { useChatQueryClient } from '../data/chat-backend';
 
 type TranscriptionStatus =
   | 'queued'
@@ -49,12 +51,14 @@ export function useFileTranscriptionStatus(
     [attachments],
   );
 
-  const metadata = useQuery(
-    api.file_metadata.queries.getByStorageIds,
-    organizationId && audioFileIds.length > 0
-      ? { organizationId, storageIds: audioFileIds }
-      : 'skip',
+  const statusesResult = useTanstackQuery(
+    {
+      ...fileStatusesQuery(organizationId ?? '', audioFileIds),
+      enabled: Boolean(organizationId && audioFileIds.length > 0),
+    },
+    useChatQueryClient(),
   );
+  const metadata = statusesResult.data;
 
   const isQueryLoading = audioFileIds.length > 0 && metadata === undefined;
 

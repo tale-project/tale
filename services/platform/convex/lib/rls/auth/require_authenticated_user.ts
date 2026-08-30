@@ -2,11 +2,7 @@
  * Require authenticated user from context
  */
 
-import type {
-  QueryCtx,
-  MutationCtx,
-  ActionCtx,
-} from '../../../_generated/server';
+import type { QueryCtx, MutationCtx, ActionCtx } from '../../ctx';
 import { UnauthenticatedError } from '../errors';
 import type { AuthenticatedUser } from '../types';
 import { getAuthUserIdentity } from './get_auth_user_identity';

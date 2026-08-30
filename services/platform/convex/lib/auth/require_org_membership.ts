@@ -21,7 +21,7 @@
  * `conversations/actions.ts`, `workflows/triggers/actions.ts`, and
  * `onedrive/actions.ts`.
  *
- * Throws `ConvexError` with stable `code` so UI can dispatch:
+ * Throws `AppError` with stable `code` so UI can dispatch:
  *  - `UNAUTHENTICATED` — no auth user.
  *  - `ORG_NOT_FOUND` — id does not resolve to any organization, or the
  *    organization row is missing its `slug` field.
@@ -32,10 +32,9 @@
  * and V8 actions.
  */
 
-import { ConvexError } from 'convex/values';
-
-import { components } from '../../_generated/api';
-import type { ActionCtx, MutationCtx } from '../../_generated/server';
+import { AppError } from '../../../lib/shared/errors/app-error';
+import type { ActionCtx, MutationCtx } from '../ctx';
+import { components } from '../handler_names';
 import { getAuthUserIdentity } from '../rls/auth/get_auth_user_identity';
 
 interface BetterAuthMember {
@@ -64,7 +63,7 @@ export async function requireOrgMembershipById(
 ): Promise<OrgMembershipAuth> {
   const authUser = await getAuthUserIdentity(ctx);
   if (!authUser) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'UNAUTHENTICATED',
       message: 'Authentication required.',
     });
@@ -79,7 +78,7 @@ export async function requireOrgMembershipById(
   // `ORG_NOT_FOUND` and must not fire for it (see
   // `lib/rls/organization/get_organization_member.ts`, same rule).
   if (!organizationId) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'ORG_ID_REQUIRED',
       message: 'Organization id is required.',
     });
@@ -90,7 +89,7 @@ export async function requireOrgMembershipById(
     where: [{ field: '_id', value: organizationId, operator: 'eq' }],
   });
   if (!org) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'ORG_NOT_FOUND',
       message: `Organization "${organizationId}" not found.`,
     });
@@ -99,7 +98,7 @@ export async function requireOrgMembershipById(
   const orgRecord = org as { _id: string; slug?: string };
   const orgSlug = orgRecord.slug;
   if (!orgSlug) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'ORG_NOT_FOUND',
       message: `Organization "${organizationId}" is missing a slug.`,
     });
@@ -116,7 +115,7 @@ export async function requireOrgMembershipById(
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- adapter findMany returns paginated unknown
   const member = (memberRes as { page?: BetterAuthMember[] })?.page?.[0];
   if (!member || member.role === 'disabled') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'ORG_FORBIDDEN',
       message: `Not a member of organization "${orgSlug}".`,
     });

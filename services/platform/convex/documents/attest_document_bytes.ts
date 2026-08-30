@@ -1,8 +1,8 @@
 'use node';
 
-import { ConvexError } from 'convex/values';
 import { fileTypeFromBuffer } from 'file-type';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { extractExtension } from './extract_extension';
 
 const DETECTED_DOCUMENT_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
@@ -31,7 +31,7 @@ const LEGACY_OFFICE_STREAM_BY_EXTENSION: Readonly<Record<string, string[]>> = {
 };
 
 function invalidType() {
-  return new ConvexError({
+  return new AppError({
     code: 'UPLOAD_MIME_MISMATCH',
     message: 'The file contents do not match the selected document format.',
   });

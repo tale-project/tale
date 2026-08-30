@@ -1,12 +1,14 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
 import { DocumentsTable } from '@/app/features/documents/components/documents-table';
-import { primeCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
-import { api } from '@/convex/_generated/api';
+import {
+  approxDocumentCountQuery,
+  hubDocumentsPageQuery,
+  hubFoldersQuery,
+} from '@/app/lib/backend/documents';
 import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
@@ -23,25 +25,19 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
   }),
   validateSearch: searchSchema,
   loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.documents.queries.approxCountDocuments, {
-        organizationId: params.id,
-      }),
-    );
+    // Documents run on the 0.5 backend — prefetch the adapted reads under
+    // the same keys the hooks' adapter rows use.
+    void context.queryClient.prefetchQuery(approxDocumentCountQuery(params.id));
     // Root folder list — matches useFolders(orgId) with no parentId.
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.folders.queries.listFolders, {
-        organizationId: params.id,
-      }),
-    );
-    // Prime the paginated document list (root folder, no filters) so the table
-    // paints without a skeleton flash on first nav.
-    void primeCachedPaginatedQuery(
-      context.convexQueryClient.convexClient,
-      api.documents.queries.listDocumentsPaginated,
-      { organizationId: params.id },
-      { initialNumItems: DEFAULT_TABLE_PAGE_SIZE },
-    );
+    void context.queryClient.prefetchQuery(hubFoldersQuery(params.id));
+    // Prime the paginated document list (root folder, no filters) so the
+    // table paints without a skeleton flash on first nav.
+    const page = hubDocumentsPageQuery(params.id, {});
+    void context.queryClient.prefetchInfiniteQuery({
+      queryKey: page.queryKey,
+      queryFn: () => page.fetchPage(null, DEFAULT_TABLE_PAGE_SIZE),
+      initialPageParam: null,
+    });
   },
   component: DocumentsPage,
 });

@@ -6,7 +6,6 @@ import { createPrecompiledServer, type ArtifactsServer } from '@tale/ui/seo';
 import { Hono } from 'hono';
 import { NONCE, secureHeaders } from 'hono/secure-headers';
 
-import { convexMetricsResponse } from './convex-metrics';
 import {
   buildCanvasPreviewCsp,
   wrapCanvasPreviewHtml,
@@ -20,13 +19,6 @@ import {
 import { injectBootShell, shouldServeBootShell } from './lib/shared/boot-shell';
 import { isValidOrgSlug } from './lib/shared/constants/org-slug';
 import { parseSessionIdleTimeoutMinutes } from './lib/shared/session-idle';
-import { fetchAdapter as webdavFetchAdapter } from './lib/webdav/adapters/fetch';
-import { makeWebdavCtx } from './lib/webdav/ctx';
-import {
-  ensureWebdavHmacKey,
-  WEBDAV_HMAC_KEY_MIN_LENGTH,
-} from './lib/webdav/hmac-key';
-import { WEBDAV_METHODS } from './lib/webdav/types';
 import { slaRulesResponse } from './sla-targets';
 import {
   buildStatusFeed,
@@ -84,7 +76,8 @@ export function shouldDeliverSseEvent(
 
 const fileEventsEnabled = process.env.TALE_FILE_EVENTS === 'true';
 const configDir = process.env.TALE_CONFIG_DIR;
-// Post-split (Phase 2): TALE_CONFIG_DIR points at the convex-data volume
+// TALE_CONFIG_DIR points at the org config-store volume (still named
+// `convex-data` so no operator has to migrate a volume for a rename)
 // mounted read-only on the platform container (for config-file SSE + branding
 // image serving). Skip watcher setup gracefully if the directory is absent.
 if (fileEventsEnabled && configDir && existsSync(configDir)) {
@@ -116,37 +109,17 @@ const defaultOrgStorageOrigins = createOrgObjectStorageOriginsProvider(
 );
 
 /**
- * Resolve the org slugs the current session is allowed to receive
- * events for by forwarding the request's Cookie header to Convex's
- * `/api/sse/auth` httpAction. Returns null on missing/invalid session
- * (the SSE handler then closes the connection with 401).
+ * The backend tier this process asks for verdicts it cannot reach a database
+ * to answer (the two oracles in `backend/realtime/oracle-routes.ts`). Compose
+ * sets TALE_BACKEND_URL to the in-network name; the loopback default is what
+ * `bun dev` uses, matching vite.config.ts and status-probe.ts.
  *
- * `CONVEX_SITE_PROXY_URL` overrides the derived URL for dev — see
- * vite.config.ts. In compose the convex HTTP-actions port is `:3211`
- * on the same internal hostname as the WS API (`:3210` from
- * CONVEX_URL).
+ * Read per call, never frozen at import: the module is loaded before the
+ * process env is fully assembled in some entry paths.
  */
-function convexHttpActionsBaseUrl(): string {
-  if (process.env.CONVEX_SITE_PROXY_URL) {
-    return process.env.CONVEX_SITE_PROXY_URL.replace(/\/$/, '');
-  }
-  const wsUrl = process.env.CONVEX_URL ?? 'http://convex:3210';
-  // Parse via URL() so the rewrite works for bare hostnames
-  // (`https://convex.example.com` → no explicit port) and URLs with
-  // path suffixes (`http://convex:3210/sub`) — the previous regex
-  // `:\d+$` only matched the literal trailing-port shape and would
-  // silently leave the wrong port in place for any operator who set
-  // CONVEX_URL to anything else. Falls back to the original string if
-  // parsing fails (defensive — should be unreachable).
-  try {
-    const parsed = new URL(wsUrl);
-    parsed.port = '3211';
-    // URL toString preserves protocol, host, path; strip any trailing
-    // slash for symmetry with CONVEX_SITE_PROXY_URL handling above.
-    return parsed.toString().replace(/\/$/, '');
-  } catch {
-    return wsUrl.replace(/:\d+$/, ':3211').replace(/\/$/, '');
-  }
+function backendBaseUrl(): string {
+  const configured = (process.env.TALE_BACKEND_URL ?? '').replace(/\/+$/, '');
+  return configured === '' ? 'http://127.0.0.1:3005' : configured;
 }
 
 async function resolveAllowedOrgSlugs(
@@ -154,12 +127,12 @@ async function resolveAllowedOrgSlugs(
 ): Promise<Set<string> | null> {
   if (!cookieHeader) return null;
   try {
-    const res = await fetch(`${convexHttpActionsBaseUrl()}/api/sse/auth`, {
+    const res = await fetch(`${backendBaseUrl()}/api/sse/auth`, {
       headers: { cookie: cookieHeader },
     });
     if (res.status === 401) return null;
     if (!res.ok) {
-      console.warn(`[/events/file] convex auth lookup returned ${res.status}`);
+      console.warn(`[/events/file] backend auth lookup returned ${res.status}`);
       return null;
     }
     const body: unknown = await res.json();
@@ -172,7 +145,7 @@ async function resolveAllowedOrgSlugs(
       slugs.filter((s): s is string => typeof s === 'string' && s.length > 0),
     );
   } catch (err) {
-    console.warn('[/events/file] convex auth lookup failed', err);
+    console.warn('[/events/file] backend auth lookup failed', err);
     return null;
   }
 }
@@ -182,10 +155,10 @@ async function resolveAllowedOrgSlugs(
 //
 // The browser opens `wss://<site>/screencast/<threadId>` (noVNC). This is the
 // ONLY browser-facing WS termination in the deployment. server.ts authenticates
-// the upgrade (cookie+org) by forwarding the Cookie header to the Convex
-// `/api/sandbox/screencast-auth` oracle — the platform process can't run Convex
-// queries directly, so the oracle runs the canAccessThread RLS and maps the
-// thread → its live sandbox session. On 200 we upgrade and relay raw binary RFB
+// the upgrade (cookie+org) by forwarding the Cookie header to the backend's
+// `/api/sandbox/screencast-auth` oracle — this process has no database, so the
+// oracle runs the thread-view boundary and maps the thread → its live sandbox
+// session. On 200 we upgrade and relay raw binary RFB
 // frames to the spawner WS (lib/screencast-relay.ts). The chain:
 //   browser → [here] → spawner WS (HMAC) → runnerd tunnel → x11vnc.
 // ---------------------------------------------------------------------------
@@ -200,10 +173,10 @@ type ScreencastAuthResult =
 
 /**
  * Authorize a screencast WS upgrade by forwarding the request Cookie to the
- * Convex `/api/sandbox/screencast-auth` httpAction (same mechanism
- * `resolveAllowedOrgSlugs` uses to reach Convex). The oracle resolves identity
- * from the session cookie and runs the canAccessThread boundary, returning the
- * live sessionId on success. We propagate its status (401/403/409/429) verbatim
+ * backend's `/api/sandbox/screencast-auth` door (the same mechanism
+ * `resolveAllowedOrgSlugs` uses). The oracle resolves identity from the
+ * session cookie and runs the thread-view boundary, returning the live
+ * sessionId on success. We propagate its status (401/403/409/429) verbatim
  * so the browser sees the same refusal the workspace-file route would give.
  */
 export async function authorizeScreencast(
@@ -219,12 +192,12 @@ export async function authorizeScreencast(
   if (!cookieHeader) return deny(401, 'Unauthenticated');
   let res: Response;
   try {
-    const target = `${convexHttpActionsBaseUrl()}/api/sandbox/screencast-auth?threadId=${encodeURIComponent(
+    const target = `${backendBaseUrl()}/api/sandbox/screencast-auth?threadId=${encodeURIComponent(
       threadId,
     )}${control ? '&control=1' : ''}`;
     res = await fetch(target, { headers: { cookie: cookieHeader } });
   } catch (err) {
-    console.warn('[/screencast] convex auth lookup failed', err);
+    console.warn('[/screencast] backend auth lookup failed', err);
     return deny(502, 'Bad Gateway');
   }
   if (res.status === 200) {
@@ -241,7 +214,7 @@ export async function authorizeScreencast(
         typeof body === 'object' &&
         (body as { control?: unknown }).control === true;
     } catch (err) {
-      console.warn('[/screencast] convex auth 200 with unreadable body', err);
+      console.warn('[/screencast] backend auth 200 with unreadable body', err);
       return deny(502, 'Bad Gateway');
     }
     if (typeof sessionId === 'string' && sessionId.length > 0) {
@@ -476,11 +449,10 @@ function getEnvConfig(): EnvConfig {
 //     under the CDN prohibition above. Sourced live from config (see
 //     `lib/org-storage-origins.ts`), never from env.
 //
-// All OTHER Convex traffic — including deployment-default storage uploads
-// via `generateUploadUrl()` and storage downloads — flows same-origin
-// through Caddy (`/ws_api`, `/api/storage/*`), so `'self'` covers it
-// without needing any `*.convex.cloud` / `*.convex.site` entries. The one
-// exception is the org BYO object-storage lane above: `generateBlobUpload`
+// All OTHER backend traffic — including deployment-default storage uploads
+// and downloads — flows same-origin through Caddy (`/api/*`), so `'self'`
+// covers it. The one exception is the org BYO object-storage lane above:
+// the upload door
 // hands the browser a presigned PUT addressed directly at the org's
 // endpoint, deliberately bypassing the platform so multi-hundred-MB blobs
 // never transit (or OOM) the server. SITE_URL hostname determines
@@ -718,7 +690,7 @@ export function createApp(
   // SPA `*` fallback below, so it bypasses the TanStack Router shell. Caddy
   // forwards `/status` and `/status.json` to this handler via the default
   // `reverse_proxy platform:3000` (no `/api/*` collision with the
-  // Convex-bound block). Both routes project from the same `StatusFeed`
+  // backend-bound block). Both routes project from the same `StatusFeed`
   // so the human and machine views cannot drift.
   app.get('/status', async (c) => {
     const feed = buildStatusFeed(await probeServices());
@@ -746,7 +718,7 @@ export function createApp(
 
     // Auth gate. SSE clients (EventSource) cannot set Authorization
     // headers but DO send same-origin cookies, so we forward the
-    // request's Cookie to Convex's `/api/sse/auth` httpAction which
+    // request's Cookie to the backend's `/api/sse/auth` door, which
     // validates the Better Auth session and returns the user's org
     // memberships. Anonymous / cross-tenant fan-out used to leak
     // every org's config-item names; per-client `allowedOrgSlugs`
@@ -788,10 +760,6 @@ export function createApp(
   });
 
   app.get('/metrics', () => metricsResponse());
-
-  app.get('/metrics/convex', (c) =>
-    convexMetricsResponse(c.req.query('format') ?? null),
-  );
 
   // Generated Prometheus recording + alerting rules for the response-time
   // SLAs, derived from the canonical targets in `sla-targets.ts`. Operators
@@ -836,67 +804,6 @@ export function createApp(
       },
     });
   });
-
-  // WebDAV server (/dav/<orgSlug>/...). HTTP Basic auth with per-user
-  // app-passwords; Caddy default fallback already routes /dav/* here so
-  // no proxy rule is needed. Code lives in `lib/webdav/`; the same
-  // protocol layer is mirrored into Vite dev by `vite-plugins/serve-webdav.ts`.
-  //
-  // CSP / security-headers from `secureHeaders` would clobber blob
-  // responses on GET — webdav handlers set their own Content-Type and
-  // we want the raw bytes through. Skip the middleware on this path.
-  const webdavAdminKey = process.env.ADMIN_KEY ?? '';
-  // Dev parity: `docker-entrypoint.sh` derives this deterministically from
-  // INSTANCE_SECRET in prod; ensureWebdavHmacKey mirrors that derivation so
-  // `bun dev` works without an explicit operator step. An explicit env var
-  // always wins — operators rotating the HMAC key set it directly in
-  // .env.local.
-  const webdavHmacKey = ensureWebdavHmacKey() ?? '';
-  const webdavConvexUrl = process.env.CONVEX_URL ?? 'http://convex:3210';
-  // Boot-time visibility into the two preconditions for /dav/*. We log
-  // and continue instead of throwing so the rest of the platform serves
-  // even when the operator hasn't configured WebDAV yet; the per-request
-  // handler then 500s with an actionable message.
-  if (!webdavAdminKey) {
-    console.warn(
-      '[webdav] ADMIN_KEY unset — /dav/* will 500. Set via docker-entrypoint (prod) or .env.local (dev).',
-    );
-  }
-  if (!webdavHmacKey || webdavHmacKey.length < WEBDAV_HMAC_KEY_MIN_LENGTH) {
-    console.warn(
-      `[webdav] WEBDAV_APP_PASSWORD_HMAC_KEY unset or too short (need ${WEBDAV_HMAC_KEY_MIN_LENGTH} hex chars) — /dav/* will 500.`,
-    );
-  }
-  let webdavCtx: ReturnType<typeof makeWebdavCtx> | null = null;
-  function getWebdavCtx() {
-    if (!webdavAdminKey) {
-      throw new Error(
-        'ADMIN_KEY not set — required for /dav/* (webdav server reads Convex via admin auth)',
-      );
-    }
-    if (!webdavCtx) {
-      webdavCtx = makeWebdavCtx({
-        convexUrl: webdavConvexUrl,
-        adminKey: webdavAdminKey,
-        // Escape hatch for the GET storage-proxy fallback when the Convex
-        // site origin isn't `<backend host>:3211` — e.g. an external Convex
-        // on non-default ports or a single-origin HTTPS front. Defaults to
-        // the :3211 derivation when unset.
-        convexSiteUrl: process.env.WEBDAV_CONVEX_SITE_URL || undefined,
-      });
-    }
-    return webdavCtx;
-  }
-  const webdavHandler = (c: { req: { raw: Request } }) =>
-    webdavFetchAdapter(c.req.raw, getWebdavCtx());
-  // Hono's `Method` union covers RFC 7231 verbs only. WebDAV adds
-  // PROPFIND/PROPPATCH/MKCOL/MOVE/COPY/LOCK/UNLOCK, which Hono's router
-  // accepts at runtime via `app.on(string[], ...)` but the TS overload
-  // declares the narrower `Method[]`. Cast intentionally.
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  app.on(WEBDAV_METHODS as unknown as string[], '/dav/*', webdavHandler);
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  app.on(WEBDAV_METHODS as unknown as string[], '/dav', webdavHandler);
 
   // Dev live-reload build-id endpoint (polled by DEV_RELOAD_SCRIPT). Registered
   // before the SPA catch-all so it is not swallowed by it; dev-only.

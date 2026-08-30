@@ -22,7 +22,6 @@ import { useState } from 'react';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
@@ -135,7 +134,7 @@ export function SourceCards({
     ),
   ];
   const fileMetas = useChatQuery(
-    api.file_metadata.queries.getByStorageIds,
+    'file_metadata/queries:getByStorageIds',
     organizationId !== undefined && documentFileIds.length > 0
       ? { organizationId, storageIds: documentFileIds }
       : 'skip',

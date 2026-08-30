@@ -20,7 +20,7 @@ Lies das, wenn du Bereitschaft hast. Komm zurück, wenn du entscheidest, welchen
 | `tale-sandbox-egress`      | Netzwerk-Egress für sandboxierten Code                                                       | **Code-ausführen**-Tool scheitert mit „Egress denied"; Web-Render scheitert |
 | `tale-sandbox`             | Sandbox-Laufzeit + Headless-Browser für Web-Render und Dokumentgenerierung                   | **Code-ausführen**, Web-Crawl-Render und Dokumentgenerierung scheitern alle |
 
-Ein Container ist dem öffentlichen Netz exponiert (`tale-proxy` für HTTPS, optional `tale-sandbox-egress` ausgehend für die Sandbox); der Rest nur intern. Der Opt-in-Sidecar `tale-controller` (das `controller`-Profil) ist standardmäßig aus; aktiviert startet er `tale-convex` auf eine signierte Anfrage neu, damit eine Datenresidenz-Änderung greifen kann, ohne der Plattform Docker-Zugriff zu geben.
+Ein Container ist dem öffentlichen Netz exponiert (`tale-proxy` für HTTPS, optional `tale-sandbox-egress` ausgehend für die Sandbox); der Rest nur intern.
 
 ## Der Request-Pfad
 

@@ -1,15 +1,17 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, type ReactNode } from 'react';
 
 import {
   AccountBootstrapContext,
   type AccountBootstrapContextValue,
 } from '@/app/context/account-bootstrap-context';
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import {
+  passwordExpiryQuery,
+  twoFactorStatusQuery,
+} from '@/app/lib/backend/account';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
-import { api } from '@/convex/_generated/api';
 
 /**
  * Provides the org-independent dashboard gate results (2FA status +
@@ -20,9 +22,10 @@ import { api } from '@/convex/_generated/api';
  * total.
  *
  * Mounted once on the `/dashboard` layout so every authenticated child reads
- * these queries instead of each firing its own. Both are gated on
- * `useConvexAuth().isAuthenticated` so they only run once the WebSocket is
- * authenticated.
+ * these queries instead of each firing its own. Both are served by the 0.5
+ * backend on the session cookie (the dashboard `beforeLoad` already proved
+ * it), so neither waits for the Convex WebSocket handshake — the 2FA gate
+ * lifts as soon as the HTTP reads land.
  *
  * Lives in its own file (component-only export) so it is a clean Fast Refresh
  * boundary; the context object + hooks it pairs with are in
@@ -33,17 +36,8 @@ export function AccountBootstrapProvider({
 }: {
   children: ReactNode;
 }) {
-  const { isAuthenticated } = useConvexAuth();
-  const { data: twoFactor } = useConvexQuery(
-    api.two_factor.queries.getStatus,
-    {},
-    { enabled: isAuthenticated },
-  );
-  const { data: passwordExpiry } = useConvexQuery(
-    api.users.queries.getPasswordExpiryStatus,
-    {},
-    { enabled: isAuthenticated },
-  );
+  const { data: twoFactor } = useQuery(twoFactorStatusQuery());
+  const { data: passwordExpiry } = useQuery(passwordExpiryQuery());
 
   useEffect(() => {
     if (twoFactor) markColdLoad('account-bootstrap');

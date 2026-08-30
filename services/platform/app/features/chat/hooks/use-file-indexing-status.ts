@@ -1,11 +1,11 @@
 'use client';
 
-import { useQuery } from 'convex/react';
+import { useQuery as useTanstackQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 
 import type { FileAttachment } from '@/app/features/shared/files/types';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import { fileStatusesQuery } from '@/app/lib/backend/chat';
 import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -13,6 +13,8 @@ import {
   isImage,
   isRagIndexableFile,
 } from '@/lib/shared/file-types';
+
+import { useChatQueryClient } from '../data/chat-backend';
 
 // 'unsupported' is a terminal, non-retryable status: the RAG service has no
 // text extractor for the format, so the file will NEVER index — distinct
@@ -60,12 +62,14 @@ export function useFileIndexingStatus(
     [attachments],
   );
 
-  const metadata = useQuery(
-    api.file_metadata.queries.getByStorageIds,
-    organizationId && fileIds.length > 0
-      ? { organizationId, storageIds: fileIds }
-      : 'skip',
+  const statusesResult = useTanstackQuery(
+    {
+      ...fileStatusesQuery(organizationId ?? '', fileIds),
+      enabled: Boolean(organizationId && fileIds.length > 0),
+    },
+    useChatQueryClient(),
   );
+  const metadata = statusesResult.data;
 
   const isQueryLoading = fileIds.length > 0 && metadata === undefined;
 

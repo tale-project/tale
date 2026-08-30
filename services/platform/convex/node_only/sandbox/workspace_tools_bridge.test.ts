@@ -6,16 +6,9 @@
 // bridge's mapping, the read-only surface, the per-dispatch access gate, and
 // the audit write are locked without a live embedder or convexTest.
 
-import { getFunctionName } from 'convex/server';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-vi.mock('../../_generated/server', async (importOriginal) => {
-  const mod = await importOriginal<Record<string, unknown>>();
-  return {
-    ...mod,
-    internalAction: (config: Record<string, unknown>) => config,
-  };
-});
+import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 
 const searchKnowledgeMock = vi.fn();
 vi.mock('../../knowledge/search', () => ({
@@ -42,13 +35,17 @@ type Handler = (
   args: Record<string, unknown>,
 ) => Promise<Record<string, unknown>>;
 
-async function getActions(): Promise<{ dispatch: Handler; status: Handler }> {
+/** `workspaceToolStatusImpl` needs no ctx — the grant set is the whole
+ *  input, so it is called directly rather than through a Handler. */
+type StatusFn = (grants: readonly string[]) => Record<string, unknown>;
+
+async function getActions(): Promise<{ dispatch: Handler; status: StatusFn }> {
+  // The impls ARE the handlers now — the Convex wrapper that used to carry
+  // them retired with the runtime.
   const mod = await import('./workspace_tools_bridge');
   return {
-    dispatch: (mod.dispatchWorkspaceTool as unknown as { handler: Handler })
-      .handler,
-    status: (mod.workspaceToolStatus as unknown as { handler: Handler })
-      .handler,
+    dispatch: mod.dispatchWorkspaceToolImpl as unknown as Handler,
+    status: mod.workspaceToolStatusImpl as unknown as StatusFn,
   };
 }
 
@@ -57,7 +54,7 @@ const SCOPE_FN = 'sandbox/workspace_access:resolveKnowledgeToolAccess';
 const ACTION_FN = 'sandbox/workspace_access:resolveSessionActionContext';
 
 function fnName(ref: unknown): string {
-  return getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
+  return functionRefName(ref);
 }
 
 /**
@@ -127,7 +124,7 @@ const BASE = {
   userId: 'user_1',
 };
 
-describe('dispatchWorkspaceTool', () => {
+describe('dispatchWorkspaceToolImpl', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('refuses an unknown tool with invalid_args and audits it', async () => {
@@ -686,7 +683,7 @@ describe('dispatchWorkspaceTool', () => {
   );
 });
 
-describe('dispatchWorkspaceTool — write tools (task family + document_create)', () => {
+describe('dispatchWorkspaceToolImpl — write tools (task family + document_create)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   const PROJECT_CTX = {
@@ -1294,13 +1291,10 @@ describe('dispatchWorkspaceTool — write tools (task family + document_create)'
   });
 });
 
-describe('workspaceToolStatus', () => {
+describe('workspaceToolStatusImpl', () => {
   it('lists granted tools with descriptions', async () => {
     const { status } = await getActions();
-    const result = await status(
-      {},
-      { grants: ['rag_search', 'knowledge_entry_find'] },
-    );
+    const result = status(['rag_search', 'knowledge_entry_find']);
     const tools = result.tools as { name: string; description: string }[];
     expect(tools.map((t) => t.name)).toEqual([
       'rag_search',
@@ -1313,10 +1307,7 @@ describe('workspaceToolStatus', () => {
 
   it('badges write tools as not read-only and reads as read-only', async () => {
     const { status } = await getActions();
-    const result = await status(
-      {},
-      { grants: ['task_find', 'task_create', 'document_create'] },
-    );
+    const result = status(['task_find', 'task_create', 'document_create']);
     const tools = result.tools as { name: string; readOnly: boolean }[];
     const byName = new Map(tools.map((t) => [t.name, t.readOnly]));
     expect(byName.get('task_find')).toBe(true);
@@ -1326,7 +1317,7 @@ describe('workspaceToolStatus', () => {
 
   it('says plainly when nothing is granted', async () => {
     const { status } = await getActions();
-    const result = await status({}, { grants: [] });
+    const result = status([]);
     expect(result.tools).toEqual([]);
     expect(String(result.note)).toContain('No workspace tools');
   });

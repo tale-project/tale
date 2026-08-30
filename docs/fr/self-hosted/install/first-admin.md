@@ -1,9 +1,9 @@
 ---
 title: Créer le premier admin
-description: Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique — le premier compte devient Owner sans clé, les nouveaux arrivent par invitation, et la clé admin ne sert qu'au tableau de bord Convex.
+description: Faire passer une instance auto-hébergée toute neuve par son assistant de configuration unique — le premier compte devient Owner sans clé et les nouveaux arrivent par invitation.
 ---
 
-Une instance Tale toute neuve n'a pas encore d'utilisateurs. La première personne qui l'ouvre déroule un assistant de configuration unique qui crée son compte, la connecte, en fait l'**Owner** et nomme la première organisation — aucune clé de bootstrap, aucune promotion manuelle. Ce parcours couvre ce premier lancement, comment les coéquipiers arrivent ensuite, et où obtenir la clé admin du tableau de bord Convex si tu dois un jour inspecter le backend directement.
+Une instance Tale toute neuve n'a pas encore d'utilisateurs. La première personne qui l'ouvre déroule un assistant de configuration unique qui crée son compte, la connecte, en fait l'**Owner** et nomme la première organisation — aucune clé de bootstrap, aucune promotion manuelle. Ce parcours couvre ce premier lancement et comment les coéquipiers arrivent ensuite.
 
 La seule chose à désapprendre des anciennes instructions : la première inscription ne demande plus de clé admin. Tale est sur invitation seulement après le premier compte, donc il n'y a pas non plus de page d'inscription ouverte à verrouiller.
 
@@ -31,22 +31,10 @@ Le premier compte sur une instance neuve est automatiquement l'**Owner** — auc
 
 Il n'y a pas d'inscription en libre-service. Une fois qu'un Owner existe, `SITE_URL/sign-up` redirige les visiteurs vers l'écran de connexion, donc personne ne peut créer un compte de lui-même. Ajoute les coéquipiers par invitation sous **Paramètres > Personnes** ; chaque invitation porte le rôle avec lequel le nouveau membre démarre. Le modèle de rôles complet est dans [Membres et rôles](/fr/platform/admin/members-and-roles).
 
-## Obtenir la clé admin du tableau de bord Convex
-
-La clé admin ne joue aucun rôle dans les étapes ci-dessus — elle ne débloque que le **tableau de bord Convex**, la vue bas niveau de la base de données du backend. La clé est déterministe : elle est dérivée de `INSTANCE_SECRET`, donc elle reste la même d'un redémarrage à l'autre au lieu de tourner.
-
-Obtiens-la de la façon qui correspond à ton installation :
-
-- Avec la CLI : `tale convex admin` trouve le conteneur platform et imprime la clé. `tale dev` l'imprime aussi une fois les services en bonne santé.
-- Depuis un clone git : `./scripts/get-admin-key.sh` à la racine du dépôt.
-
-Ouvre `SITE_URL/convex-dashboard`, saisis `SITE_URL` comme URL de déploiement, et colle la clé quand on te la demande.
-
 ## Dépannage
 
 - **L'assistant n'est pas apparu — tu atterris sur l'écran de connexion.** Des utilisateurs existent déjà sur cette instance ; l'assistant ne tourne que sur une instance vraiment vide. Connecte-toi à la place, ou fais-toi inviter par un Owner existant sous **Paramètres > Personnes**.
 - **Un service est unhealthy.** Le conteneur platform n'est pas entièrement monté. `docker compose ps` dit quel service échoue ; `docker compose logs platform` montre pourquoi.
-- **Le tableau de bord rejette la clé admin.** La clé est déterministe à partir de `INSTANCE_SECRET`, donc un rejet signifie généralement que `INSTANCE_NAME` et `INSTANCE_SECRET` diffèrent entre les services platform et Convex, ou que l'URL de déploiement est fausse — utilise `SITE_URL`. Régénère avec `tale convex admin` pour être sûr d'avoir copié la valeur actuelle.
 
 ## Où ça s'utilise
 

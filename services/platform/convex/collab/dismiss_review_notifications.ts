@@ -5,8 +5,8 @@
  */
 
 import { isRecord } from '../../lib/utils/type-utils';
-import type { Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../lib/ctx';
+import type { Id } from '../lib/rows';
 
 const MEMBER_SCAN_CAP = 500;
 const UNREAD_SCAN_CAP = 100;
@@ -41,7 +41,7 @@ export async function dismissReviewRequestNotifications(
     taskId: Id<'tasks'>;
   },
 ): Promise<number> {
-  const approvalIdStr = String(args.approvalId);
+  const approvalIdStr = args.approvalId;
   const now = Date.now();
   let dismissed = 0;
 

@@ -1,6 +1,6 @@
 import { type Locator, type Page } from '@playwright/test';
 
-import { TIMEOUT } from '../helpers/env';
+import { ENTITY_ID, TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { reloadAndSettle } from '../helpers/forms';
 import { t } from '../helpers/i18n';
@@ -45,10 +45,12 @@ async function createProject(
     .click();
 
   await page.waitForURL(
-    new RegExp(`/dashboard/${organizationId}/projects/[A-Za-z0-9]{16,}`),
+    new RegExp(`/dashboard/${organizationId}/projects/${ENTITY_ID}`),
     { timeout: TIMEOUT.NAV },
   );
-  const projectId = /\/projects\/([A-Za-z0-9]{16,})/.exec(page.url())?.[1];
+  const projectId = new RegExp(`/projects/(${ENTITY_ID})`).exec(
+    page.url(),
+  )?.[1];
   expect(projectId, 'a project id should appear in the URL').toBeTruthy();
   return `/dashboard/${organizationId}/projects/${projectId}`;
 }

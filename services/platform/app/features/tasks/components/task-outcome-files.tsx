@@ -7,9 +7,7 @@ import { PackageCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useT } from '@/lib/i18n/client';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 
@@ -37,16 +35,16 @@ export function TaskOutcomeFilesCard({
   contract,
 }: {
   organizationId: string;
-  projectId: Id<'projects'>;
-  folderId: Id<'folders'>;
+  projectId: string;
+  folderId: string;
   contract: TaskSubjectContract;
 }) {
   const { t } = useT('tasks');
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(
     null,
   );
-  const documentsQuery = useConvexQuery(
-    api.projects.queries.listProjectDocuments,
+  const documentsQuery = useBackendQuery(
+    'projects/queries:listProjectDocuments',
     { organizationId, projectId },
   );
 

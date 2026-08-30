@@ -3,8 +3,7 @@
 import type { SearchResult, SearchSource } from '@tale/ui/search';
 import { useMemo } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
 const NO_RESULTS: SearchResult<ContactSearchHitData>[] = [];
 
@@ -19,8 +18,8 @@ export function createContactsSearchSource(options: {
   const { organizationId, enabled = true } = options;
   return (query, { active }) => {
     const trimmed = query.trim();
-    const hits = useConvexQuery(
-      api.contacts.search.searchContacts,
+    const hits = useBackendQuery(
+      'contacts/search:searchContacts',
       enabled && active && trimmed.length > 0
         ? { organizationId, query: trimmed }
         : 'skip',

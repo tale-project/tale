@@ -1,6 +1,5 @@
-import { anyApi } from 'convex/server';
-
-import { convexErrorCode } from '../errors';
+import { anyRefs } from '../../shared/handlers/function-refs';
+import { backendErrorCode } from '../errors';
 import { checkCollectionDescendantLocks, checkResourceLock } from '../locks';
 import { buildDavPath, lockKeyFromParsed, parseDavPath } from '../paths';
 import type {
@@ -154,7 +153,7 @@ async function doMoveOrCopy(
     }
   }
 
-  const src = await ctx.convex.query(anyApi.webdav.tree_queries.resolvePath, {
+  const src = await ctx.convex.query(anyRefs.webdav.tree_queries.resolvePath, {
     organizationId: auth.organizationId,
     namespace: parsed.namespace,
     segments: parsed.segments,
@@ -192,8 +191,8 @@ async function doMoveOrCopy(
           };
     const result = await ctx.convex.mutation(
       op === 'MOVE'
-        ? anyApi.webdav.tree_mutations.moveResource
-        : anyApi.webdav.tree_mutations.copyResource,
+        ? anyRefs.webdav.tree_mutations.moveResource
+        : anyRefs.webdav.tree_mutations.copyResource,
       mutationArgs,
     );
 
@@ -203,7 +202,7 @@ async function doMoveOrCopy(
     // follow in v1). COPY leaves the source intact, so nothing to clean.
     if (op === 'MOVE') {
       await ctx.convex
-        .mutation(anyApi.webdav.lock_mutations.deleteLocksUnderPath, {
+        .mutation(anyRefs.webdav.lock_mutations.deleteLocksUnderPath, {
           organizationId: auth.organizationId,
           resourcePath: lockKeyFromParsed(parsed),
         })
@@ -227,7 +226,7 @@ async function doMoveOrCopy(
       body: null,
     };
   } catch (err) {
-    const code = convexErrorCode(err);
+    const code = backendErrorCode(err);
     if (code === 'LEGAL_HOLD_ACTIVE') {
       // Overwrite trashed a held destination (MOVE/COPY over an existing
       // doc/folder) — refuse. 403, not 423: 423 implies a retriable WebDAV

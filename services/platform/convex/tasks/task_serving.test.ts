@@ -17,7 +17,7 @@ import {
   providerDefinitionSchema,
   type ProviderDefinition,
 } from '../../lib/shared/schemas/providers';
-import type { ActionCtx } from '../_generated/server';
+import type { ActionCtx } from '../lib/ctx';
 
 const {
   resolveServingTarget,

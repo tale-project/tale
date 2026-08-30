@@ -1,20 +1,13 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 export function useCreateKnowledgeEntry() {
-  return useConvexMutation(
-    api.knowledge_entries.mutations.createKnowledgeEntry,
-  );
+  return useBackendMutation('knowledge_entries/mutations:createKnowledgeEntry');
 }
 
 export function useUpdateKnowledgeEntry() {
-  return useConvexMutation(
-    api.knowledge_entries.mutations.updateKnowledgeEntry,
-  );
+  return useBackendMutation('knowledge_entries/mutations:updateKnowledgeEntry');
 }
 
 export function useDeleteKnowledgeEntry() {
-  return useConvexMutation(
-    api.knowledge_entries.mutations.deleteKnowledgeEntry,
-  );
+  return useBackendMutation('knowledge_entries/mutations:deleteKnowledgeEntry');
 }

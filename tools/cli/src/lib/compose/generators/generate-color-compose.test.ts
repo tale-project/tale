@@ -14,13 +14,13 @@ const config = {
   registry: 'ghcr.io/tale-project',
 } satisfies ServiceConfig;
 
-describe('generateColorCompose ↔ controller restart contract', () => {
-  // The controller resolves rotatable services by candidate labels
-  // {platform, platform-blue, platform-green} across projects {P, P-blue,
-  // P-green} (services/controller/src/targets.ts). If the color compose
-  // renamed the `platform` service key or its container, "Apply & restart"
-  // would silently match zero containers on a blue-green deployment. Pin the
-  // naming convention here.
+describe('generateColorCompose ↔ container naming contract', () => {
+  // `tale restore` discovers running containers by candidate names
+  // {P-platform, P-platform-blue, P-platform-green} (restore.ts), and the
+  // blue/green deploy flow addresses the colors by the same convention. If
+  // the color compose renamed the `platform` service key or its container,
+  // that discovery would silently match zero containers on a blue-green
+  // deployment. Pin the naming convention here.
   for (const color of ['blue', 'green'] as const) {
     test(`emits compose service key + container platform-${color}`, () => {
       const compose = parse(generateColorCompose(config, color)) as {

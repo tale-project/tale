@@ -1,7 +1,6 @@
 import { fireEvent, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 import { RunAskCard } from './run-ask-card';
@@ -17,7 +16,7 @@ vi.mock('../hooks/mutations', () => ({
 }));
 
 const ask = {
-  askId: 'ask-1' as Id<'automationHumanAsks'>,
+  askId: 'ask-1' as string,
   question: 'RE-2026-0120: which amount governs — 1850.00 or 1580.00?',
 };
 
@@ -81,7 +80,7 @@ describe('RunAskCard', () => {
 // blocker is often genuinely open, so the card has to serve both shapes.
 describe('RunAskCard with offered choices', () => {
   const withChoices = {
-    askId: 'ask-2' as Id<'automationHumanAsks'>,
+    askId: 'ask-2' as string,
     question: 'How should I handle the mismatch?',
     questions: {
       questions: [

@@ -34,14 +34,12 @@
  * the streamable-HTTP transport specifies.
  */
 
-import { ConvexError } from 'convex/values';
-
 import { MCP_TOOLS, mcpToolKind } from '../../lib/mcp/tools';
-import { internal } from '../_generated/api';
+import { AppError } from '../../lib/shared/errors/app-error';
+import { internal } from '../lib/handler_names';
 import {
   jsonError,
   requireRestDeveloper,
-  withRestAuth,
   type RestContext,
 } from '../lib/rest/helpers';
 
@@ -68,7 +66,7 @@ async function developerRefusal(rc: RestContext): Promise<string | null> {
     await requireRestDeveloper(rc);
     return null;
   } catch (error) {
-    if (error instanceof ConvexError) {
+    if (error instanceof AppError) {
       const data: unknown = error.data;
       return isRecord(data) && typeof data.message === 'string'
         ? data.message
@@ -235,13 +233,7 @@ export async function handleMcpRequest(
   }
 }
 
-export const mcpHandler = withRestAuth('rest:api', handleMcpRequest);
-
 /** GET is not served — this endpoint offers JSON responses, not an SSE stream. */
 export function mcpGetNotAllowed(): Response {
   return jsonError('Use POST with a JSON-RPC message', 405);
 }
-
-export const mcpMethodNotAllowed = withRestAuth('rest:api', async () =>
-  mcpGetNotAllowed(),
-);

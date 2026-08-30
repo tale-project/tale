@@ -14,11 +14,8 @@
  * (mutations → internal_mutations → here; review_mutations → here).
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import { isRecord } from '../../lib/utils/type-utils';
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { dismissReviewRequestNotifications } from '../collab/dismiss_review_notifications';
 import {
@@ -28,14 +25,19 @@ import {
 } from '../collab/notify_task_reviews';
 import { holdsAllCompetences } from '../governance/competence';
 import { readReviewPolicy } from '../governance/review_policy';
+import type { MutationCtx } from '../lib/ctx';
+import type { Doc, Id } from '../lib/rows';
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { recordActivity, TASK_METRIC_ACTIONS } from './helpers';
 
+/** As much of an approval row as the two round/run readers below touch. */
+interface ApprovalMetadataFields {
+  metadata?: unknown;
+}
+
 /** The review round an approval was minted for; rows predating the round key
  * (or with malformed metadata) read as round 0. Exported for unit tests. */
-export function approvalRound(
-  approval: Pick<Doc<'approvals'>, 'metadata'>,
-): number {
+export function approvalRound(approval: ApprovalMetadataFields): number {
   const metadata: unknown = approval.metadata;
   if (!isRecord(metadata)) return 0;
   return typeof metadata.round === 'number' ? metadata.round : 0;
@@ -44,7 +46,7 @@ export function approvalRound(
 /** The agent run a workflow-free review was minted for (settle mints key
  * their idempotency on this); absent on workflow-era rows. */
 export function approvalRunId(
-  approval: Pick<Doc<'approvals'>, 'metadata'>,
+  approval: ApprovalMetadataFields,
 ): string | undefined {
   const metadata: unknown = approval.metadata;
   if (!isRecord(metadata)) return undefined;
@@ -140,8 +142,7 @@ export async function requestTaskReview(
   args: { task: Doc<'tasks'>; trigger: TaskReviewTrigger },
 ): Promise<{ approvalId: Id<'approvals'>; minted: boolean }> {
   const { task, trigger } = args;
-  const runKey =
-    trigger.kind === 'agent_run' ? String(trigger.runId) : undefined;
+  const runKey = trigger.kind === 'agent_run' ? trigger.runId : undefined;
 
   const prior: Doc<'approvals'>[] = [];
   for await (const approval of ctx.db
@@ -253,7 +254,7 @@ export const REVIEW_POLICY_REFUSAL_CODES = [
 /** Whether a throw is one of the `review_policy` refusals — batch callers
  * (`bulkUpdateTasks`) skip the task instead of aborting the whole batch. */
 export function isReviewPolicyRefusal(error: unknown): boolean {
-  if (!(error instanceof ConvexError)) return false;
+  if (!(error instanceof AppError)) return false;
   const data: unknown = error.data;
   if (!isRecord(data) || typeof data.code !== 'string') return false;
   return (REVIEW_POLICY_REFUSAL_CODES as readonly string[]).includes(data.code);
@@ -263,7 +264,7 @@ export function isReviewPolicyRefusal(error: unknown): boolean {
  * The org `review_policy` gate on WHO may decide a review — shared between
  * `respondToTaskReview` and the leave-to-done close, so the status picker and
  * the board drag cannot decide what the respond door would refuse. Pure check:
- * throws a coded ConvexError on refusal, writes nothing, and returns the
+ * throws a coded AppError on refusal, writes nothing, and returns the
  * outcomes to stamp on the recorded response. Absent (or malformed — logged
  * and treated as absent) policy means exactly the open behaviour: any project
  * editor.
@@ -293,7 +294,7 @@ export async function checkReviewPolicyForResponder(
       // (`projectAgentRuns.startedBy` — every task-lane trigger is a
       // person's act). Independence = the responder is someone else.
       if (run.startedBy === responderUserId) {
-        throw new ConvexError({
+        throw new AppError({
           code: 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
           message:
             'This organization requires an independent reviewer: the person who started the run cannot approve its work.',
@@ -305,7 +306,7 @@ export async function checkReviewPolicyForResponder(
       // cannot recover the driver. Conservatively require the responder to
       // differ from the task's creator — the closest proxy for the person
       // whose work is under review.
-      throw new ConvexError({
+      throw new AppError({
         code: 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
         message:
           "This organization requires an independent reviewer: the reviewed run's driver could not be resolved, so the task creator cannot respond.",
@@ -322,7 +323,7 @@ export async function checkReviewPolicyForResponder(
       requiredCompetences,
     );
     if (!held.holdsAll) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'REVIEW_COMPETENCE_REQUIRED',
         message: `Responding to this review requires the competence(s): ${held.missing.join(', ')}. Ask an org admin to grant them.`,
         missing: held.missing,

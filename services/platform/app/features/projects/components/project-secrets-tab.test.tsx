@@ -1,7 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -51,7 +50,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-const PROJECT_ID = 'proj-1' as Id<'projects'>;
+const PROJECT_ID = 'proj-1' as string;
 
 function renderTab() {
   return render(
@@ -105,7 +104,7 @@ describe('ProjectSecretsTab', () => {
       ['PROJECT_NOT_FOUND', /no longer exists/],
       ['UNAUTHENTICATED', /Only project administrators/],
     ])('shows the access notice and no editor for %s', (code, body) => {
-      secretsErrorFixture = new ConvexError({ code });
+      secretsErrorFixture = new AppError({ code });
       renderTab();
 
       expect(screen.getByText('Admin access required')).toBeInTheDocument();

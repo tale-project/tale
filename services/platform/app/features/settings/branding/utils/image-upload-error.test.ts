@@ -1,25 +1,26 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
+
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { imageUploadErrorToastKey } from './image-upload-error';
 
 describe('imageUploadErrorToastKey', () => {
-  it('maps each known saveImage ConvexError code to its specific key', () => {
+  it('maps each known saveImage AppError code to its specific key', () => {
     expect(
-      imageUploadErrorToastKey(new ConvexError({ code: 'IMAGE_TOO_LARGE' })),
+      imageUploadErrorToastKey(new AppError({ code: 'IMAGE_TOO_LARGE' })),
     ).toBe('error.imageTooLarge');
     expect(
       imageUploadErrorToastKey(
-        new ConvexError({ code: 'IMAGE_MIME_UNSUPPORTED' }),
+        new AppError({ code: 'IMAGE_MIME_UNSUPPORTED' }),
       ),
     ).toBe('error.imageMimeUnsupported');
     expect(
-      imageUploadErrorToastKey(new ConvexError({ code: 'IMAGE_TYPE_INVALID' })),
+      imageUploadErrorToastKey(new AppError({ code: 'IMAGE_TYPE_INVALID' })),
     ).toBe('error.imageTypeInvalid');
   });
 
   it('reads the code from a duck-typed error data shape (HMR-safe)', () => {
-    // Mimics a ConvexError whose class identity differs across Vite chunks:
+    // Mimics a AppError whose class identity differs across Vite chunks:
     // a plain object carrying the same `data` shape must still be classified.
     expect(
       imageUploadErrorToastKey({ data: { code: 'IMAGE_TOO_LARGE' } }),

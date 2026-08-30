@@ -19,7 +19,7 @@ import { DEFAULT_LOGGING } from '../types';
  *   - `sandbox` — so the per-call runtime containers it spawns can be
  *     attached to the internal-only egress bridge.
  *
- * Single container (blue-green dropped): Convex addresses it by the bare
+ * Single container (blue-green dropped): the backend addresses it by the bare
  * `sandbox` alias on `internal` (the compose service-key alias), and it talks
  * to its egress sidecar via the bare `sandbox-egress` alias on the shared
  * sandbox network. A deploy rolls it in place after draining via /v1/drain
@@ -39,12 +39,12 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
     // SIGKILL'ing mid-execution. The deploy drains via /v1/drain first
     // (drainSandbox, deploy.ts); this is the backstop.
     stop_grace_period: '30s',
-    // NOTE: no published `ports` here. Convex (in-container, stateful
+    // NOTE: no published `ports` here. The backend (in-container, stateful
     // compose) reaches the spawner via the `internal` Docker network at
     // http://sandbox:8003 — publishing a host-side port is unnecessary
     // attack surface in production (the spawner mounts /var/run/docker.sock,
     // so any reachable peer is effectively host-root). The dev compose
-    // generator overlays `127.0.0.1:8003:8003` so that `bun dev` with Convex
+    // generator overlays `127.0.0.1:8003:8003` so that `bun dev` with the backend
     // running on the host can reach the spawner.
     // Per-container resource caps. The spawner is a thin Bun HTTP server
     // that issues `docker` subprocess calls; 512 MB is generous for the
@@ -83,7 +83,7 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       // Live browser view (read-only mirror). Unset here so BOTH sides apply
       // their default-ON; set SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt
       // out. ONE value drives both sides — this spawner reads it directly and
-      // the platform pushes it to Convex — and it is read on the platform
+      // the backend reads it from its environment — and it is read on the platform
       // service too (NOT a sandbox-only var), so both interpolate from the same
       // root .env to stay in lockstep. Mirrors compose.yml.
       SANDBOX_BROWSER_VIEW: '${SANDBOX_BROWSER_VIEW:-}',
@@ -116,7 +116,7 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       'sandbox-egress': { condition: 'service_healthy' },
     },
     logging: DEFAULT_LOGGING,
-    // Convex reaches the spawner on `internal` via the bare `sandbox`
+    // The backend reaches the spawner on `internal` via the bare `sandbox`
     // compose service-key alias (single container — blue-green dropped).
     networks: ['internal', 'sandbox'],
   };

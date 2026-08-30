@@ -11,7 +11,6 @@ import { useMemo, useState } from 'react';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteProjectAgent } from '../hooks/mutations';
@@ -27,7 +26,7 @@ import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
 
 interface ProjectAgentsTabProps {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
 }
 
 /**

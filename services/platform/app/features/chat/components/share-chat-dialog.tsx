@@ -21,7 +21,6 @@ import type { ComponentType } from 'react';
 import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -83,7 +82,7 @@ function ShareChatDialogContent({
   const [publishFailed, setPublishFailed] = useState(false);
   const [accessMode, setAccessMode] = useState<ShareAccessMode>('private');
 
-  const status = useChatQuery(api.chat.threads.getThreadShareStatus, {
+  const status = useChatQuery('chat/threads:getThreadShareStatus', {
     organizationId,
     threadId,
   });

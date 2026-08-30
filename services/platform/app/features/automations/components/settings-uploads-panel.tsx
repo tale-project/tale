@@ -40,11 +40,8 @@ import {
   useProjectFolders,
 } from '@/app/features/projects/hooks/queries';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_MAX_FILE_SIZE,
@@ -76,7 +73,7 @@ export function SettingsUploadsPanel({
   onBusyChange,
 }: {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   /** Resolved settings folder name (see `resolveSettingsFolder`). */
   folder: string;
   form: SettingsUploadsForm;
@@ -97,15 +94,15 @@ export function SettingsUploadsPanel({
   const { mutateAsync: createFolder } = useCreateFolder();
   const { mutateAsync: deleteDocument, isPending: isDeletingDocument } =
     useDeleteDocument();
-  const { mutateAsync: generateUploadUrl } = useConvexMutation(
-    api.files.mutations.generateUploadUrl,
+  const { mutateAsync: generateUploadUrl } = useBackendMutation(
+    'files/mutations:generateUploadUrl',
   );
-  const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
-    api.documents.mutations.createDocumentFromUpload,
+  const { mutateAsync: createDocumentFromUpload } = useBackendMutation(
+    'documents/mutations:createDocumentFromUpload',
   );
   const [uploading, setUploading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{
-    id: Id<'documents'>;
+    id: string;
     title: string;
   } | null>(null);
   /** Upload target: a subtree folder id, or null = the panel root. */
@@ -153,7 +150,7 @@ export function SettingsUploadsPanel({
         (entry) =>
           entry.name === form.subdir &&
           settingsFolder !== undefined &&
-          String(entry.parentId ?? '') === String(settingsFolder._id),
+          (entry.parentId ?? '') === settingsFolder._id,
       )
     : settingsFolder;
   const matcher = useMemo(() => {
@@ -201,27 +198,27 @@ export function SettingsUploadsPanel({
       };
     const childrenOf = new Map<string, typeof folders>();
     for (const entry of folders) {
-      const key = String(entry.parentId ?? '');
+      const key = entry.parentId ?? '';
       const list = childrenOf.get(key) ?? [];
       list.push(entry);
       childrenOf.set(key, list);
     }
-    const prefixOf = new Map<string, string>([[String(root._id), '']]);
+    const prefixOf = new Map<string, string>([[root._id, '']]);
     const queue: Array<{ folder: typeof root; key: string }> = [
       { folder: root, key: '' },
     ];
     while (queue.length > 0) {
       const current = queue.shift();
       if (current === undefined) break;
-      const prefix = prefixOf.get(String(current.folder._id)) ?? '';
-      for (const child of childrenOf.get(String(current.folder._id)) ?? []) {
+      const prefix = prefixOf.get(current.folder._id) ?? '';
+      for (const child of childrenOf.get(current.folder._id) ?? []) {
         // Visited guard (`prefixOf` doubles as the set): corrupt parentId
         // data must terminate, mirroring folderSubtreeIds' cycle posture.
-        if (prefixOf.has(String(child._id))) continue;
+        if (prefixOf.has(child._id)) continue;
         const childPath = `${prefix}${child.name}`;
-        prefixOf.set(String(child._id), `${childPath}/`);
+        prefixOf.set(child._id, `${childPath}/`);
         const row: DirRow = {
-          id: String(child._id),
+          id: child._id,
           path: childPath,
           name: child.name,
           parentKey: current.key,
@@ -236,11 +233,11 @@ export function SettingsUploadsPanel({
     let count = 0;
     for (const doc of documents) {
       if (doc.folderId === undefined) continue;
-      const folderId = String(doc.folderId);
+      const folderId = doc.folderId;
       if (!prefixOf.has(folderId) || !matcher.test(doc.title ?? '')) continue;
       // Files directly in the panel root render at its top level; everything
       // else nests under its folder row.
-      const key = folderId === String(root._id) ? '' : folderId;
+      const key = folderId === root._id ? '' : folderId;
       const list = fileRows.get(key) ?? [];
       list.push({
         doc,
@@ -296,24 +293,21 @@ export function SettingsUploadsPanel({
     parentId?: string,
   ): Promise<string> => {
     try {
-      return String(
-        await createFolder({
-          organizationId,
-          name,
-          ...(parentId !== undefined && {
-            parentId: toId<'folders'>(parentId),
-          }),
-          projectId,
+      return await createFolder({
+        organizationId,
+        name,
+        ...(parentId !== undefined && {
+          parentId: parentId,
         }),
-      );
+        projectId,
+      });
     } catch (error) {
       if (extractErrorCode(error) === 'FOLDER_DUPLICATE_NAME') {
         const existing = foldersRef.current.find(
           (entry) =>
-            entry.name === name &&
-            String(entry.parentId ?? '') === (parentId ?? ''),
+            entry.name === name && (entry.parentId ?? '') === (parentId ?? ''),
         );
-        if (existing !== undefined) return String(existing._id);
+        if (existing !== undefined) return existing._id;
       }
       throw error;
     }
@@ -327,12 +321,12 @@ export function SettingsUploadsPanel({
 
   /** The settings folder + declared subdir, created on first need. */
   const ensureRoot = (): Promise<string> => {
-    if (panelRoot !== undefined) return Promise.resolve(String(panelRoot._id));
+    if (panelRoot !== undefined) return Promise.resolve(panelRoot._id);
     if (createdRootRef.current !== null)
       return Promise.resolve(createdRootRef.current);
     ensureRootRef.current ??= (async () => {
       const settingsFolderId = settingsFolder
-        ? String(settingsFolder._id)
+        ? settingsFolder._id
         : await createOrAdopt(folder);
       const rootId = form.subdir
         ? await createOrAdopt(form.subdir, settingsFolderId)
@@ -417,7 +411,7 @@ export function SettingsUploadsPanel({
         }
         await createDocumentFromUpload({
           organizationId,
-          fileId: toId<'_storage'>(uploadJson.storageId),
+          fileId: uploadJson.storageId,
           fileName: file.name,
           contentType: resolvedType,
           // `fileSize` (not just metadata.size) is what makes the mutation
@@ -432,7 +426,7 @@ export function SettingsUploadsPanel({
             lastModified: file.lastModified,
           },
           teamId: undefined,
-          folderId: toId<'folders'>(targetId),
+          folderId: targetId,
           projectId,
         });
         okCount++;
@@ -470,14 +464,12 @@ export function SettingsUploadsPanel({
       // selection id covers a folder created moments ago that the reactive
       // list hasn't caught up with yet.
       const parentId = selectedDir?.id ?? selectedDirId ?? (await ensureRoot());
-      const created = String(
-        await createFolder({
-          organizationId,
-          name,
-          parentId: toId<'folders'>(parentId),
-          projectId,
-        }),
-      );
+      const created = await createFolder({
+        organizationId,
+        name,
+        parentId: parentId,
+        projectId,
+      });
       // Provisional until the reactive listing shows it — keeps the pick
       // (and the reconciliation effect) honest through the refresh window.
       justCreatedRef.current = new Set([...justCreatedRef.current, created]);
@@ -533,7 +525,7 @@ export function SettingsUploadsPanel({
   const hasValidPick = selectedDirId !== null && dirIds.has(selectedDirId);
   const firstRowKey =
     rootDirRows[0]?.id ??
-    (rootFileRows[0] !== undefined ? String(rootFileRows[0].doc._id) : null);
+    (rootFileRows[0] !== undefined ? rootFileRows[0].doc._id : null);
   const treeBusy = uploading || disabled === true;
 
   const renderFile = (
@@ -544,7 +536,7 @@ export function SettingsUploadsPanel({
     const { doc, displayPath } = file;
     const baseName = displayPath.split('/').pop() ?? displayPath;
     const FileIcon = iconForPath(baseName);
-    const rowKey = String(doc._id);
+    const rowKey = doc._id;
     return (
       <li key={rowKey} role="none">
         <HStack gap={1} align="center">

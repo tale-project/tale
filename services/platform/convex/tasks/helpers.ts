@@ -3,14 +3,13 @@
  * user-facing `mutations.ts` and the agent-facing `internal_mutations.ts`.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
 } from '../../lib/shared/task-label-colors';
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx, QueryCtx } from '../_generated/server';
+import type { MutationCtx, QueryCtx } from '../lib/ctx';
+import type { Doc, Id } from '../lib/rows';
 import { parseIssueNumber, parseRepoRef } from './issue_ref';
 import { initialRank, rankBetween } from './rank';
 
@@ -32,14 +31,14 @@ export function normalizeLabelNames(
 ): string[] | undefined {
   if (labels == null) return undefined;
   if (labels.length > TASK_LABELS_MAX) {
-    throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+    throw new AppError({ code: 'TASK_LABELS_INVALID' });
   }
   const normalized: string[] = [];
   const seen = new Set<string>();
   for (const raw of labels) {
     const label = raw.trim().toLowerCase();
     if (label.length === 0 || label.length > TASK_LABEL_CHARS_MAX) {
-      throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+      throw new AppError({ code: 'TASK_LABELS_INVALID' });
     }
     if (!seen.has(label)) {
       seen.add(label);
@@ -85,7 +84,7 @@ export async function resolveProjectLabels(
       continue;
     }
     if (!createIfMissing) {
-      throw new ConvexError({
+      throw new AppError({
         code: 'TASK_LABEL_UNKNOWN',
         data: { name },
       });
@@ -353,16 +352,16 @@ export async function hasOpenChildren(
 }
 
 /** The task fields a workflow-run subject is built from. */
-export type TaskWorkflowSubjectFields = Pick<
-  Doc<'tasks'>,
-  | '_id'
-  | 'title'
-  | 'status'
-  | 'projectId'
-  | 'externalSystem'
-  | 'externalId'
-  | 'externalUrl'
->;
+export interface TaskWorkflowSubjectFields {
+  _id: string;
+  title: string;
+  status: string;
+  projectId: string;
+  /** The external trio: only a task mirrored from an issue tracker has it. */
+  externalSystem?: string;
+  externalId?: string;
+  externalUrl?: string;
+}
 
 /**
  * The `input.task` subject a task-workflow run receives — ONE builder for
@@ -379,10 +378,10 @@ export function taskWorkflowSubjectInput(task: TaskWorkflowSubjectFields): {
   const repoRef = parseRepoRef(task.externalId);
   return {
     task: {
-      id: String(task._id),
+      id: task._id,
       title: task.title,
       status: task.status,
-      projectId: String(task.projectId),
+      projectId: task.projectId,
       ...(task.externalSystem !== undefined
         ? { externalSystem: task.externalSystem }
         : {}),

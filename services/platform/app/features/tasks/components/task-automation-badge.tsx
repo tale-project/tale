@@ -3,7 +3,6 @@
 import { Workflow } from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -32,7 +31,7 @@ export function TaskAutomationBadge({
 }: {
   organizationId: string;
   task: TaskOwnershipFields & {
-    projectId: Id<'projects'>;
+    projectId: string;
     status?: string;
     /** The bound folder id for folder-input subjects (absent = unbound). */
     externalId?: string;

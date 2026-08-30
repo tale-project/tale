@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { signUpViaApi, uniqueCredentials } from '../helpers/auth';
-import { TIMEOUT } from '../helpers/env';
+import { ORG_DASHBOARD_URL, TIMEOUT } from '../helpers/env';
 import { t } from '../helpers/i18n';
 
 /**
@@ -17,7 +17,6 @@ import { t } from '../helpers/i18n';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-const ORG_ID_URL = /\/dashboard\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
 const LOGIN_URL = /\/log-in(?:[/?#]|$)/;
 const CREATE_ORG_URL = /\/dashboard\/create-organization(?:[/?#]|$)/;
 
@@ -120,6 +119,6 @@ test.describe('onboarding wizard', () => {
       })
       .click();
 
-    await page.waitForURL(ORG_ID_URL, { timeout: TIMEOUT.FIRST_PAINT });
+    await page.waitForURL(ORG_DASHBOARD_URL, { timeout: TIMEOUT.FIRST_PAINT });
   });
 });

@@ -15,8 +15,8 @@
  *   - Deployment stores after (knowledge database, file storage, and the
  *     advanced application database): viewable by any org admin, editable only
  *     by an operator in the `TALE_DEPLOYMENT_CONFIG_ADMINS` allowlist, with
- *     its own "Save deployment" + "Apply & restart" header actions (a save
- *     only takes effect on restart, which the editor contract cannot express).
+ *     its own "Save deployment" header action (a save only takes effect on
+ *     the next restart/deploy, which the editor contract cannot express).
  *
  * Read-only sections render the stored coordinates as native read-only fields
  * (conveyed to assistive tech, not by disabled/color alone) and the on/off

@@ -1,10 +1,9 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { useConvex } from 'convex/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import { synthesizeChunkRequest } from '@/app/lib/backend/chat';
 
 import { segmentTextForTts } from '../utils/segment-tts';
 
@@ -45,7 +44,6 @@ export function useOnDemandSpeech(opts: UseOnDemandSpeechOpts): OnDemandSpeech {
   const { locale } = useLocale();
   // Provider-safe action handle — surfaces without a ConvexProvider reject
   // into the ordinary error path instead of crashing the render.
-  const convex = useConvex();
   const synthesize = useCallback(
     (request: {
       messageId: string;
@@ -55,12 +53,9 @@ export function useOnDemandSpeech(opts: UseOnDemandSpeechOpts): OnDemandSpeech {
       text: string;
       locale: string;
     }) => {
-      if (!convex) {
-        return Promise.reject(new Error('no convex client'));
-      }
-      return convex.action(api.tts.synthesize.synthesizeChunk, request);
+      return synthesizeChunkRequest(request);
     },
-    [convex],
+    [],
   );
   const [requested, setRequested] = useState(false);
   // Guards re-synthesis: a second tap should just keep the indicator up and

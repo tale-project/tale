@@ -526,11 +526,10 @@ describe('GET /status.json', () => {
     expect(body).toMatchObject({
       status: expect.stringMatching(/^(operational|degraded|outage)$/),
       checkedAt: expect.any(String),
-      // RAG + crawler are in-process in Convex now, so the only probed
-      // backend is the Convex application.
+      // Every lane runs inside the backend tier, so it is the only probe.
       components: expect.arrayContaining([
         expect.objectContaining({
-          id: 'convex',
+          id: 'backend',
           status: expect.stringMatching(/^(operational|outage)$/),
         }),
       ]),
@@ -541,15 +540,15 @@ describe('GET /status.json', () => {
 describe('SSE /events/file', () => {
   test('returns 401 when no session cookie is present', async () => {
     const app = createApp(baseEnv);
-    // No cookie → convex auth is never even called; the handler short-
-    // circuits the early-null branch in resolveAllowedOrgSlugs.
+    // No cookie → the backend oracle is never even called; the handler
+    // short-circuits the early-null branch in resolveAllowedOrgSlugs.
     const res = await app.fetch(new Request('http://localhost/events/file'));
     expect(res.status).toBe(401);
     expect(res.headers.get('www-authenticate')).toBe('Cookie');
     expect(res.headers.get('vary')).toBe('Cookie');
   });
 
-  test('returns 401 when convex auth lookup rejects the session', async () => {
+  test('returns 401 when the backend oracle rejects the session', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response('Unauthenticated', { status: 401 }));
@@ -645,7 +644,7 @@ describe('authorizeScreencast — auth oracle propagation', () => {
     vi.restoreAllMocks();
   });
 
-  test('returns 401 without ever calling convex when no cookie is present', async () => {
+  test('returns 401 without ever calling the backend when no cookie is present', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const res = await authorizeScreencast('thread-1', undefined);
     expect(res).toEqual({

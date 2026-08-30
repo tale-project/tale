@@ -1,6 +1,6 @@
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
 import { encryptString } from '../../lib/crypto/encrypt_string';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 import { withoutGraphFileScopes } from '../entra_id/constants';
 import { generatePkcePair } from '../pkce';
 import { getAdapter } from '../registry';

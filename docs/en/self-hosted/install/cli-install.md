@@ -56,8 +56,6 @@ tale config show
 
 The host the proxy answers on, TLS settings, and every secret live in the project's `.env`. To change the host, edit `HOST` there or pass `--host` to `tale dev` / `tale deploy`. To operate a remote host, point your shell's Docker context (or `DOCKER_HOST`) at it — the CLI talks to the same Docker endpoint every `docker` command does.
 
-The Convex dashboard admin key is separate from CLI configuration — it never gates sign-up, and it is deterministic (derived from `INSTANCE_NAME` and `INSTANCE_SECRET`, so it stays the same across restarts). Generate it with `tale convex admin` when you want to inspect the backend (see [First admin](/self-hosted/install/first-admin)).
-
 ## Step 4 — Run tale deploy
 
 ```bash
@@ -83,7 +81,7 @@ Run `tale <command> --help` for the authoritative list at your installed version
 - `-q, --quiet` — only warnings and errors.
 - `-y, --yes` — assume "yes" for all prompts (non-interactive).
 - `--no-color` — disable ANSI colour (also honours `NO_COLOR` / `FORCE_COLOR`).
-- `--json` — machine-readable JSON on stdout, human messages on stderr; supported by `status`, `config show`, and `migrate status`.
+- `--json` — machine-readable JSON on stdout, human messages on stderr; supported by `status` and `config show`.
 - `--ci` — force non-interactive, append-only output (no cursor control).
 
 Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition (no project, Docker not running, port in use), `4` on a user abort (Ctrl-C, or a required prompt with no terminal), and `5` on an external-dependency failure — so scripts can branch on the cause.
@@ -145,7 +143,9 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 - `-f, --force` — force re-sync and overwrite locally modified project files.
 - `--dry-run` — show what would change without modifying anything.
 
-`tale migrate` — re-provision the built-in defaults and apply the safe pending data migrations against the running deployment — the same idempotent steps every deploy runs, on demand. The subcommands give granular, reversible control: `migrate status` shows applied and pending migrations, `migrate up [--to <version>]` applies pending ones (destructive steps need `-y, --yes` or `--step`), and `migrate down --to <version>` rolls back.
+`tale migrate` — re-provision the built-in defaults for every organization against the running deployment — the same idempotent step every deploy runs, on demand. Schema migrations are not a command: the backend applies them at boot, so a deployed container is always at its own schema.
+
+- `--dry-run` — show what would run without executing it.
 
 `tale cleanup` — remove inactive (non-current colour) containers. No arguments.
 
@@ -170,13 +170,10 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 - `-e, --email <email>` — set a new owner email address.
 - `-p, --password <password>` — set a new owner password.
 
-`tale convex admin` — generate a Convex dashboard admin key. No arguments.
-
 ## Troubleshooting
 
 - **`tale deploy` targets the wrong machine.** The CLI uses your shell's Docker context / `DOCKER_HOST`. Switch with `docker context use …` (or set `DOCKER_HOST`) so it points at the intended host, then re-run.
 - **`tale deploy` uses the wrong host alias.** The host the proxy answers on comes from `HOST` in the project's `.env`, not a separate CLI store. Edit `.env` or pass `--host` to override it for one run.
-- **The Convex dashboard rejects the admin key.** Sign-up never asks for the key — only the dashboard does. The key is deterministic (derived from `INSTANCE_NAME` and `INSTANCE_SECRET`), so a rejection usually means those values differ between the platform and Convex services, or the deployment URL is wrong — use `SITE_URL`. Regenerate with `tale convex admin` to be sure you copied the current value.
 - **Installer fails on macOS because the binary cannot execute.** When the freshly installed binary refuses to run (e.g. Gatekeeper kills it), the installer fails with recovery hints instead of reporting success — follow them, then re-run the installer.
 - **`tale` not found after install on Linux.** The installer drops the binary in `/usr/local/bin`; verify the directory is on the user's `PATH` (`echo $PATH`).
 

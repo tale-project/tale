@@ -6,10 +6,10 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
-type AuditLog = Doc<'auditLogs'>;
+type AuditLog = AuditLogDoc;
 
 export type AuditLogTableVariant = 'audit' | 'errors';
 

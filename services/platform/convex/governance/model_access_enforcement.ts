@@ -1,8 +1,6 @@
-import type { GenericQueryCtx } from 'convex/server';
-
 import type { ModelAccessConfig } from '../../lib/shared/schemas/governance';
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
-import type { DataModel } from '../_generated/dataModel';
+import type { QueryCtx } from '../lib/ctx';
 import { readPolicyConfig } from './helpers';
 
 export interface ModelAccessCheckResult {
@@ -125,7 +123,7 @@ function isModelPermitted(
  * - The model passes the matching rule's allow/block check
  */
 export async function checkModelAccess(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   userId: string,
   teamIds: string[],
@@ -137,16 +135,29 @@ export async function checkModelAccess(
     organizationId,
     'model_access',
   );
+  return evaluateModelAccess(config, { userId, teamIds, userRole }, modelId);
+}
 
+/**
+ * The PURE half of {@link checkModelAccess} — the rule resolution and the
+ * allow/block verdict over an already-loaded policy. Exported so a host
+ * with its own policy source (the 0.5 backend reads policy FILES) applies
+ * exactly the same semantics.
+ */
+export function evaluateModelAccess(
+  config: ModelAccessConfig | null,
+  who: { userId: string; teamIds: string[]; userRole?: string | undefined },
+  modelId: string,
+): ModelAccessCheckResult {
   if (!config || !config.enabled || config.rules.length === 0) {
     return { allowed: true };
   }
 
   const resolved = resolveAllowedAndBlockedModels(
     config,
-    userId,
-    teamIds,
-    userRole,
+    who.userId,
+    who.teamIds,
+    who.userRole,
   );
 
   if (!resolved) {
@@ -176,7 +187,7 @@ export async function checkModelAccess(
  * When no policy exists or it is disabled, returns the full candidate list unchanged.
  */
 export async function getAccessibleModels(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   userId: string,
   teamIds: string[],
@@ -193,17 +204,32 @@ export async function getAccessibleModels(
     return allModelIds;
   }
 
+  return filterAccessibleModels(
+    config,
+    { userId, teamIds, userRole },
+    allModelIds,
+  );
+}
+
+/** The pure accessible-models filter behind `getAccessibleModels` — the 0.5
+ * backend calls it directly over its file-read config. */
+export function filterAccessibleModels(
+  config: ModelAccessConfig | null,
+  who: { userId: string; teamIds: string[]; userRole: string | undefined },
+  allModelIds: string[],
+): string[] {
+  if (!config || !config.enabled || config.rules.length === 0) {
+    return allModelIds;
+  }
   const resolved = resolveAllowedAndBlockedModels(
     config,
-    userId,
-    teamIds,
-    userRole,
+    who.userId,
+    who.teamIds,
+    who.userRole,
   );
-
   if (!resolved) {
     return allModelIds;
   }
-
   return allModelIds.filter((modelId) =>
     isModelPermitted(
       config.mode,

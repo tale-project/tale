@@ -12,7 +12,6 @@ import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell'
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalHoldReleaseRequests } from '../hooks/queries';
@@ -38,9 +37,7 @@ export function ReleaseRequestsSection({
   const approved = useLegalHoldReleaseRequests(organizationId, 'approved');
 
   const [approveTarget, setApproveTarget] = useState<ReleaseRow | null>(null);
-  const [rejectId, setRejectId] = useState<
-    Id<'legalHoldReleaseRequests'> | undefined
-  >(undefined);
+  const [rejectId, setRejectId] = useState<string | undefined>(undefined);
 
   const pendingColumns = useMemo<ColumnDef<ReleaseRow>[]>(
     () => [

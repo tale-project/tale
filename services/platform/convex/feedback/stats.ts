@@ -1,4 +1,4 @@
-import type { Doc } from '../_generated/dataModel';
+import type { Doc } from '../lib/rows';
 
 export type ArenaVerdict = 'a_better' | 'b_better' | 'tie' | 'both_bad';
 export const ARENA_VERDICTS: ArenaVerdict[] = [

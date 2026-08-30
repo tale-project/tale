@@ -19,7 +19,7 @@ bun run gen:package    # packages/<name> — kind: react | typescript
 bun run gen:service    # services/<name> — kind: react | docker
 bun run gen:tool       # tools/<name>    — kind: typescript | shell
 bun run gen:skill      # .agents/skills/<name> or builtin-configs/skills/<name> — docs (SKILL.md + README)
-bun run gen:migration  # services/platform/convex/migrations/versions/<v>/<nn>_<slug> — kind: db | node | component | reference
+bun run gen:migration  # services/platform/backend/db/migrations/<NNNN>_<slug>.sql
 bun run gen:episode    # services/platform/tests/docs-videos/episodes/<id> — spec + choreography skeleton
 ```
 

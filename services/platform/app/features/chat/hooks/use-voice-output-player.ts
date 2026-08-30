@@ -99,11 +99,16 @@ export function useVoiceOutputPlayer(opts: {
   enabled: boolean;
   messageId: string | undefined;
   threadId: string | undefined;
+  organizationId?: string;
   isStreaming: boolean;
 }): VoicePlayerState {
   const coordinator = useVoiceOutputCoordinator();
   const providerAudioElement = useVoiceAudioElement();
-  const chunks = useVoiceChunks(opts.messageId, opts.threadId);
+  const chunks = useVoiceChunks(
+    opts.messageId,
+    opts.threadId,
+    opts.organizationId,
+  );
   // Per-message pre-reservation error (BUDGET_EXCEEDED,
   // MESSAGE_CHAR_LIMIT, RATE_LIMITED, forbidden, …) surfaced by the
   // chunker via `voice-output-context`'s sink. Merged into `errorCode`

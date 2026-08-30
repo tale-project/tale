@@ -8,8 +8,8 @@ import { ExternalTurnMetricsPage } from './external-turns-metrics-page';
 // Prop-driven render assertion: the metrics query is the page's only data
 // source, so mocking it leaves a genuine component-tier render assertion. A
 // populated payload makes the cards + per-harness table render loaded values.
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({
     data: {
       periodDays: 30,
       capped: false,

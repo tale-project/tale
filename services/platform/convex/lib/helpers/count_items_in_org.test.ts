@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DatabaseReader } from '../../_generated/server';
+import type { DatabaseReader } from '../ctx';
 import { countItemsInOrg } from './count_items_in_org';
 
 function createMockDb(itemCount: number) {

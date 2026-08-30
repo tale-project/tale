@@ -7,7 +7,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { convexErrorCode } from '@/lib/utils/convex-error';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useCreateContact } from '../hooks/mutations';
 import {
@@ -76,7 +76,7 @@ export function ContactCreateDialog({
       } catch (error) {
         console.error('Create contact error:', error);
         const isDuplicate =
-          convexErrorCode(error) === 'CONTACT_DUPLICATE_EMAIL';
+          backendErrorCode(error) === 'CONTACT_DUPLICATE_EMAIL';
         toast({
           title: isDuplicate
             ? tContacts('create.duplicateEmail')

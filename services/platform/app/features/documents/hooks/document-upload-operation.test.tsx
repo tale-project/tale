@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { AppError } from '@/lib/shared/errors/app-error';
 
 const mocks = vi.hoisted(() => ({
   generateBlobUpload: vi.fn(),
@@ -33,56 +34,32 @@ vi.mock('@/lib/utils/file-hash', () => ({
   calculateFileHash: (...args: unknown[]) => mocks.calculateFileHash(...args),
 }));
 
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    files: {
-      blob_actions: { generateBlobUpload: 'generateBlobUpload' },
-      mutations: { deleteRejectedUploadBlob: 'deleteRejectedUploadBlob' },
-    },
-    documents: {
-      mutations: { createDocumentFromUpload: 'createDocumentFromUpload' },
-      record_actions: {
-        beginControlledDocumentReplacementUpload:
-          'beginControlledDocumentReplacementUpload',
-        finalizeControlledDocumentReplacementUpload:
-          'finalizeControlledDocumentReplacementUpload',
-        reconcileControlledDocumentReplacementUpload:
-          'reconcileControlledDocumentReplacementUpload',
-      },
-      replacement_uploads: {
-        registerControlledDocumentReplacementUpload:
-          'registerControlledDocumentReplacementUpload',
-        cancelControlledDocumentReplacementUpload:
-          'cancelControlledDocumentReplacementUpload',
-      },
-    },
-  },
-}));
-
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: (reference: string) => {
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: (reference: string) => {
     const mutateAsync = {
-      generateBlobUpload: mocks.generateBlobUpload,
-      beginControlledDocumentReplacementUpload:
+      'files/blob_actions:generateBlobUpload': mocks.generateBlobUpload,
+      'documents/record_actions:beginControlledDocumentReplacementUpload':
         mocks.beginControlledDocumentReplacementUpload,
-      finalizeControlledDocumentReplacementUpload:
+      'documents/record_actions:finalizeControlledDocumentReplacementUpload':
         mocks.finalizeControlledDocumentReplacementUpload,
-      reconcileControlledDocumentReplacementUpload:
+      'documents/record_actions:reconcileControlledDocumentReplacementUpload':
         mocks.reconcileControlledDocumentReplacementUpload,
     }[reference];
     return { mutateAsync };
   },
 }));
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: (reference: string) => {
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: (reference: string) => {
     const mutateAsync = {
-      createDocumentFromUpload: mocks.createDocumentFromUpload,
-      registerControlledDocumentReplacementUpload:
+      'documents/mutations:createDocumentFromUpload':
+        mocks.createDocumentFromUpload,
+      'documents/replacement_uploads:registerControlledDocumentReplacementUpload':
         mocks.registerControlledDocumentReplacementUpload,
-      cancelControlledDocumentReplacementUpload:
+      'documents/replacement_uploads:cancelControlledDocumentReplacementUpload':
         mocks.cancelControlledDocumentReplacementUpload,
-      deleteRejectedUploadBlob: mocks.deleteRejectedUploadBlob,
+      'files/mutations:deleteRejectedUploadBlob':
+        mocks.deleteRejectedUploadBlob,
     }[reference];
     return { mutateAsync };
   },
@@ -696,7 +673,7 @@ describe('useDocumentUpload operation ownership', () => {
 
   it('never generically deletes an intent-owned blob after finalize rejects it', async () => {
     mocks.finalizeControlledDocumentReplacementUpload.mockRejectedValueOnce(
-      new ConvexError({ code: 'UPLOAD_MIME_MISMATCH' }),
+      new AppError({ code: 'UPLOAD_MIME_MISMATCH' }),
     );
     const { result } = renderHook(() =>
       useDocumentUpload({

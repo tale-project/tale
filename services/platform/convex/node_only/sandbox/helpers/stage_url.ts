@@ -14,7 +14,7 @@
  * bounded inline-base64 fallback lane — see session_exec.ts).
  */
 
-import type { ActionCtx } from '../../../_generated/server';
+import type { ActionCtx } from '../../../lib/ctx';
 import { toSandboxStorageUrl } from '../../../lib/helpers/public_storage_url';
 import { convexStorageId } from '../../../lib/storage/blob_ref';
 import { buildSandboxBlobStageUrl } from '../../../lib/storage/sandbox_stage_token';

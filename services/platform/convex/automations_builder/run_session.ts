@@ -29,10 +29,8 @@ import { registerConnector } from '../../lib/connectors/registry';
 import { dispatch, type DispatchStore } from '../../lib/engine/api/dispatch';
 import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm';
-import type { ActionCtx } from '../_generated/server';
-import { internalAction } from '../_generated/server';
-import { automationActionStore } from '../automations/store';
 import { loadConnectorDefinitions } from '../connector_credentials/connector_catalog';
+import type { ActionCtx } from '../lib/ctx';
 import { createBuilderModel, type BuilderModelTarget } from './model_call';
 
 /**
@@ -145,63 +143,4 @@ export const builderSessionOutcomeValidator = v.object({
       progress: v.optional(v.boolean()),
     }),
   ),
-});
-
-/**
- * Author an automation from a goal, autonomously.
- *
- * The model is a required argument — the builder never picks one — and the
- * organization's default credential for that provider pays for the session.
- */
-export const buildAutomation = internalAction({
-  args: {
-    organizationId: v.string(),
-    actorId: v.string(),
-    goal: v.string(),
-    model: v.object({ providerSlug: v.string(), modelId: v.string() }),
-    /** Lower the turn budget for a cheap exploratory run. */
-    maxTurns: v.optional(v.number()),
-  },
-  returns: builderSessionOutcomeValidator,
-  handler: async (ctx, args): Promise<BuilderSessionOutcome> => {
-    const store = automationActionStore(ctx, {
-      organizationId: args.organizationId,
-      actor: args.actorId,
-    });
-    return await runSessionWithStore(ctx, args, store);
-  },
-});
-
-/**
- * One engine method for the platform MCP endpoint (`mcp_http.ts`): the same
- * `dispatch()` the builder loop drives, against the production Convex-backed
- * store, with live execution enabled — the caller holds an org API key (the
- * deployment's own credential), not a builder test session.
- *
- * `allowLive` is what makes `start_run` and `run_deployed` real here, so the
- * store this hands to `dispatch()` is also the one that authorizes: its
- * run-control methods resolve the actor's role before starting or stopping live
- * work (see `automations/mutations.ts`). The actor string carries the key
- * holder's identity for exactly that reason.
- */
-export const dispatchEngineMethod = internalAction({
-  args: {
-    organizationId: v.string(),
-    /** Who saved versions and runs are attributed to (e.g. `api-key:<name>`). */
-    actor: v.string(),
-    method: v.string(),
-    params: v.optional(v.any()),
-  },
-  returns: v.any(),
-  handler: async (ctx, args): Promise<unknown> => {
-    assembleBuilderHost();
-    const store = automationActionStore(ctx, {
-      organizationId: args.organizationId,
-      actor: args.actor,
-    });
-    return dispatch(args.method, args.params ?? {}, {
-      store,
-      allowLive: true,
-    });
-  },
 });

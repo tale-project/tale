@@ -7,16 +7,19 @@ import { getCurrentColor } from '../state/get-current-color';
 import { getPreviousVersion } from '../state/get-previous-version';
 
 /**
- * The migration-baseline version. 0.4.0 reset the migration history to empty
- * (breaking cutover, fresh deploy only) — deploying a >= 0.4 CLI onto an
- * instance created by an older release cannot work: the old data has no
- * upgrade path and the new schema will not even push over it.
+ * The migration-baseline version. 0.5.0 replaced the Convex runtime with
+ * Postgres (breaking cutover, fresh deploy only): a 0.4 instance's
+ * application data lives in Convex's own store, 0.5 reads Postgres, and no
+ * importer bridges them — deploying 0.5 over a 0.4 instance boots an EMPTY
+ * database while the old data sits orphaned on the retired volume. The org
+ * CONFIG tree (agents, providers, governance files) does carry forward on
+ * the shared volume; the database does not. 0.4.0 was the previous baseline
+ * for the same reason (the migration-history reset severed 0.3).
  *
- * Mirrors `services/platform/convex/migrations/framework/baseline.ts`
- * (BASELINE_VERSION) — the CLI is a standalone binary, so the constant is
- * duplicated by design; bump both together at the next breaking cutover.
+ * The CLI is a standalone binary, so this constant lives here on its own.
+ * Bump it at the next breaking cutover.
  */
-export const BREAKING_BASELINE = '0.4.0';
+export const BREAKING_BASELINE = '0.5.0';
 
 /** The guard's public option shape. @public */
 export interface BreakingCutoverOptions {
@@ -37,11 +40,11 @@ function refusalMessage(runningVersion: string | null): string {
       : `a v${runningVersion} instance`;
   return [
     `Deploying Tale >= ${BREAKING_BASELINE} onto ${from} is not supported.`,
-    `0.4 is a breaking release with no upgrade path from 0.3.x: the migration history was reset, and pre-0.4 data cannot be read or migrated by 0.4 code.`,
+    `0.5 is a breaking release with no upgrade path from 0.4.x: the application database moved from Convex to Postgres, and no importer reads the old store — 0.5 code cannot see pre-0.5 data.`,
     `Choose one:`,
-    `  - Stay on 0.3.x for this instance: use a 0.3.x CLI; hotfixes ship from the release/0.3 branch.`,
-    `  - Move to 0.4: create a FRESH deployment (new project directory via \`tale init\`, new volumes) and re-onboard users and content.`,
-    `Docs: self-hosted → operate → upgrades → "0.3 → 0.4: breaking cutover".`,
+    `  - Stay on 0.4.x for this instance: use a 0.4.x CLI; hotfixes ship from the release/0.4 branch.`,
+    `  - Move to 0.5: create a FRESH deployment (new project directory via \`tale init\`, new volumes) and re-onboard users and content.`,
+    `Docs: self-hosted → operate → upgrades → "0.4 → 0.5: breaking cutover".`,
     `Expert override: --accept-data-loss (CLI) / TALE_ACCEPT_DATA_LOSS=1 (container) — the existing data will NOT be readable afterwards.`,
   ].join('\n');
 }

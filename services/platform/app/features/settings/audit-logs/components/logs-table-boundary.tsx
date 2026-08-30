@@ -3,13 +3,13 @@
 import { Button } from '@tale/ui/button';
 import { Center, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import type { UsePaginatedQueryResult } from 'convex/react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { type ReactNode } from 'react';
 
 import { isConvexTransientError } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
+import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import type { AuditLogTableVariant } from '../hooks/use-audit-log-table-config';
@@ -23,7 +23,7 @@ const MAX_RETRIES = 3;
 // auto-retry placeholder so the backoff window shows the *real* table skeleton
 // (driven by the same `DataTable` self-skeleton path the live load uses) rather
 // than a blank gap.
-const LOADING_RESULT: UsePaginatedQueryResult<Doc<'auditLogs'>> = {
+const LOADING_RESULT: UsePaginatedQueryReturnType<AuditLogDoc> = {
   results: [],
   status: 'LoadingFirstPage',
   loadMore: () => {},

@@ -10,7 +10,6 @@ import {
 import { UsageMetricsPage } from '@/app/features/analytics/usage/usage-metrics-page';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
-import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute('/dashboard/$id/settings/metrics/usage')({
   validateSearch: metricsPeriodSearchSchema,
@@ -23,7 +22,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/metrics/usage')({
   // capped series + top-N), safe to await; never fail the transition on a
   // transient/auth error.
   loader: ({ context, params, deps }) =>
-    ensureConvexQuery(context, api.governance.queries.getOrgUsageMetrics, {
+    ensureConvexQuery(context, 'governance/queries:getOrgUsageMetrics', {
       organizationId: params.id,
       periodDays: deps.periodDays,
       granularity: 'daily',

@@ -9,7 +9,6 @@ import {
 } from '@/app/components/ui/entity/entity-row-actions';
 import { useAbility } from '@/app/hooks/use-ability';
 import { toast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import type { DocumentRecordInfo, RagStatus } from '@/types/documents';
 
@@ -110,7 +109,7 @@ export function DocumentRowActions({
 
   const handleDeleteConfirm = useCallback(() => {
     deleteDocument(
-      { documentId: toId<'documents'>(documentId) },
+      { documentId: documentId },
       {
         onSuccess: () => dialogs.setOpen.delete(false),
         onError: (error) => {
@@ -126,7 +125,7 @@ export function DocumentRowActions({
 
   const handleDeleteFolderConfirm = useCallback(() => {
     deleteFolder(
-      { folderId: toId<'folders'>(documentId) },
+      { folderId: documentId },
       {
         onSuccess: () => {
           dialogs.setOpen.deleteFolder(false);
@@ -156,7 +155,7 @@ export function DocumentRowActions({
     if (isReindexing) return;
     try {
       const result = await retryRagIndexing({
-        documentId: toId<'documents'>(documentId),
+        documentId: documentId,
       });
       if (result.success) {
         toast({
@@ -183,11 +182,11 @@ export function DocumentRowActions({
     try {
       if (sourceProvider === 'google_drive') {
         await cancelGoogleDriveSync({
-          configId: toId<'googleDriveSyncConfigs'>(syncConfigId),
+          configId: syncConfigId,
         });
       } else {
         await cancelOneDriveSync({
-          configId: toId<'onedriveSyncConfigs'>(syncConfigId),
+          configId: syncConfigId,
         });
       }
       toast({

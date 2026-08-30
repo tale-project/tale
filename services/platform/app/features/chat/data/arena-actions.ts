@@ -3,16 +3,20 @@
 /**
  * The arena writes: pair creation, the fanned-out send, and the settle.
  *
- * Same seam shape as `thread-actions`: straight through the live Convex
- * client so a render outside the provider tree degrades to
- * `available: false`, and failures resolve refusal shapes — never a
- * rejection — so callers toast without try/catch at every site.
+ * Same seam shape as `thread-actions` on the 0.5 backend: plain fetch
+ * functions (`app/lib/backend/chat.ts`), and failures resolve refusal
+ * shapes — never a rejection — so callers toast without try/catch at
+ * every site.
  */
 
-import { useConvex } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import {
+  createChatThread,
+  ensureArenaPairRequest,
+  settleArenaPairRequest,
+  startArenaTurnRequest,
+} from '@/app/lib/backend/chat';
 import type { ReasoningEffort } from '@/lib/chat/effort';
 import type { ArenaVerdict } from '@/lib/shared/arena';
 
@@ -52,22 +56,14 @@ export interface ArenaActions {
   ) => Promise<{ continueThreadId: string } | { refused: string }>;
 }
 
-const UNAVAILABLE: SideResult = {
-  status: 'refused',
-  reason: 'backend unavailable',
-};
-
 export function useArenaActions(organizationId: string): ArenaActions {
-  const convex = useConvex();
-
   const createThread = useCallback(
     async (
       projectId?: string,
       reasoningEffort?: ReasoningEffort,
     ): Promise<string | null> => {
-      if (!convex) return null;
       try {
-        return await convex.mutation(api.chat.threads.createThread, {
+        return await createChatThread({
           organizationId,
           kind: 'direct',
           ...(projectId !== undefined ? { projectId } : {}),
@@ -78,25 +74,21 @@ export function useArenaActions(organizationId: string): ArenaActions {
         return null;
       }
     },
-    [convex, organizationId],
+    [organizationId],
   );
 
   const ensurePair = useCallback(
     async (
       threadId: string,
     ): Promise<{ threadIdB: string } | { refused: string }> => {
-      if (!convex) return { refused: 'unavailable' };
       try {
-        return await convex.mutation(api.chat.arena.ensureArenaPair, {
-          organizationId,
-          threadId,
-        });
+        return await ensureArenaPairRequest(organizationId, threadId);
       } catch (error) {
         console.error('[arena] pairing failed', error);
         return { refused: 'error' };
       }
     },
-    [convex, organizationId],
+    [organizationId],
   );
 
   const startTurn = useCallback(
@@ -109,19 +101,16 @@ export function useArenaActions(organizationId: string): ArenaActions {
       providerSlugB?: string;
       locale?: string;
     }): Promise<{ a: SideResult; b: SideResult }> => {
-      if (!convex) return { a: UNAVAILABLE, b: UNAVAILABLE };
       try {
-        return await convex.action(api.chat.arena_action.startArenaTurn, {
-          organizationId,
-          ...args,
-        });
+        const { threadId, ...body } = args;
+        return await startArenaTurnRequest(organizationId, threadId, body);
       } catch (error) {
         console.error('[arena] the fanned turn failed', error);
         const failed: SideResult = { status: 'refused' };
         return { a: failed, b: failed };
       }
     },
-    [convex, organizationId],
+    [organizationId],
   );
 
   const settle = useCallback(
@@ -129,29 +118,24 @@ export function useArenaActions(organizationId: string): ArenaActions {
       threadId: string,
       verdict?: ArenaVerdict,
     ): Promise<{ continueThreadId: string } | { refused: string }> => {
-      if (!convex) return { refused: 'unavailable' };
       try {
-        return await convex.mutation(api.chat.arena.settleArenaPair, {
-          organizationId,
-          threadId,
-          ...(verdict !== undefined ? { verdict } : {}),
-        });
+        return await settleArenaPairRequest(organizationId, threadId, verdict);
       } catch (error) {
         console.error('[arena] settling failed', error);
         return { refused: 'error' };
       }
     },
-    [convex, organizationId],
+    [organizationId],
   );
 
   return useMemo(
     () => ({
-      available: convex !== undefined,
+      available: true,
       createThread,
       ensurePair,
       startTurn,
       settle,
     }),
-    [convex, createThread, ensurePair, startTurn, settle],
+    [createThread, ensurePair, startTurn, settle],
   );
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useNavigate } from '@tanstack/react-router';
-import { ConvexError } from 'convex/values';
 import { Archive, ArchiveRestore, Copy, Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -10,8 +9,8 @@ import {
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useDuplicateProject } from '../hooks/mutations';
 import { ProjectArchiveDialog } from './project-archive-dialog';
@@ -20,7 +19,7 @@ import { ProjectRenameDialog } from './project-rename-dialog';
 
 interface ProjectRowActionsProps {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   projectName: string;
   isArchived: boolean;
   canEdit: boolean;
@@ -51,11 +50,11 @@ export function ProjectRowActions({
         to: '/dashboard/$id/projects/$projectId/tasks',
         params: {
           id: organizationId,
-          projectId: String(newProjectId),
+          projectId: newProjectId,
         },
       });
     } catch (error) {
-      if (error instanceof ConvexError) {
+      if (error instanceof AppError) {
         const code = error.data?.code;
         if (code === 'RATE_LIMITED') {
           toast({ title: t('errors.RATE_LIMITED'), variant: 'destructive' });

@@ -9,7 +9,6 @@ import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { useToast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useCloseLegalMatter } from '../hooks/mutations';
@@ -19,7 +18,7 @@ interface CloseMatterDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   matter: {
-    _id: Id<'legalMatters'>;
+    _id: string;
     name: string;
     linkedActiveHolds: number;
   } | null;

@@ -8,7 +8,7 @@ import { useCallback, useState } from 'react';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import type { ContactInfo } from '@/convex/conversations/types';
 import { useT } from '@/lib/i18n/client';
 
@@ -17,7 +17,7 @@ import { ContactEditDialog } from './contact-edit-dialog';
 import { ContactInformation } from './contact-information';
 
 interface ContactInfoDialogProps {
-  contact: Doc<'contacts'> | ContactInfo;
+  contact: ContactDoc | ContactInfo;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   className?: string;
@@ -28,7 +28,7 @@ interface ContactInfoDialogProps {
  * shortcuts as the row's ⋮ menu (#2639) so a user doesn't have to close the
  * dialog to act on what they're looking at — gated the same way
  * `ContactRowActions` gates them (editable source, ability, real email).
- * Only available for a full `Doc<'contacts'>` row: the lightweight
+ * Only available for a full `ContactDoc` row: the lightweight
  * `ContactInfo` embedded in a conversation has no `_id`/`source` to act on.
  */
 export function ContactInfoDialog({

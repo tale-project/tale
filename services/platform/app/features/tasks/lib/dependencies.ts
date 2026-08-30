@@ -1,10 +1,8 @@
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { type TaskStatus, TASK_TERMINAL_STATUSES } from './display';
 
 export interface DependencyEdge {
-  blockerTaskId: Id<'tasks'>;
-  blockedTaskId: Id<'tasks'>;
+  blockerTaskId: string;
+  blockedTaskId: string;
 }
 
 /**

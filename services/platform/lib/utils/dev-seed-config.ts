@@ -1,9 +1,9 @@
 /**
- * Gating + identity resolution for the docker:dev dev-login seeder
- * (`convex/provisioning/seed_dev_user.ts`). Pure and dependency-free so the
- * rules (flag spellings, loopback-only, credential overrides) are
- * unit-testable, and kept out of the convex module so the generated API type
- * graph only sees the Convex functions themselves.
+ * Gating + identity resolution for the dev-login seeder
+ * (`backend/domains/provisioning/dev-seed.ts`). Pure and dependency-free so
+ * the rules (flag spellings, loopback-only, credential overrides) are
+ * unit-testable on their own, and so the seeder itself stays a thin wrapper
+ * over the Better Auth calls it makes.
  */
 
 /** Mirrors the e2e convention (`TaleE2E!Passw0rd`): satisfies the default
@@ -17,7 +17,7 @@ export const DEV_SEED_DEFAULT_PASSWORD = 'TaleDev!Passw0rd';
  * TALE_DEV_HOT_RELOAD): any of these disables the flag. */
 const FALSY_FLAG_VALUES = new Set(['0', 'false', 'no', 'off']);
 
-/** Same loopback list as the HTTPS guard at the top of convex/auth.ts. */
+/** Same loopback list as the backend's HTTPS guard (backend/auth/auth.ts). */
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
 type DevSeedConfig =
@@ -42,7 +42,7 @@ export function resolveDevSeedConfig(
 
   // Loopback-only: a known password on a reachable hostname is an account
   // takeover, not a convenience. SITE_URL is the production signal here for
-  // the same reason as convex/auth.ts's HTTPS guard.
+  // the same reason as the backend auth HTTPS guard.
   const siteUrl = env.SITE_URL || 'http://127.0.0.1:3000';
   let hostname: string;
   try {

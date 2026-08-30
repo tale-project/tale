@@ -72,7 +72,13 @@ export async function resolveOrgObjectStore(
   if (cached && cached.expires > now) {
     return cached.store;
   }
-  const resolved = await readOrgObjectStorageConnection(orgSlug);
+  // The org's own BYO connection wins; without one, the DEPLOYMENT DEFAULT
+  // tree's connection serves every org (the 0.5 posture — Convex `_storage`
+  // dies at cutover). A 0.4 deployment ships no `default` tree, so its
+  // fallback order is unchanged (org → Convex).
+  const resolved =
+    (await readOrgObjectStorageConnection(orgSlug)) ??
+    (await readOrgObjectStorageConnection('default').catch(() => null));
   let store: ResolvedObjectStore;
   if (resolved === null) {
     store = CONVEX_STORE;
@@ -137,6 +143,28 @@ export function invalidateOrgObjectStore(orgSlug: string): void {
  * virtual-host (AWS) addressing. The key is percent-encoded per path segment
  * (S3 keys may contain `/`, which stays a separator).
  */
+/**
+ * The same store, addressed the way a BROWSER can reach it.
+ *
+ * Presigned URLs are handed to the browser on purpose — the transfer goes
+ * direct, and the store (not Node) answers the Range requests media seeking
+ * needs. But the store the stack ships is internal-only, so its browser URLs
+ * must be signed against the origin the proxy publishes instead. Signing
+ * covers host and path and the proxy rewrites neither, so the signature still
+ * verifies at the store.
+ *
+ * A connection with no `publicEndpoint` — every BYO bucket, whose endpoint is
+ * already public — is returned unchanged.
+ */
+export function browserFacing(store: S3ObjectStore): S3ObjectStore {
+  const publicEndpoint = store.config.publicEndpoint;
+  if (!publicEndpoint) return store;
+  return {
+    ...store,
+    config: { ...store.config, endpoint: publicEndpoint },
+  };
+}
+
 export function objectUrl(store: S3ObjectStore, key: string): string {
   const encodedKey = key
     .split('/')

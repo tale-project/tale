@@ -7,20 +7,8 @@ const mockTranscribeDictation = vi.fn();
 // Stub the live Convex client (the chat-seam pattern: `useConvex()` degrades
 // to undefined outside the provider tree; here it answers with an action
 // runner so the transcription round-trip is observable).
-vi.mock('convex/react', () => ({
-  useConvex: () => ({
-    action: (_ref: unknown, args: unknown) => mockTranscribeDictation(args),
-  }),
-}));
-
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    file_metadata: {
-      transcribe_dictation: {
-        transcribeDictation: 'mock-action-ref',
-      },
-    },
-  },
+vi.mock('@/app/lib/backend/chat', () => ({
+  transcribeDictationRequest: (args: unknown) => mockTranscribeDictation(args),
 }));
 
 import { useMediaRecorderDictation } from './use-media-recorder-dictation';

@@ -21,8 +21,8 @@
  * {@link resolveServingTarget}.
  */
 
-import type { ActionCtx } from '../_generated/server';
 import { resolveServingTarget } from '../automations/llm_call';
+import type { ActionCtx } from '../lib/ctx';
 import {
   resolvePinnedAgentServing,
   type AgentTurnServing,

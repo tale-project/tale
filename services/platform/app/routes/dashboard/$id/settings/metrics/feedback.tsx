@@ -15,7 +15,6 @@ import {
 } from '@/app/features/analytics/feedback/feedback-period';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
-import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute(
   '/dashboard/$id/settings/metrics/feedback',
@@ -35,7 +34,7 @@ export const Route = createFileRoute(
   // Bounded aggregate; never fail the transition on a transient/auth error
   // (the page's error/empty branches still render correctly).
   loader: ({ context, params, deps }) =>
-    ensureConvexQuery(context, api.feedback.queries.getFeedbackStats, {
+    ensureConvexQuery(context, 'feedback/queries:getFeedbackStats', {
       organizationId: params.id,
       periodDays: periodToDays(deps.period),
       agentSlug: deps.agent,

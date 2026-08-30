@@ -1,11 +1,11 @@
 /**
  * RLS Error Types
  *
- * Every RLS error extends `ConvexError`, so an uncaught throw reaches the
+ * Every RLS error extends `AppError`, so an uncaught throw reaches the
  * client as structured `{ code, message }` data it can dispatch on (the
  * stale-org recovery keys off `code === 'ORG_NOT_FOUND'`) instead of an
  * opaque redacted "Server Error" that clients blindly retry — part of the
- * codebase-wide "throw ConvexError codes" migration
+ * codebase-wide "throw AppError codes" migration
  * (`lib/auth/require_org_membership.ts` is the reference).
  *
  * Server-side semantics are unchanged: class identity is preserved, so the
@@ -15,12 +15,12 @@
  * logs stay readable (the wire format serializes `data`, never `message`).
  */
 
-import { ConvexError } from 'convex/values';
+import { AppError } from '../../../lib/shared/errors/app-error';
 
 /**
  * Base RLS error class
  */
-export class RLSError extends ConvexError<{ code: string; message: string }> {
+export class RLSError extends AppError<{ code: string; message: string }> {
   constructor(
     message: string,
     public code: string,

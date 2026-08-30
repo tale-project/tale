@@ -3,7 +3,6 @@
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { ConvexError } from 'convex/values';
 import { Plus, X } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -12,8 +11,8 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
 
@@ -44,7 +43,7 @@ export function TaskDependencies({
   task: TaskRow;
   canEdit: boolean;
   projectKey?: string | null;
-  onOpenTask?: (taskId: Id<'tasks'>) => void;
+  onOpenTask?: (taskId: string) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -55,7 +54,7 @@ export function TaskDependencies({
 
   const onMutationError = (error: unknown) => {
     if (
-      error instanceof ConvexError &&
+      error instanceof AppError &&
       error.data?.code === 'TASK_DEPENDENCY_CYCLE'
     ) {
       toast({ title: t('detail.dependencyCycle'), variant: 'destructive' });
@@ -140,9 +139,9 @@ function DependencyGroup({
   candidates: TaskRow[];
   canEdit: boolean;
   projectKey?: string | null;
-  onOpenTask?: (taskId: Id<'tasks'>) => void;
-  onAdd: (taskId: Id<'tasks'>) => void;
-  onRemove: (taskId: Id<'tasks'>) => void;
+  onOpenTask?: (taskId: string) => void;
+  onAdd: (taskId: string) => void;
+  onRemove: (taskId: string) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');

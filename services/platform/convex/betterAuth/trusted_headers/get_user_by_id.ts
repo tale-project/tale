@@ -8,8 +8,8 @@ import {
   getNumber,
   getBoolean,
 } from '../../../lib/utils/type-utils';
-import { components } from '../../_generated/api';
-import type { QueryCtx } from '../../_generated/server';
+import type { QueryCtx } from '../../lib/ctx';
+import { components } from '../../lib/handler_names';
 import { looksLikeConvexDocumentId } from '../../lib/helpers/id_shape';
 
 export interface BetterAuthUser {

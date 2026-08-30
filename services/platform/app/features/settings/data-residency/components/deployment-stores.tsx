@@ -39,7 +39,6 @@ import { structuralEqual } from '@/lib/utils/structural-equal';
 
 import { mapDeploymentError } from '../deployment-errors';
 import {
-  useRequestRestart,
   useSaveDeploymentConfig,
   useSaveDeploymentSecret,
   useTestDeploymentConnection,
@@ -107,12 +106,7 @@ export type DeploymentReadData = {
 
 type ConnTestResult = {
   ok?: boolean;
-  configured?: boolean;
   error?: string;
-  errors?: string[];
-  restarted?: string[];
-  /** Services whose restart was deferred until after the reply (e.g. convex). */
-  scheduled?: string[];
   hint?: string;
   latencyMs?: number;
 };
@@ -173,21 +167,17 @@ function storageFromConfig(cs: StorageConfigJson | undefined): StorageForm {
  * registrar hook requires a render-stable action count; unmounting clears the
  * slot via the hook's own cleanup.
  *
- * Both actions sit `leading` (before the org sections' Discard/Save cluster)
- * and the Save is labelled "Save deployment" — two plain "Save" buttons side
- * by side would be indistinguishable.
+ * The action sits `leading` (before the org sections' Discard/Save cluster)
+ * and is labelled "Save deployment" — two plain "Save" buttons side by side
+ * would be indistinguishable.
  */
 function DeploymentHeaderActions({
   onSave,
-  onRestartClick,
   saving,
-  restarting,
   isDirty,
 }: {
   onSave: () => void;
-  onRestartClick: () => void;
   saving: boolean;
-  restarting: boolean;
   isDirty: boolean;
 }) {
   const { t } = useT('settings');
@@ -198,16 +188,6 @@ function DeploymentHeaderActions({
       onClick: onSave,
       disabled: saving || !isDirty,
       loading: saving,
-      placement: 'leading',
-    },
-    {
-      label: t('dataResidency.applyRestart'),
-      loadingLabel: t('dataResidency.restarting'),
-      onClick: onRestartClick,
-      disabled: restarting || isDirty,
-      loading: restarting,
-      title: t('dataResidency.applyRestartTitle'),
-      variant: 'secondary',
       placement: 'leading',
     },
   ]);
@@ -439,8 +419,8 @@ export function DeploymentStoresView({
 
   // Editing a section clears the stale failed-save banner and that section's
   // now-outdated test result so the operator never sees feedback that no longer
-  // matches the form. (The "Saved" and restart banners are gated on !isDirty in
-  // render, so they hide on edit without being cleared here.)
+  // matches the form. (The "Saved" banner is gated on !isDirty in render, so it
+  // hides on edit without being cleared here.)
   function clearStaleFeedback(section: string) {
     setError(null);
     setTestResults((prev) => {
@@ -466,48 +446,6 @@ export function DeploymentStoresView({
   const saveConfig = useSaveDeploymentConfig();
   const saveSecret = useSaveDeploymentSecret();
   const testConn = useTestDeploymentConnection();
-  const restartHook = useRequestRestart();
-  const [restarting, setRestarting] = useState(false);
-  const [restartMsg, setRestartMsg] = useState<string | null>(null);
-  // "Apply & restart" bounces the rag + convex containers (brief downtime), so
-  // it stays available (an operator may apply an earlier/hand-edited config)
-  // but always goes through a confirmation.
-  const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
-
-  async function onRestart() {
-    setRestarting(true);
-    setRestartMsg(null);
-    try {
-      const res: ConnTestResult = await restartHook.mutateAsync({});
-      if (res?.configured === false) {
-        setRestartMsg(res.error || t('dataResidency.restart.notEnabled'));
-      } else if (res?.ok) {
-        // `convex` is bounced just after this reply, so it arrives under
-        // `scheduled` rather than `restarted` — surface both as "requested".
-        const services = [...(res.restarted ?? []), ...(res.scheduled ?? [])];
-        setRestartMsg(
-          t('dataResidency.restart.requested', {
-            services:
-              services.join(', ') || t('dataResidency.restart.defaultServices'),
-          }),
-        );
-      } else {
-        setRestartMsg(
-          t('dataResidency.restart.failed', {
-            error:
-              res?.error ||
-              (res?.errors ?? []).join('; ') ||
-              t('dataResidency.restart.unknownError'),
-          }),
-        );
-      }
-    } catch (err) {
-      setRestartMsg(mapDeploymentError(err, t).message);
-    } finally {
-      setRestarting(false);
-      setRestartConfirmOpen(false);
-    }
-  }
 
   // Reset local form when a fresh read lands (e.g. after a save invalidates
   // the query). Resetting all three sections to the freshly-read baseline is
@@ -718,15 +656,13 @@ export function DeploymentStoresView({
       {canEdit ? (
         <DeploymentHeaderActions
           onSave={() => void onSave()}
-          onRestartClick={() => setRestartConfirmOpen(true)}
           saving={saving}
-          restarting={restarting}
           isDirty={isDirty}
         />
       ) : null}
-      {/* Save / restart status — inline at the top of the group so they're
-          visible next to the sections they concern. */}
-      {error || (savedOk && !isDirty) || restartMsg ? (
+      {/* Save status — inline at the top of the group so it's visible next to
+          the sections it concerns. */}
+      {error || (savedOk && !isDirty) ? (
         <Stack gap={3}>
           {error ? <Alert variant="destructive" description={error} /> : null}
           {savedOk && !isDirty ? (
@@ -735,15 +671,13 @@ export function DeploymentStoresView({
                 <>
                   <strong>{t('dataResidency.saved.title')}</strong>{' '}
                   {t('dataResidency.saved.runPrefix')}{' '}
-                  <code>docker compose restart convex</code>{' '}
-                  {t('dataResidency.saved.orPrefix')}{' '}
-                  <code>tale deploy --services convex</code>{' '}
+                  <code>docker compose restart backend-api backend-worker</code>{' '}
+                  {t('dataResidency.saved.orPrefix')} <code>tale deploy</code>{' '}
                   {t('dataResidency.saved.tail')}
                 </>
               }
             />
           ) : null}
-          {restartMsg ? <Alert description={restartMsg} /> : null}
         </Stack>
       ) : null}
 
@@ -840,17 +774,6 @@ export function DeploymentStoresView({
             {t('dataResidency.appDb.sslModeNote')}
           </p>
         }
-      />
-
-      <ConfirmDialog
-        open={restartConfirmOpen}
-        onOpenChange={setRestartConfirmOpen}
-        title={t('dataResidency.restartConfirm.title')}
-        description={t('dataResidency.restartConfirm.description')}
-        confirmText={t('dataResidency.restartConfirm.confirm')}
-        isLoading={restarting}
-        variant="destructive"
-        onConfirm={() => void onRestart()}
       />
 
       <ConfirmDialog

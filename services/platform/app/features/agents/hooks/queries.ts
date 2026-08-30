@@ -1,6 +1,5 @@
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { api } from '@/convex/_generated/api';
 
 /**
  * Read hooks for the agents area. Agents are org-config FILES (one YAML per
@@ -13,7 +12,7 @@ import { api } from '@/convex/_generated/api';
 export function useAgents(organizationId: string) {
   return useActionQuery(
     configKeys.list('agents', organizationId),
-    api.agents.actions.listAgents,
+    'agents/actions:listAgents',
     { organizationId },
   );
 }
@@ -22,7 +21,7 @@ export function useAgents(organizationId: string) {
 export function useAgent(organizationId: string, slug: string | null) {
   return useActionQuery(
     configKeys.detail('agents', organizationId, slug ?? ''),
-    api.agents.actions.getAgent,
+    'agents/actions:getAgent',
     { organizationId, slug: slug ?? '' },
     { enabled: !!slug },
   );
@@ -32,7 +31,7 @@ export function useAgent(organizationId: string, slug: string | null) {
 export function useAgentHistory(organizationId: string, slug: string | null) {
   return useActionQuery(
     configKeys.history('agents', organizationId, slug ?? ''),
-    api.agents.actions.listAgentHistory,
+    'agents/actions:listAgentHistory',
     { organizationId, slug: slug ?? '' },
     { enabled: !!slug },
   );
@@ -45,7 +44,7 @@ export function useAgentHistory(organizationId: string, slug: string | null) {
 export function useCapabilityCatalog(organizationId: string) {
   return useActionQuery(
     ['capabilities', organizationId],
-    api.chat.capabilities_action.listCapabilities,
+    'chat/capabilities_action:listCapabilities',
     { organizationId },
   );
 }

@@ -13,10 +13,9 @@
  */
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { useConvex } from 'convex/react';
 import { useCallback, useRef, useState } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import { synthesizeChunkRequest } from '@/app/lib/backend/chat';
 
 import { segmentTextForTts } from '../utils/segment-tts';
 
@@ -38,7 +37,6 @@ export function useArenaVoice(opts: {
   voicePillMessageId: string | undefined;
 } {
   const { locale } = useLocale();
-  const convex = useConvex();
   const [voicePillMessageId, setVoicePillMessageId] = useState<string>();
 
   // The round's halves and the pairs already spoken. Refs, not state: a half
@@ -53,7 +51,7 @@ export function useArenaVoice(opts: {
   const onReplySettled = useCallback(
     (side: 'a' | 'b', reply: ArenaSettledReply) => {
       const { organizationId, threadIdA, enabled } = optsRef.current;
-      if (!enabled || !convex) return;
+      if (!enabled) return;
       pendingRef.current[side] = reply;
       const { a, b } = pendingRef.current;
       if (a === undefined || b === undefined) return;
@@ -69,23 +67,21 @@ export function useArenaVoice(opts: {
       ];
       setVoicePillMessageId(a.messageId);
       chunks.forEach((text, index) => {
-        void convex
-          .action(api.tts.synthesize.synthesizeChunk, {
-            messageId: a.messageId,
-            threadId: threadIdA,
-            organizationId,
-            index,
-            text,
-            locale,
-          })
-          .catch((err) => {
-            // Provider failures surface on the indicator via the chunk-row
-            // error path; log per the no-silent-catch rule.
-            console.error('[tts] arena read-aloud synthesis failed', err);
-          });
+        void synthesizeChunkRequest({
+          messageId: a.messageId,
+          threadId: threadIdA,
+          organizationId,
+          index,
+          text,
+          locale,
+        }).catch((err) => {
+          // Provider failures surface on the indicator via the chunk-row
+          // error path; log per the no-silent-catch rule.
+          console.error('[tts] arena read-aloud synthesis failed', err);
+        });
       });
     },
-    [convex, locale],
+    [locale],
   );
 
   return { onReplySettled, voicePillMessageId };

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../../_generated/api', () => ({
+vi.mock('../../handler_names', () => ({
   components: {
     betterAuth: {
       adapter: {
@@ -121,21 +121,22 @@ describe('getOrganizationMember', () => {
     expect(ctx.runQuery).not.toHaveBeenCalled();
   });
 
-  it('serializes as a ConvexError (structured data reaches the client)', async () => {
+  it('carries structured data (the refusal reaches the client, not "Server Error")', async () => {
     const ctx = createMockCtx();
 
     const error = await rejection(
       getOrganizationMember(ctx as never, '', authUser),
     );
 
-    // Convex's runtime detects application errors via this symbol field, not
-    // instanceof — the guarantee that `data` (not a redacted "Server Error")
-    // goes over the wire.
-    expect(
-      typeof error === 'object' &&
-        error !== null &&
-        Symbol.for('ConvexError') in error,
-    ).toBe(true);
+    // The HTTP boundary reads `data` off the thrown error and answers with
+    // the code — checked structurally, never by `instanceof`, because a
+    // bundler may hand out more than one copy of the class.
+    expect(typeof error === 'object' && error !== null && 'data' in error).toBe(
+      true,
+    );
+    expect((error as { data: { code?: string } }).data.code).toBe(
+      'ORG_ID_REQUIRED',
+    );
   });
 
   it('throws ORG_FORBIDDEN when the org exists but the user is not a member', async () => {

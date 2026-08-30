@@ -1,7 +1,5 @@
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 
 type TaskStatusFilter =
   | 'backlog'
@@ -12,7 +10,7 @@ type TaskStatusFilter =
   | 'cancelled';
 
 export function useTasksByProject(
-  projectId: Id<'projects'> | undefined,
+  projectId: string | undefined,
   options?: {
     includeArchived?: boolean;
     status?: TaskStatusFilter;
@@ -22,8 +20,8 @@ export function useTasksByProject(
   },
 ) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.listTasksByProject,
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:listTasksByProject',
     projectId && organizationId
       ? {
           projectId,
@@ -56,8 +54,8 @@ export function useTasksAcrossProjects(options?: {
 }) {
   const organizationId = useOrganizationId();
   const enabled = options?.enabled !== false;
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.listTasksForAccessibleProjects,
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:listTasksForAccessibleProjects',
     enabled && organizationId
       ? {
           organizationId,
@@ -76,10 +74,10 @@ export function useTasksAcrossProjects(options?: {
   };
 }
 
-export function useTask(taskId: Id<'tasks'> | undefined) {
+export function useTask(taskId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.getTask,
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:getTask',
     taskId && organizationId ? { taskId, organizationId } : 'skip',
   );
   return {
@@ -93,28 +91,28 @@ export function useTask(taskId: Id<'tasks'> | undefined) {
   };
 }
 
-export function useSubtasks(taskId: Id<'tasks'> | undefined) {
+export function useSubtasks(taskId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.listSubtasks,
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:listSubtasks',
     taskId && organizationId ? { taskId, organizationId } : 'skip',
   );
   return { subtasks: data ?? [], isLoading };
 }
 
-export function useTaskLabels(projectId: Id<'projects'> | undefined) {
+export function useTaskLabels(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.listTaskLabels,
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:listTaskLabels',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { labels: data ?? [], isLoading };
 }
 
-export function useTaskDependencies(taskId: Id<'tasks'> | undefined) {
+export function useTaskDependencies(taskId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.listTaskDependencies,
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:listTaskDependencies',
     taskId && organizationId ? { taskId, organizationId } : 'skip',
   );
   return {
@@ -124,19 +122,19 @@ export function useTaskDependencies(taskId: Id<'tasks'> | undefined) {
   };
 }
 
-export function useProjectDependencies(projectId: Id<'projects'> | undefined) {
+export function useProjectDependencies(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.listProjectDependencies,
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:listProjectDependencies',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { edges: data ?? [], isLoading };
 }
 
-export function useTaskDiscussion(taskId: Id<'tasks'> | undefined) {
+export function useTaskDiscussion(taskId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.getTaskDiscussion,
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:getTaskDiscussion',
     taskId && organizationId ? { taskId, organizationId } : 'skip',
   );
   return {
@@ -146,19 +144,19 @@ export function useTaskDiscussion(taskId: Id<'tasks'> | undefined) {
   };
 }
 
-export function useTaskActivity(taskId: Id<'tasks'> | undefined) {
+export function useTaskActivity(taskId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.listTaskActivity,
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:listTaskActivity',
     taskId && organizationId ? { taskId, organizationId } : 'skip',
   );
   return { activity: data ?? [], isLoading };
 }
 
-export function useTaskOpsIndicators(projectId: Id<'projects'> | undefined) {
+export function useTaskOpsIndicators(projectId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data } = useConvexQuery(
-    api.tasks.queries.getTaskOpsIndicators,
+  const { data } = useBackendQuery(
+    'tasks/queries:getTaskOpsIndicators',
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return {
@@ -175,8 +173,8 @@ export function useTaskOpsIndicators(projectId: Id<'projects'> | undefined) {
 /** All-projects sibling of {@link useTaskOpsIndicators}. */
 export function useTaskOpsIndicatorsAcrossProjects(enabled = true) {
   const organizationId = useOrganizationId();
-  const { data } = useConvexQuery(
-    api.tasks.queries.getTaskOpsIndicatorsForAccessibleProjects,
+  const { data } = useBackendQuery(
+    'tasks/queries:getTaskOpsIndicatorsForAccessibleProjects',
     enabled && organizationId ? { organizationId } : 'skip',
   );
   return {
@@ -188,10 +186,10 @@ export function useTaskOpsIndicatorsAcrossProjects(enabled = true) {
   };
 }
 
-export function useTaskAgentRuns(taskId: Id<'tasks'> | undefined) {
+export function useTaskAgentRuns(taskId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.listTaskAgentRuns,
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:listTaskAgentRuns',
     taskId && organizationId ? { taskId, organizationId } : 'skip',
   );
   return { runs: data ?? [], isLoading };
@@ -204,12 +202,12 @@ export function useTaskAgentRuns(taskId: Id<'tasks'> | undefined) {
  * Create mode (no task yet) passes `projectId` instead of `taskId`.
  */
 export function useMentionTriggerPreview(
-  target: { taskId: Id<'tasks'> } | { projectId: Id<'projects'> } | undefined,
+  target: { taskId: string } | { projectId: string } | undefined,
   slugs: string[],
 ) {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.tasks.queries.mentionTriggerPreview,
+  const { data, isLoading } = useBackendQuery(
+    'tasks/queries:mentionTriggerPreview',
     target && slugs.length > 0 && organizationId
       ? { ...target, organizationId, slugs }
       : 'skip',
@@ -218,9 +216,9 @@ export function useMentionTriggerPreview(
 }
 
 /** Whether the viewer follows this task, and whether they've silenced it. */
-export function useTaskSubscription(taskId: Id<'tasks'> | undefined) {
-  const { data, isLoading } = useConvexQuery(
-    api.collab.subscriptions.isSubscribedToTask,
+export function useTaskSubscription(taskId: string | undefined) {
+  const { data, isLoading } = useBackendQuery(
+    'collab/subscriptions:isSubscribedToTask',
     taskId ? { taskId } : 'skip',
   );
   return {

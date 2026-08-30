@@ -1,8 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import {
   detectMentionTrigger,
   kbMentionKey,
@@ -14,8 +12,8 @@ import {
 function mention(n: number): KbMention {
   return {
     kind: 'document',
-    documentId: `doc_${n}` as Id<'documents'>,
-    fileId: `file_${n}` as Id<'_storage'>,
+    documentId: `doc_${n}` as string,
+    fileId: `file_${n}` as string,
     title: `Document ${n}`,
     fileType: 'application/pdf',
     fileSize: 100 + n,
@@ -25,7 +23,7 @@ function mention(n: number): KbMention {
 function folderMention(n: number): KbMention {
   return {
     kind: 'folder',
-    folderId: `folder_${n}` as Id<'folders'>,
+    folderId: `folder_${n}` as string,
     title: `Folder ${n}`,
   };
 }

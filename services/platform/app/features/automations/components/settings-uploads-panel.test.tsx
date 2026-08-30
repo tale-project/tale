@@ -2,7 +2,6 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import type { SettingsUploadsForm } from '@/lib/shared/schemas/automation_settings';
 import { fireEvent, render, screen } from '@/tests/utils/render';
 
@@ -10,8 +9,8 @@ const toastMock = vi.hoisted(() => vi.fn());
 vi.mock('@/app/hooks/use-toast', () => ({ toast: toastMock }));
 
 const convexMutation = vi.hoisted(() => vi.fn());
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({ mutateAsync: convexMutation }),
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => ({ mutateAsync: convexMutation }),
 }));
 
 // The panel's create-folder FormDialog reads the org from the route params
@@ -57,7 +56,7 @@ function mount(form: SettingsUploadsForm = FORM) {
   return render(
     <SettingsUploadsPanel
       organizationId="org_1"
-      projectId={'project_1' as Id<'projects'>}
+      projectId={'project_1' as string}
       folder="Setup"
       form={form}
     />,
@@ -227,7 +226,7 @@ describe('SettingsUploadsPanel', () => {
       <form onSubmit={outerSubmit}>
         <SettingsUploadsPanel
           organizationId="org_1"
-          projectId={'project_1' as Id<'projects'>}
+          projectId={'project_1' as string}
           folder="Setup"
           form={FORM}
         />

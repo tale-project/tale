@@ -10,10 +10,8 @@ import { ContentArea } from '@/app/components/layout/content-area';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useDebounce } from '@/app/hooks/use-debounce';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -43,9 +41,9 @@ import { TasksList } from './tasks-list';
 import { TasksSkeleton } from './tasks-skeleton';
 
 /** Brand an untrusted `?task=` URL value; a bogus id just renders an empty sheet. */
-function asTaskId(value: string): Id<'tasks'> {
+function asTaskId(value: string): string {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- URL deep-link param; invalid ids resolve to null server-side
-  return value as Id<'tasks'>;
+  return value;
 }
 
 export function TasksWorkspace({
@@ -127,15 +125,12 @@ export function TasksWorkspace({
   const reviewRequestedFor = useMemo(
     () =>
       new Map(
-        pendingReviews.map((review) => [
-          String(review.taskId),
-          review.requestedFor,
-        ]),
+        pendingReviews.map((review) => [review.taskId, review.requestedFor]),
       ),
     [pendingReviews],
   );
-  const searchHits = useConvexQuery(
-    api.tasks.search.searchTasks,
+  const searchHits = useBackendQuery(
+    'tasks/search:searchTasks',
     trimmedSearchQuery.length > 0
       ? {
           organizationId,
@@ -180,7 +175,7 @@ export function TasksWorkspace({
   // When opening from the all-projects board, the modal must target the row's
   // real project — not the route anchor.
   const [openTaskProjectId, setOpenTaskProjectId] =
-    useState<Id<'projects'>>(typedProjectId);
+    useState<string>(typedProjectId);
   // Re-sync from the URL when `?task=` changes while mounted (e.g. an inbox
   // link clicked from this page) — render-time state adjustment, no effect.
   const [prevOpenTaskParam, setPrevOpenTaskParam] = useState(openTaskParam);
@@ -192,10 +187,7 @@ export function TasksWorkspace({
       if (fromRow) setOpenTaskProjectId(fromRow.projectId);
     }
   }
-  const setOpenTaskId = (
-    taskId: Id<'tasks'> | null,
-    taskProjectId?: Id<'projects'>,
-  ) => {
+  const setOpenTaskId = (taskId: string | null, taskProjectId?: string) => {
     setOpenTaskIdState(taskId);
     if (taskProjectId) setOpenTaskProjectId(taskProjectId);
     onOpenTaskParamChange?.(taskId);
@@ -384,7 +376,7 @@ export function TasksWorkspace({
           runningTaskIds={runningTaskIds}
           askingTaskIds={askingTaskIds}
           pendingReviews={pendingReviews.map((review) => ({
-            taskId: String(review.taskId),
+            taskId: review.taskId,
             requestedFor: review.requestedFor,
           }))}
         >

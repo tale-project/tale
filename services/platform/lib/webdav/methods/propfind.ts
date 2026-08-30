@@ -1,5 +1,4 @@
-import { anyApi } from 'convex/server';
-
+import { anyRefs } from '../../shared/handlers/function-refs';
 import { buildDavPath, lockKeyFromParsed } from '../paths';
 import {
   WEBDAV_MAX_XML_BODY,
@@ -67,7 +66,7 @@ export async function handlePropfind(
 
   // Resolve the URL to a node — root, folder, or document.
   const resolved = await ctx.convex.query(
-    anyApi.webdav.tree_queries.resolvePath,
+    anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
       namespace: parsed.namespace,
@@ -113,7 +112,7 @@ export async function handlePropfind(
     });
   } else {
     const doc = await ctx.convex.query(
-      anyApi.webdav.tree_queries.getDocumentProps,
+      anyRefs.webdav.tree_queries.getDocumentProps,
       {
         organizationId: auth.organizationId,
         documentId: resolved.documentId,
@@ -134,7 +133,7 @@ export async function handlePropfind(
   if (depth === 1 && (resolved.kind === 'root' || resolved.kind === 'folder')) {
     const folderId = resolved.kind === 'folder' ? resolved.folderId : null;
     const listing = await ctx.convex.query(
-      anyApi.webdav.tree_queries.listCollection,
+      anyRefs.webdav.tree_queries.listCollection,
       {
         organizationId: auth.organizationId,
         namespace: parsed.namespace,
@@ -213,7 +212,7 @@ export async function handlePropfind(
     lookups.map(async ({ path, index }) => {
       try {
         const result = await ctx.convex.query(
-          anyApi.webdav.lock_queries.findLockForPath,
+          anyRefs.webdav.lock_queries.findLockForPath,
           {
             organizationId: auth.organizationId,
             resourcePath: path,

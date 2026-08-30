@@ -26,12 +26,12 @@ vi.mock('@tanstack/react-router', () => ({
   }),
 }));
 
-vi.mock('@/app/hooks/use-convex-auth', () => ({
+vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => ({ user: { userId: 'user-1' } }),
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({
     data: undefined,
     isLoading: false,
     isFetching: false,

@@ -1,9 +1,9 @@
 // @vitest-environment node
 
-import { ConvexError } from 'convex/values';
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import { collectSkillReferences, parseAutomationPackZip } from './pack_zip';
 
 const WORKFLOW = 'name: demo\nnodes: []\n';
@@ -25,8 +25,8 @@ async function refusalCode(bytes: Uint8Array): Promise<string> {
   try {
     await parseAutomationPackZip(bytes);
   } catch (error) {
-    if (error instanceof ConvexError) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ConvexError data is untyped by design
+    if (error instanceof AppError) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- AppError data is untyped by design
       return (error.data as { code: string }).code;
     }
     throw error;

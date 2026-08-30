@@ -15,9 +15,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import {
   mergeTimelineEntries,
   strippedText,
@@ -93,12 +91,12 @@ export function AgentActivityLine({
   className,
 }: {
   organizationId: string;
-  runId: Id<'automationRuns'>;
+  runId: string;
   className?: string;
 }) {
   const { t } = useT('automations');
-  const opQuery = useConvexQuery(
-    api.sandbox.session_queries_public.getAgentNodeSandboxOp,
+  const opQuery = useBackendQuery(
+    'sandbox/session_queries_public:getAgentNodeSandboxOp',
     { organizationId, runId },
   );
   const op = opQuery.data ?? null;
@@ -399,11 +397,11 @@ export function AgentExecutionLog({
   className,
 }: {
   organizationId: string;
-  runId: Id<'automationRuns'>;
+  runId: string;
   className?: string;
 }) {
-  const opQuery = useConvexQuery(
-    api.sandbox.session_queries_public.getAgentNodeSandboxOp,
+  const opQuery = useBackendQuery(
+    'sandbox/session_queries_public:getAgentNodeSandboxOp',
     { organizationId, runId },
   );
   return <ExecutionLogView op={opQuery.data ?? null} className={className} />;

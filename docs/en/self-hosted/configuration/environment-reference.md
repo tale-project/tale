@@ -128,15 +128,6 @@ Optional toggles for features not enabled by default. Each flag turns one featur
 | `FILE_EVENTS_ENABLED`           | `false` | Enables file-watching events for the OneDrive-sync connector.                                                                   |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Comma-separated email allowlist of operators allowed to edit deployment data residency. Empty/unset = read-only for all admins. |
 
-## Restart controller
-
-The opt-in `controller` sidecar powers the one-click **Apply & restart** button on the [Data residency](/self-hosted/configuration/data-residency) page: it bounces the `convex` container after a config change so the browser-facing platform never needs Docker-socket access. Enable it with `docker compose --profile controller up -d`, then set both variables below. Leave them unset to keep restarting `convex` by hand.
-
-| Name               | Default | Description                                                                                                                                                                                                       |
-| ------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CONTROLLER_TOKEN` | unset   | Shared HMAC secret for **Apply & restart**. The `controller` refuses to start without it, and the platform signs every restart request with it — the two values must match. Generate with `openssl rand -hex 32`. |
-| `CONTROLLER_URL`   | unset   | Base URL the platform uses to reach the `controller` sidecar (e.g. `http://controller:8004` on the internal network). With either this or `CONTROLLER_TOKEN` unset, **Apply & restart** shows the manual command. |
-
 ## RAG retrieval tuning
 
 Optional knobs for knowledge-base search. The in-process RAG path (Convex node-actions) re-scores results with a cross-encoder when re-ranking is on. All carry the `RAG_` prefix and are read by the `platform` and `convex` containers at boot; after changing one, run `docker compose restart platform convex` for it to take effect.

@@ -16,7 +16,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { MCP_TOOLS } from '../../lib/mcp/tools';
-import { internal } from '../_generated/api';
+import { internal } from '../lib/handler_names';
 import type { RestContext } from '../lib/rest/helpers';
 import { handleMcpRequest, mcpGetNotAllowed } from './mcp_http';
 

@@ -5,7 +5,7 @@ import {
   signUpViaApi,
   uniqueCredentials,
 } from '../helpers/auth';
-import { TIMEOUT } from '../helpers/env';
+import { ENTITY_ID, ORG_DASHBOARD_URL, TIMEOUT } from '../helpers/env';
 import { t } from '../helpers/i18n';
 import { generateTotp } from '../helpers/totp';
 
@@ -22,8 +22,6 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 const LOGIN_URL = /\/log-in(?:[/?#]|$)/;
 const TWO_FA_URL = /\/2fa(?![-\w])/;
-const ORG_DASHBOARD_URL = /\/dashboard\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
-
 /**
  * Drive the add-org wizard for a user who ALREADY has an organization, and
  * return the new org id.
@@ -302,7 +300,7 @@ test.describe('organization switching', () => {
       .getByRole('button', { name: t('projects.create.submit') })
       .click();
     await page.waitForURL(
-      new RegExp(`/dashboard/${orgA}/projects/[A-Za-z0-9]{16,}`),
+      new RegExp(`/dashboard/${orgA}/projects/${ENTITY_ID}`),
       { timeout: TIMEOUT.NAV },
     );
     // Create lands on the project's Tasks tab, which no longer renders the
@@ -311,7 +309,9 @@ test.describe('organization switching', () => {
     // than the bare project name). General holds the Name field, and that
     // field carrying the typed name is the stable proof the project exists
     // and is visible in org A.
-    const projectId = /\/projects\/([A-Za-z0-9]{16,})/.exec(page.url())?.[1];
+    const projectId = new RegExp(`/projects/(${ENTITY_ID})`).exec(
+      page.url(),
+    )?.[1];
     expect(projectId, 'a project id should appear in the URL').toBeTruthy();
     await page.goto(`/dashboard/${orgA}/projects/${projectId}/overview`);
     await expect(

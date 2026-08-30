@@ -12,7 +12,6 @@ import { useCallback, useId, useMemo, useState } from 'react';
 import { ContentArea } from '@/app/components/layout/content-area';
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { mergeNodeTypes } from '../hooks/backend';
@@ -63,7 +62,7 @@ export function RunDetail({
 }: {
   organizationId: string;
   automationSlug: string;
-  runId: Id<'automationRuns'>;
+  runId: string;
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();

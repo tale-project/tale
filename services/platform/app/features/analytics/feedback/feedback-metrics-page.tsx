@@ -7,7 +7,6 @@ import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS } from '@tale/ui/chart-theme';
 import { HStack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import type { FunctionReturnType } from 'convex/server';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
@@ -24,9 +23,9 @@ import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
 import { ArenaSummary } from './arena-summary';
@@ -41,9 +40,7 @@ import type { RecentFeedbackItem } from './types';
 export type { FeedbackPeriod } from './feedback-period';
 export type FeedbackKind = 'all' | 'message' | 'arena';
 
-type FeedbackStats = FunctionReturnType<
-  typeof api.feedback.queries.getFeedbackStats
->;
+type FeedbackStats = ReturnsOf<'feedback/queries:getFeedbackStats'>;
 
 interface FeedbackMetricsPageProps {
   organizationId: string;
@@ -348,8 +345,8 @@ export function FeedbackMetricsPage({
     data: stats,
     isLoading: statsLoading,
     error: statsError,
-  } = useConvexQuery(
-    api.feedback.queries.getFeedbackStats,
+  } = useBackendQuery(
+    'feedback/queries:getFeedbackStats',
     {
       organizationId,
       periodDays,
@@ -361,7 +358,7 @@ export function FeedbackMetricsPage({
   );
 
   const recent = useCachedPaginatedQuery(
-    api.feedback.queries.listRecentFeedback,
+    'feedback/queries:listRecentFeedback',
     {
       organizationId,
       periodDays,

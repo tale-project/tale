@@ -1,8 +1,7 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { OrganizationSettings } from '@/app/features/settings/organization/components/organization-settings';
-import { api } from '@/convex/_generated/api';
+import { organizationQuery } from '@/app/lib/backend/org';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/organization')({
@@ -10,11 +9,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/organization')({
     meta: seo('organization'),
   }),
   loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.organizations.queries.getOrganization, {
-        id: params.id,
-      }),
-    );
+    void context.queryClient.prefetchQuery(organizationQuery(params.id));
   },
   component: OrganizationSettingsPage,
 });

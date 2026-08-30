@@ -4,12 +4,11 @@ import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Heading } from '@tale/ui/heading';
 import { Row } from '@tale/ui/layout';
-import { useAction } from 'convex/react';
 import { Clock } from 'lucide-react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
@@ -29,12 +28,12 @@ interface Props {
 export function RetentionPendingBanner({ organizationId }: Props) {
   const { t } = useT('governance');
   const { toast } = useToast();
-  const pending = useConvexQuery(
-    api.governance.queries.getPendingRetentionChange,
+  const pending = useBackendQuery(
+    'governance/queries:getPendingRetentionChange',
     { organizationId },
   );
-  const cancel = useAction(
-    api.governance.retention_actions.cancelPendingRetentionChange,
+  const cancel = useBackendAction(
+    'governance/retention_actions:cancelPendingRetentionChange',
   );
 
   if (!pending.data) return null;
@@ -76,7 +75,7 @@ export function RetentionPendingBanner({ organizationId }: Props) {
             variant="ghost"
             onClick={async () => {
               try {
-                await cancel({
+                await cancel.mutateAsync({
                   organizationId,
                   pendingId: _id,
                 });

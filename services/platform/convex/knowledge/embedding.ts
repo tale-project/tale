@@ -29,7 +29,7 @@ import { logger } from '../../lib/knowledge/logger';
 import type { QueryEmbedder } from '../../lib/knowledge/retrieve';
 import type { EmbeddingModel } from '../../lib/knowledge/types';
 import type { KnowledgeEmbeddingConfig } from '../../lib/shared/schemas/knowledge';
-import type { ActionCtx } from '../_generated/server';
+import type { ActionCtx } from '../lib/ctx';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { assertVectorWidth } from './dimensions';
@@ -201,10 +201,7 @@ export async function embedderForOrg(
     organizationId: args.organizationId,
     providerSlug: args.config.providerSlug,
     ...(args.config.credentialId !== undefined && {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the config stores the credential row id as text; resolution verifies it belongs to this organization and rejects it otherwise
-      credentialId: args.config.credentialId as Parameters<
-        typeof resolveProviderCredential
-      >[1]['credentialId'],
+      credentialId: args.config.credentialId,
     }),
   });
 

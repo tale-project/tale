@@ -14,7 +14,6 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { isFilterAffordanceDisabled } from '@/app/components/ui/filters/filter-panel';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalHolds } from '../hooks/queries';
@@ -50,9 +49,9 @@ export function ActiveHoldsSection({
     FilterTargetType | 'all'
   >('all');
   const [placeOpen, setPlaceOpen] = useState(false);
-  const [releaseHoldId, setReleaseHoldId] = useState<
-    Id<'legalHolds'> | undefined
-  >(undefined);
+  const [releaseHoldId, setReleaseHoldId] = useState<string | undefined>(
+    undefined,
+  );
 
   const { data: rows, isLoading } = useLegalHolds(organizationId, {
     status: 'active',

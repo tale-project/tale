@@ -1,7 +1,5 @@
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import type { ErasureStatus } from '@/convex/governance/erasure_constants';
 
 export function useListErasureRequests(args: {
@@ -10,7 +8,7 @@ export function useListErasureRequests(args: {
   initialNumItems?: number;
 }) {
   return useCachedPaginatedQuery(
-    api.governance.erasure_queries.listErasureRequests,
+    'governance/erasure_queries:listErasureRequests',
     args.organizationId
       ? {
           organizationId: args.organizationId,
@@ -24,11 +22,9 @@ export function useListErasureRequests(args: {
   );
 }
 
-export function useGetErasureRequest(
-  requestId: Id<'gdprErasureRequests'> | undefined,
-) {
-  return useConvexQuery(
-    api.governance.erasure_queries.getErasureRequest,
+export function useGetErasureRequest(requestId: string | undefined) {
+  return useBackendQuery(
+    'governance/erasure_queries:getErasureRequest',
     requestId ? { requestId } : 'skip',
   );
 }
@@ -42,8 +38,8 @@ export function useGetErasureRequest(
 export function useOrgMembersForErasurePicker(
   organizationId: string | undefined,
 ) {
-  return useConvexQuery(
-    api.governance.legal_hold_queries.listOrgMembersForPicker,
+  return useBackendQuery(
+    'governance/legal_hold_queries:listOrgMembersForPicker',
     organizationId ? { organizationId } : 'skip',
   );
 }

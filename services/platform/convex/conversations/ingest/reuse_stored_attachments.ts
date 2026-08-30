@@ -25,7 +25,7 @@
  */
 
 import { isRecord } from '../../../lib/utils/type-utils';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
 import { checkMessageExists } from './check_message_exists';
 
 /** One stored attachment, as it sits in a message's metadata. */

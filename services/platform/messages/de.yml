@@ -6114,26 +6114,9 @@ settings:
       title: Gespeichert — zum Anwenden neu starten.
       runPrefix: 'Befehl:'
       orPrefix: (oder
-      tail: für Zero-Downtime). Die Plattform selbst muss nicht neu gestartet werden.
+      tail: für Zero-Downtime).
     saving: Speichern…
     saveDeployment: Deployment speichern
-    applyRestart: Anwenden & neu starten
-    applyRestartTitle: rag + convex über den Controller neu starten (falls
-      aktiviert), sonst wird der manuelle Befehl angezeigt
-    restarting: Neu starten…
-    restart:
-      notEnabled: Restart-Controller nicht aktiviert.
-      requested: 'Neustart angefordert: {services}'
-      failed: 'Neustart fehlgeschlagen: {error}'
-      defaultServices: rag, convex
-      unknownError: unbekannter Fehler
-    restartConfirm:
-      title: RAG und Convex neu starten?
-      description:
-        Das wendet die gespeicherte Konfiguration an, indem die RAG- und
-        Convex-Container neu gestartet werden. Rechne mit einer kurzen
-        Unterbrechung, bis sie wieder laufen.
-      confirm: Jetzt neu starten
     forceOverwrite:
       title: Unlesbare Secrets überschreiben?
       description:

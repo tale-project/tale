@@ -4,10 +4,9 @@ import { useMemo, useCallback, useState, useEffect } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { useImportOneDriveFiles } from '../hooks/actions';
@@ -67,11 +66,11 @@ export function OneDriveImportDialog({
     useImportOneDriveFiles();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isBusy = isImporting || isSubmitting;
-  const { mutateAsync: listOneDriveFiles } = useConvexAction(
-    api.onedrive.actions.listFiles,
+  const { mutateAsync: listOneDriveFiles } = useBackendAction(
+    'onedrive/actions:listFiles',
   );
-  const { mutateAsync: listSharePointFiles } = useConvexAction(
-    api.onedrive.actions.listSharePointFiles,
+  const { mutateAsync: listSharePointFiles } = useBackendAction(
+    'onedrive/actions:listSharePointFiles',
   );
 
   const [stage, setStage] = useState<Stage>('picker');

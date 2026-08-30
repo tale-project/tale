@@ -8,9 +8,8 @@ import { ArrowRightLeft } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { resolveFileType } from '@/lib/shared/file-types';
 
@@ -46,8 +45,8 @@ function DocumentComparisonDialogContent({
   const { compare, result, error, isPending, reset } = useDocumentComparison({
     organizationId,
   });
-  const { mutateAsync: generateUploadUrl } = useConvexMutation(
-    api.files.mutations.generateUploadUrl,
+  const { mutateAsync: generateUploadUrl } = useBackendMutation(
+    'files/mutations:generateUploadUrl',
   );
 
   const existingDocuments = documents

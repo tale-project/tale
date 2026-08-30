@@ -23,8 +23,6 @@ Read this before you `docker compose up`. Come back when you are debugging an ou
 
 **tale-sandbox** and **tale-sandbox-egress** run sandboxed code on behalf of the `Run code` tool and skill scripts, and serve as the headless-browser runtime the convex backend calls for web rendering and document generation. The egress container is the only path the sandbox has to the network. Egress is open by default — sandboxed code reaches any public host over HTTPS while cloud-metadata and private-range targets stay blocked at the IP layer; lock it down to a hostname allowlist with `SANDBOX_EGRESS_ALLOWLIST`, described in [Hardening](/self-hosted/operate/security/hardening).
 
-One more service ships but stays off by default: **tale-controller** is an opt-in sidecar (the `controller` compose profile) that restarts the convex container on a signed request from the app, so a data-residency change can apply without giving the browser-facing platform Docker-socket access.
-
 ## Data on disk
 
 Four volumes survive a `docker compose down`:

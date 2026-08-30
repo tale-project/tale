@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-import { toId } from '@/convex/lib/type_cast_helpers';
-
 const mockMutateAsync = vi.fn();
 
 const mockMutationResult = {
@@ -15,8 +13,8 @@ const mockMutationResult = {
   reset: vi.fn(),
 };
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => mockMutationResult,
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => mockMutationResult,
 }));
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -50,10 +48,10 @@ describe('useDeleteDocument', () => {
     mockMutateAsync.mockResolvedValueOnce(null);
     const { mutateAsync: deleteDocument } = useDeleteDocument();
 
-    await deleteDocument({ documentId: toId<'documents'>('doc-123') });
+    await deleteDocument({ documentId: 'doc-123' });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
-      documentId: toId<'documents'>('doc-123'),
+      documentId: 'doc-123',
     });
   });
 
@@ -61,9 +59,9 @@ describe('useDeleteDocument', () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
     const { mutateAsync: deleteDocument } = useDeleteDocument();
 
-    await expect(
-      deleteDocument({ documentId: toId<'documents'>('doc-789') }),
-    ).rejects.toThrow('Delete failed');
+    await expect(deleteDocument({ documentId: 'doc-789' })).rejects.toThrow(
+      'Delete failed',
+    );
   });
 });
 
@@ -83,12 +81,12 @@ describe('useUpdateDocument', () => {
     const { mutateAsync: updateDocument } = useUpdateDocument();
 
     await updateDocument({
-      documentId: toId<'documents'>('doc-123'),
+      documentId: 'doc-123',
       teamIds: ['team-1'],
     });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
-      documentId: toId<'documents'>('doc-123'),
+      documentId: 'doc-123',
       teamIds: ['team-1'],
     });
   });
@@ -97,10 +95,10 @@ describe('useUpdateDocument', () => {
     mockMutateAsync.mockResolvedValueOnce(undefined);
     const { mutateAsync: updateDocument } = useUpdateDocument();
 
-    await updateDocument({ documentId: toId<'documents'>('doc-123') });
+    await updateDocument({ documentId: 'doc-123' });
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
-      documentId: toId<'documents'>('doc-123'),
+      documentId: 'doc-123',
     });
   });
 
@@ -110,7 +108,7 @@ describe('useUpdateDocument', () => {
 
     await expect(
       updateDocument({
-        documentId: toId<'documents'>('doc-789'),
+        documentId: 'doc-789',
         teamIds: ['team-1'],
       }),
     ).rejects.toThrow('Update failed');

@@ -8,7 +8,7 @@ import {
   useEntityRowDialogs,
 } from '@/app/components/ui/entity/entity-row-actions';
 import { useAbility } from '@/app/hooks/use-ability';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { useResumeScanning } from '../hooks/mutations';
@@ -17,7 +17,7 @@ import { DeleteWebsiteDialog } from './website-delete-dialog';
 import { EditWebsiteDialog } from './website-edit-dialog';
 
 interface WebsiteRowActionsProps {
-  website: Doc<'websites'>;
+  website: WebsiteDoc;
 }
 
 export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {

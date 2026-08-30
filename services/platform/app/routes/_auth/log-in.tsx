@@ -27,6 +27,7 @@ import {
 } from '@/app/features/auth/hooks/queries';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
+import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
@@ -269,9 +270,7 @@ export function LogInPage() {
       const rawData: Record<string, unknown> = response.data ?? {};
       if (rawData.twoFactorRedirect === true) {
         const target = rawData.enrollRequired === true ? '/2fa-enroll' : '/2fa';
-        await queryClient
-          .invalidateQueries({ queryKey: ['auth', 'session'] })
-          .catch(() => undefined);
+        await invalidateAuthState(queryClient).catch(() => undefined);
         void navigate({
           to: target,
           search: redirectTo ? { redirectTo } : undefined,
@@ -294,11 +293,9 @@ export function LogInPage() {
         position: 'top-center',
       });
 
-      await queryClient
-        .invalidateQueries({ queryKey: ['auth', 'session'] })
-        .catch((error) =>
-          console.warn('Session cache invalidation failed:', error),
-        );
+      await invalidateAuthState(queryClient).catch((error) =>
+        console.warn('Session cache invalidation failed:', error),
+      );
       void navigate({ to: redirectTo || '/dashboard' });
     } catch (error) {
       console.error('Log in error:', error);
@@ -376,9 +373,7 @@ export function LogInPage() {
         setLoginError(t('login.passkeyFailed'));
         return;
       }
-      await queryClient
-        .invalidateQueries({ queryKey: ['auth', 'session'] })
-        .catch(() => undefined);
+      await invalidateAuthState(queryClient).catch(() => undefined);
       void navigate({ to: redirectTo || '/dashboard' });
     } catch {
       // Thrown when the user dismisses the prompt or has no matching passkey.

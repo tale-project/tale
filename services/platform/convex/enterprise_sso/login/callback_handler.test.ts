@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
 import { signValue } from '../sign_cookie_value';
 import { ssoCallbackHandler } from './callback_handler';
+import type { FinishLogin } from './finish_login';
 
 /**
  * Regressions for A2.1 error handling:
@@ -37,6 +38,12 @@ function callbackRequest(params: Record<string, string>): Request {
   return new Request(url.toString());
 }
 
+/** These cases refuse BEFORE a session is minted; reaching the
+ *  finish-login step would itself be the bug. */
+const neverFinishes: FinishLogin = () => {
+  throw new Error('finishLogin must not be reached on a refusal path');
+};
+
 describe('ssoCallbackHandler — error redirects land on the public origin', () => {
   beforeEach(() => {
     process.env.BETTER_AUTH_SECRET = SECRET;
@@ -56,7 +63,9 @@ describe('ssoCallbackHandler — error redirects land on the public origin', () 
       runAction: vi.fn(),
     } as unknown as ActionCtx;
 
-    const res = await ssoCallbackHandler(ctx, callbackRequest({}));
+    const res = await ssoCallbackHandler(ctx, callbackRequest({}), {
+      finishLogin: neverFinishes,
+    });
 
     expect(res.status).toBe(302);
     const target = new URL(res.headers.get('Location') as string);
@@ -86,6 +95,7 @@ describe('ssoCallbackHandler — error redirects land on the public origin', () 
     const res = await ssoCallbackHandler(
       ctx,
       callbackRequest({ code: 'code', state }),
+      { finishLogin: neverFinishes },
     );
 
     expect(res.status).toBe(302);
@@ -114,6 +124,7 @@ describe('ssoCallbackHandler — error redirects land on the public origin', () 
     const res = await ssoCallbackHandler(
       ctx,
       callbackRequest({ code: 'code', state }),
+      { finishLogin: neverFinishes },
     );
 
     expect(res.status).toBe(302);
@@ -138,6 +149,7 @@ describe('ssoCallbackHandler — error redirects land on the public origin', () 
     const res = await ssoCallbackHandler(
       ctx,
       callbackRequest({ code: 'code', state }),
+      { finishLogin: neverFinishes },
     );
 
     expect(res.status).toBe(302);
@@ -164,6 +176,7 @@ describe('ssoCallbackHandler — error redirects land on the public origin', () 
           'AADSTS50105: Your administrator has configured the application to block users.',
         state,
       }),
+      { finishLogin: neverFinishes },
     );
 
     expect(res.status).toBe(302);

@@ -1,4 +1,4 @@
-import type { Doc, TableNames } from '../../_generated/dataModel';
+import type { Doc, TableNames } from '../rows';
 import type { SearchStrategy } from './types';
 
 /** A row is "active" unless an explicit `lifecycleStatus` says otherwise.

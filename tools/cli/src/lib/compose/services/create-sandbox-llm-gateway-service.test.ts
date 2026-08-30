@@ -42,7 +42,11 @@ describe('createSandboxLlmGatewayService', () => {
   });
 
   test('healthchecks the gateway on :8080/health via wget', () => {
-    const command = createSandboxLlmGatewayService(config).healthcheck?.test;
+    const healthcheck = createSandboxLlmGatewayService(config).healthcheck;
+    const command =
+      healthcheck !== undefined && 'test' in healthcheck
+        ? healthcheck.test
+        : undefined;
     if (!Array.isArray(command)) {
       throw new Error(
         'sandbox-llm-gateway healthcheck test should be a CMD-SHELL array',

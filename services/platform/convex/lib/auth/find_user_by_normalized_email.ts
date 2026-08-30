@@ -1,14 +1,12 @@
-import type { GenericQueryCtx } from 'convex/server';
-
-import { components } from '../../_generated/api';
-import type { DataModel } from '../../_generated/dataModel';
 import type {
   BetterAuthFindManyResult,
   BetterAuthUser,
 } from '../../members/types';
+import type { QueryCtx } from '../ctx';
+import { components } from '../handler_names';
 import { normalizeAuthEmail } from './normalize_auth_email';
 
-export type AuthReadCtx = Pick<GenericQueryCtx<DataModel>, 'runQuery'>;
+export type AuthReadCtx = Pick<QueryCtx, 'runQuery'>;
 
 const USER_PAGE = 200;
 const USER_SCAN_CAP = 10_000;

@@ -9,12 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { convexQuery } = vi.hoisted(() => ({ convexQuery: vi.fn() }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: (ref: unknown, args: unknown) => convexQuery(ref, args),
-}));
-
-vi.mock('@/convex/_generated/api', () => ({
-  api: { automations: { queries: { listAutomations: 'listAutomations' } } },
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (ref: unknown, args: unknown) => convexQuery(ref, args),
 }));
 
 import { useInboxAvailability } from './use-inbox-availability';
@@ -119,7 +115,10 @@ describe('useInboxAvailability', () => {
 
     const { result } = renderHook(() => useInboxAvailability(''));
 
-    expect(convexQuery).toHaveBeenCalledWith('listAutomations', 'skip');
+    expect(convexQuery).toHaveBeenCalledWith(
+      'automations/queries:listAutomations',
+      'skip',
+    );
     expect(result.current.hasInbox).toBe(false);
   });
 });

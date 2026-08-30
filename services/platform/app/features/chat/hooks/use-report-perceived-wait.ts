@@ -9,11 +9,10 @@
  * leaves the field absent.
  */
 
-import { useConvex } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
-import { api } from '@/convex/_generated/api';
+import { reportPerceivedWaitRequest } from '@/app/lib/backend/chat';
 
 const PENDING_ASSISTANT_KEY = /^pending-assistant-(\d+)$/;
 const MAX_PERCEIVED_WAIT_MS = 30 * 60 * 1000;
@@ -23,7 +22,6 @@ export function useReportPerceivedWait(
   message: { id: string; key: string },
   painted: boolean,
 ): void {
-  const convex = useConvex();
   const { clientEpochNow } = useClockOffset();
   const sent = useRef(false);
 
@@ -37,19 +35,10 @@ export function useReportPerceivedWait(
     const wait = clientEpochNow() - start;
     if (!Number.isFinite(wait) || wait <= 0) return;
     sent.current = true;
-    void convex
-      ?.mutation(api.chat.messages.reportPerceivedWait, {
-        organizationId,
-        messageId: message.id,
-        perceivedWaitMs: Math.min(wait, MAX_PERCEIVED_WAIT_MS),
-      })
-      .catch(() => undefined);
-  }, [
-    painted,
-    message.key,
-    message.id,
-    organizationId,
-    convex,
-    clientEpochNow,
-  ]);
+    void reportPerceivedWaitRequest(
+      organizationId,
+      message.id,
+      Math.min(wait, MAX_PERCEIVED_WAIT_MS),
+    ).catch(() => undefined);
+  }, [painted, message.key, message.id, organizationId, clientEpochNow]);
 }

@@ -25,11 +25,10 @@ import {
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
-import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import type {
   CrawlerChunk,
   CrawlerPage,
@@ -52,7 +51,7 @@ const statusVariant = {
 interface ViewWebsiteDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  website: Doc<'websites'>;
+  website: WebsiteDoc;
 }
 
 const PLACEHOLDER_PAGE: CrawlerPage = {
@@ -72,14 +71,14 @@ function PageRow({
   websiteId,
 }: {
   page: CrawlerPage;
-  websiteId: Doc<'websites'>['_id'];
+  websiteId: WebsiteDoc['_id'];
 }) {
   const { t } = useT('websites');
   const { formatDate } = useFormatDate();
   const [chunks, setChunks] = useState<CrawlerChunk[] | null>(null);
 
-  const { mutate: fetchChunks, isPending } = useConvexAction(
-    api.websites.actions.fetchChunks,
+  const { mutate: fetchChunks, isPending } = useBackendAction(
+    'websites/actions:fetchChunks',
     {
       onSuccess: (data) => setChunks(data.chunks),
     },
@@ -220,8 +219,8 @@ export function ViewWebsiteDialog({
 
   const isSearchMode = activeQuery.length > 0;
 
-  const { mutate: fetchPages, isPending } = useConvexAction(
-    api.websites.actions.fetchPages,
+  const { mutate: fetchPages, isPending } = useBackendAction(
+    'websites/actions:fetchPages',
     {
       errorToast: false,
       onSuccess: (data) => {
@@ -240,8 +239,8 @@ export function ViewWebsiteDialog({
     },
   );
 
-  const { mutate: searchContent } = useConvexAction(
-    api.websites.actions.searchContent,
+  const { mutate: searchContent } = useBackendAction(
+    'websites/actions:searchContent',
     {
       errorToast: false,
       onSuccess: (data) => {
@@ -358,11 +357,12 @@ export function ViewWebsiteDialog({
                   t('viewDialog.unknown')}
               </Badge>
             )}
-            {website.status === 'error' && website.metadata?.lastSyncError && (
-              <Text variant="caption" className="text-destructive">
-                {String(website.metadata.lastSyncError)}
-              </Text>
-            )}
+            {website.status === 'error' &&
+              typeof website.metadata?.lastSyncError === 'string' && (
+                <Text variant="caption" className="text-destructive">
+                  {website.metadata.lastSyncError}
+                </Text>
+              )}
             {isScanPaused(website) && (
               <Text variant="caption" className="text-muted-foreground">
                 {t('viewDialog.scanPausedNotice')}

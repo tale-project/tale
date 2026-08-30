@@ -1,44 +1,40 @@
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import { useQuery } from '@tanstack/react-query';
 
-// hasAnyUsers + isSsoConfigured run on the public login / sign-up pages before
-// auth is established, so they opt out of the default auth gate (public probes
-// server-side). hasMicrosoftAccount / hasCredentialAccount inspect the CURRENT
-// user's linked accounts and are only used in authenticated routes (account
-// settings, knowledge), so they keep the default gate — opting them out would
-// fire a stale pre-auth result that wouldn't refresh once auth lands.
+import { accountFlagsQuery, hasAnyUsersQuery } from '@/app/lib/backend/account';
+import { ssoConfiguredQuery, ssoSelectableQuery } from '@/app/lib/backend/org';
+
+// hasAnyUsers + the SSO discovery pair run on the public login / sign-up
+// pages before auth is established — the backend serves them without a
+// session (public probes server-side). The account-flags read inspects the
+// CURRENT user's linked accounts and only renders in authenticated routes;
+// on a signed-out call it answers 401 (no retry) and `data` stays
+// undefined, which those surfaces already treat as "hold".
 
 // Used to gate sign-up access: only the first user (owner) can sign up.
 // Returns false → show sign-up page; true → redirect to login.
 export function useHasAnyUsers() {
-  return useConvexQuery(
-    api.users.queries.hasAnyUsers,
-    {},
-    { requireAuth: false },
-  );
+  return useQuery(hasAnyUsersQuery());
 }
 
 export function useIsSsoConfigured() {
-  return useConvexQuery(
-    api.enterprise_sso.queries.isConfigured,
-    {},
-    { requireAuth: false },
-  );
+  return useQuery(ssoConfiguredQuery());
 }
 
 // The SSO step's org picker: every enabled connection on a multi-org deployment.
 export function useSsoSelectableOrgs() {
-  return useConvexQuery(
-    api.enterprise_sso.queries.listSelectable,
-    {},
-    { requireAuth: false },
-  );
+  return useQuery(ssoSelectableQuery());
 }
 
 export function useHasMicrosoftAccount() {
-  return useConvexQuery(api.accounts.queries.hasMicrosoftAccount, {});
+  return useQuery({
+    ...accountFlagsQuery(),
+    select: (flags) => flags.hasMicrosoftAccount,
+  });
 }
 
 export function useHasCredentialAccount() {
-  return useConvexQuery(api.accounts.queries.hasCredentialAccount, {});
+  return useQuery({
+    ...accountFlagsQuery(),
+    select: (flags) => flags.hasCredentialAccount,
+  });
 }

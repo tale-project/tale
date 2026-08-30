@@ -1,21 +1,19 @@
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
+import type { ItemOf } from '@/app/lib/backend/contract';
 
-export type Website = ConvexItemOf<typeof api.websites.queries.listWebsites>;
+export type Website = ItemOf<'websites/queries:listWebsites'>;
 
 export function useApproxWebsiteCount(organizationId: string) {
-  return useConvexQuery(api.websites.queries.approxCountWebsites, {
+  return useBackendQuery('websites/queries:approxCountWebsites', {
     organizationId,
   });
 }
 
 export function useWebsites(organizationId: string) {
-  const { data, isLoading } = useConvexQuery(
-    api.websites.queries.listWebsites,
-    { organizationId },
-  );
+  const { data, isLoading } = useBackendQuery('websites/queries:listWebsites', {
+    organizationId,
+  });
 
   return {
     websites: data ?? [],
@@ -33,7 +31,7 @@ interface ListWebsitesPaginatedArgs {
 export function useListWebsitesPaginated(args: ListWebsitesPaginatedArgs) {
   const { initialNumItems, ...queryArgs } = args;
   return useCachedPaginatedQuery(
-    api.websites.queries.listWebsitesPaginated,
+    'websites/queries:listWebsitesPaginated',
     queryArgs,
     { initialNumItems },
   );

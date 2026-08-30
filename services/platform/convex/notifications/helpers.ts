@@ -1,7 +1,7 @@
 import type { Infer } from 'convex/values';
 
-import { internal } from '../_generated/api';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import type {
   NOTIFICATION_CATEGORIES,

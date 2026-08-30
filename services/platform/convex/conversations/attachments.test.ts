@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   type ConversationAttachmentCapInput,
   validateConversationAttachmentCaps,
@@ -25,12 +25,12 @@ describe('validateConversationAttachmentCaps (#2661)', () => {
   it('rejects an over-count attachment set (the bypass: 11 files)', () => {
     const attachments = Array.from({ length: 11 }, (_, i) => pdf(1024, i));
     expect(() => validateConversationAttachmentCaps(attachments)).toThrow(
-      ConvexError,
+      AppError,
     );
     try {
       validateConversationAttachmentCaps(attachments);
     } catch (error) {
-      expect((error as ConvexError<{ code: string }>).data).toMatchObject({
+      expect((error as AppError<{ code: string }>).data).toMatchObject({
         code: 'CONVERSATION_ATTACHMENTS_TOO_MANY',
       });
     }
@@ -39,12 +39,12 @@ describe('validateConversationAttachmentCaps (#2661)', () => {
   it('rejects a single oversized file (the bypass: 5e8 bytes)', () => {
     const attachments = [pdf(5e8, 0)];
     expect(() => validateConversationAttachmentCaps(attachments)).toThrow(
-      ConvexError,
+      AppError,
     );
     try {
       validateConversationAttachmentCaps(attachments);
     } catch (error) {
-      expect((error as ConvexError<{ code: string }>).data).toMatchObject({
+      expect((error as AppError<{ code: string }>).data).toMatchObject({
         code: 'CONVERSATION_ATTACHMENT_TOO_LARGE',
       });
     }
@@ -54,12 +54,12 @@ describe('validateConversationAttachmentCaps (#2661)', () => {
     const ninetyMb = 90 * 1024 * 1024;
     const attachments = [pdf(ninetyMb, 0), pdf(ninetyMb, 1), pdf(ninetyMb, 2)];
     expect(() => validateConversationAttachmentCaps(attachments)).toThrow(
-      ConvexError,
+      AppError,
     );
     try {
       validateConversationAttachmentCaps(attachments);
     } catch (error) {
-      expect((error as ConvexError<{ code: string }>).data).toMatchObject({
+      expect((error as AppError<{ code: string }>).data).toMatchObject({
         code: 'CONVERSATION_ATTACHMENTS_TOTAL_SIZE_EXCEEDED',
       });
     }
@@ -74,12 +74,12 @@ describe('validateConversationAttachmentCaps (#2661)', () => {
       },
     ];
     expect(() => validateConversationAttachmentCaps(attachments)).toThrow(
-      ConvexError,
+      AppError,
     );
     try {
       validateConversationAttachmentCaps(attachments);
     } catch (error) {
-      expect((error as ConvexError<{ code: string }>).data).toMatchObject({
+      expect((error as AppError<{ code: string }>).data).toMatchObject({
         code: 'CONVERSATION_ATTACHMENT_TYPE_INVALID',
       });
     }

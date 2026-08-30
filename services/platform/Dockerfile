@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1.7
 # Tale Platform Dockerfile
-# Builds the Vite SPA + Convex Backend with multi-stage optimization
+# Builds the Vite SPA (web tier) and the Postgres backend (api/worker roles)
+# from ONE image — they share their wire contracts, so they must never
+# version-skew. Plain Debian base: the Convex backend image this used to
+# build on retired with the runtime it carried.
 
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
@@ -8,10 +11,15 @@ ARG VERSION=dev
 # Bun binary for all stages
 FROM oven/bun:1.3.12 AS bun-bin
 
+# Node binary for the 0.5 backend roles (api/worker). The backend runs its .ts
+# sources directly via Node's type stripping (>= 22.18); only the binary is
+# needed — no npm, no corepack.
+FROM node:22.21.1-bookworm-slim AS node-bin
+
 # ============================================================================
 # Stage 1: Dependencies
 # ============================================================================
-FROM ghcr.io/get-convex/convex-backend:903b8b96c4bceb34c62e366cf36e8f4774955e6b AS workspace-deps
+FROM debian:bookworm-slim AS workspace-deps
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
@@ -27,7 +35,6 @@ COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
 COPY services/sandbox/package.json ./services/sandbox/
 COPY services/sandbox-runtime/daemon/package.json ./services/sandbox-runtime/daemon/
-COPY services/controller/package.json ./services/controller/
 COPY services/web/package.json ./services/web/
 COPY services/docs/package.json ./services/docs/
 COPY tools/cli/package.json ./tools/cli/
@@ -44,7 +51,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # ============================================================================
 # Stage 2: Builder
 # ============================================================================
-FROM ghcr.io/get-convex/convex-backend:903b8b96c4bceb34c62e366cf36e8f4774955e6b AS builder
+FROM debian:bookworm-slim AS builder
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
@@ -83,10 +90,11 @@ COPY services/platform/types ./services/platform/types
 COPY services/platform/messages ./services/platform/messages
 COPY services/platform/vite-plugins ./services/platform/vite-plugins
 COPY services/platform/scripts ./services/platform/scripts
+# Knowledge-corpus DDL — the dev image inherits this stage, and preparing a
+# new corpus applies these at runtime (see the runner stage's note).
+COPY services/db/migrations/knowledge-db ./services/db/migrations/knowledge-db
 
 COPY services/platform/docker-entrypoint.sh \
-     services/platform/reset-owner.sh \
-     services/platform/reset-owner.ts \
      services/platform/env.sh \
      ./services/platform/
 
@@ -110,9 +118,12 @@ WORKDIR /app
 # Server-side files copied after vite build to avoid invalidating the build cache
 COPY services/platform/server.ts \
      services/platform/telemetry.ts \
-     services/platform/convex-metrics.ts \
      services/platform/sla-targets.ts \
      ./services/platform/
+
+# 0.5 backend (Hono API + pg-boss worker on Postgres) — server-side only, so
+# copied after the vite build for the same cache reason as server.ts above.
+COPY services/platform/backend ./services/platform/backend
 
 # ============================================================================
 # Stage 2b: Dev (local hot-reload image — NOT used by prod/CI)
@@ -127,35 +138,32 @@ COPY services/platform/server.ts \
 # while the first watch rebuild runs in the background.
 #
 # Runtime extras the pruned runner installs but the builder lacks: curl (the
-# entrypoint's health waits), tini (PID 1 signal handling), the generate_key
-# symlink (admin-key derivation for the remote convex push), a writable
-# /home/app (HOME for the convex CLI), and convex.json (node.externalPackages,
-# read by `convex deploy`). The container runs as root (see
-# TALE_DEV_NO_PRIVDROP) so no app user / chown dance is needed.
+# entrypoint's health waits), tini (PID 1 signal handling), and a writable
+# /home/app. The container runs as root (see TALE_DEV_NO_PRIVDROP) so no app
+# user / chown dance is needed.
 #
-# It also symlinks node_modules to the convex project root. Deps are hoisted to
-# /app/node_modules (monorepo root), but `convex deploy`/`convex dev` run from
-# /app/services/platform and resolve `node.externalPackages` against
-# <project-root>/node_modules. Without the link the externals (jsdom, canvas,
-# pg, …) aren't found there, get bundled inline, and the push fails at analyze
-# (jsdom's computed-style.js reads default-stylesheet.css at module load →
-# ENOENT). The pruned runner is a flat /app with node_modules already at the
-# project root, so it needs no link.
+# It also symlinks node_modules into the platform workspace: deps are hoisted
+# to /app/node_modules (monorepo root), and a tool running from
+# /app/services/platform resolves against <project-root>/node_modules. The
+# pruned runner is a flat /app with node_modules already at the project root,
+# so it needs no link.
 # ============================================================================
 FROM builder AS dev
 
 ARG VERSION=dev
 
+# Node for the 0.5 backend roles; the dev image keeps sources at the workspace
+# path, so the entrypoint's role dispatch needs the dir override below.
+COPY --from=node-bin /usr/local/bin/node /usr/local/bin/node
+ENV TALE_BACKEND_DIR=/app/services/platform/backend
+
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get -o Acquire::Retries=3 update \
-    && apt-get install -y --no-install-recommends curl tini ca-certificates \
-    && chmod +x /convex/generate_key \
-    && ln -s /convex/generate_key /usr/local/bin/generate_key \
+    && apt-get install -y --no-install-recommends curl tini ca-certificates iptables \
     && mkdir -p /home/app && chmod 777 /home/app \
     && ln -sfn /app/node_modules /app/services/platform/node_modules \
-    && chmod +x /app/services/platform/docker-entrypoint.sh \
-                /app/services/platform/reset-owner.sh
+    && chmod +x /app/services/platform/docker-entrypoint.sh
 
 # convex.json carries `node.externalPackages`; `convex deploy`/`convex dev` read
 # it from the platform dir. Absent → heavy node-only libs (jsdom, …) get bundled
@@ -178,6 +186,7 @@ ENV NODE_ENV=development \
     TALE_CONFIG_DIR=/app/data \
     TALE_CONFIG_BUILTIN_DIR=/app/builtin \
     TALE_CONFIG_SYSTEM_DIR=/app/system \
+    KNOWLEDGE_MIGRATIONS_DIR=/app/services/db/migrations/knowledge-db \
     TALE_DEV_NO_PRIVDROP=1
 
 WORKDIR /app/services/platform
@@ -205,7 +214,6 @@ COPY --from=workspace-deps /app/services/db/package.json /tmp/workspace/services
 COPY --from=workspace-deps /app/services/proxy/package.json /tmp/workspace/services/proxy/
 COPY --from=workspace-deps /app/services/sandbox/package.json /tmp/workspace/services/sandbox/
 COPY --from=workspace-deps /app/services/sandbox-runtime/daemon/package.json /tmp/workspace/services/sandbox-runtime/daemon/
-COPY --from=workspace-deps /app/services/controller/package.json /tmp/workspace/services/controller/
 COPY --from=workspace-deps /app/services/web/package.json /tmp/workspace/services/web/
 COPY --from=workspace-deps /app/services/docs/package.json /tmp/workspace/services/docs/
 COPY --from=workspace-deps /app/tools/cli/package.json /tmp/workspace/tools/cli/
@@ -242,15 +250,17 @@ RUN HUSKY=0 bun install --production \
 # ============================================================================
 # Stage 4: Runtime
 # ----------------------------------------------------------------------------
-# Platform container runs Vite + TanStack Start only.
-# Convex backend + Dashboard live in the sibling `convex` service (see
-# services/convex/Dockerfile). Platform KEEPS the convex-backend base so
-# `generate_key` (glibc Rust binary) is available for computing the admin
-# key used when pushing functions/env vars to the remote convex service.
+# One image, three roles (TALE_ROLE): the web tier (Vite + TanStack Start) and
+# the backend's api/worker. It therefore carries BOTH toolchains — the SPA
+# server and the media pipeline the ingest lanes shell out to (ffmpeg, yt-dlp
+# + its Deno JS runtime, the bgutil PO-token plugin), which used to live in
+# the retired Convex image.
 # ============================================================================
-FROM ghcr.io/get-convex/convex-backend:903b8b96c4bceb34c62e366cf36e8f4774955e6b AS runner
+FROM debian:bookworm-slim AS runner
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+# Node runs the 0.5 backend roles (api/worker); Bun keeps running server.ts.
+COPY --from=node-bin /usr/local/bin/node /usr/local/bin/node
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 WORKDIR /app
@@ -260,23 +270,97 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get -o Acquire::Retries=3 update \
     && apt-get install -y --no-install-recommends \
-    curl tini gosu postgresql-client ca-certificates \
+    curl tini gosu postgresql-client ca-certificates iptables iproute2 \
     && curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.$(dpkg --print-architecture)" -o /usr/local/bin/sops && chmod +x /usr/local/bin/sops \
     && mkdir -p /usr/local/share/ca-certificates \
     && chmod 755 /usr/local/share/ca-certificates \
-    # Phase 2: platform does NOT run the convex backend; only needs
-    # `generate_key` (glibc Rust binary) to compute admin keys for remote
-    # `convex env set` / `convex deploy` calls.
-    && chmod +x /convex/generate_key \
-    && ln -s /convex/generate_key /usr/local/bin/generate_key \
     && groupadd --system --gid 1001 app || true \
     && useradd --system --uid 1001 --gid app app || true \
     && mkdir -p /home/app && chmod 777 /home/app \
-    # Strip system bloat from Convex backend base (~155 MB)
-    && ARCH_LIB="/usr/lib/$(dpkg --print-architecture | sed 's/amd64/x86_64-linux-gnu/;s/arm64/aarch64-linux-gnu/')" \
-    && rm -rf "${ARCH_LIB}"/libLLVM* "${ARCH_LIB}"/libclang* \
-    && rm -rf /usr/lib/llvm-18 \
     && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/*
+
+# ----------------------------------------------------------------------------
+# Media toolchain (video ingest + transcription)
+# ----------------------------------------------------------------------------
+# The ingest lanes shell out to these, so they ship WITH the process that runs
+# them — they moved here from the retired Convex image, pins and checksum
+# verification unchanged:
+#   * ffmpeg      — audio extract/compress for the transcription pipeline.
+#   * yt-dlp      — metadata + caption + audio fetch. Pinned so two builds an
+#                   hour apart are byte-identical; ops rebuild ~monthly for
+#                   upstream player fixes. An empty ARG falls back to
+#                   `releases/latest` (handy in dev, discouraged in prod).
+#   * deno        — yt-dlp's JS runtime for the n-challenge solver (>= 2025.11).
+#   * bgutil      — PO-token provider plugin; dissolves YouTube's bot wall on
+#                   datacenter IPs. MUST match the `bgutil-provider` sidecar
+#                   image tag in compose.yml — bump both together.
+# Resolved versions land in /etc/yt-dlp-version + /etc/deno-version.
+ARG YTDLP_VERSION=2026.07.04
+ARG DENO_VERSION=v2.5.4
+ARG BGUTIL_POT_VERSION=1.3.1
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get -o Acquire::Retries=3 update \
+    && apt-get install -y --no-install-recommends unzip jq ffmpeg \
+    # yt-dlp: per-arch asset selection + SHA256 verification against the
+    # release's official SHA2-256SUMS. Asset names are yt-dlp's own, NOT
+    # dpkg arch names.
+    && YTDLP_DPKG_ARCH="$(dpkg --print-architecture)" \
+    && case "$YTDLP_DPKG_ARCH" in \
+        amd64) YTDLP_ASSET="yt-dlp_linux" ;; \
+        arm64) YTDLP_ASSET="yt-dlp_linux_aarch64" ;; \
+        *) echo "Unsupported arch for yt-dlp: $YTDLP_DPKG_ARCH" >&2; exit 1 ;; \
+       esac \
+    # Resolve the `latest` redirect to a concrete tag ONCE, then build asset +
+    # checksum URLs from it, so a release cut between curls cannot land a
+    # mismatched binary/sums pair.
+    && if [ -z "$YTDLP_VERSION" ]; then \
+        YTDLP_TAG=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/yt-dlp/yt-dlp/releases/latest | awk -F/ '{print $NF}'); \
+       else \
+        YTDLP_TAG="$YTDLP_VERSION"; \
+       fi \
+    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_TAG}/${YTDLP_ASSET}" -o /usr/local/bin/yt-dlp \
+    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_TAG}/SHA2-256SUMS" -o /tmp/yt-dlp.sums \
+    && (cd /usr/local/bin && grep "  ${YTDLP_ASSET}$" /tmp/yt-dlp.sums | sed "s|  ${YTDLP_ASSET}$|  yt-dlp|" | sha256sum -c -) \
+    && chmod 0755 /usr/local/bin/yt-dlp \
+    && echo "$YTDLP_TAG" > /etc/yt-dlp-version \
+    && rm -f /tmp/yt-dlp.sums \
+    # Deno: per-arch zip + checksum verify against a single resolved tag. The
+    # upstream `.sha256sum` references the original asset filename, so keep it.
+    && DENO_DPKG_ARCH="$(dpkg --print-architecture)" \
+    && case "$DENO_DPKG_ARCH" in \
+        amd64) DENO_ASSET="deno-x86_64-unknown-linux-gnu.zip" ;; \
+        arm64) DENO_ASSET="deno-aarch64-unknown-linux-gnu.zip" ;; \
+        *) echo "Unsupported arch for deno: $DENO_DPKG_ARCH" >&2; exit 1 ;; \
+       esac \
+    && if [ -z "$DENO_VERSION" ]; then \
+        DENO_TAG=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/denoland/deno/releases/latest | awk -F/ '{print $NF}'); \
+       else \
+        DENO_TAG="$DENO_VERSION"; \
+       fi \
+    && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_TAG}/${DENO_ASSET}" -o "/tmp/${DENO_ASSET}" \
+    && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_TAG}/${DENO_ASSET}.sha256sum" -o /tmp/deno.sums \
+    && (cd /tmp && sha256sum -c deno.sums) \
+    && unzip -q "/tmp/${DENO_ASSET}" -d /usr/local/bin \
+    && chmod 0755 /usr/local/bin/deno \
+    && echo "$DENO_TAG" > /etc/deno-version \
+    && rm -f "/tmp/${DENO_ASSET}" /tmp/deno.sums \
+    # bgutil plugin: unzipped under a NAMED child of the `--plugin-dirs` root.
+    # yt-dlp iterdir()s that root and looks for `yt_dlp_plugins/` under each
+    # child, so unzipping straight into the root loads ZERO providers.
+    # Presence of `/opt/yt-dlp/plugins` also flips the zero-config default in
+    # the ingest lane (HAS_BAKED_YTDLP_PLUGIN).
+    && mkdir -p /opt/yt-dlp/plugins/bgutil \
+    && curl -fsSL "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/${BGUTIL_POT_VERSION}/bgutil-ytdlp-pot-provider.zip" -o /tmp/bgutil-pot.zip \
+    && echo "b8ceec7f76143da172aaf5ebeec0c2d218e5680c063b931586bca48567069b38  /tmp/bgutil-pot.zip" | sha256sum -c - \
+    && unzip -q /tmp/bgutil-pot.zip -d /opt/yt-dlp/plugins/bgutil \
+    && rm -f /tmp/bgutil-pot.zip \
+    && echo "${BGUTIL_POT_VERSION}" > /etc/bgutil-pot-version \
+    # unzip was only needed for the Deno + bgutil archives.
+    && apt-get purge -y unzip \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
@@ -330,14 +414,17 @@ ENV NODE_ENV=production \
     # read by 'use node' actions. Same push-to-Convex-env path as above; a
     # container has no repo checkout to fall back on. Baked at /app/system in
     # the convex image (services/convex/Dockerfile).
-    TALE_CONFIG_SYSTEM_DIR=/app/system
+    TALE_CONFIG_SYSTEM_DIR=/app/system \
+    # Where the corpus DDL lives in this image (copied below). Set
+    # explicitly because `findMigrationsDir`'s fallback walks up the module
+    # path looking for a repo checkout, and a container has none.
+    KNOWLEDGE_MIGRATIONS_DIR=/app/db/migrations/knowledge-db
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
 COPY --from=pruner --chown=app:app /app/services/platform/dist-seo ./dist-seo
 COPY --from=pruner --chown=app:app \
      /app/services/platform/server.ts \
      /app/services/platform/telemetry.ts \
-     /app/services/platform/convex-metrics.ts \
      /app/services/platform/sla-targets.ts \
      /app/services/platform/status-probe.ts \
      ./
@@ -347,6 +434,9 @@ COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
 # (jsdom, …) get bundled inline and the push fails at analyze.
 COPY --chown=app:app services/platform/convex.json ./convex.json
 COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
+# 0.5 backend sources (run unbundled by Node via type stripping; role dispatch
+# in docker-entrypoint.sh execs `node /app/backend/main.ts`).
+COPY --from=pruner --chown=app:app /app/services/platform/backend ./backend
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 # Workspace packages backing the `@tale/*` symlinks in node_modules. The
 # platform runs `bun server.ts` unbundled, so server-side imports of
@@ -354,9 +444,17 @@ COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 # docs + web Dockerfiles bundle their server.ts and don't need this.
 COPY --from=pruner --chown=app:app /app/packages ./packages
 COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
-COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/reset-owner.sh /app/services/platform/reset-owner.ts /app/services/platform/env.sh ./
+# Knowledge-corpus DDL. Preparing a NEW corpus (the deployment default on
+# first boot, and every BYO per-org database) applies these at runtime, and
+# `findMigrationsDir` walks up from the module path — which finds nothing in
+# a container. Without them the bootstrap degrades to "apply them yourself",
+# so the image ships them and names the directory in KNOWLEDGE_MIGRATIONS_DIR
+# below. They are plain .sql text; the `knowledge-db` container applies the
+# same tree with dbmate for the default database it owns.
+COPY --chown=app:app services/db/migrations/knowledge-db ./db/migrations/knowledge-db
+COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/env.sh ./
 
-RUN chmod +x ./docker-entrypoint.sh ./reset-owner.sh
+RUN chmod +x ./docker-entrypoint.sh
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1

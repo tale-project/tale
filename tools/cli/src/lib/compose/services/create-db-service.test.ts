@@ -20,7 +20,11 @@ describe('createDbService healthcheck', () => {
   // background init scripts had finished and within too short a window.
 
   test('gates on the init-completion marker, not just pg_isready', () => {
-    const command = createDbService(config).healthcheck?.test;
+    const healthcheck = createDbService(config).healthcheck;
+    const command =
+      healthcheck !== undefined && 'test' in healthcheck
+        ? healthcheck.test
+        : undefined;
     if (!Array.isArray(command)) {
       throw new Error('db healthcheck test should be a CMD-SHELL array');
     }
@@ -34,7 +38,12 @@ describe('createDbService healthcheck', () => {
   test('allows a cold-boot-sized start_period', () => {
     // 60s was too short for first-boot initdb + extensions + migrations on a
     // slow disk; align with the canonical compose.yml window.
-    expect(createDbService(config).healthcheck?.start_period).toBe('120s');
+    const healthcheck = createDbService(config).healthcheck;
+    expect(
+      healthcheck !== undefined && 'start_period' in healthcheck
+        ? healthcheck.start_period
+        : undefined,
+    ).toBe('120s');
   });
 });
 

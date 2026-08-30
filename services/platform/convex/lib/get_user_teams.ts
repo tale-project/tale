@@ -1,20 +1,6 @@
-/**
- * Helper to get user's team IDs for multi-tenant RAG operations.
- *
- * This module provides utilities to fetch team IDs for a user,
- * which are used to construct dataset names for RAG isolation.
- *
- * In trusted headers mode, team IDs come from JWT claims (trustedTeams).
- * In normal auth mode, team IDs come from the teamMember table.
- */
-
-import type { GenericQueryCtx } from 'convex/server';
-import { v } from 'convex/values';
-
 import { getString, isRecord, parseJson } from '../../lib/utils/type-utils';
-import { components } from '../_generated/api';
-import type { DataModel } from '../_generated/dataModel';
-import { internalQuery } from '../_generated/server';
+import type { QueryCtx } from './ctx';
+import { components } from './handler_names';
 
 // Type for Better Auth teamMember record
 interface BetterAuthTeamMember {
@@ -53,7 +39,7 @@ export const DEFAULT_DATASET_NAME = 'tale_documents';
  * @returns Array of team IDs
  */
 export async function getUserTeamIds(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   userId: string,
 ): Promise<string[]> {
   // Check if JWT contains trusted teams (trusted headers mode)
@@ -150,7 +136,7 @@ export function teamIdToDatasetName(teamId: string): string {
  * @returns Array of dataset names (e.g., ['tale_team_abc123', 'tale_team_def456'])
  */
 export async function getUserDatasetNames(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   userId: string,
 ): Promise<string[]> {
   const teamIds = await getUserTeamIds(ctx, userId);
@@ -168,23 +154,10 @@ export async function getUserDatasetNames(
  * @returns Array of all dataset names the user can access
  */
 export async function getSearchableDatasetNames(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   userId: string,
 ): Promise<string[]> {
   const teamDatasets = await getUserDatasetNames(ctx, userId);
   // Include the default dataset for organization-level documents
   return [DEFAULT_DATASET_NAME, ...teamDatasets];
 }
-
-/**
- * Internal query to get searchable dataset names for a user.
- * This is exposed as an internalQuery so it can be called from agent tools.
- */
-export const getSearchableDatasets = internalQuery({
-  args: {
-    userId: v.string(),
-  },
-  handler: async (ctx, args): Promise<string[]> => {
-    return getSearchableDatasetNames(ctx, args.userId);
-  },
-});

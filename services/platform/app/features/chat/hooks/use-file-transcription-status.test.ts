@@ -14,13 +14,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { FileAttachment } from '@/app/features/shared/files/types';
 
-const useQueryMock = vi.fn();
-vi.mock('convex/react', () => ({
-  useQuery: (...args: unknown[]) => useQueryMock(...args),
-}));
-
-vi.mock('@/convex/_generated/api', () => ({
-  api: { file_metadata: { queries: { getByStorageIds: 'getByStorageIds' } } },
+// The read is HTTP now: the mock records the react-query options (enabled
+// + key) and serves the seeded rows as `data`.
+const useQueryMock = vi.fn(
+  (_options: { queryKey?: unknown[]; enabled?: boolean }) =>
+    ({ data: undefined }) as { data: unknown },
+);
+const seeded: { rows: unknown } = { rows: [] };
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQuery: (options: { queryKey?: unknown[]; enabled?: boolean }) => {
+    useQueryMock(options);
+    return { data: options.enabled === false ? undefined : seeded.rows };
+  },
 }));
 
 const { useFileTranscriptionStatus } =
@@ -51,8 +57,8 @@ function run(attachments: readonly FileAttachment[]) {
 }
 
 beforeEach(() => {
-  useQueryMock.mockReset();
-  useQueryMock.mockReturnValue([]);
+  useQueryMock.mockClear();
+  seeded.rows = [];
 });
 
 describe('useFileTranscriptionStatus', () => {
@@ -61,7 +67,7 @@ describe('useFileTranscriptionStatus', () => {
     // never report itself as transcribing.
     const result = run([IMAGE]);
 
-    expect(useQueryMock).toHaveBeenCalledWith('getByStorageIds', 'skip');
+    expect(useQueryMock.mock.calls[0]?.[0]?.enabled).toBe(false);
     expect(result.isTranscribing).toBe(false);
     expect(result.isQueryLoading).toBe(false);
   });
@@ -69,16 +75,16 @@ describe('useFileTranscriptionStatus', () => {
   it('watches only the audio and video files among the staged set', () => {
     run([IMAGE, AUDIO]);
 
-    expect(useQueryMock).toHaveBeenCalledWith('getByStorageIds', {
-      organizationId: ORG,
-      storageIds: ['kg2audio'],
-    });
+    const options = useQueryMock.mock.calls[0]?.[0];
+    expect(options?.enabled).toBe(true);
+    expect(JSON.stringify(options?.queryKey)).toContain(AUDIO.fileId);
+    expect(JSON.stringify(options?.queryKey)).not.toContain(IMAGE.fileId);
   });
 
   it('blocks pessimistically until the first read answers', () => {
     // `undefined` is "not known yet", not "nothing running" — a fast click in
     // that window would otherwise slip past a `running` row.
-    useQueryMock.mockReturnValue(undefined);
+    seeded.rows = undefined;
 
     const result = run([AUDIO]);
 
@@ -87,9 +93,7 @@ describe('useFileTranscriptionStatus', () => {
   });
 
   it.each(['queued', 'running'])('reports %s as still transcribing', (s) => {
-    useQueryMock.mockReturnValue([
-      { storageId: 'kg2audio', transcriptionStatus: s },
-    ]);
+    seeded.rows = [{ storageId: 'kg2audio', transcriptionStatus: s }];
 
     expect(run([AUDIO]).isTranscribing).toBe(true);
   });
@@ -99,19 +103,17 @@ describe('useFileTranscriptionStatus', () => {
     (s) => {
       // Failed and skipped are terminal: the turn injects a marker. Blocking
       // on them would strand the composer with no way forward.
-      useQueryMock.mockReturnValue([
-        { storageId: 'kg2audio', transcriptionStatus: s },
-      ]);
+      seeded.rows = [{ storageId: 'kg2audio', transcriptionStatus: s }];
 
       expect(run([AUDIO]).isTranscribing).toBe(false);
     },
   );
 
   it('blocks while ANY staged clip is unfinished', () => {
-    useQueryMock.mockReturnValue([
+    seeded.rows = [
       { storageId: 'kg2audio', transcriptionStatus: 'completed' },
       { storageId: 'kg2audio2', transcriptionStatus: 'running' },
-    ]);
+    ];
 
     expect(
       run([AUDIO, attachment({ fileId: 'kg2audio2' })]).isTranscribing,
@@ -119,7 +121,7 @@ describe('useFileTranscriptionStatus', () => {
   });
 
   it('exposes progress and error per file for the chip to render', () => {
-    useQueryMock.mockReturnValue([
+    seeded.rows = [
       {
         storageId: 'kg2audio',
         transcriptionStatus: 'failed',
@@ -128,7 +130,7 @@ describe('useFileTranscriptionStatus', () => {
         transcript: undefined,
         transcriptionDurationSec: undefined,
       },
-    ]);
+    ];
 
     expect(run([AUDIO]).statusMap.get('kg2audio')).toMatchObject({
       status: 'failed',

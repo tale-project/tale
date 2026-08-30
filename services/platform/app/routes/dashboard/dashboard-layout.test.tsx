@@ -46,11 +46,24 @@ const mockUseConvexAuth = vi.fn(() => ({
   isAuthenticated: true,
 }));
 vi.mock('convex/react', () => ({
-  useConvexAuth: () => mockUseConvexAuth(),
+  useSessionUser: () => mockUseConvexAuth(),
   useMutation: () => vi.fn(),
 }));
 
+// The layout's auth flags come from the SESSION PROBE now (useAuth), not
+// the websocket — the same control var drives both in these scenarios.
+vi.mock('@/app/hooks/use-session-user', () => ({
+  useSessionUser: () => mockUseConvexAuth(),
+  useAuth: () => mockUseConvexAuth(),
+}));
+
+// The org hint stream (EventSource) is out of scope here.
+vi.mock('@/app/lib/backend/use-backend-hints', () => ({
+  useBackendHints: vi.fn(),
+}));
+
 vi.mock('@tanstack/react-query', () => ({
+  queryOptions: (options: unknown) => options,
   useQuery: () => ({ data: undefined }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -109,10 +122,6 @@ vi.mock(
 
 vi.mock('@/app/features/changelog/components/changelog-toast-trigger', () => ({
   ChangelogToastTrigger: () => null,
-}));
-
-vi.mock('@convex-dev/react-query', () => ({
-  convexQuery: vi.fn(),
 }));
 
 vi.mock('@/app/components/branding/branding-provider', () => ({

@@ -1,9 +1,8 @@
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
 export function useNotificationPreferences(organizationId: string | undefined) {
-  return useConvexQuery(
-    api.collab.preferences.getNotificationPreferences,
+  return useBackendQuery(
+    'collab/preferences:getNotificationPreferences',
     organizationId ? { organizationId } : 'skip',
   );
 }

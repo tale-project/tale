@@ -8,23 +8,32 @@ import { render, screen } from '@/tests/utils/render';
 // the row must show the document's live indexing state and the failed chip's
 // error + Try again — the exact states the readiness watcher waits on.
 const listState: { rows: unknown[]; jobs: unknown[] } = { rows: [], jobs: [] };
-const cancelMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
-const retryMock = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+const cancelMock = vi.hoisted(() =>
+  vi.fn((..._args: [string, string]) => Promise.resolve(true)),
+);
+const retryMock = vi.hoisted(() =>
+  vi.fn((..._args: [string, string]) => Promise.resolve()),
+);
 
-vi.mock('convex/react', async () => {
-  // The generated api proxy mints a fresh object per property access (no
-  // identity) and refuses string coercion — `getFunctionName` is the one
-  // sanctioned way to tell the refs apart.
-  const { getFunctionName } = await import('convex/server');
-  const name = (ref: unknown) =>
-    getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
-  return {
-    useQuery: (ref: unknown) =>
-      name(ref).includes('listForThread') ? listState.jobs : listState.rows,
-    useMutation: (ref: unknown) =>
-      name(ref).includes('retryVideoLink') ? retryMock : cancelMock,
-  };
-});
+// The tray reads over HTTP now: react-query rows keyed by the backend
+// vocabulary — the entity slot tells the two reads apart.
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQuery: (options: { queryKey?: unknown[] }) =>
+    Array.isArray(options?.queryKey) && options.queryKey[2] === 'video_link'
+      ? { data: listState.jobs }
+      : { data: listState.rows },
+}));
+vi.mock('@/app/lib/backend/chat', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/lib/backend/chat')>()),
+  cancelDeferredSendRequest: (organizationId: string, deferredSendId: string) =>
+    cancelMock(organizationId, deferredSendId),
+  retryVideoLinkRequest: (organizationId: string, jobId: string) =>
+    retryMock(organizationId, jobId),
+}));
+vi.mock('../data/chat-backend', () => ({
+  useChatQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
 vi.mock('../hooks/use-file-indexing-status', () => ({
   useFileIndexingStatus: () => ({
     statusMap: new Map([
@@ -110,7 +119,7 @@ describe('DeferredSendTray', () => {
       ),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(retryMock).toHaveBeenCalledWith({ jobId: 'job_1' });
+    expect(retryMock).toHaveBeenCalledWith('org-1', 'job_1');
     // The chip's own ✕ is hidden in the tray — the row ✕ owns the cancel.
     expect(
       screen.queryByRole('button', { name: 'Remove' }),
@@ -132,10 +141,7 @@ describe('DeferredSendTray', () => {
       screen.getByRole('button', { name: 'Cancel queued message' }),
     );
 
-    expect(cancelMock).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      deferredSendId: 'defer_1',
-    });
+    expect(cancelMock).toHaveBeenCalledWith('org-1', 'defer_1');
     await vi.waitFor(() =>
       expect(onRestoreText).toHaveBeenCalledWith('解读下这个视频'),
     );

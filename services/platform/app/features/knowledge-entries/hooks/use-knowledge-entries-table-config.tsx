@@ -91,9 +91,7 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
             error={row.original.ragError}
             errorCode={row.original.ragErrorCode}
             documentId={
-              row.original.documentId
-                ? String(row.original.documentId)
-                : undefined
+              row.original.documentId ? row.original.documentId : undefined
             }
           />
         ),

@@ -1,4 +1,4 @@
-import type { ActionCtx, MutationCtx } from '../_generated/server';
+import type { ActionCtx, MutationCtx } from '../lib/ctx';
 
 /**
  * Platform events — the single seam through which entity domains announce

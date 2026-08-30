@@ -5,7 +5,6 @@ import { Text } from '@tale/ui/text';
 import { ChevronRightIcon } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { formatDurationSeconds } from '@/lib/utils/format/duration';
@@ -38,7 +37,7 @@ function TimelineRow({
   view: NodeRunView;
   isCurrent: boolean;
   organizationId: string;
-  runId: Id<'automationRuns'>;
+  runId: string;
 }) {
   const { t } = useT('automations');
   const detailId = useId();
@@ -157,7 +156,7 @@ export function RunStepTimeline({
   /** The node a live run is parked on — from the stepper's cursor. */
   currentNodeId: string | null;
   organizationId: string;
-  runId: Id<'automationRuns'>;
+  runId: string;
 }) {
   const { t } = useT('automations');
   // The path taken, in execution order: every node with a recorded outcome —

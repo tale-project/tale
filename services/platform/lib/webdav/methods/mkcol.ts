@@ -1,6 +1,5 @@
-import { anyApi } from 'convex/server';
-
-import { convexErrorCode } from '../errors';
+import { anyRefs } from '../../shared/handlers/function-refs';
+import { backendErrorCode } from '../errors';
 import { checkResourceLock } from '../locks';
 import {
   WEBDAV_MAX_XML_BODY,
@@ -61,14 +60,14 @@ export async function handleMkcol(
   const name = parsed.segments[parsed.segments.length - 1];
 
   try {
-    await ctx.convex.mutation(anyApi.webdav.tree_mutations.mkcol, {
+    await ctx.convex.mutation(anyRefs.webdav.tree_mutations.mkcol, {
       organizationId: auth.organizationId,
       parentSegments,
       name,
       userId: auth.userId,
     });
   } catch (err) {
-    const code = convexErrorCode(err);
+    const code = backendErrorCode(err);
     if (code === 'CONFLICT') {
       return { status: 409, headers: {}, body: 'Parent does not exist' };
     }

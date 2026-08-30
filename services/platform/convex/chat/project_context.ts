@@ -1,7 +1,7 @@
 import type { ProjectContext } from '../../lib/chat/context';
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
+import type { Id } from '../lib/rows';
 
 /**
  * The project block's inputs for a project-bound thread, or `undefined`.

@@ -63,13 +63,55 @@ const FIRST_ENABLE_MODE: PiiConfigPanelValue['mode'] = 'mask';
 
 type PiiPolicy = ReturnType<typeof useGovernancePolicy>['data'];
 
+/**
+ * A policy's `config` is free-form on the wire — one read serves every policy
+ * type — so the panel reads its own three fields out FIELD BY FIELD rather
+ * than validating the whole file. A partially-written config (the panel's own
+ * writes carry `enabled` at the policy level, not inside `config`) must still
+ * render what it does have; whole-object validation would discard an
+ * operator's configured mode and patterns as if nothing were set.
+ */
 function deriveValue(policy: PiiPolicy): PiiConfigPanelValue {
-  if (!policy) return DEFAULT_VALUE;
+  const config = readRecord(policy?.config);
+  const mode = config.mode;
+  const enabledPatterns = config.enabledPatterns;
+  const customPatterns = config.customPatterns;
   return {
-    mode: policy.config?.mode ?? 'tokenize',
-    enabledPatterns: policy.config?.enabledPatterns ?? [],
-    customPatterns: policy.config?.customPatterns ?? [],
+    mode: isPiiMode(mode) ? mode : DEFAULT_VALUE.mode,
+    enabledPatterns: Array.isArray(enabledPatterns)
+      ? enabledPatterns.filter(
+          (entry): entry is string => typeof entry === 'string',
+        )
+      : [],
+    customPatterns: Array.isArray(customPatterns)
+      ? customPatterns.filter(isCustomPattern)
+      : [],
   };
+}
+
+function isPiiMode(value: unknown): value is PiiConfigPanelValue['mode'] {
+  return value === 'mask' || value === 'block' || value === 'tokenize';
+}
+
+/** A custom pattern the panel can render: a named regex. */
+function isCustomPattern(
+  value: unknown,
+): value is PiiConfigPanelValue['customPatterns'][number] {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    'name' in value &&
+    typeof value.name === 'string' &&
+    'pattern' in value &&
+    typeof value.pattern === 'string'
+  );
+}
+
+/** A record-shaped value's own entries, or an empty record. */
+function readRecord(value: unknown): Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+    ? { ...value }
+    : {};
 }
 
 // =============================================================================

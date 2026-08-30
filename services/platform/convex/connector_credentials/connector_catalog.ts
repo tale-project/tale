@@ -28,8 +28,6 @@ import {
   resolveConnectorsDir,
   type LoadConnectorCatalogOptions,
 } from '../../lib/connectors/catalog';
-import { action } from '../_generated/server';
-import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { connectorAuthMethodValidator } from './schema';
 
 export { connectorBearerScheme, findConnector, loadConnectorDefinitions };
@@ -106,47 +104,44 @@ function readConnectorIcon(
  * organizations, but org-scoped and gated like the rest of the domain's action
  * surface: the connectors settings page fronting it is developer-gated.
  */
-export const listConnectors = action({
-  args: { organizationId: v.string() },
-  returns: v.array(connectorSummaryValidator),
-  handler: async (ctx, args) => {
-    await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-    const connectorsDir = resolveConnectorsDir();
-    const summaries: ConnectorSummary[] = [];
-    for (const connector of loadConnectorDefinitions()) {
-      // Platform-auth connectors are the platform's own capabilities — there
-      // is nothing to connect, so the settings list never offers them.
-      if (connector.auth.some((method) => method.method === 'platform')) {
-        continue;
-      }
-      const summary: ConnectorSummary = {
-        slug: connector.name,
-        displayName: connector.displayName,
-        description: connector.description,
-        tags: connector.tags,
-        endpointMode: connector.endpointMode,
-        // `platform` was excluded above, so the storable-method narrowing is
-        // a fact, not a hope.
-        authMethods: connector.auth
-          .map((method) => method.method)
-          .filter((method) => method !== 'platform'),
-        configFields: connector.configFields.map((field) => ({
-          key: field.key,
-          label: field.label,
-          type: field.type,
-          required: field.required,
-          ...(field.description !== undefined && {
-            description: field.description,
-          }),
-          ...(field.enum !== undefined && { enum: field.enum }),
-          ...(field.default !== undefined && { default: field.default }),
-        })),
-        actionCount: connector.actions.length,
-      };
-      const iconUrl = readConnectorIcon(connectorsDir, connector.name);
-      if (iconUrl !== undefined) summary.iconUrl = iconUrl;
-      summaries.push(summary);
+/** The settings-page catalog rows — pure file read, shared with the 0.5
+ * backend's route (which owns its own auth gate). */
+export function listConnectorSummaries(): ConnectorSummary[] {
+  const connectorsDir = resolveConnectorsDir();
+  const summaries: ConnectorSummary[] = [];
+  for (const connector of loadConnectorDefinitions()) {
+    // Platform-auth connectors are the platform's own capabilities — there
+    // is nothing to connect, so the settings list never offers them.
+    if (connector.auth.some((method) => method.method === 'platform')) {
+      continue;
     }
-    return summaries;
-  },
-});
+    const summary: ConnectorSummary = {
+      slug: connector.name,
+      displayName: connector.displayName,
+      description: connector.description,
+      tags: connector.tags,
+      endpointMode: connector.endpointMode,
+      // `platform` was excluded above, so the storable-method narrowing is
+      // a fact, not a hope.
+      authMethods: connector.auth
+        .map((method) => method.method)
+        .filter((method) => method !== 'platform'),
+      configFields: connector.configFields.map((field) => ({
+        key: field.key,
+        label: field.label,
+        type: field.type,
+        required: field.required,
+        ...(field.description !== undefined && {
+          description: field.description,
+        }),
+        ...(field.enum !== undefined && { enum: field.enum }),
+        ...(field.default !== undefined && { default: field.default }),
+      })),
+      actionCount: connector.actions.length,
+    };
+    const iconUrl = readConnectorIcon(connectorsDir, connector.name);
+    if (iconUrl !== undefined) summary.iconUrl = iconUrl;
+    summaries.push(summary);
+  }
+  return summaries;
+}

@@ -8,7 +8,6 @@
  */
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { api } from '@/convex/_generated/api';
 
 /** Which lane's resolver answers — they intentionally differ unpinned. */
 export type ServingPreviewLane = 'workflow' | 'task';
@@ -25,8 +24,8 @@ export function useUnpinnedServingPreview(
 ) {
   const func =
     lane === 'workflow'
-      ? api.automations.serving_preview.previewUnpinnedAgentServing
-      : api.tasks.serving_preview.previewUnpinnedTaskServing;
+      ? 'automations/serving_preview:previewUnpinnedAgentServing'
+      : 'tasks/serving_preview:previewUnpinnedTaskServing';
   return useActionQuery(
     ['unpinned-serving-preview', lane, args ?? null],
     func,

@@ -5,125 +5,98 @@ description: Die zentrale Quelle der Wahrheit für das Aufsetzen von Tales Quell
 
 Diese Seite ist für Contributors, die Tale aus dem Quellcode laufen lassen und eine Änderung zurückgeben wollen. Sie deckt die Voraussetzungen ab, das einmalige Setup, den Pre-flight-Check, der eine kaputte Maschine vor einem langen Boot erkennt, und was du von `bun run dev` erwarten kannst. Es ist nicht der Operator-Weg — willst du Tale benutzen statt verändern, installiert der [Self-hosted Quickstart](/de/self-hosted/install/quickstart) stattdessen den paketierten Stack mit der CLI.
 
-Der Quellcode ist ein einziger Bun-Workspace, von Anfang bis Ende — der ganze Stack ist TypeScript, ohne Python und ohne einen zweiten Paketmanager zu installieren. Ein einziges `bun install` verdrahtet jeden Dienst, und `bun run dev` bootet die Plattform mit einem lokalen Convex-Backend, generierten Dev-Secrets und Vite — kein Cloud-Konto, keine von Hand editierte `.env`. Die Wissens-Arbeit, die früher in eigenständigen Diensten lebte (RAG-Suche, Dokument-Ingestion, Web-Crawling, Dokumentgenerierung), läuft jetzt im Convex-Backend, also gibt es dafür nichts Zusätzliches zu starten.
+Der Quellcode ist ein einziger Bun-Workspace, von Anfang bis Ende — der ganze Stack ist TypeScript, ohne Python und ohne einen zweiten Paketmanager zu installieren. Ein einziges `bun install` verdrahtet jeden Dienst, und `bun run dev` startet die Backing-Container, das Platform-Backend und Vite mit generierten Dev-Secrets — kein Cloud-Konto, keine von Hand editierte `.env`. Die Wissens-Arbeit, die früher in eigenständigen Diensten lebte (RAG-Suche, Dokument-Ingestion, Web-Crawling, Dokumentgenerierung), läuft im Backend, also gibt es dafür nichts Zusätzliches zu starten.
 
 ## Ein funktionierendes Setup von Anfang bis Ende
 
-Der kürzeste Weg von einem frischen Klon zu einer laufenden App sind vier Befehle. Der Pre-flight-Check zwischen Install und Dev ist der, der dir ein verwirrendes Scheitern zehn Schichten tief erspart:
+Der kürzeste Weg von einem frischen Klon zu einer laufenden App sind drei Befehle. Der Pre-flight-Check zwischen Install und Dev ist der, der dir ein verwirrendes Scheitern zehn Schichten tief erspart:
 
 ```bash
 bun install            # jeden Workspace verdrahten
-bun run setup:check    # Bun, die Dev-Ports und die Convex-CLI prüfen
-bun run dev            # Convex + Vite booten (achte auf das READY-Banner)
+bun run setup:check    # Bun und die Dev-Ports prüfen
+bun run dev            # den Stack booten (auf das READY-Banner warten)
 ```
 
-Wenn `setup:check` durchweg grün ausgibt und `bun run dev` sein `READY`-Banner erreicht, ist deine Umgebung in Ordnung. Der Rest dieser Seite erklärt jedes Teil und was zu tun ist, wenn eines davon meckert.
+Wenn `setup:check` alles grün meldet und `bun run dev` sein `READY`-Banner erreicht, ist deine Umgebung in Ordnung. Der Rest dieser Seite erklärt jedes Teilstück und was zu tun ist, wenn eines davon meckert.
 
 ## Voraussetzungen
 
-Nur ein Tool muss auf deinem `PATH` liegen, bevor irgendetwas anderes passiert, denn der ganze Stack ist TypeScript auf einer einzigen Laufzeit:
+Zwei Dinge müssen auf deiner Maschine sein, weil der ganze Stack TypeScript auf einer einzigen Runtime ist — plus eine echte Datenbank:
 
-- **Bun 1.3 oder höher** — die Workspace-Laufzeit und der Paketmanager. Installier es von [bun.sh](https://bun.sh/docs/installation) und bestätige mit `bun --version`. Alles andere, was der Quellcode braucht (die Convex-CLI, jede Dienst-Abhängigkeit), löst `bun install` auf.
+- **Bun 1.3 oder höher** — die Workspace-Runtime und der Paketmanager. Installier es von [bun.sh](https://bun.sh/docs/installation) und bestätige mit `bun --version`. Jede Service-Abhängigkeit löst `bun install` auf.
+- **Docker** — `bun run dev` lässt das Backend auf deinem Host laufen, seine Backing-Services aber in Containern: Postgres (die App-Datenbank), ParadeDB (der Wissens-Korpus), das LLM-Gateway und die Sandbox-Ebene. Docker Desktop oder irgendein Daemon, auf den der Docker-Context deiner Shell zeigt, genügt.
 
-Für die lokale Entwicklung mit `bun run dev` brauchst du kein Docker — es spawnt Convex direkt auf deiner Maschine. Docker kommt nur für den containerisierten Hybrid-Modus weiter unten und für die Operator-Installation ins Spiel.
+## Install und Pre-flight
 
-## Installation und Pre-flight
-
-Ein einziges Install deckt jeden Workspace ab, denn das Repo ist ein Bun-Workspace-Graph:
+Ein einziges Install deckt jeden Workspace ab, weil das Repo ein einziger Bun-Workspace-Graph ist:
 
 ```bash
 bun install
 ```
 
-Vor dem ersten `bun run dev` lauf den Pre-flight-Check. Er prüft deine Bun-Version, dass die Ports 3000 und 3210 frei sind und dass die Convex-CLI erreichbar ist — und gibt für alles Fehlende die exakte Korrektur aus, sodass du keine falsche Bun-Version mitten in einem Cold-Boot entdeckst:
+Vor dem ersten `bun run dev` lauf den Pre-flight-Check. Er prüft deine Bun-Version und ob die Ports 3000 und 3005 frei sind — und druckt für alles Fehlende die exakte Behebung, damit du eine falsche Bun-Version nicht erst mitten in einem Kaltstart entdeckst:
 
 ```bash
 bun run setup:check
 ```
 
-Jede fehlschlagende Zeile trägt ihre Korrektur: ein `bun upgrade` für ein altes Bun, ein `lsof`/`kill`-Paar für einen belegten Port. Ein sauberer Lauf endet mit Null und sagt dir, dass du mit `bun run dev` weitermachen kannst.
+Jede fehlschlagende Zeile trägt ihre Behebung: ein `bun upgrade` für ein altes Bun, ein `lsof`/`kill`-Paar für einen belegten Port. Ein sauberer Lauf endet mit Exit-Code 0 und sagt dir, dass du mit `bun run dev` weitermachen kannst.
 
 ## Was `bun run dev` tut
 
-`bun run dev` ist der Entwicklungs-Orchestrator. Er lädt deine `.env`-Dateien, generiert unsichere lokale Defaults für jedes Secret, das du nicht gesetzt hast, spawnt ein lokales Convex-Backend im Anonymous-Modus, synct das Environment hinein, führt Convex-Codegen aus, wartet, bis die Auth-Routen antworten, und startet dann Vite. Die Plattform ist der langsamste Server beim Hochkommen, weil sie auf Convex wartet, also dauert ein Cold-Start 30 bis 90 Sekunden.
+`bun run dev` ist der Entwicklungs-Orchestrator. Er lädt deine `.env`-Dateien, generiert unsichere lokale Defaults für jedes nicht gesetzte Secret, fährt die Docker-Backing-Services hoch und startet dann das **Platform-Backend** — denselben `backend/main.ts`-Einstieg, den auch der Container fährt, in der kombinierten Rolle `all` (HTTP-API und Job-Worker in einem Prozess) — und wartet, bis es seinen Port bindet. Vite startet zuletzt und proxied `/api`, `/events`, `/dav` und `/scim` dorthin. Ein Kaltstart dauert 20 bis 60 Sekunden, ein warmer deutlich weniger.
 
-Bis der Orchestrator sein `READY`-Banner ausgibt, ist es erwartet und kein Fehler, dass die App auf `http://localhost:3000` Verbindungen ablehnt — Vite hat den Port noch nicht gebunden. Siehst du das Banner, ist die App erreichbar und die Auth gesund. Stopp den ganzen Stack mit `Ctrl-C`; er fährt sowohl Convex als auch Vite sauber herunter.
+Das Backend wendet seine Datenbank-Migrationen beim Start selbst an, unter einem Advisory Lock — ein frischer Klon bekommt also ohne Extraschritt eine vollständig migrierte Datenbank. Eine Health-Probe überwacht es: Antwortet es nicht mehr, startet der Orchestrator es bis zu einem Limit neu und sagt dir, wenn er aufgibt.
 
-Der Dev-Orchestrator generiert alles, was er braucht, also ist eine lokale Kopie von `.env.example` für die lokale Entwicklung optional — die unsicheren Defaults (`INSTANCE_SECRET`, `BETTER_AUTH_SECRET`, der WebDAV-HMAC-Key) werden beim Boot gefüllt und als Warnungen ausgegeben. Setz echte Werte in `services/platform/.env.local` nur, wenn du produktionsförmiges Verhalten brauchst oder einen Default überschreiben willst.
+Bis der Orchestrator sein `READY`-Banner druckt, ist eine abgelehnte Verbindung auf `http://localhost:3000` erwartet und kein Fehler — Vite hat den Port noch nicht gebunden. Beim Banner ist die App erreichbar und die Authentifizierung gesund. Stopp den ganzen Stack mit `Ctrl-C`; er fährt Backend und Vite sauber herunter.
+
+Der Dev-Orchestrator generiert alles, was er braucht, eine lokale `.env.example`-Kopie ist für lokale Entwicklung also optional — die unsicheren Defaults (`INSTANCE_SECRET`, `BETTER_AUTH_SECRET`, der WebDAV-HMAC-Key) werden beim Boot gefüllt und als Warnungen gedruckt. Setz echte Werte in `services/platform/.env.local` nur, wenn du produktionsnahes Verhalten brauchst oder einen Default überschreiben willst.
+
+Laufen die Container schon, oder willst du nur an Frontend-Code arbeiten? `bun run dev:fast` (`TALE_DEV_SKIP_DOCKER=1`) überspringt die Docker-Bring-up und geht direkt zu Backend und Vite.
+
+## Ein einsatzbereiter Dev-Login
+
+Ein frischer Stack seedet ein Owner-Konto, damit du vor dem Testen nicht durch den `/setup`-Wizard musst: `dev@tale.test` / `TaleDev!Passw0rd`, Owner einer aufgesetzten Organisation "Dev Workspace". Der Seeder ist idempotent (er läuft bei jedem Boot und tut nichts, wenn das Konto schon existiert) und weigert sich zu laufen, wenn `SITE_URL` kein Loopback-Host ist — ein bekanntes Passwort auf einem erreichbaren Hostnamen wäre eine Konto-Übernahme, keine Bequemlichkeit. Abwählen mit `TALE_DEV_SEED_USER=0`, Identität überschreiben mit `TALE_DEV_SEED_USER_EMAIL` / `TALE_DEV_SEED_USER_PASSWORD`.
 
 ## Wenn ein Port belegt ist
 
-`bun run dev` bindet zwei Ports: 3000 für die Vite-App und 3210 für das lokale Convex-Backend. Es scheitert sofort mit einer umsetzbaren Meldung, wenn einer belegt ist, denn ein stiller Fallback auf einen anderen Port würde den Convex-Proxy und jeden `localhost:3000`-Link brechen. Der übliche Verursacher ist ein vorheriges `bun run dev` oder `tale dev`, das nicht vollständig beendet wurde.
+`bun run dev` bindet zwei Ports: 3000 für die Vite-App und 3005 für das Backend. Es scheitert schnell mit einer umsetzbaren Meldung, wenn einer belegt ist, denn ein stiller Fallback auf einen anderen Port würde den Vite-Proxy und jeden `localhost:3000`-Link brechen. Meist ist ein früheres `bun run dev` oder `tale dev` schuld, das nicht vollständig beendet wurde.
 
-Gib den Port frei und lauf erneut. Der Befehl, der den Halter findet und stoppt, ist derselbe, den `setup:check` und der Orchestrator vorschlagen:
+Gib den Port frei und starte neu. Der Befehl, der den Halter findet und stoppt, ist derselbe, den `setup:check` und der Orchestrator vorschlagen:
 
 ```bash
 lsof -nP -iTCP:3000 -sTCP:LISTEN   # die PID zeigen, die den App-Port hält
 kill <PID>                         # sie stoppen
 ```
 
-Um die App stattdessen auf einem anderen Port laufen zu lassen, setz `PORT`: `PORT=3005 bun run dev`. Gerät das Convex-Deployment nach der automatischen Wartung in einen schlechten Zustand — veraltetes Schema nach abgebrochener Migration, korrupte lokale SQLite-Datei — siehe [Lokale Convex-Dev-Daten zurücksetzen](#lokale-convex-dev-daten-zurücksetzen) unten; lösch `.convex/local/` nicht beiläufig.
+## Lokale Dev-Daten zurücksetzen
 
-## Wartung des lokalen Convex-Speichers
-
-Jeder `convex dev`-Push legt ein neues Function-Bundle unter `services/platform/.convex/local/default/convex_local_storage/modules/` ab. Die Convex-CLI räumt alte Blobs lokal nie auf — nach Monaten täglicher Entwicklung können Zehntausende Dateien (10+ GB) entstehen, und Cold Starts scheitern im 30-Sekunden-Fenster der CLI.
-
-`bun run dev` führt Wartung automatisch aus, bevor Convex startet:
-
-- **Prune**, wenn der Modul-Speicher 1.500 Blobs oder 2 GB überschreitet — löscht nur unreferenzierte historische Function-Bundle-Blobs unter `convex_local_storage/modules/` und behält jedes Blob, das das aktuelle Deployment noch lädt (Modul-Source-Packages und ihre Node-`externalPackageId`-Deps-Parents, plus bis zu 1.000 neueste unreferenzierte Reste). SQLite-Datenbank, Uploads und Org-Konfig bleiben unberührt. Lassen sich die Live-Referenzen nicht lesen, oder wirken sie leer obwohl noch Blobs auf der Platte liegen, wird der Prune übersprungen statt zu raten.
-- **Integritätsprüfung** — fehlt ein Live-Modul-Blob schon auf der Platte, stoppt `bun run dev` mit einem klaren Fehler und verweist auf `setup:clean`. Weitermachen würde ein halb totes Backend starten (Chat und Crons scheitern mit undurchsichtigen Serverfehlern).
-- **Snapshot-Export-Artefakte löschen**, wenn die gecachte Convex-Backend-Version nicht mehr zur lokalen Deployment-Konfiguration passt — entfernt `export.zip` und Import/Export-Reste, die einen fehlgeschlagenen Re-Import auslösen können, ohne Dev-Daten zu löschen.
-
-Setz `TALE_DEV_SKIP_CONVEX_MAINTENANCE=1`, um Prune/Snapshot-Cleanup zu deaktivieren (die Integritätsprüfung läuft weiter). `bun run setup:check` warnt (nicht blockierend), wenn der Modul-Speicher den Prune-Schwellenwert schon überschreitet.
-
-## Lokale Convex-Dev-Daten zurücksetzen
-
-Nur als letzter Ausweg — `bun run setup:clean` löscht **alle** lokalen Convex-Dev-Daten: jede Tabelle in der lokalen SQLite-Datei, jeden Upload in `convex_local_storage/files/` und jedes Function-Bundle. Org-Konfig auf der Platte und `.env.local` bleiben unberührt.
-
-**Über die 0.4-Baseline wechseln:** Lokale Dev-Daten und Per-Org-Konfigbäume aus Prä-0.4-Checkouts haben keinen Migrationspfad — der 0.4-Baseline-Reset hat die Migrations-Historie geleert, und auch der Export/Import-Roundtrip unten überbrückt das nicht (der alte Export passt nicht zum neuen Schema). Eine Dev-Maschine über die Baseline zu bewegen heißt: lokale Convex-Daten zurücksetzen und die Dev-Orgs neu anlegen; behandle Prä-0.4-Org-Verzeichnisse unter `$TALE_CONFIG_DIR` genauso.
-
-**Behalte deine Daten über den Reset hinweg.** Selbst wenn das Integritäts-Gate anschlägt (ein Bundle eines Live-Moduls fehlt), startet das Backend selbst noch — du kannst deine Daten also vorher exportieren und danach wiederherstellen, und der Reset verliert nichts:
+Lokaler Dev-Zustand liegt in den Docker-Volumes der Backing-Services, ein Reset ist also ein Compose-Befehl statt eines eigenen Skripts:
 
 ```bash
-# 1. Backend starten (umgeht das Integritäts-Gate von `bun run dev`), dann
-#    in einem zweiten Terminal exportieren:
-bun run --filter @tale/platform convex:dev
-cd services/platform && npx convex export --path convex-backup.zip
-
-# 2. Zurücksetzen (abgesichert — siehe unten), frisches Deployment
-#    bootstrappen, dann wiederherstellen:
-bun run setup:clean            # tippe: delete local convex
-bun run dev                    # auf das READY-Banner warten
-cd services/platform && npx convex import --replace-all convex-backup.zip
+docker compose -f compose.yml -f compose.dev.yml down -v db knowledge-db
 ```
 
-`bun run setup:clean` ist absichtlich abgesichert (Coding-Agenten dürfen es nicht laufen lassen, es sei denn, du hast ausdrücklich darum gebeten):
+Das zerstört die lokalen Datenbanken — jede Organisation, Konversation und hochgeladene Datei in deinem Dev-Stack. Org-Config-Bäume auf der Platte (`$TALE_CONFIG_DIR`) und `.env.local` bleiben unangetastet. Das nächste `bun run dev` migriert von leer neu und seedet den Dev-Login wieder.
 
-1. Selbst im Terminal ausführen — nicht über einen Agenten.
-2. Beim Prompt die exakte Phrase `delete local convex` tippen (ein bloßes `y` wird abgelehnt).
-3. Nicht-interaktive Läufe (CI) brauchen `TALE_CONFIRM_DESTROY_LOCAL_CONVEX=delete-local-convex` — in Agent-Shells nie setzen.
+## Hybrid-Modus gegen ein containerisiertes Backend
 
-Probier zuerst automatische Wartung und normales `bun run dev`. Musst du doch zurücksetzen, **exportiere vorher** (siehe oben), um deine Daten zu behalten — lass den Export nur weg, wenn du die lokalen Conversations, Uploads und den übrigen Anonymous-Deployment-Zustand wirklich nicht brauchst.
-
-## Hybrid-Modus gegen ein containerisiertes Convex
-
-`bun run dev` spawnt standardmäßig ein ephemeres Convex-Backend, was für die meiste Arbeit das Richtige ist. Willst du schnelle Vite-Reloads gegen ein stabiles Convex, das Produktion spiegelt, fahr den dedizierten `convex`-Container und richte Vite stattdessen auf ihn:
+`bun run dev` lässt das Backend auf deinem Host laufen, was für die meiste Arbeit richtig ist. Um Vite auf ein Backend zeigen zu lassen, das woanders läuft — ein Container oder der Stack einer Kollegin — setz `TALE_BACKEND_URL`:
 
 ```bash
-docker compose up convex                 # ein Terminal: das stabile Backend
-CONVEX_EXTERNAL=true bun run dev          # ein anderes: Vite gegen den Container
+TALE_BACKEND_URL=http://localhost:3105 bun run dev:fast
 ```
 
-Setz `CONVEX_URL`, wenn dein Container Convex auf einem Nicht-Standard-Host oder -Port bereitstellt. Das ist der einzige lokale Dev-Weg, der Docker braucht, und er ist optional — das ephemere Default-Backend braucht nichts außer den drei Voraussetzungen.
+Vite proxied jede Backend-Lane dorthin, und der Orchestrator wartet auf diese URL, statt ein eigenes Kind zu starten.
 
-## Bevor du einen PR öffnest
+## Bevor du einen PR aufmachst
 
-Jeder PR läuft durch ein Gate: `bun run check`, also Format, Lint, Typecheck und die volle Testsuite über jeden berührten Workspace. Ein grüner Lauf ist das Merge-Signal; ein roter blockiert. Die Pre-PR-Checkliste in [`AGENTS.md`](https://github.com/tale-project/tale/blob/main/AGENTS.md) listet den Rest — Docs und Übersetzungen kommen im selben PR wie der Code, der sie geändert hat.
+Jeder PR läuft durch ein Gate: `bun run check` — Format, Lint, Typecheck und die volle Test-Suite über jeden berührten Workspace. Ein grüner Lauf ist das Merge-Signal, ein roter blockiert. Die Pre-PR-Checkliste in [`AGENTS.md`](https://github.com/tale-project/tale/blob/main/AGENTS.md) listet den Rest — Docs und Übersetzungen gehen im selben PR raus wie der Code, der sie geändert hat.
 
-Berührt deine Änderung `services/docs/`, lauf auch das Docs-Gate (`bun run --filter @tale/docs test`), damit strukturelle Parität, Terminologie und Prosa-Checks vor dem Review passen. Alles, was ein Nutzer sehen, konfigurieren oder aufrufen kann, braucht seine Docs in allen drei Basis-Locales im selben Commit aktualisiert.
+Berührt deine Änderung `services/docs/`, lauf auch das Docs-Gate (`bun run --filter @tale/docs test`), damit strukturelle Parität, Terminologie und Prosa-Checks vor dem Review passen. Alles, was ein Nutzer sehen, konfigurieren oder aufrufen kann, braucht seine Docs in allen drei Basis-Locales im selben Commit.
 
 ## Wo das hingehört
 
-Contributor-Setup ist der Boden, auf dem jede andere Entwickler-Aufgabe steht: bring die Voraussetzungen an ihren Platz, lass `setup:check` die Maschine bestätigen, und `bun run dev` gibt dir die ganze Plattform mit einem lokalen Backend in unter zwei Minuten, sobald die Images warm sind. Der Pre-flight-Check und die Port-Korrektur existieren, weil die häufigsten First-Run-Fehler eine falsche Tool-Version oder ein zurückgebliebener Prozess sind, der einen Port hält — beides Fünf-Sekunden-Korrekturen, sobald du sie sehen kannst.
+Contributor-Setup ist der Boden, auf dem jede andere Entwickleraufgabe steht: Voraussetzungen hinstellen, `setup:check` die Maschine bestätigen lassen, und `bun run dev` gibt dir die ganze Plattform in unter zwei Minuten, sobald die Images warm sind. Der Pre-flight-Check und die Port-Behebung existieren, weil die häufigsten Erstlauf-Fehler eine falsche Tool-Version oder ein übrig gebliebener Prozess auf einem Port sind — beides Fünf-Sekunden-Fixes, sobald man sie sieht.
 
-Läuft der Stack erst, rahmt die [Develop-Übersicht](/de/develop/overview) die externe Oberfläche, gegen die du baust, und [KI-gestützte Entwicklung](/de/develop/ai-assisted-development) deckt das Nutzen von Tales eigenen Agents zum Schreiben von Tale-Konfigurationen ab. Trägst du eine Container-Änderung statt einer Quellcode-Änderung bei, ist [Mitwirken](/de/self-hosted/contributing-docker) unter dem Reiter Selbst gehostet der Build-and-Test-Spaziergang für diesen Weg.
+Sobald der Stack läuft, rahmt die [Develop-Übersicht](/de/develop/overview) die externe Oberfläche ein, gegen die du baust, und [KI-gestützte Entwicklung](/de/develop/ai-assisted-development) deckt ab, wie du Tales eigene Agenten zum Schreiben von Tale-Configs nutzt. Trägst du eine Container-Änderung statt einer Quellcode-Änderung bei, ist [Contributing](/de/self-hosted/contributing-docker) unter dem Self-hosted-Tab der Build-and-Test-Weg dafür.

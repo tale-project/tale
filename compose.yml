@@ -141,13 +141,14 @@ services:
   # `KNOWLEDGE_DATABASE_URL` (postgres.js); nothing else talks to it.
   # ============================================================================
   knowledge-db:
+    # Same image `db` builds. A second `build:` here makes
+    # `docker compose up --build` export the tag twice in parallel and fail
+    # with "image already exists" on the containerd store — `bun dev` then
+    # continues without Postgres and the host backend dies on ECONNREFUSED.
     image: ghcr.io/tale-project/tale/tale-db:${VERSION:-latest}
-    pull_policy: ${PULL_POLICY:-build}
-    build:
-      context: .
-      dockerfile: services/db/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
+    # Must not inherit PULL_POLICY=build: this service has no build spec.
+    # `missing` uses the image `db` just produced, or pulls if nothing is local.
+    pull_policy: missing
 
     container_name: tale-knowledge-db
 
@@ -197,111 +198,16 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Convex (Phase 1: added alongside legacy all-in-one platform; not yet
-  # wired into Caddy. See designs: `giggly-napping-honey.md`.)
-  # ----------------------------------------------------------------------------
-  # This service runs convex-local-backend + Convex Dashboard independently
-  # from the platform service. Platform pushes schema & env via HTTP client
-  # (`bunx convex deploy --url http://convex:3210`). Convex never restarts for
-  # code or env changes; only backend-version upgrades rebuild this image.
-  #
-  # Phase 1 goal: verify this service runs standalone without disturbing the
-  # existing all-in-one platform. Caddy still routes /ws_api etc. to platform.
-  # Phase 2 will flip the Caddy upstream and slim the platform container.
-  # ============================================================================
-  convex:
-    image: ghcr.io/tale-project/tale/tale-convex:${VERSION:-latest}
-    container_name: tale-convex
-    pull_policy: ${PULL_POLICY:-build}
-    build:
-      context: .
-      dockerfile: services/convex/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
-
-    # No ports published — access only via Caddy on the internal network.
-    # Ports 3210/3211/6791 remain host-internal to this container.
-
-    # NET_ADMIN: required for the entrypoint's SSRF egress firewall
-    # (iptables REJECT rules for IMDS + link-local + RFC1918). Without
-    # this cap, the entrypoint logs a warning and skips the firewall —
-    # yt-dlp's own DNS resolution then becomes a DNS-rebinding SSRF
-    # vector against the host's cloud metadata service (AWS/GCP/Azure).
-    cap_add:
-      - NET_ADMIN
-
-    # Per-container resource caps. yt-dlp + ffmpeg subprocesses peak
-    # ~300-500 MB each; APPLICATION_MAX_CONCURRENT_NODE_ACTIONS=32 means
-    # the worst case is 32 parallel ingest jobs. mem_limit caps blast
-    # radius; pids_limit defends against fork-bomb regressions; nofile
-    # gives breathing room for concurrent yt-dlp + ffmpeg + Convex.
-    mem_limit: 12g
-    pids_limit: 4096
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
-
-    volumes:
-      # Independent convex data volume. Once Phase 2 migration completes, this
-      # contains everything platform-data previously held under /app/data/.
-      - convex-data:/app/data
-      # Caddy self-signed CA (so the Rust backend trusts outbound HTTPS to the proxy).
-      - caddy-data:/caddy-data:ro
-
-    env_file:
-      # Optional: the stack boots without a .env. Present values win; absent
-      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
-      # always writes a real .env, so production is unaffected.
-      - path: .env
-        required: false
-
-    restart: unless-stopped
-
-    # Readiness: /version responds as soon as HTTP server binds, but we also
-    # require /tmp/convex-ready which entrypoint writes AFTER builtin seed
-    # and Dashboard startup. start_period covers cold-boot with search-index
-    # warmup; platform's wait_for_http budget is 120s, so align here.
-    healthcheck:
-      test:
-        [
-          'CMD-SHELL',
-          'curl -sf http://localhost:3210/version && [ -f /tmp/convex-ready ]',
-        ]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 120s
-
-    depends_on:
-      db:
-        condition: service_healthy
-
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-
-    # Also on the sandbox network so the in-sandbox MCP connector bridge can
-    # reach convex http actions directly (http://convex:3211/api/connectors),
-    # mirroring how `sandbox-llm-gateway` is dual-homed for the gateway. Safe: convex is
-    # single-instance/stateful (no LB) and the dispatch route is VK-authed.
-    networks:
-      - internal
-      - sandbox
-
-  # ============================================================================
   # bgutil PO-token provider (YouTube ingestion anti-bot)
   # ============================================================================
-  # Serves GVS proof-of-origin tokens to the yt-dlp bgutil plugin baked into the
-  # convex image (layout: /opt/yt-dlp/plugins/bgutil/yt_dlp_plugins/…), so
-  # video-link ingestion survives YouTube's "confirm you're not a bot" wall on
-  # datacenter/flagged IPs — with zero operator config. Reached only by the
-  # convex container over the internal network (no published ports); video
-  # ingest degrades gracefully (no token) if it's down, so nothing depends_on
-  # it. The image tag MUST match BGUTIL_POT_VERSION in
-  # services/convex/Dockerfile — bump both together.
+  # Serves GVS proof-of-origin tokens to the yt-dlp bgutil plugin baked into
+  # the platform image (layout: /opt/yt-dlp/plugins/bgutil/yt_dlp_plugins/…),
+  # so video-link ingestion survives YouTube's "confirm you're not a bot" wall
+  # on datacenter/flagged IPs — with zero operator config. Reached only by the
+  # backend over the internal network (no published ports); video ingest
+  # degrades gracefully (no token) if it's down, so nothing depends_on it. The
+  # image tag MUST match BGUTIL_POT_VERSION in
+  # services/platform/Dockerfile — bump both together.
   bgutil-provider:
     image: brainicism/bgutil-ytdlp-pot-provider:1.3.1
     container_name: tale-bgutil-provider
@@ -352,12 +258,11 @@ services:
     # No port mapping needed - accessed via proxy at https://localhost (or your domain)
     # internally via http://platform:3000
 
-    # Volume mounts — Phase 2 split:
-    #   * Convex backend + data live in the `convex` service (see convex-data).
-    #   * Platform mounts convex-data READ-ONLY so server.ts can:
-    #       - watch config JSON changes (TALE_CONFIG_DIR SSE)
-    #       - serve branding images from {TALE_CONFIG_DIR}/branding/images
-    #   * `caddy-data` CA mount removed — platform makes zero outbound HTTPS.
+    # The org CONFIG STORE, read-only here: `server.ts` watches it for config
+    # changes (the SSE lane) and serves branding images out of it. The backend
+    # tier mounts the same volume read-write — it owns every write. (The name
+    # predates the Convex retirement; kept so no operator has to migrate a
+    # volume for a rename.)
     volumes:
       - convex-data:/app/data:ro
 
@@ -379,6 +284,8 @@ services:
     # CLI generator (create-platform-service.ts).
     environment:
       SANDBOX_BROWSER_VIEW: ${SANDBOX_BROWSER_VIEW:-}
+      # Where the public `/status` page probes the application backend.
+      TALE_BACKEND_URL: ${TALE_BACKEND_URL:-http://backend-api:3005}
 
     # Restart policy
     # Automatically restart the container if it crashes
@@ -388,9 +295,8 @@ services:
     stop_grace_period: 45s
     restart: unless-stopped
 
-    # Health check — only checks Vite now (Convex is a separate service with
-    # its own healthcheck). The /tmp/platform-ready marker is written by
-    # entrypoint AFTER env sync + `bunx convex deploy` succeeds.
+    # Health check — the web tier only. The /tmp/platform-ready marker is
+    # written by the entrypoint once the server is up.
     healthcheck:
       test:
         [
@@ -403,11 +309,8 @@ services:
       start_period: 180s
 
     # Dependencies
-    # Must wait for convex (remote deploy target) AND supporting services.
     depends_on:
       db:
-        condition: service_healthy
-      convex:
         condition: service_healthy
       proxy:
         condition: service_healthy
@@ -430,6 +333,193 @@ services:
         max-file: '3'
 
     # Networks
+    networks:
+      - internal
+
+  # ============================================================================
+  # Tale 0.5 backend (parallel build) — OPT-IN under the `backend` profile
+  # ----------------------------------------------------------------------------
+  # The SAME platform image, started in a different role via TALE_ROLE
+  # (docker-entrypoint.sh dispatches before any Convex work). Default topology
+  # is one `api` + one `worker` container; either scales independently:
+  #   docker compose --profile backend up -d --scale backend-worker=3
+  # (no `container_name` on these two services precisely so --scale works).
+  # Runs alongside the Convex stack during the 0.5 parallel build; replaces the
+  # State lives in the `tale_app` database on the `db` service (created
+  # idempotently by services/db/init-scripts/04-create-app-database.sql).
+  # ============================================================================
+  # Object store — the deployment's BLOB backend
+  # ============================================================================
+  # S3-compatible storage is the ONLY blob backend (Convex `_storage` retired
+  # with the runtime), so a deployment without one refuses every upload. This
+  # is the default the stack ships with; an org that brings its own bucket
+  # (Settings > Data residency) is resolved BEFORE it and is unaffected. The
+  # backend seeds `default/object-storage/connection.json` against this
+  # service at boot — see backend/domains/object_storage/bootstrap.ts.
+  #
+  # Internal-only: blobs reach the browser through presigned URLs the backend
+  # signs and the proxy forwards, never by exposing the store itself.
+  object-store:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    pull_policy: missing
+
+    container_name: tale-object-store
+
+    # Flush in-flight multipart writes before SIGKILL.
+    stop_grace_period: 30s
+
+    command: server /data --address ':9000' --console-address ':9001'
+
+    environment:
+      MINIO_ROOT_USER: ${OBJECT_STORE_ACCESS_KEY:-tale}
+      MINIO_ROOT_PASSWORD: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
+      # Presigned URLs are signed by the backend against the internal
+      # endpoint; the proxy forwards them, so the store needs no public origin.
+      MINIO_BROWSER: 'off'
+
+    env_file:
+      - path: .env
+        required: false
+
+    volumes:
+      - object-store-data:/data
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ['CMD-SHELL', 'mc ready local || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    networks:
+      - internal
+
+  backend-api:
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: .
+      dockerfile: services/platform/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+    environment:
+      TALE_ROLE: api
+      PORT: '3005'
+      # Interpolated from .env at compose level; the dev fallback mirrors
+      # compose.dev.yml's DB_PASSWORD default so the opt-in profile boots on a
+      # plain dev stack. Production always has a real .env (tale deploy).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}
+      TALE_CONFIG_DIR: /app/data
+      # Where a sandbox CONTAINER reaches this backend: the in-sandbox
+      # connectors bridge and the live-body host-call door are served here.
+      SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}
+      # The bundled blob store the backend seeds the deployment default
+      # against at boot. Internal address: presigned URLs are signed here and
+      # forwarded by the proxy, so the store is never published directly.
+      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT:-http://object-store:9000}
+      OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tale-blobs}
+      OBJECT_STORE_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY:-tale}
+      OBJECT_STORE_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
+      # Where the BROWSER reaches the store: the site origin, behind which the
+      # proxy forwards `/<bucket>/*` verbatim. Presigned URLs are signed
+      # against this, the internal endpoint above is what the backend itself
+      # uses — see `browserFacing` in convex/lib/storage/object_store.ts.
+      OBJECT_STORE_PUBLIC_ENDPOINT: ${OBJECT_STORE_PUBLIC_ENDPOINT:-${SITE_URL:-http://localhost}}
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    # Override the image's baked web healthcheck (port 3000) with the api port.
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:3005/ping']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+      object-store:
+        condition: service_healthy
+    # The entrypoint installs the SSRF egress firewall (REJECT IMDS +
+    # link-local + RFC1918) before dropping privileges: this tier opens
+    # sockets outside the pinned-IP fetch path (yt-dlp, ffmpeg, the crawler).
+    cap_add:
+      - NET_ADMIN
+    # The org CONFIG STORE — the backend OWNS it (governance policies, SSO
+    # connection files, provider + agent + skill trees). The web tier mounts
+    # the same volume read-only.
+    volumes:
+      - convex-data:/app/data
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    # Dual-homed: the in-sandbox connectors bridge reaches this api directly
+    # over the sandbox network (VK-authed).
+    networks:
+      - internal
+      - sandbox
+
+  backend-worker:
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
+    build:
+      context: .
+      dockerfile: services/platform/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+    environment:
+      TALE_ROLE: worker
+      DATABASE_URL: postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}
+      TALE_CONFIG_DIR: /app/data
+      # The worker DISPATCHES connector bodies too (automation nodes), so it
+      # mints the same in-sandbox host-call URL the api does.
+      SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}
+      # The bundled blob store the backend seeds the deployment default
+      # against at boot. Internal address: presigned URLs are signed here and
+      # forwarded by the proxy, so the store is never published directly.
+      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT:-http://object-store:9000}
+      OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tale-blobs}
+      OBJECT_STORE_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY:-tale}
+      OBJECT_STORE_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
+      # Where the BROWSER reaches the store: the site origin, behind which the
+      # proxy forwards `/<bucket>/*` verbatim. Presigned URLs are signed
+      # against this, the internal endpoint above is what the backend itself
+      # uses — see `browserFacing` in convex/lib/storage/object_store.ts.
+      OBJECT_STORE_PUBLIC_ENDPOINT: ${OBJECT_STORE_PUBLIC_ENDPOINT:-${SITE_URL:-http://localhost}}
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    # The worker exposes no HTTP; the image's baked healthcheck targets the web
+    # port and would read permanently unhealthy here, so disable it. Liveness
+    # is the Graphile Worker heartbeat + at-least-once job recovery.
+    healthcheck:
+      disable: true
+    depends_on:
+      db:
+        condition: service_healthy
+      object-store:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - convex-data:/app/data
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
     networks:
       - internal
 
@@ -490,6 +580,23 @@ services:
       # always writes a real .env, so production is unaffected.
       - path: .env
         required: false
+
+    environment:
+      # The Convex→Postgres cutover switch. Set (with the `backend` profile
+      # running) it routes auth, the app API, the hint stream, both machine
+      # doors, SSO/SCIM/trusted-headers, the control channel, cloud-import
+      # OAuth and WebDAV to the pg backend; unset, every lane stays on
+      # Convex. `tale deploy` writes it into .env once a stack is migrated.
+      # The application backend. Every migrated lane routes here; the switch
+      # remains an env var so an operator can point the proxy at another
+      # host/port, never so the stack can fall back to a runtime that no
+      # longer exists.
+      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-backend-api:3005}
+      # The BLOB store, published at its own bucket path. The bucket name IS
+      # the public path and is forwarded unstripped — SigV4 covers the host
+      # and the path, so rewriting either breaks every presigned URL.
+      OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tale-blobs}
+      OBJECT_STORE_UPSTREAM: ${OBJECT_STORE_UPSTREAM:-object-store:9000}
 
     # Restart policy
     # Automatically restart the container if it crashes
@@ -616,7 +723,7 @@ services:
   # Tale Sandbox Spawner — thin stateless docker-run service for artifact_run
   # ----------------------------------------------------------------------------
   # Mounts /var/run/docker.sock to spawn ephemeral sibling containers per call.
-  # Reachable only on the `internal` bridge by the platform/convex service;
+  # Reachable only on the `internal` bridge by the platform/backend services;
   # joined to `sandbox` only to issue `docker run` (the runtime containers
   # themselves attach to `sandbox` for egress via tinyproxy).
   #
@@ -638,7 +745,7 @@ services:
     # so an unauthenticated request on this port = remote root via docker.
     # Convex reaches the spawner through the `internal` Docker network
     # (http://sandbox:8003) — the published port is only for `bun dev`
-    # running convex-local-backend on the host. NEVER publish on 0.0.0.0.
+    # running the backend on the host. NEVER publish on 0.0.0.0.
     ports:
       - '127.0.0.1:8003:8003'
     env_file:
@@ -685,7 +792,7 @@ services:
       # so the spawner and the daemon must agree on the path).
       - /var/lib/tale-sandbox:/var/lib/tale-sandbox
       # Read-only deployment config so loadConfig can read the sandboxRuntime
-      # tier from deployment.json (same convex-data volume the convex/platform
+      # tier from deployment.json (same config volume the backend/platform
       # services share).
       - ${PLATFORM_SHARED_CONFIG:-convex-data}:/app/platform-config:ro
     # Graceful shutdown: let the spawner drain in-flight executions before
@@ -735,7 +842,7 @@ services:
   # session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at
   # session destroy. The platform is the source of truth for providers/models;
   # it provisions the gateway via the governance API on session create
-  # (convex/node_only/sandbox/llm_gateway_admin.ts: provisionProviders +
+  # (the backend's llm_gateway_admin lane: provisionProviders +
   # applyGatewayConfig).
   #
   # SECURITY: gateway auth is config-store driven (NOT env vars — the upstream
@@ -804,67 +911,6 @@ services:
         aliases:
           - llm-gateway
 
-  # ============================================================================
-  # Tale Controller — privileged control-plane sidecar (OPT-IN)
-  # ----------------------------------------------------------------------------
-  # Restarts allowlisted compose services ({convex}) on an HMAC-signed
-  # request from convex/platform, so a deployment-config change (external
-  # knowledge Postgres / Convex S3 storage) takes effect WITHOUT giving the
-  # browser-facing platform docker-socket access.
-  #
-  # OPT-IN: only starts under the `controller` profile
-  # (`docker compose --profile controller up -d`). When absent, the UI falls
-  # back to showing the manual `docker compose restart convex` command.
-  #
-  # SECURITY: mounts /var/run/docker.sock = host root — the same accepted
-  # boundary as the sandbox spawner, but constrained to list+restart of
-  # {convex}, HMAC-verified, internal-network-only, no published port.
-  # Set CONTROLLER_TOKEN (shared with platform/convex) in .env.
-  # ============================================================================
-  controller:
-    image: ghcr.io/tale-project/tale/tale-controller:${VERSION:-latest}
-    pull_policy: ${PULL_POLICY:-build}
-    build:
-      context: .
-      dockerfile: services/controller/Dockerfile
-    container_name: tale-controller
-    profiles:
-      - controller
-    env_file:
-      # Optional: the stack boots without a .env. Present values win; absent
-      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
-      # always writes a real .env, so production is unaffected.
-      - path: .env
-        required: false
-    environment:
-      CONTROLLER_PORT: '8004'
-      # Scope restarts to this compose project so another stack is never touched.
-      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-tale}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    restart: unless-stopped
-    mem_limit: 256m
-    pids_limit: 256
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'bun',
-          '-e',
-          'const r=await fetch("http://127.0.0.1:8004/health");process.exit(r.ok?0:1)',
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-    networks:
-      - internal
-
 # ============================================================================
 # Volumes
 # ============================================================================
@@ -896,10 +942,19 @@ volumes:
   platform-data:
     driver: local
 
-  # Persistent storage for the Convex service (Phase 1+). Holds the Convex
-  # local-backend DB (SQLite or pg-local), search indexes, uploaded files,
-  # and seeded file-based configs (agents/workflows/connectors/providers).
+  # The org CONFIG STORE: the file-based configs every org owns (agents,
+  # automations, connectors, providers, skills, governance policies, SSO
+  # connections, branding). The backend tier writes it; the web tier reads it.
+  # The name predates the Convex retirement and is KEPT so no operator has to
+  # migrate a volume for a rename.
   convex-data:
+    driver: local
+
+  # The deployment's BLOB store (uploaded documents, chat attachments, audio,
+  # generated media). Separate from the config store on purpose: config is
+  # small, text, and diffable; blobs are large and opaque, and an operator
+  # relocating one should not have to move the other.
+  object-store-data:
     driver: local
 
   # Persistent storage for Caddy proxy data (certificates, etc.)

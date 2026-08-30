@@ -69,14 +69,6 @@ docker compose -f compose.yml -f compose.local.yml up -d
 
 Dieses Muster hält `git pull` sauber — keine Merge-Konflikte auf den ausgelieferten Dateien. Dasselbe Muster funktioniert für jedes benutzerdefinierte Volume-Mount, jeden benutzerdefinierten Port oder jedes Environment-Override.
 
-## Profile
-
-Ein Service in der Basis-Datei nutzt ein Docker-Compose-Profil. Profile lassen einen Service im Graph existieren, aber nicht starten, ausser sein Profil ist aktiviert. Das im Einsatz befindliche Profil ist `controller` — der Opt-in-Sidecar `tale-controller`, der den Convex-Container auf eine signierte Anfrage neu startet, damit eine Datenresidenz-Änderung greift, ohne der Plattform Docker-Socket-Zugriff zu geben. Aktivier es mit:
-
-```bash
-docker compose --profile controller up -d
-```
-
 ## Wo das hineinpasst
 
 Die Compose-Referenz ist das Raster des Betreibers für den Source-Tree. Für das Innere jedes Containers deckt die Seite [Container-Architektur](/de/self-hosted/operate/container-architecture) Verantwortlichkeiten ab; für die Variablen, die die Container beim Boot lesen, ist die [Environment-Referenz](/de/self-hosted/configuration/environment-reference) die Quelle der Wahrheit.

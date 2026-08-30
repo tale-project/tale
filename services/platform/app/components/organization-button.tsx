@@ -7,7 +7,7 @@ import { Building2 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { OrganizationListPanel } from '@/app/features/organization/components/organization-list-panel';
-import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

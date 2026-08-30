@@ -1,13 +1,11 @@
-import type { GenericDatabaseReader } from 'convex/server';
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   DEFAULT_SANDBOX_QUOTA,
   sandboxQuotaConfigSchema,
   type SandboxQuotaConfig,
 } from '../../lib/shared/schemas/governance';
-import type { DataModel } from '../_generated/dataModel';
 import { readConfigCacheRow } from '../lib/config_cache/read';
+import type { DatabaseReader } from '../lib/ctx';
 
 export { DEFAULT_SANDBOX_QUOTA };
 
@@ -19,7 +17,7 @@ export { DEFAULT_SANDBOX_QUOTA };
  * (`reserveSessionSlotAndInsert`) mutations can share it.
  */
 export async function readSandboxQuotaPolicy(
-  db: GenericDatabaseReader<DataModel>,
+  db: DatabaseReader,
   organizationId: string,
 ): Promise<SandboxQuotaConfig> {
   const row = await readConfigCacheRow(
@@ -70,7 +68,7 @@ export function requireSessionBudgetForOwnerType(
 ): SessionBudget {
   const budget = sessionBudgetForOwnerType(ownerType);
   if (budget === null) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'SESSION_LANE_RETIRED',
       message: `Sandbox sessions owned by '${ownerType}' can no longer be created or resumed.`,
     });

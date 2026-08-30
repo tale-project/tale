@@ -1,23 +1,29 @@
 'use client';
 
 /**
- * The thread-row actions: rename, pin, archive, and the read watermark.
- *
- * Like `thread-sharing`, these go through the live Convex client
- * (`useConvex`) rather than the app's `useConvexMutation` wrapper: the wrapper
- * needs the query-client context, which a chat component rendered outside the
- * provider tree does not have, and `useConvex()` returns `undefined` there
- * instead of throwing. Failures resolve to `false` — never a rejection — so a
- * caller shows its failure toast without wrapping every call site.
+ * The thread-row actions: rename, pin, archive, and the read watermark —
+ * served by the 0.5 backend. Failures resolve to `false` — never a
+ * rejection — so a caller shows its failure toast without wrapping every
+ * call site. Each successful write nudges the thread-family reads through
+ * the same query client the seam's HTTP lane uses, so the writer's own tab
+ * is instantly true (other tabs ride the org hint stream).
  */
 
-import { useConvex } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import {
+  invalidateChatThreads,
+  markChatThreadRead,
+  renameChatThread,
+  setChatThreadArchived,
+  setChatThreadPinned,
+  trashChatThread,
+} from '@/app/lib/backend/chat';
+
+import { useChatQueryClient } from './chat-backend';
 
 export interface ThreadActions {
-  /** False when there is no Convex client to talk to — hide the controls. */
+  /** Kept for the control-hiding contract; the HTTP lane is always there. */
   readonly available: boolean;
   /** Rename the thread. False when refused (foreign thread, empty name). */
   readonly rename: (threadId: string, title: string) => Promise<boolean>;
@@ -36,102 +42,89 @@ export interface ThreadActions {
 }
 
 export function useThreadActions(organizationId: string): ThreadActions {
-  const convex = useConvex();
+  const queryClient = useChatQueryClient();
+
+  const settle = useCallback(
+    (ok: boolean): boolean => {
+      if (ok) invalidateChatThreads(queryClient, organizationId);
+      return ok;
+    },
+    [queryClient, organizationId],
+  );
 
   const rename = useCallback(
     async (threadId: string, title: string): Promise<boolean> => {
-      if (!convex) return false;
       try {
-        return await convex.mutation(api.chat.threads.renameThread, {
-          organizationId,
-          threadId,
-          title,
-        });
+        return settle(await renameChatThread(organizationId, threadId, title));
       } catch (error) {
         console.error('[chat] renaming the thread failed', error);
         return false;
       }
     },
-    [convex, organizationId],
+    [organizationId, settle],
   );
 
   const setPinned = useCallback(
     async (threadId: string, pinned: boolean): Promise<boolean> => {
-      if (!convex) return false;
       try {
-        return await convex.mutation(api.chat.threads.setThreadPinned, {
-          organizationId,
-          threadId,
-          pinned,
-        });
+        return settle(
+          await setChatThreadPinned(organizationId, threadId, pinned),
+        );
       } catch (error) {
         console.error('[chat] pinning the thread failed', error);
         return false;
       }
     },
-    [convex, organizationId],
+    [organizationId, settle],
   );
 
   const setArchived = useCallback(
     async (threadId: string, archived: boolean): Promise<boolean> => {
-      if (!convex) return false;
       try {
-        return await convex.mutation(api.chat.threads.setThreadArchived, {
-          organizationId,
-          threadId,
-          archived,
-        });
+        return settle(
+          await setChatThreadArchived(organizationId, threadId, archived),
+        );
       } catch (error) {
         console.error('[chat] archiving the thread failed', error);
         return false;
       }
     },
-    [convex, organizationId],
+    [organizationId, settle],
   );
 
   const markRead = useCallback(
     (threadId: string, read = true): void => {
-      if (!convex) return;
-      convex
-        .mutation(api.chat.threads.markThreadRead, {
-          organizationId,
-          threadId,
-          ...(read ? {} : { read: false }),
-        })
-        .catch((error: unknown) => {
-          console.warn('[chat] marking the thread read failed', error);
-        });
+      markChatThreadRead(organizationId, threadId, read).then(
+        (ok) => settle(ok),
+        (error: unknown) => {
+          console.warn('[chat] moving the read watermark failed', error);
+        },
+      );
     },
-    [convex, organizationId],
+    [organizationId, settle],
   );
 
   const trash = useCallback(
     async (threadId: string): Promise<boolean> => {
-      if (!convex) return false;
       try {
-        return await convex.mutation(api.chat.thread_lifecycle.trashThread, {
-          organizationId,
-          threadId,
-        });
+        return settle(await trashChatThread(organizationId, threadId));
       } catch (error) {
-        // A legal hold surfaces as a coded refusal; either way the caller
-        // shows its failure toast.
-        console.error('[chat] deleting the thread failed', error);
+        console.error('[chat] trashing the thread failed', error);
         return false;
       }
     },
-    [convex, organizationId],
+    [organizationId, settle],
   );
 
   return useMemo(
     () => ({
-      available: convex !== undefined,
+      available: true,
       rename,
       setPinned,
       setArchived,
       markRead,
       trash,
     }),
-    [convex, rename, setPinned, setArchived, markRead, trash],
+    [rename, setPinned, setArchived, markRead, trash],
   );
 }

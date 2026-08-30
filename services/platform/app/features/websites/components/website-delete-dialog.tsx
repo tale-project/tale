@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 
 import { EntityDeleteDialog } from '@/app/components/ui/entity/entity-delete-dialog';
 import { useDeleteDialogTranslations } from '@/app/components/ui/entity/use-delete-dialog';
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteWebsite } from '../hooks/mutations';
@@ -12,7 +12,7 @@ import { useDeleteWebsite } from '../hooks/mutations';
 interface DeleteWebsiteDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  website: Doc<'websites'>;
+  website: WebsiteDoc;
 }
 
 export function DeleteWebsiteDialog({
@@ -35,13 +35,13 @@ export function DeleteWebsiteDialog({
   });
 
   const handleDelete = useCallback(
-    async (w: Doc<'websites'>) => {
+    async (w: WebsiteDoc) => {
       await deleteWebsite({ websiteId: w._id });
     },
     [deleteWebsite],
   );
 
-  const getEntityName = useCallback((w: Doc<'websites'>) => w.domain, []);
+  const getEntityName = useCallback((w: WebsiteDoc) => w.domain, []);
 
   return (
     <EntityDeleteDialog

@@ -6,11 +6,7 @@
  */
 
 import { isRecord, getString } from '../../../../lib/utils/type-utils';
-import type {
-  QueryCtx,
-  MutationCtx,
-  ActionCtx,
-} from '../../../_generated/server';
+import type { QueryCtx, MutationCtx, ActionCtx } from '../../ctx';
 
 export interface TrustedAuthData {
   trustedRole: string;

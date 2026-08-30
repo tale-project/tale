@@ -1,4 +1,3 @@
-import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 /**
@@ -56,60 +55,3 @@ export const connectorCredentialStatusValidator = v.union(
   v.literal('disabled'),
   v.literal('needs-reauth'),
 );
-
-export const connectorCredentialsTable = defineTable({
-  organizationId: v.string(),
-  /** Connector name — the `connectors/<slug>/` directory, which is also the
-   * `<connector>` half of the engine node type `<connector>.<action>`. */
-  connectorSlug: v.string(),
-  authMethod: connectorAuthMethodValidator,
-  /** Human label, unique per (organization, connector). */
-  name: v.string(),
-  /**
-   * The method's secret payload, encrypted as one JSON document:
-   *  - `api-key`/`bearer` → `{ token }`
-   *  - `basic`            → `{ username, password, smtpUsername?, smtpPassword? }`
-   *    (the optional SMTP pair is for imap-smtp's separate-provider relay)
-   *  - `oauth2`           → `{ accessToken, refreshToken?, expiresAt?, scopes? }`
-   */
-  encryptedData: encryptedSecretValidator,
-  /**
-   * Per-credential API origin (https, no trailing slash) for connectors
-   * declaring `endpointMode: per-credential` — the Atlassian site for
-   * Confluence, the merchant store for Shopify. Live bodies read it as
-   * `ctx.endpoint`. Not secret: an origin, stored plain so listings can show
-   * which instance a credential points at.
-   */
-  endpointUrl: v.optional(v.string()),
-  /** The connector's non-secret per-credential settings, keyed by the
-   * connector's `configFields` keys (a mail server host and port, an API
-   * version). Stored plain — these are not secrets — and passed to a live or
-   * native body as `ctx.config`. Absent for connectors that declare none. */
-  config: v.optional(
-    v.record(v.string(), v.union(v.string(), v.number(), v.boolean())),
-  ),
-  /** Non-secret display hint computed at write time, so listing never touches
-   * ciphertext. Absent when the secret is too short to mask safely. */
-  maskedPreview: v.optional(v.string()),
-  /** At most one default per (organization, connector) — what resolution
-   * falls back to when an invocation names no credential. */
-  isDefault: v.boolean(),
-  /**
-   * Per-credential mail-sync watermarks (epoch ms). `conversation.sync_mailbox`
-   * advances these after each pass so every active mailbox on a connector
-   * keeps its own cursor — a shared connector-level cursor would skip older
-   * mail on a newly added credential.
-   */
-  mailSyncInboundSince: v.optional(v.number()),
-  mailSyncOutboundSince: v.optional(v.number()),
-  status: connectorCredentialStatusValidator,
-  /** Set when an oauth2 refresh fails, so the UI can explain the failure
-   * instead of only flagging the status. */
-  statusDetail: v.optional(v.string()),
-  /** User id, or a `migration:<id>` marker for migrated rows. */
-  createdBy: v.string(),
-  createdAt: v.number(),
-  updatedAt: v.number(),
-})
-  .index('by_org', ['organizationId'])
-  .index('by_org_connector', ['organizationId', 'connectorSlug']);

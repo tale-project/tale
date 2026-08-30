@@ -1,7 +1,6 @@
-import type { PaginationOptions, PaginationResult } from 'convex/server';
-
-import type { Doc, TableNames } from '../../_generated/dataModel';
-import type { QueryCtx } from '../../_generated/server';
+import type { PaginationOptions, PaginationResult } from '../ctx';
+import type { QueryCtx } from '../ctx';
+import type { Doc, TableNames } from '../rows';
 import {
   isActiveRow,
   type MatchMode,
@@ -74,8 +73,8 @@ export async function scopedSubstringSearch<T extends TableNames>(
     .order('desc')
     .paginate(paginationOpts);
 
-  const page = (result.page as Doc<T>[]).filter((row) => {
-    const record = row as Record<string, unknown>;
+  const page = result.page.filter((row) => {
+    const record: Record<string, unknown> = row;
     if (strategy.activeOnly && !isActiveRow(record)) return false;
     if (args.accessFilter && !args.accessFilter(row)) return false;
     return rowMatches(row, strategy, lowerTerm, rawTerm, matchMode);

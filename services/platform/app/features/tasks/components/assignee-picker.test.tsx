@@ -2,7 +2,6 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 import type { AssignableAgent } from '../hooks/use-actor-directory';
@@ -75,11 +74,11 @@ vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
 vi.mock('../hooks/mutations', () => ({
   useCancelTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock('@/app/hooks/use-convex-client', () => ({
-  useConvexClient: () => ({ query: vi.fn(async () => null) }),
+vi.mock('@/app/hooks/use-backend-client', () => ({
+  useBackendClient: () => ({ query: vi.fn(async () => null) }),
 }));
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({ mutateAsync: vi.fn() }),
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: () => ({ mutateAsync: vi.fn() }),
 }));
 
 describe('AssigneePicker', () => {
@@ -119,7 +118,7 @@ describe('AssigneePicker', () => {
     const { user } = render(
       <AssigneePicker
         organizationId="org-1"
-        projectId={'project-1' as Id<'projects'>}
+        projectId={'project-1' as string}
         onAssign={onAssign}
         onUnassign={vi.fn()}
       />,
@@ -149,7 +148,7 @@ describe('AssigneePicker', () => {
     const first = render(
       <AssigneePicker
         organizationId="org-1"
-        projectId={'project-1' as Id<'projects'>}
+        projectId={'project-1' as string}
         onAssign={vi.fn()}
         onUnassign={vi.fn()}
       />,
@@ -183,7 +182,7 @@ describe('AssigneePicker', () => {
     const { user } = render(
       <AssigneePicker
         organizationId="org-1"
-        projectId={'project-1' as Id<'projects'>}
+        projectId={'project-1' as string}
         onAssign={vi.fn()}
         onUnassign={vi.fn()}
       />,

@@ -12,6 +12,9 @@ export const DEV_VOLUME_NAMES = [
   // entry without coordinating with that detect() heuristic.
   'platform-data',
   'convex-data',
+  // The BLOB store's data. Separate from the config store on purpose:
+  // config is small, text and diffable; blobs are large and opaque.
+  'object-store-data',
   'caddy-data',
   'caddy-config',
   'llm-gateway-data',
@@ -28,6 +31,7 @@ export const REQUIRED_VOLUMES = [
   'caddy-config',
   'db-data',
   'db-backup',
+  'object-store-data',
   'llm-gateway-data',
 ] as const;
 

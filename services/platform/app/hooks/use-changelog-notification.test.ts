@@ -1,27 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// The hook only calls `useQuery`/`useMutation`; with those mocked it runs as
-// a plain function (same approach as use-current-member-context.test.ts).
+// The hook only calls the adapter-aware wrappers; with those mocked it runs
+// as a plain function (same approach as use-current-member-context.test.ts).
+// `data` is what the wrapper hands back, so the mock speaks that shape.
 const mockUseQuery = vi.fn();
 const mockMarkSeenMutation = vi.fn(() => Promise.resolve(null));
 const mockMarkToastedMutation = vi.fn(() => Promise.resolve(null));
 
-vi.mock('convex/react', () => ({
-  useQuery: (...args: unknown[]) => mockUseQuery(...args),
-  useMutation: (fn: unknown) =>
-    fn === 'markChangelogSeen' ? mockMarkSeenMutation : mockMarkToastedMutation,
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (...args: unknown[]) => ({ data: mockUseQuery(...args) }),
 }));
 
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    users: {
-      notification_state: {
-        getUserNotificationState: 'getUserNotificationState',
-        markChangelogSeen: 'markChangelogSeen',
-        markToastShown: 'markToastShown',
-      },
-    },
-  },
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: (fn: unknown) => ({
+    mutateAsync:
+      fn === 'users/notification_state:markChangelogSeen'
+        ? mockMarkSeenMutation
+        : mockMarkToastedMutation,
+  }),
 }));
 
 let mockVersion: string | undefined = 'v0.2.97';
@@ -117,7 +113,7 @@ describe('useChangelogNotification', () => {
     const result = useChangelogNotification();
 
     expect(mockUseQuery).toHaveBeenCalledWith(
-      'getUserNotificationState',
+      'users/notification_state:getUserNotificationState',
       'skip',
     );
     expect(result.hasUnseenVersion).toBe(false);

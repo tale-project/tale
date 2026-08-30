@@ -7,7 +7,6 @@ import { useMemo } from 'react';
 
 import { HeaderBreadcrumbSwitcher } from '@/app/components/layout/header-breadcrumb-switcher';
 import type { SearchableSelectOption } from '@/app/components/ui/forms/searchable-select';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useProjects } from '../hooks/queries';
@@ -41,7 +40,7 @@ export function ProjectBreadcrumbSwitcher({
   projectName,
 }: {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   projectName: string;
 }) {
   const { t } = useT('projects');

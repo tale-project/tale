@@ -1,7 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { api } from '@/convex/_generated/api';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
 
 /**
  * Write hooks for the unified data-residency page.
@@ -22,7 +21,7 @@ function useInvalidateDeployment() {
 /** Persist the deployment config (validated + optimistic-hash on the server). */
 export function useSaveDeploymentConfig() {
   const invalidate = useInvalidateDeployment();
-  return useConvexAction(api.deployment.file_actions.saveDeploymentConfig, {
+  return useBackendAction('deployment/file_actions:saveDeploymentConfig', {
     onSuccess: () => invalidate(),
   });
 }
@@ -30,19 +29,14 @@ export function useSaveDeploymentConfig() {
 /** Merge/persist deployment secrets (SOPS-encrypted server-side). */
 export function useSaveDeploymentSecret() {
   const invalidate = useInvalidateDeployment();
-  return useConvexAction(api.deployment.file_actions.saveDeploymentSecret, {
+  return useBackendAction('deployment/file_actions:saveDeploymentSecret', {
     onSuccess: () => invalidate(),
   });
 }
 
 /** Probe a candidate data-store connection before saving. */
 export function useTestDeploymentConnection() {
-  return useConvexAction(api.deployment.file_actions.testDeploymentConnection);
-}
-
-/** Ask the opt-in controller sidecar to restart convex (one-click apply). */
-export function useRequestRestart() {
-  return useConvexAction(api.deployment.file_actions.requestRestart);
+  return useBackendAction('deployment/file_actions:testDeploymentConnection');
 }
 
 function useInvalidateOrgObjectStorage(organizationId: string) {
@@ -56,26 +50,26 @@ function useInvalidateOrgObjectStorage(organizationId: string) {
 /** Persist the org's object-storage connection (+ optional credentials sidecar). */
 export function useSaveOrgObjectStorageConnection(organizationId: string) {
   const invalidate = useInvalidateOrgObjectStorage(organizationId);
-  return useConvexAction(
-    api.object_storage.actions.saveObjectStorageConnection,
-    { onSuccess: () => invalidate() },
+  return useBackendAction(
+    'object_storage/actions:saveObjectStorageConnection',
+    {
+      onSuccess: () => invalidate(),
+    },
   );
 }
 
 /** Remove the org's object-storage connection (revert to deployment storage). */
 export function useDeleteOrgObjectStorageConnection(organizationId: string) {
   const invalidate = useInvalidateOrgObjectStorage(organizationId);
-  return useConvexAction(
-    api.object_storage.actions.deleteObjectStorageConnection,
+  return useBackendAction(
+    'object_storage/actions:deleteObjectStorageConnection',
     { onSuccess: () => invalidate() },
   );
 }
 
 /** Probe a candidate bucket with a real PUT+GET+DELETE round-trip. */
 export function useTestOrgObjectStorageConnection() {
-  return useConvexAction(
-    api.object_storage.actions.testObjectStorageConnection,
-  );
+  return useBackendAction('object_storage/actions:testObjectStorageConnection');
 }
 
 /**
@@ -84,8 +78,8 @@ export function useTestOrgObjectStorageConnection() {
  * `useObjectStorageBackfillStatus` query.
  */
 export function useStartObjectStorageBackfill() {
-  return useConvexAction(
-    api.object_storage.actions.startObjectStorageBlobBackfill,
+  return useBackendAction(
+    'object_storage/actions:startObjectStorageBlobBackfill',
   );
 }
 
@@ -100,7 +94,7 @@ function useInvalidateOrgKnowledge(organizationId: string) {
 /** Persist the org's knowledge-DB connection (+ optional password sidecar). */
 export function useSaveOrgKnowledgeConnection(organizationId: string) {
   const invalidate = useInvalidateOrgKnowledge(organizationId);
-  return useConvexAction(api.knowledge.actions.saveKnowledgeConnection, {
+  return useBackendAction('knowledge/actions:saveKnowledgeConnection', {
     onSuccess: () => invalidate(),
   });
 }
@@ -108,14 +102,14 @@ export function useSaveOrgKnowledgeConnection(organizationId: string) {
 /** Remove the org's knowledge-DB connection (revert to the deployment DB). */
 export function useDeleteOrgKnowledgeConnection(organizationId: string) {
   const invalidate = useInvalidateOrgKnowledge(organizationId);
-  return useConvexAction(api.knowledge.actions.deleteKnowledgeConnection, {
+  return useBackendAction('knowledge/actions:deleteKnowledgeConnection', {
     onSuccess: () => invalidate(),
   });
 }
 
 /** Probe a candidate knowledge Postgres (pgvector/ParadeDB availability). */
 export function useTestOrgKnowledgeConnection() {
-  return useConvexAction(api.knowledge.actions.testKnowledgeConnection);
+  return useBackendAction('knowledge/actions:testKnowledgeConnection');
 }
 
 function useInvalidateOrgEmbedding(organizationId: string) {
@@ -129,7 +123,7 @@ function useInvalidateOrgEmbedding(organizationId: string) {
 /** Persist the org's embedding model config. */
 export function useSaveOrgKnowledgeEmbedding(organizationId: string) {
   const invalidate = useInvalidateOrgEmbedding(organizationId);
-  return useConvexAction(api.knowledge.actions.saveKnowledgeEmbedding, {
+  return useBackendAction('knowledge/actions:saveKnowledgeEmbedding', {
     onSuccess: () => invalidate(),
   });
 }
@@ -137,7 +131,7 @@ export function useSaveOrgKnowledgeEmbedding(organizationId: string) {
 /** Remove the org's embedding config (knowledge search then refuses again). */
 export function useDeleteOrgKnowledgeEmbedding(organizationId: string) {
   const invalidate = useInvalidateOrgEmbedding(organizationId);
-  return useConvexAction(api.knowledge.actions.deleteKnowledgeEmbedding, {
+  return useBackendAction('knowledge/actions:deleteKnowledgeEmbedding', {
     onSuccess: () => invalidate(),
   });
 }

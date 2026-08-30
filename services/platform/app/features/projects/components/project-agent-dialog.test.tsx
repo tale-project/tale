@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 import type { ProjectAgentRow } from '../hooks/queries';
@@ -72,7 +71,7 @@ function renderDialog(agent: ProjectAgentRow) {
     <ProjectAgentDialog
       open
       onOpenChange={() => undefined}
-      projectId={'p1' as Id<'projects'>}
+      projectId={'p1' as string}
       organizationId="org-1"
       harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
       models={MODELS}

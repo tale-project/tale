@@ -1,8 +1,7 @@
-import { anyApi } from 'convex/server';
-
-import { rewriteStorageOrigin } from '../ctx';
-import { convexErrorCode } from '../errors';
+import { anyRefs } from '../../shared/handlers/function-refs';
+import { backendErrorCode } from '../errors';
 import { checkResourceLock } from '../locks';
+import { rewriteStorageOrigin } from '../paths';
 import {
   WEBDAV_MAX_PUT_BYTES,
   WebDAVBodyTooLarge,
@@ -49,7 +48,7 @@ export async function handlePut(
 
   // Pre-check existence to choose 201 vs 204 (RFC 4918 §9.7.1).
   const resolved = await ctx.convex.query(
-    anyApi.webdav.tree_queries.resolvePath,
+    anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
       namespace: parsed.namespace,
@@ -74,7 +73,7 @@ export async function handlePut(
       (ifNoneMatch !== null && ifNoneMatch.trim() !== '*'))
   ) {
     const props = await ctx.convex.query(
-      anyApi.webdav.tree_queries.getDocumentProps,
+      anyRefs.webdav.tree_queries.getDocumentProps,
       { organizationId: auth.organizationId, documentId: resolved.documentId },
     );
     if (props) resourceEtag = computeETag(props);
@@ -160,7 +159,7 @@ export async function handlePut(
   let uploadTarget: { url: string; method: 'POST' | 'PUT'; s3Ref?: string };
   if (declaredSize !== null) {
     const handoff: unknown = await ctx.convex.action(
-      anyApi.files.blob_actions.generateWebdavBlobUpload,
+      anyRefs.files.blob_actions.generateWebdavBlobUpload,
       { organizationId: auth.organizationId, contentType },
     );
     if (!isUploadHandoff(handoff)) {
@@ -173,7 +172,7 @@ export async function handlePut(
     uploadTarget = handoff;
   } else {
     const rawUploadUrl: unknown = await ctx.convex.mutation(
-      anyApi.webdav.tree_mutations.generateWebdavUploadUrl,
+      anyRefs.webdav.tree_mutations.generateWebdavUploadUrl,
       {},
     );
     if (typeof rawUploadUrl !== 'string') {
@@ -256,7 +255,7 @@ export async function handlePut(
 
   try {
     const result = await ctx.convex.mutation(
-      anyApi.webdav.tree_mutations.ingestPutBlob,
+      anyRefs.webdav.tree_mutations.ingestPutBlob,
       {
         organizationId: auth.organizationId,
         pathSegments: parsed.segments,
@@ -279,14 +278,14 @@ export async function handlePut(
     // sync-client race). Fire-and-forget — the client still gets the real
     // error below.
     void ctx.convex
-      .mutation(anyApi.webdav.tree_mutations.deleteWebdavBlob, {
+      .mutation(anyRefs.webdav.tree_mutations.deleteWebdavBlob, {
         storageId,
         organizationId: auth.organizationId,
       })
       .catch((e: unknown) =>
         console.warn('[webdav] PUT orphan-blob cleanup failed', e),
       );
-    const code = convexErrorCode(err);
+    const code = backendErrorCode(err);
     if (code === 'LEGAL_HOLD_ACTIVE') {
       // Overwrite of a held document — refuse. 403, not 423 (a legal hold is
       // not a client-clearable WebDAV lock). The orphan blob was reclaimed

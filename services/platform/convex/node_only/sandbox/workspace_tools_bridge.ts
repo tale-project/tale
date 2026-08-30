@@ -1,39 +1,5 @@
 'use node';
 
-/**
- * Server side of the in-sandbox WORKSPACE-TOOL bridge
- * (`tale-connectors-mcp` `workspace_tool`/`workspace_status` →
- * `/api/tools/{execute,status}`). The first-party counterpart of
- * `connectors_bridge.ts`: where that surface reaches the org's third-party
- * connectors, this one reaches the org's OWN platform data — knowledge and the
- * Documents hub — as read-only tools.
- *
- * Same discipline as the connector surface: whatever these actions return is
- * relayed verbatim to the external agent as the tool result, so every shape is
- * written FOR THE MODEL (structured status + guidance, never a bare throw).
- * Access is re-resolved per dispatch from what the token PROVES, never from
- * the request — BINDING FIRST, user fallback: a user-less task/automation
- * token acts with its deploy-time binding's authority (a project-bound run
- * inside its project + the org hub, an org-level automation run org-wide),
- * a user-keyed token reads as its user (active membership + the same role
- * matrix the user-side `queryWithRLS` reads enforce). The knowledge pair
- * resolves through `resolveKnowledgeToolAccess`, everything else through
- * `resolveSessionActionContext`.
- *
- * WRITE tools (the task family, `document_create`) exist since the per-agent
- * tool grants shipped: the GRANT is the authorization — write tools are in no
- * lane's baseline, they reach a turn only when a user explicitly equipped the
- * agent with them, and the async work lanes have no per-call approval card.
- * Every write lands through the domain's own internal mutations
- * (`workspace_domain_tools.ts`), so actor attribution, the task-ops
- * invariants (agents never set `done`), and the domain audit/event trail hold
- * exactly as they do for the automation engine's platform natives.
- *
- * `'use node'` because knowledge search binds an embedder (filesystem/network).
- */
-
-import { v } from 'convex/values';
-
 import {
   knowledgeScopeAllows,
   type KnowledgeAccessScope,
@@ -45,8 +11,6 @@ import {
   questionSetSchema,
   type QuestionSet,
 } from '../../../lib/shared/schemas/questions';
-import { internal } from '../../_generated/api';
-import { internalAction, type ActionCtx } from '../../_generated/server';
 import {
   FETCH_WINDOW_CHARS,
   fetchDocumentByFileId,
@@ -54,6 +18,8 @@ import {
   windowText,
 } from '../../knowledge/fetch';
 import { searchKnowledge } from '../../knowledge/search';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import { wrapUntrusted } from '../../lib/untrusted_content';
 import {
@@ -248,52 +214,47 @@ function isWorkspaceReadTool(tool: string): tool is WorkspaceReadTool {
  * has already authenticated the session token and checked the grant set; this
  * action owns tool-name validation and the org-scoped read as the turn's user.
  */
-export const dispatchWorkspaceTool = internalAction({
+/** The dispatch as a PLAIN exported function — the internalAction below
+ * wraps it, and the 0.5 backend's `/api/tools/execute` door calls it on the
+ * ctx shim (same pattern as `chat/turn_action.executeTurn`). */
+export async function dispatchWorkspaceToolImpl(
+  ctx: ActionCtx,
   args: {
-    organizationId: v.string(),
-    sessionId: v.string(),
-    /** The turn's user — absent on task/automation run tokens, whose tools
-     * (`ask_human`, the knowledge pair) resolve access from the session's
-     * binding instead. */
-    userId: v.optional(v.string()),
-    /** The per-turn gateway VK id off the session-token row (HTTP dispatch
-     * auth, never the request body) — `recordToolCall` resolves it to the
-     * exec it was minted for, pinning the audit row to one turn. */
-    mintedKeyId: v.optional(v.string()),
-    tool: v.string(),
-    callArgs: v.any(),
+    organizationId: string;
+    sessionId: string;
+    userId?: string;
+    mintedKeyId?: string;
+    tool: string;
+    callArgs: unknown;
   },
-  returns: v.any(),
-  handler: async (ctx, args): Promise<ToolResult> => {
-    const result = await runWorkspaceTool(ctx, args);
-    // Forensic trail: who/what/when/outcome + a sorted param-KEY fingerprint
-    // (never values). RAG tools additionally record the distinct knowledge
-    // refs the call served — the run's read-set for the provenance ledger.
-    // Auditability is a bridge requirement; a logging failure must not fail
-    // the call, so it's best-effort.
-    const knowledgeRefs = knowledgeRefsOf(args.tool, result);
-    await ctx
-      .runMutation(internal.sandbox.session_mutations.recordToolCall, {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        tool: args.tool,
-        userId: args.userId,
-        outcome: result.status,
-        paramsFingerprint: isRecord(args.callArgs)
-          ? Object.keys(args.callArgs).sort().join(',')
-          : '',
-        ...(knowledgeRefs !== undefined ? { knowledgeRefs } : {}),
-        ...(args.mintedKeyId !== undefined
-          ? { mintedKeyId: args.mintedKeyId }
-          : {}),
-      })
-      .catch((err: unknown) =>
-        console.warn('[workspace-tools] audit write failed:', err),
-      );
-    return result;
-  },
-});
-
+): Promise<ToolResult> {
+  const result = await runWorkspaceTool(ctx, args);
+  // Forensic trail: who/what/when/outcome + a sorted param-KEY fingerprint
+  // (never values). RAG tools additionally record the distinct knowledge
+  // refs the call served — the run's read-set for the provenance ledger.
+  // Auditability is a bridge requirement; a logging failure must not fail
+  // the call, so it's best-effort.
+  const knowledgeRefs = knowledgeRefsOf(args.tool, result);
+  await ctx
+    .runMutation(internal.sandbox.session_mutations.recordToolCall, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      tool: args.tool,
+      userId: args.userId,
+      outcome: result.status,
+      paramsFingerprint: isRecord(args.callArgs)
+        ? Object.keys(args.callArgs).sort().join(',')
+        : '',
+      ...(knowledgeRefs !== undefined ? { knowledgeRefs } : {}),
+      ...(args.mintedKeyId !== undefined
+        ? { mintedKeyId: args.mintedKeyId }
+        : {}),
+    })
+    .catch((err: unknown) =>
+      console.warn('[workspace-tools] audit write failed:', err),
+    );
+  return result;
+}
 /**
  * The knowledge REFS a successful RAG call served — durable document identity
  * (a file id, or a URL for a crawled page), never content or snippets.
@@ -981,22 +942,18 @@ async function runAskHuman(
  * relays. Grants come from the session token row (never the request), so the
  * listing is exactly what the turn was provisioned with.
  */
-export const workspaceToolStatus = internalAction({
-  args: { grants: v.array(v.string()) },
-  returns: v.any(),
-  handler: (_ctx, args) => {
-    if (args.grants.length === 0) {
-      return Promise.resolve({
-        tools: [],
-        note: 'No workspace tools are granted to this agent.',
-      });
-    }
-    return Promise.resolve({
-      tools: args.grants.map((name) => ({
-        name,
-        description: TOOL_DESCRIPTIONS[name] ?? 'A platform workspace tool.',
-        readOnly: !WRITE_TOOL_SET.has(name),
-      })),
-    });
-  },
-});
+export function workspaceToolStatusImpl(grants: readonly string[]): unknown {
+  if (grants.length === 0) {
+    return {
+      tools: [],
+      note: 'No workspace tools are granted to this agent.',
+    };
+  }
+  return {
+    tools: grants.map((name) => ({
+      name,
+      description: TOOL_DESCRIPTIONS[name] ?? 'A platform workspace tool.',
+      readOnly: !WRITE_TOOL_SET.has(name),
+    })),
+  };
+}

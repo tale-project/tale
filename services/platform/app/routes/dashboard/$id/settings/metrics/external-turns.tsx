@@ -10,7 +10,6 @@ import {
 import { ExternalTurnMetricsPage } from '@/app/features/analytics/external-turns/external-turns-metrics-page';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
-import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute(
   '/dashboard/$id/settings/metrics/external-turns',
@@ -20,7 +19,7 @@ export const Route = createFileRoute(
   loader: ({ context, params, deps }) =>
     ensureConvexQuery(
       context,
-      api.sandbox.session_queries_public.getExternalTurnMetrics,
+      'sandbox/session_queries_public:getExternalTurnMetrics',
       {
         organizationId: params.id,
         periodDays: parseMetricsPeriodDays(deps.period),

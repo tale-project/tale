@@ -32,7 +32,7 @@ export interface ConvexAuthState {
  *   WS authenticate (~830ms of blocked auth-gated queries in the epic's trace).
  * - With `initialToken` it rebuilds `fetchAccessToken` when the session
  *   resolves (keyed on session id, unknown at mount), which re-runs `setAuth`
- *   and flaps `useConvexAuth().isAuthenticated` — unmounting the whole
+ *   and flaps `useSessionUser().isAuthenticated` — unmounting the whole
  *   dashboard subtree mid-load.
  *
  * This hook instead:
@@ -52,7 +52,7 @@ export interface ConvexAuthState {
  *    in parallel instead of serially.
  *
  * Auth-gated queries still unlock only when the Convex BACKEND confirms a
- *    token (`useConvexAuth().isAuthenticated` — see `ConvexProviderWithAuth`);
+ *    token (`useSessionUser().isAuthenticated` — see `ConvexProviderWithAuth`);
  * this hook never fabricates that confirmation.
  */
 export function useAuthFromBetterAuth(): ConvexAuthState {

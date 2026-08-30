@@ -6,10 +6,11 @@
 #
 #   1. Source bind-mounts + the dev platform image (`build.target: dev`) — host
 #      edits reach the running stack without an image rebuild. The platform
-#      entrypoint (NODE_ENV=development; see docker-entrypoint.sh) runs two
-#      watchers: `vite build --watch` rebuilds the SPA so a browser refresh
-#      shows frontend (app/, lib/) changes, and `convex dev` re-pushes changed
-#      functions on every save. Opt out of both with TALE_DEV_HOT_RELOAD=0.
+#      entrypoint (NODE_ENV=development; see docker-entrypoint.sh) runs a
+#      `vite build --watch` watcher so a browser refresh shows frontend
+#      (app/, lib/) changes. Opt out with TALE_DEV_HOT_RELOAD=0. Backend
+#      changes still need an image rebuild — for a live backend loop use
+#      host `cd services/platform && bun dev`.
 #      NOTE: this is hard-refresh, not Vite HMR — no React Fast Refresh / state
 #      retention. For true HMR use host `cd services/platform && bun dev`.
 #   2. Insecure dev secret defaults (the `x-dev-secrets` anchor below) — so the
@@ -48,13 +49,10 @@ x-dev-secrets: &dev-secrets
   TLS_MODE: ${TLS_MODE:-selfsigned}
   DB_PASSWORD: ${DB_PASSWORD:-tale_dev_password}
   KNOWLEDGE_DB_NAME: ${KNOWLEDGE_DB_NAME:-tale_knowledge}
-  # MUST be a 64-char hex string: the convex container passes it to
-  # convex-local-backend as `--instance-secret` (hex-decoded), and the platform
-  # container hex-decodes it in generate-admin-key.sh — a non-hex value boots
-  # convex with "Couldn't hexdecode key: Odd number of digits". This is
-  # sha256("local-dev-insecure-secret"), so it stays tied to the same dev marker
-  # bun dev uses (where INSTANCE_SECRET is app-derivations-only — `bunx convex
-  # dev` mints its own admin key, so bun dev never hex-decodes it).
+  # The deployment marker every app-side key derivation hangs off. Pinned to
+  # sha256("local-dev-insecure-secret") so this stack and `bun dev` derive the
+  # SAME keys; the 64-char hex shape is kept from the retired Convex tier so an
+  # existing dev .env keeps working unchanged.
   INSTANCE_SECRET: ${INSTANCE_SECRET:-053357d69240558849ba1a091523807e06fe933d11346ab8127d5c0cd6743f64}
   # No container-side derivation for these two — must be supplied explicitly.
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-local-dev-better-auth-secret-do-not-use-in-prod-0123456789abcdef}
@@ -78,36 +76,39 @@ services:
     environment:
       <<: *dev-secrets
 
-  # Phase 2 (split): convex gets live source for hot-reloadable functions
-  # and the Dashboard, and owns the data volume. Platform mounts convex-data
-  # read-only for config watching + branding image serving only.
-  convex:
-    volumes:
-      - ./services/platform/convex:/app/convex
-      - convex-data:/app/data
-      - caddy-data:/caddy-data:ro
+  # The backend tier gets the dev secrets and runs with NODE_ENV=development
+  # (dev-only lanes gate on it).
+  # `bun dev` runs the backend on the HOST, so the blob store needs a
+  # published port — the internal `object-store:9000` address only exists
+  # inside the compose network. Same keys as the compose.yml dev defaults, so
+  # both local modes address one bucket.
+  object-store:
+    ports:
+      - '${OBJECT_STORE_HOST_PORT:-59000}:9000'
+
+  backend-api:
     environment:
       <<: *dev-secrets
-      RUST_LOG: debug
-      # NODE_ENV is read by Convex V8 functions at evaluation time; the
-      # `test_sandbox_e2e` action gates itself on this so production can't
-      # accidentally invoke the E2E harness. Dev compose explicitly opts in.
       NODE_ENV: development
 
-  # Dev-only bridge: the agent sandbox + session containers are on the
-  # `--internal` tale-sandbox-net (SSRF-locked) and `bun dev` runs convex on the
-  # HOST, so in-container code can't reach it. This socat relay is dual-homed
-  # (internal + sandbox), aliased `convex` on the sandbox net, forwarding BOTH
-  # :3211 (HTTP actions / connector bridge) AND :3210 (storage — the session
-  # daemon fetches staged file URLs from here) → the host-run convex. In prod the
-  # real convex container is dual-homed onto `sandbox` instead (compose.yml).
-  convex-relay:
+  backend-worker:
+    environment:
+      <<: *dev-secrets
+      NODE_ENV: development
+
+
+  # `bun dev` runs the backend on the HOST, but a sandbox session container
+  # sits on the --internal sandbox net with no host route and its undici fetch
+  # ignores the egress proxy — it can only reach hosts ON that network. This
+  # socat bridge carries the `backend-api` alias there and forwards to the
+  # host's api port, so the in-container tool + connector bridges reach the
+  # same doors they reach in production.
+  backend-relay:
     image: alpine/socat
     entrypoint: ['/bin/sh', '-c']
     command:
       - >-
-        socat TCP-LISTEN:3211,fork,reuseaddr TCP:host.docker.internal:3211 &
-        socat TCP-LISTEN:3210,fork,reuseaddr TCP:host.docker.internal:3210 &
+        socat TCP-LISTEN:3005,fork,reuseaddr TCP:host.docker.internal:3005 &
         wait
     extra_hosts:
       - 'host.docker.internal:host-gateway'
@@ -116,35 +117,31 @@ services:
       internal: {}
       sandbox:
         aliases:
-          - convex
+          - backend-api
 
   platform:
     # Build the dev image (Dockerfile `dev` stage): the unpruned builder with
     # vite + the rolldown bundler + full frontend source, so the entrypoint can
-    # run `vite build --watch` (frontend) and `convex dev` (functions) against
-    # the host source mounted below. The default (prod) target is a pruned
-    # runtime that has neither. See compose.yml for the base build config.
+    # run `vite build --watch` against the host source mounted below. The
+    # default (prod) target is a pruned runtime that has neither. See
+    # compose.yml for the base build config.
     build:
       target: dev
     volumes:
       # These mounts overlay the dev image's monorepo layout
-      # (/app/services/platform/*), so host edits reach the running watchers:
-      #   * app/ + lib/  → rebuilt into dist/ by `vite build --watch`; a browser
-      #                    refresh shows the change (hard reload, no HMR).
-      #   * convex/      → re-pushed to the convex service by `convex dev`.
-      # `vite build --watch`, `server.ts`, and the convex push all run from
-      # /app/services/platform, so no flat /app/convex mount is needed (the prod
-      # runner used one because it flattens everything into /app).
+      # (/app/services/platform/*), so host edits reach the running watcher:
+      # app/ + lib/ are rebuilt into dist/ by `vite build --watch`; a browser
+      # refresh shows the change (hard reload, no HMR).
       - ./services/platform/app:/app/services/platform/app
       - ./services/platform/lib:/app/services/platform/lib
-      - ./services/platform/convex:/app/services/platform/convex
+      # The org config store. The volume name predates the Convex retirement
+      # and is kept so no operator has to migrate one (see compose.yml).
       - convex-data:/app/data:ro
     environment:
       <<: *dev-secrets
       NODE_ENV: development
-      # Master switch for BOTH hot-reload watchers (frontend build + convex
-      # push), default on in dev. Set to 0 to fall back to the one-shot boot
-      # deploy and the static prebuilt dist/ only.
+      # Master switch for the frontend hot-reload watcher, default on in dev.
+      # Set to 0 to serve the static prebuilt dist/ only.
       TALE_DEV_HOT_RELOAD: ${TALE_DEV_HOT_RELOAD:-1}
       # Auto-seed a ready-to-log-in dev account on boot (default on in this
       # dev overlay only): dev@tale.test / TaleDev!Passw0rd owning a
@@ -152,10 +149,11 @@ services:
       # pass before testing. Set TALE_DEV_SEED_USER=0 to opt out (the /setup
       # wizard then appears as before); override the identity via
       # TALE_DEV_SEED_USER_EMAIL / TALE_DEV_SEED_USER_PASSWORD. The seeder
-      # (services/platform/convex/provisioning/seed_dev_user.ts) additionally
-      # refuses to run when SITE_URL is not a loopback host, so an accidental
-      # carry-over into a reachable deployment stays inert. Never used by
-      # `tale deploy` (production ignores this overlay).
+      # (services/platform/backend/domains/provisioning/dev-seed.ts, run from
+      # the backend boot sequence) additionally refuses to run when SITE_URL is
+      # not a loopback host, so an accidental carry-over into a reachable
+      # deployment stays inert. Never used by `tale deploy` (production ignores
+      # this overlay).
       TALE_DEV_SEED_USER: ${TALE_DEV_SEED_USER:-1}
 
   docs:
@@ -173,14 +171,13 @@ services:
       <<: *dev-secrets
       CADDY_DEBUG: 'true'
 
-  # Sandbox-wobbly-origami plan §4: when developers run Convex on the host
-  # (e.g. `cd services/platform && bun dev` instead of the dockerized
-  # `convex` service), the spawner container needs to reach
-  # http://host.docker.internal:3210 for the EP1/EP2 callbacks. Linux
-  # Docker doesn't add this DNS alias by default; the line below opts in.
+  # When the backend runs on the HOST (`cd services/platform && bun dev`
+  # instead of the dockerized `backend-api` service), the spawner container
+  # needs to reach http://host.docker.internal:3005 for the EP1/EP2 callbacks.
+  # Linux Docker doesn't add this DNS alias by default; the line below opts in.
   # In that bun-dev setup, also set in `services/platform/.env.local`:
-  #   SANDBOX_STORAGE_INTERNAL_BASE_URL=http://host.docker.internal:3210
-  # The dockerized convex path uses `http://proxy` from compose.yml.
+  #   SANDBOX_STORAGE_INTERNAL_BASE_URL=http://host.docker.internal:3005
+  # The dockerized backend path uses `http://proxy` from compose.yml.
   sandbox:
     extra_hosts:
       - 'host.docker.internal:host-gateway'

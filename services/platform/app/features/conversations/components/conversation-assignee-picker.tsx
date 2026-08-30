@@ -14,7 +14,6 @@ import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { toast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -203,7 +202,7 @@ export function ConversationAssigneePicker({
       onError: () =>
         toast({ title: t('header.assignError'), variant: 'destructive' }),
     };
-    const conversationId = toId<'conversations'>(conversation._id);
+    const conversationId = conversation._id;
 
     if (value === UNASSIGN_USER) {
       if (!assigneeUserId) return;

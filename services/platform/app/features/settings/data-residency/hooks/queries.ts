@@ -1,12 +1,11 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
 /**
  * Read hooks for the unified data-residency page. Both reads are Convex
  * ACTIONS (they read config off disk — the deployment config file and the
  * per-org JSON connection files), so they go through `useActionQuery` rather
- * than `useConvexQuery`.
+ * than `useBackendQuery`.
  *
  * Read the deployment-level config + masked secret presence + the per-caller
  * `canEdit` flag. Deployment-scoped (no org arg). The read is open to any
@@ -20,7 +19,7 @@ import { api } from '@/convex/_generated/api';
 export function useReadDeploymentConfig(options?: { enabled?: boolean }) {
   return useActionQuery(
     ['config', 'deployment'],
-    api.deployment.file_actions.readDeploymentConfig,
+    'deployment/file_actions:readDeploymentConfig',
     {},
     options,
   );
@@ -30,7 +29,7 @@ export function useReadDeploymentConfig(options?: { enabled?: boolean }) {
 export function useOrgObjectStorageConnection(organizationId: string) {
   return useActionQuery(
     ['config', 'org-object-storage', organizationId],
-    api.object_storage.actions.getObjectStorageConnection,
+    'object_storage/actions:getObjectStorageConnection',
     { organizationId },
   );
 }
@@ -39,7 +38,7 @@ export function useOrgObjectStorageConnection(organizationId: string) {
 export function useOrgKnowledgeConnection(organizationId: string) {
   return useActionQuery(
     ['config', 'org-knowledge', organizationId],
-    api.knowledge.actions.getKnowledgeConnection,
+    'knowledge/actions:getKnowledgeConnection',
     { organizationId },
   );
 }
@@ -48,7 +47,7 @@ export function useOrgKnowledgeConnection(organizationId: string) {
 export function useOrgKnowledgeEmbedding(organizationId: string) {
   return useActionQuery(
     ['config', 'org-embedding', organizationId],
-    api.knowledge.actions.getKnowledgeEmbedding,
+    'knowledge/actions:getKnowledgeEmbedding',
     { organizationId },
   );
 }
@@ -65,7 +64,7 @@ export function useEmbeddingRecommendations(
 ) {
   return useActionQuery(
     ['config', 'org-embedding-recommendations', organizationId],
-    api.knowledge.recommendations.listEmbeddingRecommendations,
+    'knowledge/recommendations:listEmbeddingRecommendations',
     { organizationId },
     options,
   );
@@ -81,8 +80,8 @@ export function useObjectStorageBackfillStatus(
   organizationId: string,
   canView: boolean,
 ) {
-  return useConvexQuery(
-    api.object_storage.backfill_queries.getObjectStorageBackfillStatus,
+  return useBackendQuery(
+    'object_storage/backfill_queries:getObjectStorageBackfillStatus',
     canView ? { organizationId } : 'skip',
   );
 }

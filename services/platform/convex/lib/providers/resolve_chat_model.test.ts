@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ModelCatalogEntry } from '../../../lib/shared/schemas/providers';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../ctx';
 import { walkChatCatalog, type ChatCatalogHit } from './chat_catalog';
 import { resolveChatModel } from './resolve_chat_model';
 

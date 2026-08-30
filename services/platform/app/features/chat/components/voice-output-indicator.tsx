@@ -74,6 +74,9 @@ export function VoiceOutputIndicator(props: VoiceOutputIndicatorProps) {
     enabled: props.enabled,
     messageId: props.messageId,
     threadId: props.threadId,
+    ...(props.organizationId !== undefined
+      ? { organizationId: props.organizationId }
+      : {}),
     isStreaming: props.isStreaming,
   });
 

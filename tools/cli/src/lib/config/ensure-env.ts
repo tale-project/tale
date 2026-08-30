@@ -302,7 +302,7 @@ export async function ensureEnv(
       'INSTANCE_SECRET',
       'DB_PASSWORD',
       'SOPS_AGE_KEY',
-      // Shared HMAC secret for Convex → sandbox spawner. Generated as
+      // Shared HMAC secret for the backend → sandbox spawner. Generated as
       // 32 random bytes (hex); see services/sandbox/src/auth.ts.
       'SANDBOX_TOKEN',
       // HMAC key that signs audit-log retention/scrub checkpoints, making the
@@ -310,7 +310,7 @@ export async function ensureEnv(
       // control is ON by default and STABLE across deploys — a missing or
       // changing key is what makes the daily integrity cron raise a scary
       // "Audit log integrity check failed" alert on an otherwise-clean stack.
-      // See convex/audit_logs/{internal_mutations,verify_integrity}.ts.
+      // See services/platform/backend/domains/audit_logs/.
       'TALE_AUDIT_SIGNING_KEY',
       // Admin password for the sandbox LLM gateway's management API (the platform
       // pushes provider keys / mints virtual keys through it). Auto-generated
@@ -318,6 +318,12 @@ export async function ensureEnv(
       // across deploys; the matching SANDBOX_LLM_GATEWAY_ADMIN_USERNAME=admin is a
       // static line written by generateEnvContent.
       'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
+      // Root credential for the bundled object store — the deployment's blob
+      // backend, and the only one there is (S3-compatible storage replaced
+      // Convex `_storage`). Auto-generated so uploads work out of the box and
+      // the credential is STABLE across deploys: rotating it would orphan
+      // every blob already written under the old key.
+      'OBJECT_STORE_SECRET_KEY',
     ];
     const missingUser = requiredUserVars.filter((v) => !existing[v]);
     const missingAuto = requiredAutoVars.filter((v) => !existing[v]);
@@ -381,6 +387,7 @@ async function runHeadlessAutoSecretFill(
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
+    OBJECT_STORE_SECRET_KEY: generatePassword,
   };
 
   const updates: Record<string, string> = {};
@@ -506,6 +513,7 @@ async function runPartialEnvSetup(
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
+    OBJECT_STORE_SECRET_KEY: generatePassword,
   };
 
   let generatedCount = 0;
@@ -576,6 +584,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     sandboxToken: generateHexSecret(),
     auditSigningKey: generateHexSecret(),
     llmGatewayAdminPassword: generatePassword(),
+    objectStoreSecretKey: generatePassword(),
   });
 
   await writeFile(envPath, envContent, 'utf-8');
@@ -599,6 +608,7 @@ interface EnvConfig {
   sandboxToken: string;
   auditSigningKey: string;
   llmGatewayAdminPassword: string;
+  objectStoreSecretKey: string;
 }
 
 function generateEnvContent(config: EnvConfig): string {
@@ -669,7 +679,7 @@ function generateEnvContent(config: EnvConfig): string {
     '# ============================================================================',
     '# Sandbox (artifact_run) Configuration',
     '# ============================================================================',
-    '# Shared HMAC secret. Convex signs every request to the sandbox spawner',
+    '# Shared HMAC secret. The backend signs every request to the spawner',
     '# with this; the spawner rejects unsigned/wrong-signed requests. Rotate',
     '# by setting a new value and restarting both `platform` and `sandbox`.',
     `SANDBOX_TOKEN=${config.sandboxToken}`,
@@ -678,7 +688,7 @@ function generateEnvContent(config: EnvConfig): string {
     '# (TALE_BROWSER_CDP) and the platform attaches Playwright MCP over CDP, so',
     "# the agent's browser is streamed read-only into the web page.",
     '# ONE value drives BOTH sides: the sandbox spawner reads it directly and the',
-    '# platform entrypoint pushes it to Convex (run_external_agent gates on it),',
+    '# backend reads it from its environment (agent runs gate on it),',
     '# so they stay in lockstep. Set to 0 to opt out — the agent then uses a',
     '# headless browser, just with no live preview.',
     '# SANDBOX_BROWSER_VIEW=0',
@@ -709,6 +719,21 @@ function generateEnvContent(config: EnvConfig): string {
     '# across deploys (a changed password locks the platform out of the gateway).',
     'SANDBOX_LLM_GATEWAY_ADMIN_USERNAME=admin',
     `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=${config.llmGatewayAdminPassword}`,
+    '',
+    '# ============================================================================',
+    "# Object store (the deployment's blob backend)",
+    '# ============================================================================',
+    '# Uploaded documents, chat attachments, audio and generated media live in',
+    '# the bundled S3-compatible store — it is the ONLY blob backend, so a',
+    '# deployment without it refuses every upload. An organization can point its',
+    '# own blobs at an external bucket in Settings > Data residency; that is',
+    '# resolved BEFORE this default and is unaffected by these values.',
+    '#   - The key must stay STABLE across deploys: rotating it orphans every',
+    '#     blob already written under the old credential.',
+    '#   - OBJECT_STORE_BUCKET defaults to tale-blobs and is created on first boot.',
+    'OBJECT_STORE_ACCESS_KEY=tale',
+    `OBJECT_STORE_SECRET_KEY=${config.objectStoreSecretKey}`,
+    '# OBJECT_STORE_BUCKET=tale-blobs',
     '# Container runtime for spawned sandbox containers. `runc` (default) is',
     '# plain Docker; `runsc` is gVisor (requires `runsc` installed on the',
     '# host and registered with dockerd). gVisor provides',

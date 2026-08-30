@@ -1,7 +1,7 @@
-import { internal } from '../../_generated/api';
-import type { Id } from '../../_generated/dataModel';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
 import { createDebugLog } from '../../lib/debug_log';
+import { internal } from '../../lib/handler_names';
+import type { Id } from '../../lib/rows';
 import { emailDomain, sameMailboxAliasDomain } from '../reply_from';
 import { addMessageToConversation } from './add_message_to_conversation';
 import { buildConversationMetadata } from './build_conversation_metadata';

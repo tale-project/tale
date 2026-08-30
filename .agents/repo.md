@@ -9,8 +9,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 ## Layout
 
 - `services/` — deployable units: `platform` (the flagship app: Vite + React 19 + TanStack Router +
-  Convex), `web` (marketing site), `docs` (docs site), plus `convex`, `db`, `proxy`, `controller`,
-  and the `sandbox*` family.
+  the Postgres backend), `web` (marketing site), `docs` (docs site), plus `db`, `proxy`, and the
+  `sandbox*` family.
 - `packages/` — `ui` (the design system), `shared` (schemas + pg), `e2e` (Playwright config
   factory).
 - `tools/` — `cli` (`@tale/cli`), `plop` (generators), `opengrep` (SAST gate).

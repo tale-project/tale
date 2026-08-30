@@ -2,7 +2,6 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 // The mention machinery is a separate concern with its own tests, and it talks
@@ -62,9 +61,9 @@ function renderField(
 ) {
   const field = (next: string) => (
     <EditableDescription
-      taskId={'task_1' as Id<'tasks'>}
+      taskId={'task_1' as string}
       organizationId="org_1"
-      projectId={'project_1' as Id<'projects'>}
+      projectId={'project_1' as string}
       value={next}
       label="Description"
       placeholder="Add a description…"

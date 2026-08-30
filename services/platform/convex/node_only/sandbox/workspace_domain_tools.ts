@@ -16,13 +16,12 @@
  * domain's full audit/event trail via the internal mutation it calls.
  */
 
-import { ConvexError } from 'convex/values';
-
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { extractExtension } from '../../../lib/shared/file-types';
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
-import { internal } from '../../_generated/api';
-import type { Doc, Id } from '../../_generated/dataModel';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
+import type { Doc, Id } from '../../lib/rows';
 import {
   isRecord,
   readBoolean,
@@ -102,13 +101,13 @@ function readLabels(raw: unknown): string[] | undefined {
 
 /**
  * Map a failed domain call to a structured result the model can act on. The
- * internal mutations refuse with coded `ConvexError`s (TASK_NOT_FOUND,
+ * internal mutations refuse with coded `AppError`s (TASK_NOT_FOUND,
  * TASK_TITLE_INVALID, …); anything else (a Convex arg-validator rejection of
  * a malformed id, a transient failure) reads as its message, truncated —
  * these carry validator prose, never secrets.
  */
 function toolResultFromError(error: unknown): ToolResult {
-  if (error instanceof ConvexError) {
+  if (error instanceof AppError) {
     const data: unknown = error.data;
     const code =
       isRecord(data) && typeof data.code === 'string' ? data.code : 'REFUSED';
@@ -185,7 +184,7 @@ async function projectLabelsById(
     { organizationId, projectIds: unique },
   );
   return new Map(
-    labels.map((row) => [
+    labels.map((row: { id: string; name: string; key?: string }) => [
       row.id,
       row.key !== undefined
         ? { name: row.name, key: row.key }
@@ -194,10 +193,8 @@ async function projectLabelsById(
   );
 }
 
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ids are data from the run's own scope; a wrong id fails the callee's validator/org check and reads as a structured refusal
-const asTaskId = (raw: string): Id<'tasks'> => raw as Id<'tasks'>;
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same contract as asTaskId
-const asProjectId = (raw: string): Id<'projects'> => raw as Id<'projects'>;
+const asTaskId = (raw: string): Id<'tasks'> => raw;
+const asProjectId = (raw: string): Id<'projects'> => raw;
 
 /**
  * Resolve the project a task WRITE/list targets from the session's authority:
@@ -349,12 +346,12 @@ export async function runTaskTool(
       const projectsById = await projectLabelsById(
         ctx,
         organizationId,
-        sliced.map((task) => String(task.projectId)),
+        sliced.map((task: Doc<'tasks'>) => String(task.projectId)),
       );
       return {
         status: 'ok',
         output: {
-          tasks: sliced.map((task) =>
+          tasks: sliced.map((task: Doc<'tasks'>) =>
             compactTask(task, projectsById.get(String(task.projectId)) ?? null),
           ),
           totalFound: rows.length,

@@ -22,7 +22,6 @@ import {
   useMyNotificationsList,
   useUnreadNotificationCount,
 } from '@/app/features/inbox/hooks/queries';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { isActionableNotificationType } from '@/lib/shared/attention';
 import { cn } from '@/lib/utils/cn';
@@ -126,7 +125,7 @@ export function NotificationListPanel({
   const markAllMyRead = useMarkAllMyNotificationsRead();
 
   const handleMarkRead = useCallback(
-    (notificationId: Id<'notifications'>) => {
+    (notificationId: string) => {
       setHiddenIds((prev) => {
         const next = new Set(prev);
         next.add(notificationId);
@@ -138,7 +137,7 @@ export function NotificationListPanel({
   );
 
   const handleMarkMyRead = useCallback(
-    (notificationId: Id<'userNotifications'>) => {
+    (notificationId: string) => {
       setHiddenIds((prev) => {
         const next = new Set(prev);
         next.add(notificationId);

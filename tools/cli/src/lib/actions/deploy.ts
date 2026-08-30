@@ -37,7 +37,11 @@ import { getNextColor } from '../state/get-next-color';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
-import { drainConvex, endDrainConvex } from './drain-convex';
+import {
+  backendApiContainer,
+  drainBackend,
+  endDrainBackend,
+} from './drain-backend';
 import { drainSandbox } from './drain-sandbox';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 
@@ -210,8 +214,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
         statefulToUpdate = services.filter(isStatefulService);
       } else {
         // Default deploy uses the three-tier policy (see select-services.ts):
-        // rotatable (platform) blue-green; the always-roll tier (convex,
-        // sandbox-llm-gateway, sandbox, sandbox-egress) rolls in-place via the
+        // rotatable (platform) blue-green; the always-roll tier (backend-api,
+        // backend-worker, sandbox-llm-gateway, sandbox, sandbox-egress) rolls
+        // in-place via the
         // stateful compose (sandbox drained first via /v1/drain); stop-gated
         // (db, proxy) only when stopped / first deploy / --stop, else left
         // running with a hint.
@@ -269,7 +274,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
       // Pull all required images first. The sandbox tier (sandbox +
       // sandbox-egress) is now a stateful always-roll singleton, so its images
-      // are pulled here via statefulToUpdate like convex — no special-casing.
+      // are pulled here via statefulToUpdate like the rest — no special-casing.
       logger.step(`${prefix}Pulling images...`);
       const imagesToPull = [
         ...rotatableToUpdate.map(
@@ -392,25 +397,20 @@ export async function deploy(options: DeployOptions): Promise<void> {
           hostAlias,
         );
 
-        // The opt-in controller sidecar is emitted into the stateful compose
-        // only when CONTROLLER_TOKEN is set. It is brought up SEPARATELY from the
-        // core services (below) so a controller image/start problem can never
-        // block db/proxy/convex.
-        const controllerEnabled = Boolean(process.env.CONTROLLER_TOKEN);
-
-        // Will this deploy actually recreate convex? `docker compose up -d` is a
-        // no-op when the image + config are unchanged, so only drain in-flight
-        // chat generation when convex's image version is changing (or a forced
-        // recreate). Draining a no-op deploy would refuse chats for nothing.
-        const convexWillRecreate =
+        // Will this deploy actually recreate the backend? `docker compose up
+        // -d` is a no-op when the image + config are unchanged, so only drain
+        // in-flight turns when its image version is changing (or a forced
+        // recreate) — draining a no-op deploy would refuse chats for nothing.
+        // It ships the platform image, so a version change recreates it and
+        // cuts the turns its api container is streaming.
+        const backendWillRecreate =
           !isFirstDeploy &&
-          statefulToUpdate.includes('convex') &&
+          statefulToUpdate.includes('backend-api') &&
           (Boolean(options.forceRecreate) ||
-            (await getContainerVersion(`${getProjectId()}-convex`)) !==
-              version);
+            (await getContainerVersion(backendApiContainer())) !== version);
 
         // Will this deploy actually recreate the sandbox spawner? Same logic as
-        // convex: drain in-flight one-shot executions only when the single
+        // the backend tier: drain in-flight one-shot executions only when the single
         // sandbox container's image version is changing (or a forced recreate),
         // so a no-op deploy doesn't refuse executions for nothing.
         const sandboxWillRecreate =
@@ -421,8 +421,8 @@ export async function deploy(options: DeployOptions): Promise<void> {
               version);
 
         if (dryRun) {
-          if (convexWillRecreate) {
-            await drainConvex({ dryRun: true });
+          if (backendWillRecreate) {
+            await drainBackend({ dryRun: true });
           }
           if (sandboxWillRecreate) {
             await drainSandbox({ dryRun: true });
@@ -430,20 +430,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
           for (const service of statefulToUpdate) {
             logger.info(`${prefix}Would deploy stateful service: ${service}`);
           }
-          if (controllerEnabled) {
-            logger.info(
-              `${prefix}Would deploy controller sidecar (separate, non-blocking)`,
-            );
-          }
           logger.info(
             `${prefix}Would deploy bgutil-provider sidecar (separate, non-blocking)`,
           );
         } else {
-          // Drain in-flight chat generations before the in-place recreate kills
-          // them. Best-effort (see drain-convex.ts); the recovery watchdog
-          // finalizes anything that outlasts the drain budget.
-          if (convexWillRecreate) {
-            await drainConvex({ dryRun: false });
+          // Drain in-flight chat generations before the in-place recreate
+          // kills them. Best-effort (see drain-backend.ts); the recovery
+          // watchdog finalizes anything that outlasts the drain budget.
+          if (backendWillRecreate) {
+            await drainBackend({ dryRun: false });
           }
 
           // Drain in-flight sandbox executions before the single spawner is
@@ -490,50 +485,16 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
           }
 
-          // Convex is back and healthy — lift the drain flag so new chat turns
-          // are accepted again. Best-effort; the backend's auto-expiry clears it
-          // anyway if this fails (see drain-convex.ts).
-          if (convexWillRecreate) {
-            await endDrainConvex();
+          // The backend is back and healthy — lift the drain flag so new
+          // turns are accepted again. Best-effort; its auto-expiry clears the
+          // flag anyway if this fails (see drain-backend.ts).
+          if (backendWillRecreate) {
+            await endDrainBackend();
           }
 
-          // The controller is a non-critical opt-in sidecar. Bring it up in its
-          // OWN `up -d` only after the core services are healthy, and treat any
-          // failure (e.g. the image isn't published/pulled yet) as a warning —
-          // never fail the deploy of the core services over it.
-          if (controllerEnabled) {
-            const up = await dockerCompose(
-              statefulCompose,
-              [
-                'up',
-                '-d',
-                ...(options.forceRecreate ? ['--force-recreate'] : []),
-                'controller',
-              ],
-              { projectName: getProjectId(), cwd: env.DEPLOY_DIR },
-            );
-            if (!up.success) {
-              logger.warn(
-                `${prefix}Controller sidecar did not start (one-click "Apply & restart" may be unavailable): ${up.stderr.trim().slice(0, 300) || 'no stderr captured'}`,
-              );
-            } else {
-              startedContainers.push(`${getProjectId()}-controller`);
-              const containerName = `${getProjectId()}-controller`;
-              const healthy = await waitForHealthy(containerName, {
-                timeout: env.HEALTH_CHECK_TIMEOUT,
-                streamLogs,
-              });
-              if (!healthy) {
-                logger.warn(
-                  `${prefix}Controller sidecar did not become healthy; one-click "Apply & restart" may be unavailable until it recovers.`,
-                );
-              }
-            }
-          }
-
-          // bgutil PO-token provider — brought up SEPARATELY and best-effort,
-          // like the controller above. It's a third-party image (not a
-          // `tale-*` build in the always-roll tier), so a pull/start failure
+          // bgutil PO-token provider — brought up SEPARATELY and best-effort
+          // after the core services are healthy. It's a third-party image (not
+          // a `tale-*` build in the always-roll tier), so a pull/start failure
           // must never fail the core deploy, and YouTube ingestion degrades
           // gracefully (no PO token) if it never starts. Always attempted —
           // it's the zero-config path, not opt-in.
@@ -804,9 +765,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
         logger.info(`${prefix}Services updated to version ${version}.`);
       }
 
-      // Sync project files to the convex container (owns convex-data volume rw)
+      // Sync project files to the backend api container — the tier that
+      // mounts the org config store (the `convex-data` volume, so named since
+      // before the Convex retirement) read-WRITE.
       await syncProjectFiles(
-        `${getProjectId()}-convex`,
+        backendApiContainer(),
         env.DEPLOY_DIR,
         dryRun,
         prefix,
@@ -814,9 +777,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
         options.override ?? false,
       );
 
-      // After deploy + optional host-push, trigger server-side reseed of
-      // builtin catalog into every org. Runs against the platform container
-      // (which holds the convex function source + admin key derivation).
+      // After deploy + optional host-push, trigger the server-side reseed of
+      // the builtin catalog into every org, through the backend's control
+      // door.
       if (options.overrideAll) {
         await reseedAllOrgsFromBuiltin({
           dryRun,

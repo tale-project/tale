@@ -15,7 +15,7 @@ import { NotificationListPanel } from './notification-list-panel';
 // pending / pagination / unread state it needs.
 
 // --- Mutations -------------------------------------------------------------
-// The two "mark all read" mutations live in separate `useConvexMutation`
+// The two "mark all read" mutations live in separate `useBackendMutation`
 // instances (org stream vs. personal stream), so their `isPending` flags are
 // independent. The bug (#2019) was that the button only guarded the org
 // stream, so it could re-enable mid-flight while the personal stream was still

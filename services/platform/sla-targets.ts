@@ -6,9 +6,9 @@
  *   dialog_ttft     interactive chat / dialog input — mean ~1 s
  *   long_operation  long-running work (evaluations) — mean ~40 s
  *
- * The measurement primitives already exist (Convex function-execution
- * histograms on `/metrics/convex`, TTFT metadata, cold-load tracing). What was
- * missing — and what this module adds — is the SLA layer on top of them:
+ * The measurement primitives already exist (the backend's request histograms
+ * on `/metrics/backend`, TTFT metadata, cold-load tracing). What was missing —
+ * and what this module adds — is the SLA layer on top of them:
  *
  *   1. The targets themselves, defined once here so code, dashboards, alert
  *      rules and docs cannot drift.
@@ -24,9 +24,9 @@
  *
  * The `metric` field names the latency histogram each budget is measured
  * against. It defaults to a `tale_*_seconds` series the operator produces from
- * their backend's Convex function-execution histogram (a relabel/recording
- * step documented in the observability guide), so the SLA aggregation stays
- * correct regardless of the exact built-in series a given Convex version emits.
+ * the backend's request-duration histogram (a relabel/recording step
+ * documented in the observability guide), so the SLA aggregation stays correct
+ * regardless of the exact built-in series the backend emits.
  */
 
 import * as client from 'prom-client';

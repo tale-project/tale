@@ -1,4 +1,3 @@
-import { convexQuery } from '@convex-dev/react-query';
 import {
   createFileRoute,
   Outlet,
@@ -7,7 +6,7 @@ import {
 } from '@tanstack/react-router';
 
 import { ChatSurface } from '@/app/features/chat/components/chat-surface';
-import { api } from '@/convex/_generated/api';
+import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
 import { seo } from '@/lib/utils/seo';
 
 /**
@@ -32,20 +31,20 @@ export const Route = createFileRoute('/dashboard/$id/chat')({
   // prefetches with `includeArchived`, which is a different query identity
   // that the seam's watch would miss.
   loader: ({ context, params }) => {
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.chat.threads.listThreads, { organizationId: params.id }),
-    );
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.projects.queries.listProjects, {
-        organizationId: params.id,
-      }),
-    );
+    prefetchAdaptedQuery(context.queryClient, 'chat/threads:listThreads', {
+      organizationId: params.id,
+    });
+    prefetchAdaptedQuery(context.queryClient, 'projects/queries:listProjects', {
+      organizationId: params.id,
+    });
     // The sticky model pick: warm so the composer seeds its model on first
     // paint instead of one round-trip later.
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.user_preferences.queries.getMyPreferences, {
+    prefetchAdaptedQuery(
+      context.queryClient,
+      'user_preferences/queries:getMyPreferences',
+      {
         organizationId: params.id,
-      }),
+      },
     );
   },
   component: ChatSectionRoute,

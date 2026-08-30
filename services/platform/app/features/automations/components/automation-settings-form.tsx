@@ -6,7 +6,6 @@ import { Text } from '@tale/ui/text';
 import { useEffect, useState } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
   type AutomationSettings,
@@ -41,7 +40,7 @@ export function AutomationSettingsForm({
   onSavingChange,
 }: {
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   settings: AutomationSettings;
   /** Resolved target folder (see `resolveSettingsFolder`). */
   folder: string;

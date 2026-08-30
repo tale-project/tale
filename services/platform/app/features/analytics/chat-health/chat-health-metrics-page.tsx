@@ -11,7 +11,6 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
-import type { FunctionReturnType } from 'convex/server';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback } from 'react';
 
@@ -23,22 +22,18 @@ import {
 import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { MetricsSection } from '@/app/components/metrics/metrics-section';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
-import { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
 import { type ChatHealthPeriod, periodToDays } from './chat-health-period';
 
 export type { ChatHealthPeriod } from './chat-health-period';
 
-type ChatHealthData = FunctionReturnType<
-  typeof api.chat.messages.getOrgChatHealth
->;
-type GuardrailStats = FunctionReturnType<
-  typeof api.chat_filter_events.queries.getGuardrailStats
->;
+type ChatHealthData = ReturnsOf<'chat/messages:getOrgChatHealth'>;
+type GuardrailStats = ReturnsOf<'chat_filter_events/queries:getGuardrailStats'>;
 
 // Sentinel mirrored from `convex/chat/messages.ts:getOrgChatHealth` — the
 // frontend re-declares it rather than importing a runtime value across the
@@ -577,16 +572,16 @@ export function ChatHealthMetricsPage({
     data: health,
     isLoading: healthLoading,
     error,
-  } = useConvexQuery(
-    api.chat.messages.getOrgChatHealth,
+  } = useBackendQuery(
+    'chat/messages:getOrgChatHealth',
     { organizationId, periodDays },
     { enabled: !!organizationId },
   );
   // Both queries sit behind the same admin gate, so a denial fails them
   // together; a lone guardrails hiccup degrades to an empty section instead of
   // failing the page.
-  const { data: guardrails, isLoading: guardrailsLoading } = useConvexQuery(
-    api.chat_filter_events.queries.getGuardrailStats,
+  const { data: guardrails, isLoading: guardrailsLoading } = useBackendQuery(
+    'chat_filter_events/queries:getGuardrailStats',
     { organizationId, periodDays },
     { enabled: !!organizationId },
   );

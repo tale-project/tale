@@ -1,6 +1,4 @@
-import type { FunctionReturnType } from 'convex/server';
-
-import { api } from '@/convex/_generated/api';
+import type { ItemOf } from '@/app/lib/backend/contract';
 import { nodeTypes } from '@/lib/engine/core/slots';
 
 /**
@@ -23,12 +21,10 @@ import { nodeTypes } from '@/lib/engine/core/slots';
  * connector action. An action: reading the connector catalog needs the
  * deployment's config tree.
  */
-export const listNodeTypesRef = api.automations.catalog.listNodeTypes;
+export const listNodeTypesRef = 'automations/catalog:listNodeTypes';
 
 /** One node type as the editor needs it — the server's own return shape. */
-export type NodeTypeSummary = FunctionReturnType<
-  typeof listNodeTypesRef
->[number];
+export type NodeTypeSummary = ItemOf<typeof listNodeTypesRef>;
 
 /** The core node types, read from the engine's own registry so the editor
  * never carries a hand-written copy of the node grammar. */

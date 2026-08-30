@@ -12,7 +12,6 @@ import { useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { CancelDialog } from './cancel-dialog';
@@ -25,7 +24,7 @@ import { StatusBadge } from './status-badge';
 
 interface RequestDetailDrawerProps {
   organizationId: string;
-  requestId: Id<'gdprErasureRequests'>;
+  requestId: string;
   open: boolean;
   onClose: () => void;
 }

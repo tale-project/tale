@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
   _resetStatusProbeCache,
-  _setNodeLaneProbeForTests,
   buildStatusFeed,
   type ComponentResult,
   probeServices,
@@ -21,22 +20,22 @@ function downResponse() {
   return new Response('boom', { status: 503 });
 }
 
-// RAG + crawler now run in-process inside Convex, so the only backend the
-// platform server can reach is Convex ("Application"). The probe set is a
-// single component; the wider OverallStatus vocabulary is kept for a future
-// per-subsystem probe.
+// Knowledge-base and web/document work run inside the backend tier, so the
+// one thing the platform server probes is that tier ("Application services").
+// The probe set is a single component; the wider OverallStatus vocabulary is
+// kept for a future per-subsystem probe.
 function allUpComponents(): ComponentResult[] {
-  return [{ id: 'convex', up: true }];
+  return [{ id: 'backend', up: true }];
 }
 
 function allOperationalFeedComponents(): StatusFeedComponent[] {
-  return [{ id: 'convex', status: 'operational' }];
+  return [{ id: 'backend', status: 'operational' }];
 }
 
 beforeEach(() => {
-  // The node-lane probe self-activates on ADMIN_KEY; a developer shell that
-  // exports one must not change which components these tests see.
-  vi.stubEnv('ADMIN_KEY', '');
+  // Pin the probe target: a developer shell that exports TALE_BACKEND_URL
+  // must not change which URL these tests see.
+  vi.stubEnv('TALE_BACKEND_URL', 'http://backend-api:3005');
 });
 
 afterEach(() => {
@@ -50,9 +49,9 @@ describe('probeServices', () => {
     const doFetch = vi.fn(() => Promise.resolve(okResponse()));
     const result = await probeServices(doFetch as unknown as typeof fetch);
     expect(result.overall).toBe('operational');
-    expect(result.components.map((c) => c.id)).toEqual(['convex']);
+    expect(result.components.map((c) => c.id)).toEqual(['backend']);
     expect(result.components.every((c) => c.up)).toBe(true);
-    // One backend probe (Convex /version) — rag/crawler are in-process.
+    // One probe (the backend's /ping) — every other lane runs inside it.
     expect(doFetch).toHaveBeenCalledTimes(1);
   });
 
@@ -60,7 +59,7 @@ describe('probeServices', () => {
     const doFetch = vi.fn(() => Promise.resolve(downResponse()));
     const result = await probeServices(doFetch as unknown as typeof fetch);
     expect(result.overall).toBe('outage');
-    expect(result.components.find((c) => c.id === 'convex')?.up).toBe(false);
+    expect(result.components.find((c) => c.id === 'backend')?.up).toBe(false);
   });
 
   test('treats fetch rejection (timeout, ECONNREFUSED) as down', async () => {
@@ -155,42 +154,6 @@ describe('probeServices', () => {
   });
 });
 
-describe('node-action lane probe', () => {
-  test('appears as a second component and keeps operational when up', async () => {
-    _setNodeLaneProbeForTests(() => Promise.resolve(true));
-    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
-    const result = await probeServices(doFetch as unknown as typeof fetch);
-    expect(result.components.map((c) => c.id)).toEqual([
-      'convex',
-      'convexNodeActions',
-    ]);
-    expect(result.overall).toBe('operational');
-    // The node lane rides the admin client, not fetch — the single fetch is
-    // still the /version liveness probe.
-    expect(doFetch).toHaveBeenCalledTimes(1);
-  });
-
-  test('a wedged node lane degrades the status while V8 liveness stays green', async () => {
-    // The demo v0.3.8 incident shape: /version answered 200 while every
-    // 'use node' action died with "fetch failed" — the page must say
-    // degraded, not operational.
-    _setNodeLaneProbeForTests(() => Promise.resolve(false));
-    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
-    const result = await probeServices(doFetch as unknown as typeof fetch);
-    expect(result.overall).toBe('degraded');
-    expect(
-      result.components.find((c) => c.id === 'convexNodeActions')?.up,
-    ).toBe(false);
-    expect(result.components.find((c) => c.id === 'convex')?.up).toBe(true);
-  });
-
-  test('absent without an ADMIN_KEY or override — dev keeps one component', async () => {
-    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
-    const result = await probeServices(doFetch as unknown as typeof fetch);
-    expect(result.components.map((c) => c.id)).toEqual(['convex']);
-  });
-});
-
 describe('buildStatusFeed', () => {
   const checkedAt = '2026-05-11T13:45:07.123Z';
 
@@ -210,12 +173,12 @@ describe('buildStatusFeed', () => {
   test('down → outage overall, component outage', () => {
     const raw: StatusResult = {
       overall: 'outage',
-      components: [{ id: 'convex', up: false }],
+      components: [{ id: 'backend', up: false }],
       checkedAt,
     };
     const feed = buildStatusFeed(raw);
     expect(feed.status).toBe('outage');
-    expect(feed.components.find((c) => c.id === 'convex')?.status).toBe(
+    expect(feed.components.find((c) => c.id === 'backend')?.status).toBe(
       'outage',
     );
   });
@@ -242,7 +205,7 @@ describe('renderStatusJson', () => {
     const feed: StatusFeed = {
       status: 'outage',
       checkedAt,
-      components: [{ id: 'convex', status: 'outage' }],
+      components: [{ id: 'backend', status: 'outage' }],
     };
     const raw = renderStatusJson(feed);
     expect(JSON.parse(raw)).toEqual(feed);
@@ -260,7 +223,7 @@ describe('renderStatusPage', () => {
 
   const outageFeed: StatusFeed = {
     status: 'outage',
-    components: [{ id: 'convex', status: 'outage' }],
+    components: [{ id: 'backend', status: 'outage' }],
     checkedAt: baseFeed.checkedAt,
   };
 
@@ -323,7 +286,7 @@ describe('renderStatusPage', () => {
 
   test('renders the German component label for de locale', () => {
     const html = renderStatusPage(baseFeed, 'de');
-    expect(html).toContain('Anwendung');
+    expect(html).toContain('Anwendungsdienste');
   });
 
   test('shows the status word for the component (not color alone)', () => {
@@ -346,23 +309,6 @@ describe('renderStatusPage', () => {
     expect(renderStatusPage(outageFeed, 'fr-FR')).toContain('>Indisponible<');
   });
 
-  test('renders the background-processing row when the node lane is down', () => {
-    const degraded: StatusFeed = {
-      status: 'degraded',
-      components: [
-        { id: 'convex', status: 'operational' },
-        { id: 'convexNodeActions', status: 'outage' },
-      ],
-      checkedAt: baseFeed.checkedAt,
-    };
-    const html = renderStatusPage(degraded, '');
-    expect(html).toContain('Partial degradation');
-    expect(html).toContain('Background processing');
-    expect(html).toContain('>Unavailable<');
-    // Still no stack names on the public surface.
-    expect(html).not.toContain('Convex');
-  });
-
   test('marks status dots aria-hidden so screen readers rely on the text label', () => {
     const html = renderStatusPage(baseFeed, '');
     // Every dot element carries aria-hidden so the visible status text is
@@ -370,5 +316,47 @@ describe('renderStatusPage', () => {
     const dots = html.match(/<span class="dot"[^>]*>/g) ?? [];
     expect(dots.length).toBe(1);
     for (const dot of dots) expect(dot).toContain('aria-hidden="true"');
+  });
+});
+
+describe('backend component', () => {
+  test('probes /ping on the configured backend', async () => {
+    vi.stubEnv('TALE_BACKEND_URL', 'http://backend-api:3005/');
+    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
+    const result = await probeServices(doFetch as unknown as typeof fetch);
+    expect(result.components.map((c) => c.id)).toEqual(['backend']);
+    expect(result.overall).toBe('operational');
+    const urls = doFetch.mock.calls.map((call: unknown[]) => String(call[0]));
+    // Trailing slash normalized — never `//ping`.
+    expect(urls).toContain('http://backend-api:3005/ping');
+  });
+
+  test('falls back to loopback when TALE_BACKEND_URL is unset', async () => {
+    // A missing env var must not silently drop the only probe: an empty
+    // component list would aggregate to "operational" and hide an outage.
+    vi.stubEnv('TALE_BACKEND_URL', '');
+    const doFetch = vi.fn(() => Promise.resolve(okResponse()));
+    const result = await probeServices(doFetch as unknown as typeof fetch);
+    expect(result.components.map((c) => c.id)).toEqual(['backend']);
+    const urls = doFetch.mock.calls.map((call: unknown[]) => String(call[0]));
+    expect(urls).toContain('http://127.0.0.1:3005/ping');
+  });
+
+  test('a down backend reads as an outage', async () => {
+    const doFetch = vi.fn(() => Promise.resolve(downResponse()));
+    const result = await probeServices(doFetch as unknown as typeof fetch);
+    expect(result.overall).toBe('outage');
+    expect(result.components.find((c) => c.id === 'backend')?.up).toBe(false);
+  });
+
+  test('renders a stack-free label in every shipped locale', () => {
+    const feed = buildStatusFeed({
+      overall: 'outage',
+      components: [{ id: 'backend', up: false }],
+      checkedAt: new Date(0).toISOString(),
+    });
+    expect(renderStatusPage(feed, 'en')).toContain('Application services');
+    expect(renderStatusPage(feed, 'de')).toContain('Anwendungsdienste');
+    expect(renderStatusPage(feed, 'fr')).toContain('Services applicatifs');
   });
 });

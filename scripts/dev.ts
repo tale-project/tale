@@ -42,7 +42,7 @@ import {
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { errorLine, infoLine, warnLine } from '@tale/shared/tux';
+import { errorLine, infoLine } from '@tale/shared/tux';
 
 const repoRoot = join(import.meta.dir, '..');
 const platformRoot = join(repoRoot, 'services', 'platform');
@@ -153,65 +153,40 @@ function ensureDevSecrets(): void {
   );
 }
 
-/**
- * Start the opt-in controller sidecar as a sibling child when CONTROLLER_TOKEN
- * is set, replicating the gate the old turbo `@tale/controller#dev` task had
- * (it exited immediately when the token was unset). Returns null when disabled.
- */
-function startControllerIfEnabled(): ChildProcess | null {
-  if (!process.env.CONTROLLER_TOKEN) return null;
-  const controller = spawn('bun', ['--hot', 'src/server.ts'], {
-    stdio: 'inherit',
-    cwd: join(repoRoot, 'services', 'controller'),
-    env: process.env,
-  });
-  controller.on('error', (err: Error) => {
-    warnLine(`controller sidecar failed to start: ${err.message}`);
-  });
-  return controller;
-}
-
 function main(): void {
   ensureDevSecrets();
 
   // Turbo bypass. The platform orchestrator already owns the docker backing
-  // services (including the sandbox container — the single :8003 owner), Convex
-  // and Vite, and now emits clean, classified output itself. Running it directly
-  // drops everything turbo added that polluted `bun run dev`: the
+  // services (including the sandbox container — the single :8003 owner), the
+  // backend and Vite, and now emits clean, classified output itself. Running it
+  // directly drops everything turbo added that polluted `bun run dev`: the
   // `<pkg>:<task>:` line prefixes, the per-boot @tale/cli embed regeneration
-  // (2000+ files), the redundant HOST @tale/sandbox spawner that double-bound
-  // :8003, and the no-op controller task. The opt-in controller is started here
-  // as a sibling only when CONTROLLER_TOKEN is set. CI never calls `turbo run
-  // dev` (test:e2e is a separate task), and `turbo run dev` still works as an
-  // escape hatch via the platform script's own `import.meta.main` entry.
+  // (2000+ files), and the redundant HOST @tale/sandbox spawner that
+  // double-bound :8003. CI never calls `turbo run dev` (test:e2e is a separate
+  // task), and `turbo run dev` still works as an escape hatch via the platform
+  // script's own `import.meta.main` entry.
   const platform: ChildProcess = spawn(
     'bun',
     ['services/platform/scripts/dev.ts', ...process.argv.slice(2)],
     { stdio: 'inherit', cwd: repoRoot, env: process.env },
   );
-  const controller = startControllerIfEnabled();
-  const children = [platform, controller].filter(
-    (child): child is ChildProcess => child !== null,
-  );
 
   let shuttingDown = false;
   const forward = (signal: 'SIGINT' | 'SIGTERM') => () => {
     if (shuttingDown) {
-      // Second Ctrl-C — quit immediately rather than wait for the children.
+      // Second Ctrl-C — quit immediately rather than wait for the child.
       process.exit(1);
     }
     shuttingDown = true;
-    for (const child of children) if (child.pid) child.kill(signal);
-    // Safety net: if a child refuses to exit, quit anyway so one Ctrl-C suffices.
+    if (platform.pid) platform.kill(signal);
+    // Safety net: if the child refuses to exit, quit anyway so one Ctrl-C suffices.
     setTimeout(() => process.exit(1), 4000).unref();
   };
   process.on('SIGINT', forward('SIGINT'));
   process.on('SIGTERM', forward('SIGTERM'));
 
-  // Platform is the primary process: when it exits, tear down the sibling and
-  // mirror its status.
+  // Platform is the primary process: mirror its status when it exits.
   platform.on('exit', (code: number | null, signal: string | null) => {
-    if (controller?.pid) controller.kill('SIGTERM');
     if (signal) process.exit(1);
     process.exit(code ?? 0);
   });

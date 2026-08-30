@@ -10,7 +10,6 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { useToast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpsertLegalMatter } from '../hooks/mutations';
@@ -22,12 +21,12 @@ interface UpsertMatterDialogProps {
   organizationId: string;
   /** When set the dialog edits an existing matter; omit to create. */
   matter?: {
-    _id: Id<'legalMatters'>;
+    _id: string;
     name: string;
     caseNumber?: string;
     description?: string;
   };
-  onSuccess?: (matterId: Id<'legalMatters'>) => void;
+  onSuccess?: (matterId: string) => void;
 }
 
 interface FormValues {

@@ -2,8 +2,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
-
 import { TaskAgentRunStatusBadge } from './task-agent-run-status-badge';
 
 vi.mock('@/lib/i18n/client', () => ({
@@ -59,13 +57,13 @@ describe('TaskAgentRunStatusBadge', () => {
       <TaskAgentRunStatusBadge
         agentName="PR Creator"
         run={{
-          runId: 'run_1' as Id<'taskAgentRuns'>,
+          runId: 'run_1' as string,
           agentSlug: 'github/create-pull-requests/pr-creator',
           trigger: 'mention',
           status: 'running',
           startedAt: Date.now(),
           costCents: 0,
-          wfExecutionId: 'exec_1' as Id<'wfExecutions'>,
+          wfExecutionId: 'exec_1' as string,
         }}
       />,
     );
@@ -90,7 +88,7 @@ describe('TaskAgentRunStatusBadge', () => {
       <TaskAgentRunStatusBadge
         agentName="PR Creator"
         run={{
-          runId: 'run_2' as Id<'taskAgentRuns'>,
+          runId: 'run_2' as string,
           agentSlug: 'github/create-pull-requests/pr-creator',
           trigger: 'assignment',
           status: 'failed',

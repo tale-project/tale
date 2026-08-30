@@ -3,10 +3,9 @@
  * Does NOT register with the crawler — that's handled by the calling action.
  */
 
-import { ConvexError } from 'convex/values';
-
-import type { Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import { AppError } from '../../lib/shared/errors/app-error';
+import type { MutationCtx } from '../lib/ctx';
+import type { Id } from '../lib/rows';
 
 export interface CreateWebsiteArgs {
   organizationId: string;
@@ -45,7 +44,7 @@ export async function createWebsite(
   if (existingWebsite) {
     // Structured code so the client surfaces the duplicate toast in prod, where
     // Convex redacts raw `Error` messages to "Server Error".
-    throw new ConvexError({
+    throw new AppError({
       code: 'WEBSITE_DUPLICATE_DOMAIN',
       domain: websiteDomain,
     });

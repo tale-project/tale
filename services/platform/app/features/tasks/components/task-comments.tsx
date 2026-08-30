@@ -9,7 +9,6 @@ import { useState } from 'react';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { toastUnresolvedMentions } from '@/lib/shared/mention-unresolved';
 import { cn } from '@/lib/utils/cn';
@@ -77,9 +76,9 @@ export function TaskComments({
   order = 'desc',
   composerHint,
 }: {
-  taskId: Id<'tasks'>;
+  taskId: string;
   organizationId: string;
-  projectId: Id<'projects'>;
+  projectId: string;
   canComment: boolean;
   currentUserId?: string;
   isAdmin?: boolean;

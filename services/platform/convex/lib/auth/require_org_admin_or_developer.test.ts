@@ -7,7 +7,7 @@ vi.mock('../../auth', () => ({
   },
 }));
 
-vi.mock('../../_generated/api', () => ({
+vi.mock('../handler_names', () => ({
   components: {
     betterAuth: { adapter: { findOne: 'findOne', findMany: 'findMany' } },
   },

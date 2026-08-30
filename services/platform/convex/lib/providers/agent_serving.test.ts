@@ -18,7 +18,7 @@ import {
   providerDefinitionSchema,
   type ProviderDefinition,
 } from '../../../lib/shared/schemas/providers';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../ctx';
 
 const { getProviderCatalog, resolveConnectors, loadHarnesses } = vi.hoisted(
   () => ({

@@ -1,19 +1,18 @@
 'use client';
 
-import { ConvexError } from 'convex/values';
 import { useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { useArchiveTask, useRestoreTask } from '../hooks/mutations';
 
 interface TaskArchiveDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  taskId: Id<'tasks'>;
+  taskId: string;
   taskTitle: string;
   isArchived: boolean;
   /** Called after a successful archive (not restore) — e.g. close the detail sheet. */
@@ -46,7 +45,7 @@ export function TaskArchiveDialog({
       }
       onOpenChange(false);
     } catch (error) {
-      if (error instanceof ConvexError) {
+      if (error instanceof AppError) {
         const code = error.data?.code;
         if (code) {
           toast({

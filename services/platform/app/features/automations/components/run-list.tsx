@@ -8,7 +8,6 @@ import { useId } from 'react';
 
 import { CappedScrollRegion } from '@/app/components/ui/data-display/capped-scroll-region';
 import { useFormatDate } from '@/app/hooks/use-format-date';
-import type { Id } from '@/convex/_generated/dataModel';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 
@@ -17,7 +16,7 @@ import { RunBadge } from './run-status-badge';
 
 /** One run as the listing reports it. */
 export interface AutomationRunSummary {
-  id: Id<'automationRuns'>;
+  id: string;
   name: string;
   version: number;
   status: string;
@@ -45,7 +44,7 @@ export function RunList({
   automationSlug: string;
   runs: readonly AutomationRunSummary[];
   /** Keep run links inside the project shell. */
-  projectId?: Id<'projects'>;
+  projectId?: string;
 }) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');

@@ -1,6 +1,5 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 export function useSetNotificationPreferences() {
-  return useConvexMutation(api.collab.preferences.setNotificationPreferences);
+  return useBackendMutation('collab/preferences:setNotificationPreferences');
 }

@@ -16,11 +16,12 @@
  * or `canReadDocument` (async, resolves project access for single-doc reads).
  */
 
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
-import type { Doc } from '../_generated/dataModel';
-import type { MutationCtx, QueryCtx } from '../_generated/server';
+import { AppError } from '../../lib/shared/errors/app-error';
+import type { MutationCtx, QueryCtx } from '../lib/ctx';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import type { Doc } from '../lib/rows';
 import { hasTeamAccess } from '../lib/team_access';
 import { hasProjectAccess, type ProjectAccessResult } from '../projects/access';
 import {
@@ -29,10 +30,13 @@ import {
   resolveUserAccessContext,
 } from '../projects/resolve_project_access';
 
-type DocumentScopeFields = Pick<
-  Doc<'documents'>,
-  'projectId' | 'teamId' | 'teamTags'
->;
+/** The scope fields a visibility decision reads. All optional: a Knowledge
+ *  Hub document carries none of them. */
+interface DocumentScopeFields {
+  projectId?: string | null;
+  teamId?: string | null;
+  teamTags?: string[];
+}
 
 /**
  * A document attached to a project. Such documents are not Knowledge Hub
@@ -111,7 +115,7 @@ export async function assertDocumentVisibleToUser(
   args: { userId: string; organizationId: string },
 ): Promise<void> {
   if (await canReadDocument(ctx, doc, args)) return;
-  throw new ConvexError({
+  throw new AppError({
     code: 'DOCUMENT_NOT_FOUND',
     message: 'Document not found',
   });
@@ -141,7 +145,7 @@ export function isRecordContentFrozen(doc: DocumentRecordFields): boolean {
  */
 export function assertRecordContentWritable(doc: DocumentRecordFields): void {
   if (!isRecordContentFrozen(doc)) return;
-  throw new ConvexError({
+  throw new AppError({
     code: 'DOCUMENT_RECORD_FROZEN',
     message:
       doc.record?.state === 'in_review'
@@ -163,7 +167,7 @@ export function assertGenericDocumentContentWritable(
 ): void {
   assertRecordContentWritable(doc);
   if (doc.record === undefined) return;
-  throw new ConvexError({
+  throw new AppError({
     code: 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED',
     message:
       'Replace controlled-record content through the dedicated replacement flow.',
@@ -210,7 +214,7 @@ export function assertRecordTrashable(doc: DocumentRecordFields): void {
   if (doc.record === undefined) return;
   const refusal = recordTrashRefusal(doc.record);
   if (refusal === null) return;
-  throw new ConvexError({
+  throw new AppError({
     code: 'DOCUMENT_RECORD_PROTECTED',
     message:
       refusal === 'in_review'

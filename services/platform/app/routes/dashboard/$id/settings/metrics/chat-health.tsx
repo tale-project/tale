@@ -9,7 +9,6 @@ import {
 } from '@/app/features/analytics/chat-health/chat-health-period';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ensureConvexQuery } from '@/app/lib/loader-preload';
-import { api } from '@/convex/_generated/api';
 
 export const Route = createFileRoute(
   '/dashboard/$id/settings/metrics/chat-health',
@@ -27,10 +26,10 @@ export const Route = createFileRoute(
       periodDays: periodToDays(deps.period),
     };
     return Promise.all([
-      ensureConvexQuery(context, api.chat.messages.getOrgChatHealth, args),
+      ensureConvexQuery(context, 'chat/messages:getOrgChatHealth', args),
       ensureConvexQuery(
         context,
-        api.chat_filter_events.queries.getGuardrailStats,
+        'chat_filter_events/queries:getGuardrailStats',
         args,
       ),
     ]).catch((error: unknown) => {

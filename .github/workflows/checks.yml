@@ -113,7 +113,7 @@ jobs:
       contents: read
 
     # bgutil PO-token provider — the zero-config anti-bot layer baked into the
-    # convex image. Runs as a service container so the live YouTube-ingestion
+    # platform image. Runs as a service container so the live YouTube-ingestion
     # step (last) can fetch GVS tokens at 127.0.0.1:4416, exactly like the
     # `bgutil-provider` compose sidecar in production.
     services:
@@ -189,33 +189,6 @@ jobs:
 
       - name: Run knip
         run: bun run knip:check
-
-  # Data-migration guard + round-trip tests. The guard runs FIRST so a missing
-  # test / registry entry / snapshot fails fast with a named error before the
-  # (slower) round-trip suite.
-  migrations:
-    name: Migrations
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Setup toolchain
-        uses: ./.github/actions/setup-turbo
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Migration manifest + test guard
-        working-directory: services/platform
-        run: bun run migrations:check
-
-      - name: Migration round-trip tests (up & down)
-        working-directory: services/platform
-        run: bunx vitest --run --project server convex/migrations
 
   # Browser-mode component tests (`*.browser.test.tsx`) — Vitest Browser Mode
   # mounts components in a real Chromium for the assertions jsdom can't fake

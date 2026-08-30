@@ -1,5 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
+
+import { AppError } from '@/lib/shared/errors/app-error';
 
 import { mapGovernanceSaveError } from './governance-save-errors';
 
@@ -8,11 +9,11 @@ import { mapGovernanceSaveError } from './governance-save-errors';
 const t = (key: string) => key;
 
 describe('mapGovernanceSaveError', () => {
-  it('returns the localized fallback for a `validation` ConvexError instead of the raw message', () => {
+  it('returns the localized fallback for a `validation` AppError instead of the raw message', () => {
     // Mirrors `saveGovernancePolicy` rejecting a bad config. The Convex
     // client re-throws this as an Error whose `.message` is a dev-facing
     // hybrid stacktrace — that must NEVER reach the toast.
-    const err = new ConvexError({
+    const err = new AppError({
       code: 'validation',
       message: 'Invalid budgets configuration: <zod text>',
     });
@@ -35,7 +36,7 @@ describe('mapGovernanceSaveError', () => {
   });
 
   it('maps the `ORG_FORBIDDEN` code to the forbidden message', () => {
-    const err = new ConvexError({
+    const err = new AppError({
       code: 'ORG_FORBIDDEN',
       message: 'Role "member" cannot modify governance policies.',
     });
@@ -46,7 +47,7 @@ describe('mapGovernanceSaveError', () => {
   });
 
   it('falls back for an unknown code', () => {
-    const err = new ConvexError({ code: 'use_special_action', message: 'x' });
+    const err = new AppError({ code: 'use_special_action', message: 'x' });
     expect(
       mapGovernanceSaveError(err, t, 'moderationProvider.saveFailed'),
     ).toBe('moderationProvider.saveFailed');

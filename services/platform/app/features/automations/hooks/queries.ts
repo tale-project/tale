@@ -1,7 +1,5 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 
 import { listNodeTypesRef } from './backend';
 
@@ -21,12 +19,12 @@ import { listNodeTypesRef } from './backend';
  * Developer-gated (the automation create lane already is). */
 export function useAutomationCapabilities(
   organizationId: string,
-  projectId: Id<'projects'> | undefined,
+  projectId: string | undefined,
   enabled: boolean,
 ) {
   return useActionQuery(
     ['automations', 'capabilities', organizationId, projectId ?? ''],
-    api.chat.composer.listAutomationCapabilities,
+    'chat/composer:listAutomationCapabilities',
     { organizationId, ...(projectId !== undefined ? { projectId } : {}) },
     { enabled },
   );
@@ -37,11 +35,11 @@ export function useAutomationCapabilities(
  * the org listing and vice versa. */
 export function useAutomations(
   organizationId: string,
-  projectId?: Id<'projects'>,
+  projectId?: string,
   /** Org page: merge project-pinned automations into the listing. */
   includeProjectBound?: boolean,
 ) {
-  return useConvexQuery(api.automations.queries.listAutomations, {
+  return useBackendQuery('automations/queries:listAutomations', {
     organizationId,
     ...(projectId !== undefined && { projectId }),
     ...(includeProjectBound === true && { includeProjectBound: true }),
@@ -54,7 +52,7 @@ export function useAutomation(
   name: string,
   version?: number,
 ) {
-  return useConvexQuery(api.automations.queries.getAutomation, {
+  return useBackendQuery('automations/queries:getAutomation', {
     organizationId,
     name,
     ...(version !== undefined && { version }),
@@ -63,7 +61,7 @@ export function useAutomation(
 
 /** The immutable version history of one automation, oldest first. */
 export function useAutomationVersions(organizationId: string, name: string) {
-  return useConvexQuery(api.automations.queries.listVersions, {
+  return useBackendQuery('automations/queries:listVersions', {
     organizationId,
     name,
   });
@@ -76,9 +74,9 @@ export function useAutomationRuns(
   organizationId: string,
   name?: string,
   limit?: number,
-  projectId?: Id<'projects'>,
+  projectId?: string,
 ) {
-  return useConvexQuery(api.automations.queries.listRuns, {
+  return useBackendQuery('automations/queries:listRuns', {
     organizationId,
     ...(name !== undefined && { name }),
     ...(limit !== undefined && { limit }),
@@ -90,10 +88,10 @@ export function useAutomationRuns(
  * canvas overlays. */
 export function useAutomationRun(
   organizationId: string,
-  runId: Id<'automationRuns'> | undefined,
+  runId: string | undefined,
 ) {
-  return useConvexQuery(
-    api.automations.queries.getRun,
+  return useBackendQuery(
+    'automations/queries:getRun',
     runId === undefined ? 'skip' : { organizationId, runId },
   );
 }
@@ -102,10 +100,10 @@ export function useAutomationRun(
  * names one. Reactive: approving elsewhere flips the card here. */
 export function useRunApproval(
   organizationId: string,
-  approvalId: Id<'approvals'> | undefined,
+  approvalId: string | undefined,
 ) {
-  return useConvexQuery(
-    api.approvals.queries.getApproval,
+  return useBackendQuery(
+    'approvals/queries:getApproval',
     approvalId === undefined ? 'skip' : { organizationId, approvalId },
   );
 }
@@ -114,17 +112,17 @@ export function useRunApproval(
  * waits on a person. Reactive: answering flips it to null everywhere. */
 export function useRunPendingAsk(
   organizationId: string,
-  runId: Id<'automationRuns'> | undefined,
+  runId: string | undefined,
 ) {
-  return useConvexQuery(
-    api.automations.human_asks.getPendingAskForRun,
+  return useBackendQuery(
+    'automations/human_asks:getPendingAskForRun',
     runId === undefined ? 'skip' : { organizationId, runId },
   );
 }
 
 /** The projects one automation is bound to — empty means org-level. */
 export function useAutomationProjects(organizationId: string, name: string) {
-  return useConvexQuery(api.automations.queries.listAutomationProjects, {
+  return useBackendQuery('automations/queries:listAutomationProjects', {
     organizationId,
     name,
   });
@@ -132,7 +130,7 @@ export function useAutomationProjects(organizationId: string, name: string) {
 
 /** What starts one automation. */
 export function useAutomationTriggers(organizationId: string, name: string) {
-  return useConvexQuery(api.automations.queries.listTriggers, {
+  return useBackendQuery('automations/queries:listTriggers', {
     organizationId,
     name,
   });
@@ -157,7 +155,7 @@ export function useBuilderModelCatalog(
 ) {
   return useActionQuery(
     ['automations', 'builder-models', organizationId],
-    api.lib.providers.catalog_actions.listProviderCatalogs,
+    'lib/providers/catalog_actions:listProviderCatalogs',
     { organizationId },
     { enabled },
   );
@@ -170,8 +168,8 @@ export function useBuilderCredentials(
   organizationId: string,
   enabled: boolean,
 ) {
-  return useConvexQuery(
-    api.provider_credentials.queries.listCredentials,
+  return useBackendQuery(
+    'provider_credentials/queries:listCredentials',
     enabled ? { organizationId } : 'skip',
   );
 }

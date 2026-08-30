@@ -13,7 +13,6 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import type { Id } from '@/convex/_generated/dataModel';
 import { EDITOR_ROLES } from '@/convex/projects/access';
 import { useT } from '@/lib/i18n/client';
 
@@ -42,7 +41,7 @@ export function ReviewerPicker({
   afterTrigger,
 }: {
   organizationId: string;
-  projectId?: Id<'projects'>;
+  projectId?: string;
   reviewerUserId?: string;
   /** Called with the designated user id, or undefined to clear. */
   onChange: (reviewerUserId: string | undefined) => void;

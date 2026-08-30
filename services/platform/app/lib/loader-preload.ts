@@ -1,31 +1,48 @@
-import { convexQuery } from '@convex-dev/react-query';
-import type { FunctionArgs, FunctionReference } from 'convex/server';
-import { ConvexError } from 'convex/values';
-
+import {
+  activeOrganizationId,
+  READ_ADAPTERS,
+} from '@/app/lib/backend/adapters';
+import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
+import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 import type { RouterContext } from '@/app/router';
-import { api } from '@/convex/_generated/api';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
+import { AppError } from '@/lib/shared/errors/app-error';
 
-type QueryArgs<Func extends FunctionReference<'query'>> =
-  keyof FunctionArgs<Func> extends never
-    ? [args?: FunctionArgs<Func>]
-    : [args: FunctionArgs<Func>];
+type QueryArgs<Name extends QueryName> =
+  Record<string, never> extends ArgsOf<Name>
+    ? [args?: ArgsOf<Name>]
+    : [args: ArgsOf<Name>];
 
 /**
- * Await a small, render-gating Convex query in a route loader. Resolves on the
- * first WebSocket result, warms the React Query cache (so the component reads it
- * warm — no client loading flash), and leaves the live subscription in place.
+ * Await a small, render-gating read in a route loader — it warms the SAME
+ * react-query entry the component's hook reads, so the first paint has the
+ * answer already (no client loading flash).
  *
  * Use ONLY for bounded data that decides what renders (access/member context,
  * the entity that gates content vs. an empty/denied state). Never await a list
  * or unbounded query — blocking the transition is worse than the skeleton.
  */
-export function ensureConvexQuery<Func extends FunctionReference<'query'>>(
+export function ensureConvexQuery<Name extends QueryName>(
   context: RouterContext,
-  func: Func,
-  ...[args]: QueryArgs<Func>
+  name: Name,
+  ...[args]: QueryArgs<Name>
 ) {
-  return context.queryClient.ensureQueryData(convexQuery(func, args ?? {}));
+  const adapter = READ_ADAPTERS[name];
+  if (adapter !== undefined) {
+    const organizationId = activeOrganizationId();
+    const adapted = adapter(
+      args ?? {},
+      organizationId !== undefined ? { organizationId } : {},
+    );
+    if (adapted === null) return Promise.resolve(undefined);
+    return context.queryClient.ensureQueryData({
+      queryKey: adapted.queryKey,
+      queryFn: adapted.queryFn,
+    });
+  }
+  // A render-gating read with no row cannot degrade quietly: the route would
+  // paint its denied/empty state as if that were the answer.
+  throw new MissingBackendRowError(name);
 }
 
 type GovernancePolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];
@@ -33,12 +50,12 @@ type GovernancePolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];
 /**
  * A render-gating read can reject during the brief pre-auth window (the Convex
  * client has not attached the auth token yet), which surfaces as an
- * `UNAUTHENTICATED` ConvexError. The reactive subscription re-runs the moment
+ * `UNAUTHENTICATED` AppError. The reactive subscription re-runs the moment
  * auth lands, so this case is expected, not a preload failure worth logging —
  * anything else propagates to the caller for diagnostics.
  */
 function isPreAuthError(error: unknown): boolean {
-  if (!(error instanceof ConvexError)) return false;
+  if (!(error instanceof AppError)) return false;
   const data: unknown = error.data;
   return (
     typeof data === 'object' &&
@@ -65,7 +82,7 @@ export function ensureGovernancePolicies(
 ) {
   return Promise.all(
     policyTypes.map((policyType) =>
-      ensureConvexQuery(context, api.governance.queries.getPolicy, {
+      ensureConvexQuery(context, 'governance/queries:getPolicy', {
         organizationId,
         policyType,
       }).catch((error: unknown) => {

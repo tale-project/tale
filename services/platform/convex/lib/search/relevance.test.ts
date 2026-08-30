@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Doc } from '../../_generated/dataModel';
+import type { Doc } from '../rows';
 import {
   isActiveRow,
   queryTokens,

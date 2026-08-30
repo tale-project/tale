@@ -1,10 +1,14 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { useConvex } from 'convex/react';
+import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import {
+  synthesizeChunkRequest,
+  voiceChunksQuery,
+} from '@/app/lib/backend/chat';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import {
   MAX_TTS_CHUNK_CHARS,
   MAX_TTS_IN_FLIGHT,
@@ -17,7 +21,7 @@ import {
 } from '@/lib/shared/constants/tts';
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
-import { useChatQuery } from '../data/chat-backend';
+import { useChatQueryClient } from '../data/chat-backend';
 import { stripMarkdown } from './markdown-strip';
 import { useVoicePreReservationErrorSink } from './voice-output-context';
 
@@ -37,7 +41,7 @@ const RETRYABLE_ERROR_CODES = new Set(['RATE_LIMITED', 'CONTENTION']);
 const FALLBACK_SENTENCE_BOUNDARY = /(?<=[.!?。！？])\s+|\n{2,}/g;
 
 /**
- * Extract a Convex error's structured `code` (set via `new ConvexError({
+ * Extract a Convex error's structured `code` (set via `new AppError({
  * code, message })` on the server). Used by the chunker to surface
  * pre-reservation errors to the indicator's error-code path. Returns
  * `undefined` for plain `Error` instances so the catch can fall back to
@@ -48,7 +52,7 @@ const FALLBACK_SENTENCE_BOUNDARY = /(?<=[.!?。！？])\s+|\n{2,}/g;
  * with the structured payload sometimes stringified into `err.message`.
  * Try both shapes.
  */
-function extractConvexErrorCode(err: unknown): string | undefined {
+function extractBackendErrorCode(err: unknown): string | undefined {
   if (err && typeof err === 'object' && 'data' in err) {
     const data = (err as { data?: unknown }).data;
     if (data && typeof data === 'object' && 'code' in data) {
@@ -113,13 +117,25 @@ function detectChunkLocale(text: string, fallback: string): string {
 export function useVoiceChunks(
   messageId: string | undefined,
   threadId: string | undefined,
+  organizationId?: string,
 ) {
-  const result = useChatQuery(
-    api.tts.queries.getMessageChunks,
-    messageId && threadId ? { messageId, threadId } : 'skip',
-    { cache: false },
+  const enabled =
+    messageId !== undefined &&
+    threadId !== undefined &&
+    organizationId !== undefined;
+  const result = useQuery(
+    {
+      ...voiceChunksQuery(
+        organizationId ?? '',
+        messageId ?? '',
+        threadId ?? '',
+      ),
+      enabled,
+    },
+    useChatQueryClient(),
   );
-  return result.status === 'ready' ? result.data : undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the route serves the 0.4 chunk projection verbatim
+  return result.data as ReturnsOf<'tts/queries:getMessageChunks'> | undefined;
 }
 
 /**
@@ -215,7 +231,6 @@ export function useVoiceOutputChunker(opts: {
   // Provider-safe action handle: surfaces without a ConvexProvider (a shared
   // snapshot, component tests) reject into the ordinary error path instead
   // of crashing the render the way `useAction` would.
-  const convex = useConvex();
   const synthesize = useCallback(
     (request: {
       messageId: string;
@@ -224,13 +239,8 @@ export function useVoiceOutputChunker(opts: {
       index: number;
       text: string;
       locale: string;
-    }) => {
-      if (!convex) {
-        return Promise.reject(new Error('no convex client'));
-      }
-      return convex.action(api.tts.synthesize.synthesizeChunk, request);
-    },
-    [convex],
+    }) => synthesizeChunkRequest(request),
+    [],
   );
   const cursorRef = useRef(0);
   const indexRef = useRef(0);
@@ -464,7 +474,7 @@ export function useVoiceOutputChunker(opts: {
           .catch((err) => {
             // Pre-reservation throws (BUDGET_EXCEEDED, MESSAGE_CHAR_LIMIT,
             // RATE_LIMITED, forbidden, TTS_CHUNK_LIMIT, …) come out of
-            // the action as plain Errors with a `ConvexError`-wrapped
+            // the action as plain Errors with a `AppError`-wrapped
             // `data.code`. Surface the code through the per-message
             // sink so the indicator's `errorMessageForCode()` can show
             // an actionable message — without this, the only signal was
@@ -473,7 +483,7 @@ export function useVoiceOutputChunker(opts: {
             // `UNKNOWN_NETWORK` so the indicator still renders an
             // actionable message instead of leaving the user staring at
             // a stuck spinner with no clue what failed.
-            const code = extractConvexErrorCode(err) ?? 'UNKNOWN_NETWORK';
+            const code = extractBackendErrorCode(err) ?? 'UNKNOWN_NETWORK';
             errorSink.set(payload.messageId, code);
             console.error('[tts] synthesize action failed', err);
           })

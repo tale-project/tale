@@ -9,8 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { convexQuery } = vi.hoisted(() => ({ convexQuery: vi.fn() }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: (ref: unknown, args: unknown) => convexQuery(ref, args),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (ref: unknown, args: unknown) => convexQuery(ref, args),
 }));
 
 vi.mock('@/app/hooks/use-cached-paginated-query', () => ({
@@ -19,13 +19,6 @@ vi.mock('@/app/hooks/use-cached-paginated-query', () => ({
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org_1',
-}));
-
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    automations: { queries: { listAutomations: 'listAutomations' } },
-    connector_credentials: { queries: { listCredentials: 'listCredentials' } },
-  },
 }));
 
 import { useEmailConnectors } from './queries';
@@ -59,7 +52,7 @@ function stub(options: {
 }): void {
   convexQuery.mockImplementation((ref: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined, isLoading: false };
-    if (ref === 'listAutomations') {
+    if (ref === 'automations/queries:listAutomations') {
       const isLoading = options.loading?.automations === true;
       return { data: isLoading ? undefined : options.automations, isLoading };
     }

@@ -19,17 +19,16 @@
  *  - `endpoint` — the credential's own API origin, for connectors declaring
  *    `endpointMode: per-credential`.
  *
- * Every refusal is a typed `ConvexError` with an actionable message and no
+ * Every refusal is a typed `AppError` with an actionable message and no
  * secret material: a missing default, a credential the operator disabled, an
  * oauth2 grant whose refresh failed, and a key rotation that orphaned the
  * envelope each say what to do next, and say it differently.
  */
 
-import { ConvexError } from 'convex/values';
-
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
+import { AppError } from '../../lib/shared/errors/app-error';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
+import type { Id } from '../lib/rows';
 import {
   decryptSecret,
   KeyRotatedError,
@@ -86,10 +85,10 @@ export interface ResolvedConnectorCredential {
   readonly authHeader?: string;
 }
 
-type CredentialError = ConvexError<{ code: string; message: string }>;
+type CredentialError = AppError<{ code: string; message: string }>;
 
 function credentialError(code: string, message: string): CredentialError {
-  return new ConvexError({ code, message });
+  return new AppError({ code, message });
 }
 
 /** Load the addressed row (explicit ref, else the pair's default). A row of
@@ -98,7 +97,7 @@ async function loadRow(
   ctx: ActionCtx,
   args: ResolveConnectorCredentialArgs,
 ): Promise<CredentialRow> {
-  const row = (await ctx.runQuery(
+  const row: CredentialRow | null = await ctx.runQuery(
     internal.connector_credentials.queries.resolveCredentialRefInternal,
     {
       organizationId: args.organizationId,
@@ -107,8 +106,7 @@ async function loadRow(
         credentialRef: args.credentialRef,
       }),
     },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the internal query returns the full row as v.any(); this names its shape
-  )) as CredentialRow | null;
+  );
   if (row) return row;
   if (args.credentialRef !== undefined) {
     throw credentialError(

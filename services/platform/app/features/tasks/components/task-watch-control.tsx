@@ -4,7 +4,6 @@ import { Button } from '@tale/ui/button';
 import { Eye, EyeOff } from 'lucide-react';
 
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useSetTaskMuted, useSubscribeToTask } from '../hooks/mutations';
@@ -32,7 +31,7 @@ import { useTaskSubscription } from '../hooks/queries';
  * or a review request still reaches you. Unwatch silences the ambient fan-out,
  * not the things addressed to you.
  */
-export function TaskWatchControl({ taskId }: { taskId: Id<'tasks'> }) {
+export function TaskWatchControl({ taskId }: { taskId: string }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { subscribed, muted } = useTaskSubscription(taskId);

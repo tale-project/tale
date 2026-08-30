@@ -1,9 +1,8 @@
 'use client';
 
-import { useConvex } from 'convex/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import { transcribeDictationRequest } from '@/app/lib/backend/chat';
 
 interface UseMediaRecorderDictationOptions {
   organizationId: string;
@@ -69,20 +68,13 @@ export function useMediaRecorderDictation({
   // outside the provider tree in tests and degraded surfaces, where
   // `useConvex()` returns undefined instead of throwing (the chat seam
   // convention). A missing client surfaces as a failed transcription.
-  const convex = useConvex();
   const transcribeDictation = useCallback(
     async (args: {
       audio: ArrayBuffer;
       mimeType: string;
       organizationId: string;
-    }): Promise<{ text: string }> => {
-      if (!convex) throw new Error('transcription unavailable without Convex');
-      return convex.action(
-        api.file_metadata.transcribe_dictation.transcribeDictation,
-        args,
-      );
-    },
-    [convex],
+    }): Promise<{ text: string }> => transcribeDictationRequest(args),
+    [],
   );
 
   const isSupported =

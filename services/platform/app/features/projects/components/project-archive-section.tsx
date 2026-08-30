@@ -4,13 +4,12 @@ import { Button } from '@tale/ui/button';
 import { useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { ProjectArchiveDialog } from './project-archive-dialog';
 
 interface ProjectArchiveSectionProps {
-  projectId: Id<'projects'>;
+  projectId: string;
   projectName: string;
   isArchived: boolean;
 }

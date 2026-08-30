@@ -13,10 +13,9 @@
  * has no transcription endpoint at all.
  */
 
-import { ConvexError } from 'convex/values';
-
-import type { ActionCtx } from '../../_generated/server';
+import { AppError } from '../../../lib/shared/errors/app-error';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
+import type { ActionCtx } from '../ctx';
 import { getProviderCatalog } from './catalog_fetch';
 import { resolveProvidersForOrgId } from './org_providers';
 
@@ -84,7 +83,7 @@ export async function resolveTranscriptionModel(
     };
   }
 
-  throw new ConvexError({
+  throw new AppError({
     code: 'NO_TRANSCRIPTION_MODEL',
     message: 'No transcription model is configured for this organization.',
   });

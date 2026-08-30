@@ -5,19 +5,16 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
-import type { FunctionReturnType } from 'convex/server';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
-import type { api } from '@/convex/_generated/api';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
 
 import { useActivitySummary } from '../hooks/queries';
 
-type ActivitySummary = FunctionReturnType<
-  typeof api.audit_logs.queries.getActivitySummary
->;
+type ActivitySummary = ReturnsOf<'audit_logs/queries:getActivitySummary'>;
 
 interface ActivityLogViewProps {
   organizationId: string;

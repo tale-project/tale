@@ -15,8 +15,9 @@ export {
   type ProjectAccessResult,
 } from '../projects/access';
 
-import { ConvexError, type Infer } from 'convex/values';
+import { type Infer } from 'convex/values';
 
+import { AppError } from '../../lib/shared/errors/app-error';
 import type { taskAssigneeTypeValidator } from './schema';
 
 type TaskActorType = Infer<typeof taskAssigneeTypeValidator>;
@@ -67,7 +68,7 @@ export function normalizeAssignee(input: {
   // Half-set pair, or (defensively) a value that didn't narrow — both must be
   // present together. The explicit null checks let TS narrow without a cast.
   if (assigneeType == null || assigneeId == null || assigneeId === '') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'task_assignee_invalid',
       message: 'assigneeType and assigneeId must be set or cleared together',
     });

@@ -56,13 +56,11 @@
 
 import path from 'node:path';
 
-import { v } from 'convex/values';
 import postgres from 'postgres';
 import type { z } from 'zod/v4';
 
 import { pgConnectionSchema } from '../../lib/shared/schemas/deployment';
 import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
-import { internalAction } from '../_generated/server';
 import {
   errnoCode,
   getConfigRoot,
@@ -298,7 +296,7 @@ async function deleteOneDocument(
   };
 }
 
-async function deleteKnowledgeDocument(
+export async function deleteKnowledgeDocument(
   args: DeleteDocumentArgs,
 ): Promise<DeleteDocumentResult> {
   const url = await resolveKnowledgeUrlForOrg(args.orgSlug);
@@ -310,17 +308,6 @@ async function deleteKnowledgeDocument(
     await sql.end();
   }
 }
-
-export const deleteDocument = internalAction({
-  args: {
-    orgSlug: v.string(),
-    fileId: v.string(),
-  },
-  handler: async (_ctx, args): Promise<DeleteDocumentResult> => {
-    return await deleteKnowledgeDocument(args);
-  },
-});
-
 // The batch args cross the same V8→node boundary as DeleteDocumentArgs, so
 // the same plain-`type` requirement applies (see that type's comment).
 export type DeleteDocumentsBatchArgs = {
@@ -333,49 +320,3 @@ export interface DeleteDocumentsBatchResult {
   deleted_count: number;
   failed_file_ids: string[];
 }
-
-/**
- * Batch counterpart used by the legacy thread cascade
- * (`discussions/thread_cascade.ts`): purge every listed file's corpus rows over
- * ONE connection. Per-file failures are recorded and skipped (one bad row
- * must not strand the rest of a thread's purge) — the cascade re-runs are
- * idempotent, so a failed id is retried on the next sweep.
- */
-export const deleteDocumentsBatch = internalAction({
-  args: {
-    orgSlug: v.string(),
-    fileIds: v.array(v.string()),
-  },
-  handler: async (_ctx, args): Promise<DeleteDocumentsBatchResult> => {
-    const url = await resolveKnowledgeUrlForOrg(args.orgSlug);
-    const sql = postgres(url, { max: 1 });
-    let deleted = 0;
-    const failed: string[] = [];
-    try {
-      for (const fileId of args.fileIds) {
-        try {
-          const result = await deleteOneDocument(
-            sql,
-            args.orgSlug,
-            fileId,
-            performance.now(),
-          );
-          deleted += result.deleted_count;
-        } catch (error) {
-          failed.push(fileId);
-          console.error(
-            `[knowledge_delete] batch purge failed for file ${fileId} (org ${args.orgSlug}):`,
-            error instanceof Error ? error.message : error,
-          );
-        }
-      }
-    } finally {
-      await sql.end();
-    }
-    return {
-      success: failed.length === 0,
-      deleted_count: deleted,
-      failed_file_ids: failed,
-    };
-  },
-});

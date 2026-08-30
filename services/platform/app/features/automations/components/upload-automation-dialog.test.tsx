@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -31,12 +31,17 @@ vi.mock('@tanstack/react-query', () => ({
 const uploadAction = vi.fn();
 const generateUploadUrl = vi.fn().mockResolvedValue('https://upload.test/put');
 const recordIntent = vi.fn().mockResolvedValue(null);
-vi.mock('convex/react', () => ({
-  useAction: () => uploadAction,
-  useMutation: (ref: unknown) =>
-    ref === 'automations/upload_mutations:generateAutomationUploadUrl'
-      ? generateUploadUrl
-      : recordIntent,
+// The dialog reaches the backend through the adapter-aware imperative
+// client; the mock dispatches on the api-proxy identity strings below.
+vi.mock('@/app/hooks/use-backend-client', () => ({
+  useBackendClient: () => ({
+    action: (ref: unknown, args: unknown) => uploadAction(args),
+    mutation: (ref: unknown, args: unknown) =>
+      ref === 'automations/upload_mutations:generateAutomationUploadUrl'
+        ? generateUploadUrl(args)
+        : recordIntent(args),
+    query: vi.fn(),
+  }),
 }));
 
 // The success step's deploy button rides the shared mutation hook; the mock
@@ -83,6 +88,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   vi.unstubAllGlobals();
 });
 

@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockMutateAsync = vi.fn();
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => ({
     mutate: mockMutateAsync,
     mutateAsync: mockMutateAsync,
     isPending: false,

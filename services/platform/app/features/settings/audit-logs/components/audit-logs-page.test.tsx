@@ -34,13 +34,13 @@ vi.mock('@/app/features/settings/audit-logs/hooks/queries', () => ({
 }));
 
 // Members list (email map) + block-counters list both go through this hook.
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: [], isLoading: false }),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: [], isLoading: false }),
 }));
 
 const exportMutate = vi.hoisted(() => vi.fn());
-vi.mock('@/app/hooks/use-convex-action', () => ({
-  useConvexAction: () => ({ mutate: exportMutate, isPending: false }),
+vi.mock('@/app/hooks/use-backend-action', () => ({
+  useBackendAction: () => ({ mutate: exportMutate, isPending: false }),
 }));
 
 vi.mock('@/app/hooks/use-toast', () => ({

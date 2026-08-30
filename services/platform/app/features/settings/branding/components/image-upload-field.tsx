@@ -164,7 +164,7 @@ export function ImageUploadField({
       } catch (err) {
         // Surface the failure instead of silently dropping the preview: log for
         // diagnostics and show a destructive toast whose message reflects the
-        // server's `ConvexError` code (too large / unsupported type, etc.).
+        // server's `AppError` code (too large / unsupported type, etc.).
         console.error('[ImageUploadField] image upload failed', err);
         toast({
           title: tToast(imageUploadErrorToastKey(err)),

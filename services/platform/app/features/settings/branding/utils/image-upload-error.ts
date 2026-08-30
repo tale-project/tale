@@ -1,12 +1,12 @@
 /**
  * Map a thrown branding `saveImage` error to a `toast` translation key.
  *
- * `saveImage` rejects validation failures with `ConvexError({ code })`. Vite
- * chunk splitting can produce multiple `ConvexError` class copies, which breaks
+ * `saveImage` rejects validation failures with `AppError({ code })`. Vite
+ * chunk splitting can produce multiple `AppError` class copies, which breaks
  * `instanceof`, so we duck-type the `data.code` shape instead. Unknown / network
  * errors fall back to a generic upload-failure key.
  */
-function readConvexErrorCode(err: unknown): string | undefined {
+function readBackendErrorCode(err: unknown): string | undefined {
   if (err == null || typeof err !== 'object') return undefined;
   if (!('data' in err)) return undefined;
   const data = err.data;
@@ -21,7 +21,7 @@ function readConvexErrorCode(err: unknown): string | undefined {
  * generic fallback for everything else (permission, network, server).
  */
 export function imageUploadErrorToastKey(err: unknown): string {
-  switch (readConvexErrorCode(err)) {
+  switch (readBackendErrorCode(err)) {
     case 'IMAGE_TOO_LARGE':
       return 'error.imageTooLarge';
     case 'IMAGE_MIME_UNSUPPORTED':

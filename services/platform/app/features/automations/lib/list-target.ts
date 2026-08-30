@@ -1,4 +1,3 @@
-import type { Id } from '@/convex/_generated/dataModel';
 import { automationSlugToParam } from '@/lib/automations/slug';
 
 /**
@@ -16,14 +15,14 @@ export function automationListTarget({
 }: {
   organizationId: string;
   name: string;
-  listProjectId?: Id<'projects'>;
-  boundProjectIds: readonly Id<'projects'>[];
+  listProjectId?: string;
+  boundProjectIds: readonly string[];
 }):
   | {
       to: '/dashboard/$id/projects/$projectId/automations/$automationSlug';
       params: {
         id: string;
-        projectId: Id<'projects'>;
+        projectId: string;
         automationSlug: string;
       };
     }

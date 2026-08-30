@@ -6,7 +6,7 @@ import { Download, WifiOff } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
-import { useConvexConnectionState } from '@/app/hooks/use-convex-connection-state';
+import { useBackendConnectionState } from '@/app/hooks/use-backend-connection-state';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -46,7 +46,7 @@ export function OnlineGate({ children }: OnlineGateProps) {
 }
 
 function useOfflineReason(): OfflineReason | null {
-  const connection = useConvexConnectionState();
+  const connection = useBackendConnectionState();
   const [isDeviceOffline, setIsDeviceOffline] = useState(
     () => typeof navigator !== 'undefined' && !navigator.onLine,
   );

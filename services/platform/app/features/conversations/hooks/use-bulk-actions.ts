@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
 import type { ConversationItem } from '@/convex/conversations/types';
-import { toId, toIds } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import type { SelectionState } from '../types/selection';
@@ -113,7 +112,7 @@ export function useBulkActions({
             });
 
             return sendMessageViaConnector({
-              conversationId: toId<'conversations'>(conversation._id),
+              conversationId: conversation._id,
               organizationId,
               connectorName: conversation.connectorName ?? 'outlook',
               content: body,
@@ -176,7 +175,7 @@ export function useBulkActions({
       );
 
       const result = await bulkResolve({
-        conversationIds: toIds<'conversations'>(conversationIds),
+        conversationIds: conversationIds,
       });
 
       toast({
@@ -219,7 +218,7 @@ export function useBulkActions({
       );
 
       const result = await bulkReopen({
-        conversationIds: toIds<'conversations'>(conversationIds),
+        conversationIds: conversationIds,
       });
 
       toast({
@@ -262,7 +261,7 @@ export function useBulkActions({
       );
 
       const result = await bulkSpam({
-        conversationIds: toIds<'conversations'>(conversationIds),
+        conversationIds: conversationIds,
       });
 
       toast({
@@ -305,7 +304,7 @@ export function useBulkActions({
       );
 
       const result = await bulkArchive({
-        conversationIds: toIds<'conversations'>(conversationIds),
+        conversationIds: conversationIds,
       });
 
       toast({
@@ -348,7 +347,7 @@ export function useBulkActions({
       );
 
       const result = await bulkUnarchive({
-        conversationIds: toIds<'conversations'>(conversationIds),
+        conversationIds: conversationIds,
       });
 
       toast({

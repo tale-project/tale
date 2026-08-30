@@ -6,20 +6,21 @@ const ALL_RUNNING = () => true;
 const NONE_RUNNING = () => false;
 
 describe('selectDefaultServices', () => {
-  test('always rolls platform + the always-roll tier (convex, sandbox-llm-gateway, sandbox, sandbox-egress)', () => {
+  test('always rolls platform + the always-roll tier', () => {
     const sel = selectDefaultServices({
       isFirstDeploy: false,
       stop: false,
       isStopGatedRunning: ALL_RUNNING,
     });
     expect(sel.rotatable).toEqual(['platform']);
-    // The sandbox tier is a single container (blue-green dropped) and rolls
-    // in place through the stateful compose like convex.
+    // The sandbox and backend tiers are single containers (blue-green
+    // dropped) and roll in place through the stateful compose.
     expect(sel.stateful).toEqual([
-      'convex',
       'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
+      'backend-api',
+      'backend-worker',
     ]);
   });
 
@@ -42,10 +43,11 @@ describe('selectDefaultServices', () => {
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toEqual([
-      'convex',
       'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
+      'backend-api',
+      'backend-worker',
       'db',
       'proxy',
     ]);
@@ -81,12 +83,25 @@ describe('selectDefaultServices', () => {
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toEqual([
-      'convex',
       'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
+      'backend-api',
+      'backend-worker',
       'db',
       'proxy',
     ]);
+  });
+});
+
+describe('the application backend tier', () => {
+  test('always rolls — every stack runs it', () => {
+    const sel = selectDefaultServices({
+      isFirstDeploy: false,
+      stop: false,
+      isStopGatedRunning: () => true,
+    });
+    expect(sel.stateful).toContain('backend-api');
+    expect(sel.stateful).toContain('backend-worker');
   });
 });

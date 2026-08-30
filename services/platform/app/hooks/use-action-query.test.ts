@@ -1,39 +1,40 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
-import { convexErrorCode, isStructuredConvexError } from './use-action-query';
+import { AppError } from '@/lib/shared/errors/app-error';
 
-describe('isStructuredConvexError', () => {
-  it('is true for a ConvexError carrying object data', () => {
-    expect(isStructuredConvexError(new ConvexError({ code: 'X' }))).toBe(true);
+import { backendErrorCode, isStructuredBackendError } from './use-action-query';
+
+describe('isStructuredBackendError', () => {
+  it('is true for a AppError carrying object data', () => {
+    expect(isStructuredBackendError(new AppError({ code: 'X' }))).toBe(true);
   });
 
   it('is false for a plain Error and non-error values', () => {
-    expect(isStructuredConvexError(new Error('boom'))).toBe(false);
-    expect(isStructuredConvexError('boom')).toBe(false);
-    expect(isStructuredConvexError(null)).toBe(false);
-    // A ConvexError with a string payload has no structured `data` object.
-    expect(isStructuredConvexError(new ConvexError('boom'))).toBe(false);
+    expect(isStructuredBackendError(new Error('boom'))).toBe(false);
+    expect(isStructuredBackendError('boom')).toBe(false);
+    expect(isStructuredBackendError(null)).toBe(false);
+    // A AppError with a string payload has no structured `data` object.
+    expect(isStructuredBackendError(new AppError('boom'))).toBe(false);
   });
 });
 
-describe('convexErrorCode', () => {
-  it('returns the code from a structured ConvexError', () => {
+describe('backendErrorCode', () => {
+  it('returns the code from a structured AppError', () => {
     expect(
-      convexErrorCode(new ConvexError({ code: 'CONNECTOR_NOT_CONNECTED' })),
+      backendErrorCode(new AppError({ code: 'CONNECTOR_NOT_CONNECTED' })),
     ).toBe('CONNECTOR_NOT_CONNECTED');
   });
 
   it('returns undefined when there is no string code', () => {
-    expect(convexErrorCode(new ConvexError({ message: 'no code' }))).toBe(
+    expect(backendErrorCode(new AppError({ message: 'no code' }))).toBe(
       undefined,
     );
-    expect(convexErrorCode(new ConvexError({ code: 42 }))).toBe(undefined);
+    expect(backendErrorCode(new AppError({ code: 42 }))).toBe(undefined);
   });
 
   it('returns undefined for a plain Error or non-error value', () => {
-    expect(convexErrorCode(new Error('boom'))).toBe(undefined);
-    expect(convexErrorCode(undefined)).toBe(undefined);
-    expect(convexErrorCode({ data: null })).toBe(undefined);
+    expect(backendErrorCode(new Error('boom'))).toBe(undefined);
+    expect(backendErrorCode(undefined)).toBe(undefined);
+    expect(backendErrorCode({ data: null })).toBe(undefined);
   });
 });

@@ -3,13 +3,13 @@
 import { ProgressBar } from '@tale/ui/progress-bar';
 import { useCallback, useState } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { WebsiteDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 
 import { WebsitePagesDialog } from './website-pages-dialog';
 
 interface WebsitePagesCellProps {
-  website: Doc<'websites'>;
+  website: WebsiteDoc;
 }
 
 export function WebsitePagesCell({ website }: WebsitePagesCellProps) {

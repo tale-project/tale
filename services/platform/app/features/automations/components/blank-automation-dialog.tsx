@@ -33,7 +33,6 @@ import {
   useProjectHarnesses,
 } from '@/app/features/projects/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { EVENT_TYPES } from '@/convex/events/emit';
 import { AGENT_TOOL_CATALOG } from '@/convex/sandbox/tool_names';
 import { automationSlugToParam } from '@/lib/automations/slug';
@@ -70,7 +69,7 @@ export function BlankAutomationDialog({
 }: {
   organizationId: string;
   /** Install target — the first save binds the automation to this project. */
-  projectId?: Id<'projects'>;
+  projectId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {

@@ -6231,27 +6231,9 @@ settings:
       title: Enregistré — redémarre pour appliquer.
       runPrefix: Exécute
       orPrefix: (ou
-      tail: pour le Zero-Downtime). La plateforme elle-même n'a pas besoin de
-        redémarrer.
+      tail: pour le Zero-Downtime).
     saving: Enregistrement…
     saveDeployment: Enregistrer le déploiement
-    applyRestart: Appliquer & redémarrer
-    applyRestartTitle:
-      Redémarre rag + convex via le controller (si activé), sinon
-      affiche la commande manuelle
-    restarting: Redémarrage…
-    restart:
-      notEnabled: Controller de redémarrage non activé.
-      requested: 'Redémarrage demandé : {services}'
-      failed: 'Échec du redémarrage : {error}'
-      defaultServices: rag, convex
-      unknownError: erreur inconnue
-    restartConfirm:
-      title: Redémarrer RAG et Convex ?
-      description: Cela applique la configuration enregistrée en redémarrant les
-        conteneurs RAG et Convex. Attends-toi à une brève interruption le temps
-        qu'ils redémarrent.
-      confirm: Redémarrer maintenant
     forceOverwrite:
       title: Écraser les secrets illisibles ?
       description: Le fichier de secrets existant ne peut pas être déchiffré.

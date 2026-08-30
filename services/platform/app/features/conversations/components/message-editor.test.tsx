@@ -53,7 +53,7 @@ vi.mock('dompurify', () => ({
   default: { sanitize: (html: string) => html },
 }));
 
-vi.mock('@/app/hooks/use-convex-auth', () => ({
+vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => ({ user: { userId: 'test-user-id' } }),
 }));
 

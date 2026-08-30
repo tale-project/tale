@@ -5,7 +5,6 @@ import { Heading } from '@tale/ui/heading';
 import { Grid, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useMutation } from 'convex/react';
 import { ChevronLeft, X } from 'lucide-react';
 import { useState } from 'react';
 
@@ -18,8 +17,8 @@ import { Wizard } from '@/app/components/ui/wizard/wizard';
 import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { UserButton } from '@/app/components/user-button';
-import { useAuth } from '@/app/hooks/use-convex-auth';
-import { api } from '@/convex/_generated/api';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { useT } from '@/lib/i18n/client';
 
 import { AccountStep } from './steps/account-step';
@@ -51,8 +50,8 @@ export function OnboardingWizard({
   const { t } = useT('onboarding');
   const { t: tCommon } = useT('common');
 
-  const setOnboardingCompleted = useMutation(
-    api.user_preferences.mutations.setOnboardingCompleted,
+  const setOnboardingCompleted = useBackendMutation(
+    'user_preferences/mutations:setOnboardingCompleted',
   );
 
   const [createdOrgId, setCreatedOrgId] = useState<string | null>(null);
@@ -77,7 +76,7 @@ export function OnboardingWizard({
   const completeOnboarding = async () => {
     if (!createdOrgId) return;
     try {
-      await setOnboardingCompleted({
+      await setOnboardingCompleted.mutateAsync({
         organizationId: createdOrgId,
         completed: true,
       });

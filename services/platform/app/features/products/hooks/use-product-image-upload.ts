@@ -2,8 +2,7 @@
 
 import { useCallback, useState } from 'react';
 
-import { useConvexClient } from '@/app/hooks/use-convex-client';
-import { api } from '@/convex/_generated/api';
+import { useBackendClient } from '@/app/hooks/use-backend-client';
 
 /** Product images are small thumbnails; cap uploads at 5 MB. */
 export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -17,7 +16,7 @@ export const PRODUCT_IMAGE_ACCEPT =
  * storage/serving infrastructure is introduced.
  */
 export function useProductImageUpload() {
-  const client = useConvexClient();
+  const client = useBackendClient();
   const [isUploading, setIsUploading] = useState(false);
 
   const uploadImage = useCallback(
@@ -25,7 +24,7 @@ export function useProductImageUpload() {
       setIsUploading(true);
       try {
         const uploadUrl = await client.mutation(
-          api.files.mutations.generateUploadUrl,
+          'files/mutations:generateUploadUrl',
           {},
         );
         const res = await fetch(uploadUrl, {
@@ -40,7 +39,7 @@ export function useProductImageUpload() {
         if (!storageId) {
           throw new Error('Upload response missing storageId');
         }
-        return await client.query(api.files.queries.getFileUrl, {
+        return await client.query('files/queries:getFileUrl', {
           fileId: storageId,
         });
       } finally {

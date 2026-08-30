@@ -7,8 +7,8 @@ import { useProductImageUpload } from './use-product-image-upload';
 const mutation = vi.fn();
 const query = vi.fn();
 
-vi.mock('@/app/hooks/use-convex-client', () => ({
-  useConvexClient: () => ({ mutation, query }),
+vi.mock('@/app/hooks/use-backend-client', () => ({
+  useBackendClient: () => ({ mutation, query }),
 }));
 
 function file() {

@@ -1,33 +1,5 @@
 'use node';
 
-/**
- * The turn entry point.
- *
- * This is the thin host around the pure pipeline in `lib/chat/turn.ts`: it
- * resolves the real dependencies — the model call, the thread store, the usage
- * ledger, the harness table — and hands them to `runTurn`, which owns the
- * ORDER of a turn (guardrails, context, stream, ledger). Nothing about that
- * order lives here; this file only supplies the ports.
- *
- * The model is ALWAYS concrete by the time a turn binds. The caller names a
- * model id — or, on the chat lane only, says `modelSelection: 'auto'`, which
- * `resolveChatModel` turns into a concrete (provider, model) pair BEFORE the
- * access check and everything downstream. The catalog entry is resolved for
- * the organization, the credential through `resolveProviderCredential`, and
- * the wire is shaped for the connector's declared dialect. There is no
- * routing inside the pipeline and no silent failover: an unresolvable Auto
- * refuses with its reason, and the REST, arena, task, and automation lanes
- * stay explicit-only.
- *
- * Only DIRECT execution is served here. A subscription credential, or a
- * request for sandbox execution, is refused with a reason rather than run
- * through a path that does not exist yet — the sandbox harness lane is a
- * separate subsystem, and answering "not available, here is why" is honest
- * where a silent empty turn is not.
- */
-
-import { ConvexError, v } from 'convex/values';
-
 import { CHAT_ASSISTANT } from '../../lib/chat/assistant';
 import {
   buildAudioTranscriptAppendix,
@@ -61,10 +33,7 @@ import {
   type ChatWireMessage,
   type WireImage,
 } from '../../lib/chat/wire-parts';
-import {
-  classifyChatErrorCode,
-  encodeChatError,
-} from '../../lib/shared/chat-errors';
+import { AppError } from '../../lib/shared/errors/app-error';
 import {
   CHAT_MAX_FILE_COUNT,
   CHAT_UPLOAD_ALLOWED_TYPES,
@@ -84,10 +53,9 @@ import type {
   WireDialect,
 } from '../../lib/shared/schemas/providers';
 import { isTextBasedFile } from '../../lib/utils/text-file-types';
-import { internal } from '../_generated/api';
-import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { buildChatRequest } from '../automations_builder/chat_wire';
-import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { checkProviderHostPolicy } from '../lib/http/host_policy';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
@@ -97,19 +65,12 @@ import {
   resolveChatModel,
   type ChatAutoResolutionRefusal,
 } from '../lib/providers/resolve_chat_model';
-import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { readBlobBytes } from '../lib/storage/blob_access';
-import { blobRefValidator } from '../lib/storage/blob_ref';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { createChatToolExecutor } from './assistant_tools';
 import { resolveProjectContext } from './project_context';
-import { reasoningEffortValidator } from './schema';
-import {
-  createConvexTurnStore,
-  createConvexUsageLedger,
-  settleDeferredSendOnUserAppend,
-} from './turn_store';
+import { createConvexTurnStore, createConvexUsageLedger } from './turn_store';
 
 const REQUEST_TIMEOUT_MS = 180_000;
 /** The stored excerpt of an upstream error body. This is the ONLY record of
@@ -149,7 +110,7 @@ async function resolveModel(
     const entry = catalog.find((candidate) => candidate.id === modelId);
     if (entry) return { entry, connector };
   }
-  throw new ConvexError({
+  throw new AppError({
     code: 'CHAT_MODEL_UNKNOWN',
     message: `No model "${modelId}" is available in this organization. Pick a model the organization has configured.`,
   });
@@ -179,14 +140,14 @@ async function resolveDirectWire(
     providerSlug: connector.name,
   });
   if (credential.authMethod !== 'api-key' && credential.authMethod !== 'env') {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CHAT_CREDENTIAL_UNSUPPORTED',
       message: `The default "${connector.name}" credential is a ${credential.authMethod} credential, which is bound to a vendor harness and only runs in a sandbox. Configure an API-key or environment-variable credential to chat with this model directly.`,
     });
   }
   const baseUrl = credential.endpointUrl ?? connector.baseUrl;
   if (!baseUrl) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'CHAT_PROVIDER_ENDPOINT_MISSING',
       message: `Provider "${connector.name}" has no API endpoint configured.`,
     });
@@ -450,7 +411,6 @@ async function* streamSse(
   let buffer = '';
   let lastUsage: TurnUsage | undefined;
 
-  // oxlint-disable-next-line no-constant-condition -- reader.read() ends the loop
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -599,7 +559,7 @@ export function createDirectModelCall(
     request,
   ): AsyncGenerator<ModelStreamChunk> {
     if (request.execution.mode !== 'direct') {
-      throw new ConvexError({
+      throw new AppError({
         code: 'CHAT_EXECUTION_UNAVAILABLE',
         message:
           'Sandbox execution is not available for chat turns yet — only direct model calls run here.',
@@ -1199,7 +1159,7 @@ export async function executeTurn(
   // from typed text + fresh `fileMetadata` so regenerate and later turns
   // see the same words without doubling.
   const history: ChatMessage[] = await Promise.all(
-    historyRows.map(async (message) => {
+    historyRows.map(async (message: ChatMessage) => {
       if (message.role !== 'user') {
         return { role: message.role, parts: message.parts };
       }
@@ -1258,442 +1218,4 @@ export async function executeTurn(
   };
 
   return runTurn(request, deps);
-}
-
-/**
- * Start a turn for the authenticated caller. Runs the turn to completion and
- * returns a compact acknowledgement — the conversation itself streams into the
- * `messages` and `generations` tables, which the client already subscribes to.
- *
- * The handler's return type is annotated explicitly: the turn's outcome type
- * is broad, and letting it flow into the generated API surface unannotated
- * would degrade the chat API's types.
- */
-export const startTurn = action({
-  args: {
-    organizationId: v.string(),
-    threadId: v.string(),
-    userText: v.string(),
-    attachments: v.optional(
-      v.array(
-        v.object({
-          fileId: blobRefValidator,
-          fileName: v.string(),
-          fileType: v.string(),
-          fileSize: v.number(),
-        }),
-      ),
-    ),
-    /** Exactly one of `modelId` and `modelSelection: 'auto'`. */
-    modelId: v.optional(v.string()),
-    modelSelection: v.optional(v.literal('auto')),
-    providerSlug: v.optional(v.string()),
-    reasoningEffort: v.optional(reasoningEffortValidator),
-    sandbox: v.boolean(),
-    locale: v.optional(v.string()),
-  },
-  returns: v.object({
-    status: v.union(v.literal('completed'), v.literal('refused')),
-    reason: v.optional(v.string()),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
-    // Membership and the turn gate are independent reads — started together,
-    // unwrapped in the serial order, so an unauthenticated or foreign caller
-    // still fails on membership before any gate verdict is read. The gate is
-    // keyed by the JWT identity directly (free — no syscall); when there is
-    // no identity the gate runs against no owner and its answer is discarded
-    // because membership throws first.
-    const identity = await getAuthUserIdentity(ctx);
-    const pendingAuth = settled(
-      requireOrgMembershipById(ctx, args.organizationId),
-    );
-    const pendingGate = settled(
-      ctx.runQuery(internal.chat.turn_setup.getTurnGateInternal, {
-        organizationId: args.organizationId,
-        userId: identity?.userId ?? '',
-        threadId: args.threadId,
-      }),
-    );
-    const auth = unwrap(await pendingAuth);
-    const gate = unwrap(await pendingGate);
-    // A thread is user-private: only its owner may run turns into it. Without
-    // this, org membership alone let any member write user+assistant messages
-    // into another member's thread (listMessages returns [] for a foreign
-    // thread, but the append path only checked org). The external lane already
-    // gates on the same owned-thread query.
-    if (gate.thread === null) {
-      return { status: 'refused', reason: 'This conversation does not exist.' };
-    }
-    // At most one turn per thread — refuse a concurrent send rather than let two
-    // turns interleave and delete each other's generation row mid-stream.
-    if (gate.busy) {
-      return {
-        status: 'refused',
-        reason: 'This conversation is already generating a response.',
-      };
-    }
-    // Exactly one way to name the model: a concrete id, or Auto. Both (or
-    // neither) is a malformed call, refused before any work.
-    if ((args.modelId === undefined) === (args.modelSelection === undefined)) {
-      return {
-        status: 'refused',
-        reason: 'Pass either a model id or Auto — exactly one.',
-      };
-    }
-    const outcome = await executeTurn(ctx, {
-      organizationId: args.organizationId,
-      userId: auth.userId,
-      threadId: args.threadId,
-      userText: args.userText,
-      ...(args.attachments !== undefined && args.attachments.length > 0
-        ? { attachments: args.attachments }
-        : {}),
-      ...(args.modelId !== undefined && { modelId: args.modelId }),
-      ...(args.modelSelection !== undefined && {
-        modelSelection: args.modelSelection,
-      }),
-      ...(args.providerSlug !== undefined && {
-        providerSlug: args.providerSlug,
-      }),
-      ...(args.reasoningEffort !== undefined && {
-        reasoningEffort: args.reasoningEffort,
-      }),
-      sandbox: args.sandbox,
-      locale: args.locale ?? 'en',
-    });
-    return outcome.status === 'completed'
-      ? { status: 'completed' }
-      : { status: 'refused', reason: outcome.reason };
-  },
-});
-
-/**
- * Re-run the thread's trailing user prompt — the "Try again" of a
- * regenerate-branch, first-class rather than a synthetic edit. The branch the
- * client passes already ends with the user message (`branchForRegenerate`
- * copied it), so the turn resends that text without appending it again. Same
- * ownership and busy gates as `startTurn`. Auto re-resolves per attempt —
- * "try again" may legitimately land on a different model.
- */
-export const regenerateTurn = action({
-  args: {
-    organizationId: v.string(),
-    threadId: v.string(),
-    /** Exactly one of `modelId` and `modelSelection: 'auto'`. */
-    modelId: v.optional(v.string()),
-    modelSelection: v.optional(v.literal('auto')),
-    providerSlug: v.optional(v.string()),
-    reasoningEffort: v.optional(reasoningEffortValidator),
-    locale: v.optional(v.string()),
-  },
-  returns: v.object({
-    status: v.union(v.literal('completed'), v.literal('refused')),
-    reason: v.optional(v.string()),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
-    // Same entry choreography as `startTurn`: membership ∥ gate, serial
-    // verdicts.
-    const identity = await getAuthUserIdentity(ctx);
-    const pendingAuth = settled(
-      requireOrgMembershipById(ctx, args.organizationId),
-    );
-    const pendingGate = settled(
-      ctx.runQuery(internal.chat.turn_setup.getTurnGateInternal, {
-        organizationId: args.organizationId,
-        userId: identity?.userId ?? '',
-        threadId: args.threadId,
-      }),
-    );
-    const auth = unwrap(await pendingAuth);
-    const gate = unwrap(await pendingGate);
-    if (gate.thread === null) {
-      return { status: 'refused', reason: 'This conversation does not exist.' };
-    }
-    if (gate.busy) {
-      return {
-        status: 'refused',
-        reason: 'This conversation is already generating a response.',
-      };
-    }
-    if ((args.modelId === undefined) === (args.modelSelection === undefined)) {
-      return {
-        status: 'refused',
-        reason: 'Pass either a model id or Auto — exactly one.',
-      };
-    }
-    const outcome = await executeTurn(ctx, {
-      organizationId: args.organizationId,
-      userId: auth.userId,
-      threadId: args.threadId,
-      userText: '',
-      ...(args.modelId !== undefined && { modelId: args.modelId }),
-      ...(args.modelSelection !== undefined && {
-        modelSelection: args.modelSelection,
-      }),
-      ...(args.providerSlug !== undefined && {
-        providerSlug: args.providerSlug,
-      }),
-      ...(args.reasoningEffort !== undefined && {
-        reasoningEffort: args.reasoningEffort,
-      }),
-      sandbox: false,
-      locale: args.locale ?? 'en',
-      resend: true,
-    });
-    return outcome.status === 'completed'
-      ? { status: 'completed' }
-      : { status: 'refused', reason: outcome.reason };
-  },
-});
-
-/**
- * Run one claimed deferred send (`chat/deferred_sends.ts`) — the readiness
- * watcher schedules this the moment the row's media settled and the thread
- * went idle. Same stored-identity posture as `startTurnForApiKey`: the row
- * carries who sent it, and both the owned-thread and busy checks re-run here
- * because this executes detached from the enqueue.
- *
- * A busy race (a direct send slipped in between the watcher's idle check
- * and this action) re-queues the row instead of dropping it. Any other
- * refusal or throw settles the row and records an assistant error message —
- * the user must SEE why their parked message never produced a reply.
- *
- * The happy path settles EARLY: the decorated store deletes the row the
- * moment the turn persists the user message, because from that write on the
- * thread shows the bubble and a surviving row would double-display the
- * message until the reply finished. The terminal settle stays as the mop-up
- * for everything that dies before the append.
- */
-export const runDeferredSend = internalAction({
-  args: {
-    deferredSendId: v.id('deferredSends'),
-    /** Uploads + terminal video-transcript payloads, merged by the watcher. */
-    attachments: v.optional(
-      v.array(
-        v.object({
-          fileId: v.string(),
-          fileName: v.string(),
-          fileType: v.string(),
-          fileSize: v.number(),
-        }),
-      ),
-    ),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    const row = await ctx.runQuery(
-      internal.chat.deferred_sends.getDeferredSendInternal,
-      { deferredSendId: args.deferredSendId },
-    );
-    if (row === null || row.status !== 'claimed') return null;
-
-    const settle = async () => {
-      await ctx.runMutation(internal.chat.deferred_sends.settleDeferredSend, {
-        deferredSendId: args.deferredSendId,
-      });
-    };
-
-    const gate = await ctx.runQuery(
-      internal.chat.turn_setup.getTurnGateInternal,
-      {
-        organizationId: row.organizationId,
-        userId: row.userId,
-        threadId: row.threadId,
-      },
-    );
-    if (gate.thread === null) {
-      // Thread erased while waiting — the row is an orphan.
-      await settle();
-      return null;
-    }
-    if (gate.busy) {
-      await ctx.runMutation(internal.chat.deferred_sends.requeueDeferredSend, {
-        deferredSendId: args.deferredSendId,
-      });
-      return null;
-    }
-
-    // No client watches a deferred turn, so BOTH failure shapes must land as
-    // an assistant error message: a throw (provider/config) and a pipeline
-    // refusal that ends before anything was written. A refusal that already
-    // produced steps wrote its own trace.
-    // An Auto row failing before resolution has no model to stamp — the
-    // error message carries the reason; the model badge stays empty rather
-    // than showing a selection mode as if it were a model.
-    const recordFailure = async (error: unknown, reason: string) => {
-      await ctx.runMutation(internal.chat.messages.appendMessageInternal, {
-        organizationId: row.organizationId,
-        threadId: row.threadId,
-        role: 'assistant',
-        parts: [],
-        ...(row.modelId !== undefined ? { model: row.modelId } : {}),
-        error: encodeChatError({
-          code: classifyChatErrorCode(error),
-          ...(row.modelId !== undefined ? { model: row.modelId } : {}),
-          raw: reason,
-        }),
-      });
-    };
-
-    try {
-      const outcome = await executeTurn(
-        ctx,
-        {
-          organizationId: row.organizationId,
-          userId: row.userId,
-          threadId: row.threadId,
-          userText: row.userText,
-          ...(args.attachments !== undefined && args.attachments.length > 0
-            ? { attachments: args.attachments }
-            : {}),
-          // The stored selection replays as sent: a parked Auto resolves NOW,
-          // against the prompt as it stands after its media settled.
-          ...(row.modelId !== undefined ? { modelId: row.modelId } : {}),
-          ...(row.modelSelection !== undefined
-            ? { modelSelection: row.modelSelection }
-            : {}),
-          ...(row.providerSlug !== undefined
-            ? { providerSlug: row.providerSlug }
-            : {}),
-          ...(row.reasoningEffort !== undefined
-            ? { reasoningEffort: row.reasoningEffort }
-            : {}),
-          // Pure-chat lane by definition — the boundary model gives chat no
-          // sandbox control, so a deferred send never carries one either.
-          sandbox: false,
-          locale: row.locale,
-        },
-        {
-          // The tray row must clear the moment the user bubble posts — not when
-          // the generation ends. Every pre-append refusal or throw still reaches
-          // the terminal settle below.
-          deps: {
-            store: settleDeferredSendOnUserAppend(
-              createConvexTurnStore(ctx),
-              settle,
-            ),
-          },
-        },
-      );
-      if (outcome.status === 'refused' && outcome.steps.length === 0) {
-        await recordFailure(undefined, outcome.reason);
-      }
-    } catch (error) {
-      const reason =
-        error instanceof Error ? error.message : 'The turn could not start.';
-      await recordFailure(error, reason);
-    } finally {
-      await settle();
-    }
-    return null;
-  },
-});
-
-/**
- * Start a turn for a caller the REST surface authenticated with an organization
- * API key.
- *
- * The identity arrives EXPLICITLY because an API key has no Convex identity for
- * `requireOrgMembershipById` to read. Everything else is the same turn: the
- * thread must belong to the `(organizationId, userId)` pair — checked here
- * again, against the same owned-thread query the session action uses, because
- * this runs detached from the request that scheduled it — and a thread already
- * generating refuses rather than interleaving two turns.
- *
- * It is scheduled, not awaited: `POST /api/v1/threads/:id/messages` answers 202
- * and the caller polls the generation. A failure BEFORE the pipeline starts (an
- * unknown model id) would otherwise leave no trace at all, so it is recorded as
- * an assistant message carrying the error — the same shape the pipeline itself
- * writes for a mid-stream failure, which is what makes the failure visible to a
- * client that only reads messages.
- */
-export const startTurnForApiKey = internalAction({
-  args: {
-    organizationId: v.string(),
-    userId: v.string(),
-    threadId: v.string(),
-    userText: v.string(),
-    modelId: v.string(),
-    providerSlug: v.optional(v.string()),
-    locale: v.optional(v.string()),
-  },
-  returns: v.object({
-    status: v.union(v.literal('completed'), v.literal('refused')),
-    reason: v.optional(v.string()),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
-    const gate = await ctx.runQuery(
-      internal.chat.turn_setup.getTurnGateInternal,
-      {
-        organizationId: args.organizationId,
-        userId: args.userId,
-        threadId: args.threadId,
-      },
-    );
-    if (gate.thread === null) {
-      return { status: 'refused', reason: 'This conversation does not exist.' };
-    }
-    if (gate.busy) {
-      return {
-        status: 'refused',
-        reason: 'This conversation is already generating a response.',
-      };
-    }
-
-    let outcome: TurnOutcome;
-    try {
-      outcome = await executeTurn(ctx, {
-        organizationId: args.organizationId,
-        userId: args.userId,
-        threadId: args.threadId,
-        userText: args.userText,
-        modelId: args.modelId,
-        ...(args.providerSlug !== undefined && {
-          providerSlug: args.providerSlug,
-        }),
-        // Direct execution only: the sandbox lane is started by its own action.
-        sandbox: false,
-        locale: args.locale ?? 'en',
-      });
-    } catch (error) {
-      const reason =
-        error instanceof ConvexError && typeof error.data === 'object'
-          ? (readErrorMessage(error.data) ?? error.message)
-          : error instanceof Error
-            ? error.message
-            : 'The turn could not be started.';
-      await ctx.runMutation(internal.chat.messages.appendMessageInternal, {
-        organizationId: args.organizationId,
-        threadId: args.threadId,
-        role: 'assistant',
-        parts: [],
-        model: args.modelId,
-        error: encodeChatError({
-          code: classifyChatErrorCode(error),
-          model: args.modelId,
-          raw: reason,
-        }),
-      });
-      return { status: 'refused', reason };
-    }
-    return outcome.status === 'completed'
-      ? { status: 'completed' }
-      : { status: 'refused', reason: outcome.reason };
-  },
-});
-
-/** The `message` a coded ConvexError carries, when it carries one. */
-function readErrorMessage(data: unknown): string | undefined {
-  return isRecord(data) && typeof data.message === 'string'
-    ? data.message
-    : undefined;
 }

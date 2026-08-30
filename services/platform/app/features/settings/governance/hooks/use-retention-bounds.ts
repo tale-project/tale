@@ -1,10 +1,8 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
-import { useConvexClient } from '@/app/hooks/use-convex-client';
-import { api } from '@/convex/_generated/api';
+import { useActionQuery } from '@/app/hooks/use-action-query';
 
 import type { CategoryId } from '../components/retention-categories';
 
@@ -71,19 +69,12 @@ export interface CategoryBounds {
  * `undefined` so callers fall back to schema-level defaults.
  */
 export function useRetentionBounds(organizationId: string | undefined) {
-  const convex = useConvexClient();
-  const result = useQuery({
-    queryKey: ['retention-bounds', organizationId ?? null],
-    queryFn: async () => {
-      if (!organizationId) return null;
-      return convex.action(
-        api.governance.retention_actions.getRetentionBoundsAction,
-        { organizationId },
-      );
-    },
-    enabled: !!organizationId,
-    staleTime: 60_000,
-  });
+  const result = useActionQuery(
+    ['retention-bounds', organizationId ?? null],
+    'governance/retention_actions:getRetentionBoundsAction',
+    { organizationId: organizationId ?? '' },
+    { enabled: !!organizationId, staleTime: 60_000 },
+  );
 
   const map = useMemo(() => {
     const bounds = (result.data?.bounds ?? []) as RawBound[];

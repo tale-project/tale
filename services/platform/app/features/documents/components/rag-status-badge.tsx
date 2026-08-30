@@ -11,7 +11,6 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from '@/convex/knowledge/rag_error_codes';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import type { RagStatus } from '@/types/documents';
 
@@ -88,7 +87,7 @@ export function RagStatusBadge({
 
     try {
       const result = await retryRagIndexing({
-        documentId: toId<'documents'>(documentId),
+        documentId: documentId,
       });
       if (result.success) {
         toast({

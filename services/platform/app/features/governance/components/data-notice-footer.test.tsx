@@ -4,15 +4,15 @@ import { render, screen } from '@/tests/utils/render';
 
 import { DataNoticeFooter } from './data-notice-footer';
 
-// Drives the mocked `useConvexQuery` return. `undefined` data models the
+// Drives the mocked `useBackendQuery` return. `undefined` data models the
 // loading (or skipped) state; `null` models a resolved read with no stored
 // policy row; an object models a resolved policy.
 const { state } = vi.hoisted(() => ({
   state: { data: undefined as unknown },
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: state.data }),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: state.data }),
 }));
 
 function noticeEl() {

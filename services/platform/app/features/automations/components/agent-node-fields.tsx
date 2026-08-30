@@ -33,7 +33,6 @@ import {
   findSelectedModel,
   toModelOptions,
 } from '@/app/features/projects/lib/model-options';
-import type { Id } from '@/convex/_generated/dataModel';
 import { AGENT_TOOL_CATALOG } from '@/convex/sandbox/tool_names';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
@@ -83,7 +82,7 @@ export function AgentNodeFields({
   onChange,
 }: {
   organizationId: string;
-  projectId?: Id<'projects'>;
+  projectId?: string;
   node: NodeDef;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;

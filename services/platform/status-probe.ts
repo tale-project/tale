@@ -11,30 +11,26 @@
  * the public response or this process's memory.
  */
 
-import { ConvexHttpClient } from 'convex/browser';
-import { anyApi } from 'convex/server';
-
 const CACHE_TTL_MS = 5000;
 const PROBE_TIMEOUT_MS = 2000;
-// Node-action probes spawn a node executor on a cold path — give them more
-// headroom than a plain HTTP liveness fetch before calling the lane down.
-const NODE_PROBE_TIMEOUT_MS = 8000;
 
-// Default to loopback so `bun run dev` works without env overrides; docker
-// compose sets CONVEX_URL to the in-network DNS name (convex), which takes
-// precedence. Knowledge-base (RAG) and web/document (crawler) work now runs
-// IN-PROCESS inside the Convex backend — there are no separate rag/crawler
-// HTTP services to probe, so Convex liveness is the single backend signal
-// for V8 execution; the node-action lane gets its own probe below.
-const CONVEX_URL = process.env.CONVEX_URL || 'http://127.0.0.1:3210';
+// The backend tier serves every door the app depends on; `/ping` is its own
+// liveness route (the same one its container healthcheck uses). Compose sets
+// TALE_BACKEND_URL to the in-network DNS name; the loopback default is what
+// `bun run dev` and `vite preview` use, matching vite.config.ts.
+// Read lazily, never frozen at import: the module is imported before the
+// process env is fully assembled in some entry paths, and a test must be
+// able to stub it.
+function backendUrl(): string {
+  const configured = (process.env.TALE_BACKEND_URL ?? '').replace(/\/+$/, '');
+  return configured === '' ? 'http://127.0.0.1:3005' : configured;
+}
 
 export type OverallStatus = 'operational' | 'degraded' | 'outage';
-// Two facets of the one backend: `convex` is V8/HTTP liveness (the
-// `/version` fetch), `convexNodeActions` is the `'use node'` executor lane —
-// which can wedge on its own. Observed on demo v0.3.8 (2026-07-18): every
-// node action failed with "fetch failed" for hours after an upgrade restart
-// while `/version` stayed green and this page said "operational".
-export type ComponentId = 'convex' | 'convexNodeActions';
+// One component today: the backend tier that serves every request the app
+// makes. The union (and the degraded state below) is kept open so a second
+// lane — e.g. a worker-liveness signal — can join without a shape change.
+export type ComponentId = 'backend';
 
 // Binary today because each probe is just `fetch.ok`. The wider
 // `OverallStatus` vocabulary leaves room for a future `'degraded'`
@@ -71,92 +67,14 @@ interface Probe {
 let cache: { at: number; result: StatusResult } | null = null;
 let inflight: Promise<StatusResult> | null = null;
 
-// ---------------------------------------------------------------------------
-// Node-action lane probe
-//
-// Rides the same admin-key ConvexHttpClient channel WebDAV uses
-// (`lib/webdav/ctx.ts`), so no new public HTTP surface is exposed — the
-// convex `/ping` route is internet-reachable through Caddy, and an
-// unauthenticated endpoint that spawns a node process per hit would be an
-// abuse lever. Skipped entirely (component absent) when ADMIN_KEY is unset,
-// e.g. plain `bun run dev` without the entrypoint-provisioned key.
-// ---------------------------------------------------------------------------
-
-type NodeLaneProbe = () => Promise<boolean>;
-
-let nodeLaneProbeOverride: NodeLaneProbe | null = null;
-let adminClient: ConvexHttpClient | null = null;
-
-function getAdminClient(adminKey: string): ConvexHttpClient {
-  if (!adminClient) {
-    const client = new ConvexHttpClient(CONVEX_URL);
-    // setAdminAuth is @internal in convex types but present at runtime —
-    // the established pattern (lib/webdav/ctx.ts, reset-owner.ts).
-    // oxlint-disable-next-line no-unsafe-type-assertion
-    const setAdminAuth = Reflect.get(client, 'setAdminAuth') as (
-      token: string,
-    ) => void;
-    setAdminAuth.call(client, adminKey);
-    adminClient = client;
-  }
-  return adminClient;
-}
-
-async function probeNodeLane(adminKey: string): Promise<boolean> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const result = await Promise.race([
-      getAdminClient(adminKey).action(anyApi.status.node_ping.ping, {}),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error('node-lane probe timed out')),
-          NODE_PROBE_TIMEOUT_MS,
-        );
-      }),
-    ]);
-    return result === 'ok';
-  } catch (err) {
-    // Cadence is bounded by the probe cache, so this cannot spam. No
-    // upstream string reaches the public response — only this log.
-    console.warn(
-      '[status-probe] node-action lane probe failed:',
-      err instanceof Error ? err.message : String(err),
-    );
-    return false;
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
-
-/** Test-only: replace (or clear) the node-lane probe implementation. */
-export function _setNodeLaneProbeForTests(probe: NodeLaneProbe | null): void {
-  nodeLaneProbeOverride = probe;
-}
-
 async function probeUrl(url: string, doFetch: typeof fetch): Promise<boolean> {
   return probeOne(url, doFetch);
 }
 
-// Convex has no `/health`; `/version` is the established liveness probe
-// (already used by services/platform/docker-entrypoint.sh and the Convex
-// container's own healthcheck). Body is plain text — do NOT call .json().
-// Assembled per round (not module-level) so the node-lane component appears
-// exactly when a probe implementation is available.
+// Assembled per round (not module-level) so a test — and a deployment that
+// re-points TALE_BACKEND_URL — is read at probe time, not at import time.
 function buildProbes(): Probe[] {
-  const probes: Probe[] = [
-    { id: 'convex', run: (f) => probeUrl(`${CONVEX_URL}/version`, f) },
-  ];
-  const adminKey = process.env.ADMIN_KEY;
-  if (nodeLaneProbeOverride) {
-    const override = nodeLaneProbeOverride;
-    probes.push({ id: 'convexNodeActions', run: () => override() });
-  } else if (adminKey) {
-    probes.push({
-      id: 'convexNodeActions',
-      run: () => probeNodeLane(adminKey),
-    });
-  }
-  return probes;
+  return [{ id: 'backend', run: (f) => probeUrl(`${backendUrl()}/ping`, f) }];
 }
 
 async function probeOne(url: string, doFetch: typeof fetch): Promise<boolean> {
@@ -229,8 +147,6 @@ export async function probeServices(
 export function _resetStatusProbeCache(): void {
   cache = null;
   inflight = null;
-  nodeLaneProbeOverride = null;
-  adminClient = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -262,11 +178,10 @@ export function renderStatusJson(feed: StatusFeed): string {
 //
 // Server-rendered HTML for `/status` — no JavaScript, no React shell, no
 // auto-refresh. The user reloads if they want a fresh state. The component
-// label is a deliberate noun ("Application") rather than an action verb, so
-// it covers every failure mode of the backend — knowledge-base and
-// web/document work now run inside the application (Convex), so a single
-// row reflects them all. This also keeps the public surface free of stack
-// names (Convex / RAG / Crawler).
+// label is a deliberate noun ("Application services") rather than an action
+// verb, so it covers every failure mode of the backend — knowledge-base and
+// web/document work run inside it, so a single row reflects them all. This
+// also keeps the public surface free of stack names.
 // Locale picked from Accept-Language prefix: de → German, fr → French,
 // else English. Matches the locale bundles already shipped at
 // services/platform/messages/{en,de,fr}.json.
@@ -283,8 +198,7 @@ const STRINGS = {
     statusUp: 'Operational',
     statusDown: 'Unavailable',
     components: {
-      convex: 'Application',
-      convexNodeActions: 'Background processing',
+      backend: 'Application services',
     },
   },
   de: {
@@ -297,8 +211,7 @@ const STRINGS = {
     statusUp: 'Verfügbar',
     statusDown: 'Nicht verfügbar',
     components: {
-      convex: 'Anwendung',
-      convexNodeActions: 'Hintergrundverarbeitung',
+      backend: 'Anwendungsdienste',
     },
   },
   fr: {
@@ -311,8 +224,7 @@ const STRINGS = {
     statusUp: 'Opérationnel',
     statusDown: 'Indisponible',
     components: {
-      convex: 'Application',
-      convexNodeActions: 'Traitements en arrière-plan',
+      backend: 'Services applicatifs',
     },
   },
 } as const;

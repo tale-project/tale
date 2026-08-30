@@ -1,72 +1,44 @@
 # Scripts Directory
 
-This directory contains development and utility scripts for the project.
+Development and utility scripts for `@tale/platform`.
 
-## Main Scripts
+## Development
 
-### Development Scripts
+- **`dev.ts`** / **`dev-engine.ts`** — the dev-fleet orchestrator: brings up the
+  dockerized backing services, spawns the platform **backend** (`backend/main.ts`,
+  role `all`) and the Vite dev server, and gates the boot on each one.
+  - **Usage**: `bun run dev` (add `TALE_DEV_SKIP_DOCKER=1`, or `bun run dev:fast`,
+    to skip the docker bring-up)
+- **`backend-supervisor.ts`** — the health/restart state machine behind the fleet's
+  backend child (consecutive-failure threshold, restart budget, stable-window
+  forgiveness). Pure; the fleet does the I/O.
+- **`dev-gates.ts`** — the boot gates' severity + timeout table (hard fails the
+  fleet, soft degrades with a warning).
+- **`dev-output.ts`** / **`dev-modes.ts`** / **`dev-secrets.ts`** — log classification
+  and surfacing, the dev-mode matrix, and the insecure-but-stable local secret
+  derivations (shared with `compose.dev.yml` so both local modes agree).
+- **`setup-check.ts`** — pre-flight validation for a contributor's machine
+  (runtime version, ports free) with the exact remediation for each failure.
+  - **Usage**: `bun run setup:check` (from the repo root)
 
-- **`dev.ts`** - Main development orchestrator
-  - Starts Convex backend in LOCAL mode
-  - Syncs environment variables
-  - Starts Vite dev server
-  - **Usage**: `bun run dev`
+## Build / codegen
 
-- **`sync-convex-env-from-dotenv.ts`** - Environment variable sync
-  - Syncs .env/.env.local variables to LOCAL Convex deployment
-  - Uses `--local` flag for local development
-  - **Usage**: Called automatically by dev.ts
+- **`generate-openapi.ts`** — regenerate the REST door's OpenAPI document from the
+  route definitions.
+  - **Usage**: `bun run generate:openapi`
+- **`prerender-boot-shell.tsx`** — pre-render the boot shell into the built `dist/`.
+- **`validate-builtin-configs.ts`** — validate the shipped org-config catalog
+  against its schemas.
+  - **Usage**: `bun run configs:validate`
 
-### Migration Gate Scripts
+## Utilities
 
-- **`migrations-codegen.ts`** - Registry codegen + structural validation for the versioned
-  migration framework: derives every migration's identity from its folder, regenerates
-  `convex/migrations/framework/registry(.node).gen.ts` and the `api.d.ts` module map, and
-  enforces the folder contract (uniqueness, contiguity, 'use node' ⟺ kind, harness marker)
-  - **Usage**: `bun run migrations:sync` (write) / called by `check-migrations.ts` (check)
+- **`test-openai-compat.ts`** — probe an OpenAI-compatible endpoint by hand.
+- **`cls-harness.ts`** — layout-shift harness for the docs/screenshot lanes.
 
-- **`check-migrations.ts`** - The migrations CI gate orchestrator: codegen check mode plus the
-  `_id`-FK guard (a `table-rows` migration may not snapshot a `v.id()`-referenced table)
-  - **Usage**: first member of `bun run migrations:check`
+## Entry points (package.json)
 
-- **`check-migration-corpus.ts`** - Corpus coverage guard: every runnable migration's declared
-  subjects must be covered by the world corpus (baseline seed, an earlier migration's `produces`,
-  or a version-boundary injection), and every migration version must have a checkpoint fixture
-  - **Usage**: second member of `bun run migrations:check`
-
-- **`check-schema-snapshot.ts`** / **`check-config-snapshot.ts`** - "Missing migration" guards:
-  fingerprint the live Convex schema / org-config Zod schemas against the committed baselines;
-  data-incompatible drift demands a migration first
-  - **Usage**: `bun run migrations:check` (check) / `bun run migrations:snapshot` (refresh)
-
-- **`dump-version-schemas.ts`** - Version-checkpoint generator: extracts every released tag's
-  Convex schema fingerprint, org-config schemas (Zod → JSON Schema), and initialized-project
-  scaffold into the content-addressed store under `convex/migrations/testing/versions/` — the
-  ground truth the versions suite validates the migration chain against. Run once per release
-  tag / new version folder (`--force`, `--tag vX.Y.Z` to refresh selectively)
-  - **Usage**: `bun scripts/dump-version-schemas.ts`
-
-- **`audit-migration-versions.ts`** - Read-only placement report: cross-checks every migration's
-  declared version against the checkpoint schema diffs AND the first released tag that shipped
-  its folder (former-id paths for re-homed migrations)
-  - **Usage**: `bun scripts/audit-migration-versions.ts` (`--json` for the machine inventory)
-
-### Utility Scripts
-
-- **`generate-admin-password.ts`** - Admin password generation
-  - **Usage**: `bun run admin:generate-password`
-
-## 🔧 Local Development Focus
-
-All Convex-related scripts use `CONVEX_AGENT_MODE=anonymous` to ensure:
-
-- No cloud dependencies
-- No login prompts or authentication required
-- Local-only development
-- Faster iteration
-- Offline capability
-
-## Entry Points (package.json)
-
-- `bun run dev` → `bun scripts/dev.ts`
-- `bun run admin:generate-password` → `bun scripts/generate-admin-password.ts`
+- `bun run dev` → `scripts/dev.ts`
+- `bun run setup:check` (repo root) → `scripts/setup-check.ts`
+- `bun run generate:openapi` → `scripts/generate-openapi.ts`
+- `bun run configs:validate` → `scripts/validate-builtin-configs.ts`

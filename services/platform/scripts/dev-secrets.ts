@@ -30,10 +30,10 @@ export function ensureInstanceSecret(env: NodeJS.ProcessEnv): void {
 }
 
 /**
- * Better Auth's "default secret in production" guard fires inside Convex (which
- * runs as production), so a non-default secret must exist or every `/api/auth/*`
- * returns 500. Long + non-default but NOT cryptographically random — production
- * must set a real one.
+ * Better Auth refuses its built-in default secret outside development, so a
+ * non-default secret must exist or every `/api/auth/*` returns 500. Long +
+ * non-default but NOT cryptographically random — production must set a real
+ * one.
  */
 export function ensureBetterAuthSecret(env: NodeJS.ProcessEnv): void {
   if (env.BETTER_AUTH_SECRET) return;
@@ -45,10 +45,10 @@ export function ensureBetterAuthSecret(env: NodeJS.ProcessEnv): void {
 }
 
 /**
- * Project-secret / guardrails encryption key. `secret_box.ts` requires a 32-byte
- * hex key on the Convex deployment; derive a stable one from INSTANCE_SECRET so
- * dev + E2E exercise secrets with zero setup and already-encrypted rows still
- * decrypt across restarts. Explicit value wins. Runs after ensureInstanceSecret.
+ * Project-secret / guardrails encryption key. The secret box requires a
+ * 32-byte hex key; derive a stable one from INSTANCE_SECRET so dev + E2E
+ * exercise secrets with zero setup and already-encrypted rows still decrypt
+ * across restarts. Explicit value wins. Runs after ensureInstanceSecret.
  */
 export function ensureEncryptionSecret(env: NodeJS.ProcessEnv): void {
   if (env.ENCRYPTION_SECRET_HEX) return;
@@ -59,12 +59,12 @@ export function ensureEncryptionSecret(env: NodeJS.ProcessEnv): void {
 }
 
 /**
- * knowledge-db (ParadeDB) connection for the RAG / knowledge-base Convex node
- * actions. A containerized Convex run resolves the compose hostname
- * `knowledge-db`, but the host `bun dev` backend can't — point it at the port
- * compose publishes to localhost (the `knowledge-db` service maps 5433:5432) so
- * RAG works with zero setup. Pushed into Convex via ORCHESTRATOR_MANAGED_KEYS. An
- * explicit KNOWLEDGE_DATABASE_URL / RAG_DATABASE_URL wins; needs DB_PASSWORD.
+ * knowledge-db (ParadeDB) connection for the RAG / knowledge-base lanes. A
+ * containerized backend resolves the compose hostname `knowledge-db`, but the
+ * host `bun dev` backend can't — point it at the port compose publishes to
+ * localhost (the `knowledge-db` service maps 5433:5432) so RAG works with zero
+ * setup. Inherited by the host backend through its spawn env. An explicit
+ * KNOWLEDGE_DATABASE_URL / RAG_DATABASE_URL wins; needs DB_PASSWORD.
  */
 export function ensureKnowledgeDatabaseUrl(env: NodeJS.ProcessEnv): void {
   if (env.KNOWLEDGE_DATABASE_URL || env.RAG_DATABASE_URL) return;
@@ -82,14 +82,14 @@ export function ensureKnowledgeDatabaseUrl(env: NodeJS.ProcessEnv): void {
 }
 
 /**
- * LLM-gateway MANAGEMENT-plane URL for the host `bun dev` Convex backend. The
- * gateway runs in Docker; host-run Convex mints/revokes session virtual keys and
- * provisions providers against it via `llm_gateway_admin.ts`. A containerized
- * Convex run resolves the compose hostname `sandbox-llm-gateway`, but the host
- * can't — point it at the loopback port `compose.sandbox-llm-gateway.dev.yml`
- * publishes (`127.0.0.1:8080`) so external-agent turns work with zero setup.
- * Pushed into Convex via ORCHESTRATOR_MANAGED_KEYS. An explicit
- * SANDBOX_LLM_GATEWAY_URL (or the pre-rename LLM_GATEWAY_URL) wins.
+ * LLM-gateway MANAGEMENT-plane URL for the host `bun dev` backend. The gateway
+ * runs in Docker; the backend mints/revokes session virtual keys and
+ * provisions providers against it. A containerized backend resolves the
+ * compose hostname `sandbox-llm-gateway`, but the host can't — point it at the
+ * loopback port `compose.sandbox-llm-gateway.dev.yml` publishes
+ * (`127.0.0.1:8080`) so external-agent turns work with zero setup. Inherited by
+ * the host backend through its spawn env. An explicit SANDBOX_LLM_GATEWAY_URL
+ * (or the pre-rename LLM_GATEWAY_URL) wins.
  *
  * This is the management plane only; the in-container DATA-plane URL
  * (EXTERNAL_AGENT_GATEWAY_URL) stays the `sandbox-llm-gateway` alias — the agent
@@ -113,6 +113,47 @@ export function deriveDevSecrets(env: NodeJS.ProcessEnv): void {
   ensureEncryptionSecret(env);
   ensureKnowledgeDatabaseUrl(env);
   ensureSandboxLlmGatewayUrl(env);
+  ensureAppDatabaseUrl(env);
+  ensureObjectStoreEnv(env);
 }
 
 export { ensureWebdavHmacKey };
+
+/**
+ * The application database for the host-run backend. Compose publishes the
+ * `db` service on localhost:5432, and the app's own database (`tale_app`) is
+ * created idempotently by the db image's init scripts — so `bun dev` needs no
+ * setup beyond DB_PASSWORD. An explicit DATABASE_URL always wins.
+ */
+export function ensureAppDatabaseUrl(env: NodeJS.ProcessEnv): void {
+  if (env.DATABASE_URL) return;
+  const password = env.DB_PASSWORD;
+  if (!password) {
+    warnLine(
+      'DB_PASSWORD not set; cannot derive DATABASE_URL — the backend cannot boot. Set DB_PASSWORD in .env.',
+    );
+    return;
+  }
+  const port = env.DB_HOST_PORT ?? '5432';
+  const database = env.APP_DB_NAME ?? 'tale_app';
+  env.DATABASE_URL = `postgresql://${env.POSTGRES_USER ?? 'tale'}:${encodeURIComponent(
+    password,
+  )}@localhost:${port}/${database}`;
+}
+
+/**
+ * The blob store for the host-run backend. Compose publishes the
+ * `object-store` service on localhost (compose.dev.yml) precisely because
+ * `bun dev` runs the backend OUTSIDE the docker network and cannot reach the
+ * internal `object-store:9000` address the containerized tiers use.
+ *
+ * The credentials mirror compose.yml's dev defaults so the two local modes
+ * address the same bucket with the same keys — insecure by design, same
+ * threat model as the rest of `x-dev-secrets`. An explicit value always wins.
+ */
+export function ensureObjectStoreEnv(env: NodeJS.ProcessEnv): void {
+  env.OBJECT_STORE_ENDPOINT ??= `http://127.0.0.1:${env.OBJECT_STORE_HOST_PORT ?? '59000'}`;
+  env.OBJECT_STORE_BUCKET ??= 'tale-blobs';
+  env.OBJECT_STORE_ACCESS_KEY ??= 'tale';
+  env.OBJECT_STORE_SECRET_KEY ??= 'tale_dev_object_store';
+}

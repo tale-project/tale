@@ -1,18 +1,17 @@
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { api } from '@/convex/_generated/api';
+import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 
 export function useRequestErasure() {
-  return useConvexMutation(api.governance.erasure.requestErasure);
+  return useBackendMutation('governance/erasure:requestErasure');
 }
 
 export function useRetryErasureRequest() {
-  return useConvexMutation(api.governance.erasure.retryErasureRequest);
+  return useBackendMutation('governance/erasure:retryErasureRequest');
 }
 
 export function useExtendErasureDeadline() {
-  return useConvexMutation(api.governance.erasure.extendErasureDeadline);
+  return useBackendMutation('governance/erasure:extendErasureDeadline');
 }
 
 export function useCancelErasureRequest() {
-  return useConvexMutation(api.governance.erasure.cancelErasureRequest);
+  return useBackendMutation('governance/erasure:cancelErasureRequest');
 }

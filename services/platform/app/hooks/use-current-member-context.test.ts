@@ -1,13 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@convex-dev/react-query', () => ({
-  convexQuery: vi.fn((func: unknown, args: unknown) => ({
-    queryKey: ['convexQuery', func, args],
-    queryFn: vi.fn(),
-  })),
-}));
-
 vi.mock('@tanstack/react-query', () => ({
+  queryOptions: vi.fn((options: unknown) => options),
   useQuery: vi.fn(() => ({
     data: undefined,
     isLoading: false,
@@ -15,58 +9,53 @@ vi.mock('@tanstack/react-query', () => ({
   })),
 }));
 
-// useConvexQuery now reads WS auth via useConvexAuth (convex/react) for its
-// default auth gate; stub it so the hook runs without a ConvexProvider.
-vi.mock('convex/react', () => ({
-  useConvexAuth: () => ({ isAuthenticated: true, isLoading: false }),
-}));
-
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    members: {
-      queries: {
-        getCurrentMemberContext: {},
-      },
-    },
-  },
-}));
-
-import { convexQuery } from '@convex-dev/react-query';
 import { useQuery } from '@tanstack/react-query';
 
 import { useCurrentMemberContext } from './use-current-member-context';
 
-const mockConvexQuery = vi.mocked(convexQuery);
 const mockUseQuery = vi.mocked(useQuery);
+
+type PassedOptions = { queryKey?: unknown; enabled?: boolean };
+
+function passedOptions(): PassedOptions {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the mock records exactly what the hook passed
+  return (mockUseQuery.mock.calls[0]?.[0] ?? {}) as PassedOptions;
+}
 
 describe('useCurrentMemberContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('uses stable { organizationId } query key when skip=false', () => {
+  it('uses the stable backend query key when skip=false', () => {
     useCurrentMemberContext('org-123', false);
 
-    expect(mockConvexQuery).toHaveBeenCalledWith(expect.anything(), {
-      organizationId: 'org-123',
-    });
-    const options = mockUseQuery.mock.calls[0]?.[0] as { enabled?: boolean };
-    expect(options?.enabled).toBe(true);
+    const options = passedOptions();
+    expect(options.queryKey).toEqual([
+      'backend',
+      'org-123',
+      'member',
+      'context',
+    ]);
+    expect(options.enabled).toBe(true);
   });
 
-  it('uses stable { organizationId } query key when skip=true (not "skip" string)', () => {
+  it('keeps the same key when skip=true (cached data must survive)', () => {
     useCurrentMemberContext('org-123', true);
 
-    // Must use { organizationId } key, NOT 'skip' string, to preserve cached data
-    expect(mockConvexQuery).toHaveBeenCalledWith(expect.anything(), {
-      organizationId: 'org-123',
-    });
-    const options = mockUseQuery.mock.calls[0]?.[0] as { enabled?: boolean };
-    expect(options?.enabled).toBe(false);
+    const options = passedOptions();
+    expect(options.queryKey).toEqual([
+      'backend',
+      'org-123',
+      'member',
+      'context',
+    ]);
+    expect(options.enabled).toBe(false);
   });
 
   it('returns cached data when skip=true (enabled=false)', () => {
     const cachedData = {
+      status: 'ok' as const,
       role: 'admin' as const,
       memberId: 'm1',
       organizationId: 'org-123',
@@ -78,20 +67,20 @@ describe('useCurrentMemberContext', () => {
       data: cachedData,
       isLoading: false,
       error: null,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hook reads only these fields
     } as ReturnType<typeof useQuery>);
 
     const result = useCurrentMemberContext('org-123', true);
 
-    // Data from cache should be returned even when skip=true
     expect(result.data).toEqual(cachedData);
   });
 
   it('forces isLoading=true when skip=true regardless of query loading state', () => {
-    // Simulates disabled query with cached data: isLoading=false from useQuery
     mockUseQuery.mockReturnValueOnce({
-      data: { role: 'admin' },
+      data: { status: 'ok', role: 'admin' },
       isLoading: false,
       error: null,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hook reads only these fields
     } as ReturnType<typeof useQuery>);
 
     const result = useCurrentMemberContext('org-123', true);
@@ -104,6 +93,7 @@ describe('useCurrentMemberContext', () => {
       data: undefined,
       isLoading: false,
       error: null,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hook reads only these fields
     } as ReturnType<typeof useQuery>);
 
     const result = useCurrentMemberContext('org-123', true);
@@ -116,6 +106,7 @@ describe('useCurrentMemberContext', () => {
       data: undefined,
       isLoading: true,
       error: null,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the hook reads only these fields
     } as ReturnType<typeof useQuery>);
 
     const result = useCurrentMemberContext('org-123', false);
@@ -123,18 +114,20 @@ describe('useCurrentMemberContext', () => {
     expect(result.isLoading).toBe(true);
   });
 
-  it('falls back to "skip" key when organizationId is undefined', () => {
+  it('disables the query while the organization id is unknown', () => {
     useCurrentMemberContext(undefined, false);
 
-    expect(mockConvexQuery).toHaveBeenCalledWith(expect.anything(), 'skip');
-    const options = mockUseQuery.mock.calls[0]?.[0] as { enabled?: boolean };
-    expect(options?.enabled).toBe(false);
+    const options = passedOptions();
+    expect(options.enabled).toBe(false);
   });
 
-  it('uses default skip=false when not provided', () => {
-    useCurrentMemberContext('org-123');
+  it('disables the query when both the id is missing and skip=true', () => {
+    useCurrentMemberContext(undefined, true);
 
-    const options = mockUseQuery.mock.calls[0]?.[0] as { enabled?: boolean };
-    expect(options?.enabled).toBe(true);
+    const options = passedOptions();
+    expect(options.enabled).toBe(false);
+
+    const result = useCurrentMemberContext(undefined, true);
+    expect(result.isLoading).toBe(true);
   });
 });

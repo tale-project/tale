@@ -1,6 +1,5 @@
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
 
 export type NotificationsFilter = 'all' | 'unread';
 
@@ -13,14 +12,14 @@ export type NotificationsFilter = 'all' | 'unread';
 // background, instead of flashing the first-load skeleton on every open.
 export function useNotificationsList(organizationId: string) {
   return useCachedPaginatedQuery(
-    api.notifications.queries.list,
+    'notifications/queries:list',
     { organizationId },
     { initialNumItems: 25 },
   );
 }
 
 export function useNotificationsUnreadCount(organizationId: string) {
-  return useConvexQuery(api.notifications.queries.unreadCount, {
+  return useBackendQuery('notifications/queries:unreadCount', {
     organizationId,
   });
 }

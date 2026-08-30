@@ -1,7 +1,5 @@
-import type { Id } from '@/convex/_generated/dataModel';
-
 export type TaskActivityRow = {
-  _id: Id<'taskActivity'>;
+  _id: string;
   actorType: 'user' | 'agent';
   actorId: string;
   action: string;
@@ -9,13 +7,13 @@ export type TaskActivityRow = {
   toValue?: string;
   context?: {
     workflowSlug?: string;
-    wfExecutionId?: Id<'wfExecutions'>;
+    wfExecutionId?: string;
   };
   createdAt: number;
 };
 
 export type TaskAgentRunRow = {
-  runId: Id<'taskAgentRuns'>;
+  runId: string;
   agentSlug: string;
   trigger: string;
   status: string;
@@ -24,7 +22,7 @@ export type TaskAgentRunRow = {
   durationMs?: number;
   costCents: number;
   workflowSlug?: string;
-  wfExecutionId?: Id<'wfExecutions'>;
+  wfExecutionId?: string;
 };
 
 export type TaskTimelineEntry =

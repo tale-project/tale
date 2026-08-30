@@ -8,8 +8,8 @@ import { createPlaywrightConfig, devices } from '@tale/e2e/config';
  * Full-app E2E suite (issue #179). Runs the platform smoke flows — auth
  * (login/logout/password/2FA), onboarding, chat (+ threads/search/prompts),
  * conversations, agents, projects & tasks, knowledge, settings, governance, and
- * workflows — against the real local stack: anonymous Convex backend + Vite,
- * both booted by the webServer entries below via `scripts/dev.ts`. See
+ * workflows — against the real local stack: Hono backend + Vite, both
+ * booted by the webServer entries below via `scripts/dev.ts`. See
  * `tests/e2e/README.md` for the per-spec breakdown.
  *
  * Shared house defaults (locale/UTC, reporters, retries, timeouts) come from
@@ -47,7 +47,7 @@ const useMockLlm =
 // Parallelism: each WORKER mints its own isolated, fully-seeded org (see
 // `tests/e2e/helpers/fixtures.ts`), so specs no longer share one backend account and
 // can run concurrently. Workers are capped per shard to bound load on the
-// single shared Convex backend; CI fans the suite across runners with
+// single shared backend; CI fans the suite across runners with
 // `--shard`, so each shard boots its own stack and runs this many workers.
 const workers = process.env.E2E_WORKERS
   ? Number(process.env.E2E_WORKERS)
@@ -57,9 +57,21 @@ const workers = process.env.E2E_WORKERS
 
 // Fixed port — must match the provider fixture's `baseUrl`
 // (`tests/e2e/fixtures/config/default/providers/e2e-mock.json`), which is loaded
-// verbatim into Convex and cannot interpolate env. The `lib/mocks` gateway
-// defaults to this port (`MOCKS_PORT`); keep the three in sync.
+// verbatim and cannot interpolate env. The `lib/mocks` gateway defaults to
+// this port (`MOCKS_PORT`); keep the three in sync.
 const MOCK_LLM_PORT = 4141;
+
+// Hermetic app-DB credentials. CI's platform Playwright job starts a
+// postgres:16 service with these same values (see `.github/workflows/e2e.yml`);
+// the password is the throwaway already in `.env.test`. Playwright's
+// `webServer.env` overlays process.env — set both keys so `deriveDevSecrets`
+// (DATABASE_URL only when DB_PASSWORD is present) and backend `loadEnv`
+// (DATABASE_URL required) succeed when the job env is missing.
+// nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret
+const E2E_DB_PASSWORD = process.env.DB_PASSWORD ?? 'test_password_e2e';
+const E2E_DATABASE_URL =
+  process.env.DATABASE_URL ??
+  `postgresql://tale:${encodeURIComponent(E2E_DB_PASSWORD)}@127.0.0.1:5432/tale_app`;
 
 export default createPlaywrightConfig({
   testDir: path.join(dirname, 'tests/e2e'),
@@ -101,33 +113,36 @@ export default createPlaywrightConfig({
     {
       command: 'bun scripts/dev.ts',
       url: baseURL,
-      // Surface the orchestrator's boot progress (Convex pre-warm, READY
-      // banner) — the only way to diagnose a webServer timeout in CI.
+      // Surface the orchestrator's boot progress (READY banner) — the only
+      // way to diagnose a webServer timeout in CI.
       stdout: 'pipe',
       // Locally, reuse an already-running dev stack (`bun run dev`) instead of
       // failing on the taken port — note that a reused stack keeps ITS config
       // dir and provider keys, so run with E2E_MOCK_LLM=0 in that setup.
       reuseExistingServer: !process.env.CI,
-      // Convex pre-warm (binary download + function push) dominates cold boot.
+      // Backend boot migrations + Vite preview dominate cold boot.
       timeout: 300_000,
       env: {
-        // The E2E stack is hermetic (anonymous Convex + mock LLM, no external
-        // services). The docker backing services dev.ts brings up for full
-        // local dev (sandbox-llm-gateway/sandbox/db/knowledge-db) have no built images in
-        // the E2E CI job, so the bring-up can only fail and waste the cold-boot
-        // budget — skip it. Applies in both mock and live-stack modes.
+        // Skip compose (sandbox/gateway/knowledge-db/object-store). E2E CI
+        // has no built images for those; their bootstraps are also non-fatal.
+        // App Postgres is provided separately — CI's `e2e` job starts a
+        // postgres:16 service, and DATABASE_URL below points the Hono backend
+        // at it. Do not pass DB_PASSWORD: deriveDevSecrets would then mint
+        // KNOWLEDGE_DATABASE_URL on :5433 (knowledge-db), which is not
+        // running here. Keep this skip in both mock and live-stack modes.
         TALE_DEV_SKIP_DOCKER: '1',
-        // Same E2E marker CI exports at the workflow level: crons.ts drops the
-        // sub-hourly sweeps that starve a loaded local backend past its ~1s
-        // function timeout, and dev-engine renices the backend. Only applies
-        // when Playwright boots the stack itself — a reused stack keeps its
-        // own env, so a dev stack's crons are never affected. Also gates
-        // dev-engine's boot-time node-executor health probe (#2631 —
-        // `scripts/node-executor-probe.ts`): a rare local-backend boot race
-        // leaves every `'use node'` action failing with "Cannot find module"
-        // while the backend otherwise looks healthy, so a broken shard used
-        // to burn its whole run retrying specs before timing out. The probe
-        // fails the webServer boot loudly instead.
+        // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret
+        DATABASE_URL: E2E_DATABASE_URL,
+        // Job env still exports DB_PASSWORD. If Playwright merges that into
+        // the webServer child, deriveDevSecrets would mint knowledge-db on
+        // :5433 (not running here). Pin the URL at the app database so the
+        // knowledge bootstrap hits Postgres instead of ECONNREFUSED.
+        // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret
+        KNOWLEDGE_DATABASE_URL: E2E_DATABASE_URL,
+        // Same E2E marker CI exports at the workflow level: skips the
+        // video-toolchain apt install in scripts/dev.ts (a slow mirror has
+        // burned the webServer boot budget). Only applies when Playwright
+        // boots the stack itself — a reused stack keeps its own env.
         TALE_E2E: '1',
         // Never pop a browser when the orchestrator is the e2e webServer — a
         // local (non-CI) `bun test:e2e` that spawns the stack would otherwise

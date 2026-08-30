@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProviderDefinition } from '../../../lib/shared/schemas/providers';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../ctx';
 import { getProviderCatalog } from './catalog_fetch';
 import { resolveProvidersForOrgId } from './org_providers';
 import {

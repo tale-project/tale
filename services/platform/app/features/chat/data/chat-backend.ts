@@ -14,7 +14,7 @@
  * selection only (the Chat·Task·Automation boundary model).
  *
  * Subscriptions go through the Convex client directly (`useConvex` +
- * `useSyncExternalStore`) rather than the app's `useConvexQuery` wrapper. The
+ * `useSyncExternalStore`) rather than the app's `useBackendQuery` wrapper. The
  * wrapper reads the auth and query-client contexts, which a component rendered
  * outside the provider tree does not have; `useConvex()` returns `undefined`
  * there instead of throwing, so the surface degrades to `unavailable` in that
@@ -27,24 +27,48 @@
  * the live generation alone opts out, because its absence IS its signal.
  */
 
-import { useConvex } from 'convex/react';
 import {
-  getFunctionName,
-  type FunctionArgs,
-  type FunctionReference,
-  type FunctionReturnType,
-} from 'convex/server';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
+  keepPreviousData,
+  QueryClient,
+  QueryClientContext,
+  useQuery,
+} from '@tanstack/react-query';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import { backendFetch } from '@/app/lib/backend/api-client';
+import {
+  fileStatusesQuery,
+  chatMemoriesQuery,
+  myPreferencesQuery,
+  chatProjectsQuery,
+  holdTargetsQuery,
+  setProjectPinnedRequest,
+  setChatModelPreference,
+  voiceModeQuery,
+  threadFeedbackQuery,
+  archivedThreadsQuery,
+  bindVideoJobsForSend,
+  cancelChatGeneration,
+  chatMessagesQuery,
+  chatSearchQuery,
+  chatThreadQuery,
+  chatThreadsQuery,
+  createChatThread,
+  enqueueDeferredSendRequest,
+  invalidateChatMessages,
+  invalidateChatThreads,
+  moveChatThreadToProject,
+  sendChatTurn,
+  setChatThreadReasoningEffort,
+  threadBranchesQuery,
+  unbindVideoJobsRequest,
+  pendingQuestionQuery,
+  arenaPairQuery,
+  resolveQuestionRequest,
+  threadShareStatusQuery,
+} from '@/app/lib/backend/chat';
+import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
+import { backendEntityPrefix } from '@/app/lib/backend/query-keys';
 import type { ReasoningEffort } from '@/lib/chat/effort';
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -61,6 +85,7 @@ import {
   storeComposerCatalog,
   type ComposerCatalog,
 } from './composer-catalog-store';
+import { useThreadStream } from './thread-stream';
 
 /**
  * Every read through this seam reports whether the backend answered. `ready`
@@ -75,6 +100,8 @@ export type ChatQuery<T> =
   | { readonly status: 'unavailable' };
 
 const UNAVAILABLE = { status: 'unavailable' } as const;
+/** A read the caller deliberately withheld — holding, not broken. */
+const LOADING = { status: 'loading' } as const;
 
 /**
  * The last answer each live read served, keyed like the watches themselves
@@ -100,65 +127,122 @@ const liveResultCache = new Map<string, unknown>();
  * closed — for a read that has no argument to run on yet, like a thread view
  * with no thread selected.
  */
-export function useChatQuery<Ref extends FunctionReference<'query'>>(
-  fnRef: Ref,
-  args: FunctionArgs<Ref> | 'skip',
+/**
+ * The reads whose family has MIGRATED to the 0.5 backend, keyed by the 0.4
+ * function name `useChatQuery` already keys its watches on. An adapted read
+ * runs over HTTP (react-query + the org hint stream) instead of a Convex
+ * watch; everything else keeps its websocket subscription until its family
+ * migrates. The client-side twin of the backend's name-keyed ctx shim.
+ */
+// oxlint-disable-next-line typescript/no-explicit-any -- the seam's callers type the result via FunctionReturnType; the table is the untyped boundary
+type HttpReadOptions = { queryKey: readonly unknown[]; queryFn?: any };
+const HTTP_READS: Record<
+  string,
+  (args: Record<string, unknown>) => HttpReadOptions
+> = {
+  'chat/threads:listThreads': (args) =>
+    chatThreadsQuery(String(args.organizationId)),
+  'chat/threads:listArchivedThreads': (args) =>
+    archivedThreadsQuery(
+      String(args.organizationId),
+      typeof args.cursor === 'number' ? args.cursor : undefined,
+    ),
+  'chat/threads:getThread': (args) =>
+    chatThreadQuery(String(args.organizationId), String(args.threadId)),
+  'chat/branches:listThreadBranches': (args) =>
+    threadBranchesQuery(String(args.organizationId), String(args.rootThreadId)),
+  'chat/search:searchChats': (args) =>
+    chatSearchQuery(String(args.organizationId), String(args.query)),
+  'chat/threads:getThreadShareStatus': (args) =>
+    threadShareStatusQuery(String(args.organizationId), String(args.threadId)),
+  'chat/questions:getPendingQuestion': (args) =>
+    pendingQuestionQuery(String(args.organizationId), String(args.threadId)),
+  'chat/arena:getArenaPair': (args) =>
+    arenaPairQuery(String(args.organizationId), String(args.threadId)),
+  'chat/messages:listMessages': (args) =>
+    chatMessagesQuery(String(args.organizationId), String(args.threadId)),
+  'feedback/queries:listThreadFeedback': (args) =>
+    threadFeedbackQuery(String(args.organizationId), String(args.threadId)),
+  'tts/queries:getVoiceModeEffective': (args) =>
+    voiceModeQuery(
+      String(args.organizationId),
+      typeof args.threadId === 'string' ? args.threadId : undefined,
+    ),
+  'chat/memories:listMemories': (args) =>
+    chatMemoriesQuery(String(args.organizationId)),
+  'user_preferences/queries:getMyPreferences': (args) =>
+    myPreferencesQuery(String(args.organizationId)),
+  'projects/queries:listProjects': (args) =>
+    chatProjectsQuery(String(args.organizationId)),
+  'governance/legal_hold_queries:listActiveHoldTargetIds': (args) =>
+    holdTargetsQuery(String(args.organizationId), String(args.targetType)),
+  'file_metadata/queries:getByStorageIds': (args) => ({
+    // One-shot here (source cards); the staging hooks poll via their own
+    // useQuery with the refetchInterval kept.
+    ...fileStatusesQuery(
+      String(args.organizationId),
+      Array.isArray(args.storageIds)
+        ? args.storageIds.filter((id): id is string => typeof id === 'string')
+        : [],
+    ),
+    refetchInterval: false as const,
+  }),
+};
+
+/** Provider-less renders (the seam's degrade case) still get a working
+ * HTTP lane through a module-level client — better than `unavailable`. */
+const fallbackChatQueryClient = new QueryClient();
+
+/** The query client the seam's HTTP lane actually uses in this render —
+ * the context one, or the module fallback for provider-less renders. The
+ * action hooks invalidate through THIS so they always hit the same cache
+ * the reads populate. */
+export function useChatQueryClient(): QueryClient {
+  return useContext(QueryClientContext) ?? fallbackChatQueryClient;
+}
+
+export function useChatQuery<Name extends QueryName>(
+  name: Name,
+  args: ArgsOf<Name> | 'skip',
   options?: { readonly cache?: boolean },
-): ChatQuery<FunctionReturnType<Ref>> {
-  const convex = useConvex();
+): ChatQuery<ReturnsOf<Name>> {
   const skip = args === 'skip';
-  // Key the subscription by the function's NAME and the JSON of its args —
-  // never by object identity. `api.x.y.z` builds a fresh FunctionReference on
-  // every property access and callers build args inline, so identity-keyed
-  // deps would tear down and rebuild the watch on every render. A fresh watch
-  // answers `undefined` until its first result lands, so identity keying
-  // oscillates the surface between loading and ready many times a second — a
-  // self-sustaining, visible flicker.
-  const fnKey = getFunctionName(fnRef);
+  // Key the read by NAME + the JSON of its args, never by object identity:
+  // callers build args inline, so identity-keyed deps would rebuild the query
+  // on every render and oscillate the surface between loading and ready.
+  const fnKey = name;
   const argsKey = skip ? 'skip' : JSON.stringify(args);
 
-  const watch = useMemo(
-    () => (convex && !skip ? convex.watchQuery(fnRef, args) : undefined),
-    // `fnRef` and `args` are intentionally tracked by their stable keys
-    // (`fnKey`, `argsKey`) — see above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [convex, fnKey, argsKey, skip],
+  // The HTTP lane: adapted families fetch the backend; the options are
+  // rebuilt only when the (function, args) identity changes.
+  const httpOptions = useMemo(() => {
+    if (skip) return undefined;
+    const adapt = HTTP_READS[fnKey];
+    return adapt?.(args);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- args tracked by argsKey (see the watch memo's rationale)
+  }, [fnKey, argsKey, skip]);
+  const contextQueryClient = useContext(QueryClientContext);
+  const httpQuery = useQuery(
+    {
+      queryKey: httpOptions?.queryKey ?? ['backend', 'chat-http', 'disabled'],
+      // oxlint-disable-next-line typescript/no-unsafe-assignment -- the adapter table is the untyped boundary
+      queryFn: httpOptions?.queryFn ?? (async () => null),
+      enabled: httpOptions !== undefined,
+      placeholderData: keepPreviousData,
+    },
+    contextQueryClient ?? fallbackChatQueryClient,
   );
 
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => watch?.onUpdate(onStoreChange) ?? (() => {}),
-    [watch],
-  );
-
-  // The last error already reported, so a persistent pre-auth error is logged
-  // once rather than on every render `useSyncExternalStore` triggers.
-  const reportedError = useRef<string | undefined>(undefined);
-  const getSnapshot = useCallback((): FunctionReturnType<Ref> | undefined => {
-    if (!watch) return undefined;
-    try {
-      const result = watch.localQueryResult();
-      reportedError.current = undefined;
-      return result;
-    } catch (error) {
-      // A query can be in an error state during the brief pre-auth window;
-      // read it as "not yet" so the surface holds rather than crashing, and it
-      // re-runs once auth lands.
-      const message = error instanceof Error ? error.message : String(error);
-      if (reportedError.current !== message) {
-        reportedError.current = message;
-        console.warn('[chat] query is not readable yet', message);
-      }
-      return undefined;
-    }
-  }, [watch]);
-
-  const data = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  // Every chat read is an HTTP row now; a name with no row has no server
+  // left, so the surface degrades to `unavailable` rather than waiting on an
+  // answer that will never arrive.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the HTTP row and this name's contract entry are keyed alike, so the row's projection IS this return shape
+  const data = httpQuery.data as ReturnsOf<Name> | undefined;
 
   // Render-phase cache maintenance, mirroring useCachedPaginatedQuery: the
   // write is idempotent, and the value must be current for this render's own
-  // read below. `getSnapshot` stays a pure view of the live watch — the
-  // substitution happens here, in the return path only.
-  const cacheable = options?.cache !== false && !skip && convex !== undefined;
+  // read below.
+  const cacheable = options?.cache !== false && !skip;
   const cacheKey = `${fnKey}:${argsKey}`;
   if (cacheable && data !== undefined) {
     liveResultCache.delete(cacheKey);
@@ -171,13 +255,13 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
 
   let value = data;
   if (value === undefined && cacheable) {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only this hook writes the cache, under the same (function, args) key it reads, so the entry is this query's own return type
-    value = liveResultCache.get(cacheKey);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only this hook writes the cache, under the same (name, args) key it reads, so the entry is this read's own return type
+    value = liveResultCache.get(cacheKey) as ReturnsOf<Name> | undefined;
   }
 
   // One stable object per answer: while a remount serves the cached value its
   // identity holds across renders, exactly like a live result's would.
-  const result = useMemo<ChatQuery<FunctionReturnType<Ref>>>(
+  const result = useMemo<ChatQuery<ReturnsOf<Name>>>(
     () =>
       value === undefined
         ? { status: 'loading' }
@@ -185,7 +269,14 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
     [value],
   );
 
-  if (!convex) return UNAVAILABLE;
+  // A SKIPPED read is holding, not broken: the caller has nothing to ask for
+  // yet (no thread selected), so it must read as `loading` exactly as it did
+  // on the subscription lane. Only a ref with no row at all is unavailable.
+  if (skip) return LOADING;
+  if (httpOptions === undefined) return UNAVAILABLE;
+  // A hard error (after the cache fallback above) degrades to `unavailable`,
+  // exactly as a missing client used to.
+  if (value === undefined && httpQuery.isError) return UNAVAILABLE;
   return result;
 }
 
@@ -193,7 +284,7 @@ export function useChatQuery<Ref extends FunctionReference<'query'>>(
 export function useChatThreads(
   organizationId: string,
 ): ChatQuery<readonly ChatThreadSummary[]> {
-  return useChatQuery(api.chat.threads.listThreads, { organizationId });
+  return useChatQuery('chat/threads:listThreads', { organizationId });
 }
 
 /**
@@ -204,7 +295,7 @@ export function useChatThreads(
 export function useChatProjects(
   organizationId: string,
 ): ChatQuery<readonly ChatProjectSummary[]> {
-  const projects = useChatQuery(api.projects.queries.listProjects, {
+  const projects = useChatQuery('projects/queries:listProjects', {
     organizationId,
   });
   return useMemo(() => {
@@ -229,25 +320,23 @@ export function useChatProjects(
  * not the projects feature's react-query hooks — so a provider-less render
  * degrades to `available: false` instead of throwing.
  */
-export function useProjectPin(): {
+export function useProjectPin(organizationId: string): {
   readonly available: boolean;
   readonly setPinned: (projectId: string, pinned: boolean) => Promise<void>;
 } {
-  const convex = useConvex();
+  const queryClient = useChatQueryClient();
 
   const setPinned = useCallback(
     async (projectId: string, pinned: boolean): Promise<void> => {
-      if (!convex) throw new Error('The chat backend is not reachable.');
-      await convex.mutation(api.projects.mutations.setProjectPinned, {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the id round-trips through the seam's string view model; its origin is the projects table
-        projectId: projectId as Id<'projects'>,
-        pinned,
+      await setProjectPinnedRequest(organizationId, projectId, pinned);
+      void queryClient.invalidateQueries({
+        queryKey: chatProjectsQuery(organizationId).queryKey,
       });
     },
-    [convex],
+    [queryClient, organizationId],
   );
 
-  return { available: convex !== undefined, setPinned };
+  return { available: true, setPinned };
 }
 
 /**
@@ -260,13 +349,10 @@ export function useThreadHolds(organizationId: string): ChatQuery<{
   readonly orgHeld: boolean;
   readonly targetIds: readonly string[];
 }> {
-  return useChatQuery(
-    api.governance.legal_hold_queries.listActiveHoldTargetIds,
-    {
-      organizationId,
-      targetType: 'thread',
-    },
-  );
+  return useChatQuery('governance/legal_hold_queries:listActiveHoldTargetIds', {
+    organizationId,
+    targetType: 'thread',
+  });
 }
 
 /** One page of the archived list. */
@@ -287,7 +373,7 @@ export function useArchivedThreads(
   options: { enabled: boolean; cursor?: number },
 ): ChatQuery<ArchivedThreadsPage> {
   return useChatQuery(
-    api.chat.threads.listArchivedThreads,
+    'chat/threads:listArchivedThreads',
     options.enabled
       ? {
           organizationId,
@@ -324,7 +410,7 @@ export function useChatMessages(
   threadId: string | undefined,
 ): ChatQuery<readonly ChatMessageView[]> {
   const rows = useChatQuery(
-    api.chat.messages.listMessages,
+    'chat/messages:listMessages',
     threadId ? { organizationId, threadId } : 'skip',
   );
   return useMemo(() => {
@@ -332,8 +418,11 @@ export function useChatMessages(
     return {
       status: 'ready' as const,
       data: rows.data.map((row): ChatMessageView => {
-        const usage = normalizeMessageUsage(row.usage);
-        return { ...row, ...(usage !== undefined ? { usage } : {}) };
+        // The RAW usage never reaches the view — it rides the wire as
+        // free-form JSON and only the normalized shape is renderable.
+        const { usage: rawUsage, ...rest } = row;
+        const usage = normalizeMessageUsage(rawUsage);
+        return { ...rest, ...(usage !== undefined ? { usage } : {}) };
       }),
     };
   }, [rows]);
@@ -354,7 +443,7 @@ export function useVoiceMode(
   source: 'thread' | 'preferences' | 'default' | 'org_policy';
 }> {
   return useChatQuery(
-    api.tts.queries.getVoiceModeEffective,
+    'tts/queries:getVoiceModeEffective',
     threadId !== undefined ? { organizationId, threadId } : { organizationId },
     { cache: false },
   );
@@ -370,7 +459,7 @@ export function useChatThread(
   threadId: string | undefined,
 ): ChatQuery<ChatThreadSummary | null> {
   return useChatQuery(
-    api.chat.threads.getThread,
+    'chat/threads:getThread',
     threadId ? { organizationId, threadId } : 'skip',
   );
 }
@@ -393,7 +482,7 @@ export function useThreadBranches(
   selections: string | null;
 }> {
   return useChatQuery(
-    api.chat.branches.listThreadBranches,
+    'chat/branches:listThreadBranches',
     rootThreadId ? { organizationId, rootThreadId } : 'skip',
   );
 }
@@ -413,7 +502,7 @@ export function useArenaPair(
   createdAt: number;
 } | null> {
   return useChatQuery(
-    api.chat.arena.getArenaPair,
+    'chat/arena:getArenaPair',
     threadId ? { organizationId, threadId } : 'skip',
     { cache: false },
   );
@@ -436,7 +525,7 @@ export function useThreadFeedback(
   }>
 > {
   return useChatQuery(
-    api.feedback.queries.listThreadFeedback,
+    'feedback/queries:listThreadFeedback',
     threadId ? { organizationId, threadId } : 'skip',
     { cache: false },
   );
@@ -451,14 +540,40 @@ export function useChatGeneration(
   organizationId: string,
   threadId: string | undefined,
 ): ChatQuery<ChatGenerationView | null> {
-  return useChatQuery(
-    api.chat.generations.getGeneration,
-    threadId ? { organizationId, threadId } : 'skip',
-    // Never served from the session cache: a turn that settled while the
-    // surface was unmounted deleted its row, so replaying the last answer
-    // would flash a "still streaming" state for a turn that is over.
-    { cache: false },
+  // The migrated lane: the per-thread SSE stream answers both the status
+  // view and the streamed text; absence (an `idle` event) IS the signal, so
+  // nothing here is ever session-cached.
+  const stream = useThreadStream(
+    organizationId,
+    threadId,
+    useChatQueryClient(),
   );
+  if (threadId === undefined || stream.generation === undefined) {
+    return { status: 'loading' };
+  }
+  return { status: 'ready', data: stream.generation };
+}
+
+/** The in-flight streamed text (the 0.4 `getGenerationText` twin) — rides
+ * the same SSE lane as the status view above. */
+export function useChatGenerationText(
+  organizationId: string,
+  threadId: string | undefined,
+): ChatQuery<{
+  messageId?: string;
+  text: string;
+  reasoning?: string;
+  serverNow?: number;
+} | null> {
+  const stream = useThreadStream(
+    organizationId,
+    threadId,
+    useChatQueryClient(),
+  );
+  if (threadId === undefined || stream.generationText === undefined) {
+    return { status: 'loading' };
+  }
+  return { status: 'ready', data: stream.generationText };
 }
 
 /**
@@ -499,48 +614,46 @@ function recallComposerCatalog(
 export function useComposerModels(
   organizationId: string,
 ): ChatQuery<ComposerCatalog> {
-  const convex = useConvex();
   const [state, setState] = useState<ChatQuery<ComposerCatalog>>(() => {
     const cached = recallComposerCatalog(organizationId);
     return cached ? { status: 'ready', data: cached } : { status: 'loading' };
   });
 
   useEffect(() => {
-    if (!convex || !organizationId) return () => {};
+    if (!organizationId) return () => {};
     let cancelled = false;
     const cached = recallComposerCatalog(organizationId);
     setState(
       cached ? { status: 'ready', data: cached } : { status: 'loading' },
     );
-    convex
-      .action(api.chat.composer.listComposerModels, { organizationId })
-      .then(
-        (data) => {
-          if (cancelled) return;
-          composerCatalogCache.set(organizationId, data);
-          storeComposerCatalog(organizationId, data);
-          setState({ status: 'ready', data });
-        },
-        (error: unknown) => {
-          if (cancelled) return;
-          // Pre-auth or backend failure: report honestly; the picker renders
-          // its unavailable state instead of an empty model list. A stale
-          // answer, when one exists, beats flipping a working surface.
-          console.warn(
-            '[chat] could not list composer models for the picker',
-            error,
-          );
-          if (!composerCatalogCache.has(organizationId)) {
-            setState(UNAVAILABLE);
-          }
-        },
-      );
+    backendFetch<ComposerCatalog>('/chat/composer/models', {
+      orgId: organizationId,
+    }).then(
+      (data) => {
+        if (cancelled) return;
+        composerCatalogCache.set(organizationId, data);
+        storeComposerCatalog(organizationId, data);
+        setState({ status: 'ready', data });
+      },
+      (error: unknown) => {
+        if (cancelled) return;
+        // Pre-auth or backend failure: report honestly; the picker renders
+        // its unavailable state instead of an empty model list. A stale
+        // answer, when one exists, beats flipping a working surface.
+        console.warn(
+          '[chat] could not list composer models for the picker',
+          error,
+        );
+        if (!composerCatalogCache.has(organizationId)) {
+          setState(UNAVAILABLE);
+        }
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [convex, organizationId]);
+  }, [organizationId]);
 
-  if (!convex) return UNAVAILABLE;
   return state;
 }
 
@@ -556,24 +669,19 @@ export function useChatModelPreference(organizationId: string): {
    * the previously pinned model (an absent preference reads as Auto). */
   readonly save: (modelId: string | undefined) => void;
 } {
-  const convex = useConvex();
-  const row = useChatQuery(api.user_preferences.queries.getMyPreferences, {
+  const row = useChatQuery('user_preferences/queries:getMyPreferences', {
     organizationId,
   });
 
   const save = useCallback(
     (modelId: string | undefined) => {
-      if (!convex) return;
-      convex
-        .mutation(api.user_preferences.mutations.setChatModel, {
-          organizationId,
-          ...(modelId !== undefined ? { modelId } : {}),
-        })
-        .catch((error: unknown) => {
+      setChatModelPreference(organizationId, modelId).catch(
+        (error: unknown) => {
           console.warn('[chat] could not save the model pick', error);
-        });
+        },
+      );
     },
-    [convex, organizationId],
+    [organizationId],
   );
 
   const preference: ChatQuery<string | undefined> =
@@ -673,25 +781,20 @@ export function useChatSend(organizationId: string): {
    * with what streamed. A no-op for an idle thread. */
   readonly stop: (threadId: string) => Promise<void>;
 } {
-  const convex = useConvex();
+  const queryClient = useChatQueryClient();
 
   const stop = useCallback(
     async (threadId: string): Promise<void> => {
-      if (!convex) throw new Error('The chat backend is not reachable.');
-      await convex.mutation(api.chat.generations.requestCancelGeneration, {
-        organizationId,
-        threadId,
-      });
+      await cancelChatGeneration(organizationId, threadId);
     },
-    [convex, organizationId],
+    [organizationId],
   );
 
   const start = useCallback(
     async (request: ChatTurnRequest): Promise<ChatTurnHandle> => {
-      if (!convex) throw new Error('The chat backend is not reachable.');
       const threadId =
         request.threadId ??
-        (await convex.mutation(api.chat.threads.createThread, {
+        (await createChatThread({
           organizationId,
           kind: 'direct',
           ...(request.projectId !== undefined
@@ -703,7 +806,7 @@ export function useChatSend(organizationId: string): {
         }));
       // Completed video links join the send here — after the thread exists
       // (a welcome-page paste has pre-thread rows the bind adopts), before
-      // the action fires. Their transcripts ride as attachments; the pasted
+      // the turn fires. Their transcripts ride as attachments; the pasted
       // URLs leave the outgoing text so the model never sees both.
       let userText = request.text;
       const attachments: ChatTurnAttachment[] = [
@@ -711,10 +814,7 @@ export function useChatSend(organizationId: string): {
       ];
       const boundVideoJobIds: string[] = [];
       if (request.bindVideoJobs === true) {
-        const bound = await convex.mutation(
-          api.video_links.mutations.bindCompletedJobsToMessage,
-          { organizationId, threadId },
-        );
+        const bound = await bindVideoJobsForSend(organizationId, threadId);
         for (const payload of bound) {
           attachments.push({
             fileId: payload.fileId,
@@ -723,13 +823,15 @@ export function useChatSend(organizationId: string): {
             fileSize: payload.fileSize,
           });
           userText = userText.replace(payload.pastedToken, '').trim();
-          boundVideoJobIds.push(String(payload.jobId));
+          boundVideoJobIds.push(payload.jobId);
         }
       }
-      const outcome = convex.action(api.chat.turn_action.startTurn, {
-        organizationId,
-        threadId,
-        userText,
+      // The call resolves when the turn settles; the reply streams through
+      // the thread's SSE lane meanwhile. The settle also nudges the message
+      // and thread reads — the transcript swaps to the durable rows even if
+      // the stream missed a beat.
+      const outcome = sendChatTurn(organizationId, threadId, {
+        text: userText,
         ...(attachments.length > 0 ? { attachments } : {}),
         ...(request.modelId !== undefined ? { modelId: request.modelId } : {}),
         ...(request.modelSelection !== undefined
@@ -741,19 +843,20 @@ export function useChatSend(organizationId: string): {
         ...(request.reasoningEffort !== undefined
           ? { reasoningEffort: request.reasoningEffort }
           : {}),
-        sandbox: false,
+      }).finally(() => {
+        invalidateChatMessages(queryClient, organizationId, threadId);
+        invalidateChatThreads(queryClient, organizationId);
       });
       return { threadId, boundVideoJobIds, outcome };
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const defer = useCallback(
     async (request: ChatDeferredSendRequest): Promise<{ threadId: string }> => {
-      if (!convex) throw new Error('The chat backend is not reachable.');
       const threadId =
         request.threadId ??
-        (await convex.mutation(api.chat.threads.createThread, {
+        (await createChatThread({
           organizationId,
           kind: 'direct',
           ...(request.projectId !== undefined
@@ -763,18 +866,15 @@ export function useChatSend(organizationId: string): {
             ? { reasoningEffort: request.reasoningEffort }
             : {}),
         }));
-      await convex.mutation(api.chat.deferred_sends.enqueueDeferredSend, {
+      await enqueueDeferredSendRequest({
         organizationId,
         threadId,
-        userText: request.text,
+        text: request.text,
         ...(request.attachments !== undefined && request.attachments.length > 0
           ? { attachments: [...request.attachments] }
           : {}),
         ...(request.videoJobIds !== undefined && request.videoJobIds.length > 0
-          ? {
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- job ids arrive as branded Id<'videoLinkJobs'> strings from the reactive query
-              videoJobIds: [...request.videoJobIds] as Id<'videoLinkJobs'>[],
-            }
+          ? { videoJobIds: [...request.videoJobIds] }
           : {}),
         ...(request.modelId !== undefined ? { modelId: request.modelId } : {}),
         ...(request.modelSelection !== undefined
@@ -788,24 +888,22 @@ export function useChatSend(organizationId: string): {
           : {}),
         ...(request.locale !== undefined ? { locale: request.locale } : {}),
       });
+      invalidateChatMessages(queryClient, organizationId, threadId);
       return { threadId };
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const unbindVideoJobs = useCallback(
     async (jobIds: readonly string[]): Promise<void> => {
-      if (!convex || jobIds.length === 0) return;
-      await convex.mutation(api.video_links.mutations.unbindJobsFromMessage, {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- job ids arrive as branded Id<'videoLinkJobs'> strings from the bind payload
-        jobIds: [...jobIds] as Id<'videoLinkJobs'>[],
-      });
+      if (jobIds.length === 0) return;
+      await unbindVideoJobsRequest(organizationId, jobIds);
     },
-    [convex],
+    [organizationId],
   );
 
   return {
-    available: convex !== undefined,
+    available: true,
     start,
     defer,
     unbindVideoJobs,
@@ -824,9 +922,9 @@ export function useChatSend(organizationId: string): {
 export function usePendingQuestion(
   organizationId: string,
   threadId: string | undefined,
-): ChatQuery<{ requestId: Id<'approvals'>; set: QuestionSet } | null> {
+): ChatQuery<{ requestId: string; set: QuestionSet } | null> {
   return useChatQuery(
-    api.chat.questions.getPendingQuestion,
+    'chat/questions:getPendingQuestion',
     threadId ? { organizationId, threadId } : 'skip',
   );
 }
@@ -841,28 +939,28 @@ export function usePendingQuestion(
 export function useResolveQuestion(organizationId: string): {
   readonly available: boolean;
   readonly resolve: (
-    requestId: Id<'approvals'>,
+    requestId: string,
     outcome: 'answered' | 'superseded',
   ) => Promise<void>;
 } {
-  const convex = useConvex();
+  const queryClient = useChatQueryClient();
 
   const resolve = useCallback(
     async (
-      requestId: Id<'approvals'>,
+      requestId: string,
       outcome: 'answered' | 'superseded',
     ): Promise<void> => {
-      if (!convex) throw new Error('The chat backend is not reachable.');
-      await convex.mutation(api.chat.questions.resolveQuestion, {
-        organizationId,
-        requestId,
-        outcome,
+      await resolveQuestionRequest(organizationId, requestId, outcome);
+      // The panel clears from this read — nudge it without waiting for the
+      // hint round-trip.
+      void queryClient.invalidateQueries({
+        queryKey: backendEntityPrefix(organizationId, 'chat_thread'),
       });
     },
-    [convex, organizationId],
+    [organizationId, queryClient],
   );
 
-  return { available: convex !== undefined, resolve };
+  return { available: true, resolve };
 }
 
 /**
@@ -877,21 +975,21 @@ export function useThreadProjectMove(organizationId: string): {
     projectId: string | null,
   ) => Promise<boolean>;
 } {
-  const convex = useConvex();
-
+  const queryClient = useChatQueryClient();
   const move = useCallback(
     async (threadId: string, projectId: string | null): Promise<boolean> => {
-      if (!convex) throw new Error('The chat backend is not reachable.');
-      return await convex.mutation(api.chat.threads.moveThreadToProject, {
+      const ok = await moveChatThreadToProject(
         organizationId,
         threadId,
         projectId,
-      });
+      );
+      if (ok) invalidateChatThreads(queryClient, organizationId);
+      return ok;
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
-  return { available: convex !== undefined, move };
+  return { available: true, move };
 }
 
 /**
@@ -905,35 +1003,30 @@ export function useThreadReasoningEffort(organizationId: string): {
   readonly available: boolean;
   readonly save: (threadId: string, effort: ReasoningEffort | null) => void;
 } {
-  const convex = useConvex();
-
   const save = useCallback(
     (threadId: string, effort: ReasoningEffort | null) => {
-      if (!convex) return;
-      convex
-        .mutation(api.chat.threads.setThreadReasoningEffort, {
-          organizationId,
-          threadId,
-          // An absent arg clears the stored pick server-side.
-          ...(effort !== null ? { reasoningEffort: effort } : {}),
-        })
-        .then(
-          (owned) => {
-            if (!owned) {
-              console.warn(
-                '[chat] effort save skipped: the thread is not the caller’s',
-              );
-            }
-          },
-          (error: unknown) => {
-            console.warn('[chat] could not save the effort pick', error);
-          },
-        );
+      setChatThreadReasoningEffort(
+        organizationId,
+        threadId,
+        // An absent arg clears the stored pick server-side.
+        effort ?? undefined,
+      ).then(
+        (owned) => {
+          if (!owned) {
+            console.warn(
+              '[chat] effort save skipped: the thread is not the caller’s',
+            );
+          }
+        },
+        (error: unknown) => {
+          console.warn('[chat] could not save the effort pick', error);
+        },
+      );
     },
-    [convex, organizationId],
+    [organizationId],
   );
 
-  return { available: convex !== undefined, save };
+  return { available: true, save };
 }
 
 /**
@@ -944,5 +1037,5 @@ export function useChatMemories(organizationId: string): ChatQuery<{
   readonly pending: readonly { id: string; content: string }[];
   readonly approved: readonly { id: string; content: string }[];
 }> {
-  return useChatQuery(api.chat.memories.listMemories, { organizationId });
+  return useChatQuery('chat/memories:listMemories', { organizationId });
 }

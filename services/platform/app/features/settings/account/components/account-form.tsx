@@ -23,14 +23,14 @@ import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { usePasswordPolicy } from '@/app/features/settings/governance/hooks/queries';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { usePasswordValidation } from '@/app/hooks/use-password-validation';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { useToast } from '@/app/hooks/use-toast';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 import { createPasswordSchema } from '@/lib/shared/schemas/password';
-import { convexErrorCode } from '@/lib/utils/convex-error';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 import { deriveNameFromEmail } from '@/lib/utils/derive-name-from-email';
 
 import { useUpdatePassword, useUpdateUserName } from '../hooks/mutations';
@@ -329,8 +329,8 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       // A wrong current password is an expected, recoverable failure — surface
       // it as an inline field error on the current-password input (mirroring
       // the 2FA / add-member flows) rather than a generic destructive toast
-      // (#1945). The backend raises a structured ConvexError for this case.
-      if (convexErrorCode(error) === 'INVALID_CURRENT_PASSWORD') {
+      // (#1945). The backend raises a structured AppError for this case.
+      if (backendErrorCode(error) === 'INVALID_CURRENT_PASSWORD') {
         setError('currentPassword', {
           type: 'manual',
           message: tAuth('changePassword.validation.currentIncorrect'),

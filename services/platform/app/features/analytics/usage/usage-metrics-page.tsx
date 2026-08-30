@@ -2,7 +2,6 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import type { FunctionReturnType } from 'convex/server';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -16,8 +15,8 @@ import {
   type MetricsPeriodDays,
 } from '@/app/components/metrics/metrics-period';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
 
 import { TopAgentsTable } from './top-agents-table';
@@ -40,7 +39,7 @@ export interface UsageMetricsPageProps {
 }
 
 type UsageMetricsData =
-  | FunctionReturnType<typeof api.governance.queries.getOrgUsageMetrics>
+  | ReturnsOf<'governance/queries:getOrgUsageMetrics'>
   | undefined;
 
 interface UsageMetricsPageViewProps {
@@ -238,8 +237,8 @@ export function UsageMetricsPage({
   const [model, setModel] = useState<string | undefined>(undefined);
   const [provider, setProvider] = useState<string | undefined>(undefined);
 
-  const { data, isLoading } = useConvexQuery(
-    api.governance.queries.getOrgUsageMetrics,
+  const { data, isLoading } = useBackendQuery(
+    'governance/queries:getOrgUsageMetrics',
     {
       organizationId,
       periodDays,

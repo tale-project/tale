@@ -49,10 +49,10 @@ const fixtures = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/app/hooks/use-convex-query', async () => {
+vi.mock('@/app/hooks/use-backend-query', async () => {
   const { getFunctionName } = await import('convex/server');
   return {
-    useConvexQuery: (fn: never) => ({
+    useBackendQuery: (fn: never) => ({
       data: getFunctionName(fn).includes('getGuardrailStats')
         ? fixtures.guardrails
         : fixtures.health,

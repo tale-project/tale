@@ -1,11 +1,9 @@
-import { convexQuery } from '@convex-dev/react-query';
 import { FullPageCenter } from '@tale/ui/full-page-center';
 import { Row, Stack, VStack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Outlet, createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useMutation } from 'convex/react';
 import { useEffect, useRef } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -30,21 +28,25 @@ import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/tw
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
-import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { setActiveOrganizationId } from '@/app/lib/active-organization';
 import { getCachedConvexTokenUserId } from '@/app/lib/auth/convex-token-cache';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
-import { ensureConvexQuery } from '@/app/lib/loader-preload';
+import {
+  memberContextQuery,
+  myTeamsQuery,
+  recordOrgSwitch,
+} from '@/app/lib/backend/org';
+import { useBackendHints } from '@/app/lib/backend/use-backend-hints';
 import {
   cacheMemberContext,
   clearMemberContextCache,
   readCachedMemberContextRole,
 } from '@/app/lib/member-context-cache';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
-import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
@@ -63,18 +65,12 @@ export const Route = createFileRoute('/dashboard/$id')({
   loader: ({ context, params }) => {
     // The team filter (TeamFilterProvider) reads getMyTeams on every dashboard
     // page; warm it alongside the gating member context.
-    void context.queryClient.prefetchQuery(
-      convexQuery(api.members.queries.getMyTeams, {
-        organizationId: params.id,
-      }),
-    );
-    void ensureConvexQuery(
-      context,
-      api.members.queries.getCurrentMemberContext,
-      { organizationId: params.id },
-    ).catch((error: unknown) => {
-      console.warn('Failed to preload member context', error);
-    });
+    void context.queryClient.prefetchQuery(myTeamsQuery(params.id));
+    void context.queryClient
+      .ensureQueryData(memberContextQuery(params.id))
+      .catch((error: unknown) => {
+        console.warn('Failed to preload member context', error);
+      });
   },
   component: DashboardLayout,
 });
@@ -91,7 +87,12 @@ function DashboardLayout() {
     setActiveOrganizationId(organizationId);
     return () => setActiveOrganizationId(undefined);
   }, [organizationId]);
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
+  // The session probe, not the websocket — the member context and the
+  // persisted-role hydration only need to know WHO the caller is.
+  const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
+  // The org's /events hint stream: invalidates ['backend', orgId, entity]
+  // reads when the backend's outbox announces a change (Tier-2 realtime).
+  useBackendHints(organizationId);
   const {
     data: memberContext,
     isLoading: isQueryLoading,
@@ -125,9 +126,6 @@ function DashboardLayout() {
   // queries, and Better Auth aligned without bouncing the user through the
   // picker. Audit-log the entry so it's captured even for deep-link arrivals.
   const queryClient = useQueryClient();
-  const recordOrgSwitch = useMutation(
-    api.organizations.record_org_switch.recordOrgSwitch,
-  );
   const { data: session } = useQuery(sessionQueryOptions);
   const activeOrganizationId = session?.data?.session?.activeOrganizationId;
   const orgSyncRef = useRef<string | null>(null);
@@ -143,7 +141,7 @@ function DashboardLayout() {
         await authClient.organization.setActive({ organizationId });
         // Audit + preference persistence is off the critical path — fire in the
         // background so the guard doesn't block on it. Errors are logged.
-        void recordOrgSwitch({ organizationId }).catch((err) => {
+        void recordOrgSwitch(organizationId).catch((err) => {
           console.warn('Failed to record org switch audit entry:', err);
         });
         await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
@@ -157,7 +155,6 @@ function DashboardLayout() {
     organizationId,
     memberContext?.status,
     queryClient,
-    recordOrgSwitch,
   ]);
 
   const abilityRef = useRef<{ role: string | null; ability: AppAbility }>(null);

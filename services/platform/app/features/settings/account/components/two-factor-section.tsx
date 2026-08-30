@@ -4,15 +4,15 @@ import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { HStack, VStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useToast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import { twoFactorStatusQuery } from '@/app/lib/backend/account';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { lazyComponent } from '@/lib/utils/lazy-component';
@@ -41,7 +41,7 @@ type EnrollState =
     };
 
 export function TwoFactorSection() {
-  const { data: status } = useConvexQuery(api.two_factor.queries.getStatus, {});
+  const { data: status } = useQuery(twoFactorStatusQuery());
 
   // SSO-only users: hide the section. The backend also rejects enable
   // calls for SSO-only users — UI gate is UX only. When status isn't
@@ -63,6 +63,7 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   async function startEnrollment(password: string) {
     setSubmitting(true);
@@ -98,6 +99,9 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
         return;
       }
       toast({ title: t('enrollment.enabled'), variant: 'success' });
+      void queryClient.invalidateQueries({
+        queryKey: twoFactorStatusQuery().queryKey,
+      });
       const codes = state.backupCodes;
       setState({ step: 'idle' });
       showBackupCodes(codes);
@@ -159,6 +163,7 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
 function EnrolledState({ enforced }: { enforced: boolean }) {
   const { t } = useT('twoFactor');
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const showBackupCodes = useShowBackupCodes();
   const [disableOpen, setDisableOpen] = useState(false);
   const [regenOpen, setRegenOpen] = useState(false);
@@ -175,6 +180,9 @@ function EnrolledState({ enforced }: { enforced: boolean }) {
         return;
       }
       toast({ title: t('enrollment.disabled'), variant: 'success' });
+      void queryClient.invalidateQueries({
+        queryKey: twoFactorStatusQuery().queryKey,
+      });
       setDisableOpen(false);
     } catch {
       setError(t('errors.disableFailed'));

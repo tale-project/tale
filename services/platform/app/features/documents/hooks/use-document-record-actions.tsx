@@ -16,7 +16,6 @@ import {
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import type { DocumentRecordInfo } from '@/types/documents';
 
@@ -101,7 +100,7 @@ export function useDocumentRecordActions({
   const handleMarkControlled = useCallback(async () => {
     if (isMarkingControlled) return;
     try {
-      await markControlled({ documentId: toId<'documents'>(documentId) });
+      await markControlled({ documentId: documentId });
       toast({
         title: tDocuments('record.toast.controlled'),
         variant: 'success',
@@ -119,7 +118,7 @@ export function useDocumentRecordActions({
     if (isOpeningRevision) return;
     try {
       const result = await openRevision({
-        documentId: toId<'documents'>(documentId),
+        documentId: documentId,
       });
       toast({
         title: tDocuments('record.toast.revisionOpened', {

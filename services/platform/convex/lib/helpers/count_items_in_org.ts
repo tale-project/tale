@@ -1,4 +1,4 @@
-import type { DatabaseReader } from '../../_generated/server';
+import type { DatabaseReader } from '../ctx';
 
 type OrgTable =
   | 'contacts'

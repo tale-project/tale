@@ -1,7 +1,7 @@
 /**
  * Map a thrown error from a deployment-config action into an operator-facing
- * message + the structured code. Duck-types `ConvexError.data` because Vite
- * chunk splitting can produce multiple `ConvexError` class copies that break
+ * message + the structured code. Duck-types `AppError.data` because Vite
+ * chunk splitting can produce multiple `AppError` class copies that break
  * `instanceof` (same rationale as the org-residency mapper it sits beside).
  */
 
@@ -19,7 +19,7 @@ export interface DeploymentErrorMapping {
   canForceOverwrite: boolean;
 }
 
-function readConvexErrorData(
+function readBackendErrorData(
   err: unknown,
 ): Record<string, unknown> | undefined {
   if (err == null || typeof err !== 'object') return undefined;
@@ -57,7 +57,7 @@ export function mapDeploymentError(
   err: unknown,
   t: Translator,
 ): DeploymentErrorMapping {
-  const data = readConvexErrorData(err);
+  const data = readBackendErrorData(err);
   const code = pickString(data, 'code');
   const serverMessage = pickString(data, 'message');
   const fallback =

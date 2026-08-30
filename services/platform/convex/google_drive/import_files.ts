@@ -3,7 +3,7 @@
  */
 
 import { resolveFileType } from '../../lib/shared/file-types';
-import type { Id } from '../_generated/dataModel';
+import type { Id } from '../lib/rows';
 import type { BlobRef } from '../lib/storage/blob_ref';
 import { deriveSyncTargets, type SyncTarget } from './derive_sync_targets';
 

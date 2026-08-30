@@ -2,7 +2,6 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 import { render, screen } from '@/tests/utils/render';
 
@@ -20,19 +19,18 @@ const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: (_query: unknown, args: unknown) => {
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (_query: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined };
     return { data: mocks.run };
   },
 }));
 
-vi.mock('@/app/hooks/use-convex-action', async () => {
-  const { api } = await import('@/convex/_generated/api');
+vi.mock('@/app/hooks/use-backend-action', () => {
   return {
-    useConvexAction: (action: unknown) => ({
+    useBackendAction: (action: unknown) => ({
       mutateAsync:
-        action === api.tasks.public_actions.cancelTaskWorkflow
+        action === 'tasks/public_actions:cancelTaskWorkflow'
           ? mocks.cancel
           : mocks.start,
     }),
@@ -93,8 +91,8 @@ function renderPanel(resolved = ownedBy(), hasFiles = false) {
     <TaskSubjectPanel
       organizationId="org_1"
       task={{
-        _id: 'task_1' as Id<'tasks'>,
-        projectId: 'project_1' as Id<'projects'>,
+        _id: 'task_1' as string,
+        projectId: 'project_1' as string,
         status: 'backlog',
         externalId: FOLDER,
         hasFiles,
@@ -182,8 +180,8 @@ describe('TaskSubjectPanel', () => {
       <TaskSubjectPanel
         organizationId="org_1"
         task={{
-          _id: 'task_1' as Id<'tasks'>,
-          projectId: 'project_1' as Id<'projects'>,
+          _id: 'task_1' as string,
+          projectId: 'project_1' as string,
           status: 'backlog',
           externalId: FOLDER,
         }}

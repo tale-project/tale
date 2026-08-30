@@ -1,41 +1,5 @@
 'use node';
 
-/**
- * The durable executor.
- *
- * `lib/engine/core/execute` runs an automation in one call: it is synchronous from
- * the caller's point of view, holds every node's output in memory, and is what
- * the authoring loop and the acceptance tests want. A DEPLOYED run cannot work
- * that way. It outlives the time window of a single action, it performs real
- * side effects, and it waits — on a poll that is not finished, on a human who
- * has not decided yet. So a deployed run is stepped instead: one node at a
- * time, each completed node written into `automationRuns.checkpoints` before the
- * next one starts.
- *
- * That single rule is what makes re-entry safe. On resume the stepper rebuilds
- * the scope from the checkpoints and continues at the first node that has no
- * entry — a node that already completed is never reached again, so its side
- * effect cannot repeat. The window that remains is a crash BETWEEN performing a
- * node's effect and writing its checkpoint; there the node is retried, and the
- * retry carries the same `<runId>:<node>:<index>` idempotency key the executor
- * derives, because the run id is the durable run's own id rather than a value
- * minted per invocation. The vendor therefore sees the retry as the same
- * attempt.
- *
- * The node behaviours are NOT reimplemented here. Templates, conditions and
- * transform bodies go through the engine's own evaluator; every connector
- * call goes through `connectors/execute_action`, the platform's single door
- * to a connector (catalog, schema validation, credentials, host allowlist,
- * audit). What this module owns is the part the in-memory executor has no
- * concept of: order, persistence, suspension, hand-off and cancellation.
- *
- * Continuation is `ctx.scheduler` — deliberately not an automation component. A
- * run's state lives in one row that operators can read, and the resume protocol
- * is the checkpoint format documented in `checkpoints.ts`.
- */
-
-import { v } from 'convex/values';
-
 import { findConnector } from '../../lib/connectors/catalog';
 import { refsOf, topoSort } from '../../lib/engine/core/execute/controlflow';
 import {
@@ -58,10 +22,9 @@ import type {
   Automation,
 } from '../../lib/engine/core/types';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm';
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
-import { internalAction } from '../_generated/server';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
+import type { Id } from '../lib/rows';
 import {
   automationAgentHost,
   type AutomationAgentHost,
@@ -1201,61 +1164,54 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
  * with no continuation except an actual crash, which the recovery sweep in
  * `triggers.ts` picks back up.
  */
-export const stepRun = internalAction({
-  args: {
-    organizationId: v.string(),
-    runId: v.id('automationRuns'),
-  },
-  returns: v.object({ status: v.string() }),
-  // The return type is written out because this action's own reference reaches
-  // back here: it schedules itself through the mutations it calls, and TypeScript
-  // needs one annotation to break the cycle.
-  handler: async (ctx, args): Promise<{ status: string }> => {
-    // The engine's sandbox seam for untrusted JavaScript (templates, transform
-    // bodies). The bundled backend is deterministic and data-only; a deployment
-    // that installs a real sandbox backend keeps it.
-    if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
+/** One stepper turn as a PLAIN exported function — the internalAction below
+ * wraps it, and the 0.5 backend's `automation.step` job runs it on the ctx
+ * shim (same pattern as `chat/turn_action.executeTurn`). */
+export async function stepRunImpl(
+  ctx: ActionCtx,
+  args: { organizationId: string; runId: Id<'automationRuns'> },
+): Promise<{ status: string }> {
+  // The engine's sandbox seam for untrusted JavaScript (templates, transform
+  // bodies). The bundled backend is deterministic and data-only; a deployment
+  // that installs a real sandbox backend keeps it.
+  if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
 
-    const claim = await ctx.runMutation(
-      internal.automations.mutations.claimRun,
-      { organizationId: args.organizationId, runId: args.runId },
-    );
-    if (!claim.claimed) return { status: claim.status };
-    const epoch = claim.epoch;
+  const claim = await ctx.runMutation(internal.automations.mutations.claimRun, {
+    organizationId: args.organizationId,
+    runId: args.runId,
+  });
+  if (!claim.claimed) return { status: claim.status };
+  const epoch = claim.epoch;
 
-    // Renew the liveness promise for as long as this walker is genuinely
-    // working — a node awaiting a slow local model for half an hour stays
-    // alive by heartbeat, and only a walker that actually died goes silent
-    // and gets its run re-poked by the sweep. A superseded walker stops
-    // beating; its state writes are refused by the same epoch fence.
-    let beating = true;
-    const heartbeat = setInterval(() => {
-      void ctx
-        .runMutation(internal.automations.mutations.heartbeatRun, {
-          organizationId: args.organizationId,
-          runId: args.runId,
-          epoch,
-        })
-        .then((result) => {
-          if (!result.alive && beating) {
-            beating = false;
-            clearInterval(heartbeat);
-          }
-        })
-        .catch((err) =>
-          console.warn('[automations] run heartbeat failed:', err),
-        );
-    }, RUN_HEARTBEAT_INTERVAL_MS);
+  // Renew the liveness promise for as long as this walker is genuinely
+  // working — a node awaiting a slow local model for half an hour stays
+  // alive by heartbeat, and only a walker that actually died goes silent
+  // and gets its run re-poked by the sweep. A superseded walker stops
+  // beating; its state writes are refused by the same epoch fence.
+  let beating = true;
+  const heartbeat = setInterval(() => {
+    void ctx
+      .runMutation(internal.automations.mutations.heartbeatRun, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        epoch,
+      })
+      .then((result) => {
+        if (!result.alive && beating) {
+          beating = false;
+          clearInterval(heartbeat);
+        }
+      })
+      .catch((err) => console.warn('[automations] run heartbeat failed:', err));
+  }, RUN_HEARTBEAT_INTERVAL_MS);
 
-    try {
-      return await stepClaimedRun(ctx, args, epoch);
-    } finally {
-      beating = false;
-      clearInterval(heartbeat);
-    }
-  },
-});
-
+  try {
+    return await stepClaimedRun(ctx, args, epoch);
+  } finally {
+    beating = false;
+    clearInterval(heartbeat);
+  }
+}
 /** The claimed turn's body — everything between a won claim and the row's
  * next durable state, extracted so the heartbeat wraps it exactly. */
 async function stepClaimedRun(

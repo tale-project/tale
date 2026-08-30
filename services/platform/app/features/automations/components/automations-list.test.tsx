@@ -3,7 +3,6 @@ import '@testing-library/jest-dom/vitest';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 vi.mock('@/app/features/projects/hooks/queries', () => ({
@@ -88,10 +87,7 @@ describe('AutomationsList', () => {
       { name: 'desk/prepare-return', latest: 1, projectIds: [] },
     ];
     const { user } = render(
-      <AutomationsList
-        organizationId="org-1"
-        projectId={'proj_1' as Id<'projects'>}
-      />,
+      <AutomationsList organizationId="org-1" projectId={'proj_1' as string} />,
     );
 
     await user.click(screen.getByText('desk/prepare-return'));

@@ -8,8 +8,8 @@
  * rather than leaking an English fallback word into DE/FR copy. Never throws.
  */
 
-import type { QueryCtx } from '../_generated/server';
 import { getUserById } from '../betterAuth/trusted_headers/get_user_by_id';
+import type { QueryCtx } from '../lib/ctx';
 
 export async function resolveUserDisplayName(
   ctx: QueryCtx,

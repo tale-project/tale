@@ -1,7 +1,7 @@
 import {
   type ClassifiedLine,
   chain,
-  classifyConvex,
+  classifyBackend,
   classifyDockerCompose,
   classifyPlatformContainer,
   classifyVite,
@@ -128,7 +128,7 @@ export async function logs(options: LogsOptions): Promise<void> {
   const classify = createStreamClassifier(
     chain(
       classifyDockerCompose,
-      classifyConvex,
+      classifyBackend,
       classifyVite,
       classifyPlatformContainer,
     ),

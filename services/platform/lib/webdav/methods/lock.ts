@@ -1,6 +1,5 @@
-import { anyApi } from 'convex/server';
-
-import { convexErrorCode } from '../errors';
+import { anyRefs } from '../../shared/handlers/function-refs';
+import { backendErrorCode } from '../errors';
 import { buildDavPath, lockKeyFromParsed } from '../paths';
 import {
   WEBDAV_MAX_XML_BODY,
@@ -79,7 +78,7 @@ export async function handleLock(
     try {
       for (const token of tokens) {
         const existing = await ctx.convex.query(
-          anyApi.webdav.lock_queries.findLockByToken,
+          anyRefs.webdav.lock_queries.findLockByToken,
           { token },
         );
         if (!existing || existing.organizationId !== auth.organizationId) {
@@ -97,7 +96,7 @@ export async function handleLock(
           continue;
         }
         const refreshed = await ctx.convex.mutation(
-          anyApi.webdav.lock_mutations.refreshLock,
+          anyRefs.webdav.lock_mutations.refreshLock,
           {
             lockToken: token,
             ownerUserId: auth.userId,
@@ -135,7 +134,7 @@ export async function handleLock(
   // resource bound to the lock — clients use this to reserve a name
   // before a PUT. Status code must be 201 Created in that case.
   const resolved = await ctx.convex.query(
-    anyApi.webdav.tree_queries.resolvePath,
+    anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
       namespace: parsed.namespace,
@@ -155,7 +154,7 @@ export async function handleLock(
   const lockKey = lockKeyFromParsed(parsed);
 
   try {
-    await ctx.convex.mutation(anyApi.webdav.lock_mutations.createLock, {
+    await ctx.convex.mutation(anyRefs.webdav.lock_mutations.createLock, {
       organizationId: auth.organizationId,
       resourcePath: lockKey,
       lockToken,
@@ -167,7 +166,7 @@ export async function handleLock(
       timeoutMs: timeoutSec * 1000,
     });
   } catch (err) {
-    const code = convexErrorCode(err);
+    const code = backendErrorCode(err);
     if (code === 'LOCKED') {
       return {
         status: 423,

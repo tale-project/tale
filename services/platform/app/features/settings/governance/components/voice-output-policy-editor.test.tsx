@@ -1,6 +1,6 @@
-import { ConvexError } from 'convex/values';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen } from '@/tests/utils/render';
 
 import { VoiceOutputPolicyEditor } from './voice-output-policy-editor';
@@ -101,16 +101,16 @@ describe('VoiceOutputPolicyEditor', () => {
   });
 
   // #2669: a save failure used to surface the thrown error's raw `.message`
-  // (a dev-facing `ConvexError`/stacktrace string, or an empty description)
+  // (a dev-facing `AppError`/stacktrace string, or an empty description)
   // instead of routing it through `mapGovernanceSaveError`.
   describe('save failure toast (#2669)', () => {
-    it('surfaces a localized description (not the raw ConvexError, not empty) on save failure', async () => {
+    it('surfaces a localized description (not the raw AppError, not empty) on save failure', async () => {
       setLoaded();
       toastSpy.mockClear();
       mutateSpy.mockImplementation(
         (_args: unknown, options?: { onError?: (err: unknown) => void }) => {
           options?.onError?.(
-            new ConvexError({
+            new AppError({
               code: 'ORG_FORBIDDEN',
               message: 'Role "member" cannot modify governance policies.',
             }),
@@ -130,7 +130,7 @@ describe('VoiceOutputPolicyEditor', () => {
         }),
       );
       const [call] = toastSpy.mock.calls.at(-1) ?? [];
-      expect(call?.description).not.toContain('ConvexError');
+      expect(call?.description).not.toContain('AppError');
       expect(call?.description).not.toBeUndefined();
     });
   });

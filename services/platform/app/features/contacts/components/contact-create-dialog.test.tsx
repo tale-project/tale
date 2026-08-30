@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
@@ -104,7 +104,7 @@ describe('ContactCreateDialog', () => {
 
   it('shows a duplicate-email error toast on CONTACT_DUPLICATE_EMAIL', async () => {
     mockMutateAsync.mockRejectedValueOnce(
-      new ConvexError({ code: 'CONTACT_DUPLICATE_EMAIL' }),
+      new AppError({ code: 'CONTACT_DUPLICATE_EMAIL' }),
     );
 
     const { user } = render(

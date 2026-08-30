@@ -5,7 +5,6 @@ import { DropdownMenu, type DropdownMenuItem } from '@tale/ui/dropdown-menu';
 import { Row } from '@tale/ui/layout';
 import { LoadingOverlay } from '@tale/ui/loading-overlay';
 import { useNavigate } from '@tanstack/react-router';
-import type { UsePaginatedQueryResult } from 'convex/react';
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
@@ -21,6 +20,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { ConversationItem } from '@/convex/conversations/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -58,7 +58,7 @@ interface ConversationsProps {
   search?: string;
   /** Deep-link from notifications (`?conversation=`). */
   initialConversationId?: string;
-  paginatedResult: UsePaginatedQueryResult<ConversationItem>;
+  paginatedResult: UsePaginatedQueryReturnType<ConversationItem>;
   conversationCount: number | undefined;
   totalConversationCount: number | undefined;
   /** Server-side provider filter (the route owns the URL state). The control
@@ -93,7 +93,7 @@ const ALL_CHANNELS = 'all';
 function deriveBodyState(
   totalConversationCount: number | undefined,
   conversationCount: number | undefined,
-  paginatedStatus: UsePaginatedQueryResult<ConversationItem>['status'],
+  paginatedStatus: UsePaginatedQueryReturnType<ConversationItem>['status'],
 ): BodyState {
   const isDataLoading = paginatedStatus === 'LoadingFirstPage';
 

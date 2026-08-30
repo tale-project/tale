@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '../_generated/dataModel';
+import type { Id } from '../lib/rows';
 import {
   importFiles,
   type ImportFilesDependencies,

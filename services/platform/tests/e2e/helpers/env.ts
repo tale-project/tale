@@ -9,6 +9,24 @@
 
 export const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 
+/**
+ * A 0.5 entity id in a URL path. App rows use `gen_random_uuid()` stored as
+ * text (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`); Better Auth / leftover
+ * Convex ids stay unhyphenated. The old `[A-Za-z0-9]{16,}` pattern dies on
+ * the first hyphen and `waitForURL` times out after a successful create.
+ */
+export const ENTITY_ID = '[A-Za-z0-9-]{16,}';
+
+/**
+ * `/dashboard/:orgId`. Must not treat reserved first segments as ids —
+ * `create-organization` is 20 characters and satisfies {@link ENTITY_ID},
+ * so a wait on that pattern resolves immediately on the wizard and every
+ * later `/dashboard/${organizationId}/…` navigation hits the wizard again.
+ */
+export const ORG_DASHBOARD_URL = new RegExp(
+  `/dashboard/(?!create-organization(?:[/?#]|$))(${ENTITY_ID})(?:[/?#]|$)`,
+);
+
 /** Mock-LLM mode is the default; `E2E_MOCK_LLM=0` targets a live stack. */
 export function isMockLlmMode(): boolean {
   return process.env.E2E_MOCK_LLM !== '0';

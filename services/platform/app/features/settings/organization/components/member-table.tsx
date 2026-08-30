@@ -73,7 +73,7 @@ export function MemberTable({
     async (id: string) => {
       // `removeMember` takes the member doc's id as `v.string()` (the
       // members table lives in the better-auth component, not Convex's
-      // user table — so no `Id<'members'>` schema type). The row id we
+      // user table — so no `string` schema type). The row id we
       // pull from RowSelectionState matches `Member._id` directly.
       // Let failures propagate so `BulkDeleteBar` surfaces a single batch
       // toast instead of one per failed row.

@@ -16,7 +16,6 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkArchiveBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
-import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useArchiveProject } from '../hooks/mutations';
@@ -103,7 +102,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
     async (id: string) => {
       // RowSelectionState keys are the row `_id`s by construction (getRowId).
       await archiveProject({
-        projectId: toId<'projects'>(id),
+        projectId: id,
       });
     },
     [archiveProject],
@@ -115,7 +114,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       // (event bubbles up otherwise; the menu is in the same row).
       void navigate({
         to: '/dashboard/$id/projects/$projectId/tasks',
-        params: { id: organizationId, projectId: String(row.original._id) },
+        params: { id: organizationId, projectId: row.original._id },
       });
     },
     [navigate, organizationId],
@@ -127,7 +126,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       // click lands on already-fetched data.
       preloadRoute({
         to: '/dashboard/$id/projects/$projectId/tasks',
-        params: { id: organizationId, projectId: String(row.original._id) },
+        params: { id: organizationId, projectId: row.original._id },
       });
     },
     [preloadRoute, organizationId],

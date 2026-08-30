@@ -12,7 +12,6 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { toast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import {
   PRODUCT_CATEGORY_MAX,
   PRODUCT_CURRENCY_MAX,
@@ -29,7 +28,7 @@ interface EditProductDialogProps {
   isOpen: boolean;
   onClose: () => void;
   product: {
-    _id: Id<'products'>;
+    _id: string;
     organizationId: string;
     name: string;
     description?: string;
@@ -198,7 +197,7 @@ export function ProductEditDialog({
         onError: (err) => {
           console.error('Update error:', err);
           // Duck-typed code check — Vite chunk splitting can yield multiple
-          // ConvexError copies that break `instanceof` (see extract-error-code).
+          // AppError copies that break `instanceof` (see extract-error-code).
           if (extractErrorCode(err) === 'DUPLICATE_PRODUCT_NAME') {
             setError('name', {
               message: tProducts('edit.toast.duplicateName'),

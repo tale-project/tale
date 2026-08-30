@@ -7,9 +7,9 @@
  */
 
 import { isRecord, getString } from '../../lib/utils/type-utils';
-import { components } from '../_generated/api';
-import type { QueryCtx } from '../_generated/server';
 import { isExternalOwnerId } from '../identities/external_identities';
+import type { QueryCtx } from '../lib/ctx';
+import { components } from '../lib/handler_names';
 
 /**
  * Batch fetch user display names for multiple user IDs

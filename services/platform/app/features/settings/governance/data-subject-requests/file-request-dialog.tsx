@@ -13,7 +13,6 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { useToast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import {
   ERASURE_REASON_CODES,
   type ErasureReasonCode,
@@ -57,7 +56,7 @@ export function FileRequestDialog({
   const members = useOrgMembersForErasurePicker(organizationId);
   const [confirmText, setConfirmText] = useState('');
   const [legalHoldBlock, setLegalHoldBlock] = useState<{
-    requestId: Id<'gdprErasureRequests'>;
+    requestId: string;
   } | null>(null);
 
   const memberOptions = useMemo(
@@ -147,7 +146,7 @@ export function FileRequestDialog({
         setLegalHoldBlock({
           requestId:
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- error payload carries the row id we just inserted
-            mapped.legalHoldBlock.requestId as Id<'gdprErasureRequests'>,
+            mapped.legalHoldBlock.requestId,
         });
         return;
       }

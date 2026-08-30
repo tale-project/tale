@@ -10,11 +10,19 @@
  * rejection — so callers toast without try/catch at every site.
  */
 
-import { useConvex } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
-import { api } from '@/convex/_generated/api';
+import {
+  regenerateChatTurn,
+  branchChatThread,
+  branchChatThreadForEdit,
+  branchChatThreadForRegenerate,
+  invalidateChatThreads,
+  setChatBranchSelection,
+} from '@/app/lib/backend/chat';
 import type { ReasoningEffort } from '@/lib/chat/effort';
+
+import { useChatQueryClient } from './chat-backend';
 
 export interface BranchActions {
   readonly available: boolean;
@@ -56,26 +64,27 @@ export interface BranchActions {
 }
 
 export function useBranchActions(organizationId: string): BranchActions {
-  const convex = useConvex();
+  const queryClient = useChatQueryClient();
 
   const branchForEdit = useCallback(
     async (
       threadId: string,
       editedMessageId: string,
     ): Promise<string | null> => {
-      if (!convex) return null;
       try {
-        return await convex.mutation(api.chat.branches.branchForEdit, {
+        const id = await branchChatThreadForEdit(
           organizationId,
           threadId,
           editedMessageId,
-        });
+        );
+        invalidateChatThreads(queryClient, organizationId);
+        return id;
       } catch (error) {
         console.error('[chat] branching for the edit failed', error);
         return null;
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const branchForRegenerate = useCallback(
@@ -83,19 +92,20 @@ export function useBranchActions(organizationId: string): BranchActions {
       threadId: string,
       assistantMessageId: string,
     ): Promise<string | null> => {
-      if (!convex) return null;
       try {
-        return await convex.mutation(api.chat.branches.branchForRegenerate, {
+        const id = await branchChatThreadForRegenerate(
           organizationId,
           threadId,
           assistantMessageId,
-        });
+        );
+        invalidateChatThreads(queryClient, organizationId);
+        return id;
       } catch (error) {
         console.error('[chat] branching for the regenerate failed', error);
         return null;
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const regenerate = useCallback(
@@ -108,25 +118,20 @@ export function useBranchActions(organizationId: string): BranchActions {
         readonly reasoningEffort?: ReasoningEffort;
       },
     ): Promise<{ refused: boolean; reason?: string }> => {
-      if (!convex) return { refused: true };
       try {
-        const outcome = await convex.action(
-          api.chat.turn_action.regenerateTurn,
-          {
-            organizationId,
-            threadId,
-            ...(pick.modelId !== undefined ? { modelId: pick.modelId } : {}),
-            ...(pick.modelSelection !== undefined
-              ? { modelSelection: pick.modelSelection }
-              : {}),
-            ...(pick.providerSlug !== undefined
-              ? { providerSlug: pick.providerSlug }
-              : {}),
-            ...(pick.reasoningEffort !== undefined
-              ? { reasoningEffort: pick.reasoningEffort }
-              : {}),
-          },
-        );
+        const outcome = await regenerateChatTurn(organizationId, threadId, {
+          ...(pick.modelId !== undefined ? { modelId: pick.modelId } : {}),
+          ...(pick.modelSelection !== undefined
+            ? { modelSelection: pick.modelSelection }
+            : {}),
+          ...(pick.providerSlug !== undefined
+            ? { providerSlug: pick.providerSlug }
+            : {}),
+          ...(pick.reasoningEffort !== undefined
+            ? { reasoningEffort: pick.reasoningEffort }
+            : {}),
+        });
+        invalidateChatThreads(queryClient, organizationId);
         return outcome.status === 'refused'
           ? {
               refused: true,
@@ -138,25 +143,24 @@ export function useBranchActions(organizationId: string): BranchActions {
         return { refused: true };
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const select = useCallback(
     (rootThreadId: string, forkKey: string, selectedThreadId: string): void => {
-      if (!convex) return;
-      convex
-        .mutation(api.chat.branches.setBranchSelection, {
-          organizationId,
-          rootThreadId,
-          forkKey,
-          selectedThreadId,
-        })
+      setChatBranchSelection(
+        organizationId,
+        rootThreadId,
+        forkKey,
+        selectedThreadId,
+      )
+        .then(() => invalidateChatThreads(queryClient, organizationId))
         .catch((error: unknown) => {
           // A lost write costs one re-flip after reload, never a broken view.
           console.warn('[chat] saving the branch selection failed', error);
         });
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   const fork = useCallback(
@@ -165,31 +169,32 @@ export function useBranchActions(organizationId: string): BranchActions {
       fromMessageId: string,
       title: string,
     ): Promise<string | null> => {
-      if (!convex) return null;
       try {
-        return await convex.mutation(api.chat.threads.branchThread, {
+        const id = await branchChatThread(
           organizationId,
           threadId,
           fromMessageId,
           title,
-        });
+        );
+        invalidateChatThreads(queryClient, organizationId);
+        return id;
       } catch (error) {
         console.error('[chat] forking the thread failed', error);
         return null;
       }
     },
-    [convex, organizationId],
+    [queryClient, organizationId],
   );
 
   return useMemo(
     () => ({
-      available: convex !== undefined,
+      available: true,
       branchForEdit,
       branchForRegenerate,
       regenerate,
       select,
       fork,
     }),
-    [convex, branchForEdit, branchForRegenerate, regenerate, select, fork],
+    [branchForEdit, branchForRegenerate, regenerate, select, fork],
   );
 }

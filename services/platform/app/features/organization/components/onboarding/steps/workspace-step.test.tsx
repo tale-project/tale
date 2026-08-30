@@ -9,7 +9,7 @@ import { render, screen } from '@/tests/utils/render';
 import { isSlugTakenError, WorkspaceStep } from './workspace-step';
 
 // The step only needs the signed-in user's id for the org metadata.
-vi.mock('@/app/hooks/use-convex-auth', () => ({
+vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => ({ user: { userId: 'user-1' } }),
 }));
 

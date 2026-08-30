@@ -2,7 +2,6 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 import { render, screen } from '@/tests/utils/render';
 
@@ -21,12 +20,12 @@ const mocks = vi.hoisted(() => ({
   }>,
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: mocks.documents }),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: mocks.documents }),
 }));
 
-vi.mock('@/app/hooks/use-convex-mutation', () => ({
-  useConvexMutation: () => ({ mutateAsync: vi.fn() }),
+vi.mock('@/app/hooks/use-backend-mutation', () => ({
+  useBackendMutation: () => ({ mutateAsync: vi.fn() }),
 }));
 
 vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({
@@ -67,8 +66,8 @@ function renderCard(canEdit = true, canRemove = false) {
   return render(
     <TaskInputFilesCard
       organizationId="org_1"
-      projectId={'project_1' as Id<'projects'>}
-      folderId={FOLDER as Id<'folders'>}
+      projectId={'project_1' as string}
+      folderId={FOLDER as string}
       contract={contract}
       automationName="Document verification desk"
       canEdit={canEdit}

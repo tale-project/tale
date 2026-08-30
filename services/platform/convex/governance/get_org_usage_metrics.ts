@@ -2,8 +2,8 @@ import {
   bucketAgentSlug,
   classifyUsageRow,
 } from '../../lib/shared/constants/usage';
-import type { QueryCtx } from '../_generated/server';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
+import type { QueryCtx } from '../lib/ctx';
 import { buildPeriodKeyFromTimestamp } from './helpers';
 
 export type PeriodDays = 7 | 30 | 90;
@@ -119,13 +119,82 @@ function buildWindowKeys(
   return keys;
 }
 
+/** One ledger row as the fold consumes it — the 0.4 doc's fold-relevant
+ * fields, host-neutral so the 0.5 backend can feed SQL rows. */
+export interface UsageLedgerFoldRow {
+  userId: string;
+  teamId?: string;
+  periodKey: string;
+  requestCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costEstimate: number;
+  agentSlug?: string;
+  model?: string;
+  provider?: string;
+  connectorName?: string;
+  audioDurationSec?: number;
+  characterCount?: number;
+}
+
 export async function getOrgUsageMetrics(
   ctx: QueryCtx,
   args: GetOrgUsageMetricsArgs,
 ): Promise<OrgUsageMetrics> {
   const now = Date.now();
+  const scanStart = scanStartKeyFor(args, now);
+  const rows: UsageLedgerFoldRow[] = [];
+  let scanned = 0;
+  let capped = false;
+  for await (const row of ctx.db
+    .query('usageLedger')
+    .withIndex('by_org_granularity_period', (q) =>
+      q
+        .eq('organizationId', args.organizationId)
+        .eq('granularity', args.granularity)
+        .gte('periodKey', scanStart),
+    )) {
+    scanned++;
+    if (scanned > MAX_SCAN) {
+      capped = true;
+      break;
+    }
+    rows.push(row);
+  }
+  return foldOrgUsageMetrics(rows, capped, args, now, (userIds) =>
+    getUserNamesBatch(ctx, userIds),
+  );
+}
+
+/** The first period key the scan must cover (prior window's start). */
+export function scanStartKeyFor(
+  args: Pick<GetOrgUsageMetricsArgs, 'granularity' | 'periodDays'>,
+  now: number,
+): string {
+  const seen = new Set<string>();
+  let first: string | null = null;
+  for (let i = args.periodDays * 2 - 1; i >= args.periodDays; i--) {
+    const key = buildPeriodKeyFromTimestamp(args.granularity, now - i * DAY_MS);
+    if (!seen.has(key)) {
+      seen.add(key);
+      first ??= key;
+    }
+  }
+  return (
+    first ?? buildWindowKeys(args.granularity, args.periodDays, now)[0] ?? ''
+  );
+}
+
+/** The fold itself — pure over the pre-fetched rows (both hosts feed it). */
+export async function foldOrgUsageMetrics(
+  fetchedRows: readonly UsageLedgerFoldRow[],
+  capped: boolean,
+  args: GetOrgUsageMetricsArgs,
+  now: number,
+  resolveUserNames: (userIds: string[]) => Promise<Map<string, string>>,
+): Promise<OrgUsageMetrics> {
   const windowKeys = buildWindowKeys(args.granularity, args.periodDays, now);
-  const windowStartKey = windowKeys[0] ?? '';
 
   // Prior equal-length window keys, for period-over-period deltas. We widen the
   // ledger scan back to this window's start and bucket those rows separately.
@@ -144,7 +213,6 @@ export async function getOrgUsageMetrics(
     }
   }
   const prevKeySet = new Set(prevKeys);
-  const scanStartKey = prevKeys[0] ?? windowStartKey;
 
   let prevTotalRequests = 0;
   let prevTotalTokens = 0;
@@ -186,23 +254,7 @@ export async function getOrgUsageMetrics(
   let totalCostCents = 0;
   const activeUserIds = new Set<string>();
 
-  let scanned = 0;
-  let capped = false;
-
-  for await (const row of ctx.db
-    .query('usageLedger')
-    .withIndex('by_org_granularity_period', (q) =>
-      q
-        .eq('organizationId', args.organizationId)
-        .eq('granularity', args.granularity)
-        .gte('periodKey', scanStartKey),
-    )) {
-    scanned++;
-    if (scanned > MAX_SCAN) {
-      capped = true;
-      break;
-    }
-
+  for (const row of fetchedRows) {
     // Post-scan filters (cheap — rows already narrowed by index).
     if (args.agentSlug !== undefined && row.agentSlug !== args.agentSlug) {
       continue;
@@ -371,10 +423,7 @@ export async function getOrgUsageMetrics(
       b.tokens - a.tokens ||
       a.userId.localeCompare(b.userId),
   );
-  const userNameMap = await getUserNamesBatch(
-    ctx,
-    sortedUsers.map((u) => u.userId),
-  );
+  const userNameMap = await resolveUserNames(sortedUsers.map((u) => u.userId));
   const users: UsageUserRow[] = sortedUsers.map((u) => ({
     userId: u.userId,
     displayName: userNameMap.get(u.userId) ?? u.userId,

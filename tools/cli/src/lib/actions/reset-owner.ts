@@ -1,12 +1,20 @@
 import * as logger from '../../utils/logger';
-import { docker } from '../docker/docker';
-import { findPlatformContainer } from '../docker/find-platform-container';
+import { backendApiContainer, controlCall } from '../docker/control-call';
 
 interface ResetOwnerOptions {
   email?: string;
   password?: string;
 }
 
+/**
+ * Owner recovery. The operator is on the host with docker access, so the
+ * control door's bearer token IS the authorization — and the token is read
+ * INSIDE the container (`sh -c`), so it never crosses the CLI's process
+ * boundary or its logs. Same channel as the deploy drain (drain-backend.ts).
+ *
+ * The new credentials go in as a JSON body on stdin rather than as argv, so
+ * a password never lands in the container's process list.
+ */
 export async function resetOwner(options: ResetOwnerOptions): Promise<void> {
   const { email, password } = options;
 
@@ -14,31 +22,22 @@ export async function resetOwner(options: ResetOwnerOptions): Promise<void> {
     throw new Error('At least one of --email or --password is required');
   }
 
-  logger.step('Detecting platform container...');
-  const container = await findPlatformContainer();
-  logger.info(`Using container: ${container}`);
+  const container = backendApiContainer();
+  logger.step(`Resetting owner credentials via ${container}...`);
 
-  logger.step('Resetting owner credentials...');
-
-  const args = [
-    'exec',
-    ...(email ? ['-e', `RESET_EMAIL=${email}`] : []),
-    ...(password ? ['-e', `RESET_PASSWORD=${password}`] : []),
+  const result = await controlCall('POST', '/api/control/reset-owner', {
     container,
-    './reset-owner.sh',
-  ];
-
-  const result = await docker(...args);
+    body: {
+      ...(email ? { newEmail: email } : {}),
+      ...(password ? { newPassword: password } : {}),
+    },
+  });
   if (!result.success) {
-    // Extract the meaningful error message from Convex stack traces
-    const stderr = result.stderr || '';
-    const uncaughtMatch = stderr.match(/Uncaught Error: (.+)/);
-    const message =
-      uncaughtMatch?.[1] || stderr || 'Failed to reset owner credentials';
-    throw new Error(message);
+    throw new Error(
+      result.stderr.trim() || 'Failed to reset owner credentials',
+    );
   }
 
-  // Parse the JSON output from the container script
   const stdout = result.stdout.trim();
   try {
     const output = JSON.parse(stdout) as {

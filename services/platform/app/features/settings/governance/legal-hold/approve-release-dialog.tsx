@@ -8,14 +8,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useApproveLegalHoldRelease } from '../hooks/mutations';
 import { mapLegalHoldError } from './legal-hold-errors';
 
 interface ReleaseRequestSummary {
-  _id: Id<'legalHoldReleaseRequests'>;
+  _id: string;
   requestedBy: string;
   requestedByName: string;
   requestedAt: number;

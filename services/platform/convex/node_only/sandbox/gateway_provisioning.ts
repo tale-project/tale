@@ -26,13 +26,12 @@
  * org is a routing preference.
  */
 
-import { ConvexError } from 'convex/values';
-
-import { internal } from '../../_generated/api';
-import type { Id } from '../../_generated/dataModel';
-import type { ActionCtx } from '../../_generated/server';
+import { AppError } from '../../../lib/shared/errors/app-error';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
 import { resolveProvidersForOrgId } from '../../lib/providers/org_providers';
+import type { Id } from '../../lib/rows';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import {
   applyGatewayConfig,
@@ -71,7 +70,7 @@ export async function buildProviderProvision(
     await resolveProvidersForOrgId(ctx, args.organizationId)
   ).find((entry) => entry.name === args.providerSlug);
   if (!connector) {
-    throw new ConvexError({
+    throw new AppError({
       code: 'PROVIDER_UNKNOWN',
       message: `Unknown provider "${args.providerSlug}" — no shipped or org-defined connector by that name.`,
     });
@@ -103,11 +102,10 @@ export async function buildProviderProvision(
     return null;
   }
 
-  const row = (await ctx.runQuery(
+  const row: CredentialRowFacts | null = await ctx.runQuery(
     internal.provider_credentials.queries.getCredentialInternal,
     { credentialId: resolved.credentialId },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the internal query returns the full row as v.any(); this names the fields read here
-  )) as CredentialRowFacts | null;
+  );
   const allowlist = row?.modelAllowlist;
 
   const models =

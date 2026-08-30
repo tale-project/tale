@@ -1,4 +1,4 @@
-import { convexErrorCode } from '@/lib/utils/convex-error';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 /**
  * Localized copy for the org `review_policy` refusals a status change can now
@@ -11,7 +11,7 @@ export function reviewPolicyErrorMessage(
   error: unknown,
   t: (key: string) => string,
 ): string | undefined {
-  switch (convexErrorCode(error)) {
+  switch (backendErrorCode(error)) {
     case 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED':
       return t('review.independentReviewerRequired');
     case 'REVIEW_COMPETENCE_REQUIRED':

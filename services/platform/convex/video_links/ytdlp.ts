@@ -23,7 +23,7 @@
  *   - Output file validation post-spawn: `fs.realpath` + extension
  *     whitelist; reject anything outside the sandbox.
  *
- * Boot-time SHA256-verified install in `services/convex/Dockerfile`.
+ * Boot-time SHA256-verified install in `services/platform/Dockerfile`.
  */
 
 import { spawn } from 'node:child_process';
@@ -35,7 +35,7 @@ import { join, resolve as resolvePath } from 'node:path';
 const YTDLP_BIN = 'yt-dlp';
 
 /**
- * Where `services/convex/Dockerfile` bakes the bgutil PO-token-provider yt-dlp
+ * Where `services/platform/Dockerfile` bakes the bgutil PO-token-provider yt-dlp
  * plugin, and the compose sidecar (`bgutil-provider`) that serves the tokens.
  * Both are present only in the self-hosted image + stack; when the plugin dir
  * exists we default the plugin path and provider URL so PO tokens work with
@@ -128,7 +128,7 @@ export function ffmpegLocationFlags(env: NodeJS.ProcessEnv): string[] {
 // Flags whose support depends on the installed yt-dlp version. Probed
 // once via `yt-dlp --help` at first invocation and cached for the
 // lifetime of the Node action runtime. Production runs the version
-// pinned by services/convex/Dockerfile and always has every flag; this
+// pinned by services/platform/Dockerfile and always has every flag; this
 // machinery is for dev hosts running older system-installed yt-dlp.
 //
 // Each entry: a probe substring that must appear in `--help` output AND
@@ -781,7 +781,7 @@ async function runYtdlp(
  * it up via the returned `cleanup` function in a `finally` block.
  *
  * Dir name prefix `vlink-` matches the orphan-sweep regex in
- * `services/convex/docker-entrypoint.sh`.
+ * `services/platform/docker-entrypoint.sh`.
  */
 export async function createJobDir(): Promise<{
   jobDir: string;

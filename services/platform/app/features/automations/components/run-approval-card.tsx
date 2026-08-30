@@ -6,7 +6,6 @@ import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useResolveRunApproval } from '../hooks/mutations';
@@ -18,10 +17,10 @@ const APPROVAL_DETAIL_RE = /^approval:([a-z0-9]+)$/;
 
 export function approvalIdFromDetail(
   detail: string | undefined,
-): Id<'approvals'> | undefined {
+): string | undefined {
   const match = detail === undefined ? null : APPROVAL_DETAIL_RE.exec(detail);
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the id came out of the run's own detail; a stale one reads as null downstream
-  return match ? (match[1] as Id<'approvals'>) : undefined;
+  return match ? match[1] : undefined;
 }
 
 /**
@@ -36,7 +35,7 @@ export function RunApprovalCard({
   approvalId,
 }: {
   organizationId: string;
-  approvalId: Id<'approvals'>;
+  approvalId: string;
 }) {
   const { t } = useT('automations');
   const approvalQuery = useRunApproval(organizationId, approvalId);

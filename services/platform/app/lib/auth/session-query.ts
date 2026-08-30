@@ -1,3 +1,5 @@
+import type { QueryClient } from '@tanstack/react-query';
+
 import { warmConvexToken } from '@/app/lib/auth/convex-token-cache';
 import { authClient } from '@/lib/auth-client';
 
@@ -31,6 +33,21 @@ export const sessionQueryOptions = {
   // one extra round here covers a backend that came up between the two.
   retry: 1,
 };
+
+/**
+ * Drop every cached answer that depends on WHO is signed in: the Better Auth
+ * session AND the 0.5 backend's `me`-scoped reads (`['backend', 'me', …]` —
+ * the `useAuth` probe, 2FA status, account flags, org memberships). Call it
+ * after ANY auth-state change (sign-up, log-in, 2FA, log-out, org delete);
+ * invalidating only the session key leaves the backend probe answering for
+ * the PREVIOUS identity until a remount happens to refetch it.
+ */
+export function invalidateAuthState(queryClient: QueryClient): Promise<void> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['auth', 'session'] }),
+    queryClient.invalidateQueries({ queryKey: ['backend', 'me'] }),
+  ]).then(() => undefined);
+}
 
 /**
  * Fire the session request as early as possible — at module load, before React

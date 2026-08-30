@@ -3,11 +3,9 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useCallback } from 'react';
 
-import { useConvexAction } from '@/app/hooks/use-convex-action';
-import { useConvexClient } from '@/app/hooks/use-convex-client';
+import { useBackendAction } from '@/app/hooks/use-backend-action';
+import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { evaluateWhen } from '@/lib/shared/platform/when_predicate';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
@@ -21,8 +19,8 @@ import {
 
 /** The task fields status choreography reads. */
 export interface ChoreographedTask extends TaskOwnershipFields {
-  _id: Id<'tasks'>;
-  projectId: Id<'projects'>;
+  _id: string;
+  projectId: string;
   status: string;
   externalId?: string;
 }
@@ -133,17 +131,19 @@ export interface TaskStatusChoreographyOptions {
  */
 export function useTaskStatusChoreography(
   organizationId: string,
-  projectId: Id<'projects'> | undefined,
+  projectId: string | undefined,
   options?: TaskStatusChoreographyOptions,
 ) {
   const automations = useTaskContractAutomations(organizationId, projectId);
-  const client = useConvexClient();
-  const startRun = useConvexAction(api.tasks.public_actions.startTaskWorkflow, {
+  const client = useBackendClient();
+  const startRun = useBackendAction('tasks/public_actions:startTaskWorkflow', {
     errorToast: false,
   });
-  const cancelRun = useConvexAction(
-    api.tasks.public_actions.cancelTaskWorkflow,
-    { errorToast: false },
+  const cancelRun = useBackendAction(
+    'tasks/public_actions:cancelTaskWorkflow',
+    {
+      errorToast: false,
+    },
   );
   const { mutateAsync: startAgentRun } = useStartTaskAgentRun();
   const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();
@@ -188,7 +188,7 @@ export function useTaskStatusChoreography(
           // Only a LIVE run warrants the confirm (and the cancel call) — a
           // settled/failed run costs nothing to move away from.
           const latest = await client.query(
-            api.tasks.queries.getLatestTaskAgentRunForTask,
+            'tasks/queries:getLatestTaskAgentRunForTask',
             { organizationId, taskId: task._id },
           );
           const live =
@@ -217,7 +217,7 @@ export function useTaskStatusChoreography(
       let runActive = false;
       if (task.status === 'in_progress') {
         const run = await client.query(
-          api.automations.queries.getLiveRunForTask,
+          'automations/queries:getLiveRunForTask',
           {
             organizationId,
             projectId: task.projectId,
@@ -238,7 +238,7 @@ export function useTaskStatusChoreography(
         // (`getTask` shares it with the board chip), so the drag gate cannot
         // disagree with what the run would actually mount. A root-only
         // client probe here once blocked nested-only deliveries.
-        const detail = await client.query(api.tasks.queries.getTask, {
+        const detail = await client.query('tasks/queries:getTask', {
           taskId: task._id,
           organizationId,
         });

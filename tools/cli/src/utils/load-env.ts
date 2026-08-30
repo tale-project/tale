@@ -11,6 +11,12 @@ export interface DeploymentEnv {
   HEALTH_CHECK_TIMEOUT: number;
   DRAIN_TIMEOUT: number;
   DEPLOY_DIR: string;
+  /**
+   * Where the proxy sends the app's API lanes (`backend-api:3005`). Kept as
+   * an override so an operator can point the proxy at a differently-named or
+   * externally-hosted backend without editing the generated Caddyfile.
+   */
+  BACKEND_UPSTREAM: string;
 }
 
 const DEFAULT_REGISTRY = 'ghcr.io/tale-project/tale';
@@ -86,5 +92,6 @@ export function loadEnv(deployDir: string): DeploymentEnv {
       DEFAULT_DRAIN_TIMEOUT,
     ),
     DEPLOY_DIR: deployDir,
+    BACKEND_UPSTREAM: process.env.BACKEND_UPSTREAM ?? '',
   };
 }

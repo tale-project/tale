@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import { CANNED_REPLY } from '../../../lib/mocks/overrides/canned';
-import { isMockLlmMode, TIMEOUT } from './env';
+import { ENTITY_ID, isMockLlmMode, TIMEOUT } from './env';
 import { t } from './i18n';
 
 /**
@@ -14,7 +14,7 @@ import { t } from './i18n';
  * org).
  */
 
-const THREAD_URL = /\/chat\/([A-Za-z0-9]{16,})(?:[/?#]|$)/;
+const THREAD_URL = new RegExp(`/chat/(${ENTITY_ID})(?:[/?#]|$)`);
 
 /** The always-present composer textarea (resolved by its aria label). */
 export function composer(page: Page): Locator {

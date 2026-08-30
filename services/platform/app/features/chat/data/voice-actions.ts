@@ -11,20 +11,25 @@
  * a governance veto) that reads as "the switch is broken".
  */
 
-import { useConvex } from 'convex/react';
-import { ConvexError } from 'convex/values';
 import { useCallback, useMemo } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
+import {
+  invalidateVoiceMode,
+  setThreadVoiceOverrideRequest,
+  setUserVoiceOutputRequest,
+} from '@/app/lib/backend/chat';
 import { useT } from '@/lib/i18n/client';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { isRecord } from '@/lib/utils/type-utils';
 
-/** Prefer the server's own explanation (a ConvexError payload message, e.g.
+import { useChatQueryClient } from './chat-backend';
+
+/** Prefer the server's own explanation (a AppError payload message, e.g.
  * the governance-veto wording) over the generic fallback. */
 function voiceSaveFailedToast(error: unknown, fallbackTitle: string) {
   const serverMessage =
-    error instanceof ConvexError && isRecord(error.data)
+    error instanceof AppError && isRecord(error.data)
       ? error.data.message
       : undefined;
   toast({
@@ -45,48 +50,39 @@ export interface VoiceActions {
 }
 
 export function useVoiceActions(organizationId: string): VoiceActions {
-  const convex = useConvex();
+  const queryClient = useChatQueryClient();
   const { t } = useT('chat');
 
   const setThreadOverride = useCallback(
     (threadId: string, override: boolean | null): void => {
-      if (!convex) return;
-      convex
-        .mutation(api.tts.mutations.setThreadVoiceOutputOverride, {
-          organizationId,
-          threadId,
-          override,
-        })
+      setThreadVoiceOverrideRequest(organizationId, threadId, override)
+        .then(() => invalidateVoiceMode(queryClient, organizationId))
         .catch((error: unknown) => {
           console.warn('[voice] saving the thread override failed', error);
           voiceSaveFailedToast(error, t('voice.voiceOutputThreadSaveFailed'));
         });
     },
-    [convex, organizationId, t],
+    [queryClient, organizationId, t],
   );
 
   const setUserDefault = useCallback(
     (enabled: boolean): void => {
-      if (!convex) return;
-      convex
-        .mutation(api.tts.mutations.setUserVoiceOutput, {
-          organizationId,
-          enabled,
-        })
+      setUserVoiceOutputRequest(organizationId, enabled)
+        .then(() => invalidateVoiceMode(queryClient, organizationId))
         .catch((error: unknown) => {
           console.warn('[voice] saving the voice default failed', error);
           voiceSaveFailedToast(error, t('voice.voiceOutputThreadSaveFailed'));
         });
     },
-    [convex, organizationId, t],
+    [queryClient, organizationId, t],
   );
 
   return useMemo(
     () => ({
-      available: convex !== undefined,
+      available: true,
       setThreadOverride,
       setUserDefault,
     }),
-    [convex, setThreadOverride, setUserDefault],
+    [setThreadOverride, setUserDefault],
   );
 }

@@ -22,7 +22,7 @@ With the allowlist empty or unset, the deployment sections still show the curren
 Three stores, each independent and optional. An absent setting means "use the bundled default" — so a fresh deployment with no config is unchanged.
 
 - **Knowledge database** — the knowledge corpus: document metadata, the extracted chunk text, embeddings, the BM25 index, the semantic cache, and the crawled web pages. It ships as the bundled `knowledge-db` container (`tale_knowledge`, with the `private_knowledge` and `public_web` schemas) and is the store most residency requirements care about, because it holds your document content. Point it at your own managed Postgres to keep the corpus on infrastructure your team operates.
-- **File storage** — where uploaded files (the original blobs) live. By default they sit on the local Convex volume; you can point them at an external S3-compatible bucket.
+- **File storage** — where uploaded files (the original blobs) live. By default they sit in the bundled object store that ships with the stack (the `object-store` service, on its own volume); you can point them at an external S3-compatible bucket.
 - **Application database** (advanced) — the operational Convex database (the bundled `db` container). The Convex backend derives this database's name from `INSTANCE_NAME` (`tale_platform`) and connects on host:port only, so the external Postgres must contain a database named exactly `tale_platform`. Its TLS mode is fixed by the Convex driver and is not configurable.
 
 > Note: the knowledge database and the application database are two separate Postgres instances — moving one does not touch the other. Relocating the knowledge database moves the extracted text and embeddings; the original uploaded files move only when you also relocate **File storage** to S3.
@@ -105,9 +105,6 @@ At boot the `convex` entrypoint reads these and derives its connections before s
 
 ## Applying a change: restart
 
-The config is read at boot, so a save does not take effect until the **`convex`** container restarts (the platform itself does not need restarting). Two ways:
+The config is read at boot, so a save does not take effect until the backend containers (`backend-api` and `backend-worker`) restart. Run `docker compose restart backend-api backend-worker`, or `tale deploy` for a zero-downtime blue-green roll — the settings page shows the same commands after a save.
 
-- **Manual** — `docker compose restart convex`, or `tale deploy --services convex` for a zero-downtime blue-green roll.
-- **One-click** — enable the opt-in `controller` service (`docker compose --profile controller up -d`). It is a small internal-only sidecar that restarts the allowlisted `convex` service on an HMAC-signed request from the app, so the browser-facing platform never needs Docker-socket access. With it running, the **Apply & restart** button does the bounce for you; set `CONTROLLER_TOKEN` (shared with the platform) and `CONTROLLER_URL` in `.env`. Without it, the button shows the manual command.
-
-The relevant environment variables are `TALE_DEPLOYMENT_CONFIG_ADMINS` (the comma-separated email allowlist of operators allowed to edit), and — only when running the one-click `controller` — `CONTROLLER_TOKEN` (the shared HMAC secret) and `CONTROLLER_URL` (e.g. `http://controller:8004`). Set them in `.env`. See also [Environment reference](/self-hosted/configuration/environment-reference) and [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).
+The relevant environment variable is `TALE_DEPLOYMENT_CONFIG_ADMINS` (the comma-separated email allowlist of operators allowed to edit). Set it in `.env`. See also [Environment reference](/self-hosted/configuration/environment-reference) and [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops).

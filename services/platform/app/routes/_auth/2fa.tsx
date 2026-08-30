@@ -15,6 +15,7 @@ import { Input } from '@/app/components/ui/forms/input';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { toast } from '@/app/hooks/use-toast';
+import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
@@ -97,9 +98,7 @@ function TwoFactorVerifyPage() {
           position: 'top-center',
         });
       }
-      await queryClient
-        .invalidateQueries({ queryKey: ['auth', 'session'] })
-        .catch(() => undefined);
+      await invalidateAuthState(queryClient).catch(() => undefined);
       void navigate({ to: redirectTo || '/dashboard' });
     } catch {
       setError(t('verify.invalid'));
@@ -123,9 +122,7 @@ function TwoFactorVerifyPage() {
         setError(t('verify.passkeyFailed'));
         return;
       }
-      await queryClient
-        .invalidateQueries({ queryKey: ['auth', 'session'] })
-        .catch(() => undefined);
+      await invalidateAuthState(queryClient).catch(() => undefined);
       void navigate({ to: redirectTo || '/dashboard' });
     } catch {
       // Thrown when the user dismisses the prompt or has no matching passkey.

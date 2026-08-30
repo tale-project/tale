@@ -59,7 +59,7 @@ describe('mapDsrError', () => {
     expect(result.description).toBe('oh no');
   });
 
-  it('handles non-ConvexError shaped errors gracefully', () => {
+  it('handles non-AppError shaped errors gracefully', () => {
     const result = mapDsrError(new Error('plain'), t);
     expect(result.title).toBe('dataSubjectRequests.errors.generic.title');
     expect(result.description).toBe(

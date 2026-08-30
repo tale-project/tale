@@ -1,22 +1,24 @@
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import { api } from '@/convex/_generated/api';
-import type { ConvexItemOf } from '@/lib/types/convex-helpers';
+import { useQuery } from '@tanstack/react-query';
 
-export type Team = ConvexItemOf<typeof api.members.queries.getMyTeams>;
+import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { useOrganizationId } from '@/app/hooks/use-organization-id';
+import type { ItemOf } from '@/app/lib/backend/contract';
+import { myTeamsQuery, type MyTeamRow } from '@/app/lib/backend/org';
+
+export type Team = MyTeamRow;
 
 export function useApproxTeamCount(organizationId: string) {
-  return useConvexQuery(api.members.queries.approxCountMyTeams, {
+  return useBackendQuery('members/queries:approxCountMyTeams', {
     organizationId,
   });
 }
 
 export function useTeams() {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.members.queries.getMyTeams,
-    organizationId ? { organizationId } : 'skip',
-  );
+  const { data, isLoading } = useQuery({
+    ...myTeamsQuery(organizationId ?? ''),
+    enabled: !!organizationId,
+  });
 
   return {
     teams: data ?? undefined,
@@ -26,8 +28,8 @@ export function useTeams() {
 
 export function useOrgTeams() {
   const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.members.queries.listOrgTeams,
+  const { data, isLoading } = useBackendQuery(
+    'members/queries:listOrgTeams',
     organizationId ? { organizationId } : 'skip',
   );
 
@@ -37,13 +39,11 @@ export function useOrgTeams() {
   };
 }
 
-export type TeamMember = ConvexItemOf<
-  typeof api.team_members.queries.listByTeam
->;
+export type TeamMember = ItemOf<'team_members/queries:listByTeam'>;
 
 export function useTeamMembers(teamId: string) {
-  const { data, isLoading } = useConvexQuery(
-    api.team_members.queries.listByTeam,
+  const { data, isLoading } = useBackendQuery(
+    'team_members/queries:listByTeam',
     { teamId },
   );
 

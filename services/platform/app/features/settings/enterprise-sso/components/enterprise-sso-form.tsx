@@ -41,7 +41,10 @@ import type {
   RoleMappingRule,
   SsoConnectionView,
 } from '@/lib/shared/schemas/enterprise_sso';
-import { convexErrorCode, convexErrorMessage } from '@/lib/utils/convex-error';
+import {
+  backendErrorCode,
+  backendErrorMessage,
+} from '@/lib/utils/backend-error';
 import { narrowStringUnion } from '@/lib/utils/type-utils';
 import { isHttpUrl } from '@/lib/utils/url';
 
@@ -460,11 +463,11 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
         // A missing client secret belongs under its own input — rethrow it
         // untouched so `mapServerError` can pin it there. Everything else
         // becomes the translated line the cluster shows in one toast.
-        if (convexErrorCode(error) === 'sso_client_secret_required')
+        if (backendErrorCode(error) === 'sso_client_secret_required')
           throw error;
         console.error('[sso] save failed', error);
         throw new Error(
-          convexErrorMessage(error, t('enterpriseSso.saveFailed')),
+          backendErrorMessage(error, t('enterpriseSso.saveFailed')),
           { cause: error },
         );
       }
@@ -474,7 +477,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
 
   const mapServerError = useCallback(
     (error: unknown) => {
-      if (convexErrorCode(error) === 'sso_client_secret_required') {
+      if (backendErrorCode(error) === 'sso_client_secret_required') {
         return [
           {
             path: 'clientSecret',
@@ -645,7 +648,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
         sso_metadata_incomplete: t('enterpriseSso.metadata.errorIncomplete'),
         sso_metadata_fetch_failed: t('enterpriseSso.metadata.errorFetchFailed'),
       };
-      const code = convexErrorCode(error);
+      const code = backendErrorCode(error);
       toast({
         title:
           (code !== undefined ? errorByCode[code] : undefined) ??

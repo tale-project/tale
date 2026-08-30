@@ -2,7 +2,6 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '@/convex/_generated/dataModel';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 import { render, screen } from '@/tests/utils/render';
 
@@ -15,8 +14,8 @@ const mocks = vi.hoisted(() => ({
   documents: [] as Array<{ _id: string; title: string; folderId?: string }>,
 }));
 
-vi.mock('@/app/hooks/use-convex-query', () => ({
-  useConvexQuery: () => ({ data: mocks.documents }),
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: () => ({ data: mocks.documents }),
 }));
 
 vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({
@@ -37,8 +36,8 @@ function renderCard() {
   return render(
     <TaskOutcomeFilesCard
       organizationId="org_1"
-      projectId={'project_1' as Id<'projects'>}
-      folderId={FOLDER as Id<'folders'>}
+      projectId={'project_1' as string}
+      folderId={FOLDER as string}
       contract={contract}
     />,
   );
@@ -95,8 +94,8 @@ describe('TaskOutcomeFilesCard', () => {
     const { container } = render(
       <TaskOutcomeFilesCard
         organizationId="org_1"
-        projectId={'project_1' as Id<'projects'>}
-        folderId={FOLDER as Id<'folders'>}
+        projectId={'project_1' as string}
+        folderId={FOLDER as string}
         contract={{ workflow: 'document-verify-desk' }}
       />,
     );
