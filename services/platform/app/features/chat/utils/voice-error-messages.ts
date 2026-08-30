@@ -66,7 +66,7 @@ export function voiceErrorMessageKey(
     case 'AUDIO_DECODE':
       return 'voice.voiceOutputErrorDecode';
     // Synthetic client-side code raised when the pre-flight HEAD probe
-    // on the same-origin /api/tts-audio endpoint returns 401 (session
+    // on the same-origin /api/app/tts/audio route returns 401 (session
     // cookie expired / revoked). Distinct from AUDIO_DECODE so the UX
     // can tell the user to sign in again, not "audio failed to decode".
     case 'AUDIO_FETCH_AUTH':

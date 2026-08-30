@@ -528,7 +528,7 @@ function buildContentSecurityPolicy(
     baseUri: ["'self'"],
     formAction: ["'self'"],
     objectSrc: ["'none'"],
-    // TTS playback streams audio from same-origin `/http_api/api/tts-audio`
+    // TTS playback streams audio from same-origin `/api/app/tts/audio/…`
     // via `<audio>.src`, so `'self'` is required. Org BYO storage origins
     // are included because `/storage` 302s audio/video attachments to
     // presigned GETs on the org's endpoint.

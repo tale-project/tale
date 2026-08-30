@@ -35,6 +35,11 @@ const backendProxy = {
   },
   '/dav': { target: BACKEND_BASE, changeOrigin: true },
   '/scim': { target: BACKEND_BASE, changeOrigin: true },
+  // The 0.4 proxy-era alias prefix. External registrations carry it — IdP
+  // redirect URIs / SAML entityID + ACS (`/http_api/api/sso/...`), SCIM base
+  // URLs (`/http_api/scim/v2`) — so the login flow addresses it and prod
+  // Caddy forwards it; without this lane no SSO flow can run under `bun dev`.
+  '/http_api': { target: BACKEND_BASE, changeOrigin: true },
 };
 
 export default defineConfig({

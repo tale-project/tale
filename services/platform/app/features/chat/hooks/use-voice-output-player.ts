@@ -27,15 +27,15 @@ type ChunkRecord = {
 
 /**
  * Build the URL the `<audio>` element fetches for a given chunk. Routes
- * through the authenticated `/api/tts-audio` Convex HTTP handler so each
- * fetch is gated on org membership — replaces the previous
+ * through the authenticated `/api/app/tts/audio/:chunkId` backend route so
+ * each fetch is gated on org membership — replaces the previous
  * `_storage` direct URL which was bearer-replayable for the row's
  * 7-day lifetime.
  */
 function buildTtsAudioUrl(chunkId: string): string {
   const siteUrl = getEnv('SITE_URL');
   const basePath = getEnv('BASE_PATH');
-  return `${siteUrl}${basePath}/http_api/api/tts-audio?chunkId=${encodeURIComponent(chunkId)}`;
+  return `${siteUrl}${basePath}/api/app/tts/audio/${encodeURIComponent(chunkId)}`;
 }
 
 export type VoicePlayerStateName = 'idle' | 'playing' | 'blocked' | 'error';
@@ -145,7 +145,7 @@ export function useVoiceOutputPlayer(opts: {
   // Reset on every `play()` so retries don't inherit prior failures.
   const decodeFailureCountRef = useRef(0);
   // Auth-failure flag: the `<audio>` element's `error` event doesn't
-  // expose HTTP status, so a 401 from `/api/tts-audio` (session cookie
+  // expose HTTP status, so a 401 from the audio route (session cookie
   // expired / revoked) collapses into the same generic decode error as
   // a 404 or codec mismatch. Parallel HEAD probe per `playChunk` lets
   // us classify auth failures separately and surface the actionable
@@ -318,7 +318,7 @@ export function useVoiceOutputPlayer(opts: {
         const el = audioRef.current;
         detachAudioListeners();
         const chunkUrl = buildTtsAudioUrl(chunk.chunkId);
-        // Parallel HEAD probe so a 401 from `/api/tts-audio` (session
+        // Parallel HEAD probe so a 401 from the audio route (session
         // cookie expired / revoked) surfaces as `AUDIO_FETCH_AUTH`
         // instead of collapsing into the generic `AUDIO_DECODE` code.
         // The `<audio>` element's `error` event doesn't expose HTTP
