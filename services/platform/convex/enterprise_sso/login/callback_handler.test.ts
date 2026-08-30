@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
 import { signValue } from '../sign_cookie_value';
 import { ssoCallbackHandler } from './callback_handler';
 import type { FinishLogin } from './finish_login';

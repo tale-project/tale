@@ -19,9 +19,9 @@
 import { v } from 'convex/values';
 
 import { AppError } from '../../lib/shared/errors/app-error';
-import type { Doc } from '../_generated/dataModel';
-import type { MutationCtx, QueryCtx } from '../_generated/server';
+import type { MutationCtx, QueryCtx } from '../lib/ctx';
 import { getUserTeamIds } from '../lib/get_user_teams';
+import type { Doc } from '../lib/rows';
 import { hasTeamAccess } from '../lib/team_access';
 import { hasProjectAccess, type ProjectAccessResult } from '../projects/access';
 import {

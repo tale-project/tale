@@ -3,8 +3,8 @@
  * (externalId, restore-role) keyed by `(organizationId, internalId)`.
  */
 
-import type { Doc } from '../_generated/dataModel';
-import type { MutationCtx, QueryCtx } from '../_generated/server';
+import type { MutationCtx, QueryCtx } from '../lib/ctx';
+import type { Doc } from '../lib/rows';
 
 type ScimResourceType = 'User' | 'Group';
 

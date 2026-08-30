@@ -1,4 +1,6 @@
-import { AppError } from '../../lib/shared/errors/app-error'; /**
+import { AppError } from '../../lib/shared/errors/app-error';
+
+/**
  * Canonical form of a per-credential API origin: https, no trailing slash,
  * and nothing after the host. Live bodies build every URL by appending to
  * `ctx.endpoint`, so a stored path (or query, or fragment) would silently

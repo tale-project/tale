@@ -1,5 +1,4 @@
-import { anyApi } from 'convex/server';
-
+import { anyRefs } from '../shared/handlers/function-refs';
 import { buildUnauthorizedResponse, verifyBasicAuthForDav } from './auth';
 import { WEBDAV_HMAC_KEY_MIN_LENGTH } from './hmac-key';
 import { handleDelete } from './methods/delete';
@@ -89,7 +88,7 @@ export async function dispatch(
     hmacSecret,
     resolveOrgAndMembership: async (orgSlug, userId) => {
       const r = await ctx.convex.query(
-        anyApi.webdav.org_queries.resolveOrgAndCheckMembership,
+        anyRefs.webdav.org_queries.resolveOrgAndCheckMembership,
         { orgSlug, userId },
       );
       return r;

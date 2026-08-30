@@ -1,4 +1,4 @@
-import type { Doc, TableNames } from '../../_generated/dataModel';
+import type { Doc, TableNames } from '../rows';
 
 /**
  * Which engine resolves a strategy. `'scan'` is the org-scoped index scan +

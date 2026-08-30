@@ -53,9 +53,9 @@ import type {
   WireDialect,
 } from '../../lib/shared/schemas/providers';
 import { isTextBasedFile } from '../../lib/utils/text-file-types';
-import { internal } from '../_generated/api';
-import type { ActionCtx } from '../_generated/server';
 import { buildChatRequest } from '../automations_builder/chat_wire';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { checkProviderHostPolicy } from '../lib/http/host_policy';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';

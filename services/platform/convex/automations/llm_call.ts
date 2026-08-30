@@ -27,11 +27,11 @@ import type {
   BuilderMessage,
   BuilderModel,
 } from '../../lib/automations_builder/session';
-import type { ActionCtx } from '../_generated/server';
 import {
   createBuilderModel,
   type BuilderModelTarget,
 } from '../automations_builder/model_call';
+import type { ActionCtx } from '../lib/ctx';
 import { walkDirectServing } from '../lib/providers/agent_serving';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 

@@ -29,8 +29,8 @@ import { registerConnector } from '../../lib/connectors/registry';
 import { dispatch, type DispatchStore } from '../../lib/engine/api/dispatch';
 import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm';
-import type { ActionCtx } from '../_generated/server';
 import { loadConnectorDefinitions } from '../connector_credentials/connector_catalog';
+import type { ActionCtx } from '../lib/ctx';
 import { createBuilderModel, type BuilderModelTarget } from './model_call';
 
 /**

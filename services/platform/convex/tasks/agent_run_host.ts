@@ -20,9 +20,6 @@ import { randomBytes } from 'node:crypto';
 import { buildStdinUserMessage } from '../../lib/harnesses/parsers/claude-stream-json';
 import { isHarnessSlug } from '../../lib/harnesses/types';
 import { AppError } from '../../lib/shared/errors/app-error';
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
 import {
   liveProgressSink,
   releaseTurnKey,
@@ -36,8 +33,11 @@ import {
   connectorsBridgeUrlForSessions,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
+import type { Id } from '../lib/rows';
 import { safePathSegment } from '../lib/safe_path_segment';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {

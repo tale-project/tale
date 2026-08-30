@@ -1,5 +1,4 @@
-import { anyApi } from 'convex/server';
-
+import { anyRefs } from '../../shared/handlers/function-refs';
 import { backendErrorCode } from '../errors';
 import { checkResourceLock } from '../locks';
 import {
@@ -61,7 +60,7 @@ export async function handleMkcol(
   const name = parsed.segments[parsed.segments.length - 1];
 
   try {
-    await ctx.convex.mutation(anyApi.webdav.tree_mutations.mkcol, {
+    await ctx.convex.mutation(anyRefs.webdav.tree_mutations.mkcol, {
       organizationId: auth.organizationId,
       parentSegments,
       name,

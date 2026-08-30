@@ -2,7 +2,7 @@ import type {
   FeatureFlagsConfig,
   FeatureFlagRule,
 } from '../../lib/shared/schemas/governance';
-import type { QueryCtx } from '../_generated/server';
+import type { QueryCtx } from '../lib/ctx';
 import { readPolicyConfig } from './helpers';
 
 export interface ResolvedFeatureFlags {

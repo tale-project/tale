@@ -1,6 +1,6 @@
 import { getString, isRecord, parseJson } from '../../lib/utils/type-utils';
-import { components } from '../_generated/api';
-import type { QueryCtx } from '../_generated/server';
+import type { QueryCtx } from './ctx';
+import { components } from './handler_names';
 
 // Type for Better Auth teamMember record
 interface BetterAuthTeamMember {

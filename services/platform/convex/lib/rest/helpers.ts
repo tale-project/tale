@@ -7,7 +7,7 @@
 
 import { defineAbilityFor } from '../../../lib/permissions/ability';
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { internal } from '../../_generated/api';
+import { internal } from '../handler_names';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

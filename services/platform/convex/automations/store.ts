@@ -30,10 +30,10 @@ import type { DispatchStore, TriggerSpec } from '../../lib/engine/api/dispatch';
 import type { StoreAdapter } from '../../lib/engine/core/slots';
 import type { Automation, RunResult } from '../../lib/engine/core/types';
 import { AppError } from '../../lib/shared/errors/app-error';
-import { internal } from '../_generated/api';
-import type { Doc, Id } from '../_generated/dataModel';
-import type { ActionCtx, MutationCtx, QueryCtx } from '../_generated/server';
 import { recordAutomationRunLedgerEntry } from '../audit_logs/agent_run_ledger';
+import type { ActionCtx, MutationCtx, QueryCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
+import type { Doc, Id } from '../lib/rows';
 import { boundRunTrace, truncateRunDetail } from './bound_run_payload';
 
 /** Who a write is attributed to — a user id, or a system marker for a write

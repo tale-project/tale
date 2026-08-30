@@ -1,7 +1,7 @@
-import { internal } from '../_generated/api';
-import type { ActionCtx } from '../_generated/server';
 import type { PlatformRole } from '../enterprise_sso/types';
 import { normalizeAuthEmail } from '../lib/auth/normalize_auth_email';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { getPublicHttpApiUrl } from '../lib/helpers/public_storage_url';
 import { extractPathParts, parseIntParam } from '../lib/rest/helpers';
 /** The records the internal queries return — shaped by what the SCIM mappers

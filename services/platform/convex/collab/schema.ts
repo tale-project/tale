@@ -1,8 +1,4 @@
-import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
-
-import { jsonRecordValidator } from '../lib/validators/json';
-
 /**
  * Collaboration tables: per-user content notifications, task subscriptions, and
  * per-user notification preferences.
@@ -69,51 +65,6 @@ export const notificationActorTypeValidator = v.union(
   v.literal('agent'),
   v.literal('system'),
 );
-
-export const userNotificationsTable = defineTable({
-  userId: v.string(),
-  organizationId: v.string(),
-  type: notificationTypeValidator,
-  titleKey: v.string(),
-  bodyKey: v.string(),
-  params: v.optional(jsonRecordValidator),
-  resourceType: v.union(
-    v.literal('task'),
-    v.literal('comment'),
-    v.literal('thread'),
-    // Task-ops resources (deep-link targets for the types above).
-    v.literal('task_review'),
-    v.literal('wf_execution'),
-    v.literal('runtime'),
-    v.literal('dashboard'),
-    v.literal('conversation'),
-    // Controlled-document reviews: the request row carries the approval id,
-    // the outcome row the document id (mirrors task_review/task).
-    v.literal('document_review'),
-    v.literal('document'),
-  ),
-  resourceId: v.string(),
-  taskId: v.optional(v.id('tasks')),
-  actorType: notificationActorTypeValidator,
-  actorId: v.optional(v.string()),
-  read: v.boolean(),
-  readAt: v.optional(v.number()),
-  createdAt: v.number(),
-  /** Collapse identity: `<resourceKind>:<resourceId>:<dimension>`. While a row
-   *  with this key is UNREAD, a later event on the same dimension rewrites it in
-   *  place instead of stacking a second row — assigning and unassigning someone
-   *  four times leaves one row telling the truth, not four telling a story.
-   *  Absent on rows that must never collapse (comments, mentions: each carries
-   *  its own content). See `collab/coalesce.ts`. */
-  coalesceKey: v.optional(v.string()),
-  /** The debounced email delivery scheduled for this row, so a rewrite can
-   *  cancel it and re-schedule — the send always carries the latest state.
-   *  Absent for non-actionable types (no email) and once the job has run. */
-  emailJobId: v.optional(v.id('_scheduled_functions')),
-})
-  .index('by_user_org_created', ['userId', 'organizationId', 'createdAt'])
-  .index('by_user_org_read', ['userId', 'organizationId', 'read', 'createdAt']);
-
 export const subscriptionReasonValidator = v.union(
   v.literal('creator'),
   v.literal('assignee'),
@@ -125,48 +76,3 @@ export const subscriptionReasonValidator = v.union(
   v.literal('reviewer'),
   v.literal('manual'),
 );
-
-export const taskSubscriptionsTable = defineTable({
-  organizationId: v.string(),
-  taskId: v.id('tasks'),
-  subscriberType: v.union(v.literal('user'), v.literal('agent')),
-  subscriberId: v.string(),
-  reason: subscriptionReasonValidator,
-  muted: v.optional(v.boolean()),
-  createdAt: v.number(),
-})
-  .index('by_task', ['taskId'])
-  .index('by_task_subscriber', ['taskId', 'subscriberType', 'subscriberId'])
-  .index('by_subscriber', ['organizationId', 'subscriberType', 'subscriberId']);
-
-/**
- * Tri-state per-user notification preferences (undefined = follow system
- * default; true/false = explicit override). Mirrors `userPreferences`.
- */
-export const notificationPreferencesTable = defineTable({
-  userId: v.string(),
-  organizationId: v.string(),
-  taskAssigned: v.optional(v.boolean()),
-  taskStatusChanged: v.optional(v.boolean()),
-  taskCommented: v.optional(v.boolean()),
-  mention: v.optional(v.boolean()),
-  /** Start-date / due-soon / overdue alerts on work you carry. Separate from
-   *  `taskStatusChanged` on purpose: muting board churn must not mute a
-   *  deadline. */
-  taskDeadlines: v.optional(v.boolean()),
-  // Task-ops preference groups. `taskReview` and `escalation` are
-  // human-in-the-loop safety signals: the fan-out skips the pref check for
-  // the designated reviewer so the review gate can never starve silently.
-  taskReview: v.optional(v.boolean()),
-  escalation: v.optional(v.boolean()),
-  // Groups automation_failed / budget_alert / runtime_offline.
-  automationAlerts: v.optional(v.boolean()),
-  // RETIRED — nothing maps to `digest` since the workforce digest died; the
-  // 0.3.4 migration strips stored values, 0.3.5 drops the field.
-  digest: v.optional(v.boolean()),
-  /** Inbound customer messages in Conversations (automation-driven). */
-  conversationMessages: v.optional(v.boolean()),
-  /** Master toggle for actionable return-loop email delivery. */
-  actionableEmail: v.optional(v.boolean()),
-  updatedAt: v.number(),
-}).index('by_userId_organizationId', ['userId', 'organizationId']);

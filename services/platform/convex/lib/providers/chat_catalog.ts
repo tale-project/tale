@@ -20,7 +20,7 @@
  */
 
 import type { ModelCatalogEntry } from '../../../lib/shared/schemas/providers';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../ctx';
 import { getProviderCatalog } from './catalog_fetch';
 import { credentialAuthFor } from './credential_auth';
 import { resolveProvidersForOrgId } from './org_providers';

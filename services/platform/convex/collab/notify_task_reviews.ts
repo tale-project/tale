@@ -10,8 +10,8 @@
  * #2651) — see `prefAllows` below.
  */
 
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../lib/ctx';
+import type { Doc, Id } from '../lib/rows';
 import { resolveUserDisplayName } from '../notifications/actor_name';
 import { writeCoalescedNotification } from './coalesce';
 

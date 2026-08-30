@@ -5,7 +5,7 @@ vi.mock('../../lib/knowledge/retrieve', () => ({
   retrieve: (...args: unknown[]) => retrieveMock(...args),
 }));
 
-vi.mock('../_generated/api', () => ({
+vi.mock('../lib/handler_names', () => ({
   internal: {
     documents: {
       internal_queries: {

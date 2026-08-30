@@ -1,5 +1,5 @@
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 import { redirectWithError } from '../login/redirect_with_error';
 import { samlEndpoints } from './metadata_handler';
 

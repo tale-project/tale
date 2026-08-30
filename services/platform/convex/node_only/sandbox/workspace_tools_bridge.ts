@@ -11,8 +11,6 @@ import {
   questionSetSchema,
   type QuestionSet,
 } from '../../../lib/shared/schemas/questions';
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
 import {
   FETCH_WINDOW_CHARS,
   fetchDocumentByFileId,
@@ -20,6 +18,8 @@ import {
   windowText,
 } from '../../knowledge/fetch';
 import { searchKnowledge } from '../../knowledge/search';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import { wrapUntrusted } from '../../lib/untrusted_content';
 import {

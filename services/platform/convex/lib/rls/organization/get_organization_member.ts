@@ -2,9 +2,9 @@
  * Get organization member for authenticated user from Better Auth
  */
 
-import { components } from '../../../_generated/api';
-import type { QueryCtx, MutationCtx } from '../../../_generated/server';
 import { normalizeAuthEmail } from '../../auth/normalize_auth_email';
+import type { QueryCtx, MutationCtx } from '../../ctx';
+import { components } from '../../handler_names';
 import { looksLikeConvexDocumentId } from '../../helpers/id_shape';
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
 import { UnauthorizedError } from '../errors';

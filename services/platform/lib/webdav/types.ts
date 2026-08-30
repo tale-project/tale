@@ -1,5 +1,3 @@
-import type { ConvexHttpClient } from 'convex/browser';
-
 export type WebDAVMethod =
   | 'OPTIONS'
   | 'PROPFIND'
@@ -112,9 +110,32 @@ export interface AuthContext {
   appPasswordId: string;
 }
 
+/**
+ * How this layer reaches the handlers behind it: three name-addressed calls
+ * and nothing else. The 0.5 door (`backend/domains/webdav/routes.ts`) passes
+ * a shim over its own PG handler map; the tests pass a stub. Neither is a
+ * client of anything — the protocol layer only ever names a function and
+ * hands it arguments.
+ *
+ * Responses are `any`, which is what the retired client's generic resolved to
+ * for a name-addressed call, so this replacement changes nothing about how
+ * strictly they are read. Tightening it is worth doing and is NOT free: 66
+ * call sites read these results structurally, and the handler stubs in the
+ * tests return partial shapes that a declared union would reject — so the
+ * shapes and the stubs have to land together, as their own change.
+ */
+export interface WebDAVBackend {
+  // oxlint-disable-next-line typescript/no-explicit-any -- see above: the untyped seam, unchanged
+  query(reference: unknown, args?: Record<string, unknown>): Promise<any>;
+  // oxlint-disable-next-line typescript/no-explicit-any -- see above
+  mutation(reference: unknown, args?: Record<string, unknown>): Promise<any>;
+  // oxlint-disable-next-line typescript/no-explicit-any -- see above
+  action(reference: unknown, args?: Record<string, unknown>): Promise<any>;
+}
+
 // Shared ctx threaded into every dispatch — built once at server start.
 export interface WebDAVCtx {
-  convex: ConvexHttpClient;
+  convex: WebDAVBackend;
   // Public base URL used to materialize blob fetch URLs for GET (we
   // proxy through Convex /storage). Falls back to convex client's URL.
   storageBaseUrl: string;

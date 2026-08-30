@@ -19,8 +19,8 @@
  */
 
 import { isRecord } from '../../lib/utils/type-utils';
-import type { Doc } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../lib/ctx';
+import type { Doc } from '../lib/rows';
 import { convexStorageId } from '../lib/storage/blob_ref';
 import { createAuditLog } from './helpers';
 import type { AuditLogActorType } from './types';

@@ -19,10 +19,19 @@
  * is the surface that shrinks as domains are ported: when a module's rows move
  * to a 0.5 domain module, its `db` calls go with them.
  *
- * HAND-MAINTAINED, not generated.
+ * HAND-MAINTAINED. It was `_generated/server.d.ts` until the generator (and
+ * the runtime it generated for) retired; nothing writes it now but a person.
  */
 
-/** A row, as the shim returns it. */
+/**
+ * A row, as the shim returns it. `any`, not `Record<string, any>`: a reused
+ * body reads a row straight into whatever local shape it declares, and a
+ * record type would refuse every one of those.
+ *
+ * The `| null` on the readers below is therefore redundant to the CHECKER and
+ * load-bearing to the READER — it is the only place absence is written down.
+ */
+// oxlint-disable typescript/no-redundant-type-constituents -- see above
 type Row = any;
 
 /** What `paginate` is given and gives back. */

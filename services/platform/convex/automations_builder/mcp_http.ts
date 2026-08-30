@@ -36,7 +36,7 @@
 
 import { MCP_TOOLS, mcpToolKind } from '../../lib/mcp/tools';
 import { AppError } from '../../lib/shared/errors/app-error';
-import { internal } from '../_generated/api';
+import { internal } from '../lib/handler_names';
 import {
   jsonError,
   requireRestDeveloper,

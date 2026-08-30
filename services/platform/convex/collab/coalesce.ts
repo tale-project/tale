@@ -26,9 +26,9 @@
 import type { Infer } from 'convex/values';
 
 import { isActionableNotificationType } from '../../lib/shared/attention';
-import { internal } from '../_generated/api';
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
+import type { Doc, Id } from '../lib/rows';
 import type { notificationTypeValidator } from './schema';
 
 type NotificationType = Infer<typeof notificationTypeValidator>;

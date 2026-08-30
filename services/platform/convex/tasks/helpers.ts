@@ -8,8 +8,8 @@ import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
 } from '../../lib/shared/task-label-colors';
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx, QueryCtx } from '../_generated/server';
+import type { MutationCtx, QueryCtx } from '../lib/ctx';
+import type { Doc, Id } from '../lib/rows';
 import { parseIssueNumber, parseRepoRef } from './issue_ref';
 import { initialRank, rankBetween } from './rank';
 

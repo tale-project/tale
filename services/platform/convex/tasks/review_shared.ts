@@ -16,8 +16,6 @@
 
 import { AppError } from '../../lib/shared/errors/app-error';
 import { isRecord } from '../../lib/utils/type-utils';
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { dismissReviewRequestNotifications } from '../collab/dismiss_review_notifications';
 import {
@@ -27,6 +25,8 @@ import {
 } from '../collab/notify_task_reviews';
 import { holdsAllCompetences } from '../governance/competence';
 import { readReviewPolicy } from '../governance/review_policy';
+import type { MutationCtx } from '../lib/ctx';
+import type { Doc, Id } from '../lib/rows';
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { recordActivity, TASK_METRIC_ACTIONS } from './helpers';
 

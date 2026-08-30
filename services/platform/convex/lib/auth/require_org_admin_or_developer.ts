@@ -19,7 +19,7 @@
 
 import { defineAbilityFor } from '../../../lib/permissions/ability';
 import { AppError } from '../../../lib/shared/errors/app-error';
-import type { ActionCtx, MutationCtx } from '../../_generated/server';
+import type { ActionCtx, MutationCtx } from '../ctx';
 import {
   requireOrgMembershipById,
   type OrgMembershipAuth,

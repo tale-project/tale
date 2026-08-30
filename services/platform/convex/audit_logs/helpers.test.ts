@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../lib/ctx';
 
 vi.mock('../lib/helpers/audit_hash', () => ({
   computeAuditHash: vi.fn().mockResolvedValue('hash_stub'),

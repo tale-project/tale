@@ -18,14 +18,14 @@ import type {
   ConversationSyncResult,
 } from '../../lib/connectors/natives/platform-conversations';
 import { isRecord } from '../../lib/utils/type-utils';
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
 import {
   looksLikeEmailAddress,
   withImapFromAddress,
 } from '../connector_credentials/imap_from_address';
 import { resolveConnectorCredential } from '../connector_credentials/resolve_credential';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
+import type { Id } from '../lib/rows';
 import { createConversationFromEmail } from './ingest/create_conversation_from_email';
 import { createConversationFromSentEmail } from './ingest/create_conversation_from_sent_email';
 import { materializeEmailAttachments } from './ingest/materialize_email_attachments';

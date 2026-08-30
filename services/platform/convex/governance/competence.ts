@@ -1,9 +1,7 @@
-import type { Doc } from '../_generated/dataModel';
-import type {
-  MutationCtx,
-  QueryCtx,
-} from '../_generated/server'; /** Rows scanned per membership check — a member holds a handful of
+import type { MutationCtx, QueryCtx } from '../lib/ctx';
+/** Rows scanned per membership check — a member holds a handful of
  * competences, not thousands; the cap bounds a pathological org. */
+import type { Doc } from '../lib/rows';
 const COMPETENCE_SCAN_CAP = 200;
 
 /** Whether the record vouches for its holder RIGHT NOW. */

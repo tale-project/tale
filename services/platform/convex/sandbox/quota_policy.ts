@@ -4,8 +4,8 @@ import {
   sandboxQuotaConfigSchema,
   type SandboxQuotaConfig,
 } from '../../lib/shared/schemas/governance';
-import type { DatabaseReader } from '../_generated/server';
 import { readConfigCacheRow } from '../lib/config_cache/read';
+import type { DatabaseReader } from '../lib/ctx';
 
 export { DEFAULT_SANDBOX_QUOTA };
 

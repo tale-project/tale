@@ -54,8 +54,8 @@ import {
 } from '../../lib/knowledge/crawl-parse';
 import { htmlTitle, htmlToText } from '../../lib/knowledge/html-to-text';
 import { PUBLIC_WEB_SCHEMA } from '../../lib/knowledge/types';
-import { internal } from '../_generated/api';
-import type { ActionCtx } from '../_generated/server';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import {
   safeFetch,

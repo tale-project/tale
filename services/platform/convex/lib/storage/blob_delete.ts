@@ -12,8 +12,8 @@
  * queries, and actions are all fine.
  */
 
-import { internal } from '../../_generated/api';
-import type { MutationCtx } from '../../_generated/server';
+import type { MutationCtx } from '../ctx';
+import { internal } from '../handler_names';
 import { convexStorageId, type BlobRef } from './blob_ref';
 
 /**

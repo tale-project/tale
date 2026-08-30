@@ -33,10 +33,10 @@ import {
   SECRETS_ENV_REGEX,
   type BrokerCredentialData,
 } from '../../lib/shared/schemas/providers';
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
+import type { Id } from '../lib/rows';
 import {
   decryptSecret,
   KeyRotatedError,

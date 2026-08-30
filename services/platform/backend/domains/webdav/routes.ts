@@ -1,4 +1,3 @@
-import { getFunctionName } from 'convex/server';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -9,6 +8,7 @@ import {
   requireHmacSecret,
 } from '../../../convex/webdav/helpers.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
+import { functionRefName } from '../../../lib/shared/handlers/function-refs.ts';
 import { fetchAdapter } from '../../../lib/webdav/adapters/fetch.ts';
 import type { WebDAVCtx } from '../../../lib/webdav/types.ts';
 import type { Auth } from '../../auth/auth.ts';
@@ -27,7 +27,7 @@ import { webdavHandlers } from './handlers.ts';
  * with its ConvexHttpClient replaced by a name-keyed shim over the PG
  * handlers — the same dispatch idea as `lib/convex-shim.ts`, at the
  * client's `.query/.mutation/.action` surface (the protocol layer addresses
- * functions through `anyApi`, so `getFunctionName` yields the same
+ * functions through the name proxy, so `functionRefName` yields the same
  * `path/module:export` names the handler map keys on; an unmapped name
  * fails loud).
  *
@@ -43,7 +43,7 @@ function buildWebdavCtx(sql: Sql): WebDAVCtx {
   const handlers = webdavHandlers(sql);
   const call = async (ref: unknown, args: unknown): Promise<unknown> => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the protocol layer only passes anyApi references
-    const name = getFunctionName(ref as never);
+    const name = functionRefName(ref);
     const handler = handlers[name];
     if (!handler) {
       throw new Error(`[webdav-shim] un-shimmed function: ${name}`);
@@ -56,8 +56,7 @@ function buildWebdavCtx(sql: Sql): WebDAVCtx {
     action: call,
   };
   return {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the reused layer uses only query/mutation/action
-    convex: shim as unknown as WebDAVCtx['convex'],
+    convex: shim,
     // The /storage proxy fallback only fires when the direct-URL lane
     // reports the blob gone; pointing it at an unroutable origin keeps
     // that lane an honest 404/502 instead of a second storage door.

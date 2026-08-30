@@ -1,5 +1,5 @@
-import type { Id } from '../../_generated/dataModel';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
+import type { Id } from '../../lib/rows';
 import { checkConversationExists } from './check_conversation_exists';
 import { checkMessageExists } from './check_message_exists';
 import { normalizeExternalMessageId } from './normalize_external_message_id';

@@ -55,8 +55,8 @@ import {
   type KnowledgeResult,
 } from '../../lib/knowledge/types';
 import type { KnowledgeEmbeddingConfig } from '../../lib/shared/schemas/knowledge';
-import { internal } from '../_generated/api';
-import type { ActionCtx } from '../_generated/server';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { readOrgEmbeddingConfig } from './connection';
 import { DocumentCorpusReader, WebCorpusReader } from './corpus';
 import { pinDimensions } from './dimensions';

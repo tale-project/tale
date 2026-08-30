@@ -4,8 +4,8 @@
  */
 
 import { AppError } from '../../lib/shared/errors/app-error';
-import type { Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../lib/ctx';
+import type { Id } from '../lib/rows';
 
 export interface CreateWebsiteArgs {
   organizationId: string;

@@ -6,9 +6,9 @@
  * mutation contexts.
  */
 
-import { components } from '../_generated/api';
-import type { QueryCtx } from '../_generated/server';
 import { findUserByNormalizedEmail as findUserByNormalizedEmailShared } from '../lib/auth/find_user_by_normalized_email';
+import type { QueryCtx } from '../lib/ctx';
+import { components } from '../lib/handler_names';
 import type {
   BetterAuthMember,
   BetterAuthUser,

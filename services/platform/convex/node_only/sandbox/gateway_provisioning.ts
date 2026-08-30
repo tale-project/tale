@@ -27,11 +27,11 @@
  */
 
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { internal } from '../../_generated/api';
-import type { Id } from '../../_generated/dataModel';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
 import { resolveProvidersForOrgId } from '../../lib/providers/org_providers';
+import type { Id } from '../../lib/rows';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import {
   applyGatewayConfig,

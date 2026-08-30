@@ -1,9 +1,9 @@
-import { components } from '../../_generated/api';
-import type { QueryCtx } from '../../_generated/server';
 import type {
   BetterAuthFindManyResult,
   BetterAuthUser,
 } from '../../members/types';
+import type { QueryCtx } from '../ctx';
+import { components } from '../handler_names';
 import { normalizeAuthEmail } from './normalize_auth_email';
 
 export type AuthReadCtx = Pick<QueryCtx, 'runQuery'>;

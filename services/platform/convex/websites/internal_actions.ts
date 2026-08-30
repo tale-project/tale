@@ -1,7 +1,7 @@
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
-import type { CrawlerWebsiteInfo } from './types'; // 1 hour
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
+import type { Id } from '../lib/rows';
+import type { CrawlerWebsiteInfo } from './types';
 
 export function scanIntervalToSeconds(interval: string): number {
   switch (interval) {

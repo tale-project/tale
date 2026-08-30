@@ -3,8 +3,8 @@ import {
   type DsarGovernanceConfig,
   dsarGovernanceConfigSchema,
 } from '../../lib/shared/schemas/governance';
-import type { QueryCtx } from '../_generated/server';
 import { readConfigCacheRow } from '../lib/config_cache/read';
+import type { QueryCtx } from '../lib/ctx';
 
 /**
  * Read the per-org `dsar_governance` policy's CURRENT effective config from

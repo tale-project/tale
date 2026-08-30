@@ -27,7 +27,7 @@ import type {
   ModelCatalogEntry,
   WireDialect,
 } from '../../lib/shared/schemas/providers';
-import type { ActionCtx } from '../_generated/server';
+import type { ActionCtx } from '../lib/ctx';
 import { safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';

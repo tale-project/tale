@@ -10,7 +10,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../ctx';
 
 const resolveProvidersMock = vi.fn();
 vi.mock('./org_providers', () => ({

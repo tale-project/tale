@@ -35,9 +35,9 @@
  */
 
 import { isRecord } from '../../../lib/utils/type-utils';
-import { internal } from '../../_generated/api';
-import type { Id } from '../../_generated/dataModel';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
+import type { Id } from '../../lib/rows';
 import type { EmailType } from './types';
 
 /** One ingested email and the conversation it landed on. */

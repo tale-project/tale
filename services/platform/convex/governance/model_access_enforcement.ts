@@ -1,6 +1,6 @@
 import type { ModelAccessConfig } from '../../lib/shared/schemas/governance';
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
-import type { QueryCtx } from '../_generated/server';
+import type { QueryCtx } from '../lib/ctx';
 import { readPolicyConfig } from './helpers';
 
 export interface ModelAccessCheckResult {

@@ -1,4 +1,4 @@
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
 import { signCookieValue } from '../sign_cookie_value';
 
 export const SESSION_COOKIE_NAME = 'better-auth.session_token';

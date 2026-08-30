@@ -6,10 +6,10 @@
  */
 
 import { AppError } from '../../lib/shared/errors/app-error';
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx, QueryCtx } from '../_generated/server';
+import type { MutationCtx, QueryCtx } from '../lib/ctx';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import type { Doc, Id } from '../lib/rows';
 import {
   checkProjectAccess,
   hasProjectAccess,

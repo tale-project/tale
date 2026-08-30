@@ -12,7 +12,9 @@
  * `Id` is a plain string — the branded `GenericId` retired with the runtime
  * that minted them; Postgres ids are text.
  *
- * HAND-MAINTAINED, not generated.
+ * HAND-MAINTAINED. It was `_generated/dataModel.d.ts` until the generator
+ * (and the runtime it generated for) retired; nothing writes it now but a
+ * person.
  */
 
 /** Every table name is just a name; nothing validates it any more. */

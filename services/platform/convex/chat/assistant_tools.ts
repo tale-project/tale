@@ -44,9 +44,6 @@ import {
   type KnowledgeAccessScope,
 } from '../../lib/knowledge/types';
 import { modelTimestamp } from '../../lib/shared/model-timestamp';
-import { internal } from '../_generated/api';
-import type { Doc } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
 import {
   FETCH_WINDOW_CHARS,
   fetchDocumentByFileId,
@@ -54,9 +51,12 @@ import {
   windowText,
 } from '../knowledge/fetch';
 import { searchKnowledge } from '../knowledge/search';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { SafeFetchError, isPrivateIp, safeFetch } from '../lib/http/safe_fetch';
 import type { AgentReadSubject } from '../lib/rls/helpers/agent_read_access';
+import type { Doc } from '../lib/rows';
 import { detectListingIntent } from '../lib/search';
 import { toId } from '../lib/type_cast_helpers';
 import {

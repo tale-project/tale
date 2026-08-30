@@ -9,8 +9,8 @@ import {
   twoFactorPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-utils';
-import type { DatabaseReader, QueryCtx } from '../_generated/server';
 import { readConfigCacheRow } from '../lib/config_cache/read';
+import type { DatabaseReader, QueryCtx } from '../lib/ctx';
 
 /** The readable subset of a governance policy stored in `configCache`
  *  (the file-derived mirror that V8 readers consult). */

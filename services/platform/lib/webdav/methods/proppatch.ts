@@ -1,5 +1,4 @@
-import { anyApi } from 'convex/server';
-
+import { anyRefs } from '../../shared/handlers/function-refs';
 import { checkResourceLock } from '../locks';
 import { buildDavPath } from '../paths';
 import {
@@ -48,7 +47,7 @@ export async function handleProppatch(
   }
 
   const resolved = await ctx.convex.query(
-    anyApi.webdav.tree_queries.resolvePath,
+    anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
       namespace: parsed.namespace,

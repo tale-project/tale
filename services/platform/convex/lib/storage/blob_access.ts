@@ -25,7 +25,7 @@
  * through the node `/storage` HTTP route (see `blobServeThroughHttp`).
  */
 
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../ctx';
 import {
   encodeS3Ref,
   parseBlobRef,

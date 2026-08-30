@@ -41,8 +41,8 @@ import {
   modelIdsEquivalent,
 } from '../../../lib/shared/utils/model-ref';
 import { isRecord } from '../../../lib/utils/type-utils';
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../ctx';
+import { internal } from '../handler_names';
 import { getProviderCatalog } from './catalog_fetch';
 import { credentialAuthFor } from './credential_auth';
 import { directActiveCredential } from './direct_credential';

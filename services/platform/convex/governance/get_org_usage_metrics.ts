@@ -2,8 +2,8 @@ import {
   bucketAgentSlug,
   classifyUsageRow,
 } from '../../lib/shared/constants/usage';
-import type { QueryCtx } from '../_generated/server';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
+import type { QueryCtx } from '../lib/ctx';
 import { buildPeriodKeyFromTimestamp } from './helpers';
 
 export type PeriodDays = 7 | 30 | 90;

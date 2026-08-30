@@ -1,4 +1,4 @@
-import type { Doc } from '../_generated/dataModel';
+import type { Doc } from '../lib/rows';
 
 /**
  * Case-insensitive substring match of `searchLower` against a website's domain,

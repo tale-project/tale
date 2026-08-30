@@ -1,4 +1,4 @@
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
 import { queryLatestMessageByDeliveryState } from './query_latest_message_by_delivery_state';
 
 /**

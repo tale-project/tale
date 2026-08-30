@@ -6,8 +6,8 @@
  */
 
 import { AppError } from '../../lib/shared/errors/app-error';
-import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../lib/ctx';
+import type { Doc, Id } from '../lib/rows';
 import {
   CONTENT_MAX_LENGTH,
   TOPIC_MAX_LENGTH,

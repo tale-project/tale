@@ -1,6 +1,6 @@
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
 import { decryptString } from '../../lib/crypto/decrypt_string';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 import { sanitizeRawClaims } from '../claims';
 import { parseIdTokenAuthContext } from '../entra_id/adapter';
 import {

@@ -1,4 +1,4 @@
-import type { DatabaseReader } from '../../_generated/server';
+import type { DatabaseReader } from '../ctx';
 
 /** The readable subset of a `configCache` row (the file-derived mirror that
  *  V8 readers consult). */

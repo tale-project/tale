@@ -6,8 +6,9 @@
 // bridge's mapping, the read-only surface, the per-dispatch access gate, and
 // the audit write are locked without a live embedder or convexTest.
 
-import { getFunctionName } from 'convex/server';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+
+import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 
 const searchKnowledgeMock = vi.fn();
 vi.mock('../../knowledge/search', () => ({
@@ -53,7 +54,7 @@ const SCOPE_FN = 'sandbox/workspace_access:resolveKnowledgeToolAccess';
 const ACTION_FN = 'sandbox/workspace_access:resolveSessionActionContext';
 
 function fnName(ref: unknown): string {
-  return getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
+  return functionRefName(ref);
 }
 
 /**

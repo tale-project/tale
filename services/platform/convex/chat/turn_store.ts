@@ -17,8 +17,8 @@
 import { estimateCostCents } from '../../lib/chat/turn';
 import type { TurnStore, UsageLedger } from '../../lib/chat/turn';
 import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
-import { internal } from '../_generated/api';
-import type { ActionCtx } from '../_generated/server';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 
 /** The floor between two streaming-progress writes. The reply repaints at a
  * reading cadence while the mutation load stays one write per interval, not

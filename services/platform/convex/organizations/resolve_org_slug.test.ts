@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../_generated/api', () => ({
+vi.mock('../lib/handler_names', () => ({
   components: { betterAuth: { adapter: { findOne: 'findOne' } } },
 }));
 

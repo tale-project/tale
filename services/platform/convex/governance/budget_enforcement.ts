@@ -2,7 +2,7 @@ import type {
   BudgetConfig,
   BudgetRule,
 } from '../../lib/shared/schemas/governance';
-import type { QueryCtx } from '../_generated/server';
+import type { QueryCtx } from '../lib/ctx';
 import { buildPeriodKey, readPolicyConfig } from './helpers';
 
 export interface BudgetWarning {

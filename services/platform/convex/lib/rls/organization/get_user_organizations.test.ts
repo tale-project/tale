@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../../_generated/api', () => ({
+vi.mock('../../handler_names', () => ({
   components: {
     betterAuth: {
       adapter: {

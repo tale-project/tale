@@ -1,5 +1,4 @@
-import { anyApi } from 'convex/server';
-
+import { anyRefs } from '../shared/handlers/function-refs';
 import {
   WEBDAV_MAX_AUTH_HEADER,
   type AuthContext,
@@ -191,7 +190,7 @@ export async function verifyBasicAuthForDav(
   const chargeFailure = async (organizationId: string): Promise<boolean> => {
     try {
       await ctx.convex.mutation(
-        anyApi.webdav.app_password_queries.chargeWebdavAuthFailure,
+        anyRefs.webdav.app_password_queries.chargeWebdavAuthFailure,
         { organizationId, clientIp },
       );
       return false;
@@ -225,7 +224,7 @@ export async function verifyBasicAuthForDav(
   // rate-limit token. Throttling is charged below, only on a failed
   // match, so successful auths never deplete the bucket.
   const rawCandidates = await ctx.convex.query(
-    anyApi.webdav.app_password_queries.findCandidatesByPrefix,
+    anyRefs.webdav.app_password_queries.findCandidatesByPrefix,
     {
       organizationId: orgRow.organizationId,
       prefix,
@@ -280,7 +279,7 @@ export async function verifyBasicAuthForDav(
   if (now - lastTouch > LAST_USE_TOUCH_INTERVAL_MS) {
     lastUseTouchAt.set(matched._id, now);
     void ctx.convex
-      .mutation(anyApi.webdav.app_password_mutations.recordAppPasswordUse, {
+      .mutation(anyRefs.webdav.app_password_mutations.recordAppPasswordUse, {
         id: matched._id,
         at: now,
       })

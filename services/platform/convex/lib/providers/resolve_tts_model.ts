@@ -13,8 +13,8 @@
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import type { AudioFormat } from '../../../lib/shared/schemas/providers';
-import type { ActionCtx } from '../../_generated/server';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
+import type { ActionCtx } from '../ctx';
 import { getProviderCatalog } from './catalog_fetch';
 import { resolveProvidersForOrgId } from './org_providers';
 

@@ -32,16 +32,16 @@ import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 
 import { CHAT_AUDIO_MAX_DURATION_SEC } from '../../lib/shared/file-types';
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
 import {
   joinSegmentsWithParagraphs,
   CAPTION_PROFILE,
   formatHms,
 } from '../file_metadata/paragraphize';
 import { decryptString } from '../lib/crypto/decrypt_string';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
+import type { Id } from '../lib/rows';
 import { deleteBlob, putBlob } from '../lib/storage/blob_access';
 import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
 import { sanitizeUntrustedField } from '../lib/untrusted_content';

@@ -38,8 +38,8 @@
 import { visionModelConfigSchema } from '../../../lib/shared/schemas/governance';
 import type { ModelCatalogEntry } from '../../../lib/shared/schemas/providers';
 import { modelIdsEquivalent } from '../../../lib/shared/utils/model-ref';
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../ctx';
+import { internal } from '../handler_names';
 import { getProviderCatalog } from './catalog_fetch';
 import { resolveProvidersForOrgId } from './org_providers';
 

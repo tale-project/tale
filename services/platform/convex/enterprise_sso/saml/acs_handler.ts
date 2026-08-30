@@ -1,5 +1,5 @@
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 import { type FinishLogin } from '../login/finish_login';
 import { recordSsoLoginFailure } from '../login/login_audit';
 import { mapSamlIdentity } from './attributes';

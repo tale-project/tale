@@ -33,8 +33,8 @@
  */
 
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { components } from '../../_generated/api';
-import type { ActionCtx, MutationCtx } from '../../_generated/server';
+import type { ActionCtx, MutationCtx } from '../ctx';
+import { components } from '../handler_names';
 import { getAuthUserIdentity } from '../rls/auth/get_auth_user_identity';
 
 interface BetterAuthMember {

@@ -40,8 +40,8 @@ import {
   type ModelBand,
 } from '../../../lib/chat';
 import type { ModelCatalogEntry } from '../../../lib/shared/schemas/providers';
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../ctx';
+import { internal } from '../handler_names';
 import { walkChatCatalog } from './chat_catalog';
 
 /** Why an Auto turn refused instead of resolving: the pure screens'

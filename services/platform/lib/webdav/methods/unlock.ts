@@ -1,5 +1,4 @@
-import { anyApi } from 'convex/server';
-
+import { anyRefs } from '../../shared/handlers/function-refs';
 import { backendErrorCode } from '../errors';
 import { lockKeyFromParsed, parseDavPath } from '../paths';
 import type {
@@ -35,7 +34,7 @@ export async function handleUnlock(
   }
 
   try {
-    await ctx.convex.mutation(anyApi.webdav.lock_mutations.releaseLock, {
+    await ctx.convex.mutation(anyRefs.webdav.lock_mutations.releaseLock, {
       lockToken: token,
       ownerUserId: auth.userId,
       organizationId: auth.organizationId,

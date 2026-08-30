@@ -4,7 +4,7 @@ import { AppError } from '../../../lib/shared/errors/app-error';
 
 const mockGetAuthUser = vi.fn();
 
-vi.mock('../../_generated/api', () => ({
+vi.mock('../handler_names', () => ({
   components: {
     betterAuth: { adapter: { findOne: 'findOne', findMany: 'findMany' } },
   },

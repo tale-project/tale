@@ -13,7 +13,7 @@
  * rules.
  */
 
-import type { QueryCtx } from '../../../_generated/server';
+import type { QueryCtx } from '../../ctx';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import { authorizeRls } from './access_control';
 

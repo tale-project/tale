@@ -2,9 +2,9 @@
 
 import { deriveFallbackTitle } from '../../lib/chat/derive-fallback-title';
 import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
-import { internal } from '../_generated/api';
-import type { ActionCtx } from '../_generated/server';
 import { createBuilderModel } from '../automations_builder/model_call';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { directActiveCredential } from '../lib/providers/direct_credential';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';

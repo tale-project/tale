@@ -19,9 +19,9 @@
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { extractExtension } from '../../../lib/shared/file-types';
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
-import { internal } from '../../_generated/api';
-import type { Doc, Id } from '../../_generated/dataModel';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
+import type { Doc, Id } from '../../lib/rows';
 import {
   isRecord,
   readBoolean,

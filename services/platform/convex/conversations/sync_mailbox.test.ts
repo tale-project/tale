@@ -9,7 +9,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isRecord } from '../../lib/utils/type-utils';
-import type { ActionCtx } from '../_generated/server';
+import type { ActionCtx } from '../lib/ctx';
 
 const {
   createConversationFromEmail,

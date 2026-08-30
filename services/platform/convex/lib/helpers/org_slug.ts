@@ -9,7 +9,7 @@
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { getString, isRecord } from '../../../lib/utils/type-utils';
-import { components } from '../../_generated/api';
+import { components } from '../handler_names';
 import { looksLikeConvexDocumentId } from './id_shape';
 
 // Loose ctx shape so all of: Convex ActionCtx, ToolCtx, query/mutation

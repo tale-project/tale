@@ -20,7 +20,7 @@ import {
   type ReviewPolicyConfig,
   reviewPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
-import type { DatabaseReader } from '../_generated/server';
+import type { DatabaseReader } from '../lib/ctx';
 import { readPolicyRow } from './helpers';
 
 /** The org's effective review policy, or `null` when none is on file (or

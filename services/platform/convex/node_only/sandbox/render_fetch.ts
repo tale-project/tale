@@ -26,8 +26,8 @@
 
 import { z } from 'zod';
 
-import { internal } from '../../_generated/api';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
 import { sessionIdForRender } from '../../sandbox/session_naming';
 import {
   sessionCreate,

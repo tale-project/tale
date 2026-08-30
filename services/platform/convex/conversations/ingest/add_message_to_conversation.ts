@@ -1,6 +1,6 @@
-import { internal } from '../../_generated/api';
-import type { Id } from '../../_generated/dataModel';
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
+import { internal } from '../../lib/handler_names';
+import type { Id } from '../../lib/rows';
 import { attachmentsForMetadata } from './attachments_for_metadata';
 import { buildEmailMetadata } from './build_email_metadata';
 import { normalizeExternalMessageId } from './normalize_external_message_id';

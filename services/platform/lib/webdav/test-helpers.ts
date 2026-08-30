@@ -1,14 +1,12 @@
 // Shared test helpers for the WebDAV handler connector suite. Owns
-// the ConvexHttpClient stub, the Basic-auth credential plumbing (HMAC
-// matches what `handler.ts` reads from the env), and the
-// WebDAVRequest builder.
+// the backend stub, the Basic-auth credential plumbing (HMAC matches
+// what `handler.ts` reads from the env), and the WebDAVRequest builder.
 
-import type { ConvexHttpClient } from 'convex/browser';
-import { getFunctionName } from 'convex/server';
 import { XMLParser } from 'fast-xml-parser';
 
 import { AppError } from '../shared/errors/app-error';
-import type { WebDAVCtx, WebDAVRequest } from './types';
+import { functionRefName } from '../shared/handlers/function-refs';
+import type { WebDAVBackend, WebDAVCtx, WebDAVRequest } from './types';
 
 // Same shape `handler.ts:getHmacSecret()` expects: 32+ chars of hex.
 // Fixed value (not random) so the same precomputed HMAC works across
@@ -37,9 +35,9 @@ interface StubOverrides {
   mutations?: Record<string, StubHandler>;
 }
 
-// Build a minimal `ConvexHttpClient` shape that satisfies WebDAVCtx.
-// query/mutation look up by canonical name; unknown names raise so
-// tests can't silently pass against an unmocked code path.
+// Build a minimal backend that satisfies WebDAVCtx. query/mutation look
+// up by canonical name; unknown names raise so tests can't silently pass
+// against an unmocked code path.
 export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
   const queries: Record<string, StubHandler> = {
     // Default auth wiring — every test that authenticates expects
@@ -88,8 +86,8 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
     ref: unknown,
     args: unknown,
   ) => {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- getFunctionName is happy with any anyApi-derived ref
-    const name = getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- functionRefName is happy with any anyRefs-derived ref
+    const name = functionRefName(ref);
     const handler = table[name];
     if (!handler) {
       throw new Error(`Unstubbed Convex call: ${name}`);
@@ -97,12 +95,16 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
     return Promise.resolve(handler(args));
   };
 
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- duck-typed stub satisfies the two methods handlers exercise
-  const fakeConvex = {
-    query: (ref: unknown, args: unknown) => dispatchByName(queries, ref, args),
-    mutation: (ref: unknown, args: unknown) =>
+  const fakeConvex: WebDAVBackend = {
+    query: (ref: unknown, args?: unknown) => dispatchByName(queries, ref, args),
+    mutation: (ref: unknown, args?: unknown) =>
       dispatchByName(mutations, ref, args),
-  } as unknown as ConvexHttpClient;
+    action: (ref: unknown) => {
+      throw new Error(
+        `No stubbed action for ${functionRefName(ref)} — the WebDAV handlers call none.`,
+      );
+    },
+  };
 
   return {
     convex: fakeConvex,

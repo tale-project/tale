@@ -1,4 +1,4 @@
-import { getFunctionAddress, getFunctionName } from 'convex/server';
+import { functionRefName } from '../../lib/shared/handlers/function-refs.ts';
 
 /**
  * A minimal ActionCtx stand-in for REUSING 0.4 `'use node'` functions whose
@@ -17,21 +17,14 @@ export interface ShimHandlers {
 }
 
 /**
- * Name a function reference: `path/module:export` for app/internal refs,
- * the raw `_reference/childComponent/…` address for component refs (which
- * `getFunctionName` rejects).
+ * Name a function reference: `path/module:export` for a handler, the raw
+ * `_reference/childComponent/…` path for a component. The FORMAT is ours
+ * (`convex/lib/function_refs.ts`) — this is the one place both ends of it
+ * meet, so the handler tables below and the references the reused bodies
+ * build cannot drift apart.
  */
 export function shimFunctionName(ref: unknown): string {
-  try {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- getFunctionName accepts any function reference; the shim's whole job is bridging the untyped seam
-    return getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
-  } catch {
-    const address = getFunctionAddress(ref);
-    if ('reference' in address && typeof address.reference === 'string') {
-      return address.reference;
-    }
-    throw new Error('[convex-shim] unnameable function reference');
-  }
+  return functionRefName(ref);
 }
 
 function dispatcher(kind: string, handlers: ShimHandlers) {

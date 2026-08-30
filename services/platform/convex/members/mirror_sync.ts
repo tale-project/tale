@@ -1,4 +1,4 @@
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx } from '../lib/ctx';
 
 export interface MirrorMemberInput {
   memberId: string;

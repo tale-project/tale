@@ -1,9 +1,9 @@
 'use node';
 import { TRANSCRIPTION_SLUG } from '../../lib/shared/constants/usage';
-import { internal } from '../_generated/api';
-import type { ActionCtx } from '../_generated/server';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
+import type { ActionCtx } from '../lib/ctx';
 import { classifyTranscriptionError } from '../lib/errors/classify_transcription_error';
+import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { checkProviderHostPolicy } from '../lib/http/host_policy';
 import { resolveTranscriptionModel } from '../lib/providers/resolve_transcription_model';

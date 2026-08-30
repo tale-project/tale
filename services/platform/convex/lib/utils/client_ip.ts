@@ -2,8 +2,8 @@ import type { IncomingMessage } from 'node:http';
 
 import proxyaddr from 'proxy-addr';
 
-import { internal } from '../../_generated/api';
-import type { ActionCtx, MutationCtx } from '../../_generated/server';
+import type { ActionCtx, MutationCtx } from '../ctx';
+import { internal } from '../handler_names';
 
 /**
  * Extract the real client IP from a Request.

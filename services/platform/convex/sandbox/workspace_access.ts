@@ -8,7 +8,9 @@
  * (`lib/rls/helpers/agent_read_access.ts`).
  */
 
-import { v } from 'convex/values'; /**
+import { v } from 'convex/values';
+
+/**
  * The wire spelling of {@link AgentReadSubject}. Convex needs literal
  * validators, so this list cannot be generated from the const array — a test
  * asserts the two agree instead, because a subject present in one and missing

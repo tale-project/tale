@@ -1,7 +1,6 @@
-import type { PaginationOptions, PaginationResult } from 'convex/server';
-
-import type { Doc, TableNames } from '../../_generated/dataModel';
-import type { QueryCtx } from '../../_generated/server';
+import type { PaginationOptions, PaginationResult } from '../ctx';
+import type { QueryCtx } from '../ctx';
+import type { Doc, TableNames } from '../rows';
 import {
   isActiveRow,
   type MatchMode,

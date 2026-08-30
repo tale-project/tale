@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../lib/ctx';
 
 const { queryLatestMessageByDeliveryState } = vi.hoisted(() => ({
   queryLatestMessageByDeliveryState: vi.fn(),

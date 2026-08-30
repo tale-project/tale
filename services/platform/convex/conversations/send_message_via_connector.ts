@@ -1,9 +1,9 @@
 import { AppError } from '../../lib/shared/errors/app-error';
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
 import { emitAuditSuccess } from '../audit_logs/emit';
+import type { MutationCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { buildAuditContext } from '../lib/helpers/build_audit_context';
+import type { Id } from '../lib/rows';
 import { validateConversationAttachmentCaps } from './attachments';
 import { buildThreadingHeaders } from './build_threading_headers';
 import { inboundRecipientAddress } from './reply_from';

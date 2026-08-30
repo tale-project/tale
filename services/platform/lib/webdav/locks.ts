@@ -1,5 +1,4 @@
-import { anyApi } from 'convex/server';
-
+import { anyRefs } from '../shared/handlers/function-refs';
 import { lockKeyFromParsed } from './paths';
 import type {
   AuthContext,
@@ -66,7 +65,7 @@ export async function checkCollectionDescendantLocks(
 ): Promise<LockCheckResult> {
   const clauses = parseIfHeader(req.headers.get('if'));
   const raw: unknown = await ctx.convex.query(
-    anyApi.webdav.lock_queries.findLocksUnderPath,
+    anyRefs.webdav.lock_queries.findLocksUnderPath,
     {
       organizationId: auth.organizationId,
       resourcePath: lockKeyFromParsed(parsed),
@@ -111,14 +110,14 @@ async function runLockCheck(
 
   for (const { path, requireInfinity } of candidates) {
     const found = await ctx.convex.query(
-      anyApi.webdav.lock_queries.findLockForPath,
+      anyRefs.webdav.lock_queries.findLockForPath,
       { organizationId: auth.organizationId, resourcePath: path },
     );
 
     if (found?.expiredId) {
       // Fire-and-forget eviction. Lazy cleanup pattern — don't await.
       void ctx.convex
-        .mutation(anyApi.webdav.lock_mutations.deleteLockIfStale, {
+        .mutation(anyRefs.webdav.lock_mutations.deleteLockIfStale, {
           id: found.expiredId,
         })
         .catch((err) => {

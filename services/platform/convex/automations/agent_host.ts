@@ -26,9 +26,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 
 import type { SkillViewer } from '../../lib/skills/visibility';
-import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
-import type { ActionCtx } from '../_generated/server';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
@@ -39,9 +36,12 @@ import {
   isManagedHarness,
   SKILLS_DIR,
 } from '../chat/external_turn_shared';
+import type { ActionCtx } from '../lib/ctx';
+import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { resolveWorkflowAgentServing } from '../lib/providers/agent_serving';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
+import type { Id } from '../lib/rows';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   SessionDuplicateError,

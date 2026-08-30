@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../_generated/api', () => ({
+vi.mock('../../lib/handler_names', () => ({
   internal: {
     file_metadata: {
       internal_mutations: { bindFileToConversation: 'bindFileToConversation' },
