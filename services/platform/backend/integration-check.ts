@@ -6308,6 +6308,214 @@ async function checkSamlLogin(
 }
 
 /**
+ * The Entra ID lane end to end: authorize → token → the three Microsoft Graph
+ * reads (`/me`, `/me/memberOf`, `/me/appRoleAssignments`) → provisioning.
+ * Graph has no sandbox, so the probe answers for it: `globalThis.fetch` is
+ * wrapped for the two Microsoft hosts ONLY and passes everything else
+ * through, which is exactly the seam a live tenant would occupy.
+ */
+async function checkEntraLogin(
+  sql: Sql,
+  base: string,
+  orgId: string,
+  orgSlug: string,
+): Promise<void> {
+  const { serializeSsoConnectionYaml, resolveSsoDir } =
+    await import('../convex/enterprise_sso/file_utils.ts');
+  const tenantId = '8f1e2b3c-4d5a-6789-abcd-ef0123456789';
+  const appRoleId = 'b31e4c77-11aa-4c8d-9f3e-2b6d5a7c9e01';
+  const ssoDir = resolveSsoDir(orgSlug);
+  const connectionPath = path.join(ssoDir, 'connection.yml');
+  const secretsPath = path.join(ssoDir, 'connection.secrets.json');
+  const previousConnection = await readFile(connectionPath, 'utf8').catch(
+    () => null,
+  );
+  const previousSecrets = await readFile(secretsPath, 'utf8').catch(() => null);
+  const realFetch = globalThis.fetch;
+  const graphCalls: string[] = [];
+  let graphAuthorization = '';
+
+  const fetchStub = async (
+    input: Parameters<typeof globalThis.fetch>[0],
+    init?: Parameters<typeof globalThis.fetch>[1],
+  ): Promise<Response> => {
+    const url =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+    if (
+      !url.startsWith('https://login.microsoftonline.com') &&
+      !url.startsWith('https://graph.microsoft.com')
+    ) {
+      return realFetch(input, init);
+    }
+    const json = (data: unknown): Response =>
+      new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    if (url.includes('/oauth2/v2.0/token')) {
+      return json({
+        access_token: 'itest-graph-token',
+        token_type: 'Bearer',
+        expires_in: 3600,
+        scope: 'openid profile email https://graph.microsoft.com/User.Read',
+      });
+    }
+    graphCalls.push(new URL(url).pathname);
+    graphAuthorization = new Headers(init?.headers).get('authorization') ?? '';
+    if (url.includes('/me/memberOf')) {
+      return json({
+        value: [
+          {
+            '@odata.type': '#microsoft.graph.group',
+            id: 'g-1',
+            displayName: 'EntraOps',
+          },
+          {
+            '@odata.type': '#microsoft.graph.group',
+            id: 'g-2',
+            displayName: 'Everyone',
+          },
+          // A directory ROLE is not a group; it must never become a team.
+          {
+            '@odata.type': '#microsoft.graph.directoryRole',
+            id: 'r-1',
+            displayName: 'Global Administrator',
+          },
+        ],
+      });
+    }
+    if (url.includes('/me/appRoleAssignments')) {
+      return json({ value: [{ appRoleId }] });
+    }
+    if (url.includes('/me')) {
+      return json({
+        id: 'entra-user-9',
+        displayName: 'Entra User',
+        givenName: 'Entra',
+        mail: null,
+        userPrincipalName: 'entra.user@door.test',
+        // Graph returns every $select'ed field: a title-less user comes back
+        // as null, and a null must not break the sign-in (the 0.4 regression).
+        jobTitle: null,
+      });
+    }
+    return new Response('not found', { status: 404 });
+  };
+  // `preconnect` rides along so the global keeps its full shape.
+  globalThis.fetch = Object.assign(fetchStub, {
+    preconnect: realFetch.preconnect,
+  });
+
+  try {
+    await mkdir(ssoDir, { recursive: true });
+    await writeFile(
+      connectionPath,
+      serializeSsoConnectionYaml({
+        enabled: true,
+        protocol: 'oidc',
+        displayName: 'Itest Entra',
+        oidc: {
+          providerId: 'entra-id',
+          issuer: `https://login.microsoftonline.com/${tenantId}/v2.0`,
+          scopes: ['openid', 'profile', 'email'],
+        },
+        provisioning: {
+          autoProvisionRole: true,
+          defaultRole: 'member',
+          roleMappingRules: [
+            { source: 'appRole', pattern: appRoleId, targetRole: 'developer' },
+          ],
+          autoProvisionTeam: true,
+          excludeGroups: ['Everyone'],
+        },
+      }),
+    );
+    await writeFile(
+      secretsPath,
+      JSON.stringify({
+        clientId: 'itest-entra-client',
+        clientSecret: 'itest-entra-secret',
+      }),
+    );
+
+    const authorizeRes = await fetch(
+      `${base}/api/sso/authorize?organizationId=${orgId}`,
+      { redirect: 'manual' },
+    );
+    const authorizeLocation = authorizeRes.headers.get('location') ?? '';
+    const authorizeUrl =
+      authorizeLocation === '' ? null : new URL(authorizeLocation);
+    const state = authorizeUrl?.searchParams.get('state') ?? '';
+    const callbackRes = await fetch(
+      `${base}/api/sso/callback?code=itest-entra-code&state=${encodeURIComponent(state)}`,
+      { redirect: 'manual' },
+    );
+    const cookie =
+      (callbackRes.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const session = z
+      .looseObject({
+        user: z.looseObject({ email: z.string() }).nullable().optional(),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/auth/get-session`, {
+            headers: { cookie, origin: base },
+          })
+        ).json(),
+      );
+    const provisioned = await sql<{ role: string; teams: string | null }[]>`
+      SELECT m."role",
+             (SELECT string_agg(t."name", ',' ORDER BY t."name")
+              FROM "teamMember" tm JOIN "team" t ON t."id" = tm."teamId"
+              WHERE tm."userId" = u."id") AS teams
+      FROM "user" u
+      JOIN "member" m ON m."userId" = u."id"
+        AND m."organizationId" = ${orgId}
+      WHERE u."email" = 'entra.user@door.test'
+    `;
+
+    record(
+      'Entra ID: Graph identity + groups + app roles drive provisioning',
+      authorizeRes.status === 302 &&
+        authorizeUrl?.origin === 'https://login.microsoftonline.com' &&
+        authorizeUrl.pathname === `/${tenantId}/oauth2/v2.0/authorize` &&
+        // getUserInfo reads Graph /me, so User.Read is added even though the
+        // configured scopes omit it.
+        (authorizeUrl.searchParams.get('scope') ?? '').includes(
+          'https://graph.microsoft.com/User.Read',
+        ) &&
+        callbackRes.status === 302 &&
+        cookie.includes('better-auth.session_token=') &&
+        session.success &&
+        // No `mail`, so the UPN is the identity — and `jobTitle: null` did
+        // not break the sign-in.
+        session.data.user?.email === 'entra.user@door.test' &&
+        graphCalls.includes('/v1.0/me') &&
+        graphCalls.includes('/v1.0/me/memberOf') &&
+        graphCalls.includes('/v1.0/me/appRoleAssignments') &&
+        graphAuthorization === 'Bearer itest-graph-token' &&
+        // The app-role rule decides the role; the directory ROLE is not a
+        // group, and `Everyone` is excluded — so exactly one team.
+        provisioned[0]?.role === 'developer' &&
+        provisioned[0].teams === 'EntraOps',
+      `authorize=${authorizeRes.status}→${authorizeUrl?.pathname ?? authorizeLocation}, userRead=${(authorizeUrl?.searchParams.get('scope') ?? '').includes('User.Read')}, callback=${callbackRes.status}, session=${session.success ? (session.data.user?.email ?? 'none') : 'ERR'}, graph=${graphCalls.join('|')}, auth=${graphAuthorization}, role/teams=${provisioned[0]?.role}/${provisioned[0]?.teams} (want developer/EntraOps)`,
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+    if (previousConnection !== null) {
+      await writeFile(connectionPath, previousConnection);
+    }
+    if (previousSecrets !== null) {
+      await writeFile(secretsPath, previousSecrets);
+    }
+  }
+}
+
+/**
  * SCIM 2.0 provisioning, end to end on the REUSED 0.4 dispatcher bodies:
  * admin mints the bearer token → the IdP pushes a User (create, filter,
  * deactivate/restore via PATCH with role stash, hard DELETE per RFC 7644)
@@ -22593,6 +22801,7 @@ async function main(): Promise<void> {
     await checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSsoLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
     await checkSamlLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
+    await checkEntraLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
     await checkScim(sql, baseUrl, authCtx);
     await checkSsoAdminSurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTrustedHeaders(sql, baseUrl);
