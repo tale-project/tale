@@ -347,6 +347,61 @@ services:
   # Runs alongside the Convex stack during the 0.5 parallel build; replaces the
   # State lives in the `tale_app` database on the `db` service (created
   # idempotently by services/db/init-scripts/04-create-app-database.sql).
+  # ============================================================================
+  # Object store — the deployment's BLOB backend
+  # ============================================================================
+  # S3-compatible storage is the ONLY blob backend (Convex `_storage` retired
+  # with the runtime), so a deployment without one refuses every upload. This
+  # is the default the stack ships with; an org that brings its own bucket
+  # (Settings > Data residency) is resolved BEFORE it and is unaffected. The
+  # backend seeds `default/object-storage/connection.json` against this
+  # service at boot — see backend/domains/object_storage/bootstrap.ts.
+  #
+  # Internal-only: blobs reach the browser through presigned URLs the backend
+  # signs and the proxy forwards, never by exposing the store itself.
+  object-store:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    pull_policy: missing
+
+    container_name: tale-object-store
+
+    # Flush in-flight multipart writes before SIGKILL.
+    stop_grace_period: 30s
+
+    command: server /data --address ':9000' --console-address ':9001'
+
+    environment:
+      MINIO_ROOT_USER: ${OBJECT_STORE_ACCESS_KEY:-tale}
+      MINIO_ROOT_PASSWORD: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
+      # Presigned URLs are signed by the backend against the internal
+      # endpoint; the proxy forwards them, so the store needs no public origin.
+      MINIO_BROWSER: 'off'
+
+    env_file:
+      - path: .env
+        required: false
+
+    volumes:
+      - object-store-data:/data
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ['CMD-SHELL', 'mc ready local || exit 1']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    networks:
+      - internal
+
   backend-api:
     image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
     pull_policy: ${PULL_POLICY:-build}
@@ -366,6 +421,13 @@ services:
       # Where a sandbox CONTAINER reaches this backend: the in-sandbox
       # connectors bridge and the live-body host-call door are served here.
       SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}
+      # The bundled blob store the backend seeds the deployment default
+      # against at boot. Internal address: presigned URLs are signed here and
+      # forwarded by the proxy, so the store is never published directly.
+      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT:-http://object-store:9000}
+      OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tale-blobs}
+      OBJECT_STORE_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY:-tale}
+      OBJECT_STORE_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
     env_file:
       - path: .env
         required: false
@@ -379,6 +441,8 @@ services:
       start_period: 30s
     depends_on:
       db:
+        condition: service_healthy
+      object-store:
         condition: service_healthy
     # The entrypoint installs the SSRF egress firewall (REJECT IMDS +
     # link-local + RFC1918) before dropping privileges: this tier opens
@@ -416,6 +480,13 @@ services:
       # The worker DISPATCHES connector bodies too (automation nodes), so it
       # mints the same in-sandbox host-call URL the api does.
       SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}
+      # The bundled blob store the backend seeds the deployment default
+      # against at boot. Internal address: presigned URLs are signed here and
+      # forwarded by the proxy, so the store is never published directly.
+      OBJECT_STORE_ENDPOINT: ${OBJECT_STORE_ENDPOINT:-http://object-store:9000}
+      OBJECT_STORE_BUCKET: ${OBJECT_STORE_BUCKET:-tale-blobs}
+      OBJECT_STORE_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY:-tale}
+      OBJECT_STORE_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
     env_file:
       - path: .env
         required: false
@@ -427,6 +498,8 @@ services:
       disable: true
     depends_on:
       db:
+        condition: service_healthy
+      object-store:
         condition: service_healthy
     cap_add:
       - NET_ADMIN
@@ -922,6 +995,13 @@ volumes:
   # The name predates the Convex retirement and is KEPT so no operator has to
   # migrate a volume for a rename.
   convex-data:
+    driver: local
+
+  # The deployment's BLOB store (uploaded documents, chat attachments, audio,
+  # generated media). Separate from the config store on purpose: config is
+  # small, text, and diffable; blobs are large and opaque, and an operator
+  # relocating one should not have to move the other.
+  object-store-data:
     driver: local
 
   # Persistent storage for Caddy proxy data (certificates, etc.)

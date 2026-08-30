@@ -19,6 +19,9 @@ export interface ComposeService {
   // workers). `pull_policy` is emitted for third-party images not built here.
   init?: boolean;
   pull_policy?: string;
+  // Overrides the image's default CMD — third-party images that need flags
+  // (the object store's address + data dir) rather than a baked entrypoint.
+  command?: string;
   stop_grace_period?: string;
   shm_size?: string;
   ports?: string[];

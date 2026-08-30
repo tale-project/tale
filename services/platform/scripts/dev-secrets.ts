@@ -114,6 +114,7 @@ export function deriveDevSecrets(env: NodeJS.ProcessEnv): void {
   ensureKnowledgeDatabaseUrl(env);
   ensureSandboxLlmGatewayUrl(env);
   ensureAppDatabaseUrl(env);
+  ensureObjectStoreEnv(env);
 }
 
 export { ensureWebdavHmacKey };
@@ -138,4 +139,21 @@ export function ensureAppDatabaseUrl(env: NodeJS.ProcessEnv): void {
   env.DATABASE_URL = `postgresql://${env.POSTGRES_USER ?? 'tale'}:${encodeURIComponent(
     password,
   )}@localhost:${port}/${database}`;
+}
+
+/**
+ * The blob store for the host-run backend. Compose publishes the
+ * `object-store` service on localhost (compose.dev.yml) precisely because
+ * `bun dev` runs the backend OUTSIDE the docker network and cannot reach the
+ * internal `object-store:9000` address the containerized tiers use.
+ *
+ * The credentials mirror compose.yml's dev defaults so the two local modes
+ * address the same bucket with the same keys — insecure by design, same
+ * threat model as the rest of `x-dev-secrets`. An explicit value always wins.
+ */
+export function ensureObjectStoreEnv(env: NodeJS.ProcessEnv): void {
+  env.OBJECT_STORE_ENDPOINT ??= `http://127.0.0.1:${env.OBJECT_STORE_HOST_PORT ?? '59000'}`;
+  env.OBJECT_STORE_BUCKET ??= 'tale-blobs';
+  env.OBJECT_STORE_ACCESS_KEY ??= 'tale';
+  env.OBJECT_STORE_SECRET_KEY ??= 'tale_dev_object_store';
 }

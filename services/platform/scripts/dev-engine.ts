@@ -80,6 +80,10 @@ const DEV_DOCKER_SERVICES = [
   // rag + crawler services, consolidated into the tale-db image — see the
   // knowledge-db migration wiring).
   'knowledge-db',
+  // The blob store. S3-compatible storage is the ONLY blob backend, so
+  // without this every upload in the dev stack fails closed — the host
+  // backend seeds the deployment-default connection against it at boot.
+  'object-store',
   'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',

@@ -78,6 +78,14 @@ services:
 
   # The backend tier gets the dev secrets and runs with NODE_ENV=development
   # (dev-only lanes gate on it).
+  # `bun dev` runs the backend on the HOST, so the blob store needs a
+  # published port — the internal `object-store:9000` address only exists
+  # inside the compose network. Same keys as the compose.yml dev defaults, so
+  # both local modes address one bucket.
+  object-store:
+    ports:
+      - '${OBJECT_STORE_HOST_PORT:-59000}:9000'
+
   backend-api:
     environment:
       <<: *dev-secrets

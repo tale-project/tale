@@ -12,6 +12,7 @@ import {
   createBackendApiService,
   createBackendWorkerService,
 } from './create-backend-services';
+import { createObjectStorageService } from './create-object-storage-service';
 
 // Guards the class of "works in dev, silently broken in `tale deploy`" bugs:
 // config that lives in one pipeline but not the other. `compose.yml` (the
@@ -42,6 +43,8 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       stop_grace_period?: string;
       image?: string;
       build?: unknown;
+      ports?: unknown[];
+      environment?: Record<string, string>;
     }
   >;
 };
@@ -173,5 +176,61 @@ describe('bgutil PO-token provider parity (zero-config YouTube ingestion)', () =
     expect(dockerfile).not.toMatch(
       /unzip -q \/tmp\/bgutil-pot\.zip -d \/opt\/yt-dlp\/plugins\s/,
     );
+  });
+});
+
+describe('blob-backend parity (the deployment cannot accept an upload without it)', () => {
+  // S3-compatible storage is the ONLY blob backend — Convex `_storage` retired
+  // with the runtime — and `backend/lib/object-store.ts` fails CLOSED when
+  // neither the org nor the deployment default has a connection. So a pipeline
+  // that omits the store ships a deployment where every upload 503s, which is
+  // exactly the drift that shipped once already: the store was designed in
+  // (inc 08 "compose ships MinIO + a seeded connection at cutover") and then
+  // never added to either compose lane.
+
+  test('compose.yml ships the object store', () => {
+    expect(compose.services['object-store']).toBeDefined();
+  });
+
+  test('CLI generator ships the object store on the same image', () => {
+    const pinned = compose.services['object-store']?.image;
+    expect(pinned).toBeDefined();
+    expect(createObjectStorageService(config).image).toBe(pinned as string);
+  });
+
+  test('the store stays internal — blobs reach the browser via presigned URLs', () => {
+    expect(networkNames(compose.services['object-store']?.networks)).toEqual([
+      'internal',
+    ]);
+    expect(compose.services['object-store']?.ports).toBeUndefined();
+    expect(networkNames(createObjectStorageService(config).networks)).toEqual([
+      'internal',
+    ]);
+    expect(createObjectStorageService(config).ports).toBeUndefined();
+  });
+
+  test('both backend tiers are pointed at it in both pipelines', () => {
+    for (const tier of ['backend-api', 'backend-worker'] as const) {
+      expect(
+        compose.services[tier]?.environment?.OBJECT_STORE_ENDPOINT,
+      ).toContain('object-store');
+    }
+    for (const service of [
+      createBackendApiService(config),
+      createBackendWorkerService(config),
+    ]) {
+      expect(service.environment?.OBJECT_STORE_ENDPOINT).toContain(
+        'object-store',
+      );
+    }
+  });
+
+  test('the CLI refuses to boot the store on a default credential', () => {
+    // `tale deploy` auto-generates OBJECT_STORE_SECRET_KEY into .env; the
+    // `:?` form makes a missing one fail the compose up instead of silently
+    // standing up a world-writable store on a published default.
+    const password =
+      createObjectStorageService(config).environment?.MINIO_ROOT_PASSWORD;
+    expect(password).toContain('OBJECT_STORE_SECRET_KEY:?');
   });
 });

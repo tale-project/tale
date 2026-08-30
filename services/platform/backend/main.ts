@@ -5,6 +5,7 @@ import { createAuth, type Auth } from './auth/auth.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { ensureDefaultCorpusSchema } from './domains/knowledge/service.ts';
+import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { seedDevUser } from './domains/provisioning/dev-seed.ts';
 import { loadEnv } from './env.ts';
 import { createBoss, ensureQueues } from './jobs/boss.ts';
@@ -66,6 +67,19 @@ async function main(): Promise<void> {
     await ensureDefaultCorpusSchema().catch((error: unknown) => {
       console.warn('[backend] default corpus bootstrap failed:', error);
     });
+  }
+
+  // The deployment-default BLOB store. S3 is the only blob backend, so an
+  // unseeded deployment refuses every upload; the stack ships a store and
+  // this points the default config tree at it. Never fails boot — a store
+  // still starting up must not take the API down with it.
+  try {
+    const store = await ensureDefaultObjectStore();
+    if (store.status !== 'present') {
+      console.log(`[backend] object store (${store.status}): ${store.detail}`);
+    }
+  } catch (error: unknown) {
+    console.warn('[backend] default object store bootstrap failed:', error);
   }
 
   // Loopback-only dev convenience: seed the owner account + workspace so a

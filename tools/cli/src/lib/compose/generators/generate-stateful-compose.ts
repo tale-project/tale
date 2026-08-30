@@ -8,6 +8,7 @@ import {
 import { createBgutilProviderService } from '../services/create-bgutil-provider-service';
 import { createControllerService } from '../services/create-controller-service';
 import { createDbService } from '../services/create-db-service';
+import { createObjectStorageService } from '../services/create-object-storage-service';
 import { createProxyService } from '../services/create-proxy-service';
 import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
 import { createSandboxLlmGatewayService } from '../services/create-sandbox-llm-gateway-service';
@@ -21,6 +22,9 @@ export function generateStatefulCompose(
   const prefix = `${getProjectId()}_`;
   const services: ComposeConfig['services'] = {
     db: createDbService(config),
+    // The blob store: S3 is the only blob backend, so a deployment without
+    // one cannot accept a single upload.
+    'object-store': createObjectStorageService(config),
     proxy: createProxyService(config, hostAlias),
     'backend-api': createBackendApiService(config),
     'backend-worker': createBackendWorkerService(config),
@@ -46,6 +50,10 @@ export function generateStatefulCompose(
       'caddy-data': { external: true, name: `${prefix}caddy-data` },
       'caddy-config': { external: true, name: `${prefix}caddy-config` },
       'convex-data': { external: true, name: `${prefix}convex-data` },
+      'object-store-data': {
+        external: true,
+        name: `${prefix}object-store-data`,
+      },
       'llm-gateway-data': {
         external: true,
         name: `${prefix}llm-gateway-data`,

@@ -57,6 +57,14 @@ export function createBackendApiService(config: ServiceConfig): ComposeService {
       PORT: String(BACKEND_API_PORT),
       TALE_CONFIG_DIR: '/app/data',
       SANDBOX_HTTP_API_BASE_URL: `http://backend-api:${BACKEND_API_PORT}`,
+      // The bundled blob store the backend seeds the deployment default
+      // against at boot. Internal address: presigned URLs are signed here
+      // and forwarded by the proxy, so the store is never published.
+      OBJECT_STORE_ENDPOINT: 'http://object-store:9000',
+      OBJECT_STORE_BUCKET: '${OBJECT_STORE_BUCKET:-tale-blobs}',
+      OBJECT_STORE_ACCESS_KEY: '${OBJECT_STORE_ACCESS_KEY:-tale}',
+      OBJECT_STORE_SECRET_KEY:
+        '${OBJECT_STORE_SECRET_KEY:?OBJECT_STORE_SECRET_KEY is required}',
     },
     healthcheck: {
       test: ['CMD-SHELL', `curl -sf http://localhost:${BACKEND_API_PORT}/ping`],
@@ -88,6 +96,14 @@ export function createBackendWorkerService(
       TALE_ROLE: 'worker',
       TALE_CONFIG_DIR: '/app/data',
       SANDBOX_HTTP_API_BASE_URL: `http://backend-api:${BACKEND_API_PORT}`,
+      // The bundled blob store the backend seeds the deployment default
+      // against at boot. Internal address: presigned URLs are signed here
+      // and forwarded by the proxy, so the store is never published.
+      OBJECT_STORE_ENDPOINT: 'http://object-store:9000',
+      OBJECT_STORE_BUCKET: '${OBJECT_STORE_BUCKET:-tale-blobs}',
+      OBJECT_STORE_ACCESS_KEY: '${OBJECT_STORE_ACCESS_KEY:-tale}',
+      OBJECT_STORE_SECRET_KEY:
+        '${OBJECT_STORE_SECRET_KEY:?OBJECT_STORE_SECRET_KEY is required}',
     },
     healthcheck: { disable: true },
     networks: {

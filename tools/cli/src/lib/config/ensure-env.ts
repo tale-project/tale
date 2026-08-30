@@ -318,6 +318,12 @@ export async function ensureEnv(
       // across deploys; the matching SANDBOX_LLM_GATEWAY_ADMIN_USERNAME=admin is a
       // static line written by generateEnvContent.
       'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
+      // Root credential for the bundled object store — the deployment's blob
+      // backend, and the only one there is (S3-compatible storage replaced
+      // Convex `_storage`). Auto-generated so uploads work out of the box and
+      // the credential is STABLE across deploys: rotating it would orphan
+      // every blob already written under the old key.
+      'OBJECT_STORE_SECRET_KEY',
     ];
     const missingUser = requiredUserVars.filter((v) => !existing[v]);
     const missingAuto = requiredAutoVars.filter((v) => !existing[v]);
@@ -381,6 +387,7 @@ async function runHeadlessAutoSecretFill(
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
+    OBJECT_STORE_SECRET_KEY: generatePassword,
   };
 
   const updates: Record<string, string> = {};
@@ -506,6 +513,7 @@ async function runPartialEnvSetup(
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_SIGNING_KEY: generateHexSecret,
     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generatePassword,
+    OBJECT_STORE_SECRET_KEY: generatePassword,
   };
 
   let generatedCount = 0;
@@ -576,6 +584,7 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     sandboxToken: generateHexSecret(),
     auditSigningKey: generateHexSecret(),
     llmGatewayAdminPassword: generatePassword(),
+    objectStoreSecretKey: generatePassword(),
   });
 
   await writeFile(envPath, envContent, 'utf-8');
@@ -599,6 +608,7 @@ interface EnvConfig {
   sandboxToken: string;
   auditSigningKey: string;
   llmGatewayAdminPassword: string;
+  objectStoreSecretKey: string;
 }
 
 function generateEnvContent(config: EnvConfig): string {
@@ -709,6 +719,21 @@ function generateEnvContent(config: EnvConfig): string {
     '# across deploys (a changed password locks the platform out of the gateway).',
     'SANDBOX_LLM_GATEWAY_ADMIN_USERNAME=admin',
     `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=${config.llmGatewayAdminPassword}`,
+    '',
+    '# ============================================================================',
+    "# Object store (the deployment's blob backend)",
+    '# ============================================================================',
+    '# Uploaded documents, chat attachments, audio and generated media live in',
+    '# the bundled S3-compatible store — it is the ONLY blob backend, so a',
+    '# deployment without it refuses every upload. An organization can point its',
+    '# own blobs at an external bucket in Settings > Data residency; that is',
+    '# resolved BEFORE this default and is unaffected by these values.',
+    '#   - The key must stay STABLE across deploys: rotating it orphans every',
+    '#     blob already written under the old credential.',
+    '#   - OBJECT_STORE_BUCKET defaults to tale-blobs and is created on first boot.',
+    'OBJECT_STORE_ACCESS_KEY=tale',
+    `OBJECT_STORE_SECRET_KEY=${config.objectStoreSecretKey}`,
+    '# OBJECT_STORE_BUCKET=tale-blobs',
     '# Container runtime for spawned sandbox containers. `runc` (default) is',
     '# plain Docker; `runsc` is gVisor (requires `runsc` installed on the',
     '# host and registered with dockerd). gVisor provides',

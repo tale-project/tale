@@ -35,6 +35,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { computeAuditHash } from '../convex/lib/helpers/audit_hash.ts';
+import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
 import { runBootMigrations } from './db/migrate.ts';
@@ -43,6 +44,7 @@ import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
+import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -1789,49 +1791,51 @@ async function checkFiles(
   }
   const accessKeyId = process.env.ITEST_S3_ACCESS_KEY ?? 'minioadmin';
   const secretAccessKey = process.env.ITEST_S3_SECRET_KEY ?? 'minioadmin';
-  const bucket = 'itest-blobs';
 
-  // Deployment-default connection under the `default` config tree.
+  // The deployment default is SEEDED THE WAY THE STACK SEEDS IT — this calls
+  // the same `ensureDefaultObjectStore` the backend runs at boot, rather than
+  // hand-writing a connection the shipped code never produces. That is the
+  // point of this probe: the gap it guards against was a store that existed in
+  // the design and in this harness, but in neither compose lane, so every
+  // real deployment refused every upload while the suite stayed green.
   const configRoot = process.env.TALE_CONFIG_DIR;
   if (!configRoot) {
     record('files upload/serve/delete', false, 'TALE_CONFIG_DIR unset');
     return;
   }
-  const dir = path.join(configRoot, 'default', 'object-storage');
-  await mkdir(dir, { recursive: true });
-  await writeFile(
-    path.join(dir, 'connection.json'),
-    JSON.stringify({
-      region: 'us-east-1',
-      endpoint,
-      forcePathStyle: true,
-      bucket,
-    }),
+  const bucket = 'itest-blobs';
+  const storeEnv = {
+    OBJECT_STORE_ENDPOINT: endpoint,
+    OBJECT_STORE_BUCKET: bucket,
+    OBJECT_STORE_ACCESS_KEY: accessKeyId,
+    OBJECT_STORE_SECRET_KEY: secretAccessKey,
+  };
+  const seeded = await ensureDefaultObjectStore(storeEnv);
+  // Second call must be a no-op: boot runs on every restart, and a seeder
+  // that rewrote the connection each time would repoint a deployment whose
+  // operator had since edited it.
+  const reseeded = await ensureDefaultObjectStore(storeEnv);
+  const connectionPath = path.join(
+    configRoot,
+    'default',
+    'object-storage',
+    'connection.json',
   );
-  await writeFile(
-    path.join(dir, 'connection.secrets.json'),
-    JSON.stringify({ accessKeyId, secretAccessKey }),
+  // Parsed through the SHIPPED schema, so a connection the seeder writes but
+  // the reader would reject fails here rather than at the first upload.
+  const written = objectStorageConnectionFileSchema.safeParse(
+    JSON.parse(await readFile(connectionPath, 'utf8')),
   );
-
-  // Create the bucket with a signed request (idempotent-ish: 409 = exists).
-  const { AwsClient } = await import('aws4fetch');
-  const aws = new AwsClient({
-    accessKeyId,
-    secretAccessKey,
-    region: 'us-east-1',
-    service: 's3',
-  });
-  const createBucket = await aws.fetch(`${endpoint}/${bucket}`, {
-    method: 'PUT',
-  });
-  if (!createBucket.ok && createBucket.status !== 409) {
-    record(
-      'files upload/serve/delete',
-      false,
-      `bucket create failed: ${createBucket.status}`,
-    );
-    return;
-  }
+  record(
+    'object store: the deployment default seeds itself at boot',
+    seeded.status === 'seeded' &&
+      reseeded.status === 'present' &&
+      written.success &&
+      written.data.bucket === bucket &&
+      // Self-hosted S3 has no per-bucket DNS; virtual-host style would 404.
+      written.data.forcePathStyle,
+    `seed=${seeded.status} (want seeded), reseed=${reseeded.status} (want present), bucket=${written.success ? written.data.bucket : 'ERR'}, pathStyle=${written.success ? String(written.data.forcePathStyle) : 'ERR'}`,
+  );
 
   const { cookie, orgId } = ctx;
   const send = (
@@ -12241,7 +12245,7 @@ async function checkCloudImport(
     organizationId: orgId,
     userId,
     provider: 'google-drive',
-    accessToken: 'ya29.itest-token',
+    accessToken: 'itest-oauth-token',
     refreshToken: 'refresh-1',
     expiresAt: Date.now() + 3_600_000,
     scopes: ['https://www.googleapis.com/auth/drive.readonly'],
@@ -12271,7 +12275,7 @@ async function checkCloudImport(
       ).json(),
     );
   const secretLeak = JSON.stringify(listed.success ? listed.data : {}).includes(
-    'ya29.itest-token',
+    'itest-oauth-token',
   );
 
   // Expired WITHOUT a refresh token → needs-reauth marked, resolve refuses.
@@ -12279,7 +12283,7 @@ async function checkCloudImport(
     organizationId: orgId,
     userId,
     provider: 'google-drive',
-    accessToken: 'ya29.expired',
+    accessToken: 'itest-oauth-expired',
     expiresAt: Date.now() - 1_000,
     scopes: [],
   });
@@ -12327,7 +12331,7 @@ async function checkCloudImport(
       replayBody.length > 0 &&
       !consumed.ok &&
       fresh.success &&
-      fresh.accessToken === 'ya29.itest-token' &&
+      fresh.accessToken === 'itest-oauth-token' &&
       listed.success &&
       listed.data.authorizations[0]?.status === 'active' &&
       listed.data.authorizations[0]?.accountLabel === 'itest@door.test' &&
@@ -12337,7 +12341,7 @@ async function checkCloudImport(
       reauthRow[0]?.status === 'needs-reauth' &&
       revoke.status === 200 &&
       !afterRevoke.success,
-    `start=${start.status} host=${authorizeUrl?.hostname} client=${authorizeUrl?.searchParams.get('client_id')} pkce=${authorizeUrl?.searchParams.get('code_challenge_method')} state=${state.length}ch, noSession=${noSession.status} (want 401) badProvider=${badProvider.status}, declined=${declined.status} replay=${replay.status} consumedAfter=${String(consumed.ok)} (want false), fresh=${fresh.success}:${fresh.success && fresh.accessToken === 'ya29.itest-token'} listed=${listed.success ? `${listed.data.authorizations[0]?.status}/${listed.data.authorizations[0]?.accountLabel}` : 'ERR'} leak=${secretLeak}, expired=${expired.success}/${!expired.success ? expired.needsReauth : ''} row=${reauthRow[0]?.status}, revoke=${revoke.status} after=${afterRevoke.success} (want false)`,
+    `start=${start.status} host=${authorizeUrl?.hostname} client=${authorizeUrl?.searchParams.get('client_id')} pkce=${authorizeUrl?.searchParams.get('code_challenge_method')} state=${state.length}ch, noSession=${noSession.status} (want 401) badProvider=${badProvider.status}, declined=${declined.status} replay=${replay.status} consumedAfter=${String(consumed.ok)} (want false), fresh=${fresh.success}:${fresh.success && fresh.accessToken === 'itest-oauth-token'} listed=${listed.success ? `${listed.data.authorizations[0]?.status}/${listed.data.authorizations[0]?.accountLabel}` : 'ERR'} leak=${secretLeak}, expired=${expired.success}/${!expired.success ? expired.needsReauth : ''} row=${reauthRow[0]?.status}, revoke=${revoke.status} after=${afterRevoke.success} (want false)`,
   );
 }
 
