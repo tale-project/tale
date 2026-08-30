@@ -5,7 +5,6 @@ import { Heading } from '@tale/ui/heading';
 import { Grid, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useMutation } from 'convex/react';
 import { ChevronLeft, X } from 'lucide-react';
 import { useState } from 'react';
 
@@ -19,6 +18,7 @@ import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { UserButton } from '@/app/components/user-button';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
@@ -51,7 +51,7 @@ export function OnboardingWizard({
   const { t } = useT('onboarding');
   const { t: tCommon } = useT('common');
 
-  const setOnboardingCompleted = useMutation(
+  const setOnboardingCompleted = useConvexMutation(
     api.user_preferences.mutations.setOnboardingCompleted,
   );
 
@@ -77,7 +77,7 @@ export function OnboardingWizard({
   const completeOnboarding = async () => {
     if (!createdOrgId) return;
     try {
-      await setOnboardingCompleted({
+      await setOnboardingCompleted.mutateAsync({
         organizationId: createdOrgId,
         completed: true,
       });

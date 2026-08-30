@@ -16,6 +16,10 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import {
+  ensureProjectTextDocument,
+  readProjectTextValues,
+} from './project-text.ts';
+import {
   getLastDocumentRecordReview,
   getPendingDocumentRecordReview,
   listEligibleDocumentReviewerIds,
@@ -53,6 +57,19 @@ import {
   updateDocument,
 } from './service.ts';
 import { toDocumentItems } from './view.ts';
+
+const projectTextReadSchema = z.object({
+  projectId: z.string().min(1).max(128),
+  folderName: z.string().max(200),
+  fileName: z.string().min(1).max(512),
+});
+
+const projectTextWriteSchema = projectTextReadSchema.extend({
+  content: z.string().max(1_000_000).optional(),
+  yaml: z.record(z.string(), z.string()).optional(),
+  contentType: z.string().max(200).optional(),
+  externalItemId: z.string().max(512).optional(),
+});
 
 const createFromUploadSchema = z.object({
   fileId: z.string().min(1),
@@ -223,6 +240,56 @@ export function createDocumentRoutes(deps: {
           ...(projectId !== undefined ? { projectId } : {}),
         }),
       });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  /**
+   * The automation settings panel's file pair: read a project folder's
+   * flat-YAML file into `{key: value}`, and write it back. POST for the
+   * read too — the folder/file names are user text, and a query string
+   * would leak them into every access log and proxy cache.
+   */
+  app.post('/project-text/read', async (c) => {
+    const body = projectTextReadSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      const auth = await authCtx(c);
+      return c.json({
+        values: await readProjectTextValues(deps.sql, auth, body.data),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/project-text', async (c) => {
+    const body = projectTextWriteSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      const auth = await authCtx(c);
+      return c.json(
+        await ensureProjectTextDocument(deps.sql, auth, {
+          projectId: body.data.projectId,
+          folderName: body.data.folderName,
+          fileName: body.data.fileName,
+          ...(body.data.content !== undefined
+            ? { content: body.data.content }
+            : {}),
+          ...(body.data.yaml !== undefined ? { yaml: body.data.yaml } : {}),
+          ...(body.data.contentType !== undefined
+            ? { contentType: body.data.contentType }
+            : {}),
+          ...(body.data.externalItemId !== undefined
+            ? { externalItemId: body.data.externalItemId }
+            : {}),
+        }),
+      );
     } catch (error) {
       return handleError(c, error);
     }

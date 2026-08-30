@@ -4,6 +4,7 @@ import type { FunctionReturnType } from 'convex/server';
 import type { api } from '@/convex/_generated/api';
 
 import { BackendApiError, backendFetch } from './api-client';
+import type { WriteAdapter } from './convex-adapters';
 import { backendKey } from './query-keys';
 
 /**
@@ -189,3 +190,24 @@ export function ssoSelectableQuery() {
     retry: retryTransportOnly,
   });
 }
+
+/**
+ * Org-scoped writes that belong to no feature module. `prepareDeletion` is
+ * the cleanup pass Better Auth's own delete needs BEFORE it removes the
+ * organization row — it runs on the session alone (the caller is about to
+ * lose the org, so an org-scoped gate would be circular).
+ */
+export const orgWriteAdapters: Record<string, WriteAdapter> = {
+  'organizations/delete_cleanup:prepareOrganizationDeletion': {
+    run: (args) => {
+      const organizationId = args.organizationId;
+      if (typeof organizationId !== 'string' || organizationId === '') {
+        throw new Error('prepareOrganizationDeletion needs an organization');
+      }
+      return backendFetch<unknown>(
+        `/organizations/${encodeURIComponent(organizationId)}/prepare-deletion`,
+        { body: {} },
+      );
+    },
+  },
+};

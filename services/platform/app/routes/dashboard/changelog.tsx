@@ -6,13 +6,13 @@ import { Accordion } from '@tale/ui/markdown/components/accordion';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
 import { createFileRoute } from '@tanstack/react-router';
-import { useAction } from 'convex/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 
 import { ChangelogBackButton } from '@/app/features/changelog/components/changelog-back-button';
 import { ReleaseBody } from '@/app/features/changelog/components/release-body';
 import { useChangelogNotification } from '@/app/hooks/use-changelog-notification';
+import { useConvexClient } from '@/app/hooks/use-convex-client';
 import { api } from '@/convex/_generated/api';
 import { compareVersions, filterReleasesInRange } from '@/lib/compare-versions';
 import { useT } from '@/lib/i18n/client';
@@ -47,7 +47,7 @@ function ChangelogPage() {
   const { currentVersion, lastSeenVersion, stateLoaded, markSeen } =
     useChangelogNotification();
   const { locale } = useLocale();
-  const listReleases = useAction(api.changelog.actions.listReleases);
+  const client = useConvexClient();
 
   const [releases, setReleases] = useState<Release[] | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -70,7 +70,8 @@ function ChangelogPage() {
     ranRef.current = true;
     void (async () => {
       try {
-        const data = await listReleases(
+        const data = await client.action(
+          api.changelog.actions.listReleases,
           fromForFetch ? { from: fromForFetch } : {},
         );
         setReleases(data);
@@ -79,7 +80,7 @@ function ChangelogPage() {
         setError(err);
       }
     })();
-  }, [listReleases, fromForFetch, from, stateLoaded, currentVersion]);
+  }, [client, fromForFetch, from, stateLoaded, currentVersion]);
 
   // markSeen as soon as we know the load resolved (success or failure) and
   // currentVersion is known — reaching this page is acknowledgement.

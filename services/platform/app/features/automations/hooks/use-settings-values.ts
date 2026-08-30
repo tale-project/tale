@@ -1,8 +1,11 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useConvex, useConvexAuth } from 'convex/react';
+import { useConvexAuth } from 'convex/react';
+import { getFunctionName } from 'convex/server';
 
+import { useConvexClient } from '@/app/hooks/use-convex-client';
+import { ACTION_QUERY_ADAPTERS } from '@/app/lib/backend/convex-adapters';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import {
@@ -38,7 +41,11 @@ export function useAutomationSettingsValues(
   folder: string | null,
   settings: AutomationSettings | null,
 ) {
-  const convex = useConvex();
+  const client = useConvexClient();
+  const readAdapted =
+    ACTION_QUERY_ADAPTERS[
+      getFunctionName(api.documents.public_actions.readProjectTextValues)
+    ] !== undefined;
   const { isAuthenticated } = useConvexAuth();
   // Only FIELD forms own a YAML file; uploads panels read the folder's
   // documents through their own query instead.
@@ -56,7 +63,7 @@ export function useAutomationSettingsValues(
       const byFile: SettingsValuesByFile = {};
       await Promise.all(
         files.map(async (fileName) => {
-          byFile[fileName] = await convex.action(
+          byFile[fileName] = await client.action(
             api.documents.public_actions.readProjectTextValues,
             {
               organizationId,
@@ -70,6 +77,10 @@ export function useAutomationSettingsValues(
       return byFile;
     },
     staleTime: Infinity,
-    enabled: isAuthenticated && folder !== null && files.length > 0,
+    // The adapted lane authenticates with the session cookie and never
+    // waits on the Convex socket; the WS gate only matters while this read
+    // still rides it.
+    enabled:
+      folder !== null && files.length > 0 && (readAdapted || isAuthenticated),
   });
 }

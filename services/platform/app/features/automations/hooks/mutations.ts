@@ -1,6 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
-import { useAction } from 'convex/react';
-
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
@@ -100,6 +98,5 @@ export function useDeleteAutomation() {
  * saves versions, so the resolved value is only the closing summary.
  */
 export function useStartBuilderSession() {
-  const start = useAction(api.automations_builder.actions.startBuilderSession);
-  return useMutation({ mutationFn: start });
+  return useConvexAction(api.automations_builder.actions.startBuilderSession);
 }

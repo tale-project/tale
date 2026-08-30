@@ -1,7 +1,7 @@
 'use client';
 
-import { useMutation, useQuery } from 'convex/react';
-
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import { compareVersions } from '@/lib/compare-versions';
 import { getEnv } from '@/lib/env';
@@ -54,14 +54,14 @@ interface ChangelogNotification {
 
 export function useChangelogNotification(): ChangelogNotification {
   const currentVersion = getEnv('TALE_VERSION');
-  const state = useQuery(
+  const { data: state } = useConvexQuery(
     api.users.notification_state.getUserNotificationState,
     currentVersion ? {} : 'skip',
   );
-  const markSeenMutation = useMutation(
+  const markSeenMutation = useConvexMutation(
     api.users.notification_state.markChangelogSeen,
   );
-  const markToastedMutation = useMutation(
+  const markToastedMutation = useConvexMutation(
     api.users.notification_state.markToastShown,
   );
 
@@ -101,15 +101,19 @@ export function useChangelogNotification(): ChangelogNotification {
     needsBaseline: !!currentVersion && isFreshInstall,
     markSeen: () => {
       if (!currentVersion) return;
-      markSeenMutation({ version: currentVersion }).catch((err) => {
-        console.warn('markChangelogSeen failed', err);
-      });
+      markSeenMutation
+        .mutateAsync({ version: currentVersion })
+        .catch((err: unknown) => {
+          console.warn('markChangelogSeen failed', err);
+        });
     },
     markToasted: () => {
       if (!currentVersion) return;
-      markToastedMutation({ version: currentVersion }).catch((err) => {
-        console.warn('markToastShown failed', err);
-      });
+      markToastedMutation
+        .mutateAsync({ version: currentVersion })
+        .catch((err: unknown) => {
+          console.warn('markToastShown failed', err);
+        });
     },
   };
 }

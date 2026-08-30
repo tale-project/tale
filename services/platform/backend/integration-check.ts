@@ -2767,6 +2767,126 @@ async function checkDocuments(
       !foldersAfter.data.folders.some((f) => f.id === rootId),
     `delete → ${hardDelete.status}, gone → ${goneAfterDelete.status} (want 404), cascade → ${cascade.status}, memberGone → ${bGone.status} (want 404), rootListed=${foldersAfter.success ? foldersAfter.data.folders.some((f) => f.id === rootId) : 'ERR'}`,
   );
+
+  // ---- the settings panel's project-text pair -------------------------
+  // A form pre-fills from the file it writes, so read and write must agree
+  // on ONE artefact: the folder is created on demand, a second save
+  // REWRITES rather than forking, and a missing file reads as `{}` so a
+  // first-run panel falls back to its declared defaults.
+  const textProject = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/projects?orgId=${orgId}`, {
+        name: 'Settings panel project',
+      })
+    ).json(),
+  );
+  const textProjectId = textProject.success ? textProject.data.projectId : '';
+  const readMissing = z
+    .object({ values: z.record(z.string(), z.string()) })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/project-text/read?orgId=${orgId}`,
+          {
+            projectId: textProjectId,
+            folderName: 'Setup',
+            fileName: 'validation-policy.yaml',
+          },
+        )
+      ).json(),
+    );
+  const wrote = z
+    .object({
+      folderId: z.string(),
+      documentId: z.string(),
+      createdFolder: z.boolean(),
+      action: z.string(),
+    })
+    .safeParse(
+      await (
+        await send('POST', `/api/app/documents/project-text?orgId=${orgId}`, {
+          projectId: textProjectId,
+          folderName: 'Setup',
+          fileName: 'validation-policy.yaml',
+          yaml: { threshold: '0.85', reviewer: 'ops@example.com' },
+        })
+      ).json(),
+    );
+  const readBack = z
+    .object({ values: z.record(z.string(), z.string()) })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/project-text/read?orgId=${orgId}`,
+          {
+            projectId: textProjectId,
+            folderName: 'Setup',
+            fileName: 'validation-policy.yaml',
+          },
+        )
+      ).json(),
+    );
+  const rewrote = z
+    .object({ documentId: z.string(), action: z.string() })
+    .loose()
+    .safeParse(
+      await (
+        await send('POST', `/api/app/documents/project-text?orgId=${orgId}`, {
+          projectId: textProjectId,
+          folderName: 'Setup',
+          fileName: 'validation-policy.yaml',
+          yaml: { threshold: '0.9' },
+        })
+      ).json(),
+    );
+  const afterRewrite = z
+    .object({ values: z.record(z.string(), z.string()) })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/project-text/read?orgId=${orgId}`,
+          {
+            projectId: textProjectId,
+            folderName: 'Setup',
+            fileName: 'validation-policy.yaml',
+          },
+        )
+      ).json(),
+    );
+  const traversal = await send(
+    'POST',
+    `/api/app/documents/project-text?orgId=${orgId}`,
+    {
+      projectId: textProjectId,
+      folderName: 'Setup',
+      fileName: '../escape.yaml',
+      yaml: { a: 'b' },
+    },
+  );
+  record(
+    'project text: missing reads {}, write creates, re-save rewrites in place',
+    readMissing.success &&
+      Object.keys(readMissing.data.values).length === 0 &&
+      wrote.success &&
+      wrote.data.createdFolder &&
+      wrote.data.action === 'created' &&
+      readBack.success &&
+      readBack.data.values.threshold === '0.85' &&
+      readBack.data.values.reviewer === 'ops@example.com' &&
+      rewrote.success &&
+      rewrote.data.action === 'updated' &&
+      // ONE document, not a second one beside it.
+      rewrote.data.documentId === wrote.data.documentId &&
+      afterRewrite.success &&
+      afterRewrite.data.values.threshold === '0.9' &&
+      afterRewrite.data.values.reviewer === undefined &&
+      // A file name is a NAME: no path may escape the folder.
+      traversal.status === 400,
+    `missing=${readMissing.success ? Object.keys(readMissing.data.values).length : 'ERR'} (want 0), write=${wrote.success ? `${wrote.data.action}/${wrote.data.createdFolder}` : 'ERR'}, readBack=${readBack.success ? JSON.stringify(readBack.data.values) : 'ERR'}, rewrite=${rewrote.success ? `${rewrote.data.action}/${rewrote.data.documentId === (wrote.success ? wrote.data.documentId : '')}` : 'ERR'}, after=${afterRewrite.success ? JSON.stringify(afterRewrite.data.values) : 'ERR'}, traversal=${traversal.status} (want 400)`,
+  );
 }
 
 /**

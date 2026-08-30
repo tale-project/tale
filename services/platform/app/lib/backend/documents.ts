@@ -14,6 +14,7 @@ import type { api } from '@/convex/_generated/api';
 
 import { BackendApiError, backendFetch, backendUrl } from './api-client';
 import type {
+  ActionQueryAdapter,
   AdaptedPaginatedOptions,
   AdapterContext,
   PaginatedAdapter,
@@ -194,7 +195,46 @@ export function hubFoldersQuery(
   };
 }
 
+/** A string arg off the 0.4 call site; the empty folder name is legal. */
+function textArg(args: Record<string, unknown>, key: string): string {
+  const value = args[key];
+  return typeof value === 'string' ? value : '';
+}
+
+type FileStatusResult = FunctionReturnType<
+  typeof api.file_metadata.queries.getByStorageIds
+>;
+
+type EnsureProjectTextResult = FunctionReturnType<
+  typeof api.documents.public_actions.ensureProjectTextDocument
+>;
+
 export const documentReadAdapters: Record<string, ReadAdapter> = {
+  // Attachment pipeline statuses — the same row the chat seam serves, here
+  // for every OTHER surface that renders an attachment (task files, the
+  // conversation composer and message list).
+  'file_metadata/queries:getByStorageIds': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const storageIds = Array.isArray(args.storageIds)
+      ? args.storageIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    return {
+      queryKey: backendKey(
+        orgId,
+        'file_status',
+        [...storageIds].sort().join(','),
+      ),
+      // One-shot: the pipeline hooks that need to WATCH a staging file poll
+      // through their own query with its interval.
+      queryFn: () =>
+        backendFetch<{ statuses: FileStatusResult }>('/files/statuses', {
+          method: 'POST',
+          body: { storageIds },
+          orgId,
+        }).then((body) => body.statuses),
+    };
+  },
   'documents/queries:listDocuments': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -584,7 +624,55 @@ function stringArg(args: Record<string, unknown>, key: string): string {
   return value;
 }
 
+/** The automation settings panel's file pair (both are 0.4 ACTIONS). */
+export const documentActionQueryAdapters: Record<string, ActionQueryAdapter> = {
+  'documents/public_actions:readProjectTextValues': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return () =>
+      backendFetch<{ values: Record<string, string> }>(
+        '/documents/project-text/read',
+        {
+          orgId,
+          body: {
+            projectId: textArg(args, 'projectId'),
+            folderName: textArg(args, 'folderName'),
+            fileName: textArg(args, 'fileName'),
+          },
+        },
+      ).then((body) => body.values);
+  },
+};
+
 export const documentWriteAdapters: Record<string, WriteAdapter> = {
+  'documents/public_actions:ensureProjectTextDocument': {
+    run: (args, ctx) => {
+      const orgId = orgOf(args, ctx);
+      if (orgId === undefined) {
+        throw new Error('ensureProjectTextDocument needs an organization');
+      }
+      return backendFetch<EnsureProjectTextResult>('/documents/project-text', {
+        orgId,
+        body: {
+          projectId: textArg(args, 'projectId'),
+          folderName: textArg(args, 'folderName'),
+          fileName: textArg(args, 'fileName'),
+          ...(typeof args.content === 'string'
+            ? { content: args.content }
+            : {}),
+          ...(args.yaml !== undefined && args.yaml !== null
+            ? { yaml: args.yaml }
+            : {}),
+          ...(typeof args.contentType === 'string'
+            ? { contentType: args.contentType }
+            : {}),
+          ...(typeof args.externalItemId === 'string'
+            ? { externalItemId: args.externalItemId }
+            : {}),
+        },
+      });
+    },
+  },
   'documents/mutations:updateDocument': {
     run: (args, ctx) => {
       const orgId = requireOrg(args, ctx);

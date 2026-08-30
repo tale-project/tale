@@ -460,6 +460,25 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
     // Ownership rides the org-prefixed key — nothing to record on pg.
     run: () => Promise.resolve(null),
   },
+  'automations_builder/actions:startBuilderSession': {
+    // A session spans minutes of model turns; the route holds the request
+    // open exactly as the 0.4 action did.
+    run: (args, ctx) =>
+      backendFetch<unknown>('/automations/builder/sessions', {
+        orgId: requireOrg(args, ctx),
+        body: {
+          goal: stringArg(args, 'goal'),
+          model: args.model,
+          ...(typeof args.projectId === 'string'
+            ? { projectId: args.projectId }
+            : {}),
+          ...(typeof args.maxTurns === 'number'
+            ? { maxTurns: args.maxTurns }
+            : {}),
+        },
+      }),
+    invalidate: invalidateAutomations,
+  },
   'automations/upload_action:uploadAutomation': {
     run: (args, ctx) =>
       backendFetch<UploadAutomationResult>('/automations/upload', {

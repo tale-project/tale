@@ -4,7 +4,6 @@ import { Row, VStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useQuery } from 'convex/react';
 import {
   AudioLines,
   Code2,
@@ -23,6 +22,7 @@ import { memo, useState } from 'react';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -198,7 +198,7 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
 
   // For audio/video attachments in sent messages, fetch the transcript via
   // the existing plural query (skip when not media to avoid subscriptions).
-  const audioMetadataList = useQuery(
+  const { data: audioMetadataList } = useConvexQuery(
     api.file_metadata.queries.getByStorageIds,
     isMedia && organizationId
       ? { organizationId, storageIds: [attachment.fileId] }

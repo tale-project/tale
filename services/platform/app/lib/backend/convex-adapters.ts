@@ -17,6 +17,11 @@ import type { QueryClient } from '@tanstack/react-query';
 import { ConvexError } from 'convex/values';
 
 import {
+  accountActionQueryAdapters,
+  accountReadAdapters,
+  accountWriteAdapters,
+} from './account';
+import {
   adminActionQueryAdapters,
   adminPaginatedAdapters,
   adminReadAdapters,
@@ -30,6 +35,7 @@ import {
   automationWriteAdapters,
 } from './automations';
 import {
+  documentActionQueryAdapters,
   documentPaginatedAdapters,
   documentReadAdapters,
   documentWriteAdapters,
@@ -41,6 +47,7 @@ import {
 } from './engagement';
 import { libraryActionQueryAdapters, libraryWriteAdapters } from './library';
 import { metricsPaginatedAdapters, metricsReadAdapters } from './metrics';
+import { orgWriteAdapters } from './org';
 import {
   projectActionQueryAdapters,
   projectReadAdapters,
@@ -133,6 +140,7 @@ export type PaginatedAdapter = (
 ) => AdaptedPaginatedOptions | null;
 
 export const READ_ADAPTERS: Record<string, ReadAdapter> = {
+  ...accountReadAdapters,
   ...adminReadAdapters,
   ...automationReadAdapters,
   ...engagementReadAdapters,
@@ -152,20 +160,24 @@ export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
 };
 
 export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {
+  ...accountActionQueryAdapters,
   ...adminActionQueryAdapters,
   ...adminDataResidencyActionQueries,
   ...automationActionQueryAdapters,
+  ...documentActionQueryAdapters,
   ...libraryActionQueryAdapters,
   ...projectActionQueryAdapters,
   ...settingsActionQueryAdapters,
 };
 
 export const WRITE_ADAPTERS: Record<string, WriteAdapter> = {
+  ...accountWriteAdapters,
   ...adminWriteAdapters,
   ...automationWriteAdapters,
   ...libraryWriteAdapters,
   ...engagementWriteAdapters,
   ...documentWriteAdapters,
+  ...orgWriteAdapters,
   ...projectWriteAdapters,
   ...settingsWriteAdapters,
   ...taskWriteAdapters,

@@ -1,11 +1,19 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { queryOptions } from '@tanstack/react-query';
+import type { FunctionReturnType } from 'convex/server';
 
 import type {
   PasswordExpiryStatus,
   TwoFactorStatus,
 } from '@/app/context/account-bootstrap-context';
+import type { api } from '@/convex/_generated/api';
 
 import { BackendApiError, backendFetch } from './api-client';
+import type {
+  ActionQueryAdapter,
+  ReadAdapter,
+  WriteAdapter,
+} from './convex-adapters';
 import { backendKey } from './query-keys';
 
 /**
@@ -99,3 +107,69 @@ export function passwordExpiryQuery() {
     retry: retryTransportOnly,
   });
 }
+
+/**
+ * The changelog viewer's release feed. ORG-FREE like its 0.4 action (the
+ * page lives outside the `/dashboard/$id` segment, so there is no org to
+ * scope by) — the session cookie is the whole authorization.
+ */
+export const accountActionQueryAdapters: Record<string, ActionQueryAdapter> = {
+  'changelog/actions:listReleases': (args) => () => {
+    const from = typeof args.from === 'string' ? args.from : undefined;
+    return backendFetch<{ releases: unknown[] }>(
+      from === undefined || from === ''
+        ? '/changelog/releases'
+        : `/changelog/releases?from=${encodeURIComponent(from)}`,
+    ).then((body) => body.releases);
+  },
+};
+
+type NotificationStateResult = FunctionReturnType<
+  typeof api.users.notification_state.getUserNotificationState
+>;
+
+/**
+ * The changelog dot/toast state — per-USER and org-free, so it keys under
+ * the `me` scope like the rest of this module and no `/events` hint lane
+ * invalidates it (its two writers invalidate locally).
+ */
+export const accountReadAdapters: Record<string, ReadAdapter> = {
+  'users/notification_state:getUserNotificationState': () => ({
+    queryKey: backendKey(ACCOUNT_SCOPE, 'account', 'notification-state'),
+    queryFn: () =>
+      backendFetch<{ state: NotificationStateResult }>(
+        '/users/notification-state',
+      ).then((body) => body.state),
+  }),
+};
+
+function invalidateNotificationState(client: QueryClient): void {
+  void client.invalidateQueries({
+    queryKey: backendKey(ACCOUNT_SCOPE, 'account', 'notification-state'),
+  });
+}
+
+/** The version string the changelog writers stamp. */
+function versionArg(args: Record<string, unknown>): string {
+  return typeof args.version === 'string' ? args.version : '';
+}
+
+export const accountWriteAdapters: Record<string, WriteAdapter> = {
+  'users/notification_state:markChangelogSeen': {
+    run: (args) =>
+      backendFetch<{ ok: boolean }>(
+        '/users/notification-state/changelog-seen',
+        {
+          body: { version: versionArg(args) },
+        },
+      ).then(() => null),
+    invalidate: invalidateNotificationState,
+  },
+  'users/notification_state:markToastShown': {
+    run: (args) =>
+      backendFetch<{ ok: boolean }>('/users/notification-state/toast-shown', {
+        body: { version: versionArg(args) },
+      }).then(() => null),
+    invalidate: invalidateNotificationState,
+  },
+};
