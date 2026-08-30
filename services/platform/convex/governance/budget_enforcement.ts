@@ -1,10 +1,8 @@
-import type { GenericQueryCtx } from 'convex/server';
-
 import type {
   BudgetConfig,
   BudgetRule,
 } from '../../lib/shared/schemas/governance';
-import type { DataModel } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import { buildPeriodKey, readPolicyConfig } from './helpers';
 
 export interface BudgetWarning {
@@ -230,7 +228,7 @@ export function resolveEffectiveLimits(
  * Query the user's personal usage for a given period from the ledger.
  */
 async function getUserPeriodUsage(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   userId: string,
   periodKey: string,
@@ -262,7 +260,7 @@ async function getUserPeriodUsage(
  * Team budgets are shared caps -- every member's usage counts toward the limit.
  */
 async function getTeamPeriodUsage(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   teamId: string,
   periodKey: string,
@@ -293,7 +291,7 @@ async function getTeamPeriodUsage(
  * Query the organization-wide aggregate usage for a given period.
  */
 async function getOrgPeriodUsage(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   periodKey: string,
 ): Promise<UsageTotals> {
@@ -323,7 +321,7 @@ async function getOrgPeriodUsage(
  * budget scope.
  */
 async function getApiKeyPeriodUsage(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   apiKeyId: string,
   periodKey: string,
@@ -519,7 +517,7 @@ export function collectWarnings(
  *   enforced against the key's own usage. Undefined for in-app callers (no key).
  */
 export async function checkBudget(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   userId: string,
   userTeamIds: string[],
@@ -735,7 +733,7 @@ export async function checkBudget(
  * `checkBudget` at the seam.
  */
 export async function computeRollingRemainingCostCents(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   userId: string,
   userTeamIds: string[],

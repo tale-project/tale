@@ -236,7 +236,7 @@ async function projectLabelsById(
     { organizationId, projectIds: unique },
   );
   return new Map(
-    labels.map((row) => [
+    labels.map((row: { id: string; name: string; key?: string }) => [
       row.id,
       row.key !== undefined
         ? { name: row.name, key: row.key }
@@ -984,7 +984,7 @@ export function createChatToolExecutor(
         );
         const needle = query.toLowerCase();
         const matches = websites.filter(
-          (site) =>
+          (site: Parameters<typeof websiteResultEntry>[0]) =>
             site.domain.toLowerCase().includes(needle) ||
             (site.title ?? '').toLowerCase().includes(needle) ||
             (site.description ?? '').toLowerCase().includes(needle),
@@ -1030,7 +1030,7 @@ export function createChatToolExecutor(
             const projectsById = await projectLabelsById(
               ctx,
               who.organizationId,
-              tasks.page.map((task) =>
+              tasks.page.map((task: Doc<'tasks'>) =>
                 task.projectId != null ? String(task.projectId) : null,
               ),
             );
@@ -1332,11 +1332,11 @@ export function createChatToolExecutor(
       const projectsById = await projectLabelsById(
         ctx,
         who.organizationId,
-        tasks.page.map((task) =>
+        tasks.page.map((task: Doc<'tasks'>) =>
           task.projectId != null ? String(task.projectId) : null,
         ),
       );
-      const results = tasks.page.map((task) =>
+      const results = tasks.page.map((task: Doc<'tasks'>) =>
         taskResultEntry(task, archivedProjectIds, projectsById),
       );
       return envelope({
@@ -1370,7 +1370,7 @@ export function createChatToolExecutor(
         },
       );
       const hasMore = !projects.isDone;
-      const results = projects.page.map((project) =>
+      const results = projects.page.map((project: Doc<'projects'>) =>
         projectResultEntry(project, archivedProjectIds),
       );
       return envelope({
@@ -1398,8 +1398,9 @@ export function createChatToolExecutor(
         },
       );
       const hasMore = !entries.isDone;
-      const results = entries.page.map((entry) =>
-        knowledgeEntryResultEntry(entry),
+      const results = entries.page.map(
+        (entry: Parameters<typeof knowledgeEntryResultEntry>[0]) =>
+          knowledgeEntryResultEntry(entry),
       );
       return envelope({
         results,
@@ -1426,8 +1427,9 @@ export function createChatToolExecutor(
         },
       );
       const hasMore = !contacts.isDone;
-      const results = contacts.page.map((contact) =>
-        contactResultEntry(contact),
+      const results = contacts.page.map(
+        (contact: Parameters<typeof contactResultEntry>[0]) =>
+          contactResultEntry(contact),
       );
       return envelope({
         results,
@@ -1454,8 +1456,9 @@ export function createChatToolExecutor(
         },
       );
       const hasMore = !products.isDone;
-      const results = products.page.map((product) =>
-        productResultEntry(product),
+      const results = products.page.map(
+        (product: Parameters<typeof productResultEntry>[0]) =>
+          productResultEntry(product),
       );
       return envelope({
         results,
@@ -1480,13 +1483,19 @@ export function createChatToolExecutor(
       );
       const pageRows = websites.slice(0, limit);
       const hasMore = websites.length > pageRows.length;
-      const results = pageRows.map((site) => ({
-        ...websiteResultEntry(site),
-        // The catalog answer "how big is each site?" — search rows skip it.
-        ...(site.pageCount !== undefined
-          ? { data: { pageCount: site.pageCount } }
-          : {}),
-      }));
+      const results = pageRows.map(
+        (
+          site: Parameters<typeof websiteResultEntry>[0] & {
+            pageCount?: number;
+          },
+        ) => ({
+          ...websiteResultEntry(site),
+          // The catalog answer "how big is each site?" — search rows skip it.
+          ...(site.pageCount !== undefined
+            ? { data: { pageCount: site.pageCount } }
+            : {}),
+        }),
+      );
       return envelope({
         results,
         hasMore,
@@ -1521,8 +1530,9 @@ export function createChatToolExecutor(
         ? found.conversations.slice(0, limit)
         : found.conversations;
       const hasMore = overfetched || found.truncated;
-      const results = rows.map((conversation) =>
-        conversationResultEntry(conversation),
+      const results = rows.map(
+        (conversation: Parameters<typeof conversationResultEntry>[0]) =>
+          conversationResultEntry(conversation),
       );
       return envelope({
         results,
@@ -1559,23 +1569,33 @@ export function createChatToolExecutor(
       );
       const rows = found.attachments;
       const hasMore = found.truncated;
-      const results = rows.map((attachment): SearchResultEntry => ({
-        kind: 'mail-attachment',
-        // Chosen by whoever sent the mail.
-        title: sanitizeUntrustedField(attachment.fileName),
-        // The corpus ref, so a listed attachment can be read with rag_fetch
-        // instead of searched for by name.
-        ref: attachment.ref,
-        data: {
-          conversationId: attachment.conversationId,
-          contentType: attachment.contentType,
-          sizeBytes: attachment.size,
-          receivedAt: modelTimestamp(attachment.receivedAt),
-          // A received-but-unindexed attachment cannot be fetched for its
-          // text. Saying so beats implying it is readable.
-          indexed: attachment.indexed,
-        },
-      }));
+      const results = rows.map(
+        (attachment: {
+          fileName: string;
+          ref: string;
+          conversationId: string;
+          contentType: string;
+          size: number;
+          receivedAt: number;
+          indexed: boolean;
+        }): SearchResultEntry => ({
+          kind: 'mail-attachment',
+          // Chosen by whoever sent the mail.
+          title: sanitizeUntrustedField(attachment.fileName),
+          // The corpus ref, so a listed attachment can be read with rag_fetch
+          // instead of searched for by name.
+          ref: attachment.ref,
+          data: {
+            conversationId: attachment.conversationId,
+            contentType: attachment.contentType,
+            sizeBytes: attachment.size,
+            receivedAt: modelTimestamp(attachment.receivedAt),
+            // A received-but-unindexed attachment cannot be fetched for its
+            // text. Saying so beats implying it is readable.
+            indexed: attachment.indexed,
+          },
+        }),
+      );
       return envelope({
         results,
         hasMore,
@@ -1627,16 +1647,24 @@ export function createChatToolExecutor(
       },
     );
     const hasMore = found.hasMore;
-    const results = found.documents.map((doc): SearchResultEntry => ({
-      kind: 'document',
-      title: doc.title,
-      ref: doc.fileId,
-      data: {
-        ...(doc.extension !== null ? { extension: doc.extension } : {}),
-        ...(doc.folderPath !== null ? { folderPath: doc.folderPath } : {}),
-        createdAt: modelTimestamp(doc.createdAt),
-      },
-    }));
+    const results = found.documents.map(
+      (doc: {
+        title: string;
+        fileId: string;
+        extension: string | null;
+        folderPath: string | null;
+        createdAt: number;
+      }): SearchResultEntry => ({
+        kind: 'document',
+        title: doc.title,
+        ref: doc.fileId,
+        data: {
+          ...(doc.extension !== null ? { extension: doc.extension } : {}),
+          ...(doc.folderPath !== null ? { folderPath: doc.folderPath } : {}),
+          createdAt: modelTimestamp(doc.createdAt),
+        },
+      }),
+    );
     // Hub and team files are the whole catalog only for project-less asks —
     // project files stay behind their "projectId", and the source line says
     // so rather than presenting the hub as everything.
@@ -1838,7 +1866,7 @@ export function createChatToolExecutor(
         status: 'ok',
         kind: 'project',
         ref,
-        tasks: tasks.page.map((task) => ({
+        tasks: tasks.page.map((task: Doc<'tasks'>) => ({
           ref: `${WORK_REF_PREFIX.task}${String(task._id)}`,
           title: task.title,
           status: task.status,

@@ -40,7 +40,6 @@ import { internal } from '../_generated/api';
 import {
   jsonError,
   requireRestDeveloper,
-  withRestAuth,
   type RestContext,
 } from '../lib/rest/helpers';
 
@@ -234,13 +233,7 @@ export async function handleMcpRequest(
   }
 }
 
-export const mcpHandler = withRestAuth('rest:api', handleMcpRequest);
-
 /** GET is not served — this endpoint offers JSON responses, not an SSE stream. */
 export function mcpGetNotAllowed(): Response {
   return jsonError('Use POST with a JSON-RPC message', 405);
 }
-
-export const mcpMethodNotAllowed = withRestAuth('rest:api', async () =>
-  mcpGetNotAllowed(),
-);

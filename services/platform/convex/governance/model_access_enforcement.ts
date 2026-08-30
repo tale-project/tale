@@ -1,8 +1,6 @@
-import type { GenericQueryCtx } from 'convex/server';
-
 import type { ModelAccessConfig } from '../../lib/shared/schemas/governance';
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
-import type { DataModel } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import { readPolicyConfig } from './helpers';
 
 export interface ModelAccessCheckResult {
@@ -125,7 +123,7 @@ function isModelPermitted(
  * - The model passes the matching rule's allow/block check
  */
 export async function checkModelAccess(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   userId: string,
   teamIds: string[],
@@ -189,7 +187,7 @@ export function evaluateModelAccess(
  * When no policy exists or it is disabled, returns the full candidate list unchanged.
  */
 export async function getAccessibleModels(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   userId: string,
   teamIds: string[],

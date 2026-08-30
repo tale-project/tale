@@ -147,8 +147,7 @@ export async function resolveProviderCredential(
       providerSlug: args.providerSlug,
       ...(args.credentialId !== undefined
         ? {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 0.5 ids are plain strings where 0.4 typed Convex ids
-            credentialId: args.credentialId as never,
+            credentialId: args.credentialId,
           }
         : {}),
       ...(args.excludeBrokerTokens !== undefined

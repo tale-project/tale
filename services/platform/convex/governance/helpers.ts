@@ -1,5 +1,3 @@
-import type { GenericDatabaseReader, GenericQueryCtx } from 'convex/server';
-
 import {
   DEFAULT_PASSWORD_POLICY,
   DEFAULT_TWO_FACTOR_POLICY,
@@ -11,7 +9,7 @@ import {
   twoFactorPolicyConfigSchema,
 } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-utils';
-import type { DataModel } from '../_generated/dataModel';
+import type { DatabaseReader, QueryCtx } from '../_generated/server';
 import { readConfigCacheRow } from '../lib/config_cache/read';
 
 /** The readable subset of a governance policy stored in `configCache`
@@ -38,7 +36,7 @@ export interface PolicyRow {
  * `DatabaseWriter` is assignable to `DatabaseReader`).
  */
 export async function readPolicyRow(
-  db: GenericDatabaseReader<DataModel>,
+  db: DatabaseReader,
   organizationId: string,
   policyType: PolicyType,
 ): Promise<PolicyRow | null> {
@@ -50,7 +48,7 @@ export async function readPolicyRow(
  * Returns the config object or null if no policy exists.
  */
 export async function readPolicyConfig<T>(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   policyType: PolicyType,
 ): Promise<T | null> {
@@ -76,7 +74,7 @@ export async function readPolicyConfig<T>(
  * grace window on first activation).
  */
 export async function getPasswordPolicyRow(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
 ): Promise<{ policy: PasswordPolicyConfig; effectiveAt: number | null }> {
   const row = await readPolicyRow(ctx.db, organizationId, 'password_policy');
@@ -101,7 +99,7 @@ export async function getPasswordPolicyRow(
 }
 
 export async function getPasswordPolicy(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
 ): Promise<PasswordPolicyConfig> {
   return (await getPasswordPolicyRow(ctx, organizationId)).policy;
@@ -112,7 +110,7 @@ export async function getPasswordPolicy(
  * (disabled) policy when the row is absent or malformed.
  */
 export async function getTwoFactorPolicy(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
 ): Promise<TwoFactorPolicyConfig> {
   const row = await readPolicyRow(ctx.db, organizationId, 'two_factor_policy');
@@ -156,7 +154,7 @@ export function mergeStrictestTwoFactorPolicy(
  * collapses to the one org's policy.
  */
 export async function getStrictestPasswordPolicyForUser(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationIds: readonly string[],
 ): Promise<{ policy: PasswordPolicyConfig; effectiveAt: number | null }> {
   if (organizationIds.length === 0) {

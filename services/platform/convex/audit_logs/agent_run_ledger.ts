@@ -25,6 +25,14 @@ import { convexStorageId } from '../lib/storage/blob_ref';
 import { createAuditLog } from './helpers';
 import type { AuditLogActorType } from './types';
 
+/** The deliverable rows a task carries, as much of one as the ledger reads. */
+interface TaskOutputRow {
+  runId?: string;
+  fileId: string;
+  fileName: string;
+  fileSize?: number;
+}
+
 /** One action for both surfaces; `metadata.surface` tells them apart. */
 export const AGENT_RUN_LEDGER_ACTION = 'agent.run_settled';
 export const AGENT_RUN_LEDGER_RESOURCE_TYPE = 'agent_run';
@@ -102,8 +110,8 @@ export async function recordTaskAgentRunLedgerEntry(
   // sha256/size ride Convex `_storage` system metadata; an `s3:` blob ref
   // has no system row — size falls back to the task row's own snapshot and
   // the hash is omitted.
-  const producedByRun = (task?.outputs ?? []).filter(
-    (output) => output.runId === run._id,
+  const producedByRun: TaskOutputRow[] = (task?.outputs ?? []).filter(
+    (output: TaskOutputRow) => output.runId === run._id,
   );
   const outputs: Record<string, unknown>[] = [];
   for (const output of producedByRun.slice(0, AGENT_RUN_LEDGER_OUTPUTS_CAP)) {

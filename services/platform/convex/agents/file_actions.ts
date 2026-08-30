@@ -1,22 +1,5 @@
 'use node';
 
-/**
- * Internal `'use node'` handlers for reading and editing an organization's
- * agents. The public `actions.ts` authenticates the caller, resolves the org
- * slug from a verified membership, and delegates here — a separate module so
- * the generated api types keep their shapes instead of collapsing to `any`,
- * which is also why every handler carries an explicit return annotation.
- *
- * The visibility rule is applied HERE, at the filesystem edge: an agent the
- * asking member may not use never leaves this layer, so no caller can leak one
- * by forgetting to filter — including the turn resolver, which reads through
- * the same gate as the roster. The org slug arrives already verified; every
- * path is then resolved from it alone, which is what keeps one org's agents
- * out of another's.
- */
-
-import { v } from 'convex/values';
-
 import {
   canEditAgent,
   canViewAgent,
@@ -36,7 +19,6 @@ import {
   isValidAgentSlug,
   type AgentDefinition,
 } from '../../lib/shared/schemas/agents';
-import { internalAction } from '../_generated/server';
 import {
   createOrgAgentReader,
   listAgentHistoryEntries,
@@ -48,11 +30,6 @@ import {
   type AgentHistoryEntry,
 } from './file_utils';
 import {
-  agentDocumentValidator,
-  agentEditArgs,
-  agentListingValidator,
-  agentViewerArgs,
-  resolvedAgentValidator,
   type AgentDocumentView,
   type AgentListingView,
   type AgentSummaryView,
@@ -148,14 +125,6 @@ export async function listAgentsForCaller(
     })),
   };
 }
-
-export const listAgents = internalAction({
-  args: { orgSlug: v.string(), ...agentViewerArgs },
-  returns: agentListingValidator,
-  handler: async (_ctx, args): Promise<AgentListingView> =>
-    listAgentsForCaller(args),
-});
-
 /**
  * One agent in full, or `null` when the org has no such file. An agent the
  * member may not use reads as absent — telling them it exists would already
@@ -170,14 +139,6 @@ export async function readAgentForCaller(
   if (agent === null || !canViewAgent(agent.definition, viewer)) return null;
   return toDocument(agent, viewer);
 }
-
-export const readAgent = internalAction({
-  args: { orgSlug: v.string(), slug: v.string(), ...agentViewerArgs },
-  returns: v.union(v.null(), agentDocumentValidator),
-  handler: async (_ctx, args): Promise<AgentDocumentView | null> =>
-    readAgentForCaller(args),
-});
-
 /**
  * The agent answering one turn, resolved for `locale`: its localized words
  * plus what it may reach for. `null` when the org has no such agent or the
@@ -203,19 +164,6 @@ export async function resolveAgentForCaller(
     knowledge: resolved.knowledge,
   };
 }
-
-export const resolveAgent = internalAction({
-  args: {
-    orgSlug: v.string(),
-    slug: v.string(),
-    locale: v.string(),
-    ...agentViewerArgs,
-  },
-  returns: v.union(v.null(), resolvedAgentValidator),
-  handler: async (_ctx, args): Promise<ResolvedAgentView | null> =>
-    resolveAgentForCaller(args),
-});
-
 /**
  * Create or update an agent.
  *
@@ -318,19 +266,6 @@ export async function saveAgentForCaller(
     viewer,
   );
 }
-
-export const saveAgent = internalAction({
-  args: {
-    orgSlug: v.string(),
-    slug: v.string(),
-    ...agentViewerArgs,
-    ...agentEditArgs,
-  },
-  returns: agentDocumentValidator,
-  handler: async (_ctx, args): Promise<AgentDocumentView> =>
-    saveAgentForCaller(args),
-});
-
 /**
  * The superseded versions of one agent, newest first. Every save leaves the
  * previous file in the trail, so this is the whole restore surface. Visible
@@ -347,14 +282,6 @@ export async function listHistoryForCaller(
   }
   return listAgentHistoryEntries(args.orgSlug, args.slug);
 }
-
-export const listHistory = internalAction({
-  args: { orgSlug: v.string(), slug: v.string(), ...agentViewerArgs },
-  returns: v.array(v.object({ entry: v.string(), savedAt: v.number() })),
-  handler: async (_ctx, args): Promise<AgentHistoryEntry[]> =>
-    listHistoryForCaller(args),
-});
-
 /**
  * Restore one history snapshot as the agent's current version. Additive on
  * purpose: the write snapshots the superseded current file into the trail
@@ -414,19 +341,6 @@ export async function restoreFromHistoryForCaller(
     viewer,
   );
 }
-
-export const restoreFromHistory = internalAction({
-  args: {
-    orgSlug: v.string(),
-    slug: v.string(),
-    entry: v.string(),
-    ...agentViewerArgs,
-  },
-  returns: agentDocumentValidator,
-  handler: async (_ctx, args): Promise<AgentDocumentView> =>
-    restoreFromHistoryForCaller(args),
-});
-
 /** Delete an agent and its history. Deleting an absent one is a no-op. */
 export async function deleteAgentForCaller(
   args: AgentCallerArgs & { slug: string },
@@ -443,13 +357,6 @@ export async function deleteAgentForCaller(
   }
   return removeAgentFile(args.orgSlug, args.slug);
 }
-
-export const deleteAgent = internalAction({
-  args: { orgSlug: v.string(), slug: v.string(), ...agentViewerArgs },
-  returns: v.boolean(),
-  handler: async (_ctx, args): Promise<boolean> => deleteAgentForCaller(args),
-});
-
 /**
  * Read one agent, turning a malformed file into a AppError that names the
  * org-relative path. The caller sees which file to fix rather than an agent

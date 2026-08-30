@@ -1,9 +1,5 @@
 'use node';
 
-import { v } from 'convex/values';
-
-import { internalAction } from '../_generated/server';
-
 // We scrape the public web HTML at github.com/.../releases instead of going
 // through api.github.com to dodge the 60-req/hour unauthenticated rate limit
 // — the web path is CDN-served and the only practical way to get paginated
@@ -14,16 +10,6 @@ import { internalAction } from '../_generated/server';
 const RELEASES_PAGE_URL = 'https://github.com/tale-project/tale/releases';
 const RELEASE_TAG_URL_PREFIX =
   'https://github.com/tale-project/tale/releases/tag/';
-
-const releaseShape = v.object({
-  tag: v.string(),
-  version: v.string(),
-  name: v.union(v.string(), v.null()),
-  body: v.union(v.string(), v.null()),
-  htmlUrl: v.string(),
-  publishedAt: v.union(v.string(), v.null()),
-});
-
 interface ParsedRelease {
   tag: string;
   version: string;
@@ -142,13 +128,6 @@ function parseReleasesHtml(html: string): ParsedRelease[] {
 
   return results;
 }
-
-export const fetchReleasesPageUncached = internalAction({
-  args: { page: v.number() },
-  returns: v.array(releaseShape),
-  handler: async (_ctx, { page }) => fetchReleasesPageImpl(page),
-});
-
 /** The page fetch as a PLAIN exported function — the internalAction above
  * wraps it, and the 0.5 backend calls it behind its own TTL cache. */
 export async function fetchReleasesPageImpl(

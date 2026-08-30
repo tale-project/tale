@@ -64,7 +64,6 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
-import { v } from 'convex/values';
 import type { z } from 'zod/v4';
 
 import {
@@ -73,7 +72,6 @@ import {
 } from '../../lib/shared/config/registry';
 import { parseYaml } from '../../lib/shared/config/yaml';
 import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
-import { internalAction } from '../_generated/server';
 import { resolveBuiltinCatalogRoot } from '../lib/config_store/builtin_catalog';
 import { resolveDomainDir } from '../lib/config_store/resolvers';
 import {
@@ -700,40 +698,6 @@ export async function removeOrgSubtree(
   }
 }
 
-/**
- * Remove a deleted org's entire `<orgSlug>/` subtree under
- * `${TALE_CONFIG_DIR}`. Safety: see {@link removeOrgSubtree} — this action is
- * a thin, guarded wrapper (env validation + janitor sweep) around it.
- */
-export const cleanupOrgFilesystem = internalAction({
-  args: {
-    orgSlug: v.string(),
-  },
-  returns: v.null(),
-  handler: async (_ctx, args) => {
-    const root = process.env.TALE_CONFIG_DIR;
-    if (!root || !path.isAbsolute(root)) {
-      console.error(
-        '[cleanupOrgFilesystem] TALE_CONFIG_DIR is unset or not absolute; refusing to proceed',
-      );
-      return null;
-    }
-
-    // Opportunistic janitor: sweep stale `.deleted-*` siblings older than
-    // 24h that survived a prior failed rm. Best-effort; failures only log.
-    await sweepStaleCondemnedDirs(root).catch((err) => {
-      console.warn('[cleanupOrgFilesystem] janitor sweep failed:', err);
-    });
-
-    // Guarded two-phase removal. The slug / path-containment / symlink
-    // defenses live in the shared helper that org-create's cleanFirst path
-    // also uses, so both deletion entry points stay in lockstep.
-    await removeOrgSubtree(root, args.orgSlug);
-
-    return null;
-  },
-});
-
 export interface ScaffoldRunResult {
   ok: boolean;
   skipped: boolean;
@@ -866,52 +830,3 @@ export async function listMissingScaffoldDomains(
   }
   return missing;
 }
-
-export const scaffoldNewOrganization = internalAction({
-  args: {
-    orgSlug: v.string(),
-    /**
-     * When true, overwrite the catalog-named subset of files in each
-     * domain, preserving `*.secrets.json` and `.history/`. When false
-     * (default), skip per-domain if the target already has visible
-     * files (idempotent org-create path).
-     */
-    override: v.optional(v.boolean()),
-    /**
-     * When true, throw an aggregated error if any domain copy failed. Used
-     * by `reseedAllOrgsFromBuiltin` so partial failures surface as non-zero
-     * CLI exit.
-     *
-     * When false (default), continue past per-domain failures and return
-     * the per-domain result map. Used by `auth.afterCreateOrganization`
-     * where partial-scaffold-on-org-create is preferable to blocking the
-     * UX.
-     */
-    strict: v.optional(v.boolean()),
-    /**
-     * When true (the org-create path), remove any leftover `<orgSlug>/`
-     * subtree before seeding so the result is a faithful copy of the catalog
-     * with no stale/renamed orphans. Safe because Better Auth's
-     * `afterCreateOrganization` fires only for a genuinely new slug — anything
-     * already on disk is an orphan from a deleted org or a dev wipe, and would
-     * otherwise trip the per-domain `override:false` skip. NOT set by
-     * `reseedAllOrgsFromBuiltin`, which reseeds LIVE orgs and must preserve
-     * their secrets/customizations (that path uses `override`).
-     */
-    cleanFirst: v.optional(v.boolean()),
-  },
-  returns: v.object({
-    ok: v.boolean(),
-    skipped: v.boolean(),
-    results: v.array(
-      v.object({
-        domain: v.string(),
-        ok: v.boolean(),
-        error: v.optional(v.string()),
-      }),
-    ),
-  }),
-  handler: async (_ctx, args) => {
-    return await scaffoldOrgFromCatalog(args);
-  },
-});

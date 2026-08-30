@@ -352,16 +352,16 @@ export async function hasOpenChildren(
 }
 
 /** The task fields a workflow-run subject is built from. */
-export type TaskWorkflowSubjectFields = Pick<
-  Doc<'tasks'>,
-  | '_id'
-  | 'title'
-  | 'status'
-  | 'projectId'
-  | 'externalSystem'
-  | 'externalId'
-  | 'externalUrl'
->;
+export interface TaskWorkflowSubjectFields {
+  _id: string;
+  title: string;
+  status: string;
+  projectId: string;
+  /** The external trio: only a task mirrored from an issue tracker has it. */
+  externalSystem?: string;
+  externalId?: string;
+  externalUrl?: string;
+}
 
 /**
  * The `input.task` subject a task-workflow run receives — ONE builder for
@@ -378,10 +378,10 @@ export function taskWorkflowSubjectInput(task: TaskWorkflowSubjectFields): {
   const repoRef = parseRepoRef(task.externalId);
   return {
     task: {
-      id: String(task._id),
+      id: task._id,
       title: task.title,
       status: task.status,
-      projectId: String(task.projectId),
+      projectId: task.projectId,
       ...(task.externalSystem !== undefined
         ? { externalSystem: task.externalSystem }
         : {}),

@@ -1,143 +1,182 @@
-/* eslint-disable */
+/* oxlint-disable typescript/no-explicit-any -- rows are shaped at the boundary
+   that reads them; see the note on `Doc` in ./dataModel. */
 /**
- * Generated utilities for implementing server-side Convex query and mutation functions.
+ * The context types the reused 0.4 handler bodies are written against.
  *
- * THIS CODE IS AUTOMATICALLY GENERATED.
+ * This is a description of what the 0.5 ctx shim (`backend/lib/convex-shim.ts`)
+ * actually hands a body, not a re-export of the retired runtime's types. Two
+ * things differ from what the generator used to emit, and both differences are
+ * the point:
  *
- * To regenerate, run `npx convex dev`.
- * @module
+ * 1. **Ids are strings.** The branded `GenericId` retired with the runtime that
+ *    minted them; Postgres ids are text, and a body that reads one out of a row
+ *    and passes it back to `db.get` should compile.
+ * 2. **Every ctx can `runQuery`/`runMutation`/`runAction`.** The shim keeps one
+ *    handler table and one dispatch path, so the query/mutation/action ladder
+ *    the runtime enforced is not a distinction it can make.
+ *
+ * `db` is still here because 26 reused modules still read rows through it. It
+ * is the surface that shrinks as domains are ported: when a module's rows move
+ * to a 0.5 domain module, its `db` calls go with them.
+ *
+ * HAND-MAINTAINED, not generated.
  */
 
-import {
-  ActionBuilder,
-  HttpActionBuilder,
-  MutationBuilder,
-  QueryBuilder,
-  GenericActionCtx,
-  GenericMutationCtx,
-  GenericQueryCtx,
-  GenericDatabaseReader,
-  GenericDatabaseWriter,
-} from "convex/server";
-import type { DataModel } from "./dataModel.js";
+/** A row, as the shim returns it. */
+type Row = any;
+
+/** What `paginate` is given and gives back. */
+export interface PaginationOptions {
+  numItems: number;
+  cursor: string | null;
+  endCursor?: string | null;
+  id?: number;
+  maximumRowsRead?: number;
+  maximumBytesRead?: number;
+}
+
+export interface PaginationResult<T> {
+  page: T[];
+  isDone: boolean;
+  continueCursor: string;
+  splitCursor?: string | null;
+  pageStatus?: 'SplitRecommended' | 'SplitRequired' | null;
+}
 
 /**
- * Define a query in this Convex app's public API.
- *
- * This function will be allowed to read your Convex database and will be accessible from the client.
- *
- * @param func - The query function. It receives a {@link QueryCtx} as its first argument.
- * @returns The wrapped query. Include this as an `export` to name it and make it accessible.
+ * The index-range builder. Unlike the generated one it does not step through a
+ * declared field list — there is no schema to declare it — so every bound
+ * chains onto every other.
  */
-export declare const query: QueryBuilder<DataModel, "public">;
+export interface IndexRangeBuilder {
+  eq(field: string, value: any): IndexRangeBuilder;
+  gt(field: string, value: any): IndexRangeBuilder;
+  gte(field: string, value: any): IndexRangeBuilder;
+  lt(field: string, value: any): IndexRangeBuilder;
+  lte(field: string, value: any): IndexRangeBuilder;
+}
 
-/**
- * Define a query that is only accessible from other Convex functions (but not from the client).
- *
- * This function will be allowed to read from your Convex database. It will not be accessible from the client.
- *
- * @param func - The query function. It receives a {@link QueryCtx} as its first argument.
- * @returns The wrapped query. Include this as an `export` to name it and make it accessible.
- */
-export declare const internalQuery: QueryBuilder<DataModel, "internal">;
+/** The search-index range builder. */
+export interface SearchFilterBuilder {
+  search(field: string, query: string): SearchFilterBuilder;
+  eq(field: string, value: any): SearchFilterBuilder;
+}
 
-/**
- * Define a mutation in this Convex app's public API.
- *
- * This function will be allowed to modify your Convex database and will be accessible from the client.
- *
- * @param func - The mutation function. It receives a {@link MutationCtx} as its first argument.
- * @returns The wrapped mutation. Include this as an `export` to name it and make it accessible.
- */
-export declare const mutation: MutationBuilder<DataModel, "public">;
+/** The expression builder handed to `.filter`. */
+export interface FilterBuilder {
+  field(path: string): any;
+  eq(left: any, right: any): any;
+  neq(left: any, right: any): any;
+  lt(left: any, right: any): any;
+  lte(left: any, right: any): any;
+  gt(left: any, right: any): any;
+  gte(left: any, right: any): any;
+  add(left: any, right: any): any;
+  sub(left: any, right: any): any;
+  and(...exprs: any[]): any;
+  or(...exprs: any[]): any;
+  not(expr: any): any;
+}
 
-/**
- * Define a mutation that is only accessible from other Convex functions (but not from the client).
- *
- * This function will be allowed to modify your Convex database. It will not be accessible from the client.
- *
- * @param func - The mutation function. It receives a {@link MutationCtx} as its first argument.
- * @returns The wrapped mutation. Include this as an `export` to name it and make it accessible.
- */
-export declare const internalMutation: MutationBuilder<DataModel, "internal">;
+export interface OrderedQuery extends AsyncIterable<Row> {
+  filter(predicate: (q: FilterBuilder) => any): OrderedQuery;
+  collect(): Promise<Row[]>;
+  take(count: number): Promise<Row[]>;
+  first(): Promise<Row | null>;
+  unique(): Promise<Row | null>;
+  paginate(options: PaginationOptions): Promise<PaginationResult<Row>>;
+}
 
-/**
- * Define an action in this Convex app's public API.
- *
- * An action is a function which can execute any JavaScript code, including non-deterministic
- * code and code with side-effects, like calling third-party services.
- * They can be run in Convex's JavaScript environment or in Node.js using the "use node" directive.
- * They can interact with the database indirectly by calling queries and mutations using the {@link ActionCtx}.
- *
- * @param func - The action. It receives an {@link ActionCtx} as its first argument.
- * @returns The wrapped action. Include this as an `export` to name it and make it accessible.
- */
-export declare const action: ActionBuilder<DataModel, "public">;
+export interface TableQuery extends OrderedQuery {
+  withIndex(
+    index: string,
+    range?: (q: IndexRangeBuilder) => IndexRangeBuilder,
+  ): TableQuery;
+  withSearchIndex(
+    index: string,
+    range: (q: SearchFilterBuilder) => SearchFilterBuilder,
+  ): OrderedQuery;
+  fullTableScan(): TableQuery;
+  order(direction: 'asc' | 'desc'): OrderedQuery;
+}
 
-/**
- * Define an action that is only accessible from other Convex functions (but not from the client).
- *
- * @param func - The function. It receives an {@link ActionCtx} as its first argument.
- * @returns The wrapped function. Include this as an `export` to name it and make it accessible.
- */
-export declare const internalAction: ActionBuilder<DataModel, "internal">;
+export interface DatabaseReader {
+  get(id: string): Promise<Row | null>;
+  query(table: string): TableQuery;
+  /** Returns the id if it names a row in `table`, else null. */
+  normalizeId(table: string, id: string): string | null;
+  /** The system tables (`_scheduled_functions`, `_storage`). */
+  system: DatabaseReader;
+}
 
-/**
- * Define an HTTP action.
- *
- * The wrapped function will be used to respond to HTTP requests received
- * by a Convex deployment if the requests matches the path and method where
- * this action is routed. Be sure to route your httpAction in `convex/http.js`.
- *
- * @param func - The function. It receives an {@link ActionCtx} as its first argument
- * and a Fetch API `Request` object as its second.
- * @returns The wrapped function. Import this function from `convex/http.js` and route it to hook it up.
- */
-export declare const httpAction: HttpActionBuilder;
+export interface DatabaseWriter extends DatabaseReader {
+  insert(table: string, value: Record<string, any>): Promise<string>;
+  patch(id: string, value: Record<string, any>): Promise<void>;
+  replace(id: string, value: Record<string, any>): Promise<void>;
+  delete(id: string): Promise<void>;
+}
 
-/**
- * A set of services for use within Convex query functions.
- *
- * The query context is passed as the first argument to any Convex query
- * function run on the server.
- *
- * This differs from the {@link MutationCtx} because all of the services are
- * read-only.
- */
-export type QueryCtx = GenericQueryCtx<DataModel>;
+/** The caller, as the shim resolves it from the session. */
+export interface UserIdentity {
+  subject: string;
+  tokenIdentifier: string;
+  issuer: string;
+  email?: string;
+  emailVerified?: boolean;
+  name?: string;
+  givenName?: string;
+  familyName?: string;
+  pictureUrl?: string;
+  [claim: string]: unknown;
+}
 
-/**
- * A set of services for use within Convex mutation functions.
- *
- * The mutation context is passed as the first argument to any Convex mutation
- * function run on the server.
- */
-export type MutationCtx = GenericMutationCtx<DataModel>;
+export interface Auth {
+  getUserIdentity(): Promise<UserIdentity | null>;
+}
 
-/**
- * A set of services for use within Convex action functions.
- *
- * The action context is passed as the first argument to any Convex action
- * function run on the server.
- */
-export type ActionCtx = GenericActionCtx<DataModel>;
+export interface StorageReader {
+  getUrl(id: string): Promise<string | null>;
+}
 
-/**
- * An interface to read from the database within Convex query functions.
- *
- * The two entry points are {@link DatabaseReader.get}, which fetches a single
- * document by its {@link Id}, or {@link DatabaseReader.query}, which starts
- * building a query.
- */
-export type DatabaseReader = GenericDatabaseReader<DataModel>;
+export interface StorageWriter extends StorageReader {
+  generateUploadUrl(): Promise<string>;
+  delete(id: string): Promise<void>;
+}
 
-/**
- * An interface to read from and write to the database within Convex mutation
- * functions.
- *
- * Convex guarantees that all writes within a single mutation are
- * executed atomically, so you never have to worry about partial writes leaving
- * your data in an inconsistent state. See [the Convex Guide](https://docs.convex.dev/understanding/convex-fundamentals/functions#atomicity-and-optimistic-concurrency-control)
- * for the guarantees Convex provides your functions.
- */
-export type DatabaseWriter = GenericDatabaseWriter<DataModel>;
+export interface StorageActionWriter extends StorageWriter {
+  get(id: string): Promise<Blob | null>;
+  store(blob: Blob, options?: { sha256?: string }): Promise<string>;
+}
+
+export interface Scheduler {
+  runAfter(delayMs: number, fn: any, args?: any): Promise<string>;
+  runAt(timestamp: number | Date, fn: any, args?: any): Promise<string>;
+  cancel(id: string): Promise<void>;
+}
+
+/** The dispatch trio every ctx carries — see the note at the top. */
+export interface Runner {
+  runQuery(fn: any, args?: any): Promise<any>;
+  runMutation(fn: any, args?: any): Promise<any>;
+  runAction(fn: any, args?: any): Promise<any>;
+}
+
+export interface QueryCtx extends Runner {
+  db: DatabaseReader;
+  auth: Auth;
+  storage: StorageReader;
+}
+
+export interface MutationCtx extends Runner {
+  db: DatabaseWriter;
+  auth: Auth;
+  storage: StorageWriter;
+  scheduler: Scheduler;
+}
+
+export interface ActionCtx extends Runner {
+  auth: Auth;
+  storage: StorageActionWriter;
+  scheduler: Scheduler;
+  vectorSearch(table: string, index: string, query: any): Promise<any[]>;
+}

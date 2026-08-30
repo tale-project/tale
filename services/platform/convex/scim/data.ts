@@ -6,10 +6,8 @@
  * mutation contexts.
  */
 
-import type { GenericQueryCtx } from 'convex/server';
-
 import { components } from '../_generated/api';
-import type { DataModel } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import { findUserByNormalizedEmail as findUserByNormalizedEmailShared } from '../lib/auth/find_user_by_normalized_email';
 import type {
   BetterAuthMember,
@@ -18,7 +16,7 @@ import type {
 } from '../members/types';
 
 /** Minimal ctx shape these helpers need — satisfied by query and mutation ctx. */
-export type ScimReadCtx = Pick<GenericQueryCtx<DataModel>, 'runQuery'>;
+export type ScimReadCtx = Pick<QueryCtx, 'runQuery'>;
 
 interface BetterAuthTeam {
   _id: string;

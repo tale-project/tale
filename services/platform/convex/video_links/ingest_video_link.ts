@@ -31,13 +31,10 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 
-import { v } from 'convex/values';
-
 import { CHAT_AUDIO_MAX_DURATION_SEC } from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
-import { internalAction } from '../_generated/server';
 import {
   joinSegmentsWithParagraphs,
   CAPTION_PROFILE,
@@ -163,17 +160,6 @@ function selectCaptionLanguage(
 
   return null;
 }
-
-export const ingestVideoLink = internalAction({
-  args: {
-    jobId: v.id('videoLinkJobs'),
-    userLocale: v.optional(v.string()),
-  },
-  async handler(ctx, args) {
-    await ingestVideoLinkImpl(ctx, args);
-  },
-});
-
 /** The orchestrator body, hoisted so the 0.5 backend can run it on a ctx
  * shim (the wrapper above keeps the 0.4 wiring). */
 export async function ingestVideoLinkImpl(

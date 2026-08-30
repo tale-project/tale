@@ -440,12 +440,10 @@ export async function startWorkflowForTask(
       return { runId: live[0].id, alreadyRunning: true };
     }
     const input = taskWorkflowSubjectInput({
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused 0.4 helper wants branded Convex ids; PG ids are plain strings of the same shape
-      _id: args.task.id as never,
+      _id: args.task.id,
       title: args.task.title,
       status: args.task.status,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see _id
-      projectId: args.task.projectId as never,
+      projectId: args.task.projectId,
       ...(args.task.externalSystem !== null
         ? { externalSystem: args.task.externalSystem }
         : {}),

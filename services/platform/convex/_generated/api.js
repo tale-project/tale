@@ -1,23 +1,21 @@
-/* eslint-disable */
 /**
- * Generated `api` utility.
+ * The runtime behind the name vocabulary in ./api.d.ts.
  *
- * THIS CODE IS AUTOMATICALLY GENERATED.
+ * `internal.a.b.c` is a proxy walk that records a path and nothing else; the
+ * 0.5 ctx shim (`backend/lib/convex-shim.ts`) turns that path into a name and
+ * dispatches it to a SQL-backed handler.
  *
- * To regenerate, run `npx convex dev`.
- * @module
+ * `anyApi` and `componentsGeneric` are the LAST runtime tie to the `convex`
+ * package outside the two `getFunctionName` call sites. They are kept here,
+ * rather than reimplemented, because the shim's handler table is keyed by the
+ * exact strings `getFunctionName` produces — owning the reference format means
+ * owning both ends at once, which is its own change.
+ *
+ * HAND-MAINTAINED, not generated.
  */
 
-import { anyApi, componentsGeneric } from "convex/server";
+import { anyApi, componentsGeneric } from 'convex/server';
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 export const api = anyApi;
 export const internal = anyApi;
 export const components = componentsGeneric();

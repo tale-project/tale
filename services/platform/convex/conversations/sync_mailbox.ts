@@ -113,7 +113,7 @@ function ingestResult(
   const conversationIds = Array.isArray(result.conversationIds)
     ? result.conversationIds.map(String)
     : result.conversationId
-      ? [String(result.conversationId)]
+      ? [result.conversationId]
       : [];
   return {
     created: result.created,

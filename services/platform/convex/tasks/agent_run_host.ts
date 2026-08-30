@@ -17,15 +17,12 @@
 
 import { randomBytes } from 'node:crypto';
 
-import { v } from 'convex/values';
-
 import { buildStdinUserMessage } from '../../lib/harnesses/parsers/claude-stream-json';
 import { isHarnessSlug } from '../../lib/harnesses/types';
 import { AppError } from '../../lib/shared/errors/app-error';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
-import { internalAction } from '../_generated/server';
 import {
   liveProgressSink,
   releaseTurnKey,
@@ -78,24 +75,6 @@ import {
 import type { TaskRunFailureCode } from './task_auto_retry';
 import { isValidResumeHandle } from './task_kick_resume';
 import { resolveTaskServing, type TaskServing } from './task_serving';
-
-/** The argument shape every turn phase carries verbatim. */
-const turnArgs = {
-  organizationId: v.string(),
-  runId: v.id('projectAgentRuns'),
-  taskId: v.id('tasks'),
-  agentId: v.id('projectAgents'),
-  execId: v.string(),
-  sessionId: v.string(),
-  harness: v.string(),
-  deadlineAt: v.number(),
-  /** `sandboxSessions.createdAt` of the incarnation this turn runs on,
-   * captured once at start and stamped (with the harness conversation id) at
-   * settle — the binds-check of a LATER kick's `--resume` decision. Optional:
-   * a watchdog re-attach doesn't know it, and a handle stamped without it
-   * still binds through the weaker createdAt-predates-the-run check. */
-  sessionCreatedAt: v.optional(v.number()),
-};
 
 interface TurnKeys {
   organizationId: string;
@@ -655,61 +634,6 @@ async function mintTurnServing(
   };
 }
 
-/**
- * The scheduled turn start — everything slow: model resolution, session
- * ensure, staging, key mint, exec build, first window. Any throw fails the
- * run cleanly instead of stranding it queued.
- */
-export const startTaskAgentTurn = internalAction({
-  args: {
-    ...turnArgs,
-    model: v.string(),
-    /** The agent's saved provider pin — honored fail-closed by resolution. */
-    modelProvider: v.optional(v.string()),
-    instructions: v.optional(v.string()),
-    skills: v.array(v.string()),
-    connectors: v.array(v.string()),
-    /** Configured platform-tool grants beyond the baseline (canonicalized at
-     * config write; re-normalized here defensively). */
-    tools: v.array(v.string()),
-    /** Referenced org-secret names, injected as per-exec env. */
-    secrets: v.array(v.string()),
-    /** The @mention comment that kicked this rerun, folded into the brief. */
-    feedback: v.optional(v.string()),
-    /** The predecessor's harness conversation id — this turn CONTINUES that
-     * conversation (`--resume`) instead of opening on a rebuilt brief. The
-     * schedulers decide it (`resolveTaskKickStartArgs`); this start re-checks
-     * the incarnation after the session ensure and falls back to a fresh
-     * brief when the handle no longer binds or the resume fails to launch. */
-    resume: v.optional(v.string()),
-    /** The incarnation stamp the handle was captured under — must equal the
-     * live row's `createdAt` after the ensure, or the handle is dropped. */
-    resumeSessionCreatedAt: v.optional(v.number()),
-    /** The predecessor's start time: the resumed conversation's own memory
-     * covers everything before its brief was read, so the resume prompt
-     * carries the discussion posted after that (a mid-turn duplicate is
-     * harmless; a dropped comment is not). */
-    resumeDiscussionSince: v.optional(v.number()),
-    /** The predecessor's exec — reaped before a bound resume launches, so a
-     * cancel-then-Retry can never put two processes on one conversation. */
-    resumePredecessorExecId: v.optional(v.string()),
-    /** Fresh-path box handling (also the fallback when `resume` drops): a
-     * settled predecessor's leftovers were harvested, sweep them; a failed
-     * one's box may hold the only copy — keep it. Default true = the
-     * pre-resume behavior, so an in-flight start scheduled across a deploy
-     * keeps its semantics. */
-    sweep: v.optional(v.boolean()),
-    /** Fresh-path prompt: prefix the inspect-the-box restart note. */
-    inspectNote: v.optional(v.boolean()),
-    /** Broker-token hashes the failure streak already burned — the
-     * subscription vend excludes them so the retry lands on a different
-     * pool account (`resolveTaskKickStartArgs` collects them). */
-    excludeBrokerTokenHashes: v.optional(v.array(v.string())),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => startTaskAgentTurnImpl(ctx, args),
-});
-
 /** The start's full argument shape — `turnArgs` plus the kick shaping. */
 export interface StartTaskAgentTurnArgs extends TurnKeys {
   model: string;
@@ -907,7 +831,6 @@ export async function startTaskAgentTurnImpl(
         await ctx.runMutation(
           internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
           {
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
             runId: args.runId,
             execId: args.execId,
             brokerTokenHash: prepared.brokerTokenHash,
@@ -958,7 +881,6 @@ export async function startTaskAgentTurnImpl(
         },
       );
       await ctx.runMutation(internal.tasks.agent_runs.setTaskAgentRunRunning, {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
         runId: args.runId,
       });
 
@@ -1017,7 +939,8 @@ export async function startTaskAgentTurnImpl(
         const delta =
           args.resumeDiscussionSince !== undefined
             ? brief.discussion.filter(
-                (entry) => entry.at > (args.resumeDiscussionSince ?? 0),
+                (entry: { at: number }) =>
+                  entry.at > (args.resumeDiscussionSince ?? 0),
               )
             : [];
         return buildResumeKickPrompt({
@@ -1130,13 +1053,6 @@ function isQuotaExceededError(err: unknown): boolean {
   return err instanceof Error && err.message.includes('QUOTA_EXCEEDED');
 }
 
-/** The self-chaining drainer: one attach window per invocation. */
-export const driveTaskAgentTurn = internalAction({
-  args: turnArgs,
-  returns: v.null(),
-  handler: async (ctx, args) => driveTaskAgentTurnImpl(ctx, args),
-});
-
 /** One drive window as a PLAIN exported function (see the start's twin). */
 export async function driveTaskAgentTurnImpl(
   ctx: ActionCtx,
@@ -1148,7 +1064,6 @@ export async function driveTaskAgentTurnImpl(
     const run = await ctx.runQuery(
       internal.tasks.agent_runs.getTaskAgentRunForDrive,
       {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
         runId: args.runId,
       },
     );
@@ -1209,39 +1124,6 @@ export async function driveTaskAgentTurnImpl(
     return null;
   }
 }
-
-/** Cut a live exec (cancel button, leaving in_progress): reap + revoke. The
- * run row is already marked cancelled by the public mutation. */
-export const cancelTaskAgentExec = internalAction({
-  args: {
-    organizationId: v.string(),
-    sessionId: v.string(),
-    execId: v.string(),
-    /** Optional so pre-field cancels already in the scheduler still land;
-     * without it the slot waits for the reconcile cron. */
-    agentId: v.optional(v.string()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
-      console.warn('[task-agent] exec cancel failed:', err),
-    );
-    await releaseTurnKey(ctx, {
-      organizationId: args.organizationId,
-      sessionId: args.sessionId,
-      execId: args.execId,
-      status: 'cancelled',
-    });
-    if (args.agentId !== undefined) {
-      await releaseProjectAgentSlotAfterSettle(ctx, {
-        organizationId: args.organizationId,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the optional arg is a projectAgents id by the caller's contract; validated downstream
-        agentId: args.agentId as Id<'projectAgents'>,
-      });
-    }
-    return null;
-  },
-});
 
 /** The window shape of a `--resume` that never became a conversation: the
  * CLI launched, reported one error (a missing/foreign conversation id is
@@ -1747,7 +1629,6 @@ export async function steerTaskAgentTurnImpl(
     await ctx.runMutation(
       internal.tasks.mutations.kickMentionRunAfterSteerMiss,
       {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
         taskId: args.taskId,
         authorId: args.authorId,
         feedback: args.feedback,
@@ -1764,7 +1645,6 @@ export async function steerTaskAgentTurnImpl(
   } | null = await ctx.runQuery(
     internal.tasks.agent_runs.getTaskAgentRunForDrive,
     {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
       runId: args.runId,
     },
   );
@@ -1834,7 +1714,6 @@ export async function steerTaskAgentTurnImpl(
   const rotated = await ctx.runMutation(
     internal.tasks.agent_runs.rotateTaskAgentRunExec,
     {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
       runId: args.runId,
       fromExecId: args.execId,
     },
@@ -1859,7 +1738,6 @@ export async function steerTaskAgentTurnImpl(
     const projectScope = await ctx.runQuery(
       internal.projects.internal_queries.getProjectAgentSkillScope,
       {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
         agentId: args.agentId,
       },
     );
@@ -1880,7 +1758,6 @@ export async function steerTaskAgentTurnImpl(
       await ctx.runMutation(
         internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
         {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
           runId: args.runId,
           execId,
           brokerTokenHash: prepared.brokerTokenHash,
@@ -1930,7 +1807,6 @@ export async function steerTaskAgentTurnImpl(
       const brief = await ctx.runQuery(
         internal.tasks.agent_runs.getTaskBriefForAgentRun,
         {
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
           taskId: args.taskId,
         },
       );
@@ -2041,27 +1917,3 @@ export async function steerTaskAgentTurnImpl(
   }
   return null;
 }
-
-export const steerTaskAgentTurn = internalAction({
-  args: {
-    ...turnArgs,
-    model: v.string(),
-    /** The agent's saved provider pin — honored fail-closed by resolution. */
-    modelProvider: v.optional(v.string()),
-    instructions: v.optional(v.string()),
-    skills: v.array(v.string()),
-    connectors: v.array(v.string()),
-    tools: v.array(v.string()),
-    secrets: v.array(v.string()),
-    feedback: v.string(),
-    author: v.string(),
-    authorId: v.string(),
-    attempt: v.number(),
-  },
-  returns: v.null(),
-  // The explicit return type breaks the inference cycle: the mention door in
-  // `tasks/mutations.ts` schedules this action, and this action's fallback
-  // calls back into that module's internal kick.
-  handler: async (ctx, args): Promise<null> =>
-    steerTaskAgentTurnImpl(ctx, args),
-});

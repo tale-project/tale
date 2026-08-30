@@ -30,11 +30,14 @@ import { readReviewPolicy } from '../governance/review_policy';
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { recordActivity, TASK_METRIC_ACTIONS } from './helpers';
 
+/** As much of an approval row as the two round/run readers below touch. */
+interface ApprovalMetadataFields {
+  metadata?: unknown;
+}
+
 /** The review round an approval was minted for; rows predating the round key
  * (or with malformed metadata) read as round 0. Exported for unit tests. */
-export function approvalRound(
-  approval: Pick<Doc<'approvals'>, 'metadata'>,
-): number {
+export function approvalRound(approval: ApprovalMetadataFields): number {
   const metadata: unknown = approval.metadata;
   if (!isRecord(metadata)) return 0;
   return typeof metadata.round === 'number' ? metadata.round : 0;
@@ -43,7 +46,7 @@ export function approvalRound(
 /** The agent run a workflow-free review was minted for (settle mints key
  * their idempotency on this); absent on workflow-era rows. */
 export function approvalRunId(
-  approval: Pick<Doc<'approvals'>, 'metadata'>,
+  approval: ApprovalMetadataFields,
 ): string | undefined {
   const metadata: unknown = approval.metadata;
   if (!isRecord(metadata)) return undefined;
@@ -139,8 +142,7 @@ export async function requestTaskReview(
   args: { task: Doc<'tasks'>; trigger: TaskReviewTrigger },
 ): Promise<{ approvalId: Id<'approvals'>; minted: boolean }> {
   const { task, trigger } = args;
-  const runKey =
-    trigger.kind === 'agent_run' ? String(trigger.runId) : undefined;
+  const runKey = trigger.kind === 'agent_run' ? trigger.runId : undefined;
 
   const prior: Doc<'approvals'>[] = [];
   for await (const approval of ctx.db

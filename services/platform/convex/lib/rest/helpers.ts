@@ -7,21 +7,20 @@
 
 import { defineAbilityFor } from '../../../lib/permissions/ability';
 import { AppError } from '../../../lib/shared/errors/app-error';
-import { components, internal } from '../../_generated/api';
-import { httpAction } from '../../_generated/server';
-import { createAuth } from '../../auth';
-import {
-  checkIpRateLimit,
-  RateLimitExceededError,
-} from '../rate_limiter/helpers';
-import { getClientIp, loadTrustedProxies } from '../utils/client_ip';
-
+import { internal } from '../../_generated/api';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-/** Context type for httpAction handlers. */
-export type HttpCtx = Parameters<Parameters<typeof httpAction>[0]>[0];
+/** What a REST handler reads off its context: the shim's dispatch, nothing
+ *  more. The 0.4 `httpAction` wrapper that used to supply it retired with the
+ *  runtime — the backend's own door (`backend/rest/`) authenticates, rate
+ *  limits, and calls these handlers directly. */
+export interface HttpCtx {
+  runQuery: (reference: unknown, args?: unknown) => Promise<unknown>;
+  runMutation: (reference: unknown, args?: unknown) => Promise<unknown>;
+  runAction: (reference: unknown, args?: unknown) => Promise<unknown>;
+}
 
 export interface AuthUser {
   userId: string;
@@ -58,11 +57,6 @@ export const REST_CORS_HEADERS: Record<string, string> = {
     'Content-Type, Authorization, X-Organization-Slug',
   'Access-Control-Max-Age': '86400',
 };
-
-export const restOptionsHandler = httpAction(async () => {
-  return new Response(null, { status: 204, headers: REST_CORS_HEADERS });
-});
-
 // ---------------------------------------------------------------------------
 // Response builders
 // ---------------------------------------------------------------------------
@@ -111,115 +105,9 @@ export function jsonError(
   });
 }
 
-/**
- * A `Retry-After` header (RFC 9110: whole seconds, rounded up) from the rate
- * limiter's retry-after milliseconds — empty when no usable value came along,
- * so a 429 without one still ships clean.
- */
-function retryAfterHeader(
-  retryAfterMs: number | undefined,
-): Record<string, string> {
-  if (
-    retryAfterMs === undefined ||
-    !Number.isFinite(retryAfterMs) ||
-    retryAfterMs <= 0
-  ) {
-    return {};
-  }
-  return { 'Retry-After': String(Math.ceil(retryAfterMs / 1000)) };
-}
-
 // ---------------------------------------------------------------------------
 // Authentication
 // ---------------------------------------------------------------------------
-
-/**
- * Stamp the API key's `lastRequest` so the Settings → API table can show a
- * real "Last used" instead of "Never used".
- *
- * Better Auth's api-key session hook is supposed to record this itself, but its
- * write goes through the component adapter, which the Convex Better Auth plugin
- * turns into a no-op outside a mutation-capable request — so a plain `getSession`
- * auth on a `/api/v1/*` HTTP action never persists it. We write the field
- * directly on the component row instead (same mechanism as the create-time
- * suffix stamp in `auth.ts`), which is deterministic in the HTTP-action context.
- *
- * Best-effort: a stamp failure must never break an otherwise valid request, so
- * this swallows its own errors — the worst case is the pre-existing behaviour of
- * the row still reading "Never used".
- */
-async function recordApiKeyLastUsed(
-  ctx: HttpCtx,
-  apiKeyId: string,
-): Promise<void> {
-  try {
-    await ctx.runMutation(components.betterAuth.adapter.updateMany, {
-      input: {
-        model: 'apikey',
-        where: [{ field: '_id', value: apiKeyId, operator: 'eq' }],
-        update: { lastRequest: Date.now() },
-      },
-      paginationOpts: { cursor: null, numItems: 1 },
-    });
-  } catch (err) {
-    console.warn(
-      '[rest-auth] failed to record API key last-used',
-      err instanceof Error ? err.message : err,
-    );
-  }
-}
-
-/**
- * Authenticate a REST request via Bearer token.
- * Extracts the API key from the Authorization header and validates it
- * through BetterAuth, returning the authenticated user info.
- */
-export async function authenticateRequest(
-  ctx: HttpCtx,
-  request: Request,
-): Promise<AuthUser> {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new AuthError('Missing or invalid Authorization header');
-  }
-
-  const apiKey = authHeader.slice('Bearer '.length).trim();
-  if (!apiKey) {
-    throw new AuthError('Empty API key');
-  }
-
-  const syntheticHeaders = new Headers();
-  syntheticHeaders.set('x-api-key', apiKey);
-
-  const auth = createAuth(ctx);
-  try {
-    const session = await auth.api.getSession({
-      headers: syntheticHeaders,
-    });
-
-    if (!session?.user) {
-      throw new AuthError('Invalid API key or session');
-    }
-
-    // For an api-key session, Better Auth sets `session.id` to the api-key
-    // row's id (see @better-auth/api-key session hook). Stamp last-used so the
-    // key stops reading "Never used" after real authenticated calls (#2317).
-    const apiKeyId =
-      typeof session.session?.id === 'string' ? session.session.id : undefined;
-    if (apiKeyId) {
-      await recordApiKeyLastUsed(ctx, apiKeyId);
-    }
-
-    return {
-      userId: session.user.id,
-      email: session.user.email ?? '',
-      name: session.user.name ?? '',
-    };
-  } catch (error) {
-    if (error instanceof AuthError) throw error;
-    throw new AuthError('Invalid API key or session');
-  }
-}
 
 export interface ResolveOrgOptions {
   /** Explicit org slug (the `X-Organization-Slug` request header). */
@@ -227,29 +115,6 @@ export interface ResolveOrgOptions {
   /** Refuse the last-active-org fallback for multi-org users — see
    * {@link RestAuthOptions.requireExplicitOrgSlug}. */
   requireExplicitOrgSlug?: boolean;
-}
-
-/**
- * Resolve the organization an API key operates on.
- *
- * An explicit `orgSlug` wins and is membership-checked (a wrong or non-member
- * slug is refused). Without one, a single-org user resolves to their sole
- * membership; a multi-org user follows the dashboard's last-active org unless
- * `requireExplicitOrgSlug` forbids that guess.
- */
-export async function resolveOrganization(
-  ctx: HttpCtx,
-  userId: string,
-  options: ResolveOrgOptions = {},
-): Promise<OrgInfo> {
-  return await ctx.runQuery(
-    internal.organizations.resolve_user_organization.resolveUserOrganization,
-    {
-      userId,
-      orgSlug: options.orgSlug,
-      requireExplicitOrgSlug: options.requireExplicitOrgSlug,
-    },
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -268,11 +133,13 @@ export async function resolveOrganization(
  * never a way around a revoked membership.
  */
 export async function resolveRestOrgRole(rc: RestContext): Promise<string> {
-  const role = await rc.ctx.runQuery(
+  // The shim answers whatever its handler returns; a role is a string or
+  // absent, and anything else is a broken handler, not a role.
+  const role: unknown = await rc.ctx.runQuery(
     internal.members.internal_queries.getMemberRole,
     { userId: rc.user.userId, organizationId: rc.org.organizationId },
   );
-  if (role === null || role === 'disabled') {
+  if (typeof role !== 'string' || role === 'disabled') {
     throw new AppError({
       code: 'ORG_FORBIDDEN',
       message: `Not a member of organization "${rc.org.orgSlug}".`,
@@ -311,32 +178,6 @@ export async function requireRestDeveloper(rc: RestContext): Promise<void> {
 // ---------------------------------------------------------------------------
 // Rate limiting
 // ---------------------------------------------------------------------------
-
-/**
- * Apply IP-based rate limiting. Returns an error response if exceeded,
- * or null if the request is allowed.
- */
-export async function applyRateLimit(
-  ctx: HttpCtx,
-  key: string,
-  request: Request,
-): Promise<Response | null> {
-  const trusted = await loadTrustedProxies(ctx);
-  const ip = getClientIp(request.headers, trusted);
-  try {
-    await checkIpRateLimit(ctx, key, ip);
-    return null;
-  } catch (error) {
-    if (error instanceof RateLimitExceededError) {
-      return jsonError(
-        'Rate limit exceeded',
-        429,
-        retryAfterHeader(error.retryAfter),
-      );
-    }
-    throw error;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // URL parsing
@@ -610,135 +451,6 @@ export interface RestAuthOptions {
    * Single-membership users resolve normally without the header.
    */
   requireExplicitOrgSlug?: boolean;
-}
-
-/**
- * The retry-after milliseconds a `RATE_LIMITED` AppError carries. Both
- * producer shapes appear in the codebase: flat `retryAfterMs`
- * (documents/validate_upload.ts) and nested `data.retryAfterMs`
- * (projects/tasks mutations' mapRateLimitError).
- */
-function retryAfterMsFromErrorData(data: unknown): number | undefined {
-  if (!isPlainObject(data)) return undefined;
-  if (typeof data.retryAfterMs === 'number') return data.retryAfterMs;
-  const nested = data.data;
-  if (isPlainObject(nested) && typeof nested.retryAfterMs === 'number') {
-    return nested.retryAfterMs;
-  }
-  return undefined;
-}
-
-/**
- * Wrap an httpAction handler with authentication, org resolution,
- * rate limiting, and error handling.
- *
- * Org resolution honours the `X-Organization-Slug` request header on every
- * route (membership-checked); `options.requireExplicitOrgSlug` makes the
- * header mandatory for multi-org keys.
- *
- * Usage:
- * ```ts
- * export const listDocuments = withRestAuth('rest:documents', async (rc, request) => {
- *   const docs = await rc.ctx.runQuery(internal.documents.internal_queries.queryDocuments, {
- *     organizationId: rc.org.organizationId,
- *   });
- *   return jsonOk(docs);
- * });
- * ```
- */
-export function withRestAuth(
-  rateLimitKey: string,
-  handler: (rc: RestContext, request: Request) => Promise<Response>,
-  options: RestAuthOptions = {},
-) {
-  return httpAction(async (ctx, request) => {
-    // Rate limit
-    const rateLimited = await applyRateLimit(ctx, rateLimitKey, request);
-    if (rateLimited) return rateLimited;
-
-    // Auth
-    let user: AuthUser;
-    try {
-      user = await authenticateRequest(ctx, request);
-    } catch (error) {
-      if (error instanceof AuthError) {
-        return jsonError(error.message, 401);
-      }
-      throw error;
-    }
-
-    // Org resolution — an explicit X-Organization-Slug header always wins.
-    const orgSlugHeader = request.headers.get('x-organization-slug')?.trim();
-    let org: OrgInfo;
-    try {
-      org = await resolveOrganization(ctx, user.userId, {
-        orgSlug: orgSlugHeader || undefined,
-        requireExplicitOrgSlug: options.requireExplicitOrgSlug,
-      });
-    } catch (error) {
-      // The resolver refuses with coded AppErrors (ORG_SLUG_REQUIRED,
-      // ORG_SLUG_INVALID, ORG_FORBIDDEN) whose data survives runQuery — map
-      // them like handler errors. Every client-fixable refusal is coded, so
-      // anything UNCODED is a server fault: answer 500 with a fixed message
-      // rather than leaking the Convex error prelude (function path, request
-      // id, stack line) into the body — the details are in the server log.
-      if (error instanceof AppError && isPlainObject(error.data)) {
-        const code =
-          typeof error.data.code === 'string' ? error.data.code : undefined;
-        const message =
-          typeof error.data.message === 'string'
-            ? error.data.message
-            : 'Failed to resolve organization';
-        return jsonError(message, code ? httpStatusForConvexCode(code) : 400);
-      }
-      console.error('[rest-auth] organization resolution failed', error);
-      return jsonError('Failed to resolve organization', 500);
-    }
-
-    // Delegate to handler
-    try {
-      return await handler({ ctx, user, org }, request);
-    } catch (error) {
-      // A body/query the handler refused to read is the client's mistake.
-      if (error instanceof BadRequestError) {
-        return jsonError(error.message, 400);
-      }
-      // Map structured AppError codes to proper HTTP statuses so
-      // typed errors thrown by mutations (e.g. cross-tenant rejections,
-      // legal-hold blocks) surface to REST clients as actionable
-      // 4xx responses rather than opaque 500s.
-      if (error instanceof AppError) {
-        const data = error.data;
-        const code =
-          typeof data === 'object' &&
-          data !== null &&
-          'code' in data &&
-          typeof data.code === 'string'
-            ? data.code
-            : undefined;
-        const dataMessage =
-          typeof data === 'object' &&
-          data !== null &&
-          'message' in data &&
-          typeof data.message === 'string'
-            ? data.message
-            : undefined;
-        const message = dataMessage ?? error.message;
-        const status = httpStatusForConvexCode(code);
-        if (status >= 400 && status < 500) {
-          const headers =
-            code === 'RATE_LIMITED'
-              ? retryAfterHeader(retryAfterMsFromErrorData(data))
-              : undefined;
-          return jsonError(message, status, headers);
-        }
-      }
-      console.error(`[REST ${rateLimitKey}]`, error);
-      const msg =
-        error instanceof Error ? error.message : 'Internal server error';
-      return jsonError(msg, 500);
-    }
-  });
 }
 
 export function httpStatusForConvexCode(code: string | undefined): number {

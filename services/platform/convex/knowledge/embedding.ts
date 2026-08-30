@@ -201,10 +201,7 @@ export async function embedderForOrg(
     organizationId: args.organizationId,
     providerSlug: args.config.providerSlug,
     ...(args.config.credentialId !== undefined && {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the config stores the credential row id as text; resolution verifies it belongs to this organization and rejects it otherwise
-      credentialId: args.config.credentialId as Parameters<
-        typeof resolveProviderCredential
-      >[1]['credentialId'],
+      credentialId: args.config.credentialId,
     }),
   });
 

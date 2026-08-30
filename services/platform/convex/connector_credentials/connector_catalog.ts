@@ -28,8 +28,6 @@ import {
   resolveConnectorsDir,
   type LoadConnectorCatalogOptions,
 } from '../../lib/connectors/catalog';
-import { action } from '../_generated/server';
-import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { connectorAuthMethodValidator } from './schema';
 
 export { connectorBearerScheme, findConnector, loadConnectorDefinitions };
@@ -147,12 +145,3 @@ export function listConnectorSummaries(): ConnectorSummary[] {
   }
   return summaries;
 }
-
-export const listConnectors = action({
-  args: { organizationId: v.string() },
-  returns: v.array(connectorSummaryValidator),
-  handler: async (ctx, args) => {
-    await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-    return listConnectorSummaries();
-  },
-});

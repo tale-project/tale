@@ -86,7 +86,7 @@ export async function resolveChatModel(
       { organizationId: args.organizationId },
     )
   ).filter(
-    (credential) =>
+    (credential: { authMethod: string }) =>
       credential.authMethod === 'api-key' || credential.authMethod === 'env',
   );
 

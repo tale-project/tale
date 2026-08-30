@@ -97,7 +97,7 @@ async function loadRow(
   ctx: ActionCtx,
   args: ResolveConnectorCredentialArgs,
 ): Promise<CredentialRow> {
-  const row = (await ctx.runQuery(
+  const row: CredentialRow | null = await ctx.runQuery(
     internal.connector_credentials.queries.resolveCredentialRefInternal,
     {
       organizationId: args.organizationId,
@@ -106,8 +106,7 @@ async function loadRow(
         credentialRef: args.credentialRef,
       }),
     },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the internal query returns the full row as v.any(); this names its shape
-  )) as CredentialRow | null;
+  );
   if (row) return row;
   if (args.credentialRef !== undefined) {
     throw credentialError(

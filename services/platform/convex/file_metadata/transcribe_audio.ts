@@ -1,22 +1,14 @@
 'use node';
-
-import { v } from 'convex/values';
-
 import { TRANSCRIPTION_SLUG } from '../../lib/shared/constants/usage';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
-import { internalAction } from '../_generated/server';
 import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
 import { classifyTranscriptionError } from '../lib/errors/classify_transcription_error';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { checkProviderHostPolicy } from '../lib/http/host_policy';
 import { resolveTranscriptionModel } from '../lib/providers/resolve_transcription_model';
 import { readBlobBytes } from '../lib/storage/blob_access';
-import {
-  blobRefValidator,
-  convexStorageId,
-  type BlobRef,
-} from '../lib/storage/blob_ref';
+import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
 import {
   chunkCompressedAudio,
   compressAudio,
@@ -144,49 +136,9 @@ async function patchProgress(
 ): Promise<void> {
   await ctx.runMutation(
     internal.file_metadata.internal_mutations.updateFileTranscription,
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- storageId is branded Id<'_storage'> from args
     { storageId: storageId, transcriptionProgress: progress },
   );
 }
-
-/**
- * Transcribe an uploaded audio/video file via the org's configured
- * transcription provider. Server-side pipeline:
- *
- *   1. Compress with ffmpeg (silenceremove + 32 kbps Opus mono 16 kHz)
- *   2. If compressed output still exceeds OpenAI's 25 MB limit, split into
- *      90-minute chunks via stream-copy segment (no re-encode).
- *   3. POST each chunk sequentially to {baseUrl}/audio/transcriptions.
- *   4. Join transcripts with blank-line separator.
- *   5. Record usage to the ledger.
- *
- * Transcript RAG indexing (indexing the text under the audio's storageId so
- * `rag_search` can cite the clip) is a deliberate follow-up — the retired
- * `uploadFile` helper is gone, and chat usefulness only needs the transcript
- * on `fileMetadata` for the turn to inject. `transcriptRagStatus` stays unset.
- *
- * On transient failure (429, 5xx, network): classify via
- * `classifyTranscriptionError`, retry the whole action up to 3 times with
- * [30s, 60s, 120s] backoff. Permanent failures (auth, bad input, no model)
- * fail fast. Failures always land on the row through
- * `updateFileTranscription` — callers schedule this fire-and-forget, so a
- * bare throw would leave the row stuck at `queued`/`running`.
- */
-export const transcribeAudio = internalAction({
-  args: {
-    // Audio blob reference: a Convex `_storage` id (deployment default) OR an
-    // `s3:<key>` ref when the org has a bring-your-own bucket. The source read
-    // (below) routes off the backend via `readBlobBytes`; the Convex path is
-    // byte-for-byte unchanged.
-    storageId: blobRefValidator,
-    fileName: v.string(),
-    contentType: v.string(),
-    organizationId: v.string(),
-    attempt: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => transcribeAudioImpl(ctx, args),
-});
 
 /** The pipeline body, hoisted so the 0.5 backend can run it on a ctx shim
  * (the wrapper above keeps the 0.4 wiring). */

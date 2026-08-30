@@ -1,20 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { AppError } from '../../../lib/shared/errors/app-error';
 import {
-  argsOf,
-  jsonBody,
-  restCtx,
-  restRequest,
-  TEST_USER_ID,
-  testSession,
-} from './handler_kit.testkit';
-import type { HttpCtx } from './helpers';
-import {
-  authenticateRequest,
   BadRequestError,
   httpStatusForConvexCode,
-  jsonOk,
   optionalBoolean,
   optionalEnum,
   optionalNumber,
@@ -25,42 +13,12 @@ import {
   readJsonObjectOrEmpty,
   requiredString,
   REST_CORS_HEADERS,
-  withRestAuth,
 } from './helpers';
 
-// `authenticateRequest` resolves identity through Better Auth; stub `createAuth`
-// so the tests drive the session result directly without the real auth stack.
-const getSession = vi.fn();
-vi.mock('../../auth', () => ({
-  createAuth: vi.fn(() => ({ api: { getSession } })),
-}));
-
-// The `withRestAuth` tests drive the wrapper directly (see
-// handler_kit.testkit.ts): `httpAction` becomes the identity function and the
-// IP limiter always admits.
-vi.mock('../../_generated/server', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  httpAction: (handler: unknown) => handler,
-}));
-vi.mock('../rate_limiter/helpers', () => ({
-  checkIpRateLimit: vi.fn(),
-  RateLimitExceededError: class extends Error {},
-}));
-
-function bearerRequest(token: string): Request {
-  return new Request('https://app.example.com/api/v1/agents', {
-    headers: { authorization: `Bearer ${token}` },
-  });
-}
-
-function ctxWith(runMutation: ReturnType<typeof vi.fn>): HttpCtx {
-  return { runMutation } as unknown as HttpCtx;
-}
-
 /**
- * The REST wrapper (`withRestAuth`) maps typed `AppError` codes to HTTP
- * statuses via `httpStatusForConvexCode`; any code resolving to a 4xx is
- * forwarded to the client, everything else falls through to a generic 500.
+ * `httpStatusForConvexCode` maps a typed `AppError` code to an HTTP status:
+ * anything resolving to a 4xx is forwarded to the client, everything else
+ * falls through to a generic 500.
  *
  * `validateProductFields` throws `AppError({ code: 'too_long' })` on the
  * REST product write paths (`POST`/`PATCH /api/v1/products`), so `too_long`
@@ -330,69 +288,6 @@ describe('request-body readers', () => {
  * "Never used". Better Auth's own session-hook write is a no-op in this HTTP
  * action context, so the helper writes the field directly on the component row.
  */
-describe('authenticateRequest — records api-key last-used (#2317)', () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('stamps lastRequest on the authenticated api-key row', async () => {
-    getSession.mockResolvedValue({
-      user: { id: 'user_1', email: 'a@b.com', name: 'A' },
-      session: { id: 'apikey_123' },
-    });
-    const runMutation = vi.fn().mockResolvedValue(undefined);
-
-    const user = await authenticateRequest(
-      ctxWith(runMutation),
-      bearerRequest('tale_secret'),
-    );
-
-    expect(user).toEqual({ userId: 'user_1', email: 'a@b.com', name: 'A' });
-    expect(runMutation).toHaveBeenCalledTimes(1);
-    const [, args] = runMutation.mock.calls[0];
-    expect(args.input.model).toBe('apikey');
-    expect(args.input.where).toEqual([
-      { field: '_id', value: 'apikey_123', operator: 'eq' },
-    ]);
-    expect(typeof args.input.update.lastRequest).toBe('number');
-  });
-
-  it('still authenticates when the last-used stamp fails (best-effort)', async () => {
-    getSession.mockResolvedValue({
-      user: { id: 'user_1', email: 'a@b.com', name: 'A' },
-      session: { id: 'apikey_123' },
-    });
-    const runMutation = vi.fn().mockRejectedValue(new Error('write blocked'));
-
-    const user = await authenticateRequest(
-      ctxWith(runMutation),
-      bearerRequest('tale_secret'),
-    );
-
-    expect(user.userId).toBe('user_1');
-    expect(runMutation).toHaveBeenCalledTimes(1);
-  });
-
-  it('rejects an invalid key and never stamps', async () => {
-    getSession.mockResolvedValue(null);
-    const runMutation = vi.fn();
-
-    await expect(
-      authenticateRequest(ctxWith(runMutation), bearerRequest('tale_bad')),
-    ).rejects.toThrow('Invalid API key or session');
-    expect(runMutation).not.toHaveBeenCalled();
-  });
-
-  it('rejects a request without a Bearer token', async () => {
-    const runMutation = vi.fn();
-    const request = new Request('https://app.example.com/api/v1/agents');
-
-    await expect(
-      authenticateRequest(ctxWith(runMutation), request),
-    ).rejects.toThrow('Missing or invalid Authorization header');
-    expect(runMutation).not.toHaveBeenCalled();
-  });
-});
 
 describe('REST_CORS_HEADERS', () => {
   it('lets a browser preflight send X-Organization-Slug', () => {
@@ -400,165 +295,4 @@ describe('REST_CORS_HEADERS', () => {
     expect(allowHeaders).toContain('Authorization');
     expect(allowHeaders).toContain('X-Organization-Slug');
   });
-});
-
-const RESOLVE_ORG =
-  'organizations/resolve_user_organization:resolveUserOrganization';
-
-type Invoke = (ctx: HttpCtx, request: Request) => Promise<Response>;
-
-/**
- * Org-resolution plumbing in `withRestAuth`: the `X-Organization-Slug` header
- * flows into the resolver on every route, `requireExplicitOrgSlug` flows
- * per-route, and a resolver refusal surfaces through the coded-error map —
- * ORG_FORBIDDEN → 403 for a non-member slug, ORG_SLUG_REQUIRED → 400 for an
- * undecidable multi-org key — while an uncoded failure stays a 400 with the
- * Convex stack wrapper stripped from the body. The resolver's own branching is
- * pinned in organizations/resolve_user_organization.test.ts.
- */
-describe('withRestAuth — organization resolution plumbing', () => {
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
-  function asInvoke(wrapped: unknown): Invoke {
-    return wrapped as Invoke;
-  }
-
-  it('feeds the X-Organization-Slug header into the resolver', async () => {
-    getSession.mockResolvedValue(testSession());
-    const { ctx, calls } = restCtx({
-      [RESOLVE_ORG]: () => ({
-        organizationId: 'org_two',
-        orgSlug: 'acme-two',
-      }),
-    });
-    const handler = asInvoke(
-      withRestAuth('rest:api', async (rc) => jsonOk({ slug: rc.org.orgSlug })),
-    );
-
-    const response = await handler(
-      ctx,
-      restRequest('/api/v1/projects', {
-        headers: { 'X-Organization-Slug': 'acme-two' },
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    await expect(jsonBody(response)).resolves.toEqual({ slug: 'acme-two' });
-    expect(argsOf(calls, RESOLVE_ORG)).toMatchObject({
-      userId: TEST_USER_ID,
-      orgSlug: 'acme-two',
-    });
-  });
-
-  it('surfaces the membership refusal for a non-member slug as coded 403', async () => {
-    getSession.mockResolvedValue(testSession());
-    const { ctx } = restCtx({
-      [RESOLVE_ORG]: () => {
-        throw new AppError({
-          code: 'ORG_FORBIDDEN',
-          message: 'Not a member of organization acme-two',
-        });
-      },
-    });
-    const handler = asInvoke(withRestAuth('rest:api', async () => jsonOk({})));
-
-    const response = await handler(
-      ctx,
-      restRequest('/api/v1/projects', {
-        headers: { 'X-Organization-Slug': 'acme-two' },
-      }),
-    );
-
-    expect(response.status).toBe(403);
-    await expect(jsonBody(response)).resolves.toEqual({
-      error: 'Not a member of organization acme-two',
-    });
-  });
-
-  it('answers a fixed 500 for uncoded resolver failures — no Convex prelude leaks', async () => {
-    getSession.mockResolvedValue(testSession());
-    const { ctx } = restCtx({
-      [RESOLVE_ORG]: () => {
-        throw new Error(
-          '[CONVEX Q(organizations/resolve_user_organization:resolveUserOrganization)] [Request ID: abc123] Server Error\nUncaught Error: backing store exploded\n    at handler (../../convex/organizations/resolve_user_organization.ts:128:10)',
-        );
-      },
-    });
-    const handler = asInvoke(withRestAuth('rest:api', async () => jsonOk({})));
-
-    const response = await handler(ctx, restRequest('/api/v1/projects'));
-
-    expect(response.status).toBe(500);
-    await expect(jsonBody(response)).resolves.toEqual({
-      error: 'Failed to resolve organization',
-    });
-  });
-
-  it('forwards requireExplicitOrgSlug and answers 400 naming the header', async () => {
-    getSession.mockResolvedValue(testSession());
-    const { ctx, calls } = restCtx({
-      [RESOLVE_ORG]: () => {
-        throw new AppError({
-          code: 'ORG_SLUG_REQUIRED',
-          message:
-            'User belongs to multiple organizations. Provide X-Organization-Slug header.',
-        });
-      },
-    });
-    const handler = asInvoke(
-      withRestAuth('rest:api', async () => jsonOk({}), {
-        requireExplicitOrgSlug: true,
-      }),
-    );
-
-    const response = await handler(ctx, restRequest('/api/v1/projects'));
-
-    expect(response.status).toBe(400);
-    const body = await jsonBody(response);
-    expect(body.error).toContain('X-Organization-Slug');
-    expect(argsOf(calls, RESOLVE_ORG)).toMatchObject({
-      requireExplicitOrgSlug: true,
-    });
-  });
-
-  it('keeps legacy auto-resolution when no header and no flag are given', async () => {
-    getSession.mockResolvedValue(testSession());
-    const { ctx, calls } = restCtx();
-    const handler = asInvoke(withRestAuth('rest:api', async () => jsonOk({})));
-
-    const response = await handler(ctx, restRequest('/api/v1/projects'));
-
-    expect(response.status).toBe(200);
-    const args = argsOf(calls, RESOLVE_ORG);
-    expect(args?.orgSlug).toBeUndefined();
-    expect(args?.requireExplicitOrgSlug).toBeUndefined();
-  });
-
-  it.each([
-    // Nested shape (projects/tasks mapRateLimitError)...
-    [{ code: 'RATE_LIMITED', data: { retryAfterMs: 30_500 } }, '31'],
-    // ...and flat shape (documents/validate_upload).
-    [
-      { code: 'RATE_LIMITED', message: 'upload limit', retryAfterMs: 1200 },
-      '2',
-    ],
-  ])(
-    'answers 429 with Retry-After when a backing function throws RATE_LIMITED',
-    async (payload, retryAfter) => {
-      getSession.mockResolvedValue(testSession());
-      const { ctx } = restCtx();
-      const handler = asInvoke(
-        withRestAuth('rest:api', async () => {
-          throw new AppError(payload);
-        }),
-      );
-
-      const response = await handler(ctx, restRequest('/api/v1/projects'));
-
-      expect(response.status).toBe(429);
-      expect(response.headers.get('Retry-After')).toBe(retryAfter);
-    },
-  );
 });

@@ -1,9 +1,6 @@
 'use node';
 
 import { SAML, type SamlConfig } from '@node-saml/node-saml';
-import { v } from 'convex/values';
-
-import { internalAction } from '../../_generated/server';
 
 /**
  * SAML 2.0 assertion handling, isolated in a Node action (node-saml needs
@@ -83,27 +80,6 @@ export async function validateSamlResponseImpl(
     };
   }
 }
-
-export const validateSamlResponse = internalAction({
-  args: {
-    samlResponse: v.string(),
-    relayState: v.optional(v.string()),
-    idpSsoUrl: v.string(),
-    idpCertificate: v.string(),
-    spEntityId: v.string(),
-    acsUrl: v.string(),
-    spPrivateKey: v.optional(v.string()),
-    wantAssertionsSigned: v.optional(v.boolean()),
-  },
-  returns: v.object({
-    ok: v.boolean(),
-    error: v.optional(v.string()),
-    nameId: v.optional(v.string()),
-    attributes: v.optional(v.record(v.string(), v.any())),
-  }),
-  handler: async (_ctx, args) => validateSamlResponseImpl(args),
-});
-
 export interface BuildSamlAuthnRedirectArgs {
   idpSsoUrl: string;
   idpCertificate: string;
@@ -127,18 +103,3 @@ export async function buildSamlAuthnRedirectImpl(
     };
   }
 }
-
-export const buildSamlAuthnRedirect = internalAction({
-  args: {
-    idpSsoUrl: v.string(),
-    idpCertificate: v.string(),
-    spEntityId: v.string(),
-    acsUrl: v.string(),
-    relayState: v.string(),
-  },
-  returns: v.object({
-    url: v.optional(v.string()),
-    error: v.optional(v.string()),
-  }),
-  handler: async (_ctx, args) => buildSamlAuthnRedirectImpl(args),
-});

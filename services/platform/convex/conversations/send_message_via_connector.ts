@@ -182,7 +182,7 @@ export async function sendMessageViaConnector(
   await ctx.db.patch(messageId, {
     metadata: {
       ...messageMetadata,
-      scheduledSendId: String(scheduledSendId),
+      scheduledSendId,
     },
   });
 
@@ -232,10 +232,10 @@ export async function sendMessageViaConnector(
     action: 'send_message_via_connector',
     category: 'data',
     resourceType: 'conversationMessage',
-    resourceId: String(messageId),
+    resourceId: messageId,
     resourceName: args.subject,
     newState: {
-      conversationId: String(args.conversationId),
+      conversationId: args.conversationId,
       connectorName: args.connectorName,
       to: args.to,
       subject: args.subject,

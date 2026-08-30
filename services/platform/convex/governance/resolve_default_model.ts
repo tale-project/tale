@@ -1,10 +1,8 @@
-import type { GenericQueryCtx } from 'convex/server';
-
 import type {
   DefaultModelsConfig,
   DefaultModelRule,
 } from '../../lib/shared/schemas/governance';
-import type { DataModel } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import { readPolicyConfig } from './helpers';
 import { checkModelAccess } from './model_access_enforcement';
 
@@ -46,7 +44,7 @@ export function findApplicableModelRule(
  * model that will be rejected downstream).
  */
 export async function resolveDefaultModel(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   userId: string,
   teamIds: string[],

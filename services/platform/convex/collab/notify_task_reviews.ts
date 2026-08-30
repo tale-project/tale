@@ -129,12 +129,12 @@ export async function notifyTaskReviewRequested(
     titleKey: 'taskReviewRequested',
     bodyKey,
     params: reviewParams(args.task, {
-      approvalId: String(args.approvalId),
+      approvalId: args.approvalId,
       ...(agentName ? { agentSlug: agentName } : {}),
       ...(actorName ? { actor: actorName } : {}),
     }),
     resourceType: 'task_review',
-    resourceId: String(args.approvalId),
+    resourceId: args.approvalId,
     taskId: args.task._id,
     ...(args.submitter.kind === 'user'
       ? { actorType: 'user' as const, actorId: args.submitter.userId }

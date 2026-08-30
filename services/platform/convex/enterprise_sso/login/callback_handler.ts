@@ -11,7 +11,7 @@ import {
 } from '../entra_id/error_codes';
 import { getAdapter } from '../registry';
 import { verifySignedValue } from '../sign_cookie_value';
-import { finishLoginWithConvexAuth, type FinishLogin } from './finish_login';
+import type { FinishLogin } from './finish_login';
 import { recordSsoLoginFailure } from './login_audit';
 import { redirectWithError } from './redirect_with_error';
 
@@ -40,9 +40,7 @@ function buildAuthorizeRedirectUrl(
 export async function ssoCallbackHandler(
   ctx: ActionCtx,
   req: Request,
-  deps: { finishLogin: FinishLogin } = {
-    finishLogin: finishLoginWithConvexAuth,
-  },
+  deps: { finishLogin: FinishLogin },
 ): Promise<Response> {
   // Behind the reverse proxy the request origin is the INTERNAL Convex address
   // (unreachable from a browser), so error redirects must target the public
@@ -264,7 +262,9 @@ export async function ssoCallbackHandler(
     const needsGroups =
       config.autoProvisionTeam ||
       (config.autoProvisionRole &&
-        config.roleMappingRules.some((rule) => rule.source === 'group'));
+        config.roleMappingRules.some(
+          (rule: { source: string }) => rule.source === 'group',
+        ));
     if (needsGroups && !userInfo.groups?.length && adapter.getGroups) {
       try {
         const groups = await adapter.getGroups(ssoConfig, tokens.accessToken);

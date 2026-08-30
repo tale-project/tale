@@ -74,8 +74,8 @@ export async function scopedSubstringSearch<T extends TableNames>(
     .order('desc')
     .paginate(paginationOpts);
 
-  const page = (result.page as Doc<T>[]).filter((row) => {
-    const record = row as Record<string, unknown>;
+  const page = result.page.filter((row) => {
+    const record: Record<string, unknown> = row;
     if (strategy.activeOnly && !isActiveRow(record)) return false;
     if (args.accessFilter && !args.accessFilter(row)) return false;
     return rowMatches(row, strategy, lowerTerm, rawTerm, matchMode);

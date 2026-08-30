@@ -1,9 +1,6 @@
 'use node';
-
-import { v } from 'convex/values';
 import { XMLParser } from 'fast-xml-parser';
 
-import { internalAction } from '../../_generated/server';
 import { safeFetch, SafeFetchError } from '../../lib/http/safe_fetch';
 
 /**
@@ -206,18 +203,3 @@ export async function fetchAndParseIdpMetadataImpl(args: {
     idpCertificate: result.idpCertificate,
   };
 }
-
-export const fetchAndParseIdpMetadata = internalAction({
-  args: {
-    url: v.optional(v.string()),
-    xml: v.optional(v.string()),
-  },
-  returns: v.object({
-    ok: v.boolean(),
-    error: v.optional(v.string()),
-    idpEntityId: v.optional(v.string()),
-    idpSsoUrl: v.optional(v.string()),
-    idpCertificate: v.optional(v.string()),
-  }),
-  handler: async (_ctx, args) => fetchAndParseIdpMetadataImpl(args),
-});

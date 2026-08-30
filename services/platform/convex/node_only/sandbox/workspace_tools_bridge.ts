@@ -1,39 +1,5 @@
 'use node';
 
-/**
- * Server side of the in-sandbox WORKSPACE-TOOL bridge
- * (`tale-connectors-mcp` `workspace_tool`/`workspace_status` →
- * `/api/tools/{execute,status}`). The first-party counterpart of
- * `connectors_bridge.ts`: where that surface reaches the org's third-party
- * connectors, this one reaches the org's OWN platform data — knowledge and the
- * Documents hub — as read-only tools.
- *
- * Same discipline as the connector surface: whatever these actions return is
- * relayed verbatim to the external agent as the tool result, so every shape is
- * written FOR THE MODEL (structured status + guidance, never a bare throw).
- * Access is re-resolved per dispatch from what the token PROVES, never from
- * the request — BINDING FIRST, user fallback: a user-less task/automation
- * token acts with its deploy-time binding's authority (a project-bound run
- * inside its project + the org hub, an org-level automation run org-wide),
- * a user-keyed token reads as its user (active membership + the same role
- * matrix the user-side `queryWithRLS` reads enforce). The knowledge pair
- * resolves through `resolveKnowledgeToolAccess`, everything else through
- * `resolveSessionActionContext`.
- *
- * WRITE tools (the task family, `document_create`) exist since the per-agent
- * tool grants shipped: the GRANT is the authorization — write tools are in no
- * lane's baseline, they reach a turn only when a user explicitly equipped the
- * agent with them, and the async work lanes have no per-call approval card.
- * Every write lands through the domain's own internal mutations
- * (`workspace_domain_tools.ts`), so actor attribution, the task-ops
- * invariants (agents never set `done`), and the domain audit/event trail hold
- * exactly as they do for the automation engine's platform natives.
- *
- * `'use node'` because knowledge search binds an embedder (filesystem/network).
- */
-
-import { v } from 'convex/values';
-
 import {
   knowledgeScopeAllows,
   type KnowledgeAccessScope,
@@ -46,7 +12,7 @@ import {
   type QuestionSet,
 } from '../../../lib/shared/schemas/questions';
 import { internal } from '../../_generated/api';
-import { internalAction, type ActionCtx } from '../../_generated/server';
+import type { ActionCtx } from '../../_generated/server';
 import {
   FETCH_WINDOW_CHARS,
   fetchDocumentByFileId,
@@ -289,27 +255,6 @@ export async function dispatchWorkspaceToolImpl(
     );
   return result;
 }
-
-export const dispatchWorkspaceTool = internalAction({
-  args: {
-    organizationId: v.string(),
-    sessionId: v.string(),
-    /** The turn's user — absent on task/automation run tokens, whose tools
-     * (`ask_human`, the knowledge pair) resolve access from the session's
-     * binding instead. */
-    userId: v.optional(v.string()),
-    /** The per-turn gateway VK id off the session-token row (HTTP dispatch
-     * auth, never the request body) — `recordToolCall` resolves it to the
-     * exec it was minted for, pinning the audit row to one turn. */
-    mintedKeyId: v.optional(v.string()),
-    tool: v.string(),
-    callArgs: v.any(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args): Promise<ToolResult> =>
-    dispatchWorkspaceToolImpl(ctx, args),
-});
-
 /**
  * The knowledge REFS a successful RAG call served — durable document identity
  * (a file id, or a URL for a crawled page), never content or snippets.
@@ -1012,10 +957,3 @@ export function workspaceToolStatusImpl(grants: readonly string[]): unknown {
     })),
   };
 }
-
-export const workspaceToolStatus = internalAction({
-  args: { grants: v.array(v.string()) },
-  returns: v.any(),
-  handler: (_ctx, args) =>
-    Promise.resolve(workspaceToolStatusImpl(args.grants)),
-});

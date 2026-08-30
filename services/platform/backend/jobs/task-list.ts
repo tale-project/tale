@@ -273,8 +273,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       await stepRunImpl(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 stepper; every ctx facility it touches is covered by automationShimHandlers
         shim as unknown as Parameters<typeof stepRunImpl>[0],
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- runId is the row id; the Convex Id type is a branded string
-        input as unknown as Parameters<typeof stepRunImpl>[1],
+        input,
       );
     },
     'automation.trigger_scan': async () => {
@@ -611,8 +610,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       await driveTaskAgentTurnImpl(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by agentTurnShimHandlers
         shim as unknown as Parameters<typeof driveTaskAgentTurnImpl>[0],
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- row ids are the branded Convex Id types' runtime shape (strings)
-        input as unknown as Parameters<typeof driveTaskAgentTurnImpl>[1],
+        input,
       );
     },
 
@@ -626,8 +624,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       await steerTaskAgentTurnImpl(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by agentTurnShimHandlers
         shim as unknown as Parameters<typeof steerTaskAgentTurnImpl>[0],
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- row ids are the branded Convex Id types' runtime shape (strings)
-        input as unknown as Parameters<typeof steerTaskAgentTurnImpl>[1],
+        input,
       );
     },
 
@@ -707,7 +704,6 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       await startTaskAgentTurnImpl(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by agentTurnShimHandlers
         shim as unknown as Parameters<typeof startTaskAgentTurnImpl>[0],
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- row ids are the branded Convex Id types' runtime shape (strings)
         {
           organizationId: input.organizationId,
           runId: input.runId,
@@ -730,7 +726,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           secrets: agent.secrets,
           ...(run.feedback !== null ? { feedback: run.feedback } : {}),
           ...plan,
-        } as unknown as Parameters<typeof startTaskAgentTurnImpl>[1],
+        },
       );
     },
     'task.agent_retry': async (payload) => {
@@ -878,10 +874,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         shim as unknown as Parameters<
           typeof resumeWorkflowAgentTurnWithAnswerImpl
         >[0],
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- askId is the row id; the Convex Id type is a branded string
-        input as unknown as Parameters<
-          typeof resumeWorkflowAgentTurnWithAnswerImpl
-        >[1],
+        input,
       );
     },
     'automation.poll': async (payload) => {

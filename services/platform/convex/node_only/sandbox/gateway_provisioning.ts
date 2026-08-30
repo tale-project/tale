@@ -102,11 +102,10 @@ export async function buildProviderProvision(
     return null;
   }
 
-  const row = (await ctx.runQuery(
+  const row: CredentialRowFacts | null = await ctx.runQuery(
     internal.provider_credentials.queries.getCredentialInternal,
     { credentialId: resolved.credentialId },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the internal query returns the full row as v.any(); this names the fields read here
-  )) as CredentialRowFacts | null;
+  );
   const allowlist = row?.modelAllowlist;
 
   const models =

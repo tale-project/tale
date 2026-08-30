@@ -581,8 +581,7 @@ export async function runVideoIngestJob(
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused orchestrator's ActionCtx surface is exactly what the shim provides
   await ingestVideoLinkImpl(ctx as never, {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- pg ids stand in for the Convex Id<'videoLinkJobs'> brand
-    jobId: payload.jobId as never,
+    jobId: payload.jobId,
     ...(payload.userLocale !== undefined
       ? { userLocale: payload.userLocale }
       : {}),

@@ -36,7 +36,6 @@
  */
 
 import { computeContentHash } from '@tale/shared/utils/hashing';
-import { v } from 'convex/values';
 import type { Sql } from 'postgres';
 
 import { chunkDocument } from '../../lib/knowledge/chunking';
@@ -57,7 +56,6 @@ import { htmlTitle, htmlToText } from '../../lib/knowledge/html-to-text';
 import { PUBLIC_WEB_SCHEMA } from '../../lib/knowledge/types';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
-import { internalAction } from '../_generated/server';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import {
   safeFetch,
@@ -150,23 +148,6 @@ interface ScanIdentity {
   readonly orgSlug: string;
   readonly organizationId: string;
 }
-
-/**
- * Crawl one domain. `continuation === 0` claims the corpus row and runs
- * discovery; every link fetches pages until its budget runs out, indexes
- * what changed, and either reschedules itself or finishes the scan.
- */
-export const scanWebsite = internalAction({
-  args: {
-    domain: v.string(),
-    orgSlug: v.string(),
-    organizationId: v.string(),
-    continuation: v.optional(v.number()),
-    scanStartedAt: v.optional(v.string()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> => scanWebsiteImpl(ctx, args),
-});
 
 /** The engine body, hoisted so the 0.5 backend can run it on a ctx shim
  * (the wrapper above keeps the 0.4 wiring). */
@@ -408,18 +389,6 @@ export async function scanWebsiteImpl(
   }
 }
 
-/**
- * The five-minute scheduler: find websites whose scan interval has elapsed
- * (or whose scan looks crashed) and start a bounded number of scans. Driven
- * by the Convex `websites` rows — each knows its organization, and the
- * organization names the corpus pool.
- */
-export const scanDueWebsites = internalAction({
-  args: {},
-  returns: v.null(),
-  handler: async (ctx): Promise<null> => scanDueWebsitesImpl(ctx),
-});
-
 /** The scheduler body, hoisted for the 0.5 backend (see scanWebsiteImpl). */
 export async function scanDueWebsitesImpl(ctx: ActionCtx): Promise<null> {
   {
@@ -430,7 +399,9 @@ export async function scanDueWebsitesImpl(ctx: ActionCtx): Promise<null> {
     const now = Date.now();
     // The policy (intervals, stuck-scan takeover, failure backoff, pause) is
     // the pure `isDueForScan` in websites/scan_scheduling.ts.
-    const due = websites.filter((site) => isDueForScan(site, now));
+    const due = websites.filter((site: Parameters<typeof isDueForScan>[0]) =>
+      isDueForScan(site, now),
+    );
 
     const batch = due.slice(0, MAX_SCANS_PER_TICK);
     if (due.length > batch.length) {

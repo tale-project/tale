@@ -184,7 +184,7 @@ async function projectLabelsById(
     { organizationId, projectIds: unique },
   );
   return new Map(
-    labels.map((row) => [
+    labels.map((row: { id: string; name: string; key?: string }) => [
       row.id,
       row.key !== undefined
         ? { name: row.name, key: row.key }
@@ -193,10 +193,8 @@ async function projectLabelsById(
   );
 }
 
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ids are data from the run's own scope; a wrong id fails the callee's validator/org check and reads as a structured refusal
-const asTaskId = (raw: string): Id<'tasks'> => raw as Id<'tasks'>;
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same contract as asTaskId
-const asProjectId = (raw: string): Id<'projects'> => raw as Id<'projects'>;
+const asTaskId = (raw: string): Id<'tasks'> => raw;
+const asProjectId = (raw: string): Id<'projects'> => raw;
 
 /**
  * Resolve the project a task WRITE/list targets from the session's authority:
@@ -348,12 +346,12 @@ export async function runTaskTool(
       const projectsById = await projectLabelsById(
         ctx,
         organizationId,
-        sliced.map((task) => String(task.projectId)),
+        sliced.map((task: Doc<'tasks'>) => String(task.projectId)),
       );
       return {
         status: 'ok',
         output: {
-          tasks: sliced.map((task) =>
+          tasks: sliced.map((task: Doc<'tasks'>) =>
             compactTask(task, projectsById.get(String(task.projectId)) ?? null),
           ),
           totalFound: rows.length,

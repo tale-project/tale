@@ -4,24 +4,21 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AppError } from '../../lib/shared/errors/app-error';
 
-// Replace the Convex function builders with identity functions so each loaded
-// action is the plain `{ args, returns, handler }` object and its handler can
-// be driven directly against a real temporary config tree.
-vi.mock('../_generated/server', async (importOriginal) => {
-  const mod = await importOriginal<Record<string, unknown>>();
-  return {
-    ...mod,
-    action: (config: Record<string, unknown>) => config,
-    internalAction: (config: Record<string, unknown>) => config,
-  };
-});
-
-// oxlint-disable-next-line typescript/no-explicit-any -- builders mocked to identity (third-party gap per AGENTS.md)
-type Handler = { handler: (ctx: unknown, args: unknown) => Promise<any> };
+// The `*ForViewer` functions ARE the skill-file surface now — the Convex
+// action wrappers that used to delegate to them retired with the runtime —
+// so each is driven directly against a real temporary config tree.
+//
+// The bundle-UPLOAD lane is not here: its 0.4 wrapper carried the ownership
+// gate and blob plumbing itself, and that orchestration was rebuilt natively
+// as `backend/domains/skills/upload.ts`. It is covered end-to-end (install /
+// confirm / force / foreign-org / garbage) by the integration run against a
+// real database and a real staged zip.
+// oxlint-disable-next-line typescript/no-explicit-any -- each returns its own view type; the tests assert on the values
+type ViewerFn = (args: unknown) => Promise<any>;
 
 let configRoot: string;
 let savedConfigDir: string | undefined;
@@ -41,11 +38,10 @@ afterEach(async () => {
   await rm(configRoot, { recursive: true, force: true });
 });
 
-async function load(name: string): Promise<Handler> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see above
+async function load(name: string): Promise<ViewerFn> {
   const mod = (await import('./file_actions')) as unknown as Record<
     string,
-    Handler
+    ViewerFn
   >;
   return mod[name];
 }
@@ -116,14 +112,14 @@ describe('listSkills', () => {
         visibility: 'org',
       }),
     );
-    const listSkills = await load('listSkills');
+    const listSkills = await load('listSkillsForViewer');
 
-    const forAlice = await listSkills.handler(null, {
+    const forAlice = await listSkills({
       orgSlug: 'acme',
       ...alice,
     });
-    const forBob = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
-    const forAdmin = await listSkills.handler(null, {
+    const forBob = await listSkills({ orgSlug: 'acme', ...bob });
+    const forAdmin = await listSkills({
       orgSlug: 'acme',
       ...admin,
     });
@@ -151,14 +147,14 @@ describe('listSkills', () => {
         owner: 'user_alice',
       }),
     );
-    const listSkills = await load('listSkills');
+    const listSkills = await load('listSkillsForViewer');
 
-    const asBob = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
-    const asAdmin = await listSkills.handler(null, {
+    const asBob = await listSkills({ orgSlug: 'acme', ...bob });
+    const asAdmin = await listSkills({
       orgSlug: 'acme',
       ...admin,
     });
-    const asAlice = await listSkills.handler(null, {
+    const asAlice = await listSkills({
       orgSlug: 'acme',
       ...alice,
     });
@@ -170,9 +166,9 @@ describe('listSkills', () => {
 
   it('reports a malformed bundle with its org-relative path', async () => {
     await seedSkill('acme', 'broken', '# no frontmatter\n');
-    const listSkills = await load('listSkills');
+    const listSkills = await load('listSkillsForViewer');
 
-    const listing = await listSkills.handler(null, {
+    const listing = await listSkills({
       orgSlug: 'acme',
       ...alice,
     });
@@ -205,10 +201,10 @@ describe('listSkills', () => {
       'globex-only',
       skillMd({ name: 'globex-only', description: 'Globex only.' }),
     );
-    const listSkills = await load('listSkills');
+    const listSkills = await load('listSkillsForViewer');
 
-    const acme = await listSkills.handler(null, { orgSlug: 'acme', ...alice });
-    const globex = await listSkills.handler(null, {
+    const acme = await listSkills({ orgSlug: 'acme', ...alice });
+    const globex = await listSkills({
       orgSlug: 'globex',
       ...alice,
     });
@@ -243,9 +239,9 @@ describe('readSkill', () => {
         'Secret notes.\n',
       ),
     );
-    const readSkill = await load('readSkill');
+    const readSkill = await load('readSkillForViewer');
 
-    const mine = await readSkill.handler(null, {
+    const mine = await readSkill({
       orgSlug: 'acme',
       slug: 'alice-drafts',
       ...alice,
@@ -254,14 +250,14 @@ describe('readSkill', () => {
 
     // Absent, not forbidden: acknowledging it would already leak its existence.
     expect(
-      await readSkill.handler(null, {
+      await readSkill({
         orgSlug: 'acme',
         slug: 'alice-drafts',
         ...bob,
       }),
     ).toBeNull();
     expect(
-      await readSkill.handler(null, {
+      await readSkill({
         orgSlug: 'acme',
         slug: 'alice-drafts',
         ...admin,
@@ -271,10 +267,10 @@ describe('readSkill', () => {
 
   it('reports a malformed bundle instead of pretending it is absent', async () => {
     await seedSkill('acme', 'broken', '---\nname: broken\n');
-    const readSkill = await load('readSkill');
+    const readSkill = await load('readSkillForViewer');
 
     try {
-      await readSkill.handler(null, {
+      await readSkill({
         orgSlug: 'acme',
         slug: 'broken',
         ...alice,
@@ -289,10 +285,10 @@ describe('readSkill', () => {
   });
 
   it('rejects a slug that is not a bundle name', async () => {
-    const readSkill = await load('readSkill');
+    const readSkill = await load('readSkillForViewer');
 
     await expect(
-      readSkill.handler(null, {
+      readSkill({
         orgSlug: 'acme',
         slug: '../../etc',
         ...alice,
@@ -303,9 +299,9 @@ describe('readSkill', () => {
 
 describe('saveSkill', () => {
   it('creates an org skill owned by its author', async () => {
-    const saveSkill = await load('saveSkill');
+    const saveSkill = await load('saveSkillForViewer');
 
-    const saved = await saveSkill.handler(null, {
+    const saved = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -317,18 +313,18 @@ describe('saveSkill', () => {
     expect(saved.owner).toBe('user_alice');
     expect(saved.canEdit).toBe(true);
 
-    const listSkills = await load('listSkills');
-    const forBob = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
+    const listSkills = await load('listSkillsForViewer');
+    const forBob = await listSkills({ orgSlug: 'acme', ...bob });
     expect(forBob.skills.map((s: { slug: string }) => s.slug)).toEqual([
       'house-voice',
     ]);
   });
 
   it('refuses to mint a private skill', async () => {
-    const saveSkill = await load('saveSkill');
+    const saveSkill = await load('saveSkillForViewer');
 
     try {
-      await saveSkill.handler(null, {
+      await saveSkill({
         orgSlug: 'acme',
         slug: 'alice-drafts',
         ...alice,
@@ -354,13 +350,13 @@ describe('saveSkill', () => {
         owner: 'user_alice',
       }),
     );
-    const saveSkill = await load('saveSkill');
-    const listSkills = await load('listSkills');
+    const saveSkill = await load('saveSkillForViewer');
+    const listSkills = await load('listSkillsForViewer');
 
     // An edit that does not touch visibility keeps it private — the owner is
     // not forced to reshare just to fix a typo. Sending `private` explicitly
     // (the edit form echoes the current state) is equally allowed.
-    const edited = await saveSkill.handler(null, {
+    const edited = await saveSkill({
       orgSlug: 'acme',
       slug: 'alice-drafts',
       ...alice,
@@ -369,12 +365,10 @@ describe('saveSkill', () => {
       visibility: 'private',
     });
     expect(edited.visibility).toBe('private');
-    expect(
-      (await listSkills.handler(null, { orgSlug: 'acme', ...bob })).skills,
-    ).toEqual([]);
+    expect((await listSkills({ orgSlug: 'acme', ...bob })).skills).toEqual([]);
 
     // Sharing is one edit; once shared, private cannot be re-entered.
-    await saveSkill.handler(null, {
+    await saveSkill({
       orgSlug: 'acme',
       slug: 'alice-drafts',
       ...alice,
@@ -382,14 +376,14 @@ describe('saveSkill', () => {
       body: 'Notes.\n',
       visibility: 'org',
     });
-    const forBob = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
+    const forBob = await listSkills({ orgSlug: 'acme', ...bob });
     expect(forBob.skills.map((s: { slug: string }) => s.slug)).toEqual([
       'alice-drafts',
     ]);
     expect(forBob.skills[0].owner).toBe('user_alice');
 
     try {
-      await saveSkill.handler(null, {
+      await saveSkill({
         orgSlug: 'acme',
         slug: 'alice-drafts',
         ...alice,
@@ -414,10 +408,10 @@ describe('saveSkill', () => {
         owner: 'user_alice',
       }),
     );
-    const saveSkill = await load('saveSkill');
+    const saveSkill = await load('saveSkillForViewer');
 
     try {
-      await saveSkill.handler(null, {
+      await saveSkill({
         orgSlug: 'acme',
         slug: 'house-voice',
         ...bob,
@@ -441,9 +435,9 @@ describe('saveSkill', () => {
         owner: 'user_alice',
       }),
     );
-    const saveSkill = await load('saveSkill');
+    const saveSkill = await load('saveSkillForViewer');
 
-    const saved = await saveSkill.handler(null, {
+    const saved = await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...admin,
@@ -472,8 +466,8 @@ describe('saveSkill', () => {
         '',
       ].join('\n'),
     );
-    const saveSkill = await load('saveSkill');
-    await saveSkill.handler(null, {
+    const saveSkill = await load('saveSkillForViewer');
+    await saveSkill({
       orgSlug: 'acme',
       slug: 'pdf',
       ...admin,
@@ -498,10 +492,10 @@ describe('saveSkill', () => {
       'house-voice',
       skillMd({ name: 'house-voice', description: 'Globex.' }),
     );
-    const saveSkill = await load('saveSkill');
-    const listSkills = await load('listSkills');
+    const saveSkill = await load('saveSkillForViewer');
+    const listSkills = await load('listSkillsForViewer');
 
-    await saveSkill.handler(null, {
+    await saveSkill({
       orgSlug: 'acme',
       slug: 'house-voice',
       ...alice,
@@ -510,7 +504,7 @@ describe('saveSkill', () => {
       visibility: 'org',
     });
 
-    const globex = await listSkills.handler(null, {
+    const globex = await listSkills({
       orgSlug: 'globex',
       ...alice,
     });
@@ -520,10 +514,10 @@ describe('saveSkill', () => {
 
 describe('deleteSkill', () => {
   it('reports a no-op when there is nothing to delete', async () => {
-    const deleteSkill = await load('deleteSkill');
+    const deleteSkill = await load('deleteSkillForViewer');
 
     expect(
-      await deleteSkill.handler(null, {
+      await deleteSkill({
         orgSlug: 'acme',
         slug: 'nothing-here',
         ...alice,
@@ -542,10 +536,10 @@ describe('deleteSkill', () => {
         owner: 'user_alice',
       }),
     );
-    const deleteSkill = await load('deleteSkill');
+    const deleteSkill = await load('deleteSkillForViewer');
 
     try {
-      await deleteSkill.handler(null, {
+      await deleteSkill({
         orgSlug: 'acme',
         slug: 'house-voice',
         ...bob,
@@ -567,19 +561,19 @@ describe('deleteSkill', () => {
         owner: 'user_alice',
       }),
     );
-    const deleteSkill = await load('deleteSkill');
-    const listSkills = await load('listSkills');
+    const deleteSkill = await load('deleteSkillForViewer');
+    const listSkills = await load('listSkillsForViewer');
 
     expect(
-      await deleteSkill.handler(null, {
+      await deleteSkill({
         orgSlug: 'acme',
         slug: 'alice-drafts',
         ...alice,
       }),
     ).toBe(true);
-    expect(
-      (await listSkills.handler(null, { orgSlug: 'acme', ...alice })).skills,
-    ).toEqual([]);
+    expect((await listSkills({ orgSlug: 'acme', ...alice })).skills).toEqual(
+      [],
+    );
   });
 });
 
@@ -598,9 +592,9 @@ describe('readSkillBundle', () => {
       'print("unpack")\n',
       'utf-8',
     );
-    const readSkillBundle = await load('readSkillBundle');
+    const readSkillBundle = await load('readSkillBundleForViewer');
 
-    const bundle = await readSkillBundle.handler(null, {
+    const bundle = await readSkillBundle({
       orgSlug: 'acme',
       slug: 'docx',
       ...bob,
@@ -626,14 +620,14 @@ describe('readSkillBundle', () => {
         owner: 'user_alice',
       }),
     );
-    const readSkillBundle = await load('readSkillBundle');
+    const readSkillBundle = await load('readSkillBundleForViewer');
 
-    const forAlice = await readSkillBundle.handler(null, {
+    const forAlice = await readSkillBundle({
       orgSlug: 'acme',
       slug: 'alice-drafts',
       ...alice,
     });
-    const forBob = await readSkillBundle.handler(null, {
+    const forBob = await readSkillBundle({
       orgSlug: 'acme',
       slug: 'alice-drafts',
       ...bob,
@@ -646,10 +640,10 @@ describe('readSkillBundle', () => {
   });
 
   it('is null for a bundle the org does not have', async () => {
-    const readSkillBundle = await load('readSkillBundle');
+    const readSkillBundle = await load('readSkillBundleForViewer');
 
     expect(
-      await readSkillBundle.handler(null, {
+      await readSkillBundle({
         orgSlug: 'acme',
         slug: 'missing',
         ...bob,
@@ -659,10 +653,10 @@ describe('readSkillBundle', () => {
 
   it('surfaces a malformed SKILL.md instead of staging around it', async () => {
     await seedSkill('acme', 'broken', '# no frontmatter\n');
-    const readSkillBundle = await load('readSkillBundle');
+    const readSkillBundle = await load('readSkillBundleForViewer');
 
     try {
-      await readSkillBundle.handler(null, {
+      await readSkillBundle({
         orgSlug: 'acme',
         slug: 'broken',
         ...bob,
@@ -685,14 +679,14 @@ describe('team visibility', () => {
 
   it('resolves a team skill by team overlap, owner, or admin seat', async () => {
     await seedSkill('acme', 'red-notes', redTeamSkill);
-    const readSkill = await load('readSkill');
+    const readSkill = await load('readSkillForViewer');
 
     const args = { orgSlug: 'acme', slug: 'red-notes' };
-    expect(await readSkill.handler(null, { ...args, ...alice })).not.toBeNull();
-    expect(await readSkill.handler(null, { ...args, ...bob })).toBeNull();
-    expect(await readSkill.handler(null, { ...args, ...admin })).not.toBeNull();
+    expect(await readSkill({ ...args, ...alice })).not.toBeNull();
+    expect(await readSkill({ ...args, ...bob })).toBeNull();
+    expect(await readSkill({ ...args, ...admin })).not.toBeNull();
     expect(
-      await readSkill.handler(null, {
+      await readSkill({
         ...args,
         ...userViewer('user_carol'),
       }),
@@ -701,30 +695,28 @@ describe('team visibility', () => {
 
   it('resolves a team skill for a project by ITS teams, never a member’s', async () => {
     await seedSkill('acme', 'red-notes', redTeamSkill);
-    const readSkill = await load('readSkill');
+    const readSkill = await load('readSkillForViewer');
 
     const args = { orgSlug: 'acme', slug: 'red-notes' };
     expect(
-      await readSkill.handler(null, {
+      await readSkill({
         ...args,
         viewer: { kind: 'project', teamIds: ['team_red'] },
       }),
     ).not.toBeNull();
     expect(
-      await readSkill.handler(null, {
+      await readSkill({
         ...args,
         viewer: { kind: 'project', teamIds: [] },
       }),
     ).toBeNull();
-    expect(
-      await readSkill.handler(null, { ...args, viewer: { kind: 'org' } }),
-    ).toBeNull();
+    expect(await readSkill({ ...args, viewer: { kind: 'org' } })).toBeNull();
   });
 
   it('saves a team skill and strips the teams when it is reshared org-wide', async () => {
-    const saveSkill = await load('saveSkill');
+    const saveSkill = await load('saveSkillForViewer');
 
-    const created = await saveSkill.handler(null, {
+    const created = await saveSkill({
       orgSlug: 'acme',
       slug: 'red-notes',
       ...alice,
@@ -736,7 +728,7 @@ describe('team visibility', () => {
     expect(created.visibility).toBe('team');
     expect(created.teams).toEqual(['team_red']);
 
-    const reshared = await saveSkill.handler(null, {
+    const reshared = await saveSkill({
       orgSlug: 'acme',
       slug: 'red-notes',
       ...alice,
@@ -749,10 +741,10 @@ describe('team visibility', () => {
   });
 
   it('refuses a team skill that would end up with no teams', async () => {
-    const saveSkill = await load('saveSkill');
+    const saveSkill = await load('saveSkillForViewer');
 
     try {
-      await saveSkill.handler(null, {
+      await saveSkill({
         orgSlug: 'acme',
         slug: 'red-notes',
         ...alice,
@@ -777,17 +769,17 @@ describe('legacy usage-mode key', () => {
 
   it('reads and lists a legacy bundle as an ordinary skill', async () => {
     await seedSkill('acme', 'chat-helper', legacy);
-    const readSkill = await load('readSkill');
-    const listSkills = await load('listSkills');
+    const readSkill = await load('readSkillForViewer');
+    const listSkills = await load('listSkillsForViewer');
 
     expect(
-      await readSkill.handler(null, {
+      await readSkill({
         orgSlug: 'acme',
         slug: 'chat-helper',
         ...bob,
       }),
     ).not.toBeNull();
-    const listing = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
+    const listing = await listSkills({ orgSlug: 'acme', ...bob });
     expect(listing.skills.map((s: { slug: string }) => s.slug)).toEqual([
       'chat-helper',
     ]);
@@ -795,9 +787,9 @@ describe('legacy usage-mode key', () => {
 
   it('sheds the retired key on the next edit', async () => {
     await seedSkill('acme', 'chat-helper', legacy);
-    const saveSkill = await load('saveSkill');
+    const saveSkill = await load('saveSkillForViewer');
 
-    await saveSkill.handler(null, {
+    await saveSkill({
       orgSlug: 'acme',
       slug: 'chat-helper',
       ...admin,
@@ -835,9 +827,9 @@ describe('bundle files and assets', () => {
     );
     await seedAsset('acme', 'pdf-notes', 'reference.md', 'ref\n');
     await seedAsset('acme', 'pdf-notes', 'scripts/fill.py', 'print(1)\n');
-    const readSkill = await load('readSkill');
+    const readSkill = await load('readSkillForViewer');
 
-    const doc = await readSkill.handler(null, {
+    const doc = await readSkill({
       orgSlug: 'acme',
       slug: 'pdf-notes',
       ...bob,
@@ -857,9 +849,9 @@ describe('bundle files and assets', () => {
       skillMd({ name: 'pdf-notes', description: 'Doc.', visibility: 'org' }),
     );
     await seedAsset('acme', 'pdf-notes', 'scripts/fill.py', 'print(1)\n');
-    const readSkillAsset = await load('readSkillAsset');
+    const readSkillAsset = await load('readSkillAssetForViewer');
 
-    const asset = await readSkillAsset.handler(null, {
+    const asset = await readSkillAsset({
       orgSlug: 'acme',
       slug: 'pdf-notes',
       path: 'scripts/fill.py',
@@ -878,7 +870,7 @@ describe('bundle files and assets', () => {
       'missing.md',
     ]) {
       expect(
-        await readSkillAsset.handler(null, {
+        await readSkillAsset({
           orgSlug: 'acme',
           slug: 'pdf-notes',
           path: bad,
@@ -899,274 +891,15 @@ describe('bundle files and assets', () => {
         owner: 'user_alice',
       }),
     );
-    const readSkillAsset = await load('readSkillAsset');
+    const readSkillAsset = await load('readSkillAssetForViewer');
 
     expect(
-      await readSkillAsset.handler(null, {
+      await readSkillAsset({
         orgSlug: 'acme',
         slug: 'alice-drafts',
         path: 'SKILL.md',
         ...bob,
       }),
     ).toBeNull();
-  });
-});
-
-describe('uploadSkillBundle', () => {
-  async function zipOf(files: Record<string, string>): Promise<Buffer> {
-    const { default: JSZip } = await import('jszip');
-    const zip = new JSZip();
-    for (const [name, content] of Object.entries(files)) {
-      zip.file(name, content);
-    }
-    return zip.generateAsync({ type: 'nodebuffer' });
-  }
-
-  interface UploadCtxOptions {
-    blob?: Buffer | null;
-    intentMatch?: boolean;
-  }
-
-  function uploadCtx(options: UploadCtxOptions = {}) {
-    const mutations: string[] = [];
-    const deleted: string[] = [];
-    return {
-      mutations,
-      deleted,
-      ctx: {
-        runMutation: (ref: unknown, _args: unknown) => {
-          // getFunctionName needs the generated ref; suffix-match its string
-          // form instead so the identity-mocked builders stay out of it.
-          const name = String(
-            (ref as Record<symbol, unknown>)[Symbol.for('functionName')] ?? ref,
-          );
-          mutations.push(name);
-          if (name.includes('verifySkillUploadIntent')) {
-            return Promise.resolve(options.intentMatch ?? true);
-          }
-          return Promise.resolve(null);
-        },
-        storage: {
-          get: (_id: string) => {
-            const buf = options.blob;
-            if (buf === null) return Promise.resolve(null);
-            const bytes = buf ?? Buffer.alloc(0);
-            return Promise.resolve(
-              new Blob([new Uint8Array(bytes)], { type: 'application/zip' }),
-            );
-          },
-          delete: (id: string) => {
-            deleted.push(id);
-            return Promise.resolve();
-          },
-        },
-      },
-    };
-  }
-
-  const STORAGE_ID = 'st_1' as never;
-
-  function uploadArgs(extra: Record<string, unknown> = {}) {
-    return {
-      organizationId: 'org_acme',
-      orgSlug: 'acme',
-      storageId: STORAGE_ID,
-      ...alice,
-      ...extra,
-    };
-  }
-
-  it('persists an unmarked bundle as an org skill with the uploader as owner', async () => {
-    const blob = await zipOf({
-      'invoice-audit/SKILL.md': skillMd({
-        name: 'invoice-audit',
-        description: 'How we audit an invoice.',
-      }),
-      'invoice-audit/reference.md': 'ref\n',
-    });
-    const { ctx, deleted } = uploadCtx({ blob });
-    const uploadSkillBundle = await load('uploadSkillBundle');
-
-    const result = await uploadSkillBundle.handler(ctx, uploadArgs());
-    expect(result).toEqual({ ok: true, slug: 'invoice-audit' });
-    // The staged blob never outlives the call.
-    expect(deleted).toEqual([STORAGE_ID]);
-
-    const readSkill = await load('readSkill');
-    const forBob = await readSkill.handler(null, {
-      orgSlug: 'acme',
-      slug: 'invoice-audit',
-      ...bob,
-    });
-    expect(forBob.visibility).toBe('org');
-    expect(forBob.owner).toBe('user_alice');
-    expect(forBob.files.map((f: { path: string }) => f.path)).toEqual([
-      'SKILL.md',
-      'reference.md',
-    ]);
-  });
-
-  it('refuses a bundle that declares private sharing for a new slug', async () => {
-    const blob = await zipOf({
-      'SKILL.md': skillMd({
-        name: 'alice-drafts',
-        description: 'Personal.',
-        visibility: 'private',
-        owner: 'user_alice',
-      }),
-    });
-    const { ctx, deleted } = uploadCtx({ blob });
-    const uploadSkillBundle = await load('uploadSkillBundle');
-
-    try {
-      await uploadSkillBundle.handler(ctx, uploadArgs());
-      expect.unreachable('a new private bundle must be refused');
-    } catch (err) {
-      expect(errorCode(err)).toBe('SKILL_PRIVATE_RETIRED');
-    }
-    expect(deleted).toEqual([STORAGE_ID]);
-  });
-
-  it('lets an owner replace their pre-existing private skill, still private', async () => {
-    await seedSkill(
-      'acme',
-      'alice-drafts',
-      skillMd({
-        name: 'alice-drafts',
-        description: 'The old draft.',
-        visibility: 'private',
-        owner: 'user_alice',
-      }),
-    );
-    const blob = await zipOf({
-      'SKILL.md': skillMd({
-        name: 'alice-drafts',
-        description: 'The re-imported draft.',
-        visibility: 'private',
-        owner: 'user_alice',
-      }),
-    });
-    const uploadSkillBundle = await load('uploadSkillBundle');
-
-    const replaced = await uploadSkillBundle.handler(
-      uploadCtx({ blob }).ctx,
-      uploadArgs({ force: true }),
-    );
-    expect(replaced).toEqual({ ok: true, slug: 'alice-drafts' });
-
-    const readSkill = await load('readSkill');
-    const mine = await readSkill.handler(null, {
-      orgSlug: 'acme',
-      slug: 'alice-drafts',
-      ...alice,
-    });
-    expect(mine.visibility).toBe('private');
-    expect(mine.description).toBe('The re-imported draft.');
-  });
-
-  it('honors a declared visibility verbatim', async () => {
-    const blob = await zipOf({
-      'SKILL.md': skillMd({
-        name: 'house-voice',
-        description: 'Shared on purpose.',
-        visibility: 'org',
-      }),
-    });
-    const { ctx } = uploadCtx({ blob });
-    const uploadSkillBundle = await load('uploadSkillBundle');
-
-    await uploadSkillBundle.handler(ctx, uploadArgs());
-
-    const readSkill = await load('readSkill');
-    const forBob = await readSkill.handler(null, {
-      orgSlug: 'acme',
-      slug: 'house-voice',
-      ...bob,
-    });
-    expect(forBob.visibility).toBe('org');
-    // Attribution adopted for an ownerless shared bundle.
-    expect(forBob.owner).toBe('user_alice');
-  });
-
-  it('asks for confirmation before replacing, then gates the replace on edit rights', async () => {
-    await seedSkill(
-      'acme',
-      'house-voice',
-      skillMd({
-        name: 'house-voice',
-        description: 'The current one.',
-        visibility: 'org',
-        owner: 'user_carol',
-      }),
-    );
-    const blob = await zipOf({
-      'SKILL.md': skillMd({
-        name: 'house-voice',
-        description: 'The replacement.',
-        visibility: 'org',
-      }),
-    });
-    const uploadSkillBundle = await load('uploadSkillBundle');
-
-    const first = await uploadSkillBundle.handler(
-      uploadCtx({ blob }).ctx,
-      uploadArgs(),
-    );
-    expect(first).toEqual({
-      ok: false,
-      status: 'needs_confirm',
-      slug: 'house-voice',
-    });
-
-    // Alice neither owns it nor administers the org.
-    try {
-      await uploadSkillBundle.handler(
-        uploadCtx({ blob }).ctx,
-        uploadArgs({ force: true }),
-      );
-      expect.unreachable('replace by a non-editor must be refused');
-    } catch (err) {
-      expect(errorCode(err)).toBe('SKILL_FORBIDDEN');
-    }
-
-    const replaced = await uploadSkillBundle.handler(
-      uploadCtx({ blob }).ctx,
-      uploadArgs({ force: true, ...admin }),
-    );
-    expect(replaced).toEqual({ ok: true, slug: 'house-voice' });
-
-    const readSkill = await load('readSkill');
-    const doc = await readSkill.handler(null, {
-      orgSlug: 'acme',
-      slug: 'house-voice',
-      ...bob,
-    });
-    expect(doc.description).toBe('The replacement.');
-  });
-
-  it('refuses a blob the org does not own, before reading it', async () => {
-    const { ctx, deleted } = uploadCtx({ intentMatch: false });
-    const uploadSkillBundle = await load('uploadSkillBundle');
-
-    try {
-      await uploadSkillBundle.handler(ctx, uploadArgs());
-      expect.unreachable('unowned storage must be refused');
-    } catch (err) {
-      expect(errorCode(err)).toBe('STORAGE_NOT_OWNED');
-    }
-    expect(deleted).toEqual([]);
-  });
-
-  it('cleans up and refuses an invalid archive', async () => {
-    const { ctx, deleted } = uploadCtx({ blob: Buffer.from('not a zip') });
-    const uploadSkillBundle = await load('uploadSkillBundle');
-
-    try {
-      await uploadSkillBundle.handler(ctx, uploadArgs());
-      expect.unreachable('garbage must be refused');
-    } catch (err) {
-      expect(errorCode(err)).toBe('INVALID_BUNDLE');
-    }
-    expect(deleted).toEqual([STORAGE_ID]);
   });
 });

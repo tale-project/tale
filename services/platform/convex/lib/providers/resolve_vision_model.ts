@@ -153,11 +153,10 @@ async function eligibleEntriesFor(
   organizationId: string,
   provider: Awaited<ReturnType<typeof resolveProvidersForOrgId>>[number],
 ): Promise<readonly ModelCatalogEntry[] | null> {
-  const row = (await ctx.runQuery(
+  const row: DefaultCredentialFacts | null = await ctx.runQuery(
     internal.provider_credentials.queries.getDefaultCredentialInternal,
     { organizationId, providerSlug: provider.name },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the internal query returns the full row as v.any(); this names the fields read here
-  )) as DefaultCredentialFacts | null;
+  );
   // Only api-key/env credentials can back the gateway lane — every
   // subscription flavor is bound to its own harness.
   if (

@@ -15,11 +15,11 @@ interface SearchStrategyBase<T extends TableNames> {
   /** Org-scoped base index used by the scan engine (e.g. `by_organizationId`). */
   orgIndex: string;
   /** Text fields matched (case-insensitive substring), in relevance priority. */
-  textFields: ReadonlyArray<keyof Doc<T> & string>;
+  textFields: ReadonlyArray<keyof Doc<T>>;
   /** Array-of-string fields (e.g. `tags`) matched with `.some(includes)`. */
-  arrayTextFields?: ReadonlyArray<keyof Doc<T> & string>;
+  arrayTextFields?: ReadonlyArray<keyof Doc<T>>;
   /** Id-like fields matched exactly (e.g. `externalId`). Coerced via `String`. */
-  idFields?: ReadonlyArray<keyof Doc<T> & string>;
+  idFields?: ReadonlyArray<keyof Doc<T>>;
   /** Drop soft-deleted rows (`lifecycleStatus !== 'active'`) when the table
    *  carries the field. */
   activeOnly?: boolean;

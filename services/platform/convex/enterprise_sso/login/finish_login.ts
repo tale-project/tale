@@ -1,5 +1,4 @@
 import type { ActionCtx } from '../../_generated/server';
-import { createAuth } from '../../auth';
 import { signCookieValue } from '../sign_cookie_value';
 
 export const SESSION_COOKIE_NAME = 'better-auth.session_token';
@@ -48,45 +47,3 @@ export async function buildSessionCookie(
   if (isHttps) cookieParts.push('Secure');
   return cookieParts.join('; ');
 }
-
-/**
- * The Convex-deployment finisher: session cookie + a Better Auth
- * `get-session` warm-up whose Set-Cookie headers (the Convex JWT lane) ride
- * along, then a 302 to the dashboard — byte-for-byte the pre-seam tail of
- * the callback/ACS handlers.
- */
-export const finishLoginWithConvexAuth: FinishLogin = async (ctx, args) => {
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret) {
-    throw new Error('BETTER_AUTH_SECRET not configured');
-  }
-  const sessionCookie = await buildSessionCookie(
-    args.sessionToken,
-    args.frontendOrigin,
-    secret,
-  );
-
-  const auth = createAuth(ctx);
-  const authResponse = await auth.handler(
-    new Request(
-      new URL('/api/auth/get-session', args.frontendOrigin).toString(),
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${args.sessionToken}`,
-          'Content-Type': 'application/json',
-        },
-      },
-    ),
-  );
-
-  const headers = new Headers();
-  const basePath = process.env.BASE_PATH || '';
-  headers.set('Location', `${args.frontendOrigin}${basePath}/dashboard`);
-  headers.append('Set-Cookie', sessionCookie);
-  authResponse.headers.forEach((value, key) => {
-    if (key.toLowerCase() === 'set-cookie') headers.append('Set-Cookie', value);
-  });
-
-  return new Response(null, { status: 302, headers });
-};

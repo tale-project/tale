@@ -1,12 +1,10 @@
-import type { GenericDatabaseReader } from 'convex/server';
-
 import { AppError } from '../../lib/shared/errors/app-error';
 import {
   DEFAULT_SANDBOX_QUOTA,
   sandboxQuotaConfigSchema,
   type SandboxQuotaConfig,
 } from '../../lib/shared/schemas/governance';
-import type { DataModel } from '../_generated/dataModel';
+import type { DatabaseReader } from '../_generated/server';
 import { readConfigCacheRow } from '../lib/config_cache/read';
 
 export { DEFAULT_SANDBOX_QUOTA };
@@ -19,7 +17,7 @@ export { DEFAULT_SANDBOX_QUOTA };
  * (`reserveSessionSlotAndInsert`) mutations can share it.
  */
 export async function readSandboxQuotaPolicy(
-  db: GenericDatabaseReader<DataModel>,
+  db: DatabaseReader,
   organizationId: string,
 ): Promise<SandboxQuotaConfig> {
   const row = await readConfigCacheRow(

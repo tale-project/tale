@@ -105,7 +105,7 @@ export async function bindEmailAttachments(
         result.failed += 1;
         // Never fail an ingest that already landed the mail.
         console.warn(
-          `[bindEmailAttachments] could not bind ${storageId} to ${String(conversationId)}:`,
+          `[bindEmailAttachments] could not bind ${storageId} to ${conversationId}:`,
           error instanceof Error ? error.message : String(error),
         );
       }

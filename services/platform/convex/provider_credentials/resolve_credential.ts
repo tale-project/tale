@@ -150,11 +150,10 @@ async function loadRow(
   args: ResolveCredentialArgs,
 ): Promise<CredentialRow> {
   if (args.credentialId !== undefined) {
-    const row = (await ctx.runQuery(
+    const row: CredentialRow | null = await ctx.runQuery(
       internal.provider_credentials.queries.getCredentialInternal,
       { credentialId: args.credentialId },
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the internal query returns the full row as v.any(); this names its shape
-    )) as CredentialRow | null;
+    );
     if (!row || row.organizationId !== args.organizationId) {
       throw credentialError('CREDENTIAL_NOT_FOUND', 'Credential not found.');
     }
@@ -166,14 +165,13 @@ async function loadRow(
     }
     return row;
   }
-  const fallback = (await ctx.runQuery(
+  const fallback: CredentialRow | null = await ctx.runQuery(
     internal.provider_credentials.queries.getDefaultCredentialInternal,
     {
       organizationId: args.organizationId,
       providerSlug: args.providerSlug,
     },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the internal query returns the full row as v.any(); this names its shape
-  )) as CredentialRow | null;
+  );
   if (!fallback) {
     throw credentialError(
       'CREDENTIAL_NONE_CONFIGURED',

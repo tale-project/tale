@@ -1,9 +1,6 @@
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
-import {
-  finishLoginWithConvexAuth,
-  type FinishLogin,
-} from '../login/finish_login';
+import { type FinishLogin } from '../login/finish_login';
 import { recordSsoLoginFailure } from '../login/login_audit';
 import { mapSamlIdentity } from './attributes';
 import { samlEndpoints } from './metadata_handler';
@@ -27,9 +24,7 @@ function loginRedirect(origin: string, message: string): Response {
 export async function samlAcsHandler(
   ctx: ActionCtx,
   req: Request,
-  deps: { finishLogin: FinishLogin } = {
-    finishLogin: finishLoginWithConvexAuth,
-  },
+  deps: { finishLogin: FinishLogin },
 ): Promise<Response> {
   const origin = new URL(req.url).origin;
   // Known only once the assertion's connection resolves; every refusal after

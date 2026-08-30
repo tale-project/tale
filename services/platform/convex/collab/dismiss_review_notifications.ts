@@ -41,7 +41,7 @@ export async function dismissReviewRequestNotifications(
     taskId: Id<'tasks'>;
   },
 ): Promise<number> {
-  const approvalIdStr = String(args.approvalId);
+  const approvalIdStr = args.approvalId;
   const now = Date.now();
   let dismissed = 0;
 

@@ -1,34 +1,9 @@
 'use node';
 
-/**
- * Fire-and-forget AI naming of a thread from its first user message.
- *
- * Scheduled by `appendMessageInternal` exactly once per thread — when the
- * first user message lands on a thread that has no title yet. The generation
- * is best-effort with a hard budget: one small model call raced against a
- * timeout, and on ANY miss (no usable model, provider failure, empty reply,
- * timeout) the title falls back to a trimmed slice of the user's own words —
- * a wall of identically-named conversations is exactly what this exists to
- * prevent. A thread is never left waiting on its name: the write is guarded
- * (`setThreadTitleInternal` only fills an absent title) and failures are
- * logged, never surfaced into the turn.
- *
- * The model is resolved independently of the turn's lane: the first connector
- * whose DEFAULT credential is direct-capable (api-key/env) serves the call,
- * through the same one-shot wire the automations builder uses. An external
- * (harness) turn thus still gets a title, even though its own model only
- * answers inside the sandbox.
- *
- * `'use node'` by necessity — connector resolution reads the org's config
- * files, and the model call is an outbound fetch.
- */
-
-import { v } from 'convex/values';
-
 import { deriveFallbackTitle } from '../../lib/chat/derive-fallback-title';
 import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
-import { internalAction, type ActionCtx } from '../_generated/server';
+import type { ActionCtx } from '../_generated/server';
 import { createBuilderModel } from '../automations_builder/model_call';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { directActiveCredential } from '../lib/providers/direct_credential';
@@ -181,25 +156,6 @@ async function generateWithModel(
     return null;
   }
 }
-
-/**
- * Name the thread from its first user message: the AI title when one arrives
- * inside the budget, else the derived fallback. The mutation behind the write
- * fills only an absent title, so a rename or branch copy racing this is never
- * clobbered.
- */
-export const generateThreadTitle = internalAction({
-  args: {
-    organizationId: v.string(),
-    threadId: v.string(),
-    /** The thread owner — whose sticky model pick names the conversation. */
-    userId: v.string(),
-    firstMessage: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args): Promise<null> =>
-    generateThreadTitleImpl(ctx, args),
-});
 
 /** The naming attempt as a PLAIN exported function — the internalAction
  * above wraps it, and the 0.5 backend's `chat.generate_title` job runs it

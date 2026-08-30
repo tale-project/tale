@@ -30,10 +30,13 @@ import {
   resolveUserAccessContext,
 } from '../projects/resolve_project_access';
 
-type DocumentScopeFields = Pick<
-  Doc<'documents'>,
-  'projectId' | 'teamId' | 'teamTags'
->;
+/** The scope fields a visibility decision reads. All optional: a Knowledge
+ *  Hub document carries none of them. */
+interface DocumentScopeFields {
+  projectId?: string | null;
+  teamId?: string | null;
+  teamTags?: string[];
+}
 
 /**
  * A document attached to a project. Such documents are not Knowledge Hub

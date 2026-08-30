@@ -1,60 +1,52 @@
-/* eslint-disable */
+/* oxlint-disable typescript/no-explicit-any -- a row's shape is asserted at the
+   boundary that reads it, not here. */
 /**
- * Generated data model types.
+ * Row and id types for the reused 0.4 handler bodies.
  *
- * THIS CODE IS AUTOMATICALLY GENERATED.
+ * The rows live in Postgres now, and the 0.5 ctx shim hands them back as plain
+ * objects. There is no schema to derive a per-table shape from, so `Doc` is
+ * deliberately open: a body that needs a real shape declares it locally (see
+ * `tasks/helpers.ts` or `documents/access.ts`), which is also what porting a
+ * body to a 0.5 domain module starts with.
  *
- * To regenerate, run `npx convex dev`.
- * @module
+ * `Id` is a plain string — the branded `GenericId` retired with the runtime
+ * that minted them; Postgres ids are text.
+ *
+ * HAND-MAINTAINED, not generated.
  */
 
-import type {
-  DataModelFromSchemaDefinition,
-  DocumentByName,
-  TableNamesInDataModel,
-  SystemTableNames,
-} from "convex/server";
-import type { GenericId } from "convex/values";
-import schema from "../schema.js";
+/** Every table name is just a name; nothing validates it any more. */
+export type TableNames = string;
 
-/**
- * The names of all of your Convex tables.
- */
-export type TableNames = TableNamesInDataModel<DataModel>;
-
-/**
- * The type of a document stored in Convex.
- *
- * @typeParam TableName - A string literal type of the table name (like "users").
- */
-export type Doc<TableName extends TableNames> = DocumentByName<
-  DataModel,
-  TableName
+/** A row, as the shim returns it. */
+export type Doc<_TableName extends TableNames = TableNames> = Record<
+  string,
+  any
 >;
 
-/**
- * An identifier for a document in Convex.
- *
- * Convex documents are uniquely identified by their `Id`, which is accessible
- * on the `_id` field. To learn more, see [Document IDs](https://docs.convex.dev/using/document-ids).
- *
- * Documents can be loaded using `db.get(tableName, id)` in query and mutation functions.
- *
- * IDs are just strings at runtime, but this type can be used to distinguish them from other
- * strings when type checking.
- *
- * @typeParam TableName - A string literal type of the table name (like "users").
- */
-export type Id<TableName extends TableNames | SystemTableNames> =
-  GenericId<TableName>;
+/** A row id. Strings at rest, strings in flight. */
+export type Id<_TableName extends TableNames = TableNames> = string;
 
 /**
- * A type describing your Convex data model.
- *
- * This type includes information about what tables you have, the type of
- * documents stored in those tables, and the indexes defined on them.
- *
- * This type is used to parameterize methods like `queryGeneric` and
- * `mutationGeneric` to make them type-safe.
+ * Permissive by construction: any table, any document, any named index. The
+ * generated model encoded a schema that no longer governs anything, and
+ * `AnyDataModel` is the opposite mistake — it declares NO indexes, so every
+ * `withIndex('by_x')` in a reused body would fail to compile against a runtime
+ * that in fact accepts it.
  */
-export type DataModel = DataModelFromSchemaDefinition<typeof schema>;
+export type DataModel = Record<
+  string,
+  {
+    document: any;
+    fieldPaths: string;
+    indexes: Record<string, string[]>;
+    searchIndexes: Record<
+      string,
+      { searchField: string; filterFields: string }
+    >;
+    vectorIndexes: Record<
+      string,
+      { vectorField: string; dimensions: number; filterFields: string }
+    >;
+  }
+>;

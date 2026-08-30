@@ -101,7 +101,7 @@ function coalesceSubject(args: {
   taskId?: Id<'tasks'>;
   params?: Record<string, unknown>;
 }): string | null {
-  if (args.taskId !== undefined) return `task:${String(args.taskId)}`;
+  if (args.taskId !== undefined) return `task:${args.taskId}`;
   if (args.resourceType === 'task') return `task:${args.resourceId}`;
   const conversationId = args.params?.conversationId;
   if (typeof conversationId === 'string') {

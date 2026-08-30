@@ -1,10 +1,8 @@
-import type { GenericQueryCtx } from 'convex/server';
-
 import type {
   FeatureFlagsConfig,
   FeatureFlagRule,
 } from '../../lib/shared/schemas/governance';
-import type { DataModel } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import { readPolicyConfig } from './helpers';
 
 export interface ResolvedFeatureFlags {
@@ -57,7 +55,7 @@ function findApplicableRule(
  * When no policy exists, all features default to enabled.
  */
 export async function resolveFeatureFlags(
-  ctx: GenericQueryCtx<DataModel>,
+  ctx: QueryCtx,
   organizationId: string,
   userId: string,
   teamIds: string[],
