@@ -105,10 +105,6 @@ import {
   memberMirrorReconcileCursorTable,
   teamMemberMirrorTable,
 } from './members/schema';
-import {
-  migrationLedgerTable,
-  migrationSnapshotsTable,
-} from './migrations/framework/schema';
 import { notificationsTable } from './notifications/schema';
 import { objectStorageBackfillRunsTable } from './object_storage/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
@@ -196,12 +192,6 @@ export default defineSchema({
   // Backend-wide control flags (deploy drain). Singleton row; re-derivable /
   // transient. See `control/schema.ts`.
   backendControl: backendControlTable,
-  // Versioned data-migration framework. `migrationLedger` records which
-  // migrations have applied (and their resume cursors); `migrationSnapshots`
-  // holds pre-`up` backups so destructive migrations can be rolled back. See
-  // `migrations/framework/`.
-  migrationLedger: migrationLedgerTable,
-  migrationSnapshots: migrationSnapshotsTable,
   governanceSecrets: governanceSecretsTable,
   legalHolds: legalHoldsTable,
   activeLegalHoldClaims: activeLegalHoldClaimsTable,

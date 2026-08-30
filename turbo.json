@@ -50,19 +50,14 @@
       "dependsOn": ["setup"],
       "outputs": []
     },
-    "convex:codegen": {
-      "cache": false,
-      "outputs": ["convex/_generated/**"]
-    },
     "@tale/cli#generate": {
       "outputs": ["src/generated/**"]
     },
     "@tale/cli#typecheck": {
-      "dependsOn": ["generate", "convex:codegen"],
+      "dependsOn": ["generate"],
       "outputs": []
     },
     "typecheck": {
-      "dependsOn": ["convex:codegen"],
       "outputs": []
     },
     "test": {

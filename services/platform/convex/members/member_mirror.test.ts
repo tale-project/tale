@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { isOrgMember } from '../lib/rls/auth/check_org_membership';
 import { getUserOrganizations } from '../lib/rls/organization/get_user_organizations';
-import { buildModules } from '../migrations/framework/test_helpers';
+import { buildModules } from '../lib/test_helpers';
 import {
   upsertMemberMirror,
   deleteMemberMirrorByMemberId,

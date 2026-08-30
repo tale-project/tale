@@ -23,7 +23,7 @@ import { exec } from './exec';
 import { isContainerRunning } from './is-container-running';
 
 /** The api container's in-container port (compose sets PORT=3005). */
-export const BACKEND_CONTROL_PORT = '3005';
+const BACKEND_CONTROL_PORT = '3005';
 
 export function backendApiContainer(): string {
   return `${getProjectId()}-backend-api`;

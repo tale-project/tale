@@ -18,8 +18,8 @@ import {
   AGENT_READ_SUBJECTS,
   resolveAgentReadAccess,
 } from '../lib/rls/helpers/agent_read_access';
+import { buildModules } from '../lib/test_helpers';
 import { memberMirrorTable, teamMemberMirrorTable } from '../members/schema';
-import { buildModules } from '../migrations/framework/test_helpers';
 import { projectAgentsTable, projectsTable } from '../projects/schema';
 import { sandboxSessionsTable } from './sessions_schema';
 import { agentReadSubjectValidator } from './workspace_access';

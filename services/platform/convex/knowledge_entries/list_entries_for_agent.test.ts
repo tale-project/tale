@@ -8,7 +8,7 @@ import { defineSchema } from 'convex/server';
 import { describe, expect, it } from 'vitest';
 
 import { internal } from '../_generated/api';
-import { buildModules } from '../migrations/framework/test_helpers';
+import { buildModules } from '../lib/test_helpers';
 import { knowledgeEntriesTable } from './schema';
 
 const schema = defineSchema({ knowledgeEntries: knowledgeEntriesTable });

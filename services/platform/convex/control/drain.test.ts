@@ -3,7 +3,7 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
-import { buildModules } from '../migrations/framework/test_helpers';
+import { buildModules } from '../lib/test_helpers';
 import { countActiveGenerations, isDrainingNow } from './drain';
 
 // convex-test locates the project root via a module path containing
