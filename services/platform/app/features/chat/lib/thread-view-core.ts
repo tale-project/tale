@@ -44,6 +44,9 @@ export interface GenerationTextView {
   /** The assistant row's parts mid-turn — how a tool call reaches the
    *  transcript before the turn settles. */
   readonly parts?: readonly MessagePart[];
+  /** The backend clock at emit — anchors the synthesized live row's thinking
+   * timer when no optimistic send provides a client-frame anchor. */
+  readonly serverNow?: number;
 }
 
 /** What the reducer consumes each render. `undefined` = that subscription is
@@ -78,6 +81,16 @@ export interface ThreadViewState {
   adoptedPendingKeys: Set<string>;
   /** Optimistic shell keys whose real placeholder has arrived. */
   adoptedShellKeys: Set<string>;
+  /**
+   * Live rows synthesized from the stream channel, by REAL message id. The
+   * transcript is only refetched at settle, so mid-turn the stream is the
+   * row's only source — an entry lives from the first `progress` event
+   * naming the id until the refetched row renders under the same key.
+   */
+  syntheticMetaById: Map<
+    string,
+    { createdAt: number; parts?: readonly MessagePart[] }
+  >;
 }
 
 export function createThreadViewState(): ThreadViewState {
@@ -92,6 +105,7 @@ export function createThreadViewState(): ThreadViewState {
     realToPendingKey: new Map(),
     adoptedPendingKeys: new Set(),
     adoptedShellKeys: new Set(),
+    syntheticMetaById: new Map(),
   };
 }
 
@@ -276,9 +290,11 @@ export function reduceThreadView(
 
   const next: ChatMessageItem[] = [];
   const nextByKey = new Map<string, ChatMessageItem>();
+  const renderedRowIds = new Set<string>();
 
   for (const row of messages) {
     const key = state.realToPendingKey.get(row.id) ?? row.id;
+    renderedRowIds.add(row.id);
     const rowText = messagePlainText(row.parts);
     const settled = isSettledRow(row, rowText);
 
@@ -393,7 +409,85 @@ export function reduceThreadView(
     next.push(kept);
     nextByKey.set(kept.key, kept);
   }
-  if (pending && !state.adoptedShellKeys.has(pending.shellKey)) {
+  // The live row, synthesized while the transcript does not carry it. The
+  // message list is only refetched at settle, so on a fresh send the
+  // placeholder row exists server-side while `messages` still predates it —
+  // without this the streamed text has no row to land on and the whole
+  // reply pops in at settle. The stream channel names the row (`messageId`)
+  // and carries its text/reasoning/parts; render from that, keyed the way
+  // the real row will be, so the refetch hands over held text and reveal
+  // in place.
+  if (targetId !== undefined && !renderedRowIds.has(targetId)) {
+    // Inherit the shell's key while an un-adopted overlay is up — the same
+    // in-place handoff the real placeholder gets, and the shell push below
+    // stays down for it. Adoption proper (and `pendingConsumed`) still
+    // waits for the real rows, so the optimistic user bubble stays up.
+    if (
+      pending &&
+      !state.adoptedShellKeys.has(pending.shellKey) &&
+      !state.realToPendingKey.has(targetId)
+    ) {
+      state.realToPendingKey.set(targetId, pending.shellKey);
+    }
+    const key = state.realToPendingKey.get(targetId) ?? targetId;
+    const held = state.streamTextByKey.get(key) ?? '';
+    const live = generationText?.text ?? '';
+    state.streamTextByKey.set(key, live.length >= held.length ? live : held);
+    const heldReasoning = state.streamReasoningByKey.get(key);
+    const liveReasoning = generationText?.reasoning;
+    if (
+      liveReasoning !== undefined &&
+      (heldReasoning === undefined ||
+        liveReasoning.length >= heldReasoning.length)
+    ) {
+      state.streamReasoningByKey.set(key, liveReasoning);
+    }
+    const meta = state.syntheticMetaById.get(targetId) ?? {
+      createdAt: pending?.sentAt ?? generationText?.serverNow ?? 0,
+    };
+    const streamedParts = generationText?.parts;
+    if (
+      streamedParts !== undefined &&
+      streamedParts.length >= (meta.parts?.length ?? 0)
+    ) {
+      meta.parts = streamedParts;
+    }
+    state.syntheticMetaById.set(targetId, meta);
+  }
+  // Materialize the synthesized rows — held through the settle gap even
+  // after the generation goes idle — and retire each one the pass its real
+  // row renders (that row inherits the key, so the drain branch above
+  // carries the reveal from there).
+  for (const [id, meta] of state.syntheticMetaById) {
+    if (renderedRowIds.has(id)) {
+      state.syntheticMetaById.delete(id);
+      continue;
+    }
+    const key = state.realToPendingKey.get(id) ?? id;
+    const reasoningText = state.streamReasoningByKey.get(key);
+    const item: ChatMessageItem = {
+      id,
+      key,
+      role: 'assistant',
+      parts: meta.parts ?? [],
+      sequence: Number.MAX_SAFE_INTEGER,
+      createdAt: meta.createdAt,
+      text: state.streamTextByKey.get(key) ?? '',
+      ...(reasoningText !== undefined ? { reasoningText } : {}),
+      isStreaming: true,
+      isFinalReveal: false,
+      isPendingShell: true,
+    };
+    const prior = state.itemsByKey.get(key);
+    const kept = prior && chatItemRenderEqual(prior, item) ? prior : item;
+    next.push(kept);
+    nextByKey.set(kept.key, kept);
+  }
+  if (
+    pending &&
+    !state.adoptedShellKeys.has(pending.shellKey) &&
+    !nextByKey.has(pending.shellKey)
+  ) {
     const item = buildPendingShellItem(pending);
     const prior = state.itemsByKey.get(item.key);
     const kept = prior && chatItemRenderEqual(prior, item) ? prior : item;

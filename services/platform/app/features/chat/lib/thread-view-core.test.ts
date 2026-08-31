@@ -430,6 +430,209 @@ describe('reduceThreadView', () => {
       expect(view.pendingConsumed).toBe(false);
     });
   });
+
+  describe('synthesized live row (fresh send, transcript not yet refetched)', () => {
+    const pending = createPendingSend({
+      text: 'A new question',
+      sentAt: 1_700_000_100_000,
+      threadId: 't1',
+      baselineSequence: 2,
+    });
+
+    it('streams onto the shell key while the placeholder row is absent', () => {
+      const state = createThreadViewState();
+      reduceThreadView(
+        state,
+        inputs({ messages: thread('old answer'), generation: null, pending }),
+      );
+
+      // The turn started server-side; the message list was NOT refetched.
+      const view = reduceThreadView(
+        state,
+        inputs({
+          messages: thread('old answer'),
+          generation: { status: 'streaming', messageId: 'a4' },
+          generationText: { messageId: 'a4', text: 'Hel' },
+          pending,
+        }),
+      );
+
+      expect(view.items.map((item) => item.key)).toEqual([
+        'u1',
+        'a2',
+        pending.key,
+        pending.shellKey,
+      ]);
+      expect(view.items.at(-1)).toMatchObject({
+        id: 'a4',
+        role: 'assistant',
+        text: 'Hel',
+        isStreaming: true,
+      });
+      // The user bubble is still the overlay's — adoption waits for rows.
+      expect(view.pendingConsumed).toBe(false);
+
+      const grownText = reduceThreadView(
+        state,
+        inputs({
+          messages: thread('old answer'),
+          generation: { status: 'streaming', messageId: 'a4' },
+          generationText: { messageId: 'a4', text: 'Hello wor' },
+          pending,
+        }),
+      );
+      expect(grownText.items.at(-1)?.text).toBe('Hello wor');
+    });
+
+    it('hands over to the settle refetch and drains, even when the idle signal lands first', () => {
+      const state = createThreadViewState();
+      reduceThreadView(
+        state,
+        inputs({ messages: thread('old answer'), generation: null, pending }),
+      );
+      reduceThreadView(
+        state,
+        inputs({
+          messages: thread('old answer'),
+          generation: { status: 'streaming', messageId: 'a4' },
+          generationText: { messageId: 'a4', text: 'Hello world.' },
+          pending,
+        }),
+      );
+
+      // Production ordering: the stream settles (generation gone) BEFORE the
+      // refetched rows arrive — the synthesized row holds the streamed text.
+      const gap = reduceThreadView(
+        state,
+        inputs({
+          messages: thread('old answer'),
+          generation: null,
+          generationText: null,
+          pending,
+        }),
+      );
+      expect(gap.items.at(-1)).toMatchObject({
+        id: 'a4',
+        text: 'Hello world.',
+        isStreaming: true,
+      });
+
+      // The refetch lands: the real rows adopt the overlay keys, the
+      // synthesized row retires, and the reveal drains instead of popping.
+      const settled = reduceThreadView(
+        state,
+        inputs({
+          messages: [
+            ...thread('old answer'),
+            textRow('u3', 'A new question', { role: 'user', sequence: 3 }),
+            textRow('a4', 'Hello world.', { sequence: 4 }),
+          ],
+          generation: null,
+          generationText: null,
+          pending,
+        }),
+      );
+      expect(settled.items.map((item) => item.key)).toEqual([
+        'u1',
+        'a2',
+        pending.key,
+        pending.shellKey,
+      ]);
+      expect(settled.items.at(-1)).toMatchObject({
+        id: 'a4',
+        text: 'Hello world.',
+        isStreaming: false,
+        isFinalReveal: true,
+      });
+      expect(settled.pendingConsumed).toBe(true);
+    });
+
+    it('synthesizes the live row for a mid-turn join with no overlay', () => {
+      const state = createThreadViewState();
+      const view = reduceThreadView(
+        state,
+        inputs({
+          messages: thread('old answer'),
+          generation: { status: 'streaming', messageId: 'a9' },
+          generationText: {
+            messageId: 'a9',
+            text: 'Partial',
+            serverNow: 1_700_000_300_000,
+          },
+        }),
+      );
+
+      expect(view.items.at(-1)).toMatchObject({
+        id: 'a9',
+        key: 'a9',
+        role: 'assistant',
+        text: 'Partial',
+        isStreaming: true,
+        createdAt: 1_700_000_300_000,
+      });
+
+      const settled = reduceThreadView(
+        state,
+        inputs({
+          messages: [...thread('old answer'), textRow('a9', 'Partial done.')],
+          generation: null,
+          generationText: null,
+        }),
+      );
+      expect(settled.items.filter((item) => item.id === 'a9')).toHaveLength(1);
+      expect(settled.items.at(-1)).toMatchObject({
+        id: 'a9',
+        isStreaming: false,
+        isFinalReveal: true,
+      });
+    });
+
+    it('carries streamed tool parts on the synthesized row', () => {
+      const state = createThreadViewState();
+      const view = reduceThreadView(
+        state,
+        inputs({
+          messages: thread('old answer'),
+          generation: { status: 'streaming', messageId: 'a4' },
+          generationText: {
+            messageId: 'a4',
+            text: '',
+            parts: [
+              {
+                type: 'tool-call',
+                callId: 'c1',
+                capabilityId: 'rag_search',
+                input: { query: 'returns' },
+              },
+            ],
+          },
+          pending,
+        }),
+      );
+
+      expect(view.items.at(-1)?.parts).toMatchObject([
+        { type: 'tool-call', callId: 'c1' },
+      ]);
+    });
+
+    it('keeps item and array references across identical synthetic passes', () => {
+      const state = createThreadViewState();
+      const pass = () =>
+        reduceThreadView(
+          state,
+          inputs({
+            messages: thread('old answer'),
+            generation: { status: 'streaming', messageId: 'a4' },
+            generationText: { messageId: 'a4', text: 'Hello' },
+            pending,
+          }),
+        );
+      const first = pass();
+      const second = pass();
+
+      expect(Object.is(first.items, second.items)).toBe(true);
+    });
+  });
 });
 
 describe('optimistic send overlay — image attachments', () => {

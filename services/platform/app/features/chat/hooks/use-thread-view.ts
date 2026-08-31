@@ -77,11 +77,7 @@ export function useThreadView(
     includeLiveText && generationText.status === 'ready'
       ? generationText.data
       : undefined;
-  useReportServerNow(
-    liveText != null
-      ? (liveText as { serverNow?: number }).serverNow
-      : undefined,
-  );
+  useReportServerNow(liveText?.serverNow);
 
   const scopeKey = `${organizationId}:${threadId ?? ''}`;
   const stateRef = useRef<{ scope: string; state: ThreadViewState } | null>(
