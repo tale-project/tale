@@ -25,6 +25,10 @@ export type TaskRunFailureCode =
   | 'start_failed'
   | 'harvest_failed'
   | 'steer_restart_failed'
+  /** A SUCCESSFUL harness end with no final text — the model emitted a bare
+   * end-of-turn mid-work, so there is no report and the work is not done.
+   * Retryable: the retry resumes the conversation and asks it to continue. */
+  | 'empty_turn'
   | 'deadline'
   | 'park_deadline'
   | 'agent_deleted'

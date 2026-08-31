@@ -16066,6 +16066,10 @@ async function checkTaskAgentTurnDrive(
   const gatewayCalls = { minted: 0, revoked: 0 };
   let boxTaskDir = '';
 
+  // The session whose canned turn ends SUCCESSFULLY with an EMPTY result —
+  // the bare-EOS shape a weak model emits mid-work (set by the reportless
+  // scenario below; every other session plays the normal settling turn).
+  let reportlessSessionId = '';
   // --- fake spawner: sessions + exec SSE + files ---------------------------
   const spawner = createServer((req, res) => {
     let body = '';
@@ -16114,14 +16118,18 @@ async function checkTaskAgentTurnDrive(
       }
       const exec = /^\/v1\/sessions\/([^/]+)\/exec$/.exec(url.pathname);
       if (method === 'POST' && exec) {
-        // The canned claude-code stream-json turn, then the exec result.
+        // The canned claude-code stream-json turn, then the exec result. The
+        // reportless session's turn ends SUCCESSFULLY with an empty result —
+        // the parser then sets no finalText, which is the no-report signal.
         res.setHeader('content-type', 'text/event-stream');
         const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`;
+        const reportless = (exec[1] ?? '') === reportlessSessionId;
+        const conv = reportless ? 'conv-43' : 'conv-42';
         const events = [
           line({
             type: 'system',
             subtype: 'init',
-            session_id: 'conv-42',
+            session_id: conv,
             model: 'itest-agent-model',
           }),
           line({
@@ -16129,15 +16137,22 @@ async function checkTaskAgentTurnDrive(
             message: {
               id: 'm1',
               model: 'itest-agent-model',
-              content: [{ type: 'text', text: 'Working on the report…' }],
+              content: [
+                {
+                  type: 'text',
+                  text: reportless
+                    ? 'Mapping the table structure…'
+                    : 'Working on the report…',
+                },
+              ],
               usage: { input_tokens: 120, output_tokens: 40 },
             },
           }),
           line({
             type: 'result',
             subtype: 'success',
-            session_id: 'conv-42',
-            result: FINAL_TEXT,
+            session_id: conv,
+            result: reportless ? '' : FINAL_TEXT,
             duration_ms: 850,
           }),
         ];
@@ -16257,9 +16272,15 @@ async function checkTaskAgentTurnDrive(
       }
       if (url === '/api/governance/virtual-keys' && method === 'POST') {
         gatewayCalls.minted += 1;
+        // Unique per mint: the session-token row hashes the key VALUE, so a
+        // second turn re-minting a byte-identical key would die on the
+        // token-hash unique constraint before its exec ever starts.
         res.end(
           JSON.stringify({
-            virtual_key: { id: 'vk-drive-1', value: 'sk-bf-drive-1' },
+            virtual_key: {
+              id: `vk-drive-${gatewayCalls.minted}`,
+              value: `sk-bf-drive-${gatewayCalls.minted}`,
+            },
           }),
         );
         return;
@@ -16465,6 +16486,105 @@ async function checkTaskAgentTurnDrive(
         gatewayCalls.revoked === 1,
       `run=${run?.status}${run?.error ? ` (${run.error.slice(0, 120)})` : ''} text=${JSON.stringify(run?.resultText)} conv=${run?.agentSessionId}, task=${taskRow?.status} (want in_review) outputs=${outputsRaw.includes('report.md')}, comment=${(comments[0]?.body ?? '').slice(0, 60)}…, op=${opRows[0]?.status}/finalized=${opRows[0]?.finalizedAt !== null}/spent=${opRows[0]?.spentCents}, metadata=${metadataRows[0]?.count}, vk mint/revoke=${gatewayCalls.minted}/${gatewayCalls.revoked}`,
     );
+
+    // --- a SUCCESSFUL end with no final text fails the run retryably ------
+    // The model can end its turn with a bare EOS mid-work (observed live: a
+    // 1-completion-token response at a 42k prompt). That end carries no
+    // report — settling it would park half-done work at in_review as if
+    // reported. The host must fail the run with 'empty_turn' instead, stamp
+    // the conversation handle for the resume, and arm the auto-retry.
+    const agent2 = z.object({ agentId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+          name: 'Empty Turn Bot',
+          harness: 'claude-code',
+          model: 'itest-agent-model',
+          skills: [],
+          connectors: [],
+        })
+      ).json(),
+    );
+    const agent2Id = agent2.success ? agent2.data.agentId : '';
+    reportlessSessionId = `pa-${agent2Id}`;
+    const task2 = z.object({ taskId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/tasks?orgId=${orgId}`, {
+          projectId,
+          title: 'End with nothing',
+        })
+      ).json(),
+    );
+    const task2Id = task2.success ? task2.data.taskId : '';
+    await post(`/api/app/tasks/${task2Id}/assign?orgId=${orgId}`, {
+      assigneeType: 'agent',
+      assigneeId: agent2Id,
+    });
+    await post(`/api/app/tasks/${task2Id}/status?orgId=${orgId}`, {
+      status: 'in_progress',
+    });
+    const emptyTerminal = await waitFor(async () => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status FROM app.project_agent_runs
+        WHERE task_id = ${task2Id} ORDER BY started_at_ms DESC LIMIT 1
+      `;
+      return ['settled', 'failed'].includes(rows[0]?.status ?? '');
+    }, 45_000);
+    // Assert on the FIRST run: the armed auto-retry may already be driving
+    // a second one through the same reportless script.
+    const emptyRuns = await sql<
+      { status: string; error: string | null; agentSessionId: string | null }[]
+    >`
+      SELECT status, error, agent_session_id AS "agentSessionId"
+      FROM app.project_agent_runs
+      WHERE task_id = ${task2Id} ORDER BY started_at_ms ASC LIMIT 1
+    `;
+    const emptyRun = emptyRuns[0];
+    const emptyTask = await sql<{ status: string }[]>`
+      SELECT status FROM app.tasks WHERE id = ${task2Id}
+    `;
+    const retryArmed = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'task.agent_retry' AND data ->> 'taskId' = ${task2Id}
+    `;
+    record(
+      'task-agent: a success end with no final text fails retryably',
+      emptyTerminal &&
+        emptyRun?.status === 'failed' &&
+        (emptyRun.error ?? '').includes('without a final report') &&
+        emptyRun.agentSessionId === 'conv-43' &&
+        emptyTask[0]?.status === 'in_progress' &&
+        Number(retryArmed[0]?.count ?? '0') >= 1,
+      `run=${emptyRun?.status} (${(emptyRun?.error ?? '-').slice(0, 60)}), conv=${emptyRun?.agentSessionId} (want conv-43), task=${emptyTask[0]?.status} (want in_progress — never in_review), retryJobs=${retryArmed[0]?.count}`,
+    );
+    // Stop the retry cascade deterministically: the retry kick re-derives
+    // "task still at in_progress" FOR UPDATE, so moving the card refuses
+    // the pending attempt; cancelling any in-flight run makes the turn
+    // jobs' idempotency gates skip. Then DRAIN this task's jobs before the
+    // finally tears the fakes down — a stray attempt firing after teardown
+    // would run against whatever env the NEXT suite has live.
+    await sql`
+      UPDATE app.tasks SET status = 'todo', updated_at_ms = ${Date.now()}
+      WHERE id = ${task2Id}
+    `;
+    await sql`
+      UPDATE app.project_agent_runs SET status = 'cancelled',
+                                        settled_at_ms = ${Date.now()}
+      WHERE task_id = ${task2Id} AND status IN ('queued', 'running')
+    `;
+    await waitFor(async () => {
+      const pending = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name IN ('task.agent_turn', 'task.agent_retry',
+                       'task.agent_drive')
+          AND state IN ('created', 'retry', 'active')
+          AND (data ->> 'taskId' = ${task2Id}
+               OR data ->> 'runId' IN (
+                 SELECT id FROM app.project_agent_runs
+                 WHERE task_id = ${task2Id}
+               ))
+      `;
+      return pending[0]?.count === '0';
+    }, 30_000);
   } finally {
     delete process.env.SANDBOX_URL;
     delete process.env.SANDBOX_TOKEN;
