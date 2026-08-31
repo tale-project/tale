@@ -18,6 +18,11 @@ const envSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(16).optional(),
   /** Public origin auth cookies bind to; defaults to the direct dev port. */
   SITE_URL: z.string().url().default('http://localhost:3005'),
+  /**
+   * Sentry-compatible error reporting (Sentry, GlitchTip, Bugsink), opt-in —
+   * unset disables it entirely. See `error-reporting.ts`.
+   */
+  SENTRY_DSN: z.string().optional(),
 });
 
 export type BackendEnv = z.infer<typeof envSchema>;

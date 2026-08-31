@@ -1,5 +1,6 @@
 import type { JobResult, PgBoss } from 'pg-boss';
 
+import { reportError } from '../error-reporting.ts';
 import type { BackendTaskList } from './task-list.ts';
 
 export interface WorkerOptions {
@@ -43,6 +44,11 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
                 `[backend] task ${name} (job ${job.id}) failed:`,
                 error,
               );
+              // Queue names are a bounded vocabulary — safe as a tag.
+              reportError(error, {
+                tags: { 'tale.task': name },
+                extra: { jobId: job.id },
+              });
               return {
                 id: job.id,
                 status: 'failed',

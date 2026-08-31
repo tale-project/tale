@@ -49,7 +49,7 @@ Dupliziere die Stanza pro Pfad, oder nutze einen einzelnen Job mit `relabel_conf
 
 ## Error-Tracking mit Sentry
 
-Sentry ist opt-in über `SENTRY_DSN`. Selbst gehostete GlitchTip und Bugsink funktionieren auch, da sie dasselbe DSN-Format sprechen. Die Plattform- und die Convex-Container lesen beide den DSN und taggen Events mit dem Container-Namen.
+Sentry ist opt-in über `SENTRY_DSN`. Selbst gehostete GlitchTip und Bugsink funktionieren auch, da sie dasselbe DSN-Format sprechen. Ein DSN deckt beide Seiten des Stacks ab: die Browser-App meldet Frontend-Fehler, und die Container `backend-api` / `backend-worker` melden die Server-Seite — abgestürzte Anfragen, fehlgeschlagene Hintergrund-Jobs und Boot-Fehler — getaggt mit der Prozessrolle (`tale.role`) und der Release-Version.
 
 ```bash
 # .env
@@ -57,7 +57,7 @@ SENTRY_DSN=https://your-key@your-sentry-host/project-id
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
-Die Sample-Rate begrenzt Performance-Traces; lass sie unset für den Default 1.0 in Development und ziehe sie an (0.05–0.2) in Produktion. Stack-Frames werden unredigiert geschickt, also richte den DSN auf Infrastruktur, die du kontrollierst, wenn deine Error-Payloads sensibel sind.
+Die Sample-Rate begrenzt Performance-Traces im Browser und gilt nur dort — das Backend meldet Fehler, nie Traces. Lass sie unset für den Default 1.0 in Development und ziehe sie an (0.05–0.2) in Produktion. Stack-Frames werden auf beiden Seiten unredigiert geschickt, also richte den DSN auf Infrastruktur, die du kontrollierst, wenn deine Error-Payloads sensibel sind.
 
 ## Was noch nicht mitkommt
 

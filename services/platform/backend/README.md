@@ -48,7 +48,9 @@ One codebase, one image, role via `ROLE`:
 - `all` — both in one process; local-dev convenience only.
 
 Environment: `DATABASE_URL` (required), `PORT` (default 3005), `ROLE`
-(default `all`), `WORKER_CONCURRENCY` (default 5). Production runtime is
+(default `all`), `WORKER_CONCURRENCY` (default 5), `SENTRY_DSN` (optional —
+Sentry-compatible error reporting, errors only, no traces; see
+`error-reporting.ts`). Production runtime is
 **Node** (>= 22.18) running the `.ts` sources directly with
 `--experimental-transform-types` and the `node-loader.mjs` resolve hook — the
 hook lets the backend import runtime-clean 0.4 modules (extensionless

@@ -213,6 +213,7 @@
         "@radix-ui/react-tooltip": "1.2.8",
         "@radix-ui/react-visually-hidden": "1.2.4",
         "@scure/base": "2.0.0",
+        "@sentry/node": "10.48.0",
         "@sentry/tanstackstart-react": "10.48.0",
         "@tailwindcss/postcss": "4.2.2",
         "@tale/shared": "workspace:*",

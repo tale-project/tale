@@ -64,7 +64,7 @@ Die auto-konstruierte operative Form ist `postgresql://tale:${DB_PASSWORD}@db:54
 | Name                        | Default | Beschreibung                                                                                                                                 |
 | --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SENTRY_DSN`                | unset   | Sentry-DSN für Error-Tracking. Unset zum Deaktivieren. Kompatibel mit selbst gehostetem GlitchTip und Bugsink.                               |
-| `SENTRY_TRACES_SAMPLE_RATE` | unset   | Optionale Sample-Rate für Performance-Traces (`0.0`–`1.0`). Standard-Verhalten hängt vom Deployment ab.                                      |
+| `SENTRY_TRACES_SAMPLE_RATE` | unset   | Optionale Sample-Rate für Performance-Traces im Browser (`0.0`–`1.0`). Nur Browser — das Backend meldet Fehler, nie Traces.                  |
 | `METRICS_BEARER_TOKEN`      | unset   | Bearer-Token, das für den Zugriff auf die Prometheus-`/metrics/*`-Endpoints nötig ist. Unset hält Metrics-Endpoints von aussen unerreichbar. |
 
 `METRICS_BEARER_TOKEN` zu setzen exponiert zwei Endpoints hinter dem Token: `/metrics/platform` und `/metrics/convex` (Convex' 261 eingebaute Metriken, die jetzt auch die RAG- und Crawl-Timings tragen). Siehe [Observability-Konfig](/de/self-hosted/configuration/observability-config) für die Scrape-Konfiguration.
