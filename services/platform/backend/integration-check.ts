@@ -1957,8 +1957,9 @@ async function checkFiles(
  * non-empty delete guard) → project attach/detach scope flips → trash.
  */
 async function checkDocuments(
+  sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
   if (!process.env.ITEST_S3_ENDPOINT) {
     record(
@@ -1968,7 +1969,7 @@ async function checkDocuments(
     );
     return;
   }
-  const { cookie, orgId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const get = async (route: string): Promise<unknown> =>
     (await fetch(`${base}${route}`, { headers: { cookie } })).json();
   const send = (
@@ -2090,6 +2091,77 @@ async function checkDocuments(
       crumb.success &&
       crumb.data.breadcrumb.map((f) => f.name).join('/') === 'Contracts/2026',
     `clash → ${clash.status} (want 400), move → ${moved.status}, get=${folderGet.success ? (folderGet.data.folder?.name ?? 'null') : 'ERR'}, crumb=${crumb.success ? crumb.data.breadcrumb.map((f) => f.name).join('/') : 'ERR'}`,
+  );
+
+  // --- Agent listing (the chat + sandbox document tool doors) --------------
+  // Runs HERE, while notes.txt still sits in Contracts/2026 (the attach leg
+  // below clears folder_id by design). Both doors share one Postgres-side
+  // breadcrumb derivation; the doc must list with that folderPath — the
+  // regression lock for the phantom `f.path` column the 0.5 port shipped
+  // with (every listing errored, so the chat document tool and
+  // document_find were down entirely).
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const { sandboxToolShimHandlers } = await import('./domains/sandbox/shim.ts');
+  const agentPage = z.object({
+    documents: z.array(
+      z.object({
+        fileId: z.string(),
+        title: z.string(),
+        folderPath: z.string().nullable(),
+      }),
+    ),
+    hasMore: z.boolean(),
+  });
+  const chatDoor =
+    chatShimHandlers(sql)['documents/internal_queries:listForAgent'];
+  const bindingDoor =
+    sandboxToolShimHandlers(sql)[
+      'documents/internal_queries:listDocumentsForScope'
+    ];
+  const userList = agentPage.safeParse(
+    await chatDoor?.({ organizationId: orgId, userId }),
+  );
+  const userNamed = agentPage.safeParse(
+    await chatDoor?.({ organizationId: orgId, userId, fileName: 'notes' }),
+  );
+  const userNoPdf = agentPage.safeParse(
+    await chatDoor?.({ organizationId: orgId, userId, extension: 'pdf' }),
+  );
+  const boundList = agentPage.safeParse(
+    await bindingDoor?.({ organizationId: orgId, teamIds: [] }),
+  );
+  const notesPathIn = (parsed: typeof userList): string | null | undefined =>
+    parsed.success
+      ? parsed.data.documents.find((d) => d.title === 'notes.txt')?.folderPath
+      : undefined;
+  // The read fallback row must be reachable through the CHAT map too — it
+  // was registered only on the sandbox door once, which made every chat
+  // `rag_fetch` inline read die as "[convex-shim] un-shimmed".
+  const readDoor =
+    chatShimHandlers(sql)['documents/internal_queries:findDocumentByFileId'];
+  const notesRef = userNamed.success
+    ? (userNamed.data.documents[0]?.fileId ?? '')
+    : '';
+  const readRow = z
+    .object({ title: z.string().nullable(), content: z.string().nullable() })
+    .loose()
+    .nullable()
+    .safeParse(await readDoor?.({ organizationId: orgId, fileId: notesRef }));
+  record(
+    'agent document listing (breadcrumb + filters, both doors)',
+    userList.success &&
+      userList.data.documents.length >= 1 &&
+      notesPathIn(userList) === 'Contracts/2026' &&
+      userNamed.success &&
+      userNamed.data.documents.length === 1 &&
+      userNamed.data.documents[0]?.title === 'notes.txt' &&
+      userNoPdf.success &&
+      userNoPdf.data.documents.length === 0 &&
+      boundList.success &&
+      notesPathIn(boundList) === 'Contracts/2026' &&
+      readRow.success &&
+      readRow.data?.title === 'notes.txt',
+    `user=${userList.success ? userList.data.documents.length : 'ERR'}, path=${notesPathIn(userList) ?? 'MISS'}, fileName=${userNamed.success ? userNamed.data.documents.length : 'ERR'} (want 1), pdf=${userNoPdf.success ? userNoPdf.data.documents.length : 'ERR'} (want 0), bindingPath=${notesPathIn(boundList) ?? 'MISS'}, read=${readRow.success ? (readRow.data?.title ?? 'null') : 'ERR'}`,
   );
 
   // Project attach flips the doc out of the hub; detach restores it.
@@ -3711,6 +3783,80 @@ async function checkKnowledge(
         // running → completed is at least two moves, so at least two hints.
         Number(ragHints[0]?.count ?? '0') >= 2,
       `indexed=${indexed} (status=${statusRows[0]?.status}${statusRows[0]?.error ? `, err=${statusRows[0].error.slice(0, 80)}` : ''}), hits=${search.success ? search.data.hits.length : 'ERR'}, searchHit=${searchRaw.includes('verdigris')}, fetchHit=${fetchRaw.includes('zeppelin ledger')}, documentHints=${ragHints[0]?.count ?? '0'} (want >= 2)`,
+    );
+
+    // A document larger than one slice (64 chunks) reaches `completed` only
+    // after EVERY slice lands — the regression lock for the port that
+    // stamped completed after slice one and left the corpus 'processing'
+    // (and therefore invisible to search, which reads completed rows only).
+    const filler =
+      'the manifest lists weights, ports, seals, and the inspection notes the auditors file. ';
+    const ledger = Array.from(
+      { length: 200 },
+      (_v, i) =>
+        `## Ledger section ${i}\n\n${`Entry ${i}: ${filler}`.repeat(8)}\n`,
+    ).join('\n');
+    const bigHandoff = z
+      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+      .safeParse(
+        await (
+          await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+            contentType: 'text/plain',
+            size: ledger.length,
+          })
+        ).json(),
+      );
+    if (!bigHandoff.success) {
+      record('knowledge indexing drains every slice', false, 'handoff failed');
+      return;
+    }
+    await fetch(bigHandoff.data.uploadUrl, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: ledger,
+    });
+    const bigRegistered = z.object({ fileId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/files/register?orgId=${orgId}`, {
+          storageRef: bigHandoff.data.storageRef,
+          fileName: 'ledger.txt',
+          contentType: 'text/plain',
+        })
+      ).json(),
+    );
+    await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
+      fileId: bigRegistered.success ? bigRegistered.data.fileId : '',
+      fileName: 'ledger.txt',
+    });
+    const bigIndexed = await waitFor(async () => {
+      const rows = await sql<{ status: string | null }[]>`
+        SELECT rag_status AS status FROM app.file_metadata
+        WHERE id = ${bigRegistered.success ? bigRegistered.data.fileId : ''}
+      `;
+      return rows[0]?.status === 'completed';
+    }, 60_000);
+    const { getKnowledgePoolForOrg } =
+      await import('../convex/knowledge/pool.ts');
+    const corpusPool = await getKnowledgePoolForOrg(orgSlug);
+    const corpusRows = await corpusPool<
+      { status: string; total: number; stored: string }[]
+    >`
+      SELECT d.status, d.chunks_count AS total,
+             (SELECT count(*)::text FROM private_knowledge.chunks c
+              WHERE c.document_id = d.id) AS stored
+      FROM private_knowledge.documents d
+      WHERE d.org_slug = ${orgSlug}
+        AND d.file_id = ${bigHandoff.data.storageRef}
+    `;
+    const corpusDoc = corpusRows[0];
+    record(
+      'knowledge indexing drains every slice (multi-slice doc completes)',
+      bigIndexed &&
+        corpusDoc !== undefined &&
+        corpusDoc.status === 'completed' &&
+        corpusDoc.total > 64 &&
+        Number(corpusDoc.stored) === corpusDoc.total,
+      `indexed=${bigIndexed}, corpus=${corpusDoc?.status ?? 'MISSING'}, chunks=${corpusDoc?.stored ?? '0'}/${corpusDoc?.total ?? 0} (want equal, > 64)`,
     );
   } finally {
     await new Promise<void>((resolve) => {
@@ -12052,7 +12198,11 @@ async function checkWebdav(
       mkcolAgain.status === 405 &&
       put.status === 201 &&
       docRows[0]?.sourceProvider === 'webdav' &&
-      ragQueued[0]?.ragStatus === 'queued' &&
+      // The PUT entered the RAG pipeline — any live state proves the wiring;
+      // pinning 'queued' raced the worker's pickup.
+      ['queued', 'running', 'completed', 'failed'].includes(
+        ragQueued[0]?.ragStatus ?? '',
+      ) &&
       got.status === 200 &&
       gotBody === putBody &&
       put2.status === 204 &&
@@ -24260,7 +24410,7 @@ async function main(): Promise<void> {
     await checkProjects(baseUrl, authCtx);
     await checkTasks(baseUrl, authCtx);
     await checkFiles(baseUrl, authCtx);
-    await checkDocuments(baseUrl, authCtx);
+    await checkDocuments(sql, baseUrl, authCtx);
     await checkSmallDomains(baseUrl, authCtx);
     await checkAgents(baseUrl, authCtx);
     await checkSkills(baseUrl, authCtx);

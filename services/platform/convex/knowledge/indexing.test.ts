@@ -166,6 +166,7 @@ describe('unchanged content is not re-embedded', () => {
 
     expect(result.skipped).toBe('unchanged');
     expect(result.chunksWritten).toBe(0);
+    expect(result.chunksStored).toBe(result.chunksTotal);
     expect(embedder.embedded).toEqual([]);
   });
 
@@ -213,6 +214,7 @@ describe('a large document finishes across several passes', () => {
 
     expect(result.partial).toBe(true);
     expect(result.chunksWritten).toBe(3);
+    expect(result.chunksStored).toBe(3);
     expect(result.chunksTotal).toBeGreaterThan(3);
     expect(embedder.embedded.length).toBe(3);
   });
@@ -237,6 +239,8 @@ describe('a large document finishes across several passes', () => {
     // The work already paid for is not repeated — the whole point, since a
     // document past the invocation window could otherwise never finish.
     expect(result.chunksWritten).toBe(3);
+    // Cumulative count: the 3 kept chunks plus this pass's 3.
+    expect(result.chunksStored).toBe(6);
 
     // The resumed pass starts on the fourth chunk, not the first.
     const wholeDocument = stubEmbedder();

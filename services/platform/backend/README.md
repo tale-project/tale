@@ -73,7 +73,7 @@ data layer for these lanes lives in `app/lib/backend/` (fetch client,
 - Unit tests ride the platform vitest `server` project:
   `bun run --filter @tale/platform test`.
 - `bun run --filter @tale/platform backend:integration` — the real-Postgres
-  proof (247 checks: boot migrations, serializable retry, transactional
+  proof (260+ checks: boot migrations, serializable retry, transactional
   enqueue, worker pickup latency, auth + SSE replay, org scaffold drain, every
   migrated domain's surface, the REST machine door, SSO/SCIM, the task-agent
   and automation lanes, governance, cloud import, login lockout, audit-chain

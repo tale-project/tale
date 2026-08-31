@@ -4,6 +4,7 @@ import { findOrganizationMember } from '../../auth/membership.ts';
 import type { ShimHandlers } from '../../lib/convex-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { searchConversationsForChat } from '../conversations/search-chat.ts';
+import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import {
   checkModelAccessForUser,
   resolveModelGovernanceForUser,
@@ -585,74 +586,68 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
     },
 
     'documents/internal_queries:listForAgent': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the chat tool passes exactly this subset
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the chat tool and the sandbox user door pass exactly this subset
       const args = raw as {
         organizationId: string;
         userId: string;
         limit?: number;
         cursor?: number;
         projectId?: string;
+        fileName?: string;
+        extension?: string;
       };
       const scope = await resolveAccessScope(
         sql,
         args.organizationId,
         args.userId,
       );
-      const limit = Math.min(Math.max(args.limit ?? 20, 1), 100);
-      const offset = Math.max(0, args.cursor ?? 0);
-      const projectId =
-        args.projectId !== undefined &&
+      // An unreadable/absent project falls through to hub rules (the 0.4
+      // fail-safe) — never a boundary loosening.
+      return listDocumentsForAgent(sql, {
+        organizationId: args.organizationId,
+        teamIds: scope.teamIds,
+        ...(args.projectId !== undefined &&
         scope.projectIds.includes(args.projectId)
-          ? args.projectId
-          : null;
+          ? { projectId: args.projectId }
+          : {}),
+        ...(args.fileName !== undefined ? { fileName: args.fileName } : {}),
+        ...(args.extension !== undefined ? { extension: args.extension } : {}),
+        ...(args.limit !== undefined ? { limit: args.limit } : {}),
+        ...(args.cursor !== undefined ? { cursor: args.cursor } : {}),
+      });
+    },
+
+    // Both read doors (the chat rag_fetch fallback and the sandbox bridge)
+    // consult this row for scope AND for inline `content` — hub-authored
+    // documents carry their text on the row, not in the corpus.
+    'documents/internal_queries:findDocumentByFileId': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: both read doors pass exactly this shape
+      const args = raw as { organizationId: string; fileId: string };
       const rows = await sql<
         {
-          fileId: string;
+          id: string;
           title: string | null;
-          extension: string | null;
-          folderPath: string | null;
+          content: string | null;
+          fileId: string;
+          projectId: string | null;
           teamId: string | null;
+          teamTags: string[];
+          folderPath: string | null;
+          lifecycleStatus: string | null;
           createdAt: number;
-          sizeBytes: number | null;
         }[]
       >`
-        SELECT d.file_ref AS "fileId", d.title, d.extension,
-               coalesce(d.folder_path, f.path) AS "folderPath",
-               d.team_id AS "teamId", d.created_at_ms::float8 AS "createdAt",
-               (d.metadata ->> 'size')::float8 AS "sizeBytes"
-        FROM app.documents d
-        LEFT JOIN app.folders f ON f.id = d.folder_id
-        WHERE d.org_id = ${args.organizationId}
-          AND d.file_ref IS NOT NULL
-          AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
-          AND (
-            (${projectId}::text IS NOT NULL AND d.project_id = ${projectId})
-            OR (${projectId}::text IS NULL AND d.project_id IS NULL AND (
-              (d.team_id IS NULL AND cardinality(d.team_tags) = 0)
-              OR d.team_id = ANY(${scope.teamIds})
-              OR d.team_tags && ${scope.teamIds}
-            ))
-          )
-        ORDER BY d.created_at_ms DESC, d.id
-        LIMIT ${limit + 1} OFFSET ${offset}
+        SELECT id, title, content, file_ref AS "fileId",
+               project_id AS "projectId",
+               team_id AS "teamId", team_tags AS "teamTags",
+               folder_path AS "folderPath",
+               lifecycle_status AS "lifecycleStatus",
+               created_at_ms::float8 AS "createdAt"
+        FROM app.documents
+        WHERE org_id = ${args.organizationId} AND file_ref = ${args.fileId}
+        LIMIT 1
       `;
-      const hasMore = rows.length > limit;
-      const page = rows.slice(0, limit);
-      return {
-        documents: page.map((row) => ({
-          fileId: row.fileId,
-          title: row.title ?? 'Untitled',
-          extension: row.extension,
-          folderPath: row.folderPath,
-          teamId: row.teamId,
-          createdAt: row.createdAt,
-          sizeBytes: row.sizeBytes,
-        })),
-        totalCount: null,
-        hasMore,
-        cursor: hasMore ? offset + limit : null,
-        warning: null,
-      };
+      return rows[0] ?? null;
     },
 
     // ------------------------------------------------------- role gate
