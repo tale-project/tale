@@ -61,6 +61,7 @@ export async function resolveTaskKickStartArgs(
       sessionCreatedAt: number | null;
       startedAt: number;
       brokerTokenHash: string | null;
+      apiErrorStatus: number | null;
     }[]
   >`
     SELECT status, agent_id AS "agentId", harness,
@@ -68,7 +69,8 @@ export async function resolveTaskKickStartArgs(
            agent_session_id AS "agentSessionId",
            session_created_at_ms::float8 AS "sessionCreatedAt",
            started_at_ms::float8 AS "startedAt",
-           broker_token_hash AS "brokerTokenHash"
+           broker_token_hash AS "brokerTokenHash",
+           api_error_status AS "apiErrorStatus"
     FROM app.project_agent_runs
     WHERE task_id = ${args.taskId}
     ORDER BY seq DESC
@@ -134,6 +136,9 @@ export async function resolveTaskKickStartArgs(
       ...(handle !== undefined ? { agentSessionId: handle } : {}),
       ...(run.sessionCreatedAt !== null
         ? { sessionCreatedAt: run.sessionCreatedAt }
+        : {}),
+      ...(run.apiErrorStatus !== null
+        ? { apiErrorStatus: run.apiErrorStatus }
         : {}),
     };
     previousExecId = run.execId;

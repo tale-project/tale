@@ -29,6 +29,9 @@ export interface KickResumePrevious {
    * on the weaker `createdAt <= startedAt` check (an op row cannot outlive
    * its incarnation — session destroy purges the session's ops). */
   sessionCreatedAt?: number;
+  /** The harness-reported provider HTTP status a FAILED run carried, when
+   * there was one (`markTaskAgentRunFailed` stamps it). */
+  apiErrorStatus?: number;
 }
 
 /** The kick being decided: the CURRENT agent facts + the live session row. */
@@ -125,6 +128,19 @@ export function resolveTaskKickResume(args: {
     previous.status === 'settled'
       ? { sweep: true, inspectNote: false }
       : { sweep: false, inspectNote: true };
+
+  // A predecessor the PROVIDER rejected at the conversation level must not
+  // be resumed: the transcript itself is what the model refuses, so every
+  // `--resume` retry dies on the same wall in seconds (observed live: the
+  // agent Read a rendered page image, the text-only serving model's
+  // provider answered 404 "No endpoints found that support image input",
+  // and all three auto-retries burned instantly). A fresh conversation
+  // sheds the refused content; the failed shape above already keeps the box
+  // and points the restart at it. Only 404 — a terminal verdict about WHAT
+  // was sent; transient provider trouble (429/5xx) keeps the continuity.
+  if (previous.status === 'failed' && previous.apiErrorStatus === 404) {
+    return fresh;
+  }
 
   const handle = previous.agentSessionId;
   if (handle === undefined || !isValidResumeHandle(handle)) return fresh;
