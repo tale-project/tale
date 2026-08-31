@@ -105,6 +105,19 @@ export interface TaskPayloads {
   /** One workflow-agent turn for an automation run's agent node. The payload
    * is the reused host's full start-args shape (validated by the handler). */
   'automation.agent_turn': Record<string, unknown>;
+  /** One attach window of a live workflow-agent turn — the drive self-chain
+   * `continueOrSettle` re-schedules after every `running` window. */
+  'automation.agent_drive': {
+    organizationId: string;
+    runId: string;
+    nodeId: string;
+    execId: string;
+    sessionId: string;
+    harness: string;
+    providerSlug: string;
+    gatewayModel: string;
+    deadlineAt: number;
+  };
   /** Fire-and-forget AI naming of a thread from its first user message —
    * best-effort with a hard budget; the fallback title wins on any miss. */
   'chat.generate_title': {
@@ -185,6 +198,9 @@ export interface TaskPayloads {
   /** 2-min backstops for the task-agent lane: deadline-fail overdue runs,
    * wake capacity-parked ones whose release edge was lost. */
   'watchdog.task_agents': Record<string, never>;
+  /** 2-min backstop for the automation agent lane: re-attach the drive
+   * chain of an abandoned (but still live) workflow-agent turn. */
+  'watchdog.automation_agents': Record<string, never>;
   /** 5-min sandbox drift sweep: expire overdue sessions, reap stale
    * admission tickets (the only guard against queue-head starvation). */
   'watchdog.sandbox': Record<string, never>;
@@ -343,6 +359,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // NEW run); a lost job is the watchdog's to re-kick, never pg-boss's.
   'task.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
+  // Same posture as task.agent_drive: the window is long and a second drive
+  // of the same exec would replay the ring buffer twice, so no pg-boss retry.
+  'automation.agent_drive': { retryLimit: 0, expireInSeconds: 43_200 },
   'chat.generate_title': { retryLimit: 0, expireInSeconds: 60 },
   'chat.deferred_send_poll': { retryLimit: 0, expireInSeconds: 3_600 },
   // At-most-once LLM spend, like the other turn lanes: a crash surfaces via
@@ -364,6 +383,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'object_storage.backfill': { retryLimit: 0, expireInSeconds: 3_600 },
   'governance.effect_hold_releases': { retryLimit: 1, expireInSeconds: 300 },
   'watchdog.task_agents': { retryLimit: 1, expireInSeconds: 120 },
+  'watchdog.automation_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.sandbox': { retryLimit: 1, expireInSeconds: 300 },
   'watchdog.chat_generations': { retryLimit: 1, expireInSeconds: 120 },
   'documents.replacement_cleanup': { retryLimit: 1, expireInSeconds: 300 },

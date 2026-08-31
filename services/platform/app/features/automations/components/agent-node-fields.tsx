@@ -46,8 +46,9 @@ const HARNESS_DEFAULT = '__default__';
 /** The harness the workflow host runs when the node names none — mirrors
  * `convex/automations/agent_host.ts` `DEFAULT_HARNESS` (a 'use node' module
  * the browser bundle cannot import); the "Default (Claude Code)" label above
- * the picker states the same fact. */
-const DEFAULT_HARNESS = 'claude-code';
+ * the picker states the same fact. Exported for the blank-automation wizard,
+ * whose scaffolded node never names a harness. */
+export const DEFAULT_HARNESS = 'claude-code';
 
 /** The node fields this component owns — the inspector must NOT also render
  * them through its generic field loop. */

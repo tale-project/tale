@@ -7728,6 +7728,181 @@ async function checkTurnReattach(
 }
 
 /**
+ * The workflow twin of the task-agent re-attach: automation runs parked on
+ * an agent turn whose drive chain died are resurrected from the run CURSOR
+ * (the drive keys live in `checkpoints.cursor.agent`, not on columns).
+ * Four shapes: an abandoned turn (stale op lease) and a start that died
+ * before writing its op row both re-attach; a LIVE turn (fresh heartbeat)
+ * is left alone; and an ask-parked turn (terminal op, `awaiting_human`) is
+ * spared even though its lease is stale — re-attaching it would settle a
+ * question mid-wait.
+ */
+async function checkWorkflowTurnReattach(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+
+  const mkRun = async (
+    suffix: string,
+    opts: {
+      withOp: boolean;
+      heartbeatAgoMs?: number;
+      opStatus?: string;
+      agentResultStatus?: string;
+    },
+  ): Promise<{ runId: string; sessionId: string; execId: string }> => {
+    const sessionId = `wf-reattach-session-${suffix}`;
+    const execId = `wf-reattach-exec-${suffix}`;
+    const deadlineAt = now + 3_600_000;
+    const runs = await sql<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, input, checkpoints,
+        claim_epoch, started_at_ms
+      ) VALUES (
+        ${orgId}, 'wf-reattach-probe', 1, 'waiting', 'live',
+        'itest:reattach', ${sql.json({})},
+        ${sql.json({
+          nodes: {},
+          executions: 1,
+          cursor: {
+            node: 'work',
+            index: 0,
+            passes: 0,
+            outs: [],
+            agent: {
+              execId,
+              sessionId,
+              deadlineAt,
+              providerSlug: 'itestauto',
+              gatewayModel: 'itestauto/agent-model',
+              harness: 'claude-code',
+              input: { model: 'agent-model', prompt: 'probe' },
+            },
+          },
+        })},
+        0, ${now - 600_000}
+      ) RETURNING id
+    `;
+    const runId = runs[0]?.id ?? '';
+    await sql`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        agent_kind, created_at_ms, expires_at_ms
+      ) VALUES (${orgId}, ${sessionId}, 'active', 'workflow_run', ${runId},
+                ${userId}, 'claude-code', ${now}, ${now + 3_600_000})
+      ON CONFLICT DO NOTHING
+    `;
+    if (opts.withOp) {
+      await sql`
+        INSERT INTO app.sandbox_session_ops (
+          org_id, session_id, exec_id, kind, status, agent_result_status,
+          heartbeat_at_ms, started_at_ms
+        ) VALUES (
+          ${orgId}, ${sessionId}, ${execId}, 'workflow-agent',
+          ${opts.opStatus ?? 'running'}, ${opts.agentResultStatus ?? null},
+          ${now - (opts.heartbeatAgoMs ?? 0)}, ${now - 600_000}
+        )
+      `;
+    }
+    return { runId, sessionId, execId };
+  };
+
+  const abandoned = await mkRun('stale', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+  });
+  const live = await mkRun('live', { withOp: true, heartbeatAgoMs: 5_000 });
+  const noOp = await mkRun('noop', { withOp: false });
+  // Ask-parked: terminal op with a stale lease — ONLY the awaiting_human
+  // exemption spares it, which is exactly what this shape pins.
+  const asked = await mkRun('asked', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+    opStatus: 'completed',
+    agentResultStatus: 'awaiting_human',
+  });
+
+  const { recoverStalledWorkflowAgentTurns } =
+    await import('./domains/automations/reattach.ts');
+  const jobsBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'automation.agent_drive'
+      AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
+  `;
+  // An unreachable spawner must leave everything for the next sweep — a
+  // transport hiccup is not evidence of a dead agent.
+  const unreachable = await recoverStalledWorkflowAgentTurns(sql, {
+    probe: () => Promise.reject(new Error('spawner unreachable')),
+  });
+  const jobsAfterUnreachable = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'automation.agent_drive'
+      AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
+  `;
+
+  // Reachable: the abandoned turn and the op-less one re-attach; the live
+  // one is refused by the claim; the ask-parked one is spared by the listing.
+  const recovered = await recoverStalledWorkflowAgentTurns(sql, {
+    probe: () => Promise.resolve({ state: 'running' as const }),
+  });
+  const driveJobs = await sql<{ data: unknown }[]>`
+    SELECT data FROM pgboss.job
+    WHERE name = 'automation.agent_drive'
+      AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
+  `;
+  const drivenRunIds = new Set(
+    driveJobs.map((job) => {
+      const data = objectAt(job.data, '');
+      return typeof data?.runId === 'string' ? data.runId : '';
+    }),
+  );
+  const driveKeys = objectAt(driveJobs[0]?.data ?? null, '');
+  const createdOp = await sql<{ resumedBy: string | null; status: string }[]>`
+    SELECT resumed_by AS "resumedBy", status FROM app.sandbox_session_ops
+    WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
+  `;
+  record(
+    'automations re-attach: abandoned turns resume; live and ask-parked stay',
+    unreachable.resumed === 0 &&
+      jobsAfterUnreachable[0]?.count === jobsBefore[0]?.count &&
+      recovered.resumed === 2 &&
+      drivenRunIds.has(abandoned.runId) &&
+      drivenRunIds.has(noOp.runId) &&
+      !drivenRunIds.has(live.runId) &&
+      !drivenRunIds.has(asked.runId) &&
+      driveKeys?.nodeId === 'work' &&
+      driveKeys?.gatewayModel === 'itestauto/agent-model' &&
+      driveKeys?.providerSlug === 'itestauto' &&
+      createdOp[0]?.resumedBy === 'watchdog' &&
+      createdOp[0]?.status === 'running',
+    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}`,
+  );
+
+  // Leave nothing for later sweeps or metrics folds to trip over.
+  await sql`
+    DELETE FROM pgboss.job
+    WHERE name = 'automation.agent_drive'
+      AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
+  `;
+  await sql`
+    UPDATE app.automation_runs SET status = 'cancelled',
+                                   finished_at_ms = ${Date.now()}
+    WHERE org_id = ${orgId} AND name = 'wf-reattach-probe'
+  `;
+  await sql`
+    DELETE FROM app.sandbox_session_ops
+    WHERE org_id = ${orgId} AND session_id LIKE 'wf-reattach-session-%'
+  `;
+  await sql`
+    UPDATE app.sandbox_sessions SET status = 'destroyed',
+                                    destroyed_at_ms = ${Date.now()}
+    WHERE org_id = ${orgId} AND session_id LIKE 'wf-reattach-session-%'
+  `;
+}
+
+/**
  * The `/api/sandbox-blob` staging door — the 0.4 httpAction restored on the
  * 0.5 backend origin: a stage-token-gated stream of an org-bucket blob into
  * a sandbox session. Without it every `s3:` staging (task attachments, a
@@ -16928,6 +17103,52 @@ async function checkAutomationAgentNode(
         gatewayCalls.revoked === 1,
       `run=${run?.status}${run?.detail ? ` (${run.detail.slice(0, 120)})` : ''}, output has text=${outputRaw.includes(NODE_TEXT)} file=${outputRaw.includes('note.md')}, op=${opRows[0]?.status}, session=${sessionRows[0]?.status} (want stopped), vk=${gatewayCalls.minted}/${gatewayCalls.revoked}`,
     );
+
+    // ---- the drive chain's scheduler seam maps the self-chained ref -------
+    // The turn scenario above cannot catch a missing seam: its fake harness
+    // finishes in one terminal window, so nothing ever re-schedules. Probe
+    // the seam directly — a real turn's FIRST `running` window dies without
+    // it (observed live: "no job mapping for scheduled function: …
+    // driveWorkflowAgentTurn" settled the turn while the agent kept going).
+    const { automationShimScheduler } =
+      await import('./domains/automations/shim.ts');
+    const seam = automationShimScheduler(sql);
+    await seam('automations/agent_host:driveWorkflowAgentTurn', 0, {
+      organizationId: orgId,
+      runId: 'wf-seam-probe-run',
+      nodeId: 'work',
+      execId: 'wf-seam-probe-exec',
+      sessionId: 'wf-seam-probe-session',
+      harness: 'claude-code',
+      providerSlug: 'itestauto',
+      gatewayModel: 'itest-agent-model',
+      deadlineAt: Date.now() + 3_600_000,
+    });
+    let seamUnmappedThrew = false;
+    try {
+      await seam('automations/agent_host:noSuchRef', 0, {});
+    } catch {
+      seamUnmappedThrew = true;
+    }
+    const seamJobs = await sql<{ data: unknown }[]>`
+      SELECT data FROM pgboss.job
+      WHERE name = 'automation.agent_drive'
+        AND data ->> 'execId' = 'wf-seam-probe-exec'
+    `;
+    const seamJob = objectAt(seamJobs[0]?.data, '');
+    record(
+      'automations: the drive scheduler seam maps the self-chained ref',
+      seamJobs.length === 1 &&
+        seamJob?.nodeId === 'work' &&
+        seamJob?.gatewayModel === 'itest-agent-model' &&
+        seamUnmappedThrew,
+      `jobs=${seamJobs.length} (want 1), payloadCarried=${seamJob?.nodeId === 'work' && seamJob?.gatewayModel === 'itest-agent-model'}, unmappedThrew=${seamUnmappedThrew}`,
+    );
+    await sql`
+      DELETE FROM pgboss.job
+      WHERE name = 'automation.agent_drive'
+        AND data ->> 'execId' = 'wf-seam-probe-exec'
+    `;
   } finally {
     delete process.env.SANDBOX_URL;
     delete process.env.SANDBOX_TOKEN;
@@ -18953,6 +19174,55 @@ async function checkChatMemoriesDeferredAuto(
         capabilities.success,
       `models=${composer.success ? composer.data.models.map((model) => model.id).join(',') : 'ERR'} harnesses=${composer.success ? composer.data.harnesses.length : 'ERR'} capabilities=${capabilities.success}`,
     );
+
+    // The capability menu lists the org's CONNECTED connectors — the slugs
+    // holding an active credential, labelled from the shipped catalog. Both
+    // equipment surfaces (automation node + project agents) read this.
+    const connectorCredential = z
+      .object({ credentialId: z.string() })
+      .safeParse(
+        await (
+          await post(`/api/app/connector-credentials?orgId=${orgId}`, {
+            connectorSlug: 'github',
+            authMethod: 'bearer',
+            name: 'Capability Probe',
+            secret: { token: 'ghp_capability_probe' },
+          })
+        ).json(),
+      );
+    const connectorCapability = z
+      .object({
+        connectors: z.array(
+          z.looseObject({ slug: z.string(), label: z.string() }),
+        ),
+      })
+      .safeParse(
+        await get(
+          `/api/app/chat/composer/automation-capabilities?orgId=${orgId}`,
+        ),
+      );
+    const githubRow = connectorCapability.success
+      ? connectorCapability.data.connectors.find(
+          (connector) => connector.slug === 'github',
+        )
+      : undefined;
+    record(
+      'composer capabilities: a connected connector is offered as equipment',
+      capabilities.success &&
+        !capabilities.data.connectors.some(
+          (connector) => objectAt(connector, '')?.slug === 'github',
+        ) &&
+        connectorCredential.success &&
+        githubRow !== undefined &&
+        githubRow.label === 'GitHub',
+      `before=${capabilities.success ? capabilities.data.connectors.length : 'ERR'} (want no github), after=${connectorCapability.success ? connectorCapability.data.connectors.map((connector) => connector.slug).join(',') : 'ERR'} (want github), label=${githubRow?.label}`,
+    );
+    if (connectorCredential.success) {
+      await fetch(
+        `${base}/api/app/connector-credentials/${connectorCredential.data.credentialId}?orgId=${orgId}`,
+        { method: 'DELETE', headers: { cookie, origin: base } },
+      );
+    }
 
     // ---- deferred sends ---------------------------------------------------
     const deferThread = z.object({ id: z.string() }).safeParse(
@@ -25224,6 +25494,7 @@ async function main(): Promise<void> {
     await checkManualKickMovesCard(sql, authCtx);
     await checkSandboxBlobDoor(sql, baseUrl, authCtx);
     await checkTurnReattach(sql, authCtx);
+    await checkWorkflowTurnReattach(sql, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);

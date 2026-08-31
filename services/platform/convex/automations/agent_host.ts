@@ -1231,9 +1231,106 @@ export async function startWorkflowAgentTurnImpl(
   }
 }
 
-/** The answered-ask resume as a PLAIN exported function — the internalAction
- * above wraps it, and the 0.5 backend's `automation.ask_resume` job runs it
- * on the ctx shim (same pattern as the turn start). */
+/** The self-chaining drainer as a PLAIN exported function: one attach window
+ * per invocation, scheduled by `continueOrSettle` after every `running`
+ * window. The 0.5 backend's `automation.agent_drive` job runs it on the ctx
+ * shim (same pattern as the turn start). */
+export async function driveWorkflowAgentTurnImpl(
+  ctx: ActionCtx,
+  args: TurnKeys,
+): Promise<null> {
+  // Orphan check: the run may have been cancelled, failed by the stepper's
+  // deadline, or moved past this node. An orphan turn is cut, its key
+  // revoked, and nothing else touched.
+  const state = await ctx.runQuery(
+    internal.automations.queries.readAgentCursor,
+    {
+      organizationId: args.organizationId,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
+      runId: args.runId as never,
+    },
+  );
+  const agent = state?.cursor?.agent;
+  const live =
+    state !== null &&
+    (state.status === 'waiting' ||
+      state.status === 'running' ||
+      state.status === 'queued') &&
+    state.cursor?.node === args.nodeId &&
+    agent?.execId === args.execId &&
+    agent.result === undefined;
+  if (!live) {
+    await sessionCancelExec(args.sessionId, args.execId).catch(() => {
+      // Already gone — the reap is best-effort.
+      console.warn('[agent-host] orphan exec reap failed (already gone?)');
+    });
+    await closePendingAskForExec(ctx, args.sessionId, args.execId);
+    await releaseTurnKey(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId: args.execId,
+      status: 'cancelled',
+    });
+    // The run went terminal while this turn was live, so the terminal
+    // hooks' hibernate skipped past it — the op is terminal now.
+    await ctx
+      .runMutation(
+        internal.sandbox.session_mutations.hibernateAutomationScopedSession,
+        { executionId: args.runId },
+      )
+      .catch((err) =>
+        console.warn('[agent-host] orphan slot release failed:', err),
+      );
+    return null;
+  }
+
+  if (Date.now() > args.deadlineAt) {
+    await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
+      console.warn('[agent-host] deadline exec cancel failed:', err),
+    );
+    await settleWorkflowAgentTurn(ctx, args, {
+      errored: true,
+      reason: 'the agent turn ran past its time limit and was stopped',
+      failureCode: 'deadline',
+      text: '',
+      files: [],
+    });
+    return null;
+  }
+
+  const progress = liveProgressSink(ctx, args, 'workflow-agent');
+  let window;
+  try {
+    window = await drainHarnessWindow({
+      sessionId: args.sessionId,
+      execId: args.execId,
+      harness: args.harness,
+      onText: progress.onText,
+      onTimeline: progress.onTimeline,
+    });
+  } catch (err) {
+    console.error('[agent-host] drive window threw:', err);
+    await progress.flush();
+    // A drain that died at the deadline is the deadline, not a crash — a
+    // retry of a burned 12h window would be pure waste.
+    const pastDeadline = Date.now() > args.deadlineAt;
+    await settleWorkflowAgentTurn(ctx, args, {
+      errored: true,
+      reason: `the agent turn stopped unexpectedly: ${err instanceof Error ? err.message : String(err)}`,
+      failureCode: pastDeadline ? 'deadline' : 'turn_crashed',
+      text: '',
+      files: [],
+    });
+    return null;
+  }
+  await progress.flush();
+  await continueOrSettle(ctx, args, window);
+  return null;
+}
+
+/** The answered-ask resume as a PLAIN exported function — the 0.5 backend's
+ * `automation.ask_resume` job runs it on the ctx shim (same pattern as the
+ * turn start). */
 export async function resumeWorkflowAgentTurnWithAnswerImpl(
   ctx: ActionCtx,
   args: { organizationId: string; askId: Id<'automationHumanAsks'> },
