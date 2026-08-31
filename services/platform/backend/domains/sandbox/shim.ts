@@ -3,6 +3,7 @@ import type { Sql } from 'postgres';
 import type { ShimHandlers } from '../../lib/convex-shim.ts';
 import { resolveAgentSecretsEnv } from '../agent_secrets/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
+import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import { addTaskComment } from '../tasks/comments.ts';
 
 /**
@@ -231,33 +232,8 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
       return { allowed: false, reason: 'no_access_context' };
     },
 
-    'documents/internal_queries:findDocumentByFileId': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge passes exactly this shape
-      const args = raw as { organizationId: string; fileId: string };
-      const rows = await sql<
-        {
-          id: string;
-          title: string | null;
-          fileId: string;
-          projectId: string | null;
-          teamId: string | null;
-          teamTags: string[];
-          folderPath: string | null;
-          lifecycleStatus: string | null;
-          createdAt: number;
-        }[]
-      >`
-        SELECT id, title, file_ref AS "fileId", project_id AS "projectId",
-               team_id AS "teamId", team_tags AS "teamTags",
-               folder_path AS "folderPath",
-               lifecycle_status AS "lifecycleStatus",
-               created_at_ms::float8 AS "createdAt"
-        FROM app.documents
-        WHERE org_id = ${args.organizationId} AND file_ref = ${args.fileId}
-        LIMIT 1
-      `;
-      return rows[0] ?? null;
-    },
+    // `documents/internal_queries:findDocumentByFileId` is inherited from the
+    // chat map — both read doors consult the same row (scope + inline content).
 
     'documents/internal_queries:listDocumentsForScope': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge passes exactly this subset
@@ -266,62 +242,21 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         teamIds: string[];
         projectId?: string;
         fileName?: string;
+        extension?: string;
         limit?: number;
         cursor?: number;
       };
-      const limit = Math.min(Math.max(args.limit ?? 20, 1), 100);
-      const offset = Math.max(0, args.cursor ?? 0);
-      const like = `%${args.fileName?.trim() ?? ''}%`;
-      const projectId = args.projectId ?? null;
-      const rows = await sql<
-        {
-          fileId: string;
-          title: string | null;
-          extension: string | null;
-          folderPath: string | null;
-          teamId: string | null;
-          createdAt: number;
-          sizeBytes: number | null;
-        }[]
-      >`
-        SELECT d.file_ref AS "fileId", d.title, d.extension,
-               coalesce(d.folder_path, f.path) AS "folderPath",
-               d.team_id AS "teamId", d.created_at_ms::float8 AS "createdAt",
-               (d.metadata ->> 'size')::float8 AS "sizeBytes"
-        FROM app.documents d
-        LEFT JOIN app.folders f ON f.id = d.folder_id
-        WHERE d.org_id = ${args.organizationId}
-          AND d.file_ref IS NOT NULL
-          AND (d.lifecycle_status IS NULL OR d.lifecycle_status = 'active')
-          AND (${args.fileName === undefined} OR d.title ILIKE ${like})
-          AND (
-            (${projectId}::text IS NOT NULL AND d.project_id = ${projectId})
-            OR (${projectId}::text IS NULL AND d.project_id IS NULL AND (
-              (d.team_id IS NULL AND cardinality(d.team_tags) = 0)
-              OR d.team_id = ANY(${args.teamIds})
-              OR d.team_tags && ${args.teamIds}
-            ))
-          )
-        ORDER BY d.created_at_ms DESC, d.id
-        LIMIT ${limit + 1} OFFSET ${offset}
-      `;
-      const hasMore = rows.length > limit;
-      const page = rows.slice(0, limit);
-      return {
-        documents: page.map((row) => ({
-          fileId: row.fileId,
-          title: row.title ?? 'Untitled',
-          extension: row.extension,
-          folderPath: row.folderPath,
-          teamId: row.teamId,
-          createdAt: row.createdAt,
-          sizeBytes: row.sizeBytes,
-        })),
-        totalCount: null,
-        hasMore,
-        cursor: hasMore ? offset + limit : null,
-        warning: null,
-      };
+      // The binding door: the bridge already resolved the scope (teams + at
+      // most one project), so it passes straight through.
+      return listDocumentsForAgent(sql, {
+        organizationId: args.organizationId,
+        teamIds: args.teamIds,
+        ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
+        ...(args.fileName !== undefined ? { fileName: args.fileName } : {}),
+        ...(args.extension !== undefined ? { extension: args.extension } : {}),
+        ...(args.limit !== undefined ? { limit: args.limit } : {}),
+        ...(args.cursor !== undefined ? { cursor: args.cursor } : {}),
+      });
     },
 
     'tasks/internal_mutations:agentAddComment': async (raw) => {

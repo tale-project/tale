@@ -425,19 +425,42 @@ export async function indexUploadedFile(
       ragStatus: 'running',
       ragProgress: 'Embedding…',
     });
-    const result = await indexDocument({
-      sql: pool,
-      orgSlug,
-      fileId: file.storageRef,
-      filename: file.fileName,
-      text,
-      bytes,
-      embedder,
-      piiConfig,
-      teamIds,
-      projectId,
-    });
-    if (result.skipped !== undefined) {
+    // 0.4 committed one slice per scheduled invocation (the action budget)
+    // and rescheduled until `partial` cleared; the 0.5 worker owns the whole
+    // job, so it drains the slices in-process. Every slice is committed and
+    // resumable — a crash resumes after the stored prefix — and the
+    // per-slice progress write doubles as the liveness signal the indexing
+    // watchdog reads.
+    const runSlice = (): ReturnType<typeof indexDocument> =>
+      indexDocument({
+        sql: pool,
+        orgSlug,
+        fileId: file.storageRef,
+        filename: file.fileName,
+        text,
+        bytes,
+        embedder,
+        piiConfig,
+        teamIds,
+        projectId,
+      });
+    let result = await runSlice();
+    while (result.partial) {
+      if (result.chunksWritten === 0) {
+        throw new Error(
+          `Indexing made no progress at ${result.chunksStored}/${result.chunksTotal} chunks`,
+        );
+      }
+      await writeRagStatus(sql, fileId, {
+        ragStatus: 'running',
+        ragProgress: `Embedding… ${result.chunksStored}/${result.chunksTotal}`,
+      });
+      result = await runSlice();
+    }
+    // `unchanged` means the corpus already holds ALL of this exact content —
+    // that is a completed index, never a failure (a retry on an indexed
+    // document lands here).
+    if (result.skipped !== undefined && result.skipped !== 'unchanged') {
       await writeRagStatus(sql, fileId, {
         ragStatus: 'failed',
         ragError: result.refusal ?? `Indexing skipped (${result.skipped}).`,

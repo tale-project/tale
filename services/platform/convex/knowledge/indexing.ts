@@ -113,6 +113,9 @@ export interface IndexDocumentResult {
   readonly chunksWritten: number;
   /** Chunks the document has in total. */
   readonly chunksTotal: number;
+  /** Chunks committed in total after this invocation (the resumed prefix
+   * plus this slice) — what a progress display should show. */
+  readonly chunksStored: number;
   /** True when the slice budget ran out — the caller schedules a continuation,
    * which resumes after the committed prefix. */
   readonly partial: boolean;
@@ -139,6 +142,7 @@ export async function indexDocument(
         fileId: args.fileId,
         chunksWritten: 0,
         chunksTotal: 0,
+        chunksStored: 0,
         partial: false,
         skipped: 'secret-detected',
         ...(scan.reason !== null && { refusal: scan.reason }),
@@ -157,6 +161,7 @@ export async function indexDocument(
       fileId: args.fileId,
       chunksWritten: 0,
       chunksTotal: 0,
+      chunksStored: 0,
       partial: false,
       skipped: 'pii-blocked',
       refusal: reason,
@@ -171,6 +176,7 @@ export async function indexDocument(
       fileId: args.fileId,
       chunksWritten: 0,
       chunksTotal: 0,
+      chunksStored: 0,
       partial: false,
       skipped: 'empty',
     };
@@ -203,6 +209,7 @@ export async function indexDocument(
       fileId: args.fileId,
       chunksWritten: 0,
       chunksTotal: chunks.length,
+      chunksStored: chunks.length,
       partial: false,
       skipped: 'unchanged',
     };
@@ -240,6 +247,7 @@ export async function indexDocument(
       fileId: args.fileId,
       chunksWritten: copied,
       chunksTotal: copied,
+      chunksStored: copied,
       partial: false,
     };
   }
@@ -280,6 +288,7 @@ export async function indexDocument(
     fileId: args.fileId,
     chunksWritten: window.length,
     chunksTotal: chunks.length,
+    chunksStored: slice.to,
     partial: !slice.done,
   };
 }
