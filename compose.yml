@@ -418,6 +418,10 @@ services:
       # plain dev stack. Production always has a real .env (tale deploy).
       DATABASE_URL: postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}
       TALE_CONFIG_DIR: /app/data
+      # Where THIS process reaches the sandbox spawner. session_client.ts
+      # defaults to localhost:8003 (host bun-dev); without the compose
+      # default a container worker cannot start an agent run.
+      SANDBOX_URL: ${SANDBOX_URL:-http://sandbox:8003}
       # Where a sandbox CONTAINER reaches this backend: the in-sandbox
       # connectors bridge and the live-body host-call door are served here.
       SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}
@@ -482,6 +486,7 @@ services:
       TALE_ROLE: worker
       DATABASE_URL: postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}
       TALE_CONFIG_DIR: /app/data
+      SANDBOX_URL: ${SANDBOX_URL:-http://sandbox:8003}
       # The worker DISPATCHES connector bodies too (automation nodes), so it
       # mints the same in-sandbox host-call URL the api does.
       SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}

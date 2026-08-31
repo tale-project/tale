@@ -89,6 +89,9 @@ export class ExecStreamIdleError extends Error {
 }
 
 function getSpawnerUrl(): string {
+  // Host bun-dev default. Container api/worker MUST set SANDBOX_URL
+  // (compose / entrypoint default http://sandbox:8003) or every session
+  // call dies with TypeError: fetch failed against localhost.
   return process.env.SANDBOX_URL ?? 'http://localhost:8003';
 }
 

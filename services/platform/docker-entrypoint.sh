@@ -125,14 +125,21 @@ fi
 # ----------------------------------------------------------------------------
 # The same platform image runs the application backend: compose starts one
 # `api` and one `worker` container from it (TALE_ROLE), each horizontally
-# scalable. These roles only need DATABASE_URL — the web flow below is
-# skipped. `exec` hands PID 1 (under tini) to Node so SIGTERM reaches the
-# backend's own graceful shutdown.
+# scalable. The web flow below is skipped. `exec` hands PID 1 (under tini)
+# to Node so SIGTERM reaches the backend's own graceful shutdown. These
+# roles still need the in-compose service URLs (SANDBOX_URL at minimum) —
+# session_client.ts's host-dev default is localhost, which nobody serves
+# inside the container.
 # ============================================================================
 case "${TALE_ROLE:-web}" in
   api|worker|all)
     log_section "Tale backend starting (role=${TALE_ROLE}, version ${TALE_VERSION:-unknown})"
     export ROLE="${TALE_ROLE}"
+    # The web role sources env.sh (which defaults SANDBOX_URL). These roles
+    # exec before that, and session_client.ts falls through to
+    # http://localhost:8003 — nobody listens there in-container, so every
+    # agent start dies in ~20ms with TypeError: fetch failed.
+    export SANDBOX_URL="${SANDBOX_URL:-http://sandbox:8003}"
     # --experimental-transform-types + the resolve hook let the backend
     # import the shared pure modules (extensionless specifiers, non-erasable
     # TS) from the sibling trees unchanged.

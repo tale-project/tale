@@ -70,6 +70,7 @@ export function createBackendApiService(config: ServiceConfig): ComposeService {
       DATABASE_URL:
         'postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${APP_DB_NAME:-tale_app}',
       TALE_CONFIG_DIR: '/app/data',
+      SANDBOX_URL: '${SANDBOX_URL:-http://sandbox:8003}',
       SANDBOX_HTTP_API_BASE_URL: `http://backend-api:${BACKEND_API_PORT}`,
       // The bundled blob store the backend seeds the deployment default
       // against at boot. Internal address: presigned URLs are signed here
@@ -116,6 +117,7 @@ export function createBackendWorkerService(
       DATABASE_URL:
         'postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/${APP_DB_NAME:-tale_app}',
       TALE_CONFIG_DIR: '/app/data',
+      SANDBOX_URL: '${SANDBOX_URL:-http://sandbox:8003}',
       SANDBOX_HTTP_API_BASE_URL: `http://backend-api:${BACKEND_API_PORT}`,
       // The bundled blob store the backend seeds the deployment default
       // against at boot. Internal address: presigned URLs are signed here

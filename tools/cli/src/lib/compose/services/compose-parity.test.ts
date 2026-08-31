@@ -106,6 +106,35 @@ describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
   });
 });
 
+describe('sandbox spawner URL parity', () => {
+  // session_client.ts defaults to localhost:8003 (host bun-dev). A container
+  // worker without SANDBOX_URL dies on every agent start with "fetch failed".
+  // Both compose pipelines and the backend entrypoint must default it.
+  test('both pipelines point the backend tier at the sandbox alias', () => {
+    for (const tier of ['backend-api', 'backend-worker'] as const) {
+      expect(compose.services[tier]?.environment?.SANDBOX_URL).toContain(
+        'sandbox:8003',
+      );
+    }
+    for (const service of [
+      createBackendApiService(config),
+      createBackendWorkerService(config),
+    ]) {
+      expect(service.environment?.SANDBOX_URL).toContain('sandbox:8003');
+    }
+  });
+
+  test('backend entrypoint defaults SANDBOX_URL so a worker without compose env still reaches the spawner', () => {
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/platform/docker-entrypoint.sh'),
+      'utf8',
+    );
+    expect(entrypoint).toContain(
+      'SANDBOX_URL="${SANDBOX_URL:-http://sandbox:8003}"',
+    );
+  });
+});
+
 describe('graceful-shutdown parity — compose.yml meets the floor', () => {
   // The CLI side is floor-tested in generate-color-compose.test.ts (>=41s). This
   // guards the OTHER pipeline: compose.yml must not regress to Docker's 10s
