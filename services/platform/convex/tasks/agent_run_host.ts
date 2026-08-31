@@ -299,9 +299,12 @@ async function stageTaskInputs(
   if (toStage.length === 0) return staged;
   const result = await sessionStageFiles(args.sessionId, toStage);
   if (result.skipped.length > 0) {
+    // Carry each file's skip REASON: the run error is the only diagnostic a
+    // failed staging leaves behind, and a bare path list reads as "file
+    // gone" when the real cause is a dead staging route or a refused fetch.
     throw new Error(
       `staging task inputs failed: ${result.skipped
-        .map((skip) => skip.path)
+        .map((skip) => `${skip.path} (${skip.reason})`)
         .join(', ')}`,
     );
   }

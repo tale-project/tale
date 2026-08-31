@@ -7728,6 +7728,76 @@ async function checkTurnReattach(
 }
 
 /**
+ * The `/api/sandbox-blob` staging door — the 0.4 httpAction restored on the
+ * 0.5 backend origin: a stage-token-gated stream of an org-bucket blob into
+ * a sandbox session. Without it every `s3:` staging (task attachments, a
+ * task's prior deliverables mirrored into a turn) dies as a skipped file
+ * and the run fails with "staging task inputs failed". Gated on
+ * ITEST_S3_ENDPOINT like the other blob lanes.
+ */
+async function checkSandboxBlobDoor(
+  sql: Sql,
+  base: string,
+  ctx: { orgId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'sandbox-blob staging door (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
+    );
+    return;
+  }
+  const { resolveOrgSlug } = await import('./lib/org-config.ts');
+  const { resolveObjectStore, s3PutObject, buildObjectKey } =
+    await import('./lib/object-store.ts');
+  const { encodeS3Ref } = await import('../convex/lib/storage/blob_ref.ts');
+  const { signStageToken } =
+    await import('../convex/lib/storage/sandbox_stage_token.ts');
+  const orgSlug = (await resolveOrgSlug(sql, ctx.orgId)) ?? '';
+  const store = await resolveObjectStore(orgSlug);
+  const key = buildObjectKey(store, orgSlug);
+  const payload = 'sandbox-blob staging round-trip';
+  await s3PutObject(
+    store,
+    key,
+    new TextEncoder().encode(payload),
+    'text/plain',
+  );
+  const token = await signStageToken({ ref: encodeS3Ref(key), org: ctx.orgId });
+  // A validly SIGNED token for a key OUTSIDE the org's namespace must fail
+  // closed as 404 — the namespace check is the tenant boundary.
+  const foreignToken = await signStageToken({
+    ref: encodeS3Ref('some-other-org/deadbeef'),
+    org: ctx.orgId,
+  });
+  if (token === null || foreignToken === null) {
+    record(
+      'sandbox-blob: a stage token streams the org blob through the door',
+      false,
+      'stage-token signing unavailable (no WEBDAV_APP_PASSWORD_HMAC_KEY)',
+    );
+    return;
+  }
+  const served = await fetch(
+    `${base}/api/sandbox-blob?token=${encodeURIComponent(token)}`,
+  );
+  const servedBody = served.status === 200 ? await served.text() : '';
+  const forged = await fetch(`${base}/api/sandbox-blob?token=v1.zzzz.zzzz`);
+  const foreign = await fetch(
+    `${base}/api/sandbox-blob?token=${encodeURIComponent(foreignToken)}`,
+  );
+  record(
+    'sandbox-blob: a stage token streams the org blob through the door',
+    served.status === 200 &&
+      servedBody === payload &&
+      forged.status === 403 &&
+      foreign.status === 404,
+    `served=${served.status} bodyOk=${servedBody === payload}, forged=${forged.status} (want 403), foreignKey=${foreign.status} (want 404)`,
+  );
+}
+
+/**
  * The MANUAL "Run agent" kick and the steer-miss mention kick both move the
  * card — kicking a run IS the caller's move to In progress (the 0.4
  * shared-core rule). Without the move the board shows a To-do task with a
@@ -8269,6 +8339,174 @@ async function checkRunProvenance(
   await sql`
     UPDATE app.project_agent_runs SET status = 'cancelled'
     WHERE id = ${steerRunId}
+  `;
+
+  // ---- an idle instance's mention (re)assigns + kicks a mention run ----
+  // The 0.4 `triggerMentionedProjectAgent` wire: no live engine on the
+  // task, so the comment puts the mentioned instance to work — the task is
+  // reassigned off its human assignee, a 'mention' run kicks with the
+  // comment as feedback, and the kick moves the card to In progress.
+  const seedTask = async (
+    title: string,
+    assignee: { type: string; id: string } | null,
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.tasks (
+        org_id, project_id, title, status, rank, assignee_type, assignee_id,
+        created_by, created_by_type, outputs, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${title}, 'todo', 'm0',
+        ${assignee?.type ?? null}, ${assignee?.id ?? null}, ${userId},
+        'user', ${sql.json([])}, ${Date.now()}, ${Date.now()}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const idleTaskId = await seedTask('Idle mention task', {
+    type: 'user',
+    id: userId,
+  });
+  await sql.begin((tx) =>
+    addTaskComment(tx, auth, {
+      taskId: idleTaskId,
+      body: `@${agentId} please draft the summary`,
+    }),
+  );
+  const idleRuns = await sql<
+    {
+      id: string;
+      status: string;
+      trigger: string | null;
+      feedback: string | null;
+      agentId: string;
+    }[]
+  >`
+    SELECT id, status, trigger, feedback, agent_id AS "agentId"
+    FROM app.project_agent_runs WHERE task_id = ${idleTaskId}
+  `;
+  const idleTask = await sql<
+    { status: string; assigneeType: string | null; assigneeId: string | null }[]
+  >`
+    SELECT status, assignee_type AS "assigneeType",
+           assignee_id AS "assigneeId"
+    FROM app.tasks WHERE id = ${idleTaskId}
+  `;
+  record(
+    'tasks: @-mentioning an idle instance reassigns the task and kicks a mention run',
+    idleRuns.length === 1 &&
+      idleRuns[0]?.status === 'queued' &&
+      idleRuns[0].trigger === 'mention' &&
+      (idleRuns[0].feedback ?? '').includes('draft the summary') &&
+      idleRuns[0].agentId === agentId &&
+      idleTask[0]?.status === 'in_progress' &&
+      idleTask[0].assigneeType === 'agent' &&
+      idleTask[0].assigneeId === agentId,
+    `runs=${idleRuns.length} (${idleRuns[0]?.status}/${idleRuns[0]?.trigger}), task=${idleTask[0]?.status}, assignee=${idleTask[0]?.assigneeType}/${idleTask[0]?.assigneeId === agentId}`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+                                      settled_at_ms = ${Date.now()}
+    WHERE task_id = ${idleTaskId}
+  `;
+
+  // ---- a queued run's mention stays quiet (its start reads the brief) --
+  const queuedTaskId = await seedTask('Queued mention task', {
+    type: 'agent',
+    id: agentId,
+  });
+  await sql`
+    INSERT INTO app.project_agent_runs (
+      org_id, task_id, project_id, agent_id, session_id, exec_id, harness,
+      model, trigger, started_by, status, started_at_ms, deadline_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${queuedTaskId}, ${projectId}, ${agentId},
+      'mention-queued-session', 'mention-queued-exec', 'claude-code',
+      'itest-model', 'manual', ${userId}, 'queued', ${Date.now()},
+      ${Date.now() + 3_600_000}, ${Date.now()}
+    )
+  `;
+  await sql.begin((tx) =>
+    addTaskComment(tx, auth, {
+      taskId: queuedTaskId,
+      body: `@${agentId} also add a cover page`,
+    }),
+  );
+  const queuedRuns = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.project_agent_runs
+    WHERE task_id = ${queuedTaskId}
+  `;
+  const queuedTask = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${queuedTaskId}
+  `;
+  record(
+    'tasks: mentioning an instance with a queued run starts nothing',
+    queuedRuns[0]?.count === '1' && queuedTask[0]?.status === 'todo',
+    `runs=${queuedRuns[0]?.count} (want 1), task=${queuedTask[0]?.status} (want todo)`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+                                      settled_at_ms = ${Date.now()}
+    WHERE task_id = ${queuedTaskId}
+  `;
+
+  // ---- an agent's own comment never dispatches -------------------------
+  const agentAuthorTaskId = await seedTask('Agent author task', {
+    type: 'agent',
+    id: agentId,
+  });
+  await sql.begin((tx) =>
+    addTaskComment(tx, auth, {
+      taskId: agentAuthorTaskId,
+      body: `@${agentId} noting my own progress`,
+      author: { actorType: 'agent', actorId: agentId },
+    }),
+  );
+  const agentAuthorRuns = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.project_agent_runs
+    WHERE task_id = ${agentAuthorTaskId}
+  `;
+  record(
+    "tasks: an agent's own comment mention dispatches nothing",
+    agentAuthorRuns[0]?.count === '0',
+    `runs=${agentAuthorRuns[0]?.count} (want 0)`,
+  );
+
+  // ---- an automation-driven task keeps its automation ------------------
+  const automationHeldTaskId = await seedTask('Automation held task', null);
+  await sql`
+    INSERT INTO app.automation_runs (
+      org_id, project_id, name, version, status, mode, started_by, input,
+      started_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'itest-mention-block', 1, 'running', 'live',
+      ${userId}, ${sql.json({ task: { id: automationHeldTaskId } })},
+      ${Date.now()}
+    )
+  `;
+  await sql.begin((tx) =>
+    addTaskComment(tx, auth, {
+      taskId: automationHeldTaskId,
+      body: `@${agentId} take over please`,
+    }),
+  );
+  const automationHeldRuns = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.project_agent_runs
+    WHERE task_id = ${automationHeldTaskId}
+  `;
+  const automationHeldTask = await sql<{ assigneeType: string | null }[]>`
+    SELECT assignee_type AS "assigneeType" FROM app.tasks
+    WHERE id = ${automationHeldTaskId}
+  `;
+  record(
+    'tasks: a live automation run blocks the mention kick entirely',
+    automationHeldRuns[0]?.count === '0' &&
+      automationHeldTask[0]?.assigneeType === null,
+    `runs=${automationHeldRuns[0]?.count} (want 0), assignee=${String(automationHeldTask[0]?.assigneeType)} (want null — never reassigned)`,
+  );
+  await sql`
+    UPDATE app.automation_runs SET status = 'failed'
+    WHERE org_id = ${orgId} AND name = 'itest-mention-block'
   `;
 
   // ---- deleting a task closes the approvals that named it --------------
@@ -24864,6 +25102,7 @@ async function main(): Promise<void> {
     await checkProjectTail(sql, baseUrl, authCtx);
     await checkRunProvenance(sql, authCtx);
     await checkManualKickMovesCard(sql, authCtx);
+    await checkSandboxBlobDoor(sql, baseUrl, authCtx);
     await checkTurnReattach(sql, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);

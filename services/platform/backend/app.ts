@@ -31,6 +31,7 @@ import { createDocumentRoutes } from './domains/documents/routes.ts';
 import { createErasureRoutes } from './domains/erasure/routes.ts';
 import { createFeedbackRoutes } from './domains/feedback/routes.ts';
 import { createFileRoutes } from './domains/files/routes.ts';
+import { createSandboxBlobRoutes } from './domains/files/sandbox-blob-routes.ts';
 import { createFolderRoutes } from './domains/folders/routes.ts';
 import { createGoogleDriveRoutes } from './domains/google_drive/routes.ts';
 import { createGovernanceRoutes } from './domains/governance/routes.ts';
@@ -136,6 +137,9 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // browser session) — the container-facing machine door.
   app.route('/api/tools', createToolDispatchRoutes({ sql: deps.sql }));
   app.route('/api/connectors', createConnectorBridgeRoutes({ sql: deps.sql }));
+  // Org-bucket blob staging for sandbox sessions (HMAC stage-token gated,
+  // not session auth) — the container-facing twin of the bridge above.
+  app.route('/api/sandbox-blob', createSandboxBlobRoutes({ sql: deps.sql }));
   // Connector OAuth2 consent flow — browser-facing: `start` is
   // session-gated, `callback` is authorized by its single-use state row (the
   // vendor redirects the browser back with no cookie guarantee).

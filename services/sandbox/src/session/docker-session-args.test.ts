@@ -80,9 +80,11 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain('--cap-drop=ALL');
     expect(args).toContain('--read-only');
     expect(args).toContain('no-new-privileges');
-    // Gateway + convex http-actions reachable directly (not via tinyproxy).
+    // Gateway + backend origin reachable directly (not via tinyproxy) —
+    // `backend-api` is the bridge/staging host; the retired aliases stay
+    // one release for in-flight sessions.
     expect(args).toContain(
-      'NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,llm-gateway,convex',
+      'NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,llm-gateway,backend-api,backend-relay,convex',
     );
     // Runnerd token in env.
     expect(args).toContain(`TALE_RUNNERD_TOKEN=${'a'.repeat(64)}`);

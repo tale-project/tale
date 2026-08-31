@@ -84,7 +84,7 @@ function gatewayBaseUrlForSessions(): string {
  * as the staging callback), plus the bridge's route prefix. */
 export function connectorsBridgeUrlForSessions(): string {
   const origin = (
-    process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://convex:3211'
+    process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://backend-api:3005'
   ).replace(/\/$/, '');
   return `${origin}/api/connectors`;
 }

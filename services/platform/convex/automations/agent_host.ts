@@ -700,7 +700,9 @@ export async function stageSkillBundle(
   const result = await sessionStageFiles(sessionId, files);
   if (result.skipped.length > 0) {
     throw new Error(
-      `staging skill "${slug}" failed: ${result.skipped.map((s) => s.path).join(', ')}`,
+      `staging skill "${slug}" failed: ${result.skipped
+        .map((s) => `${s.path} (${s.reason})`)
+        .join(', ')}`,
     );
   }
   return files.length;
@@ -854,7 +856,9 @@ export async function stageWorkflowFiles(
     const staged = await sessionStageFiles(sessionId, toStage);
     if (staged.skipped.length > 0) {
       throw new Error(
-        `staging input files failed: ${staged.skipped.map((s) => s.path).join(', ')}`,
+        `staging input files failed: ${staged.skipped
+          .map((s) => `${s.path} (${s.reason})`)
+          .join(', ')}`,
       );
     }
   }

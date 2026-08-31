@@ -311,6 +311,27 @@ function loadEnvFiles() {
     delete mergedEnv.SANDBOX_URL;
   }
 
+  // And for the in-sandbox backend origin: `convex` is the RETIRED 0.4
+  // alias — the 0.5 sandbox net serves the backend as `backend-api` (the
+  // socat relay on a host run, the api container itself under compose), so
+  // a `http://convex:3211` left in a dotenv file dead-ends every staging
+  // fetch and bridge call. Drop it so the host default below applies.
+  const retiredConvexAlias = (value: string | undefined): boolean =>
+    value !== undefined &&
+    URL.canParse(value) &&
+    new URL(value).hostname === 'convex';
+  if (retiredConvexAlias(process.env.SANDBOX_HTTP_API_BASE_URL)) {
+    warnLine(
+      `SANDBOX_HTTP_API_BASE_URL=${process.env.SANDBOX_HTTP_API_BASE_URL} ` +
+        `names the retired 0.4 \`convex\` alias — ignoring it (the 0.5 ` +
+        `sandbox net serves the backend as backend-api).`,
+    );
+    delete process.env.SANDBOX_HTTP_API_BASE_URL;
+  }
+  if (retiredConvexAlias(mergedEnv.SANDBOX_HTTP_API_BASE_URL)) {
+    delete mergedEnv.SANDBOX_HTTP_API_BASE_URL;
+  }
+
   // Pre-existing process.env wins over .env files — only fill the gaps.
   let loadedCount = 0;
   let skippedCount = 0;

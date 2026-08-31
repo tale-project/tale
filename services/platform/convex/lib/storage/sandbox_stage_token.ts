@@ -181,12 +181,12 @@ export async function verifyStageToken(
 
 /**
  * Build the sandbox-reachable staging URL for an `s3:` blob: the
- * `/api/sandbox-blob` httpAction on the Convex http-actions origin as seen
- * from INSIDE the sandbox network (`convex:3211` by default — in prod the
- * convex container is dual-homed onto the sandbox net; in dev the
- * `convex-relay` socat bridges it to the host-run backend; override with
- * SANDBOX_HTTP_API_BASE_URL for non-standard topologies). Returns `null`
- * when no HMAC root is configured.
+ * `/api/sandbox-blob` route on the backend origin as seen from INSIDE the
+ * sandbox network (`backend-api:3005` by default — under compose the api
+ * container is dual-homed onto the sandbox net; in host dev the
+ * `backend-relay` socat carries the alias to the host-run backend; override
+ * with SANDBOX_HTTP_API_BASE_URL for non-standard topologies). Returns
+ * `null` when no HMAC root is configured.
  */
 export async function buildSandboxBlobStageUrl(
   ref: string,
@@ -195,7 +195,7 @@ export async function buildSandboxBlobStageUrl(
   const token = await signStageToken({ ref, org: organizationId });
   if (token === null) return null;
   const base = (
-    process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://convex:3211'
+    process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://backend-api:3005'
   ).replace(/\/$/, '');
   return `${base}/api/sandbox-blob?token=${encodeURIComponent(token)}`;
 }
