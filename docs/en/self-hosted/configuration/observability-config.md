@@ -49,7 +49,7 @@ Duplicate the stanza per path, or use a single job with `relabel_configs` if you
 
 ## Error tracking with Sentry
 
-Sentry is opt-in via `SENTRY_DSN`. Self-hosted GlitchTip and Bugsink work too, since they speak the same DSN format. The platform and the convex containers both read the DSN and tag events with the container name.
+Sentry is opt-in via `SENTRY_DSN`. Self-hosted GlitchTip and Bugsink work too, since they speak the same DSN format. One DSN covers both sides of the stack: the browser app reports front-end errors, and the `backend-api` / `backend-worker` containers report server-side ones — crashed requests, failed background jobs, and boot failures — tagged with the process role (`tale.role`) and the release version.
 
 ```bash
 # .env
@@ -57,7 +57,7 @@ SENTRY_DSN=https://your-key@your-sentry-host/project-id
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
-The sample rate caps performance traces; leave it unset for the default 1.0 in development and tighten it (0.05–0.2) in production. Stack frames are sent unredacted, so point the DSN at infrastructure you control if your error payloads are sensitive.
+The sample rate caps browser performance traces and applies only there — the backend reports errors, never traces. Leave it unset for the default 1.0 in development and tighten it (0.05–0.2) in production. Stack frames are sent unredacted on both sides, so point the DSN at infrastructure you control if your error payloads are sensitive.
 
 ## What does not ship yet
 

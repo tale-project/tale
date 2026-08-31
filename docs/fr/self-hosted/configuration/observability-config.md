@@ -49,7 +49,7 @@ Duplique la stanza par chemin, ou utilise un job unique avec `relabel_configs` s
 
 ## Suivi d'erreurs avec Sentry
 
-Sentry est opt-in via `SENTRY_DSN`. GlitchTip et Bugsink auto-hébergés marchent aussi, puisqu'ils parlent le même format de DSN. Les conteneurs plateforme et convex lisent tous les deux le DSN et taguent les événements avec le nom du conteneur.
+Sentry est opt-in via `SENTRY_DSN`. GlitchTip et Bugsink auto-hébergés marchent aussi, puisqu'ils parlent le même format de DSN. Un seul DSN couvre les deux côtés de la stack : l'app navigateur remonte les erreurs front-end, et les conteneurs `backend-api` / `backend-worker` remontent le côté serveur — requêtes plantées, jobs d'arrière-plan échoués et échecs au boot — tagués avec le rôle du processus (`tale.role`) et la version de release.
 
 ```bash
 # .env
@@ -57,7 +57,7 @@ SENTRY_DSN=https://your-key@your-sentry-host/project-id
 SENTRY_TRACES_SAMPLE_RATE=0.1
 ```
 
-Le sample rate plafonne les traces de performance ; laisse-le non défini pour le défaut 1.0 en développement et resserre-le (0.05–0.2) en production. Les stack frames sont envoyés sans rédaction, donc pointe le DSN sur une infra que tu contrôles si tes payloads d'erreur sont sensibles.
+Le sample rate plafonne les traces de performance du navigateur et ne s'applique que là — le backend remonte des erreurs, jamais de traces. Laisse-le non défini pour le défaut 1.0 en développement et resserre-le (0.05–0.2) en production. Les stack frames sont envoyés sans rédaction des deux côtés, donc pointe le DSN sur une infra que tu contrôles si tes payloads d'erreur sont sensibles.
 
 ## Ce qui ne ship pas encore
 

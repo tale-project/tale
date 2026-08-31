@@ -8,6 +8,11 @@ import { ensureDefaultCorpusSchema } from './domains/knowledge/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { seedDevUser } from './domains/provisioning/dev-seed.ts';
 import { loadEnv } from './env.ts';
+import {
+  flushErrorReporting,
+  initErrorReporting,
+  reportError,
+} from './error-reporting.ts';
 import { createBoss, ensureQueues } from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -17,6 +22,9 @@ import { initBackendTelemetry } from './telemetry.ts';
 
 async function main(): Promise<void> {
   const env = loadEnv();
+  // First thing after the env parse, so even a failing boot (migrations, DB
+  // connectivity) reports before the process dies. No-op without SENTRY_DSN.
+  initErrorReporting({ dsn: env.SENTRY_DSN, role: env.ROLE });
   const needsApi = env.ROLE !== 'worker';
   const sql = createSql(env.DATABASE_URL);
 
@@ -66,6 +74,7 @@ async function main(): Promise<void> {
     // BYO corpora bootstrap on first use inside the pool router.
     await ensureDefaultCorpusSchema().catch((error: unknown) => {
       console.warn('[backend] default corpus bootstrap failed:', error);
+      reportError(error, { tags: { 'tale.lane': 'boot' } });
     });
   }
 
@@ -80,6 +89,7 @@ async function main(): Promise<void> {
     }
   } catch (error: unknown) {
     console.warn('[backend] default object store bootstrap failed:', error);
+    reportError(error, { tags: { 'tale.lane': 'boot' } });
   }
 
   // Loopback-only dev convenience: seed the owner account + workspace so a
@@ -129,13 +139,16 @@ async function main(): Promise<void> {
     // Graceful: in-flight jobs finish before the instance stops.
     await boss.stop({ graceful: true });
     await sql.end({ timeout: 5 });
+    await flushErrorReporting();
     process.exit(0);
   };
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
   process.on('SIGINT', () => void shutdown('SIGINT'));
 }
 
-main().catch((error: unknown) => {
+main().catch(async (error: unknown) => {
   console.error('[backend] fatal startup error:', error);
+  reportError(error, { tags: { 'tale.lane': 'boot' } });
+  await flushErrorReporting();
   process.exit(1);
 });

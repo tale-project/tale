@@ -70,6 +70,7 @@ import {
   createWebdavProtocolRoutes,
 } from './domains/webdav/routes.ts';
 import { createWebsiteRoutes } from './domains/websites/routes.ts';
+import { appErrorHandler } from './error-reporting.ts';
 import {
   createScreencastAuthRoutes,
   createSseAuthRoutes,
@@ -96,6 +97,9 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // app directly — an app with a `/metrics` route that renders an empty
   // registry is worse than no route at all.
   initBackendTelemetry(deps.sql);
+  // Hono's default 500 behavior plus Sentry capture (no-op without a DSN);
+  // sub-app errors bubble up here unless a sub-app registers its own.
+  app.onError(appErrorHandler);
   app.get('/ping', (c) => c.json({ ok: true, service: 'backend' }));
   // Prometheus scrape. Reachable publicly only through the proxy's
   // token-gated `/metrics/backend` lane; inside the network it is the plain

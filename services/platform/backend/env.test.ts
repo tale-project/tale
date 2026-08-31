@@ -22,6 +22,17 @@ describe('loadEnv', () => {
     expect(env.WORKER_CONCURRENCY).toBe(2);
   });
 
+  it('passes SENTRY_DSN through and leaves it optional', () => {
+    expect(
+      loadEnv({ DATABASE_URL: 'postgres://x' }).SENTRY_DSN,
+    ).toBeUndefined();
+    const env = loadEnv({
+      DATABASE_URL: 'postgres://x',
+      SENTRY_DSN: 'https://key@sentry.example/1',
+    });
+    expect(env.SENTRY_DSN).toBe('https://key@sentry.example/1');
+  });
+
   it('rejects a missing DATABASE_URL and an unknown role', () => {
     expect(() => loadEnv({})).toThrow();
     expect(() =>

@@ -7,6 +7,7 @@ import {
   requireOrganizationMember,
 } from '../auth/membership.ts';
 import type { AuthEnv } from '../auth/session.ts';
+import { reportError } from '../error-reporting.ts';
 import { hintStreamClosed, hintStreamOpened } from '../telemetry.ts';
 import { coalesceHints } from './hints.ts';
 import { latestOutboxId, readHintsAfter } from './outbox.ts';
@@ -82,6 +83,9 @@ export function createEventsHandler(sql: Sql) {
               break;
             }
             console.error('[backend] /events poll failed, backing off:', error);
+            // DB-blip bursts here were a load-bearing production signal in
+            // the 0.4 GlitchTip topology; the SDK's dedupe absorbs repeats.
+            reportError(error, { tags: { 'tale.lane': 'events-poll' } });
             await stream.sleep(ERROR_BACKOFF_MS);
             continue;
           }
