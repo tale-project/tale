@@ -2599,7 +2599,8 @@ function isReviewPolicyRefusalError(error: unknown): boolean {
 
 /**
  * The manual "Run agent" kick: the task's ASSIGNED agent starts (or reuses)
- * a run — a contested/ineligible state answers as DATA (the 0.4 wire).
+ * a run AND the card moves to In progress as the caller's own status write
+ * — a contested/ineligible state answers as DATA (the 0.4 wire).
  */
 export async function startTaskAgentRunManual(
   tx: TransactionSql,
@@ -2629,6 +2630,25 @@ export async function startTaskAgentRunManual(
   const agent = agents[0];
   if (!agent) {
     return { started: false, reason: 'agent_missing' };
+  }
+  // The board verb IS the interface (the 0.4 rule): kicking the run moves
+  // the card, and the move is the CALLER's own status write. A task not yet
+  // at `in_progress` routes through `updateTaskStatus`, whose choreography
+  // kicks the queued run inside this same transaction — the board never
+  // shows a To-do agent task with a live run grinding behind it. The
+  // live-run probe answers `already_running` BEFORE any move (0.4's guard
+  // order), so a second click never reshuffles the board.
+  if (task.status !== 'in_progress') {
+    const live = await tx<{ id: string }[]>`
+      SELECT id FROM app.project_agent_runs
+      WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+      LIMIT 1
+    `;
+    if (live.length > 0) {
+      return { started: false, reason: 'already_running' };
+    }
+    await updateTaskStatus(tx, auth, taskId, 'in_progress');
+    return { started: true };
   }
   const kicked = await kickAgentRun(tx, {
     organizationId: auth.organizationId,

@@ -6,7 +6,7 @@ import { isAutoRetryableFailure } from '../../../convex/tasks/task_auto_retry.ts
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import type { ShimHandlers } from '../../lib/convex-shim.ts';
+import type { ShimHandlers, ShimScheduler } from '../../lib/convex-shim.ts';
 import {
   reserveSessionSlot,
   resumeSessionSlot,
@@ -15,9 +15,15 @@ import {
 } from '../sandbox/sessions.ts';
 import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
 import { kickAgentRun } from './agent-runs.ts';
+import { closePendingTaskReviewOnStatusLeave } from './reviews.ts';
 import {
   agentRecordTaskOutputsTrusted,
   agentUpdateTaskStatusTrusted,
+  applyTaskCountTransition,
+  computeEndRank,
+  loadTaskOrThrow,
+  recordActivity,
+  taskCountBucket,
   type TaskStatus,
 } from './service.ts';
 
@@ -267,8 +273,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       if (agent === undefined) {
         return { started: false, reason: 'agent_unavailable' };
       }
-      const kicked = await transactSerializable(sql, (tx) =>
-        kickAgentRun(tx, {
+      const kicked = await transactSerializable(sql, async (tx) => {
+        const result = await kickAgentRun(tx, {
           organizationId: args.organizationId,
           projectId: task.projectId,
           taskId: args.taskId,
@@ -281,8 +287,51 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           trigger: 'mention',
           feedback: args.feedback,
           startedBy: args.authorId,
-        }),
-      );
+        });
+        if (result.reused) return result;
+        // The mention kick moves the card too (the 0.4 shared-core rule: the
+        // board verb IS the interface). The settled predecessor parked the
+        // task at `in_review` — left there, a fresh run grinds behind a card
+        // that reads "waiting on review", and the pending review gate it
+        // minted must be withdrawn on the way out (every leave closes it).
+        // Attributed to the comment's author: the kick is their gesture,
+        // delivered late. Mirrors the review hand-back's write shape.
+        const fresh = await loadTaskOrThrow(tx, args.taskId);
+        if (fresh.status !== 'in_progress') {
+          await closePendingTaskReviewOnStatusLeave(tx, {
+            task: fresh,
+            toStatus: 'in_progress',
+            actor: { kind: 'user', userId: args.authorId },
+          });
+          const now = Date.now();
+          const rank = await computeEndRank(tx, fresh.projectId, 'in_progress');
+          await tx`
+            UPDATE app.tasks SET
+              status = 'in_progress', rank = ${rank},
+              completed_at_ms = NULL,
+              status_changed_at_ms = ${now}, updated_at_ms = ${now}
+            WHERE id = ${fresh.id}
+          `;
+          await applyTaskCountTransition(
+            tx,
+            fresh.projectId,
+            taskCountBucket(fresh),
+            taskCountBucket({
+              status: 'in_progress',
+              archivedAt: fresh.archivedAt,
+            }),
+          );
+          await recordActivity(tx, {
+            task: fresh,
+            actorType: 'user',
+            actorId: args.authorId,
+            action: 'status.changed',
+            fromValue: fresh.status,
+            toValue: 'in_progress',
+          });
+        }
+        return result;
+      });
       // A reused live run means another turn is already carrying this work;
       // the comment rides that one rather than starting a second.
       return { started: !kicked.reused };
@@ -762,5 +811,35 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as Parameters<typeof readSkillBundleForViewer>[0];
       return readSkillBundleForViewer(args);
     },
+  };
+}
+
+/**
+ * The task lane's scheduler seam: the reused hosts self-chain by scheduling
+ * `internal.*` refs — the drive continuation after every `running` window
+ * and the steer retry ladder — and each maps onto its pg-boss job here.
+ * Without the seam the chain dies at the FIRST re-schedule ("no scheduler
+ * seam registered"), settling a working turn as failed while the agent
+ * keeps going (observed live). The turn-drive itest alone never exercises
+ * this: its fake harness finishes in one terminal window, so nothing
+ * re-schedules there.
+ */
+export function taskAgentShimScheduler(sql: Sql): ShimScheduler {
+  return async (functionName, delayMs, args) => {
+    const startAfter =
+      delayMs > 0 ? { startAfter: new Date(Date.now() + delayMs) } : {};
+    if (functionName === 'tasks/agent_run_host:driveTaskAgentTurn') {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the host builds exactly the drive keys its handler re-validates
+      await addJobInTx(sql, 'task.agent_drive', args as never, startAfter);
+      return;
+    }
+    if (functionName === 'tasks/agent_run_host:steerTaskAgentTurn') {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the steer host replays its own args with attempt+1
+      await addJobInTx(sql, 'task.agent_steer', args as never, startAfter);
+      return;
+    }
+    throw new Error(
+      `[task-agent] unmapped scheduled ref ${functionName} — add it to taskAgentShimScheduler`,
+    );
   };
 }

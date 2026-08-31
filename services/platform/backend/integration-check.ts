@@ -7727,6 +7727,221 @@ async function checkTurnReattach(
   `;
 }
 
+/**
+ * The MANUAL "Run agent" kick and the steer-miss mention kick both move the
+ * card — kicking a run IS the caller's move to In progress (the 0.4
+ * shared-core rule). Without the move the board shows a To-do task with a
+ * live run grinding behind it, the auto-retry guard
+ * (`task.status === 'in_progress'`) refuses every retry of a manually
+ * kicked run, and a steer-miss kick leaves the card parked at In review
+ * with its stale pending gate.
+ */
+async function checkManualKickMovesCard(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const auth = {
+    organizationId: orgId,
+    userId,
+    role: 'owner',
+    teamIds: [] as string[],
+  };
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Kick choreography', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const agentRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agents (
+      org_id, project_id, name, harness, model, created_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Kick Agent', 'claude-code', 'itest-model',
+      ${userId}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const agentId = agentRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, assignee_type, assignee_id,
+      created_by, created_by_type, outputs, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Manual kick task', 'todo', 'a0', 'agent',
+      ${agentId}, ${userId}, 'user', ${sql.json([])}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+
+  const { startTaskAgentRunManual } =
+    await import('./domains/tasks/service.ts');
+  // Assert INSIDE the kick's transaction: the worker must not race the
+  // probe by driving the queued turn before the reads land.
+  const manual = await sql.begin(async (tx) => {
+    const first = await startTaskAgentRunManual(tx, auth, taskId);
+    const taskRow = await tx<{ status: string }[]>`
+      SELECT status FROM app.tasks WHERE id = ${taskId}
+    `;
+    const runRow = await tx<{ id: string; status: string }[]>`
+      SELECT id, status FROM app.project_agent_runs
+      WHERE task_id = ${taskId} ORDER BY started_at_ms DESC LIMIT 1
+    `;
+    const jobs = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'task.agent_turn'
+        AND data ->> 'runId' = ${runRow[0]?.id ?? ''}
+    `;
+    const second = await startTaskAgentRunManual(tx, auth, taskId);
+    return {
+      first,
+      second,
+      taskStatus: taskRow[0]?.status ?? 'gone',
+      runId: runRow[0]?.id ?? '',
+      runStatus: runRow[0]?.status ?? 'gone',
+      jobCount: Number(jobs[0]?.count ?? '0'),
+    };
+  });
+  record(
+    'tasks: the manual Run-agent kick moves the card to In progress',
+    manual.first.started &&
+      manual.taskStatus === 'in_progress' &&
+      manual.runStatus === 'queued' &&
+      manual.jobCount === 1 &&
+      !manual.second.started &&
+      manual.second.reason === 'already_running',
+    `started=${manual.first.started}, task=${manual.taskStatus}, run=${manual.runStatus}, jobs=${manual.jobCount}, second=${manual.second.reason ?? 'started'}`,
+  );
+  // Neutralize before the worker polls the job up: the turn job's
+  // idempotency gate skips a run that is no longer queued.
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+                                      settled_at_ms = ${Date.now()}
+    WHERE id = ${manual.runId}
+  `;
+
+  // ---- the steer-miss mention kick pulls the card back off In review ----
+  const reviewTaskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, assignee_type, assignee_id,
+      created_by, created_by_type, outputs, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Steer-miss task', 'in_review', 'a1', 'agent',
+      ${agentId}, ${userId}, 'user', ${sql.json([])}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const reviewTaskId = reviewTaskRows[0]?.id ?? '';
+  const gateRows = await sql<{ id: string }[]>`
+    INSERT INTO app.approvals (
+      org_id, status, resource_type, resource_id, priority, metadata,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'pending', 'task_review', ${reviewTaskId}, 'medium',
+      ${sql.json({ taskId: reviewTaskId, projectId })}, ${now}
+    ) RETURNING id
+  `;
+  const gateId = gateRows[0]?.id ?? '';
+  const { agentTurnShimHandlers } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const steerMiss =
+    agentTurnShimHandlers(sql)['tasks/mutations:kickMentionRunAfterSteerMiss'];
+  const missResult = objectAt(
+    steerMiss === undefined
+      ? null
+      : await steerMiss({
+          organizationId: orgId,
+          taskId: reviewTaskId,
+          authorId: userId,
+          feedback: 'please tighten the summary',
+        }),
+    '',
+  );
+  const missTask = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${reviewTaskId}
+  `;
+  const missRuns = await sql<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs WHERE task_id = ${reviewTaskId}
+  `;
+  const missGate = await sql<{ status: string; metadata: unknown }[]>`
+    SELECT status, metadata FROM app.approvals WHERE id = ${gateId}
+  `;
+  const missGateMeta = objectAt(missGate[0]?.metadata ?? null, '');
+  record(
+    'tasks: the steer-miss mention kick hands the card back to In progress',
+    missResult?.started === true &&
+      missTask[0]?.status === 'in_progress' &&
+      missRuns.length === 1 &&
+      missGate[0]?.status === 'rejected' &&
+      missGateMeta?.withdrawn === true,
+    `started=${String(missResult?.started)}, task=${missTask[0]?.status}, runs=${missRuns.length}, gate=${missGate[0]?.status}/${String(missGateMeta?.withdrawn)}`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+                                      settled_at_ms = ${Date.now()}
+    WHERE id = ${missRuns[0]?.id ?? ''}
+  `;
+
+  // ---- the drive chain's scheduler seam maps every self-chained ref ------
+  // The turn-drive scenario cannot catch a missing seam: its fake harness
+  // finishes in one terminal window, so nothing ever re-schedules. Probe the
+  // seam directly — a real turn's FIRST `running` window dies without it.
+  const { taskAgentShimScheduler } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const seam = taskAgentShimScheduler(sql);
+  const seamJobsBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name IN ('task.agent_drive', 'task.agent_steer')
+      AND data ->> 'execId' = 'seam-probe-exec'
+  `;
+  const seamPayload = {
+    organizationId: orgId,
+    runId: 'seam-probe-run',
+    taskId,
+    agentId,
+    execId: 'seam-probe-exec',
+    sessionId: 'seam-probe-session',
+    harness: 'claude-code',
+    deadlineAt: Date.now() + 3_600_000,
+    sessionCreatedAt: now,
+  };
+  await seam('tasks/agent_run_host:driveTaskAgentTurn', 0, seamPayload);
+  await seam('tasks/agent_run_host:steerTaskAgentTurn', 5_000, {
+    ...seamPayload,
+    feedback: 'probe',
+    author: 'probe',
+    authorId: userId,
+    attempt: 1,
+  });
+  let seamUnmappedThrew = false;
+  try {
+    await seam('tasks/agent_run_host:noSuchRef', 0, {});
+  } catch {
+    seamUnmappedThrew = true;
+  }
+  const seamJobs = await sql<{ name: string; carried: string | null }[]>`
+    SELECT name, data ->> 'sessionCreatedAt' AS carried FROM pgboss.job
+    WHERE name IN ('task.agent_drive', 'task.agent_steer')
+      AND data ->> 'execId' = 'seam-probe-exec'
+  `;
+  const driveJob = seamJobs.find((job) => job.name === 'task.agent_drive');
+  record(
+    'tasks: the drive/steer scheduler seam maps the self-chained refs',
+    Number(seamJobsBefore[0]?.count ?? '0') === 0 &&
+      seamJobs.length === 2 &&
+      driveJob !== undefined &&
+      driveJob.carried === String(now) &&
+      seamUnmappedThrew,
+    `jobs=${seamJobs.length} (want 2), driveCarriesIncarnation=${driveJob?.carried === String(now)}, unmappedThrew=${seamUnmappedThrew}`,
+  );
+  await sql`
+    DELETE FROM pgboss.job
+    WHERE name IN ('task.agent_drive', 'task.agent_steer')
+      AND data ->> 'execId' = 'seam-probe-exec'
+  `;
+}
+
 async function checkRunProvenance(
   sql: Sql,
   ctx: { orgId: string; userId: string },
@@ -24648,6 +24863,7 @@ async function main(): Promise<void> {
     await checkCompetences(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkProjectTail(sql, baseUrl, authCtx);
     await checkRunProvenance(sql, authCtx);
+    await checkManualKickMovesCard(sql, authCtx);
     await checkTurnReattach(sql, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);

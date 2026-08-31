@@ -41,7 +41,10 @@ import {
 import { scaffoldNewOrganization } from '../domains/organizations/scaffold.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import { kickAgentRun } from '../domains/tasks/agent-runs.ts';
-import { agentTurnShimHandlers } from '../domains/tasks/agent-turn-shim.ts';
+import {
+  agentTurnShimHandlers,
+  taskAgentShimScheduler,
+} from '../domains/tasks/agent-turn-shim.ts';
 import { resolveTaskKickStartArgs } from '../domains/tasks/kick-plan.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
 import {
@@ -87,6 +90,10 @@ const driveSchema = z.object({
   sessionId: z.string().min(1),
   harness: z.string().min(1),
   deadlineAt: z.number(),
+  // The incarnation stamp the settle binds to the conversation handle — the
+  // drive continuation carries it or a later kick's resume check degrades
+  // to the op-recovered leg.
+  sessionCreatedAt: z.number().optional(),
 });
 
 const steerSchema = z.object({
@@ -612,7 +619,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // ring buffer, streams the turn, and runs the settle choreography —
       // the same code a fresh start reaches after launching its exec, which
       // is exactly why re-attaching is safe.
-      const shim = createCtxShim(agentTurnShimHandlers(deps.sql));
+      const shim = createCtxShim(agentTurnShimHandlers(deps.sql), {
+        scheduler: taskAgentShimScheduler(deps.sql),
+      });
       await driveTaskAgentTurnImpl(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by agentTurnShimHandlers
         shim as unknown as Parameters<typeof driveTaskAgentTurnImpl>[0],
@@ -626,7 +635,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // decision — stdin injection vs exec rotation, the retry ladder, and
       // the settled-turn fallback that turns the comment into a fresh
       // mention run.
-      const shim = createCtxShim(agentTurnShimHandlers(deps.sql));
+      const shim = createCtxShim(agentTurnShimHandlers(deps.sql), {
+        scheduler: taskAgentShimScheduler(deps.sql),
+      });
       await steerTaskAgentTurnImpl(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by agentTurnShimHandlers
         shim as unknown as Parameters<typeof steerTaskAgentTurnImpl>[0],
@@ -706,7 +717,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       });
       // The REUSED 0.4 turn host on the ctx shim — the whole start: session
       // ensure, staging, key mint, exec, drain, settle choreography.
-      const shim = createCtxShim(agentTurnShimHandlers(deps.sql));
+      const shim = createCtxShim(agentTurnShimHandlers(deps.sql), {
+        scheduler: taskAgentShimScheduler(deps.sql),
+      });
       await startTaskAgentTurnImpl(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by agentTurnShimHandlers
         shim as unknown as Parameters<typeof startTaskAgentTurnImpl>[0],
