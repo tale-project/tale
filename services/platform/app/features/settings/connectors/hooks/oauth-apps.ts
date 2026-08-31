@@ -25,9 +25,23 @@ export function useOnedriveImportAppStatus(organizationId: string) {
   });
 }
 
+/** Whether Enterprise SSO carries an Entra ID registration the Microsoft
+ * 365 import app could reuse — admin-gated, like the card that asks. */
+export function useEntraSsoSource(organizationId: string) {
+  return useBackendQuery('connector_oauth_apps/queries:entraSsoSource', {
+    organizationId,
+  });
+}
+
 /** Create or replace the org's app for one connector slug. */
 export function useUpsertConnectorOauthApp() {
   return useBackendAction('connector_oauth_apps/actions:upsert');
+}
+
+/** Copy the Enterprise SSO Entra registration into the org's app — the
+ * secret moves server-side and never enters the browser. */
+export function useReuseSsoOauthApp() {
+  return useBackendAction('connector_oauth_apps/actions:reuseSso');
 }
 
 /** Drop the org's app — resolution falls back to the deployment env. */

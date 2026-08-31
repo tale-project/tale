@@ -74,6 +74,16 @@ vi.mock('../hooks/oauth-apps', () => ({
     mutate: vi.fn(),
     isPending: false,
   }),
+  useEntraSsoSource: () => ({
+    data: { available: false, reason: 'no_sso' },
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
+  useReuseSsoOauthApp: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 vi.mock('../hooks/mutations', () => ({

@@ -13,15 +13,17 @@ import { Input } from '@/app/components/ui/forms/input';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useToast } from '@/app/hooks/use-toast';
-import type { ItemOf } from '@/app/lib/backend/contract';
+import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 
 import type { ConnectorSummary } from '../hooks/backend';
 import {
   useConnectorOauthApps,
+  useEntraSsoSource,
   useOnedriveImportAppStatus,
   useRemoveConnectorOauthApp,
+  useReuseSsoOauthApp,
   useUpsertConnectorOauthApp,
 } from '../hooks/oauth-apps';
 
@@ -38,6 +40,7 @@ import {
  */
 
 type OauthAppRow = ItemOf<'connector_oauth_apps/queries:list'>;
+type EntraSsoSource = ReturnsOf<'connector_oauth_apps/queries:entraSsoSource'>;
 
 /** Knowledge cloud-import (OneDrive/SharePoint) — no catalog entry. */
 const ONEDRIVE_SLUG = 'onedrive';
@@ -79,9 +82,11 @@ export function OauthAppsCard({
   const { t } = useT('settings');
   const appsQuery = useConnectorOauthApps(organizationId);
   const onedriveStatus = useOnedriveImportAppStatus(organizationId);
+  const entraSso = useEntraSsoSource(organizationId);
 
   const [editing, setEditing] = useState<OauthAppTarget | null>(null);
   const [removing, setRemoving] = useState<OauthAppTarget | null>(null);
+  const [reusingSso, setReusingSso] = useState(false);
 
   const orgApps = new Map<string, OauthAppRow>(
     (appsQuery.data ?? []).map((row) => [row.slug, row]),
@@ -162,6 +167,16 @@ export function OauthAppsCard({
                     {t('connectors.oauthApps.remove')}
                   </Button>
                 )}
+                {target.slug === ONEDRIVE_SLUG &&
+                  entraSso.data?.available === true && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setReusingSso(true)}
+                    >
+                      {t('connectors.oauthApps.reuseSso')}
+                    </Button>
+                  )}
                 <Button
                   variant="secondary"
                   size="sm"
@@ -190,7 +205,114 @@ export function OauthAppsCard({
           onClose={() => setRemoving(null)}
         />
       )}
+      {reusingSso && entraSso.data?.available === true && (
+        <ReuseSsoDialog
+          organizationId={organizationId}
+          source={entraSso.data}
+          onClose={() => setReusingSso(false)}
+        />
+      )}
     </SettingsSection>
+  );
+}
+
+/**
+ * Copy the Enterprise SSO (Microsoft Entra ID) app registration into the
+ * Microsoft 365 import app — the confirm shows what will be copied and what
+ * the admin must still add on that registration in Entra (the copy itself
+ * happens server-side; the secret never enters the browser).
+ */
+function ReuseSsoDialog({
+  organizationId,
+  source,
+  onClose,
+}: {
+  organizationId: string;
+  source: EntraSsoSource;
+  onClose: () => void;
+}) {
+  const { t } = useT('settings');
+  const { toast } = useToast();
+  const reuse = useReuseSsoOauthApp();
+
+  // The probe serves the deployment's redirect URI; fall back to the same
+  // client-side derivation the configure dialog shows.
+  const redirectUri = source.redirectUri ?? redirectUris(ONEDRIVE_SLUG)[0];
+
+  return (
+    <ConfirmDialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      title={t('connectors.oauthApps.reuseSsoTitle')}
+      description={t('connectors.oauthApps.reuseSsoBody')}
+      confirmText={t('connectors.oauthApps.reuseSsoConfirm')}
+      isLoading={reuse.isPending}
+      onConfirm={() => {
+        reuse.mutate(
+          { organizationId, slug: ONEDRIVE_SLUG },
+          {
+            onSuccess: () => {
+              toast({ title: t('connectors.oauthApps.reuseSsoDoneToast') });
+              onClose();
+            },
+            onError: (err) => {
+              console.error('connectors: reuse sso oauth app failed', err);
+              toast({
+                title: mapCredentialError(err),
+                variant: 'destructive',
+              });
+            },
+          },
+        );
+      }}
+    >
+      <Stack gap={4}>
+        <Stack gap={1}>
+          <Text as="span" className="text-sm font-medium">
+            {t('connectors.oauthApps.clientIdLabel')}
+          </Text>
+          <code className="bg-muted rounded px-2 py-1 text-xs break-all">
+            {source.clientId}
+          </code>
+        </Stack>
+        <Stack gap={1}>
+          <Text as="span" className="text-sm font-medium">
+            {t('connectors.oauthApps.tenantIdLabel')}
+          </Text>
+          <code className="bg-muted rounded px-2 py-1 text-xs break-all">
+            {source.tenantId}
+          </code>
+        </Stack>
+        <Stack gap={1}>
+          <Text as="span" className="text-sm font-medium">
+            {t('connectors.oauthApps.reuseSsoChecklist')}
+          </Text>
+          <Text as="span" variant="muted" className="text-xs">
+            {t('connectors.oauthApps.reuseSsoRedirectItem')}
+          </Text>
+          {redirectUri !== undefined && (
+            <code className="bg-muted rounded px-2 py-1 text-xs break-all">
+              {redirectUri}
+            </code>
+          )}
+          <Text as="span" variant="muted" className="text-xs">
+            {t('connectors.oauthApps.reuseSsoScopesItem')}
+          </Text>
+          <div className="flex flex-wrap gap-1">
+            {(source.scopes ?? []).map((scope) => (
+              <code
+                key={scope}
+                className="bg-muted rounded px-2 py-1 text-xs break-all"
+              >
+                {scope}
+              </code>
+            ))}
+          </div>
+        </Stack>
+      </Stack>
+    </ConfirmDialog>
   );
 }
 

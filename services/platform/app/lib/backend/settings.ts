@@ -479,6 +479,18 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.apps),
     };
   },
+  'connector_oauth_apps/queries:entraSsoSource': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'connector_oauth_app', 'entra-sso-source'),
+      queryFn: () =>
+        backendFetch<ReturnsOf<'connector_oauth_apps/queries:entraSsoSource'>>(
+          '/connector-oauth-apps/entra-sso-source',
+          { orgId },
+        ),
+    };
+  },
   'sandbox/session_queries_public:getHarnessHealth': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
@@ -1305,6 +1317,14 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         `/connector-oauth-apps/${encodeURIComponent(stringArg(args, 'slug'))}`,
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
+    invalidate: invalidateConnectorOauthApps,
+  },
+  'connector_oauth_apps/actions:reuseSso': {
+    run: (args, ctx) =>
+      backendFetch<ReturnsOf<'connector_oauth_apps/actions:reuseSso'>>(
+        `/connector-oauth-apps/${encodeURIComponent(stringArg(args, 'slug'))}/reuse-sso`,
+        { orgId: requireOrg(args, ctx), body: {} },
+      ),
     invalidate: invalidateConnectorOauthApps,
   },
   'governance/file_actions:saveGovernancePolicy': {

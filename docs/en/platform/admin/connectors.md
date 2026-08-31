@@ -91,6 +91,8 @@ The **OAuth apps** section at the bottom of the page — visible to admins and o
 
 Two entries reach beyond this page: the **Google Drive** app is shared with Knowledge's Google Drive import (one Google OAuth client, both redirect URIs), and **OneDrive / SharePoint (Knowledge import)** exists only for that import — it has no connector of its own. Slack is absent on purpose: its app stays on the deployment environment, because inbound event verification runs before any organization is known.
 
+An organization that signs in with Microsoft Entra ID already gave Tale an app registration, so the **OneDrive / SharePoint (Knowledge import)** row also offers **Use Entra ID SSO app**. It copies the SSO registration's client ID and secret into this entry server-side — the secret never passes through the browser — and the confirmation lists what that registration still needs in Entra before members can connect: the import redirect URI as a "Web" URI, and the delegated Microsoft Graph permissions. The copy is deliberately one-time; after rotating the SSO client secret, copy it again here.
+
 ## Reconnecting a broken authorization
 
 An OAuth credential whose stored authorization expired or was revoked shows **Reconnect needed** with the reason attached. This is the platform's own finding, not an operator's decision, which is why it reads differently from a credential someone disabled by hand: nothing about the row is wrong, the vendor stopped honouring the grant.

@@ -5249,6 +5249,18 @@ settings:
       redirectUrisHint:
         Trage jede dieser Adressen in der App-Registrierung beim Anbieter
         ein, bevor du verbindest.
+      reuseSso: Entra-ID-App aus SSO übernehmen
+      reuseSsoTitle: App-Registrierung aus dem Enterprise SSO übernehmen
+      reuseSsoBody:
+        Deine Organisation meldet sich über Microsoft Entra ID an. Das
+        kopiert Client-ID und Client-Secret dieser App-Registrierung in die
+        Microsoft-365-Import-App — tauschst du das SSO-Secret später aus,
+        kopiere es hier erneut.
+      reuseSsoChecklist: Ergänze vor dem Verbinden in dieser App-Registrierung in Entra
+      reuseSsoRedirectItem: Eine "Web"-Redirect-URI
+      reuseSsoScopesItem: Delegierte Microsoft-Graph-Berechtigungen
+      reuseSsoConfirm: Aus SSO kopieren
+      reuseSsoDoneToast: Der Microsoft-365-Import nutzt jetzt die Entra-ID-App aus dem SSO
     dialog:
       apiKey: API-Schlüssel
       token: Token

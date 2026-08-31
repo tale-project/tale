@@ -91,6 +91,8 @@ La section **Apps OAuth** en bas de page — visible pour les admins et les prop
 
 Deux entrées dépassent cette page : l’app **Google Drive** est partagée avec l’import Google Drive de Connaissances (un seul client OAuth Google, les deux URI de redirection), et **OneDrive / SharePoint (import de connaissances)** n’existe que pour cet import — il n’a pas de connecteur propre. Slack est absent à dessein : son app reste dans l’environnement du déploiement, parce que la vérification de signature des événements entrants s’exécute avant qu’aucune organisation ne soit connue.
 
+Une organisation qui se connecte avec Microsoft Entra ID a déjà confié un enregistrement d’app à Tale — la ligne **OneDrive / SharePoint (import de connaissances)** propose alors aussi **Utiliser l’app SSO Entra ID**. L’action copie l’ID client et le secret de l’enregistrement SSO vers cette entrée côté serveur — le secret ne transite jamais par le navigateur — et la confirmation liste ce qui manque encore à cet enregistrement dans Entra avant que les membres se connectent : l’URI de redirection de l’import en type « Web », et les autorisations déléguées Microsoft Graph. La copie est volontairement ponctuelle ; si tu renouvelles le secret du SSO, copie-le à nouveau ici.
+
 ## Reconnecter une autorisation cassée
 
 Un identifiant OAuth dont l’autorisation stockée a expiré ou a été révoquée affiche **Reconnexion requise** avec le motif. C’est un constat de la plateforme, pas une décision d’exploitant, et c’est pourquoi cela se lit autrement qu’un identifiant désactivé à la main : rien ne cloche dans la ligne, le fournisseur a seulement cessé d’honorer l’autorisation.
