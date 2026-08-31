@@ -288,6 +288,29 @@ function loadEnvFiles() {
     }
   }
 
+  // Same guard for the spawner URL: `http://sandbox:8003` is the in-compose
+  // alias (compose and the platform entrypoint default it themselves), and
+  // `sandbox` resolves only on the compose network. A host backend
+  // inheriting it dies on every agent start with `TypeError: fetch failed`
+  // (getaddrinfo ENOTFOUND sandbox) — drop it so session_client's host
+  // default (http://localhost:8003) applies.
+  const composeOnlySandboxUrl = (value: string | undefined): boolean =>
+    !existsSync('/app') &&
+    value !== undefined &&
+    URL.canParse(value) &&
+    new URL(value).hostname === 'sandbox';
+  if (composeOnlySandboxUrl(process.env.SANDBOX_URL)) {
+    warnLine(
+      `SANDBOX_URL=${process.env.SANDBOX_URL} is the in-compose alias ` +
+        `(repo-root .env serves docker compose) — ignoring it for this ` +
+        `host run.`,
+    );
+    delete process.env.SANDBOX_URL;
+  }
+  if (composeOnlySandboxUrl(mergedEnv.SANDBOX_URL)) {
+    delete mergedEnv.SANDBOX_URL;
+  }
+
   // Pre-existing process.env wins over .env files — only fill the gaps.
   let loadedCount = 0;
   let skippedCount = 0;
