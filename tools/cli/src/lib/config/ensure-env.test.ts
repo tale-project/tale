@@ -74,6 +74,18 @@ describe('deriveDomainTls', () => {
 });
 
 describe('ensureEnv — audit signing key auto-gen', () => {
+  test('a fresh .env points the backend at the in-compose sandbox spawner', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-env-sandbox-url-'));
+    try {
+      const res = await ensureEnv({ deployDir: dir });
+      expect(res.success).toBe(true);
+      const env = readFileSync(join(dir, '.env'), 'utf-8');
+      expect(env).toMatch(/^SANDBOX_URL=http:\/\/sandbox:8003$/m);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('a fresh .env includes a 64-hex TALE_AUDIT_SIGNING_KEY', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'tale-env-fresh-'));
     try {
