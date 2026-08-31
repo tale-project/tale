@@ -414,6 +414,33 @@ async function deleteBlobBestEffort(
   }
 }
 
+/** Hard-delete the artefacts behind ONE storage ref: the corpus entry
+ * (keyed by the ref) and then the blob. Split out of {@link purgeDocument}
+ * because rows that own a blob WITHOUT being a document need the same two
+ * steps in the same order — a bare upload and the video-link sidecar both
+ * reach it from the erasure cascade. The row itself stays the caller's to
+ * delete. */
+export async function purgeBlobArtefacts(
+  orgSlug: string | null,
+  storageRef: string,
+): Promise<void> {
+  if (orgSlug === null) return;
+  try {
+    const result = await deleteKnowledgeDocument({
+      orgSlug,
+      fileId: storageRef,
+    });
+    if (!result.success) {
+      console.warn(
+        `[retention] corpus delete failed for ${storageRef}: ${result.message}`,
+      );
+    }
+  } catch (error) {
+    console.warn(`[retention] corpus delete failed for ${storageRef}:`, error);
+  }
+  await deleteBlobBestEffort(orgSlug, storageRef);
+}
+
 /** Hard-delete one document: corpus entry (keyed by the file REF), blobs
  * (current + `historyFiles` — replaced blobs a sync/replace appended, the
  * 0.4 `eraseDocumentBlobs` contract), file rows, dependent knowledge-entry
@@ -435,26 +462,8 @@ export async function purgeDocument(
       }
     }
   }
-  if (doc.fileRef !== null && orgSlug !== null) {
-    try {
-      const result = await deleteKnowledgeDocument({
-        orgSlug,
-        fileId: doc.fileRef,
-      });
-      if (!result.success) {
-        console.warn(
-          `[retention] corpus delete failed for document ${doc.id}: ${result.message}`,
-        );
-      }
-    } catch (error) {
-      console.warn(
-        `[retention] corpus delete failed for document ${doc.id}:`,
-        error,
-      );
-    }
-    if (orgSlug !== null) {
-      await deleteBlobBestEffort(orgSlug, doc.fileRef);
-    }
+  if (doc.fileRef !== null) {
+    await purgeBlobArtefacts(orgSlug, doc.fileRef);
   }
   await sql.begin(async (tx) => {
     await tx`

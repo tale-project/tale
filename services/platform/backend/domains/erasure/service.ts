@@ -560,7 +560,7 @@ export async function processErasure(
     }
   };
 
-  const { purgeThreadLineage, purgeDocument } =
+  const { purgeThreadLineage, purgeDocument, purgeBlobArtefacts } =
     await import('../retention/service.ts');
 
   await pass('threads', async () => {
@@ -597,14 +597,46 @@ export async function processErasure(
     return docs.length;
   });
 
+  // A bare upload owns its blob directly (no document row carries it), so
+  // deleting the row alone leaves the subject's bytes in object storage and
+  // their chunks in the corpus. Blob-first, as `purgeDocument` orders it.
   await pass('uploads', async () => {
-    const removed = await sql<{ id: string }[]>`
-      DELETE FROM app.file_metadata
+    const files = await sql<{ id: string; storageRef: string | null }[]>`
+      SELECT id, storage_ref AS "storageRef" FROM app.file_metadata
       WHERE org_id = ${organizationId} AND uploaded_by = ${targetUserId}
         AND document_id IS NULL
-      RETURNING id
     `;
-    return removed.length;
+    if (files.length === 0) return 0;
+    const { resolveOrgSlug } = await import('../../lib/org-config.ts');
+    const orgSlug = await resolveOrgSlug(sql, organizationId);
+    for (const file of files) {
+      if (file.storageRef !== null) {
+        await purgeBlobArtefacts(orgSlug, file.storageRef);
+      }
+      await sql`DELETE FROM app.file_metadata WHERE id = ${file.id}`;
+    }
+    return files.length;
+  });
+
+  // `video_link_jobs` is its own category, not part of `uploads`: the job can
+  // own a blob (Whisper audio, captions transcript) even when the linked
+  // `file_metadata` row never landed, and a welcome-page paste has no thread,
+  // so neither the uploads pass nor the thread cascade reaches it.
+  await pass('videoLinks', async () => {
+    const jobs = await sql<{ id: string; storageRef: string | null }[]>`
+      SELECT id, storage_ref AS "storageRef" FROM app.video_link_jobs
+      WHERE org_id = ${organizationId} AND uploaded_by = ${targetUserId}
+    `;
+    if (jobs.length === 0) return 0;
+    const { resolveOrgSlug } = await import('../../lib/org-config.ts');
+    const orgSlug = await resolveOrgSlug(sql, organizationId);
+    for (const job of jobs) {
+      if (job.storageRef !== null) {
+        await purgeBlobArtefacts(orgSlug, job.storageRef);
+      }
+      await sql`DELETE FROM app.video_link_jobs WHERE id = ${job.id}`;
+    }
+    return jobs.length;
   });
 
   await pass('preferences', async () => {
@@ -665,6 +697,42 @@ export async function processErasure(
       RETURNING org_id AS "orgId"
     `;
     return removed.length;
+  });
+
+  // The subject's own OAuth grant for Documents import — a sealed access +
+  // refresh token per (org, user, provider). It outlives their membership
+  // unless erasure takes it, and an in-flight authorization carries the same
+  // identity in its state row.
+  await pass('cloudGrants', async () => {
+    const grants = await sql<{ id: string }[]>`
+      DELETE FROM app.user_cloud_authorizations
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    const states = await sql<{ id: string }[]>`
+      DELETE FROM app.cloud_import_oauth_states
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return grants.length + states.length;
+  });
+
+  // Sync configs name the member whose grant the sync runs under, so they are
+  // subject data AND a schedule that would keep firing against a revoked
+  // grant. Imported documents are not touched here — they are org content,
+  // reached by the `documents` pass when the subject created them.
+  await pass('syncConfigs', async () => {
+    const onedrive = await sql<{ id: string }[]>`
+      DELETE FROM app.onedrive_sync_configs
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    const googleDrive = await sql<{ id: string }[]>`
+      DELETE FROM app.google_drive_sync_configs
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return onedrive.length + googleDrive.length;
   });
 
   await pass('auditScrub', () =>

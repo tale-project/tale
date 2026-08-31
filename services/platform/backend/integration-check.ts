@@ -21187,6 +21187,55 @@ async function checkErasure(
                               created_at_ms)
     VALUES (${orgId}, ${subject}, 'subject fact', 'approved', ${now})
   `;
+  // A bare upload (no document row), the video-link sidecar that can own a
+  // blob without one, the subject's own cloud-import grant + an in-flight
+  // authorization, and the two sync configs that run under that grant. Each
+  // is a category the cascade has to reach on its own — none is reachable
+  // from the thread, document or preference passes.
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, uploaded_by,
+      created_at_ms
+    ) VALUES (${orgId}, ${`s3:erasure/${subject}/bare.txt`}, 'bare.txt',
+              'text/plain', 12, ${subject}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.video_link_jobs (
+      org_id, uploaded_by, source_url, source_url_hash, source_platform,
+      pasted_token, status, status_changed_at_ms, storage_ref, created_at_ms
+    ) VALUES (${orgId}, ${subject}, 'https://example.com/v/1',
+              ${`hash-${subject}`}, 'youtube', 'https://example.com/v/1',
+              'completed', ${now}, ${`s3:erasure/${subject}/transcript.txt`},
+              ${now})
+  `;
+  await sql`
+    INSERT INTO app.user_cloud_authorizations (
+      org_id, user_id, provider, encrypted_data, status, created_at_ms,
+      updated_at_ms
+    ) VALUES (${orgId}, ${subject}, 'google-drive', ${sql.json({ sealed: 'x' })},
+              'active', ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.cloud_import_oauth_states (
+      state_hash, org_id, user_id, provider, code_verifier, redirect_uri,
+      created_at_ms, expires_at_ms
+    ) VALUES (${`state-${subject}`}, ${orgId}, ${subject}, 'google-drive',
+              'verifier', 'https://example.com/cb', ${now}, ${now + 600_000})
+  `;
+  await sql`
+    INSERT INTO app.onedrive_sync_configs (
+      org_id, user_id, item_type, item_id, item_name, target_bucket, status,
+      created_at_ms, updated_at_ms
+    ) VALUES (${orgId}, ${subject}, 'folder', ${`od-${subject}`}, 'Reports',
+              'documents', 'active', ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.google_drive_sync_configs (
+      org_id, user_id, item_type, item_id, item_name, target_bucket, status,
+      created_at_ms, updated_at_ms
+    ) VALUES (${orgId}, ${subject}, 'folder', ${`gd-${subject}`}, 'Reports',
+              'documents', 'active', ${now}, ${now})
+  `;
 
   const selfRefused = await post(`/api/app/erasure?orgId=${orgId}`, {
     targetUserId: userId,
@@ -21226,6 +21275,18 @@ async function checkErasure(
       + (SELECT count(*) FROM app.user_notifications
          WHERE org_id = ${orgId} AND user_id = ${subject})
       + (SELECT count(*) FROM app.memories
+         WHERE org_id = ${orgId} AND user_id = ${subject})
+      + (SELECT count(*) FROM app.file_metadata
+         WHERE org_id = ${orgId} AND uploaded_by = ${subject})
+      + (SELECT count(*) FROM app.video_link_jobs
+         WHERE org_id = ${orgId} AND uploaded_by = ${subject})
+      + (SELECT count(*) FROM app.user_cloud_authorizations
+         WHERE org_id = ${orgId} AND user_id = ${subject})
+      + (SELECT count(*) FROM app.cloud_import_oauth_states
+         WHERE org_id = ${orgId} AND user_id = ${subject})
+      + (SELECT count(*) FROM app.onedrive_sync_configs
+         WHERE org_id = ${orgId} AND user_id = ${subject})
+      + (SELECT count(*) FROM app.google_drive_sync_configs
          WHERE org_id = ${orgId} AND user_id = ${subject})
     )::text AS count
   `;
