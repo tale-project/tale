@@ -1157,6 +1157,52 @@ export async function agentUpdateTaskStatusTrusted(
 }
 
 /**
+ * Hand the card to In progress as the lower half of a KICK — the shared
+ * write for every "kicking a run moves the card" lane that cannot route
+ * through `updateTaskStatus` (no full status-writer context, or the kick
+ * carries feedback the status writer's own kick would drop): the steer-miss
+ * mention kick and the comment-mention dispatcher. Withdraws a pending
+ * review gate on the way out (every leave closes it), clears a terminal
+ * `completedAt`, and records the move as the USER's act — the kick is their
+ * gesture. Returns whether the card actually moved.
+ */
+export async function handTaskToInProgressForKick(
+  tx: TransactionSql,
+  args: { taskId: string; userId: string },
+): Promise<boolean> {
+  const fresh = await loadTaskOrThrow(tx, args.taskId);
+  if (fresh.status === 'in_progress') return false;
+  await closePendingTaskReviewOnStatusLeave(tx, {
+    task: fresh,
+    toStatus: 'in_progress',
+    actor: { kind: 'user', userId: args.userId },
+  });
+  const now = Date.now();
+  const rank = await computeEndRank(tx, fresh.projectId, 'in_progress');
+  await tx`
+    UPDATE app.tasks SET
+      status = 'in_progress', rank = ${rank}, completed_at_ms = NULL,
+      status_changed_at_ms = ${now}, updated_at_ms = ${now}
+    WHERE id = ${fresh.id}
+  `;
+  await applyTaskCountTransition(
+    tx,
+    fresh.projectId,
+    taskCountBucket(fresh),
+    taskCountBucket({ status: 'in_progress', archivedAt: fresh.archivedAt }),
+  );
+  await recordActivity(tx, {
+    task: fresh,
+    actorType: 'user',
+    actorId: args.userId,
+    action: 'status.changed',
+    fromValue: fresh.status,
+    toValue: 'in_progress',
+  });
+  return true;
+}
+
+/**
  * TRUSTED deliverables merge into the task's Output zone (same fileName ⇒
  * replace) — the settle's attach step.
  */
@@ -2574,6 +2620,18 @@ async function taskHasLiveRun(
     LIMIT 1
   `;
   if (agent.length > 0) return true;
+  return taskHasLiveAutomationRun(tx, task);
+}
+
+/** Whether a live AUTOMATION run holds this task (subject-linked, the 0.4
+ * `findLiveAutomationRunForTask` probe) — the automation half of
+ * `taskHasLiveRun`, exported for lanes that treat the two families
+ * differently (the comment-mention dispatcher steers an agent run but
+ * yields entirely to an automation). */
+export async function taskHasLiveAutomationRun(
+  tx: TransactionSql,
+  task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>,
+): Promise<boolean> {
   const automation = await tx<{ id: string }[]>`
     SELECT id FROM app.automation_runs
     WHERE org_id = ${task.organizationId} AND project_id = ${task.projectId}
@@ -2599,7 +2657,8 @@ function isReviewPolicyRefusalError(error: unknown): boolean {
 
 /**
  * The manual "Run agent" kick: the task's ASSIGNED agent starts (or reuses)
- * a run — a contested/ineligible state answers as DATA (the 0.4 wire).
+ * a run AND the card moves to In progress as the caller's own status write
+ * — a contested/ineligible state answers as DATA (the 0.4 wire).
  */
 export async function startTaskAgentRunManual(
   tx: TransactionSql,
@@ -2629,6 +2688,25 @@ export async function startTaskAgentRunManual(
   const agent = agents[0];
   if (!agent) {
     return { started: false, reason: 'agent_missing' };
+  }
+  // The board verb IS the interface (the 0.4 rule): kicking the run moves
+  // the card, and the move is the CALLER's own status write. A task not yet
+  // at `in_progress` routes through `updateTaskStatus`, whose choreography
+  // kicks the queued run inside this same transaction — the board never
+  // shows a To-do agent task with a live run grinding behind it. The
+  // live-run probe answers `already_running` BEFORE any move (0.4's guard
+  // order), so a second click never reshuffles the board.
+  if (task.status !== 'in_progress') {
+    const live = await tx<{ id: string }[]>`
+      SELECT id FROM app.project_agent_runs
+      WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+      LIMIT 1
+    `;
+    if (live.length > 0) {
+      return { started: false, reason: 'already_running' };
+    }
+    await updateTaskStatus(tx, auth, taskId, 'in_progress');
+    return { started: true };
   }
   const kicked = await kickAgentRun(tx, {
     organizationId: auth.organizationId,

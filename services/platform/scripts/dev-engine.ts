@@ -288,6 +288,50 @@ function loadEnvFiles() {
     }
   }
 
+  // Same guard for the spawner URL: `http://sandbox:8003` is the in-compose
+  // alias (compose and the platform entrypoint default it themselves), and
+  // `sandbox` resolves only on the compose network. A host backend
+  // inheriting it dies on every agent start with `TypeError: fetch failed`
+  // (getaddrinfo ENOTFOUND sandbox) — drop it so session_client's host
+  // default (http://localhost:8003) applies.
+  const composeOnlySandboxUrl = (value: string | undefined): boolean =>
+    !existsSync('/app') &&
+    value !== undefined &&
+    URL.canParse(value) &&
+    new URL(value).hostname === 'sandbox';
+  if (composeOnlySandboxUrl(process.env.SANDBOX_URL)) {
+    warnLine(
+      `SANDBOX_URL=${process.env.SANDBOX_URL} is the in-compose alias ` +
+        `(repo-root .env serves docker compose) — ignoring it for this ` +
+        `host run.`,
+    );
+    delete process.env.SANDBOX_URL;
+  }
+  if (composeOnlySandboxUrl(mergedEnv.SANDBOX_URL)) {
+    delete mergedEnv.SANDBOX_URL;
+  }
+
+  // And for the in-sandbox backend origin: `convex` is the RETIRED 0.4
+  // alias — the 0.5 sandbox net serves the backend as `backend-api` (the
+  // socat relay on a host run, the api container itself under compose), so
+  // a `http://convex:3211` left in a dotenv file dead-ends every staging
+  // fetch and bridge call. Drop it so the host default below applies.
+  const retiredConvexAlias = (value: string | undefined): boolean =>
+    value !== undefined &&
+    URL.canParse(value) &&
+    new URL(value).hostname === 'convex';
+  if (retiredConvexAlias(process.env.SANDBOX_HTTP_API_BASE_URL)) {
+    warnLine(
+      `SANDBOX_HTTP_API_BASE_URL=${process.env.SANDBOX_HTTP_API_BASE_URL} ` +
+        `names the retired 0.4 \`convex\` alias — ignoring it (the 0.5 ` +
+        `sandbox net serves the backend as backend-api).`,
+    );
+    delete process.env.SANDBOX_HTTP_API_BASE_URL;
+  }
+  if (retiredConvexAlias(mergedEnv.SANDBOX_HTTP_API_BASE_URL)) {
+    delete mergedEnv.SANDBOX_HTTP_API_BASE_URL;
+  }
+
   // Pre-existing process.env wins over .env files — only fill the gaps.
   let loadedCount = 0;
   let skippedCount = 0;

@@ -383,7 +383,7 @@ export async function runConnectorAction(
  * contract the staging callback and the tools bridge use). */
 export function connectorsHostcallUrlForSessions(): string {
   const origin = (
-    process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://convex:3211'
+    process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://backend-api:3005'
   ).replace(/\/$/, '');
   return `${origin}/api/connectors/hostcall`;
 }

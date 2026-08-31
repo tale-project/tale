@@ -57,6 +57,7 @@ export interface TaskPayloads {
     sessionId: string;
     harness: string;
     deadlineAt: number;
+    sessionCreatedAt?: number;
   };
   /** Steer a LIVE task-agent turn with a comment (stdin or exec restart). */
   'task.agent_steer': {

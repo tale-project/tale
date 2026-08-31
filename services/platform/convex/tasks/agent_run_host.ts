@@ -299,9 +299,12 @@ async function stageTaskInputs(
   if (toStage.length === 0) return staged;
   const result = await sessionStageFiles(args.sessionId, toStage);
   if (result.skipped.length > 0) {
+    // Carry each file's skip REASON: the run error is the only diagnostic a
+    // failed staging leaves behind, and a bare path list reads as "file
+    // gone" when the real cause is a dead staging route or a refused fetch.
     throw new Error(
       `staging task inputs failed: ${result.skipped
-        .map((skip) => skip.path)
+        .map((skip) => `${skip.path} (${skip.reason})`)
         .join(', ')}`,
     );
   }
@@ -1245,6 +1248,33 @@ async function continueOrSettle(
       console.warn('[task-agent] final progress write failed:', err),
     );
   const ended = window.ended;
+  // A SUCCESSFUL end with no final text is not a settle: the model emitted
+  // a bare end-of-turn mid-work (observed live: a 1-completion-token
+  // response at a 42k-token prompt ended the turn between two file reads),
+  // so there is no report to post and the work is not done. Parking the
+  // half-done task at in_review as if reported is the worst outcome — fail
+  // the run RETRYABLY instead, so the auto-retry resumes the SAME
+  // conversation (the handle is stamped below) and asks it to continue.
+  // Every parser sets `finalText` only from real final text, so its absence
+  // IS the no-report signal; windows that never became a conversation stay
+  // with the resume-launch-failure lane.
+  if (
+    !errored &&
+    !launchFailed &&
+    (ended?.finalText === undefined || ended.finalText.trim() === '')
+  ) {
+    await settleTaskAgentTurn(ctx, args, {
+      errored: true,
+      reason:
+        'the agent ended its turn without a final report — retrying the conversation',
+      text: '',
+      ...(window.agentSessionId !== undefined
+        ? { agentSessionId: window.agentSessionId }
+        : {}),
+      failureCode: 'empty_turn',
+    });
+    return;
+  }
   const text =
     ended?.finalText !== undefined && ended.finalText !== ''
       ? ended.finalText

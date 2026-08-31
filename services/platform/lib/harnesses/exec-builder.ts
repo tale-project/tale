@@ -64,15 +64,31 @@ function withMaxContext(model: string): string {
   return `${model}[1m]`;
 }
 
+/** True for a Claude model reference in ANY spelling the exec can carry — a
+ * vendor-native id (`claude-*`), a gateway path (`anthropic/claude-…`), a
+ * rolling alias (`~anthropic/claude-…`) — plus the shapes that resolve to
+ * the CLI's own (Claude) default: no model at all, or the literal
+ * `default`. The maximum-reasoning levers below are Claude levers; a
+ * foreign model reached through a gateway's dialect translation does NOT
+ * ignore them (the design assumption of the image's effort floor), and a
+ * weak one collapses under them. Exported for its unit test. */
+export function isClaudeModelRef(model: string | undefined): boolean {
+  if (model === undefined || model === 'default') return true;
+  return model.toLowerCase().includes('claude');
+}
+
 /** Prepend Claude Code's `ultrathink` keyword to the turn prompt so every
  * turn requests maximum reasoning depth. On adaptive-thinking (Opus-class)
  * models the keyword is SAFE: the CLI injects a "reason thoroughly" reminder
  * for the turn — it does NOT set a `budget_tokens` (which would 400 there).
  * Complementary to CLAUDE_CODE_EFFORT_LEVEL=max (the primary depth lever).
- * Default-on; disable with TALE_SANDBOX_ULTRATHINK=0, and skipped when the
- * prompt already contains the keyword. */
-function withUltrathink(prompt: string): string {
+ * Default-on for Claude models; a foreign gateway model is left alone (the
+ * keyword pairs with the forced-effort floor that collapses weak models —
+ * see the env override in `buildHarnessExec`). Disable with
+ * TALE_SANDBOX_ULTRATHINK=0; skipped when the prompt already asks. */
+function withUltrathink(prompt: string, model: string | undefined): string {
   if (process.env.TALE_SANDBOX_ULTRATHINK === '0') return prompt;
+  if (!isClaudeModelRef(model)) return prompt;
   if (/\bultrathink\b/i.test(prompt)) return prompt; // caller already asked
   return `Ultrathink: ${prompt}`;
 }
@@ -549,7 +565,7 @@ export function buildHarnessExec(
     stdin = spec.prompt;
   } else if (exec.stdin.mode === 'ndjson-user-message') {
     const prompt = exec.stdin.promptTransform
-      ? PROMPT_TRANSFORMS[exec.stdin.promptTransform](spec.prompt)
+      ? PROMPT_TRANSFORMS[exec.stdin.promptTransform](spec.prompt, spec.model)
       : spec.prompt;
     stdin = buildStdinUserMessage(prompt);
     // Held open: the platform pushes steer messages as further NDJSON lines
@@ -596,6 +612,22 @@ export function buildHarnessExec(
   }
   for (const [varName, doc] of Object.entries(exec.envDocs ?? {})) {
     env[varName] = JSON.stringify(buildDoc(doc.fragments));
+  }
+  // The runtime image floors CLAUDE_CODE_EFFORT_LEVEL=max +
+  // CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1 for the in-sandbox agent — a
+  // Claude-tuned default whose rationale assumed a foreign model ignores
+  // effort. Through a gateway's dialect translation the forced effort DOES
+  // reach foreign models, and a weak one collapses mid-turn (observed live:
+  // deepseek-flash answering ONE completion token at a 42k-token prompt,
+  // ending its turn between two file reads). For a non-Claude model, turn
+  // the reasoning request OFF for this exec: the explicit disable switches
+  // are the levers the CLI honours regardless of value semantics (the
+  // ALWAYS_ENABLE floor is set-means-on — overriding it to '0' was verified
+  // NOT to strip the effort param on 2.1.173). Per-exec env overrides the
+  // image floor; recognised Claude ids keep full adaptive thinking.
+  if (fact.slug === 'claude-code' && !isClaudeModelRef(spec.model)) {
+    env.CLAUDE_CODE_DISABLE_THINKING = '1';
+    env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING = '1';
   }
 
   // -------------------------------------------------------------------------

@@ -7727,6 +7727,291 @@ async function checkTurnReattach(
   `;
 }
 
+/**
+ * The `/api/sandbox-blob` staging door — the 0.4 httpAction restored on the
+ * 0.5 backend origin: a stage-token-gated stream of an org-bucket blob into
+ * a sandbox session. Without it every `s3:` staging (task attachments, a
+ * task's prior deliverables mirrored into a turn) dies as a skipped file
+ * and the run fails with "staging task inputs failed". Gated on
+ * ITEST_S3_ENDPOINT like the other blob lanes.
+ */
+async function checkSandboxBlobDoor(
+  sql: Sql,
+  base: string,
+  ctx: { orgId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'sandbox-blob staging door (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
+    );
+    return;
+  }
+  const { resolveOrgSlug } = await import('./lib/org-config.ts');
+  const { resolveObjectStore, s3PutObject, buildObjectKey } =
+    await import('./lib/object-store.ts');
+  const { encodeS3Ref } = await import('../convex/lib/storage/blob_ref.ts');
+  const { signStageToken } =
+    await import('../convex/lib/storage/sandbox_stage_token.ts');
+  const orgSlug = (await resolveOrgSlug(sql, ctx.orgId)) ?? '';
+  const store = await resolveObjectStore(orgSlug);
+  const key = buildObjectKey(store, orgSlug);
+  const payload = 'sandbox-blob staging round-trip';
+  await s3PutObject(
+    store,
+    key,
+    new TextEncoder().encode(payload),
+    'text/plain',
+  );
+  const token = await signStageToken({ ref: encodeS3Ref(key), org: ctx.orgId });
+  // A validly SIGNED token for a key OUTSIDE the org's namespace must fail
+  // closed as 404 — the namespace check is the tenant boundary.
+  const foreignToken = await signStageToken({
+    ref: encodeS3Ref('some-other-org/deadbeef'),
+    org: ctx.orgId,
+  });
+  if (token === null || foreignToken === null) {
+    record(
+      'sandbox-blob: a stage token streams the org blob through the door',
+      false,
+      'stage-token signing unavailable (no WEBDAV_APP_PASSWORD_HMAC_KEY)',
+    );
+    return;
+  }
+  const served = await fetch(
+    `${base}/api/sandbox-blob?token=${encodeURIComponent(token)}`,
+  );
+  const servedBody = served.status === 200 ? await served.text() : '';
+  const forged = await fetch(`${base}/api/sandbox-blob?token=v1.zzzz.zzzz`);
+  const foreign = await fetch(
+    `${base}/api/sandbox-blob?token=${encodeURIComponent(foreignToken)}`,
+  );
+  record(
+    'sandbox-blob: a stage token streams the org blob through the door',
+    served.status === 200 &&
+      servedBody === payload &&
+      forged.status === 403 &&
+      foreign.status === 404,
+    `served=${served.status} bodyOk=${servedBody === payload}, forged=${forged.status} (want 403), foreignKey=${foreign.status} (want 404)`,
+  );
+}
+
+/**
+ * The MANUAL "Run agent" kick and the steer-miss mention kick both move the
+ * card — kicking a run IS the caller's move to In progress (the 0.4
+ * shared-core rule). Without the move the board shows a To-do task with a
+ * live run grinding behind it, the auto-retry guard
+ * (`task.status === 'in_progress'`) refuses every retry of a manually
+ * kicked run, and a steer-miss kick leaves the card parked at In review
+ * with its stale pending gate.
+ */
+async function checkManualKickMovesCard(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const auth = {
+    organizationId: orgId,
+    userId,
+    role: 'owner',
+    teamIds: [] as string[],
+  };
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Kick choreography', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const agentRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agents (
+      org_id, project_id, name, harness, model, created_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Kick Agent', 'claude-code', 'itest-model',
+      ${userId}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const agentId = agentRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, assignee_type, assignee_id,
+      created_by, created_by_type, outputs, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Manual kick task', 'todo', 'a0', 'agent',
+      ${agentId}, ${userId}, 'user', ${sql.json([])}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+
+  const { startTaskAgentRunManual } =
+    await import('./domains/tasks/service.ts');
+  // Assert INSIDE the kick's transaction: the worker must not race the
+  // probe by driving the queued turn before the reads land.
+  const manual = await sql.begin(async (tx) => {
+    const first = await startTaskAgentRunManual(tx, auth, taskId);
+    const taskRow = await tx<{ status: string }[]>`
+      SELECT status FROM app.tasks WHERE id = ${taskId}
+    `;
+    const runRow = await tx<{ id: string; status: string }[]>`
+      SELECT id, status FROM app.project_agent_runs
+      WHERE task_id = ${taskId} ORDER BY started_at_ms DESC LIMIT 1
+    `;
+    const jobs = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'task.agent_turn'
+        AND data ->> 'runId' = ${runRow[0]?.id ?? ''}
+    `;
+    const second = await startTaskAgentRunManual(tx, auth, taskId);
+    return {
+      first,
+      second,
+      taskStatus: taskRow[0]?.status ?? 'gone',
+      runId: runRow[0]?.id ?? '',
+      runStatus: runRow[0]?.status ?? 'gone',
+      jobCount: Number(jobs[0]?.count ?? '0'),
+    };
+  });
+  record(
+    'tasks: the manual Run-agent kick moves the card to In progress',
+    manual.first.started &&
+      manual.taskStatus === 'in_progress' &&
+      manual.runStatus === 'queued' &&
+      manual.jobCount === 1 &&
+      !manual.second.started &&
+      manual.second.reason === 'already_running',
+    `started=${manual.first.started}, task=${manual.taskStatus}, run=${manual.runStatus}, jobs=${manual.jobCount}, second=${manual.second.reason ?? 'started'}`,
+  );
+  // Neutralize before the worker polls the job up: the turn job's
+  // idempotency gate skips a run that is no longer queued.
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+                                      settled_at_ms = ${Date.now()}
+    WHERE id = ${manual.runId}
+  `;
+
+  // ---- the steer-miss mention kick pulls the card back off In review ----
+  const reviewTaskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, assignee_type, assignee_id,
+      created_by, created_by_type, outputs, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Steer-miss task', 'in_review', 'a1', 'agent',
+      ${agentId}, ${userId}, 'user', ${sql.json([])}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const reviewTaskId = reviewTaskRows[0]?.id ?? '';
+  const gateRows = await sql<{ id: string }[]>`
+    INSERT INTO app.approvals (
+      org_id, status, resource_type, resource_id, priority, metadata,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'pending', 'task_review', ${reviewTaskId}, 'medium',
+      ${sql.json({ taskId: reviewTaskId, projectId })}, ${now}
+    ) RETURNING id
+  `;
+  const gateId = gateRows[0]?.id ?? '';
+  const { agentTurnShimHandlers } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const steerMiss =
+    agentTurnShimHandlers(sql)['tasks/mutations:kickMentionRunAfterSteerMiss'];
+  const missResult = objectAt(
+    steerMiss === undefined
+      ? null
+      : await steerMiss({
+          organizationId: orgId,
+          taskId: reviewTaskId,
+          authorId: userId,
+          feedback: 'please tighten the summary',
+        }),
+    '',
+  );
+  const missTask = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${reviewTaskId}
+  `;
+  const missRuns = await sql<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs WHERE task_id = ${reviewTaskId}
+  `;
+  const missGate = await sql<{ status: string; metadata: unknown }[]>`
+    SELECT status, metadata FROM app.approvals WHERE id = ${gateId}
+  `;
+  const missGateMeta = objectAt(missGate[0]?.metadata ?? null, '');
+  record(
+    'tasks: the steer-miss mention kick hands the card back to In progress',
+    missResult?.started === true &&
+      missTask[0]?.status === 'in_progress' &&
+      missRuns.length === 1 &&
+      missGate[0]?.status === 'rejected' &&
+      missGateMeta?.withdrawn === true,
+    `started=${String(missResult?.started)}, task=${missTask[0]?.status}, runs=${missRuns.length}, gate=${missGate[0]?.status}/${String(missGateMeta?.withdrawn)}`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+                                      settled_at_ms = ${Date.now()}
+    WHERE id = ${missRuns[0]?.id ?? ''}
+  `;
+
+  // ---- the drive chain's scheduler seam maps every self-chained ref ------
+  // The turn-drive scenario cannot catch a missing seam: its fake harness
+  // finishes in one terminal window, so nothing ever re-schedules. Probe the
+  // seam directly — a real turn's FIRST `running` window dies without it.
+  const { taskAgentShimScheduler } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const seam = taskAgentShimScheduler(sql);
+  const seamJobsBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name IN ('task.agent_drive', 'task.agent_steer')
+      AND data ->> 'execId' = 'seam-probe-exec'
+  `;
+  const seamPayload = {
+    organizationId: orgId,
+    runId: 'seam-probe-run',
+    taskId,
+    agentId,
+    execId: 'seam-probe-exec',
+    sessionId: 'seam-probe-session',
+    harness: 'claude-code',
+    deadlineAt: Date.now() + 3_600_000,
+    sessionCreatedAt: now,
+  };
+  await seam('tasks/agent_run_host:driveTaskAgentTurn', 0, seamPayload);
+  await seam('tasks/agent_run_host:steerTaskAgentTurn', 5_000, {
+    ...seamPayload,
+    feedback: 'probe',
+    author: 'probe',
+    authorId: userId,
+    attempt: 1,
+  });
+  let seamUnmappedThrew = false;
+  try {
+    await seam('tasks/agent_run_host:noSuchRef', 0, {});
+  } catch {
+    seamUnmappedThrew = true;
+  }
+  const seamJobs = await sql<{ name: string; carried: string | null }[]>`
+    SELECT name, data ->> 'sessionCreatedAt' AS carried FROM pgboss.job
+    WHERE name IN ('task.agent_drive', 'task.agent_steer')
+      AND data ->> 'execId' = 'seam-probe-exec'
+  `;
+  const driveJob = seamJobs.find((job) => job.name === 'task.agent_drive');
+  record(
+    'tasks: the drive/steer scheduler seam maps the self-chained refs',
+    Number(seamJobsBefore[0]?.count ?? '0') === 0 &&
+      seamJobs.length === 2 &&
+      driveJob !== undefined &&
+      driveJob.carried === String(now) &&
+      seamUnmappedThrew,
+    `jobs=${seamJobs.length} (want 2), driveCarriesIncarnation=${driveJob?.carried === String(now)}, unmappedThrew=${seamUnmappedThrew}`,
+  );
+  await sql`
+    DELETE FROM pgboss.job
+    WHERE name IN ('task.agent_drive', 'task.agent_steer')
+      AND data ->> 'execId' = 'seam-probe-exec'
+  `;
+}
+
 async function checkRunProvenance(
   sql: Sql,
   ctx: { orgId: string; userId: string },
@@ -8054,6 +8339,174 @@ async function checkRunProvenance(
   await sql`
     UPDATE app.project_agent_runs SET status = 'cancelled'
     WHERE id = ${steerRunId}
+  `;
+
+  // ---- an idle instance's mention (re)assigns + kicks a mention run ----
+  // The 0.4 `triggerMentionedProjectAgent` wire: no live engine on the
+  // task, so the comment puts the mentioned instance to work — the task is
+  // reassigned off its human assignee, a 'mention' run kicks with the
+  // comment as feedback, and the kick moves the card to In progress.
+  const seedTask = async (
+    title: string,
+    assignee: { type: string; id: string } | null,
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.tasks (
+        org_id, project_id, title, status, rank, assignee_type, assignee_id,
+        created_by, created_by_type, outputs, created_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${projectId}, ${title}, 'todo', 'm0',
+        ${assignee?.type ?? null}, ${assignee?.id ?? null}, ${userId},
+        'user', ${sql.json([])}, ${Date.now()}, ${Date.now()}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const idleTaskId = await seedTask('Idle mention task', {
+    type: 'user',
+    id: userId,
+  });
+  await sql.begin((tx) =>
+    addTaskComment(tx, auth, {
+      taskId: idleTaskId,
+      body: `@${agentId} please draft the summary`,
+    }),
+  );
+  const idleRuns = await sql<
+    {
+      id: string;
+      status: string;
+      trigger: string | null;
+      feedback: string | null;
+      agentId: string;
+    }[]
+  >`
+    SELECT id, status, trigger, feedback, agent_id AS "agentId"
+    FROM app.project_agent_runs WHERE task_id = ${idleTaskId}
+  `;
+  const idleTask = await sql<
+    { status: string; assigneeType: string | null; assigneeId: string | null }[]
+  >`
+    SELECT status, assignee_type AS "assigneeType",
+           assignee_id AS "assigneeId"
+    FROM app.tasks WHERE id = ${idleTaskId}
+  `;
+  record(
+    'tasks: @-mentioning an idle instance reassigns the task and kicks a mention run',
+    idleRuns.length === 1 &&
+      idleRuns[0]?.status === 'queued' &&
+      idleRuns[0].trigger === 'mention' &&
+      (idleRuns[0].feedback ?? '').includes('draft the summary') &&
+      idleRuns[0].agentId === agentId &&
+      idleTask[0]?.status === 'in_progress' &&
+      idleTask[0].assigneeType === 'agent' &&
+      idleTask[0].assigneeId === agentId,
+    `runs=${idleRuns.length} (${idleRuns[0]?.status}/${idleRuns[0]?.trigger}), task=${idleTask[0]?.status}, assignee=${idleTask[0]?.assigneeType}/${idleTask[0]?.assigneeId === agentId}`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+                                      settled_at_ms = ${Date.now()}
+    WHERE task_id = ${idleTaskId}
+  `;
+
+  // ---- a queued run's mention stays quiet (its start reads the brief) --
+  const queuedTaskId = await seedTask('Queued mention task', {
+    type: 'agent',
+    id: agentId,
+  });
+  await sql`
+    INSERT INTO app.project_agent_runs (
+      org_id, task_id, project_id, agent_id, session_id, exec_id, harness,
+      model, trigger, started_by, status, started_at_ms, deadline_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${queuedTaskId}, ${projectId}, ${agentId},
+      'mention-queued-session', 'mention-queued-exec', 'claude-code',
+      'itest-model', 'manual', ${userId}, 'queued', ${Date.now()},
+      ${Date.now() + 3_600_000}, ${Date.now()}
+    )
+  `;
+  await sql.begin((tx) =>
+    addTaskComment(tx, auth, {
+      taskId: queuedTaskId,
+      body: `@${agentId} also add a cover page`,
+    }),
+  );
+  const queuedRuns = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.project_agent_runs
+    WHERE task_id = ${queuedTaskId}
+  `;
+  const queuedTask = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${queuedTaskId}
+  `;
+  record(
+    'tasks: mentioning an instance with a queued run starts nothing',
+    queuedRuns[0]?.count === '1' && queuedTask[0]?.status === 'todo',
+    `runs=${queuedRuns[0]?.count} (want 1), task=${queuedTask[0]?.status} (want todo)`,
+  );
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled',
+                                      settled_at_ms = ${Date.now()}
+    WHERE task_id = ${queuedTaskId}
+  `;
+
+  // ---- an agent's own comment never dispatches -------------------------
+  const agentAuthorTaskId = await seedTask('Agent author task', {
+    type: 'agent',
+    id: agentId,
+  });
+  await sql.begin((tx) =>
+    addTaskComment(tx, auth, {
+      taskId: agentAuthorTaskId,
+      body: `@${agentId} noting my own progress`,
+      author: { actorType: 'agent', actorId: agentId },
+    }),
+  );
+  const agentAuthorRuns = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.project_agent_runs
+    WHERE task_id = ${agentAuthorTaskId}
+  `;
+  record(
+    "tasks: an agent's own comment mention dispatches nothing",
+    agentAuthorRuns[0]?.count === '0',
+    `runs=${agentAuthorRuns[0]?.count} (want 0)`,
+  );
+
+  // ---- an automation-driven task keeps its automation ------------------
+  const automationHeldTaskId = await seedTask('Automation held task', null);
+  await sql`
+    INSERT INTO app.automation_runs (
+      org_id, project_id, name, version, status, mode, started_by, input,
+      started_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'itest-mention-block', 1, 'running', 'live',
+      ${userId}, ${sql.json({ task: { id: automationHeldTaskId } })},
+      ${Date.now()}
+    )
+  `;
+  await sql.begin((tx) =>
+    addTaskComment(tx, auth, {
+      taskId: automationHeldTaskId,
+      body: `@${agentId} take over please`,
+    }),
+  );
+  const automationHeldRuns = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.project_agent_runs
+    WHERE task_id = ${automationHeldTaskId}
+  `;
+  const automationHeldTask = await sql<{ assigneeType: string | null }[]>`
+    SELECT assignee_type AS "assigneeType" FROM app.tasks
+    WHERE id = ${automationHeldTaskId}
+  `;
+  record(
+    'tasks: a live automation run blocks the mention kick entirely',
+    automationHeldRuns[0]?.count === '0' &&
+      automationHeldTask[0]?.assigneeType === null,
+    `runs=${automationHeldRuns[0]?.count} (want 0), assignee=${String(automationHeldTask[0]?.assigneeType)} (want null — never reassigned)`,
+  );
+  await sql`
+    UPDATE app.automation_runs SET status = 'failed'
+    WHERE org_id = ${orgId} AND name = 'itest-mention-block'
   `;
 
   // ---- deleting a task closes the approvals that named it --------------
@@ -15613,6 +16066,10 @@ async function checkTaskAgentTurnDrive(
   const gatewayCalls = { minted: 0, revoked: 0 };
   let boxTaskDir = '';
 
+  // The session whose canned turn ends SUCCESSFULLY with an EMPTY result —
+  // the bare-EOS shape a weak model emits mid-work (set by the reportless
+  // scenario below; every other session plays the normal settling turn).
+  let reportlessSessionId = '';
   // --- fake spawner: sessions + exec SSE + files ---------------------------
   const spawner = createServer((req, res) => {
     let body = '';
@@ -15661,14 +16118,18 @@ async function checkTaskAgentTurnDrive(
       }
       const exec = /^\/v1\/sessions\/([^/]+)\/exec$/.exec(url.pathname);
       if (method === 'POST' && exec) {
-        // The canned claude-code stream-json turn, then the exec result.
+        // The canned claude-code stream-json turn, then the exec result. The
+        // reportless session's turn ends SUCCESSFULLY with an empty result —
+        // the parser then sets no finalText, which is the no-report signal.
         res.setHeader('content-type', 'text/event-stream');
         const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`;
+        const reportless = (exec[1] ?? '') === reportlessSessionId;
+        const conv = reportless ? 'conv-43' : 'conv-42';
         const events = [
           line({
             type: 'system',
             subtype: 'init',
-            session_id: 'conv-42',
+            session_id: conv,
             model: 'itest-agent-model',
           }),
           line({
@@ -15676,15 +16137,22 @@ async function checkTaskAgentTurnDrive(
             message: {
               id: 'm1',
               model: 'itest-agent-model',
-              content: [{ type: 'text', text: 'Working on the report…' }],
+              content: [
+                {
+                  type: 'text',
+                  text: reportless
+                    ? 'Mapping the table structure…'
+                    : 'Working on the report…',
+                },
+              ],
               usage: { input_tokens: 120, output_tokens: 40 },
             },
           }),
           line({
             type: 'result',
             subtype: 'success',
-            session_id: 'conv-42',
-            result: FINAL_TEXT,
+            session_id: conv,
+            result: reportless ? '' : FINAL_TEXT,
             duration_ms: 850,
           }),
         ];
@@ -15804,9 +16272,15 @@ async function checkTaskAgentTurnDrive(
       }
       if (url === '/api/governance/virtual-keys' && method === 'POST') {
         gatewayCalls.minted += 1;
+        // Unique per mint: the session-token row hashes the key VALUE, so a
+        // second turn re-minting a byte-identical key would die on the
+        // token-hash unique constraint before its exec ever starts.
         res.end(
           JSON.stringify({
-            virtual_key: { id: 'vk-drive-1', value: 'sk-bf-drive-1' },
+            virtual_key: {
+              id: `vk-drive-${gatewayCalls.minted}`,
+              value: `sk-bf-drive-${gatewayCalls.minted}`,
+            },
           }),
         );
         return;
@@ -16012,6 +16486,105 @@ async function checkTaskAgentTurnDrive(
         gatewayCalls.revoked === 1,
       `run=${run?.status}${run?.error ? ` (${run.error.slice(0, 120)})` : ''} text=${JSON.stringify(run?.resultText)} conv=${run?.agentSessionId}, task=${taskRow?.status} (want in_review) outputs=${outputsRaw.includes('report.md')}, comment=${(comments[0]?.body ?? '').slice(0, 60)}…, op=${opRows[0]?.status}/finalized=${opRows[0]?.finalizedAt !== null}/spent=${opRows[0]?.spentCents}, metadata=${metadataRows[0]?.count}, vk mint/revoke=${gatewayCalls.minted}/${gatewayCalls.revoked}`,
     );
+
+    // --- a SUCCESSFUL end with no final text fails the run retryably ------
+    // The model can end its turn with a bare EOS mid-work (observed live: a
+    // 1-completion-token response at a 42k prompt). That end carries no
+    // report — settling it would park half-done work at in_review as if
+    // reported. The host must fail the run with 'empty_turn' instead, stamp
+    // the conversation handle for the resume, and arm the auto-retry.
+    const agent2 = z.object({ agentId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/projects/${projectId}/agents?orgId=${orgId}`, {
+          name: 'Empty Turn Bot',
+          harness: 'claude-code',
+          model: 'itest-agent-model',
+          skills: [],
+          connectors: [],
+        })
+      ).json(),
+    );
+    const agent2Id = agent2.success ? agent2.data.agentId : '';
+    reportlessSessionId = `pa-${agent2Id}`;
+    const task2 = z.object({ taskId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/tasks?orgId=${orgId}`, {
+          projectId,
+          title: 'End with nothing',
+        })
+      ).json(),
+    );
+    const task2Id = task2.success ? task2.data.taskId : '';
+    await post(`/api/app/tasks/${task2Id}/assign?orgId=${orgId}`, {
+      assigneeType: 'agent',
+      assigneeId: agent2Id,
+    });
+    await post(`/api/app/tasks/${task2Id}/status?orgId=${orgId}`, {
+      status: 'in_progress',
+    });
+    const emptyTerminal = await waitFor(async () => {
+      const rows = await sql<{ status: string }[]>`
+        SELECT status FROM app.project_agent_runs
+        WHERE task_id = ${task2Id} ORDER BY started_at_ms DESC LIMIT 1
+      `;
+      return ['settled', 'failed'].includes(rows[0]?.status ?? '');
+    }, 45_000);
+    // Assert on the FIRST run: the armed auto-retry may already be driving
+    // a second one through the same reportless script.
+    const emptyRuns = await sql<
+      { status: string; error: string | null; agentSessionId: string | null }[]
+    >`
+      SELECT status, error, agent_session_id AS "agentSessionId"
+      FROM app.project_agent_runs
+      WHERE task_id = ${task2Id} ORDER BY started_at_ms ASC LIMIT 1
+    `;
+    const emptyRun = emptyRuns[0];
+    const emptyTask = await sql<{ status: string }[]>`
+      SELECT status FROM app.tasks WHERE id = ${task2Id}
+    `;
+    const retryArmed = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'task.agent_retry' AND data ->> 'taskId' = ${task2Id}
+    `;
+    record(
+      'task-agent: a success end with no final text fails retryably',
+      emptyTerminal &&
+        emptyRun?.status === 'failed' &&
+        (emptyRun.error ?? '').includes('without a final report') &&
+        emptyRun.agentSessionId === 'conv-43' &&
+        emptyTask[0]?.status === 'in_progress' &&
+        Number(retryArmed[0]?.count ?? '0') >= 1,
+      `run=${emptyRun?.status} (${(emptyRun?.error ?? '-').slice(0, 60)}), conv=${emptyRun?.agentSessionId} (want conv-43), task=${emptyTask[0]?.status} (want in_progress — never in_review), retryJobs=${retryArmed[0]?.count}`,
+    );
+    // Stop the retry cascade deterministically: the retry kick re-derives
+    // "task still at in_progress" FOR UPDATE, so moving the card refuses
+    // the pending attempt; cancelling any in-flight run makes the turn
+    // jobs' idempotency gates skip. Then DRAIN this task's jobs before the
+    // finally tears the fakes down — a stray attempt firing after teardown
+    // would run against whatever env the NEXT suite has live.
+    await sql`
+      UPDATE app.tasks SET status = 'todo', updated_at_ms = ${Date.now()}
+      WHERE id = ${task2Id}
+    `;
+    await sql`
+      UPDATE app.project_agent_runs SET status = 'cancelled',
+                                        settled_at_ms = ${Date.now()}
+      WHERE task_id = ${task2Id} AND status IN ('queued', 'running')
+    `;
+    await waitFor(async () => {
+      const pending = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name IN ('task.agent_turn', 'task.agent_retry',
+                       'task.agent_drive')
+          AND state IN ('created', 'retry', 'active')
+          AND (data ->> 'taskId' = ${task2Id}
+               OR data ->> 'runId' IN (
+                 SELECT id FROM app.project_agent_runs
+                 WHERE task_id = ${task2Id}
+               ))
+      `;
+      return pending[0]?.count === '0';
+    }, 30_000);
   } finally {
     delete process.env.SANDBOX_URL;
     delete process.env.SANDBOX_TOKEN;
@@ -24648,6 +25221,8 @@ async function main(): Promise<void> {
     await checkCompetences(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkProjectTail(sql, baseUrl, authCtx);
     await checkRunProvenance(sql, authCtx);
+    await checkManualKickMovesCard(sql, authCtx);
+    await checkSandboxBlobDoor(sql, baseUrl, authCtx);
     await checkTurnReattach(sql, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);

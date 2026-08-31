@@ -6865,9 +6865,12 @@ tasks:
     needsAnswer: En attente de ta réponse
     totalCost: '{amount} au total'
     status:
+      queued: En attente
       running: En cours
       completed: Terminé
+      settled: Terminée
       failed: Échoué
+      cancelled: Annulée
       timed_out: Délai dépassé
     trigger:
       assignment: assignation
@@ -6877,6 +6880,7 @@ tasks:
       unblock: débloqué
       decomposition: décomposition
       manual: manuel
+      auto_retry: relance automatique
     refused:
       agent_disabled: l'agent n'est pas installé ou est désactivé
       agent_not_found: agent introuvable ou mal configuré

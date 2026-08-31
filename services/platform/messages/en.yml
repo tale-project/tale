@@ -6817,9 +6817,12 @@ tasks:
     needsAnswer: Waiting for your answer
     totalCost: '{amount} total'
     status:
+      queued: Queued
       running: Running
       completed: Completed
+      settled: Finished
       failed: Failed
+      cancelled: Cancelled
       timed_out: Timed out
     trigger:
       assignment: assignment
@@ -6829,6 +6832,7 @@ tasks:
       unblock: unblocked
       decomposition: decomposition
       manual: manual
+      auto_retry: auto retry
     refused:
       agent_disabled: agent is not installed or is disabled
       agent_not_found: agent not found or misconfigured

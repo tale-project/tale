@@ -527,6 +527,11 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
           `/tasks/${encodeURIComponent(taskId)}/agent-runs/latest`,
           { orgId },
         ).then((body) => body.run),
+      // The run card follows a LIVE run through queued → running → settled,
+      // and the run-lifecycle writes emit no task hint — poll while the
+      // task modal holds the card open (the WS lane pushed; the HTTP lane
+      // asks).
+      refetchInterval: 2000,
     };
   },
   'tasks/queries:getTaskAgentRunSandboxOp': (args, ctx) => {
@@ -540,6 +545,10 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
           `/tasks/agent-runs/${encodeURIComponent(runId)}/sandbox-op`,
           { orgId },
         ).then((body) => body.op),
+      // The live transcript follows a LIVE turn: poll while the details
+      // dialog is open (the WS lane pushed; the HTTP lane asks) — the twin
+      // of the automation agent-node op read above.
+      refetchInterval: 2000,
     };
   },
   'automations/queries:getLiveRunForTask': (args, ctx) => {

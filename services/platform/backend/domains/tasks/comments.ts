@@ -13,6 +13,7 @@ import { emitEvent } from '../events/emit.ts';
 import {
   loadProjectOrThrow,
   type ProjectAuthContext,
+  type ProjectRow,
 } from '../projects/service.ts';
 import {
   createThread,
@@ -21,11 +22,15 @@ import {
   saveMessage,
   updateMessageText,
 } from '../threads/store.ts';
+import { kickAgentRun } from './agent-runs.ts';
 import {
   assertTaskReadable,
   assertTaskWritable,
+  assignTask,
+  handTaskToInProgressForKick,
   loadTaskOrThrow,
   TaskError,
+  taskHasLiveAutomationRun,
   type TaskRow,
 } from './service.ts';
 
@@ -140,15 +145,16 @@ export async function addTaskComment(
     task,
     mentions,
   });
-  // A comment that @-mentions the agent CURRENTLY running this task steers
-  // the live turn instead of being dropped: the steer host injects it over
-  // the harness's held-open stdin, or restarts the exec around it. A queued
-  // (capacity-parked) run needs nothing — its start reads the brief after
-  // this comment posted.
+  // A comment that @-mentions one of the project's agent INSTANCES puts it
+  // to work: steering its RUNNING turn, or — when the task is idle —
+  // (re)assigning the task to it and kicking a fresh 'mention' run with
+  // this comment as feedback (the 0.4 wire). Runs after the automation
+  // check so a task can only ever have one engine start per comment.
   if (!automationStarted) {
-    await maybeSteerLiveRun(tx, {
-      organizationId: auth.organizationId,
-      taskId: args.taskId,
+    await dispatchMentionedProjectAgent(tx, {
+      auth,
+      task,
+      project,
       mentions,
       authorType: author.actorType,
       authorId: author.actorId,
@@ -384,19 +390,36 @@ export async function deleteTaskComment(
 }
 
 /**
- * Enqueue a steer when the comment names the agent instance that owns a
- * LIVE run on this task.
+ * The comment-@mention work dispatcher for the project's agent INSTANCES —
+ * the 0.4 `triggerMentionedProjectAgent` wire. The FIRST mentioned instance
+ * belonging to THIS project picks the lane:
  *
- * Only a `running` run is steerable: a queued one has not read its brief
- * yet (the comment is already in the discussion it will read), and a
- * settled one is handled by the steer host's own fallback. Only a HUMAN's
- * comment steers — an agent's own comment naming itself would loop.
+ * - the task's live run is RUNNING and its agent is mentioned → STEER the
+ *   live turn (the steer host injects the comment over the harness's
+ *   held-open stdin, or restarts the exec around it);
+ * - the live run is QUEUED → nothing: its start reads the brief AFTER this
+ *   comment posted;
+ * - another engine holds the task (a different instance's live run, a live
+ *   automation run) → nothing: a mention adds work, never preempts it, and
+ *   it never reassigns under a live run;
+ * - the task is idle → (re)assign it to the instance when it isn't the
+ *   assignee yet (`assignTask` — the picker's own choreography) and kick a
+ *   fresh 'mention' run carrying the comment as feedback; the kick moves
+ *   the card to In progress.
+ *
+ * Every refusal is quiet — the comment has already posted and notified. The
+ * gate is WRITE access: commenting is read-level, but assigning and running
+ * are edits, so a read-only member's `@` stays a plain mention. Only a
+ * HUMAN's comment dispatches — an agent's own comment naming itself would
+ * loop. A roster-slug mention that matches no instance row belongs to the
+ * automation lane, never this one.
  */
-async function maybeSteerLiveRun(
+async function dispatchMentionedProjectAgent(
   tx: TransactionSql,
   args: {
-    organizationId: string;
-    taskId: string;
+    auth: ProjectAuthContext;
+    task: TaskRow;
+    project: ProjectRow;
     mentions: { type: string; id: string }[];
     authorType: string;
     authorId: string;
@@ -410,11 +433,21 @@ async function maybeSteerLiveRun(
       .map((mention) => mention.id),
   );
   if (mentionedAgentIds.size === 0) return;
+  if (args.task.archivedAt !== null) return;
+  try {
+    assertTaskWritable(args.project, args.auth);
+  } catch {
+    console.warn(
+      `[tasks] agent mention on ${args.task.id} stays a plain mention (author lacks write access)`,
+    );
+    return;
+  }
 
   const runs = await tx<
     {
       id: string;
       agentId: string;
+      status: string;
       execId: string;
       sessionId: string;
       harness: string;
@@ -423,63 +456,150 @@ async function maybeSteerLiveRun(
       deadlineAt: number;
     }[]
   >`
-    SELECT id, agent_id AS "agentId", exec_id AS "execId",
+    SELECT id, agent_id AS "agentId", status, exec_id AS "execId",
            session_id AS "sessionId", harness, model,
            model_provider AS "modelProvider",
            deadline_at_ms::float8 AS "deadlineAt"
     FROM app.project_agent_runs
-    WHERE task_id = ${args.taskId} AND org_id = ${args.organizationId}
-      AND status = 'running'
+    WHERE task_id = ${args.task.id} AND org_id = ${args.auth.organizationId}
+      AND status IN ('queued', 'running')
     LIMIT 1
   `;
   const run = runs[0];
-  if (run === undefined || !mentionedAgentIds.has(run.agentId)) return;
+  if (run !== undefined) {
+    // A queued run needs nothing (its start reads the brief after this
+    // comment posted); a live run of an UNMENTIONED instance is never
+    // preempted or reassigned over.
+    if (run.status !== 'running' || !mentionedAgentIds.has(run.agentId)) {
+      return;
+    }
+    const agents = await tx<
+      {
+        instructions: string | null;
+        skills: string[];
+        connectors: string[];
+        tools: string[];
+        secrets: string[];
+      }[]
+    >`
+      SELECT instructions, skills, connectors, tools, secrets
+      FROM app.project_agents WHERE id = ${run.agentId} LIMIT 1
+    `;
+    const agent = agents[0];
+    if (agent === undefined) return;
 
-  const agents = await tx<
-    {
-      instructions: string | null;
-      skills: string[];
-      connectors: string[];
-      tools: string[];
-      secrets: string[];
-    }[]
-  >`
-    SELECT instructions, skills, connectors, tools, secrets
-    FROM app.project_agents WHERE id = ${run.agentId} LIMIT 1
-  `;
-  const agent = agents[0];
-  if (agent === undefined) return;
+    const authors = await tx<{ name: string | null; email: string | null }[]>`
+      SELECT "name", "email" FROM "user" WHERE "id" = ${args.authorId} LIMIT 1
+    `;
+    const author =
+      (authors[0]?.name ?? '').trim() ||
+      (authors[0]?.email ?? '').trim() ||
+      'a teammate';
 
-  const authors = await tx<{ name: string | null; email: string | null }[]>`
-    SELECT "name", "email" FROM "user" WHERE "id" = ${args.authorId} LIMIT 1
-  `;
-  const author =
-    (authors[0]?.name ?? '').trim() ||
-    (authors[0]?.email ?? '').trim() ||
-    'a teammate';
+    await addJobInTx(tx, 'task.agent_steer', {
+      organizationId: args.auth.organizationId,
+      runId: run.id,
+      taskId: args.task.id,
+      agentId: run.agentId,
+      execId: run.execId,
+      sessionId: run.sessionId,
+      harness: run.harness,
+      deadlineAt: run.deadlineAt,
+      model: run.model,
+      ...(run.modelProvider !== null
+        ? { modelProvider: run.modelProvider }
+        : {}),
+      ...(agent.instructions !== null
+        ? { instructions: agent.instructions }
+        : {}),
+      skills: agent.skills,
+      connectors: agent.connectors,
+      tools: agent.tools,
+      secrets: agent.secrets,
+      feedback: args.feedback,
+      author,
+      authorId: args.authorId,
+      attempt: 0,
+    });
+    return;
+  }
 
-  await addJobInTx(tx, 'task.agent_steer', {
-    organizationId: args.organizationId,
-    runId: run.id,
-    taskId: args.taskId,
-    agentId: run.agentId,
-    execId: run.execId,
-    sessionId: run.sessionId,
-    harness: run.harness,
-    deadlineAt: run.deadlineAt,
-    model: run.model,
-    ...(run.modelProvider !== null ? { modelProvider: run.modelProvider } : {}),
-    ...(agent.instructions !== null
-      ? { instructions: agent.instructions }
+  // Idle lane: resolve the FIRST mentioned id that is an instance OF THIS
+  // project (mention order is appearance order — the 0.4 rule).
+  let instance:
+    | {
+        id: string;
+        harness: string;
+        model: string;
+        modelProvider: string | null;
+      }
+    | undefined;
+  for (const mention of args.mentions) {
+    if (mention.type !== 'agent') continue;
+    const candidates = await tx<
+      {
+        id: string;
+        harness: string;
+        model: string;
+        modelProvider: string | null;
+      }[]
+    >`
+      SELECT id, harness, model, model_provider AS "modelProvider"
+      FROM app.project_agents
+      WHERE id = ${mention.id} AND project_id = ${args.task.projectId}
+        AND org_id = ${args.auth.organizationId}
+      LIMIT 1
+    `;
+    if (candidates[0] !== undefined) {
+      instance = candidates[0];
+      break;
+    }
+  }
+  if (instance === undefined) return;
+  // An automation-driven task keeps its automation — one engine per task.
+  if (await taskHasLiveAutomationRun(tx, args.task)) return;
+  if (instance.model === '') {
+    console.warn(
+      `[tasks] mention kick for agent ${instance.id} refused: agent_model_missing`,
+    );
+    return;
+  }
+  if (
+    args.task.assigneeType !== 'agent' ||
+    args.task.assigneeId !== instance.id
+  ) {
+    // (Re)assign exactly like the picker — activity, audit, notify.
+    await assignTask(tx, args.auth, {
+      taskId: args.task.id,
+      assigneeType: 'agent',
+      assigneeId: instance.id,
+    });
+  }
+  const kicked = await kickAgentRun(tx, {
+    organizationId: args.auth.organizationId,
+    projectId: args.task.projectId,
+    taskId: args.task.id,
+    agentId: instance.id,
+    harness: instance.harness,
+    model: instance.model,
+    ...(instance.modelProvider !== null
+      ? { modelProvider: instance.modelProvider }
       : {}),
-    skills: agent.skills,
-    connectors: agent.connectors,
-    tools: agent.tools,
-    secrets: agent.secrets,
+    startedBy: args.auth.userId,
+    trigger: 'mention',
     feedback: args.feedback,
-    author,
-    authorId: args.authorId,
-    attempt: 0,
+  });
+  if (kicked.reused) {
+    // A racing kick landed between this transaction's live-run probe and
+    // here — the comment rides the standing run instead.
+    console.warn(
+      `[tasks] mention kick for agent ${instance.id} reused the standing run`,
+    );
+    return;
+  }
+  await handTaskToInProgressForKick(tx, {
+    taskId: args.task.id,
+    userId: args.auth.userId,
   });
 }
 

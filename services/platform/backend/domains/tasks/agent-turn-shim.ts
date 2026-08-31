@@ -4,9 +4,13 @@ import type { Sql } from 'postgres';
 import { readSkillBundleForViewer } from '../../../convex/skills/file_actions.ts';
 import { isAutoRetryableFailure } from '../../../convex/tasks/task_auto_retry.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { isFilePolicyType } from '../../../lib/shared/schemas/governance';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import type { ShimHandlers } from '../../lib/convex-shim.ts';
+import type { ShimHandlers, ShimScheduler } from '../../lib/convex-shim.ts';
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { orgAdapterShimHandlers } from '../knowledge/service.ts';
+import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import {
   reserveSessionSlot,
   resumeSessionSlot,
@@ -18,6 +22,7 @@ import { kickAgentRun } from './agent-runs.ts';
 import {
   agentRecordTaskOutputsTrusted,
   agentUpdateTaskStatusTrusted,
+  handTaskToInProgressForKick,
   type TaskStatus,
 } from './service.ts';
 
@@ -45,6 +50,28 @@ function quotaAsAppError(error: unknown): never {
 export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
   return {
     ...sandboxToolShimHandlers(sql),
+
+    // The vision-model resolution seam: `resolveTurnVisionModel` (the turn
+    // start's gateway mint) walks org slug → provider default credentials →
+    // the `vision_model` policy pin, all over ctx.runQuery. None of these
+    // families were shimmed, so EVERY 0.5 task/automation agent turn
+    // resolved vision as null — the resolver's catch turned the un-shimmed
+    // throw into "text-only", and an image the agent then Read 404'd a
+    // text-only serving model with no polyfill to catch it.
+    ...credentialShimHandlers(sql),
+    ...orgAdapterShimHandlers(sql),
+    'governance/internal_queries:getPolicyConfigInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the reused 0.4 caller passes exactly this shape
+      const args = raw as { organizationId: string; policyType: string };
+      // An unknown policy type reads as "no policy configured" — the 0.4
+      // internal query answered null for an absent file the same way.
+      if (!isFilePolicyType(args.policyType)) return null;
+      return readGovernancePolicyForOrg(
+        sql,
+        args.organizationId,
+        args.policyType,
+      );
+    },
 
     // ------------------------------------------------------- the run ledger
     'tasks/agent_runs:getTaskAgentRunForDrive': async (raw) => {
@@ -267,8 +294,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       if (agent === undefined) {
         return { started: false, reason: 'agent_unavailable' };
       }
-      const kicked = await transactSerializable(sql, (tx) =>
-        kickAgentRun(tx, {
+      const kicked = await transactSerializable(sql, async (tx) => {
+        const result = await kickAgentRun(tx, {
           organizationId: args.organizationId,
           projectId: task.projectId,
           taskId: args.taskId,
@@ -281,8 +308,19 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           trigger: 'mention',
           feedback: args.feedback,
           startedBy: args.authorId,
-        }),
-      );
+        });
+        if (result.reused) return result;
+        // The mention kick moves the card too (the 0.4 shared-core rule: the
+        // board verb IS the interface): the settled predecessor parked the
+        // task at `in_review`, and left there a fresh run grinds behind a
+        // card that reads "waiting on review". Attributed to the comment's
+        // author — the kick is their gesture, delivered late.
+        await handTaskToInProgressForKick(tx, {
+          taskId: args.taskId,
+          userId: args.authorId,
+        });
+        return result;
+      });
       // A reused live run means another turn is already carrying this work;
       // the comment rides that one rather than starting a second.
       return { started: !kicked.reused };
@@ -762,5 +800,35 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as Parameters<typeof readSkillBundleForViewer>[0];
       return readSkillBundleForViewer(args);
     },
+  };
+}
+
+/**
+ * The task lane's scheduler seam: the reused hosts self-chain by scheduling
+ * `internal.*` refs — the drive continuation after every `running` window
+ * and the steer retry ladder — and each maps onto its pg-boss job here.
+ * Without the seam the chain dies at the FIRST re-schedule ("no scheduler
+ * seam registered"), settling a working turn as failed while the agent
+ * keeps going (observed live). The turn-drive itest alone never exercises
+ * this: its fake harness finishes in one terminal window, so nothing
+ * re-schedules there.
+ */
+export function taskAgentShimScheduler(sql: Sql): ShimScheduler {
+  return async (functionName, delayMs, args) => {
+    const startAfter =
+      delayMs > 0 ? { startAfter: new Date(Date.now() + delayMs) } : {};
+    if (functionName === 'tasks/agent_run_host:driveTaskAgentTurn') {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the host builds exactly the drive keys its handler re-validates
+      await addJobInTx(sql, 'task.agent_drive', args as never, startAfter);
+      return;
+    }
+    if (functionName === 'tasks/agent_run_host:steerTaskAgentTurn') {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the steer host replays its own args with attempt+1
+      await addJobInTx(sql, 'task.agent_steer', args as never, startAfter);
+      return;
+    }
+    throw new Error(
+      `[task-agent] unmapped scheduled ref ${functionName} — add it to taskAgentShimScheduler`,
+    );
   };
 }
