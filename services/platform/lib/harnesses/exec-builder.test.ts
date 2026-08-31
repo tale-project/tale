@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadHarnesses } from '../../convex/lib/providers/load_system_config';
 import type { HarnessDefinition } from '../shared/schemas/providers';
-import { buildHarnessExec } from './exec-builder';
+import { buildHarnessExec, isClaudeModelRef } from './exec-builder';
 import { GOLDEN_BYO_ENV, GOLDEN_GATEWAY, goldenBattery } from './test-helpers';
 import type { HarnessExec, HarnessRunSpec } from './types';
 
@@ -286,6 +286,18 @@ describe('subscription delivery', () => {
 });
 
 describe('claude reasoning levers scope to Claude models', () => {
+  it.each([
+    [undefined, true],
+    ['default', true],
+    ['claude-opus-4-6', true],
+    ['openrouter/anthropic/claude-sonnet-4.6', true],
+    ['~anthropic/claude-fable-latest', true],
+    ['openrouter/~deepseek/deepseek-v4-flash-latest', false],
+    ['glm-4.7', false],
+  ] as const)('isClaudeModelRef(%j) → %j', (model, expected) => {
+    expect(isClaudeModelRef(model)).toBe(expected);
+  });
+
   // The runtime image floors CLAUDE_CODE_EFFORT_LEVEL=max +
   // CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1; through a gateway's dialect
   // translation that forced effort reaches foreign models and collapses
