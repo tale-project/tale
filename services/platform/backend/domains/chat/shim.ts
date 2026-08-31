@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import { findOrganizationMember } from '../../auth/membership.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
+import { wordStartPatterns } from '../../lib/word-match.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { searchConversationsForChat } from '../conversations/search-chat.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
@@ -159,6 +160,7 @@ async function searchTasks(
   const bounds = pageBounds(args.paginationOpts);
   const term = args.term.trim();
   const like = `%${term}%`;
+  const words = wordStartPatterns(term);
   const status = args.status;
   const rows = await sql<TaskLegRow[]>`
     SELECT id AS "_id", title, description, status, priority,
@@ -169,7 +171,9 @@ async function searchTasks(
     WHERE org_id = ${args.organizationId}
       AND project_id = ANY(${readable})
       AND (${args.list === true || term === ''} OR title ILIKE ${like}
-           OR description ILIKE ${like})
+           OR description ILIKE ${like}
+           OR (${words.length > 0}
+               AND (title ~* ANY(${words}) OR description ~* ANY(${words}))))
       AND (${status === undefined}
            OR (${status ?? ''} = 'open' AND NOT (status = ANY(${OPEN_EXCLUDED})))
            OR status = ${status ?? ''})
@@ -212,6 +216,7 @@ async function searchProjects(
   const bounds = pageBounds(args.paginationOpts);
   const term = args.term.trim();
   const like = `%${term}%`;
+  const words = wordStartPatterns(term);
   const rows = await sql<ProjectLegRow[]>`
     SELECT id AS "_id", name, description, key,
            open_task_count AS "openTaskCount",
@@ -220,7 +225,9 @@ async function searchProjects(
     FROM app.projects
     WHERE org_id = ${args.organizationId} AND id = ANY(${args.projectIds})
       AND (${args.list === true || term === ''} OR name ILIKE ${like}
-           OR description ILIKE ${like} OR key ILIKE ${like})
+           OR description ILIKE ${like} OR key ILIKE ${like}
+           OR (${words.length > 0}
+               AND (name ~* ANY(${words}) OR description ~* ANY(${words}))))
     ORDER BY updated_at_ms DESC
     LIMIT ${bounds.limit + 1} OFFSET ${bounds.offset}
   `;
@@ -808,6 +815,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       const bounds = pageBounds(args.paginationOpts);
       const term = args.searchTerm?.trim() ?? '';
       const like = `%${term}%`;
+      const words = wordStartPatterns(term);
       const rows = await sql<
         {
           name: string | null;
@@ -822,7 +830,9 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         FROM app.contacts
         WHERE org_id = ${args.organizationId}
           AND (${term === ''} OR name ILIKE ${like} OR email ILIKE ${like}
-               OR phone ILIKE ${like})
+               OR phone ILIKE ${like}
+               OR (${words.length > 0}
+                   AND (name ~* ANY(${words}) OR email ~* ANY(${words}))))
         ORDER BY updated_at_ms DESC
         LIMIT ${bounds.limit + 1} OFFSET ${bounds.offset}
       `;
@@ -852,6 +862,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       const bounds = pageBounds(args.paginationOpts);
       const term = args.searchTerm?.trim() ?? '';
       const like = `%${term}%`;
+      const words = wordStartPatterns(term);
       const rows = await sql<
         {
           name: string;
@@ -865,7 +876,11 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         FROM app.products
         WHERE org_id = ${args.organizationId}
           AND (${term === ''} OR name ILIKE ${like} OR category ILIKE ${like}
-               OR description ILIKE ${like})
+               OR description ILIKE ${like}
+               OR (${words.length > 0}
+                   AND (name ~* ANY(${words})
+                        OR category ~* ANY(${words})
+                        OR description ~* ANY(${words}))))
         ORDER BY updated_at_ms DESC
         LIMIT ${bounds.limit + 1} OFFSET ${bounds.offset}
       `;
@@ -893,6 +908,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       return listEntriesForAgent(sql, {
         organizationId: args.organizationId,
         ...(args.topic !== undefined ? { topic: args.topic } : {}),
+        matchWords: true,
         numItems: args.paginationOpts.numItems,
         cursor: args.paginationOpts.cursor,
       });
