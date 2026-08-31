@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import {
+  driveWorkflowAgentTurnImpl,
   resumeWorkflowAgentTurnWithAnswerImpl,
   startWorkflowAgentTurnImpl,
 } from '../../convex/automations/agent_host.ts';
@@ -365,6 +366,19 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       if (result.failed > 0 || result.woken > 0) {
         console.log(
           `[watchdog] task agents: failed ${result.failed} overdue, woke ${result.woken} parked`,
+        );
+      }
+    },
+    'watchdog.automation_agents': async () => {
+      // The workflow twin of the task-agent re-attach: a drive chain that
+      // died mid-turn is resurrected from the run cursor, never failed —
+      // the agent in the sandbox is still doing (or has finished) the work.
+      const { recoverStalledWorkflowAgentTurns } =
+        await import('../domains/automations/reattach.ts');
+      const reattached = await recoverStalledWorkflowAgentTurns(deps.sql);
+      if (reattached.resumed > 0) {
+        console.log(
+          `[watchdog] automation agents: re-attached ${reattached.resumed} of ${reattached.examined} abandoned turn(s)`,
         );
       }
     },
@@ -876,6 +890,32 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         shim as unknown as Parameters<typeof startWorkflowAgentTurnImpl>[0],
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the kick built exactly the host's start-args shape; the host re-validates semantics
         input as unknown as Parameters<typeof startWorkflowAgentTurnImpl>[1],
+      );
+    },
+    'automation.agent_drive': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          runId: z.string().min(1),
+          nodeId: z.string().min(1),
+          execId: z.string().min(1),
+          sessionId: z.string().min(1),
+          harness: z.string().min(1),
+          providerSlug: z.string().min(1),
+          gatewayModel: z.string().min(1),
+          deadlineAt: z.number(),
+        })
+        .parse(payload);
+      // The REUSED 0.4 drive window on the ctx shim: it replays the exec's
+      // ring buffer, streams the turn, and self-chains until the harness
+      // ends — the same code the start reaches after its first window.
+      const shim = createCtxShim(automationShimHandlers(deps.sql), {
+        scheduler: automationShimScheduler(deps.sql),
+      });
+      await driveWorkflowAgentTurnImpl(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by automationShimHandlers
+        shim as unknown as Parameters<typeof driveWorkflowAgentTurnImpl>[0],
+        input,
       );
     },
     'automation.ask_resume': async (payload) => {

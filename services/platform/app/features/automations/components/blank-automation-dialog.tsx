@@ -32,6 +32,10 @@ import {
   useAgentSecrets,
   useProjectHarnesses,
 } from '@/app/features/projects/hooks/queries';
+import {
+  findSelectedModel,
+  toModelOptions,
+} from '@/app/features/projects/lib/model-options';
 import { toast } from '@/app/hooks/use-toast';
 import { EVENT_TYPES } from '@/convex/events/emit';
 import { AGENT_TOOL_CATALOG } from '@/convex/sandbox/tool_names';
@@ -41,6 +45,7 @@ import { useT } from '@/lib/i18n/client';
 import { useSaveAutomation, useSetAutomationTrigger } from '../hooks/mutations';
 import { useAutomationCapabilities } from '../hooks/queries';
 import { automationErrorCode, automationErrorMessage } from '../lib/errors';
+import { DEFAULT_HARNESS } from './agent-node-fields';
 
 const EMPTY_BINDING: SkillsSelection = {
   skills: [],
@@ -99,6 +104,7 @@ export function BlankAutomationDialog({
   // Step 1 — the agent.
   const [name, setName] = useState('');
   const [model, setModel] = useState('');
+  const [modelProvider, setModelProvider] = useState('');
   const [prompt, setPrompt] = useState('');
   const [binding, setBinding] = useState(EMPTY_BINDING);
   const [secretNames, setSecretNames] = useState<readonly string[]>([]);
@@ -115,6 +121,7 @@ export function BlankAutomationDialog({
     setStep(0);
     setName('');
     setModel('');
+    setModelProvider('');
     setPrompt('');
     setBinding(EMPTY_BINDING);
     setSecretNames([]);
@@ -144,22 +151,37 @@ export function BlankAutomationDialog({
     [tProjects],
   );
 
-  // One option per model id — an agent NODE stores a bare model string.
-  const modelOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const options: { value: string; label: string; description?: string }[] =
-      [];
-    for (const row of roster.data?.models ?? []) {
-      if (seen.has(row.id)) continue;
-      seen.add(row.id);
-      options.push({
-        value: row.id,
-        label: row.label,
-        description: row.providerLabel,
-      });
-    }
-    return options;
-  }, [roster.data]);
+  // One option per (provider, model) pair — the shared picker vocabulary:
+  // collapsing two providers serving the same id was how a pick silently
+  // landed on the wrong provider's bill. The scaffolded node names no
+  // harness, so the host default drives it: subscription-served entries are
+  // offered only when bound to that harness.
+  const offeredModels = useMemo(
+    () =>
+      toModelOptions(roster.data?.models ?? []).filter(
+        (option) =>
+          option.subscription === undefined ||
+          option.subscription.harness === DEFAULT_HARNESS,
+      ),
+    [roster.data],
+  );
+  const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
+  const modelOptions = useMemo(
+    () =>
+      offeredModels.map((option, index) => ({
+        // Index-keyed: model ids carry `/` and `:`, so no composed string
+        // value can safely encode the (provider, id) pair.
+        value: String(index),
+        label: option.label,
+        description:
+          option.subscription === undefined
+            ? option.providerLabel
+            : tProjects('agents.modelProviderSubscription', {
+                provider: option.providerLabel,
+              }),
+      })),
+    [offeredModels, tProjects],
+  );
 
   const slug = slugify(name);
   const canSubmitStep1 =
@@ -174,7 +196,9 @@ export function BlankAutomationDialog({
     setSubmitting(true);
     // The one-agent scaffold: a valid v1 document carrying the equipment the
     // wizard collected. The harness and anything else are refined on the
-    // canvas afterward.
+    // canvas afterward. The model pick stores the PAIR (`model` +
+    // `modelProvider`), so the run is served — and billed — by exactly the
+    // provider on screen instead of whichever connector a walk reaches first.
     const automation = {
       version: 1,
       name: slug,
@@ -183,6 +207,7 @@ export function BlankAutomationDialog({
           id: 'agent',
           type: 'agent',
           model,
+          ...(modelProvider !== '' ? { modelProvider } : {}),
           prompt: prompt.trim(),
           ...(binding.skills.length > 0 ? { skills: [...binding.skills] } : {}),
           ...(binding.connectors.length > 0
@@ -341,8 +366,17 @@ export function BlankAutomationDialog({
             searchPlaceholder={t('blank.modelSearchPlaceholder')}
             emptyText={t('blank.modelSearchEmpty')}
             options={modelOptions}
-            value={model === '' ? null : model}
-            onValueChange={(value) => setModel(value)}
+            value={
+              selectedModel !== undefined
+                ? String(offeredModels.indexOf(selectedModel))
+                : null
+            }
+            onValueChange={(value) => {
+              const option = offeredModels[Number(value)];
+              if (option === undefined) return;
+              setModel(option.id);
+              setModelProvider(option.providerSlug);
+            }}
             modal
           />
           <Textarea

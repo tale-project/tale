@@ -836,6 +836,23 @@ export async function listActiveCredentials(
   `;
 }
 
+/** The connectors this organization can actually invoke — distinct slugs
+ * holding at least one ACTIVE credential (disabled/needs-reauth ones cannot
+ * serve a run). The equipment pickers list exactly this set: a granted slug
+ * resolves its default credential at dispatch. */
+export async function listConnectedConnectorSlugs(
+  sql: Sql,
+  organizationId: string,
+): Promise<string[]> {
+  const rows = await sql<{ connectorSlug: string }[]>`
+    SELECT DISTINCT connector_slug AS "connectorSlug"
+    FROM app.connector_credentials
+    WHERE org_id = ${organizationId} AND status = 'active'
+    ORDER BY connector_slug ASC
+  `;
+  return rows.map((row) => row.connectorSlug);
+}
+
 /** Advance a credential's mail-sync watermarks (the sync pass's cursor). */
 export async function patchMailSyncWatermarks(
   sql: Sql,

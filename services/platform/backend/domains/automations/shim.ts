@@ -821,6 +821,21 @@ export function automationShimScheduler(sql: Sql): ShimScheduler {
       );
       return;
     }
+    if (functionName === 'automations/agent_host:driveWorkflowAgentTurn') {
+      // The turn's self-chain: `continueOrSettle` re-schedules one attach
+      // window after every `running` window. Without this mapping the chain
+      // dies at the FIRST re-schedule, settling a working turn as failed
+      // while the agent keeps going (observed live — the task lane's
+      // scheduler seam documents the same trap).
+      await addJobInTx(
+        sql,
+        'automation.agent_drive',
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the host builds exactly the drive keys its handler re-validates
+        payload as never,
+        startAfter,
+      );
+      return;
+    }
     if (
       functionName ===
       'automations/agent_host:resumeWorkflowAgentTurnWithAnswer'

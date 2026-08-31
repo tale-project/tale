@@ -30,6 +30,7 @@ const SCHEDULES: CronSchedule[] = [
   { name: 'audit.integrity_check', cron: '30 4 * * *' },
   { name: 'governance.effect_hold_releases', cron: '15 4 * * *' },
   { name: 'watchdog.task_agents', cron: '*/2 * * * *' },
+  { name: 'watchdog.automation_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.sandbox', cron: '*/5 * * * *' },
   { name: 'watchdog.chat_generations', cron: '*/2 * * * *' },
   // Replacement-upload blob reclaim backstop (event-driven enqueues cover

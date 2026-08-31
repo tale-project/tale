@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 
 import { collectComposerOptions } from '../../../convex/chat/composer.ts';
+import { listConnectorSummaries } from '../../../convex/connector_credentials/connector_catalog.ts';
 import { walkChatCatalog } from '../../../convex/lib/providers/chat_catalog.ts';
 import {
   loadHarnesses,
@@ -9,6 +10,7 @@ import {
 import { listSkillsForViewer } from '../../../convex/skills/file_actions.ts';
 import { createCtxShim } from '../../lib/convex-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { listConnectedConnectorSlugs } from '../connector_credentials/service.ts';
 import { getAccessibleModelsForUser } from '../governance/service.ts';
 import { chatShimHandlers } from './shim.ts';
 import { projectChatAccess, ChatThreadError } from './threads.ts';
@@ -19,7 +21,8 @@ import { projectChatAccess, ChatThreadError } from './threads.ts';
  * projection REUSED via `collectComposerOptions`, governance-filtered
  * server-side so the picker never even sees a hidden model) plus the
  * capability menus (skills through the reused file-layer viewer; connectors
- * return the honest empty until the connector-credentials domain lands).
+ * from the org's connected set — the slugs holding an active credential,
+ * labelled from the shipped catalog).
  */
 
 export interface ComposerCapability {
@@ -38,6 +41,33 @@ function toSkillCapability(skill: {
   if (skill.description !== '') option.description = skill.description;
   if (skill.icon !== undefined) option.icon = skill.icon;
   return option;
+}
+
+/** The connectors an agent can be equipped with: the org's CONNECTED set —
+ * every shipped connector holding at least one active credential — labelled
+ * from the catalog. The grant vocabulary is the connector slug; the run
+ * resolves the pair's default credential at dispatch, so one listing serves
+ * the project-agent and automation pickers alike. */
+async function listConnectorCapabilities(
+  sql: Sql,
+  organizationId: string,
+): Promise<ComposerCapability[]> {
+  const connected = new Set(
+    await listConnectedConnectorSlugs(sql, organizationId),
+  );
+  if (connected.size === 0) return [];
+  return listConnectorSummaries()
+    .filter((summary) => connected.has(summary.slug))
+    .map((summary) => {
+      const option: ComposerCapability = {
+        slug: summary.slug,
+        label: summary.displayName,
+      };
+      if (summary.description !== '') option.description = summary.description;
+      if (summary.iconUrl !== undefined) option.icon = summary.iconUrl;
+      return option;
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export async function listComposerModels(
@@ -154,8 +184,7 @@ async function projectTeamIds(sql: Sql, projectId: string): Promise<string[]> {
 /**
  * What a PROJECT's agents can equip: the skills visible to the project
  * ITSELF (org-wide + its teams') — deliberately not the configuring
- * member's visibility. Connectors stay the honest empty until the
- * connector-credentials domain lands.
+ * member's visibility — plus the org's connected connectors.
  */
 export async function listProjectCapabilities(
   sql: Sql,
@@ -186,14 +215,15 @@ export async function listProjectCapabilities(
     skills: listing.skills
       .map(toSkillCapability)
       .sort((a, b) => a.label.localeCompare(b.label)),
-    connectors: [],
+    connectors: await listConnectorCapabilities(sql, args.organizationId),
   };
 }
 
 /**
  * What an AUTOMATION's agent node can equip: org-wide skills, optionally
- * widened to a project's team skills. The route gates on the developer
- * role, matching the automation domain's own write gate.
+ * widened to a project's team skills, plus the org's connected connectors.
+ * The route gates on the developer role, matching the automation domain's
+ * own write gate.
  */
 export async function listAutomationCapabilities(
   sql: Sql,
@@ -215,6 +245,6 @@ export async function listAutomationCapabilities(
     skills: listing.skills
       .map(toSkillCapability)
       .sort((a, b) => a.label.localeCompare(b.label)),
-    connectors: [],
+    connectors: await listConnectorCapabilities(sql, args.organizationId),
   };
 }
