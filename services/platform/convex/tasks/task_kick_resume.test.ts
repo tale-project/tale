@@ -50,6 +50,15 @@ describe('resolveTaskKickResume — provider-rejected conversations', () => {
     expect(plan.inspectNote).toBe(true);
   });
 
+  it('a 400-rejected replay (dropped reasoning_content) also starts FRESH', () => {
+    const plan = resolveTaskKickResume({
+      previous: failedPrevious({ apiErrorStatus: 400 }),
+      kick,
+    });
+    expect(plan.resume).toBeUndefined();
+    expect(plan.inspectNote).toBe(true);
+  });
+
   it('transient provider trouble (429) keeps the conversation continuity', () => {
     const plan = resolveTaskKickResume({
       previous: failedPrevious({ apiErrorStatus: 429 }),

@@ -131,14 +131,20 @@ export function resolveTaskKickResume(args: {
 
   // A predecessor the PROVIDER rejected at the conversation level must not
   // be resumed: the transcript itself is what the model refuses, so every
-  // `--resume` retry dies on the same wall in seconds (observed live: the
-  // agent Read a rendered page image, the text-only serving model's
-  // provider answered 404 "No endpoints found that support image input",
-  // and all three auto-retries burned instantly). A fresh conversation
-  // sheds the refused content; the failed shape above already keeps the box
-  // and points the restart at it. Only 404 — a terminal verdict about WHAT
-  // was sent; transient provider trouble (429/5xx) keeps the continuity.
-  if (previous.status === 'failed' && previous.apiErrorStatus === 404) {
+  // `--resume` retry dies on the same wall in seconds. Both shapes observed
+  // live on one task: the agent Read a rendered page image and the
+  // text-only serving model's provider answered 404 "No endpoints found
+  // that support image input" (three auto-retries burned instantly); and a
+  // thinking-mode assistant message whose `reasoning_content` the dialect
+  // replay drops drew 400 "must be passed back to the API". A fresh
+  // conversation sheds the refused content; the failed shape above already
+  // keeps the box and points the restart at it. Only 400/404 — terminal
+  // verdicts about WHAT was sent; auth/quota/transient trouble
+  // (401/403/429/5xx) keeps the conversation continuity.
+  if (
+    previous.status === 'failed' &&
+    (previous.apiErrorStatus === 404 || previous.apiErrorStatus === 400)
+  ) {
     return fresh;
   }
 
