@@ -20,6 +20,7 @@ import {
 import { createCollabRoutes } from './domains/collab/routes.ts';
 import { createConnectorCredentialRoutes } from './domains/connector_credentials/routes.ts';
 import { createConnectorBridgeRoutes } from './domains/connectors/bridge-routes.ts';
+import { createConnectorOauthAppRoutes } from './domains/connectors/oauth-app-routes.ts';
 import { createConnectorOauthRoutes } from './domains/connectors/oauth-routes.ts';
 import { createSlackEventRoutes } from './domains/connectors/slack-events.ts';
 import { createContactRoutes } from './domains/contacts/routes.ts';
@@ -183,6 +184,11 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   app.route(
     '/api/app/connector-credentials',
     createConnectorCredentialRoutes(deps),
+  );
+  // Org-level OAuth app registry (Settings > Connectors, admin-gated writes).
+  app.route(
+    '/api/app/connector-oauth-apps',
+    createConnectorOauthAppRoutes(deps),
   );
   app.route('/api/app/contacts', createContactRoutes(deps));
   app.route('/api/app/approvals', createApprovalRoutes(deps));

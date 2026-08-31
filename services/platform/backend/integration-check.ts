@@ -1815,6 +1815,23 @@ async function checkFiles(
   // that rewrote the connection each time would repoint a deployment whose
   // operator had since edited it.
   const reseeded = await ensureDefaultObjectStore(storeEnv);
+  // A surviving config file with a VANISHED bucket (store volume recreated
+  // under a surviving config dir) must heal on the next boot: delete the
+  // bucket and re-run the seeder — the 'present' path re-ensures the bucket
+  // when the default still points at the bundled store.
+  const { buildS3ObjectStore } =
+    await import('../convex/lib/storage/object_store.ts');
+  const probeS3 = buildS3ObjectStore(
+    { region: 'us-east-1', endpoint, forcePathStyle: true, bucket },
+    { accessKeyId, secretAccessKey },
+  );
+  const bucketDropped = (
+    await probeS3.client.fetch(`${endpoint}/${bucket}`, { method: 'DELETE' })
+  ).ok;
+  const healed = await ensureDefaultObjectStore(storeEnv);
+  const bucketBack = (
+    await probeS3.client.fetch(`${endpoint}/${bucket}`, { method: 'HEAD' })
+  ).ok;
   const connectionPath = path.join(
     configRoot,
     'default',
@@ -1830,11 +1847,14 @@ async function checkFiles(
     'object store: the deployment default seeds itself at boot',
     seeded.status === 'seeded' &&
       reseeded.status === 'present' &&
+      bucketDropped &&
+      healed.status === 'present' &&
+      bucketBack &&
       written.success &&
       written.data.bucket === bucket &&
       // Self-hosted S3 has no per-bucket DNS; virtual-host style would 404.
       written.data.forcePathStyle,
-    `seed=${seeded.status} (want seeded), reseed=${reseeded.status} (want present), bucket=${written.success ? written.data.bucket : 'ERR'}, pathStyle=${written.success ? String(written.data.forcePathStyle) : 'ERR'}`,
+    `seed=${seeded.status} (want seeded), reseed=${reseeded.status} (want present), dropped=${bucketDropped}→healed=${healed.status}/back=${bucketBack} (want present/true), bucket=${written.success ? written.data.bucket : 'ERR'}, pathStyle=${written.success ? String(written.data.forcePathStyle) : 'ERR'}`,
   );
 
   const { cookie, orgId } = ctx;
@@ -12403,6 +12423,177 @@ async function checkTts(
   } finally {
     ttsServer.close();
   }
+}
+
+/**
+ * Org-level connector OAuth apps: the registry CRUD (admin-gated, secret
+ * never echoed), org-over-env resolution on BOTH consent lanes (connectors
+ * and Knowledge cloud-import), Microsoft tenant substitution, the status
+ * probe, and the fallback after removal.
+ */
+async function checkConnectorOauthApps(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const savedSiteUrl = process.env.SITE_URL;
+  process.env.SITE_URL = base;
+  // Deployment env app for the fallback half of the check.
+  process.env.CLOUD_IMPORT_GOOGLE_DRIVE_CLIENT_ID = 'itest-google-client';
+  process.env.CLOUD_IMPORT_GOOGLE_DRIVE_CLIENT_SECRET = 'itest-google-secret';
+
+  const appsUrl = (slug: string) =>
+    `${base}/api/app/connector-oauth-apps/${slug}?orgId=${orgId}`;
+  const put = (slug: string, body: Record<string, unknown>) =>
+    fetch(appsUrl(slug), {
+      method: 'PUT',
+      headers: { cookie, origin: base, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  // Upsert google-drive (shared by both lanes) + a Microsoft app with tenant.
+  const created = z
+    .looseObject({
+      slug: z.string(),
+      clientId: z.string(),
+      maskedPreview: z.string().nullable(),
+    })
+    .safeParse(
+      await (
+        await put('google-drive', {
+          clientId: 'itest-org-client',
+          clientSecret: 'itest-org-secret-value',
+        })
+      ).json(),
+    );
+  const outlook = await put('outlook', {
+    clientId: 'itest-outlook-client',
+    clientSecret: 'itest-outlook-secret-value',
+    tenantId: 'itest-tenant',
+  });
+  const slackRefused = await put('slack', {
+    clientId: 'x',
+    clientSecret: 'y-very-long-secret',
+  });
+  const noSession = await fetch(appsUrl('google-drive'), {
+    method: 'PUT',
+    headers: { origin: base, 'content-type': 'application/json' },
+    body: JSON.stringify({ clientId: 'a', clientSecret: 'bbbbbbbbbbbb' }),
+  });
+
+  const listedRaw = await (
+    await fetch(`${base}/api/app/connector-oauth-apps?orgId=${orgId}`, {
+      headers: { cookie, origin: base },
+    })
+  ).text();
+  const secretLeak = listedRaw.includes('itest-org-secret-value');
+
+  // Org row wins on the cloud-import lane (env app is set above and loses).
+  const cloudStart = await fetch(
+    `${base}/api/cloud-import/oauth2/start?provider=google-drive&organizationId=${orgId}`,
+    { headers: { cookie, origin: base }, redirect: 'manual' },
+  );
+  const cloudUrl = new URL(
+    cloudStart.headers.get('location') ?? 'https://x.invalid/',
+  );
+
+  // Org row wins on the connectors lane too, and the Microsoft app's
+  // authorize URL is rewritten onto ITS tenant (the catalog ships /common).
+  const connStart = await fetch(
+    `${base}/api/connectors/oauth2/start?connector=outlook&organizationId=${orgId}`,
+    { headers: { cookie, origin: base }, redirect: 'manual' },
+  );
+  const connUrl = new URL(
+    connStart.headers.get('location') ?? 'https://x.invalid/',
+  );
+
+  const statusOrg = z
+    .object({ configured: z.boolean(), source: z.string().nullable() })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/cloud-import/oauth-app-status?provider=google-drive&orgId=${orgId}`,
+          { headers: { cookie, origin: base } },
+        )
+      ).json(),
+    );
+
+  // Reuse-on-omit: a clientId-only update keeps the stored secret.
+  const updated = await put('google-drive', { clientId: 'itest-org-client-2' });
+  const cloudStart2 = await fetch(
+    `${base}/api/cloud-import/oauth2/start?provider=google-drive&organizationId=${orgId}`,
+    { headers: { cookie, origin: base }, redirect: 'manual' },
+  );
+  const cloudUrl2 = new URL(
+    cloudStart2.headers.get('location') ?? 'https://x.invalid/',
+  );
+
+  // Removal falls resolution back to the deployment env app.
+  const removed = await fetch(appsUrl('google-drive'), {
+    method: 'DELETE',
+    headers: { cookie, origin: base },
+  });
+  await fetch(appsUrl('outlook'), {
+    method: 'DELETE',
+    headers: { cookie, origin: base },
+  });
+  const cloudStart3 = await fetch(
+    `${base}/api/cloud-import/oauth2/start?provider=google-drive&organizationId=${orgId}`,
+    { headers: { cookie, origin: base }, redirect: 'manual' },
+  );
+  const cloudUrl3 = new URL(
+    cloudStart3.headers.get('location') ?? 'https://x.invalid/',
+  );
+  const statusEnv = z
+    .object({ configured: z.boolean(), source: z.string().nullable() })
+    .safeParse(
+      await (
+        await fetch(
+          `${base}/api/app/cloud-import/oauth-app-status?provider=google-drive&orgId=${orgId}`,
+          { headers: { cookie, origin: base } },
+        )
+      ).json(),
+    );
+  const audit = await sql<{ action: string }[]>`
+    SELECT action FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'connector_oauth_app'
+    ORDER BY ts
+  `;
+
+  // The three start calls above minted pending-state rows this check never
+  // consumes; the connector-oauth checks later in the run count that table,
+  // so leaving them behind fails THEIR assertions, not ours.
+  await sql`DELETE FROM app.connector_oauth_states WHERE org_id = ${orgId}`;
+  await sql`DELETE FROM app.cloud_import_oauth_states WHERE org_id = ${orgId}`;
+
+  if (savedSiteUrl === undefined) delete process.env.SITE_URL;
+  else process.env.SITE_URL = savedSiteUrl;
+
+  record(
+    'connector oauth apps (org registry beats env on both lanes)',
+    created.success &&
+      created.data.maskedPreview === 'ites…ue' &&
+      outlook.status === 200 &&
+      slackRefused.status === 400 &&
+      noSession.status === 401 &&
+      !secretLeak &&
+      cloudStart.status === 302 &&
+      cloudUrl.searchParams.get('client_id') === 'itest-org-client' &&
+      connStart.status === 302 &&
+      connUrl.hostname === 'login.microsoftonline.com' &&
+      connUrl.pathname.startsWith('/itest-tenant/') &&
+      statusOrg.success &&
+      statusOrg.data.source === 'org' &&
+      updated.status === 200 &&
+      cloudUrl2.searchParams.get('client_id') === 'itest-org-client-2' &&
+      removed.status === 200 &&
+      cloudUrl3.searchParams.get('client_id') === 'itest-google-client' &&
+      statusEnv.success &&
+      statusEnv.data.source === 'env' &&
+      audit.length >= 3,
+    `create=${created.success ? created.data.maskedPreview : 'ERR'} outlook=${outlook.status} slack=${slackRefused.status} (want 400) noSession=${noSession.status} (want 401) leak=${secretLeak}, cloud org=${cloudStart.status}:${cloudUrl.searchParams.get('client_id')} (want itest-org-client), conn tenant=${connStart.status}:${connUrl.hostname}${connUrl.pathname.split('/oauth2')[0]} (want /itest-tenant), status=${statusOrg.success ? statusOrg.data.source : 'ERR'}→${statusEnv.success ? statusEnv.data.source : 'ERR'}, keepSecret=${updated.status}:${cloudUrl2.searchParams.get('client_id')}, fallback=${cloudUrl3.searchParams.get('client_id')} (want itest-google-client), audit=${audit.length} (want ≥3)`,
+  );
 }
 
 /**
@@ -24078,6 +24269,7 @@ async function main(): Promise<void> {
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTts(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkCloudImport(sql, baseUrl, authCtx);
+    await checkConnectorOauthApps(sql, baseUrl, authCtx);
     await checkOneDriveSync(sql, baseUrl, authCtx);
     await checkGoogleDriveSync(sql, baseUrl, authCtx);
     await checkWebsitesCrawl(sql, baseUrl, authCtx);

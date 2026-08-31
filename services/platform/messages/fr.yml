@@ -2301,6 +2301,16 @@ documents:
     noDrivesDescription: Ce site ne contient aucune bibliothèque de documents.
     siteUrl: URL du site
     driveType: Type
+  cloudImport:
+    appNotConfigured:
+      L'import depuis ce fournisseur n'est pas encore configuré. Demande à un
+      admin de ton organisation d'ajouter son app OAuth dans Paramètres >
+      Connectors.
+    appNotConfiguredAdmin:
+      L'import depuis ce fournisseur demande d'abord une app OAuth.
+      Configure-la dans Paramètres > Connectors > Apps OAuth, puis reviens te
+      connecter.
+    openConnectorSettings: Ouvrir les paramètres des connectors
   onedrive:
     importSettings: Paramètres d'importation
     settingsDescription:
@@ -5275,6 +5285,13 @@ settings:
       emptyBodyOauth:
         Connecte {connector} pour accorder l'accès à Tale, et ses actions
         deviennent disponibles dans les automatisations et le chat.
+      oauthAppMissing:
+        "{connector} n'a pas encore d'app OAuth pour se connecter. Demande à
+        un admin de ton organisation de la configurer dans Paramètres >
+        Connectors."
+      oauthAppMissingAdmin:
+        "{connector} n'a pas encore d'app OAuth pour se connecter. Configure-la
+        dans la section Apps OAuth ci-dessous, puis reviens te connecter."
     credential:
       disabled: Désactivé
       needsReauth: Reconnexion requise
@@ -5290,6 +5307,45 @@ settings:
       note:
         Le secret stocké n'est jamais affiché. En saisir un nouveau le remplace
         partout où cet identifiant est utilisé.
+    oauthApps:
+      title: Apps OAuth
+      description:
+        Les enregistrements d'app chez chaque fournisseur, contre lesquels les
+        membres de cette organisation accordent leur consentement quand ils
+        connectent un connector OAuth. Une app configurée ici prime sur celle
+        de l'environnement du déploiement.
+      onedriveTarget: OneDrive / SharePoint (import de connaissances)
+      statusOrg: App de l'organisation
+      statusEnv: App du déploiement
+      statusNone: Non configurée
+      orgClientId: 'ID client : {clientId}'
+      statusEnvDetail: Utilise l'app enregistrée dans l'environnement du déploiement.
+      statusNoneDetail: Aucune app nulle part — la connexion n'est pas encore possible.
+      configure: Configurer
+      remove: Retirer
+      removeTitle: Retirer l'app OAuth de {connector} ?
+      removeBody:
+        Les membres ne peuvent plus démarrer de nouvelles connexions avec cette
+        app ; celle de l'environnement du déploiement prend le relais, si elle
+        existe. Les connexions existantes continuent jusqu'à l'expiration de
+        leurs jetons.
+      removedToast: App OAuth retirée
+      savedToast: App OAuth enregistrée
+      dialogTitle: 'App OAuth : {connector}'
+      dialogDescription:
+        Colle l'ID client et le secret client depuis l'enregistrement d'app du
+        fournisseur. Tale chiffre le secret et ne l'affiche plus jamais.
+      clientIdLabel: ID client
+      clientSecretLabel: Secret client
+      clientSecretKeep: Laisser vide pour conserver le secret actuel.
+      tenantIdLabel: ID d'annuaire (tenant)
+      tenantIdHint:
+        Requis pour les enregistrements Microsoft mono-tenant ; laisse vide
+        pour les apps multi-tenant.
+      redirectUrisLabel: URI de redirection à enregistrer
+      redirectUrisHint:
+        Ajoute chacune de ces adresses à l'enregistrement d'app du fournisseur
+        avant de te connecter.
     dialog:
       apiKey: Clé API
       token: Jeton

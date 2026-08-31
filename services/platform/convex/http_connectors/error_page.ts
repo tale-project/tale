@@ -55,9 +55,9 @@ const ERROR_COPY: Record<ConnectorErrorKind, ErrorCopy> = {
     status: 502,
   },
   not_configured: {
-    title: 'This connector is not set up on this deployment',
+    title: 'This connector has no OAuth app yet',
     detail:
-      'An administrator needs to register this deployment with the provider before the connector can be connected. The server log names what is missing.',
+      'An organization admin can configure one under Settings > Connectors > OAuth apps, or an operator can register the deployment with the provider via environment variables. The server log names what is missing.',
     status: 503,
   },
   unsupported_connector: {

@@ -47,6 +47,8 @@ Zwei Felder, **Benutzername** und **Passwort**, gesendet als HTTP Basic. Das Paa
 
 Kein Secret zum Eintippen, der Einrichtungsschritt ist also allein die Übergabe: **Verbinden** bringt dich zum Freigabe-Dialog des Anbieters, und Tale legt ab, was zurückkommt — Access Token, Refresh Token, Ablauf und die erteilten Scopes — als neue Zeile. Gmail, Google Drive, Outlook, Teams und Slack verbinden sich so. Ein Connector, der beides akzeptiert, bietet beides an, mit **Verbinden** zuerst.
 
+**Verbinden** braucht ein Ziel: Für den Connector muss eine OAuth-App existieren — entweder für diese Organisation hinterlegt (siehe unten) oder in der Deployment-Umgebung registriert. Solange keine existiert, sagt der Dialog das, statt den Button anzubieten.
+
 </Tab>
 
 </Tabs>
@@ -80,6 +82,14 @@ Name, Standard-Kennzeichen und Instanz-URL überstehen den Wechsel, nachgelagert
 **Löschen** wirkt sofort und endgültig. Automationen und Chat-Aktionen, die diesen Eintrag verwenden, verlieren augenblicklich den Zugriff auf diesen Connector — eine Schonfrist gibt es nicht. Löschst du den Standard, bleibt der Connector ohne einen, bis du eine andere Zeile hochstufst; die Rückfrage weist darauf hin, bevor du bestätigst.
 
 </Warning>
+
+## OAuth-Apps einrichten
+
+Der Abschnitt **OAuth-Apps** unten auf der Seite — sichtbar für Admins und Inhaber — bestimmt, gegen welche App-Registrierung des Anbieters die Freigabe jedes OAuth-Connectors läuft. Eine hier hinterlegte App gehört dieser Organisation und hat Vorrang vor der deployment-weiten aus der Umgebung; ohne beides lässt sich der Connector nicht verbinden, und die Liste sagt **Nicht eingerichtet**.
+
+**Einrichten** nimmt Client-ID und Secret aus der App-Registrierung des Anbieters entgegen, bei einer Single-Tenant-Microsoft-App zusätzlich die Verzeichnis-ID (Tenant) — Tale autorisiert dann gegen diesen Tenant. Der Dialog listet die Redirect-URIs, die vor dem Verbinden beim Anbieter zu registrieren sind. Das Secret liegt verschlüsselt, wird nie wieder angezeigt, und ein späteres Bearbeiten darf das Feld leer lassen, um es zu behalten. **Entfernen** verwirft die App der Organisation; die des Deployments übernimmt, falls vorhanden, und bestehende Verbindungen laufen weiter, bis ihre Tokens ablaufen.
+
+Zwei Einträge reichen über diese Seite hinaus: Die **Google Drive**-App teilt sich mit dem Google-Drive-Import von Wissen (ein Google-OAuth-Client, beide Redirect-URIs), und **OneDrive / SharePoint (Wissens-Import)** existiert nur für diesen Import — er hat keinen eigenen Connector. Slack fehlt mit Absicht: Seine App bleibt in der Deployment-Umgebung, weil die Signaturprüfung eingehender Events läuft, bevor eine Organisation bekannt ist.
 
 ## Eine kaputte Autorisierung neu verbinden
 

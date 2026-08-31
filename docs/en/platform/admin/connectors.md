@@ -47,6 +47,8 @@ Two fields, **Username** and **Password**, sent as HTTP Basic. The pair is not a
 
 No secret to type, so the setup step is the hand-off alone: **Connect** takes you to the vendor's consent screen, and Tale stores what comes back — access token, refresh token, expiry, and the granted scopes — as a new credential row. Gmail, Google Drive, Outlook, Teams, and Slack all connect this way. A connector that accepts both a grant and a token offers both, with **Connect** first.
 
+**Connect** needs somewhere to send you: an OAuth app must exist for the connector, either configured for this organization (see below) or registered on the deployment environment. Until one exists, the dialog says so instead of offering the button.
+
 </Tab>
 
 </Tabs>
@@ -80,6 +82,14 @@ The credential keeps its name, its default flag, and its instance URL through a 
 **Delete** is immediate and final. Automations and chat actions using that credential lose access to this connector at once — there is no grace period. Deleting the default leaves the connector without one until another row is promoted, and the confirmation says so before you commit.
 
 </Warning>
+
+## Configuring OAuth apps
+
+The **OAuth apps** section at the bottom of the page — visible to admins and owners — decides which vendor app registration each OAuth connector's consent runs against. An app configured here belongs to this organization and overrides the deployment-wide one from the environment; with neither, that connector cannot be connected and the list says **Not configured**.
+
+**Configure** takes the client ID and secret from the vendor's app registration, and for a single-tenant Microsoft app the directory (tenant) ID — Tale then authorizes against that tenant. The dialog lists the exact redirect URIs to register on the vendor side before connecting. The secret is stored encrypted, is never shown again, and a later edit may leave the field blank to keep it. **Remove** drops the organization's app; the deployment's, if any, takes over, and existing connections keep working until their tokens expire.
+
+Two entries reach beyond this page: the **Google Drive** app is shared with Knowledge's Google Drive import (one Google OAuth client, both redirect URIs), and **OneDrive / SharePoint (Knowledge import)** exists only for that import — it has no connector of its own. Slack is absent on purpose: its app stays on the deployment environment, because inbound event verification runs before any organization is known.
 
 ## Reconnecting a broken authorization
 

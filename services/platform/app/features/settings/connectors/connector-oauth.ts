@@ -22,9 +22,7 @@ function authorizationUrl(
 ): string {
   const siteUrl = getEnv('SITE_URL');
   const basePath = getEnv('BASE_PATH');
-  const url = new URL(
-    `${siteUrl}${basePath}/http_api/api/connectors/oauth2/start`,
-  );
+  const url = new URL(`${siteUrl}${basePath}/api/connectors/oauth2/start`);
   url.searchParams.set('connector', connectorSlug);
   url.searchParams.set('organizationId', organizationId);
   return url.toString();

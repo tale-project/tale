@@ -47,6 +47,8 @@ Deux champs, **Nom d’utilisateur** et **Mot de passe**, envoyés en HTTP Basic
 
 Aucun secret à saisir, donc l’étape de configuration se réduit au passage de relais : **Connecter** te mène à l’écran de consentement du fournisseur, et Tale range ce qui revient — jeton d’accès, jeton de rafraîchissement, expiration et portées accordées — dans une nouvelle ligne. Gmail, Google Drive, Outlook, Teams et Slack se connectent ainsi. Un connecteur qui accepte les deux propose les deux, avec **Connecter** en premier.
 
+**Connecter** a besoin d’une destination : une app OAuth doit exister pour le connecteur — configurée pour cette organisation (voir plus bas) ou enregistrée dans l’environnement du déploiement. Tant qu’il n’y en a aucune, la boîte de dialogue le dit au lieu de proposer le bouton.
+
 </Tab>
 
 </Tabs>
@@ -80,6 +82,14 @@ L’identifiant garde son nom, son drapeau par défaut et son URL d’instance �
 **Supprimer** agit tout de suite et sans retour. Les automatisations et actions de chat qui utilisent cet identifiant perdent l’accès à ce connecteur sur-le-champ — il n’y a pas de délai de grâce. Supprimer celui par défaut laisse le connecteur sans défaut jusqu’à ce qu’une autre ligne soit promue, et la confirmation le dit avant que tu valides.
 
 </Warning>
+
+## Configurer les apps OAuth
+
+La section **Apps OAuth** en bas de page — visible pour les admins et les propriétaires — décide contre quel enregistrement d’app du fournisseur s’exécute le consentement de chaque connecteur OAuth. Une app configurée ici appartient à cette organisation et prime sur celle de l’environnement du déploiement ; sans ni l’une ni l’autre, le connecteur ne peut pas se connecter et la liste indique **Non configurée**.
+
+**Configurer** prend l’ID client et le secret de l’enregistrement d’app du fournisseur, et pour une app Microsoft mono-tenant l’ID d’annuaire (tenant) — Tale autorise alors contre ce tenant. La boîte de dialogue liste les URI de redirection exactes à enregistrer côté fournisseur avant de connecter. Le secret est chiffré, ne s’affiche plus jamais, et une modification ultérieure peut laisser le champ vide pour le conserver. **Retirer** supprime l’app de l’organisation ; celle du déploiement prend le relais, si elle existe, et les connexions existantes continuent jusqu’à l’expiration de leurs jetons.
+
+Deux entrées dépassent cette page : l’app **Google Drive** est partagée avec l’import Google Drive de Connaissances (un seul client OAuth Google, les deux URI de redirection), et **OneDrive / SharePoint (import de connaissances)** n’existe que pour cet import — il n’a pas de connecteur propre. Slack est absent à dessein : son app reste dans l’environnement du déploiement, parce que la vérification de signature des événements entrants s’exécute avant qu’aucune organisation ne soit connue.
 
 ## Reconnecter une autorisation cassée
 

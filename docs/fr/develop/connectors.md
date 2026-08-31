@@ -72,15 +72,22 @@ Les secrets sont chiffrés au repos dans une seule enveloppe et ne ressortent ja
 
 ## Enregistrer une application OAuth
 
-Un connecteur `oauth2` déclare les URL d’autorisation et de jeton du fournisseur ainsi que les portées qu’il demande, et le déploiement fournit l’application contre laquelle ces URL s’authentifient. Enregistre exactement ce callback comme URI de redirection autorisée côté fournisseur, construit à partir du `SITE_URL` du déploiement et de son éventuel préfixe `BASE_PATH` :
+Un connecteur `oauth2` déclare les URL d’autorisation et de jeton du fournisseur ainsi que les portées qu’il demande, et il faut bien une application contre laquelle ces URL s’authentifient. Deux sources existent, et la plus spécifique gagne :
+
+- **Par organisation** — un admin de l’organisation ouvre **Paramètres > Connectors** et, sous **Apps OAuth**, colle l’ID client et le secret de l’enregistrement d’app du fournisseur (plus l’ID d’annuaire pour une app Microsoft mono-tenant ; Tale autorise alors contre ce tenant au lieu de `/common`). Le secret est chiffré et ne s’affiche plus jamais. Sur un déploiement multi-organisations, c’est ce qui permet à chaque organisation d’apporter sa propre app.
+- **Par déploiement** — des variables d’environnement nommées par connecteur `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` et `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, le slug en majuscules et ses tirets changés en tirets bas. Elles restent la valeur par défaut du déploiement partout où une organisation n’a pas configuré sa propre app.
+
+Slack est l’exception : son app reste dans l’environnement (`CONNECTOR_OAUTH_SLACK_*` plus le secret de signature), parce que la vérification des événements entrants s’exécute avant qu’aucune organisation ne soit connue.
+
+Enregistre exactement ce callback comme URI de redirection autorisée côté fournisseur, construit à partir du `SITE_URL` du déploiement et de son éventuel préfixe `BASE_PATH` :
 
 ```text
 ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
 ```
 
-L’identifiant client et le secret de chaque connecteur viennent de l’environnement du déploiement, nommés par connecteur `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` et `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, le slug en majuscules et ses tirets changés en tirets bas. Quand `SITE_URL` n’est pas défini, le consentement refuse de démarrer au lieu de deviner une origine à partir de la requête.
+Quand `SITE_URL` n’est pas défini, le consentement refuse de démarrer au lieu de deviner une origine à partir de la requête.
 
-L’import personnel OneDrive / Google Drive pour Knowledge n’est **pas** un connector d’organisation — voir [Documents](/fr/platform/knowledge/documents) et l’URI cloud-import sous [Référence d’environnement](/fr/self-hosted/configuration/environment-reference).
+L’import personnel OneDrive / Google Drive pour Knowledge n’est **pas** un connector d’organisation — mais il résout son app OAuth de la même façon, et l’app **google-drive** est partagée entre les deux voies : un seul client OAuth Google, avec les deux URI de redirection enregistrées, sert le connecteur et l’import de connaissances. Voir [Documents](/fr/platform/knowledge/documents) et l’URI cloud-import sous [Référence d’environnement](/fr/self-hosted/configuration/environment-reference).
 
 <Warning>
 

@@ -82,7 +82,7 @@ Die Umgebungsvariablen-Schlüsselquelle braucht keinen Deployment-Schalter: Zuga
 
 ## Connector-OAuth-Apps
 
-OAuth-Connectoren (Gmail, Google Drive, Outlook, Teams, Slack, …) lesen ihre Vendor-App-Zugangsdaten nur aus der Umgebung. Pro Connector-Slug:
+OAuth-Connectoren (Gmail, Google Drive, Outlook, Teams, Slack, …) lösen ihre Vendor-App zuerst pro Organisation auf: Eine unter **Einstellungen > Connectors > OAuth-Apps** hinterlegte App gewinnt für diese Org. Die Umgebung liefert darunter den deployment-weiten Standard (und ist die einzige Quelle für Slack, dessen Event-Signaturprüfung läuft, bevor eine Org bekannt ist). Pro Connector-Slug:
 
 | Name                                   | Default | Beschreibung                                                                                                   |
 | -------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
@@ -93,7 +93,7 @@ Registriere `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` in der Vend
 
 ## Knowledge-Cloud-Import (Dokumente)
 
-Pro-Benutzer-Autorisierungen für OneDrive / Google Drive unter **Wissen → Dokumente** sind getrennt von Org-Connectors und vom Login. Registriere diese Redirect-URI in der Microsoft- (oder Google-)App:
+Pro-Benutzer-Autorisierungen für OneDrive / Google Drive unter **Wissen → Dokumente** sind getrennt von Org-Connectors und vom Login. Auch hier hat eine unter **Einstellungen > Connectors > OAuth-Apps** hinterlegte Org-App Vorrang — der **google-drive**-Eintrag wird mit der Connector-Bahn geteilt, **OneDrive / SharePoint (Wissens-Import)** hat einen eigenen Eintrag; die Ketten unten greifen überall dort, wo die Org keine hinterlegt hat. Registriere diese Redirect-URI in der Microsoft- (oder Google-)App:
 
 `${SITE_URL}${BASE_PATH}/api/cloud-import/oauth2/callback`
 

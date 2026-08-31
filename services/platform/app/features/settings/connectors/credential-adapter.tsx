@@ -14,6 +14,7 @@ import {
   type CredentialVendor,
 } from '@/app/features/settings/credentials/adapter';
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import type { StorableAuthMethodName } from '@/lib/shared/schemas/connectors';
 
@@ -214,7 +215,28 @@ function ConnectorConsent({
   vendor,
 }: CredentialConsentProps<ConnectorVendor>) {
   const { t } = useT('settings');
+  const ability = useAbility();
   if (!vendor.summary.authMethods.includes('oauth2')) return null;
+  // No app to consent against — say so here instead of sending the browser
+  // to the not-configured error page. Admins get pointed at the registry.
+  if (
+    vendor.summary.oauthApp !== undefined &&
+    !vendor.summary.oauthApp.configured
+  ) {
+    return (
+      <Stack gap={3} className="border-border rounded-lg border p-4">
+        <Text as="p" variant="muted" className="text-sm">
+          {ability.can('write', 'orgSettings')
+            ? t('connectors.card.oauthAppMissingAdmin', {
+                connector: vendor.displayName,
+              })
+            : t('connectors.card.oauthAppMissing', {
+                connector: vendor.displayName,
+              })}
+        </Text>
+      </Stack>
+    );
+  }
   return (
     <Stack gap={3} className="border-border rounded-lg border p-4">
       <Text as="p" variant="muted" className="text-sm">

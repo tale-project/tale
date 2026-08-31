@@ -32,7 +32,7 @@ export function MicrosoftReauthButton({
     const siteUrl = getEnv('SITE_URL');
     const basePath = getEnv('BASE_PATH');
     const startUrl = new URL(
-      `${siteUrl}${basePath}/http_api/api/cloud-import/oauth2/start`,
+      `${siteUrl}${basePath}/api/cloud-import/oauth2/start`,
     );
     startUrl.searchParams.set('provider', 'onedrive');
     startUrl.searchParams.set('organizationId', organizationId);

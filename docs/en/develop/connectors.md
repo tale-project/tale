@@ -72,15 +72,22 @@ Secrets are encrypted at rest in a single envelope and never travel back out to 
 
 ## Registering an OAuth app
 
-An `oauth2` connector declares the vendor's authorize and token URLs plus the scopes it requests, and the deployment supplies the app those URLs authenticate against. Register this exact callback as an allowed redirect URI on the vendor side, built from the deployment's `SITE_URL` and any `BASE_PATH` prefix:
+An `oauth2` connector declares the vendor's authorize and token URLs plus the scopes it requests, and something has to supply the app those URLs authenticate against. Two places can, and the more specific one wins:
+
+- **Per organization** — an org admin opens **Settings > Connectors** and, under **OAuth apps**, pastes the client ID and secret from the vendor registration (plus the directory ID for a single-tenant Microsoft app; Tale then authorizes against that tenant instead of `/common`). The secret is encrypted at rest and never shown again. On a multi-org deployment this is what lets each organization bring its own vendor app.
+- **Per deployment** — environment variables named per connector as `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` and `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, with the slug upper-cased and its dashes turned into underscores. They are the deployment-wide default wherever an organization has not configured its own app.
+
+Slack is the exception: its app stays environment-only (`CONNECTOR_OAUTH_SLACK_*` plus the signing secret), because inbound event verification runs before any organization is known.
+
+Register this exact callback as an allowed redirect URI on the vendor side, built from the deployment's `SITE_URL` and any `BASE_PATH` prefix:
 
 ```text
 ${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback
 ```
 
-The client ID and secret for each connector come from the deployment environment, named per connector as `CONNECTOR_OAUTH_<SLUG>_CLIENT_ID` and `CONNECTOR_OAUTH_<SLUG>_CLIENT_SECRET`, with the slug upper-cased and its dashes turned into underscores. When `SITE_URL` is unset the consent flow refuses to start rather than guessing an origin from the request.
+When `SITE_URL` is unset the consent flow refuses to start rather than guessing an origin from the request.
 
-Personal OneDrive / Google Drive import for Knowledge is **not** an org connector — see [Documents](/platform/knowledge/documents) and the cloud-import redirect under [Environment reference](/self-hosted/configuration/environment-reference).
+Personal OneDrive / Google Drive import for Knowledge is **not** an org connector — but it resolves its OAuth app the same way, and the **google-drive** app is shared between the two lanes: one Google OAuth client, with both redirect URIs registered, serves the connector and Knowledge import. See [Documents](/platform/knowledge/documents) and the cloud-import redirect under [Environment reference](/self-hosted/configuration/environment-reference).
 
 <Warning>
 

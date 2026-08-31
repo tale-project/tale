@@ -13,6 +13,11 @@ export interface CloudImportContract {
     args: { organizationId: string; provider: 'onedrive' | 'google-drive' };
     returns: null;
   };
+  'cloud_import/queries:getOauthAppStatus': {
+    kind: 'query';
+    args: { organizationId: string; provider: 'onedrive' | 'google-drive' };
+    returns: { configured: boolean; source: 'org' | 'env' | null };
+  };
   'cloud_import/queries:getAuthorizationStatus': {
     kind: 'query';
     args: { organizationId: string; provider: 'onedrive' | 'google-drive' };

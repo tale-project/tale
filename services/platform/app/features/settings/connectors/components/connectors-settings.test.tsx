@@ -50,6 +50,32 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
+// The OAuth-app registry card rides its own hook module; stubbed like the
+// rest — the registry's behaviour is covered by the backend integration
+// check, and the card is admin chrome around these calls.
+vi.mock('../hooks/oauth-apps', () => ({
+  useConnectorOauthApps: () => ({
+    data: [],
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
+  useOnedriveImportAppStatus: () => ({
+    data: { configured: false, source: null },
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
+  useUpsertConnectorOauthApp: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useRemoveConnectorOauthApp: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+}));
+
 vi.mock('../hooks/mutations', () => ({
   useCreateCredential: () => ({
     mutateAsync: createCredential,

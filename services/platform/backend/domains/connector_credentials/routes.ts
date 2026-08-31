@@ -3,10 +3,12 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { listConnectorSummaries } from '../../../convex/connector_credentials/connector_catalog.ts';
+import { resolveOauthAppCredentials } from '../../../convex/http_connectors/deployment_config.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { listOauthApps } from '../connectors/oauth-apps.ts';
 import {
   ConnectorCredentialError,
   createCredential,
@@ -73,12 +75,28 @@ export function createConnectorCredentialRoutes(deps: {
     return null;
   };
 
-  /** The connector CATALOG (settings rows) — pure file read; developer
-   * gate matching the 0.4 action. */
+  /** The connector CATALOG (settings rows) — the shipped file summaries,
+   * overlaid with each OAuth2 connector's app state (org row / deployment
+   * env / none) so the UI can gate Connect on it. Developer gate matching
+   * the 0.4 action. */
   app.get('/catalog', async (c) => {
     const denied = requireDeveloper(c);
     if (denied) return denied;
-    return c.json({ connectors: listConnectorSummaries() });
+    const orgAppSlugs = new Set(
+      (await listOauthApps(deps.sql, c.get('orgId'))).map((row) => row.slug),
+    );
+    const connectors = listConnectorSummaries().map((summary) => {
+      if (!summary.authMethods.includes('oauth2')) return summary;
+      const source = orgAppSlugs.has(summary.slug)
+        ? ('org' as const)
+        : resolveOauthAppCredentials(summary.slug) !== null
+          ? ('env' as const)
+          : null;
+      return Object.assign({}, summary, {
+        oauthApp: { configured: source !== null, source },
+      });
+    });
+    return c.json({ connectors });
   });
 
   app.get('/', async (c) => {

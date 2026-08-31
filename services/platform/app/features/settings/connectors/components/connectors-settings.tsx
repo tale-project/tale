@@ -18,6 +18,7 @@ import {
   connectorCredentialAdapter,
 } from '../credential-adapter';
 import { useConnectorCredentials, useConnectors } from '../hooks/queries';
+import { OauthAppsCard } from './oauth-apps-card';
 
 /**
  * The connectors settings page: every credential the organization holds for a
@@ -116,6 +117,15 @@ export function ConnectorsSettings({
           }}
         />
       </SettingsSection>
+
+      {/* Where consent goes is org security config — admin/owner only,
+          like SSO; developers keep the credential table above. */}
+      {ability.can('write', 'orgSettings') && (
+        <OauthAppsCard
+          organizationId={organizationId}
+          connectors={connectorsQuery.data ?? []}
+        />
+      )}
     </SettingsPage>
   );
 }

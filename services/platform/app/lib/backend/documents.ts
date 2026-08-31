@@ -356,6 +356,19 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.documents),
     };
   },
+  'cloud_import/queries:getOauthAppStatus': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const provider = args.provider;
+    if (orgId === undefined || typeof provider !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'cloud_oauth_app', 'status', provider),
+      queryFn: () =>
+        backendFetch<{ configured: boolean; source: 'org' | 'env' | null }>(
+          `/cloud-import/oauth-app-status?provider=${encodeURIComponent(provider)}`,
+          { orgId },
+        ),
+    };
+  },
   'cloud_import/queries:getAuthorizationStatus': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const provider = args.provider;
