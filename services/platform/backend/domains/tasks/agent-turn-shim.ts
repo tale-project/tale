@@ -4,9 +4,13 @@ import type { Sql } from 'postgres';
 import { readSkillBundleForViewer } from '../../../convex/skills/file_actions.ts';
 import { isAutoRetryableFailure } from '../../../convex/tasks/task_auto_retry.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { isFilePolicyType } from '../../../lib/shared/schemas/governance';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/convex-shim.ts';
+import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { orgAdapterShimHandlers } from '../knowledge/service.ts';
+import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import {
   reserveSessionSlot,
   resumeSessionSlot,
@@ -46,6 +50,28 @@ function quotaAsAppError(error: unknown): never {
 export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
   return {
     ...sandboxToolShimHandlers(sql),
+
+    // The vision-model resolution seam: `resolveTurnVisionModel` (the turn
+    // start's gateway mint) walks org slug → provider default credentials →
+    // the `vision_model` policy pin, all over ctx.runQuery. None of these
+    // families were shimmed, so EVERY 0.5 task/automation agent turn
+    // resolved vision as null — the resolver's catch turned the un-shimmed
+    // throw into "text-only", and an image the agent then Read 404'd a
+    // text-only serving model with no polyfill to catch it.
+    ...credentialShimHandlers(sql),
+    ...orgAdapterShimHandlers(sql),
+    'governance/internal_queries:getPolicyConfigInternal': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the reused 0.4 caller passes exactly this shape
+      const args = raw as { organizationId: string; policyType: string };
+      // An unknown policy type reads as "no policy configured" — the 0.4
+      // internal query answered null for an absent file the same way.
+      if (!isFilePolicyType(args.policyType)) return null;
+      return readGovernancePolicyForOrg(
+        sql,
+        args.organizationId,
+        args.policyType,
+      );
+    },
 
     // ------------------------------------------------------- the run ledger
     'tasks/agent_runs:getTaskAgentRunForDrive': async (raw) => {

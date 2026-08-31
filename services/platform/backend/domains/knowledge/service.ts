@@ -162,13 +162,13 @@ async function filterRetrievableRagFileIds(
 }
 
 /**
- * The handler map the reused 0.4 knowledge modules dispatch through —
- * exported so the chat lane's wider shim can spread it (the chat tools
- * call `searchKnowledge`/`fetchDocumentByFileId` on the SAME ctx).
+ * The betterAuth org-adapter read (`orgSlugFromId`'s one component ref) —
+ * its own factory because every reused module that resolves an org's
+ * on-disk provider tree needs it: knowledge embedding here, and the agent
+ * lanes' vision-model resolution on the task shim.
  */
-export function knowledgeShimHandlers(sql: Sql): ShimHandlers {
+export function orgAdapterShimHandlers(sql: Sql): ShimHandlers {
   return {
-    ...credentialShimHandlers(sql),
     [ADAPTER_FIND_ONE]: async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: adapter.findOne's argument shape
       const { model, where } = raw as {
@@ -193,6 +193,18 @@ export function knowledgeShimHandlers(sql: Sql): ShimHandlers {
       const row = rows[0];
       return row ? { _id: row.id, slug: row.slug ?? undefined } : null;
     },
+  };
+}
+
+/**
+ * The handler map the reused 0.4 knowledge modules dispatch through —
+ * exported so the chat lane's wider shim can spread it (the chat tools
+ * call `searchKnowledge`/`fetchDocumentByFileId` on the SAME ctx).
+ */
+export function knowledgeShimHandlers(sql: Sql): ShimHandlers {
+  return {
+    ...credentialShimHandlers(sql),
+    ...orgAdapterShimHandlers(sql),
     [FILTER_RETRIEVABLE]: async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the reused fetch/search callers pass exactly this shape
       const args = raw as {
