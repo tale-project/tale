@@ -15,15 +15,10 @@ import {
 } from '../sandbox/sessions.ts';
 import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
 import { kickAgentRun } from './agent-runs.ts';
-import { closePendingTaskReviewOnStatusLeave } from './reviews.ts';
 import {
   agentRecordTaskOutputsTrusted,
   agentUpdateTaskStatusTrusted,
-  applyTaskCountTransition,
-  computeEndRank,
-  loadTaskOrThrow,
-  recordActivity,
-  taskCountBucket,
+  handTaskToInProgressForKick,
   type TaskStatus,
 } from './service.ts';
 
@@ -290,46 +285,14 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         });
         if (result.reused) return result;
         // The mention kick moves the card too (the 0.4 shared-core rule: the
-        // board verb IS the interface). The settled predecessor parked the
-        // task at `in_review` — left there, a fresh run grinds behind a card
-        // that reads "waiting on review", and the pending review gate it
-        // minted must be withdrawn on the way out (every leave closes it).
-        // Attributed to the comment's author: the kick is their gesture,
-        // delivered late. Mirrors the review hand-back's write shape.
-        const fresh = await loadTaskOrThrow(tx, args.taskId);
-        if (fresh.status !== 'in_progress') {
-          await closePendingTaskReviewOnStatusLeave(tx, {
-            task: fresh,
-            toStatus: 'in_progress',
-            actor: { kind: 'user', userId: args.authorId },
-          });
-          const now = Date.now();
-          const rank = await computeEndRank(tx, fresh.projectId, 'in_progress');
-          await tx`
-            UPDATE app.tasks SET
-              status = 'in_progress', rank = ${rank},
-              completed_at_ms = NULL,
-              status_changed_at_ms = ${now}, updated_at_ms = ${now}
-            WHERE id = ${fresh.id}
-          `;
-          await applyTaskCountTransition(
-            tx,
-            fresh.projectId,
-            taskCountBucket(fresh),
-            taskCountBucket({
-              status: 'in_progress',
-              archivedAt: fresh.archivedAt,
-            }),
-          );
-          await recordActivity(tx, {
-            task: fresh,
-            actorType: 'user',
-            actorId: args.authorId,
-            action: 'status.changed',
-            fromValue: fresh.status,
-            toValue: 'in_progress',
-          });
-        }
+        // board verb IS the interface): the settled predecessor parked the
+        // task at `in_review`, and left there a fresh run grinds behind a
+        // card that reads "waiting on review". Attributed to the comment's
+        // author — the kick is their gesture, delivered late.
+        await handTaskToInProgressForKick(tx, {
+          taskId: args.taskId,
+          userId: args.authorId,
+        });
         return result;
       });
       // A reused live run means another turn is already carrying this work;
