@@ -111,6 +111,34 @@ export interface ConnectorCredentialsContract {
     args: { organizationId: string; slug: string };
     returns: null;
   };
+  /** Whether Enterprise SSO carries an Entra ID registration the Microsoft
+   * 365 import app could reuse — client id / tenant / the Entra-side
+   * checklist facts, never the secret. Admin-gated like the SSO reveal. */
+  'connector_oauth_apps/queries:entraSsoSource': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: {
+      available: boolean;
+      reason?: 'no_sso' | 'not_entra' | 'missing_credentials' | 'bad_issuer';
+      clientId?: string;
+      tenantId?: string;
+      redirectUri?: string | null;
+      scopes?: string[];
+    };
+  };
+  /** Copy the Enterprise SSO Entra registration into the org's app for
+   * `slug` (today: `onedrive` only) — the secret moves server-side only. */
+  'connector_oauth_apps/actions:reuseSso': {
+    kind: 'action';
+    args: { organizationId: string; slug: string };
+    returns: {
+      slug: string;
+      clientId: string;
+      maskedPreview: string | null;
+      tenantId: string | null;
+      updatedAtMs: number;
+    };
+  };
   'connector_credentials/mutations:deleteCredential': {
     kind: 'mutation';
     args: { organizationId: string; credentialId: string };

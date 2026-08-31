@@ -5371,6 +5371,18 @@ settings:
       redirectUrisLabel: Redirect URIs to register
       redirectUrisHint:
         Add each of these to the vendor app registration before connecting.
+      reuseSso: Use Entra ID SSO app
+      reuseSsoTitle: Reuse the Entra ID SSO app registration
+      reuseSsoBody:
+        Your organization signs in with Microsoft Entra ID. This copies that
+        app registration's client ID and secret into the Microsoft 365
+        import app — if you rotate the SSO client secret later, copy it
+        again here.
+      reuseSsoChecklist: Before members can connect, add to this app registration in Entra
+      reuseSsoRedirectItem: A "Web" redirect URI
+      reuseSsoScopesItem: Delegated Microsoft Graph permissions
+      reuseSsoConfirm: Copy from SSO
+      reuseSsoDoneToast: Microsoft 365 import now uses the Entra ID SSO app
     dialog:
       apiKey: API key
       token: Token

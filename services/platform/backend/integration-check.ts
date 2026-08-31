@@ -12747,6 +12747,184 @@ async function checkConnectorOauthApps(
 }
 
 /**
+ * The Enterprise-SSO reuse lane for the Microsoft 365 import app: without an
+ * Entra connection the probe reports nothing to reuse and the copy refuses as
+ * a state conflict; with one (files seeded the way the SSO checks seed them)
+ * the probe serves the client id / tenant / Entra checklist WITHOUT the
+ * secret, the copy writes the org row server-side (audited as copied from
+ * enterprise-sso), and the cloud-import consent then runs on the copied
+ * registration — tenant-pinned authorize URL, SSO client id, Graph scopes.
+ */
+async function checkOauthAppSsoReuse(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const { serializeSsoConnectionYaml, resolveSsoDir } =
+    await import('../convex/enterprise_sso/file_utils.ts');
+  const savedSiteUrl = process.env.SITE_URL;
+  process.env.SITE_URL = base;
+
+  const tenant = '11111111-2222-4333-8444-555555555555';
+  const probeUrl = `${base}/api/app/connector-oauth-apps/entra-sso-source?orgId=${orgId}`;
+  const reuseUrl = (slug: string) =>
+    `${base}/api/app/connector-oauth-apps/${slug}/reuse-sso?orgId=${orgId}`;
+  const ssoDir = resolveSsoDir(orgSlug);
+
+  try {
+    // Baseline (this runs before any SSO check seeds connection files):
+    // nothing to reuse, and the copy refuses as a state conflict.
+    const probeNone = z
+      .object({ available: z.boolean(), reason: z.string().optional() })
+      .safeParse(
+        await (
+          await fetch(probeUrl, { headers: { cookie, origin: base } })
+        ).json(),
+      );
+    const reuseNone = await fetch(reuseUrl('onedrive'), {
+      method: 'POST',
+      headers: { cookie, origin: base },
+    });
+
+    await mkdir(ssoDir, { recursive: true });
+    await writeFile(
+      path.join(ssoDir, 'connection.yml'),
+      serializeSsoConnectionYaml({
+        enabled: true,
+        protocol: 'oidc',
+        displayName: 'Itest Entra',
+        oidc: {
+          providerId: 'entra-id',
+          issuer: `https://login.microsoftonline.com/${tenant}/v2.0`,
+          scopes: ['openid', 'profile', 'email', 'offline_access'],
+          pkce: true,
+        },
+        provisioning: {
+          autoProvisionRole: false,
+          defaultRole: 'member',
+          roleMappingRules: [],
+          autoProvisionTeam: false,
+          excludeGroups: [],
+        },
+      }),
+    );
+    await writeFile(
+      path.join(ssoDir, 'connection.secrets.json'),
+      JSON.stringify({
+        clientId: 'itest-sso-client',
+        clientSecret: 'itest-sso-secret-value',
+      }),
+    );
+
+    const probeRaw = await (
+      await fetch(probeUrl, { headers: { cookie, origin: base } })
+    ).text();
+    const probe = z
+      .object({
+        available: z.boolean(),
+        clientId: z.string().optional(),
+        tenantId: z.string().optional(),
+        redirectUri: z.string().nullable().optional(),
+        scopes: z.array(z.string()).optional(),
+      })
+      .safeParse(JSON.parse(probeRaw));
+    const probeLeak = probeRaw.includes('itest-sso-secret-value');
+    const probeNoSession = await fetch(probeUrl, {
+      headers: { origin: base },
+    });
+    const reuseWrongSlug = await fetch(reuseUrl('google-drive'), {
+      method: 'POST',
+      headers: { cookie, origin: base },
+    });
+
+    const reuseResponse = await fetch(reuseUrl('onedrive'), {
+      method: 'POST',
+      headers: { cookie, origin: base },
+    });
+    const reuseRaw = await reuseResponse.text();
+    const reused = z
+      .looseObject({
+        slug: z.string(),
+        clientId: z.string(),
+        maskedPreview: z.string().nullable(),
+        tenantId: z.string().nullable(),
+      })
+      .safeParse(JSON.parse(reuseRaw));
+    const reuseLeak = reuseRaw.includes('itest-sso-secret-value');
+
+    // The copied registration drives the Knowledge import consent.
+    const start = await fetch(
+      `${base}/api/cloud-import/oauth2/start?provider=onedrive&organizationId=${orgId}`,
+      { headers: { cookie, origin: base }, redirect: 'manual' },
+    );
+    const startUrl = new URL(
+      start.headers.get('location') ?? 'https://x.invalid/',
+    );
+
+    const audit = await sql<{ copiedFrom: string | null }[]>`
+      SELECT new_state->>'copiedFrom' AS "copiedFrom" FROM app.audit_logs
+      WHERE org_id = ${orgId} AND resource_type = 'connector_oauth_app'
+        AND action = 'connector_oauth_app_configure'
+      ORDER BY ts DESC LIMIT 1
+    `;
+
+    // Drop the copied row again — later checks resolve cloud-import apps
+    // from the deployment env and must not meet an org row.
+    const removed = await fetch(
+      `${base}/api/app/connector-oauth-apps/onedrive?orgId=${orgId}`,
+      { method: 'DELETE', headers: { cookie, origin: base } },
+    );
+    // The start above minted a pending state row; later checks count that
+    // table.
+    await sql`DELETE FROM app.cloud_import_oauth_states WHERE org_id = ${orgId}`;
+
+    record(
+      'oauth app reuses the Entra SSO registration (probe → copy → consent)',
+      probeNone.success &&
+        !probeNone.data.available &&
+        probeNone.data.reason === 'no_sso' &&
+        reuseNone.status === 409 &&
+        probe.success &&
+        probe.data.available &&
+        probe.data.clientId === 'itest-sso-client' &&
+        probe.data.tenantId === tenant &&
+        (probe.data.redirectUri ?? '').startsWith(base) &&
+        (probe.data.redirectUri ?? '').endsWith(
+          '/api/cloud-import/oauth2/callback',
+        ) &&
+        (probe.data.scopes ?? []).includes('Files.Read') &&
+        !probeLeak &&
+        probeNoSession.status === 401 &&
+        reuseWrongSlug.status === 400 &&
+        reuseResponse.status === 200 &&
+        reused.success &&
+        reused.data.slug === 'onedrive' &&
+        reused.data.clientId === 'itest-sso-client' &&
+        reused.data.tenantId === tenant &&
+        (reused.data.maskedPreview ?? '').includes('…') &&
+        !reuseLeak &&
+        start.status === 302 &&
+        startUrl.hostname === 'login.microsoftonline.com' &&
+        startUrl.pathname.startsWith(`/${tenant}/`) &&
+        startUrl.searchParams.get('client_id') === 'itest-sso-client' &&
+        (startUrl.searchParams.get('scope') ?? '').includes('Files.Read') &&
+        audit[0]?.copiedFrom === 'enterprise-sso' &&
+        removed.status === 200,
+      `probeNone=${probeNone.success ? `${probeNone.data.available}/${probeNone.data.reason}` : 'ERR'} (want false/no_sso) reuseNone=${reuseNone.status} (want 409), probe=${probe.success ? `${probe.data.available}:${probe.data.clientId}@${probe.data.tenantId}` : 'ERR'} redirect=${probe.success ? probe.data.redirectUri : 'ERR'} scopes=${probe.success ? probe.data.scopes?.length : 'ERR'} leak=${probeLeak}, noSession=${probeNoSession.status} (want 401) wrongSlug=${reuseWrongSlug.status} (want 400), copy=${reuseResponse.status}:${reused.success ? `${reused.data.clientId}/${reused.data.maskedPreview}@${reused.data.tenantId}` : 'ERR'} leak=${reuseLeak}, start=${start.status}:${startUrl.hostname}${startUrl.pathname.split('/oauth2')[0]} client=${startUrl.searchParams.get('client_id')}, audit=${audit[0]?.copiedFrom ?? 'none'} (want enterprise-sso), removed=${removed.status}`,
+    );
+  } finally {
+    // Leave no SSO connection behind — the login/discovery checks between
+    // here and the SSO suite assume none exists yet.
+    await rm(path.join(ssoDir, 'connection.yml'), { force: true });
+    await rm(path.join(ssoDir, 'connection.secrets.json'), { force: true });
+    if (savedSiteUrl === undefined) delete process.env.SITE_URL;
+    else process.env.SITE_URL = savedSiteUrl;
+  }
+}
+
+/**
  * Cloud-import grants: the OAuth start door (PKCE + hashed one-shot state,
  * knowledgeWrite-gated), state consume semantics, and the sealed grant
  * lifecycle — store → resolve (fresh), expiry without a refresh token →
@@ -24420,6 +24598,7 @@ async function main(): Promise<void> {
     await checkTts(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkCloudImport(sql, baseUrl, authCtx);
     await checkConnectorOauthApps(sql, baseUrl, authCtx);
+    await checkOauthAppSsoReuse(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkOneDriveSync(sql, baseUrl, authCtx);
     await checkGoogleDriveSync(sql, baseUrl, authCtx);
     await checkWebsitesCrawl(sql, baseUrl, authCtx);

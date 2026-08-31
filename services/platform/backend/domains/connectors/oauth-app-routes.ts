@@ -2,6 +2,8 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { resolveCloudImportOauthRedirectUri } from '../../../convex/cloud_import/deployment_config.ts';
+import { MICROSOFT_CLOUD_IMPORT_SCOPES } from '../../../convex/cloud_import/providers.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -15,6 +17,7 @@ import {
   type OauthAppActor,
 } from './oauth-apps.ts';
 import { readOauth2Endpoints } from './oauth.ts';
+import { resolveEntraSsoSource } from './sso-reuse.ts';
 
 /**
  * /api/app/connector-oauth-apps — the org-level OAuth app registry
@@ -63,6 +66,75 @@ export function createConnectorOauthAppRoutes(deps: {
 
   app.get('/', async (c) => {
     return c.json({ apps: await listOauthApps(deps.sql, c.get('orgId')) });
+  });
+
+  /** Whether the org's Enterprise SSO carries an Entra ID registration the
+   * Microsoft 365 import app could reuse — the settings card's probe. Admin
+   * gate matches the SSO client-id reveal: this serves the SSO app's client
+   * id and tenant (never the secret) plus the Entra-side checklist facts. */
+  app.get('/entra-sso-source', async (c) => {
+    const denied = requireSettingsWrite(c);
+    if (denied) return denied;
+    const source = await resolveEntraSsoSource(deps.sql, c.get('orgId'));
+    if (!source.ok) {
+      return c.json({ available: false, reason: source.reason });
+    }
+    return c.json({
+      available: true,
+      clientId: source.clientId,
+      tenantId: source.tenantId,
+      redirectUri: resolveCloudImportOauthRedirectUri(),
+      scopes: [...MICROSOFT_CLOUD_IMPORT_SCOPES],
+    });
+  });
+
+  /** Copy the Enterprise SSO Entra registration into the org's Microsoft 365
+   * import app — server-side, so the secret never rides through a browser.
+   * The client sends no body; everything is re-derived from the SSO files. */
+  app.post('/:slug/reuse-sso', async (c) => {
+    const denied = requireSettingsWrite(c);
+    if (denied) return denied;
+    const slug = c.req.param('slug');
+    if (slug !== CLOUD_IMPORT_APP_SLUGS.onedrive) {
+      return c.json(
+        {
+          error:
+            'Only the Microsoft 365 import app can reuse the SSO registration.',
+        },
+        400,
+      );
+    }
+    const source = await resolveEntraSsoSource(deps.sql, c.get('orgId'));
+    if (!source.ok) {
+      // The button is hidden when the probe says unavailable, so this is a
+      // race (SSO reconfigured since) — a state conflict, not a bad request.
+      return c.json(
+        {
+          error:
+            'Enterprise SSO has no Microsoft Entra ID registration to reuse.',
+          code: 'sso_not_reusable',
+          reason: source.reason,
+        },
+        409,
+      );
+    }
+    try {
+      const view = await upsertOauthApp(deps.sql, {
+        organizationId: c.get('orgId'),
+        slug,
+        clientId: source.clientId,
+        clientSecret: source.clientSecret,
+        tenantId: source.tenantId,
+        actor: actor(c),
+        copiedFrom: 'enterprise-sso',
+      });
+      return c.json(view);
+    } catch (error) {
+      if (error instanceof OauthAppError) {
+        return c.json({ error: error.message, code: error.code }, error.status);
+      }
+      throw error;
+    }
   });
 
   app.put('/:slug', async (c) => {

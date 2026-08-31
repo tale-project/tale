@@ -161,6 +161,9 @@ export async function upsertOauthApp(
     clientSecret?: string;
     tenantId?: string;
     actor: OauthAppActor;
+    /** Audit marker for credentials copied from another surface rather than
+     * typed in — today only the Enterprise SSO reuse flow. */
+    copiedFrom?: 'enterprise-sso';
   },
 ): Promise<OauthAppView> {
   const clientId = args.clientId.trim();
@@ -217,7 +220,12 @@ export async function upsertOauthApp(
     args.actor,
     'connector_oauth_app_configure',
     args.slug,
-    { slug: args.slug, clientId, ...(tenantId ? { tenantId } : {}) },
+    {
+      slug: args.slug,
+      clientId,
+      ...(tenantId ? { tenantId } : {}),
+      ...(args.copiedFrom ? { copiedFrom: args.copiedFrom } : {}),
+    },
   );
   return toView(row);
 }

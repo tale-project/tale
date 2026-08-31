@@ -5346,6 +5346,18 @@ settings:
       redirectUrisHint:
         Ajoute chacune de ces adresses à l'enregistrement d'app du fournisseur
         avant de te connecter.
+      reuseSso: Utiliser l'app SSO Entra ID
+      reuseSsoTitle: Réutiliser l'enregistrement d'app du SSO Entra ID
+      reuseSsoBody:
+        Ton organisation se connecte avec Microsoft Entra ID. Cette action
+        copie l'ID client et le secret client de cet enregistrement d'app
+        vers l'app d'import Microsoft 365 — si tu renouvelles le secret du
+        SSO plus tard, copie-le à nouveau ici.
+      reuseSsoChecklist: Avant que les membres se connectent, ajoute à cet enregistrement d'app dans Entra
+      reuseSsoRedirectItem: Une URI de redirection de type "Web"
+      reuseSsoScopesItem: Des autorisations déléguées Microsoft Graph
+      reuseSsoConfirm: Copier depuis le SSO
+      reuseSsoDoneToast: L'import Microsoft 365 utilise maintenant l'app SSO Entra ID
     dialog:
       apiKey: Clé API
       token: Jeton

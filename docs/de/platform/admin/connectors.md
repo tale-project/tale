@@ -91,6 +91,8 @@ Der Abschnitt **OAuth-Apps** unten auf der Seite — sichtbar für Admins und In
 
 Zwei Einträge reichen über diese Seite hinaus: Die **Google Drive**-App teilt sich mit dem Google-Drive-Import von Wissen (ein Google-OAuth-Client, beide Redirect-URIs), und **OneDrive / SharePoint (Wissens-Import)** existiert nur für diesen Import — er hat keinen eigenen Connector. Slack fehlt mit Absicht: Seine App bleibt in der Deployment-Umgebung, weil die Signaturprüfung eingehender Events läuft, bevor eine Organisation bekannt ist.
 
+Meldet sich deine Organisation über Microsoft Entra ID an, kennt Tale die App-Registrierung bereits — die Zeile **OneDrive / SharePoint (Wissens-Import)** bietet dann zusätzlich **Entra-ID-App aus SSO übernehmen**. Das kopiert Client-ID und Secret der SSO-Registrierung serverseitig in diesen Eintrag — das Secret durchläuft nie den Browser — und der Bestätigungsdialog listet, was dieser Registrierung in Entra noch fehlt, bevor Mitglieder verbinden können: die Import-Redirect-URI als „Web"-URI und die delegierten Microsoft-Graph-Berechtigungen. Die Kopie ist bewusst einmalig; tauschst du das SSO-Secret später aus, kopierst du es hier erneut.
+
 ## Eine kaputte Autorisierung neu verbinden
 
 Ein OAuth-Eintrag, dessen gespeicherte Autorisierung abgelaufen ist oder widerrufen wurde, zeigt **Neu verbinden nötig** samt Grund. Das ist der Befund der Plattform und nicht die Entscheidung eines Admins, deshalb liest es sich anders als ein Eintrag, den jemand von Hand deaktiviert hat: an der Zeile ist nichts falsch, der Anbieter erkennt die Freigabe nur nicht mehr an.
