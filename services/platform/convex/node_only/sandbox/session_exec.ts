@@ -497,7 +497,7 @@ export async function harvestSessionOutput(
     }
     files.push({
       path: absPath,
-      storageId: String(storageId),
+      storageId,
       size: buf.byteLength,
       contentType,
     });

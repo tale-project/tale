@@ -1,7 +1,5 @@
-import { v } from 'convex/values';
-
 /**
- * Soft-delete lifecycle states. Mirrors the existing `threadStatusValidator`
+ * Soft-delete lifecycle states. Mirrors the thread-status
  * shape (active/trashed/expired/deleted) so retention's two-pass
  * grace-window machinery is uniform across tables.
  *
@@ -20,13 +18,6 @@ export const SOFT_DELETE_STATUSES = [
 ] as const;
 
 export type SoftDeleteStatus = (typeof SOFT_DELETE_STATUSES)[number];
-
-export const lifecycleStatusValidator = v.union(
-  v.literal('active'),
-  v.literal('trashed'),
-  v.literal('expired'),
-  v.literal('deleted'),
-);
 
 /**
  * Resource types that participate in the soft-delete + grace + restore
@@ -56,7 +47,3 @@ export const SOFT_DELETE_RESOURCE_TYPES = [
 
 export type SoftDeleteResourceType =
   (typeof SOFT_DELETE_RESOURCE_TYPES)[number];
-
-export const softDeleteResourceTypeValidator = v.union(
-  ...SOFT_DELETE_RESOURCE_TYPES.map((t) => v.literal(t)),
-);

@@ -15,12 +15,10 @@ export {
   type ProjectAccessResult,
 } from '../projects/access';
 
-import { type Infer } from 'convex/values';
-
 import { AppError } from '../../lib/shared/errors/app-error';
-import type { taskAssigneeTypeValidator } from './schema';
+import type { TaskAssigneeType } from './types';
 
-type TaskActorType = Infer<typeof taskAssigneeTypeValidator>;
+type TaskActorType = TaskAssigneeType;
 
 /** Shape of a task as far as claim/assign logic cares (DB-agnostic). */
 interface TaskAssignableInput {

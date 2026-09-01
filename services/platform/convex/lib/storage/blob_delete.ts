@@ -31,14 +31,14 @@ export async function deleteBlobInMutation(
 ): Promise<void> {
   const convexId = convexStorageId(ref);
   if (convexId === null) {
-    s3Refs.push(String(ref));
+    s3Refs.push(ref);
     return;
   }
   try {
     await ctx.storage.delete(convexId);
   } catch (err) {
     console.warn(
-      `[${label}] storage.delete failed for ${String(ref)}:`,
+      `[${label}] storage.delete failed for ${ref}:`,
       err instanceof Error ? err.message : err,
     );
   }

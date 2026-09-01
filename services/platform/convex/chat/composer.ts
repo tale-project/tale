@@ -20,58 +20,46 @@
  * custom connectors is filesystem work.
  */
 
-import { v, type Infer } from 'convex/values';
-
 import { walkChatCatalog } from '../lib/providers/chat_catalog';
+
 /** The forced-execution constraints a subscription credential carries. */
-const executionConstraintsValidator = v.object({
-  execution: v.literal('sandbox'),
-  harness: v.string(),
-});
+interface ExecutionConstraints {
+  execution: 'sandbox';
+  harness: string;
+}
 
 /**
  * The credential facts execution resolution reads, mirroring
  * {@link CredentialAuth}: the plain methods carry only their name; the
  * subscription methods carry the harness they are bound to.
  */
-const credentialAuthValidator = v.union(
-  v.object({ authMethod: v.literal('api-key') }),
-  v.object({ authMethod: v.literal('env') }),
-  v.object({
-    authMethod: v.literal('subscription-key'),
-    constraints: executionConstraintsValidator,
-  }),
-  v.object({
-    authMethod: v.literal('subscription-broker'),
-    constraints: executionConstraintsValidator,
-  }),
-);
+type ComposerCredentialAuth =
+  | { authMethod: 'api-key' }
+  | { authMethod: 'env' }
+  | { authMethod: 'subscription-key'; constraints: ExecutionConstraints }
+  | { authMethod: 'subscription-broker'; constraints: ExecutionConstraints };
 
-const composerModelOptionValidator = v.object({
-  id: v.string(),
-  label: v.string(),
-  providerSlug: v.string(),
+interface ComposerModelOption {
+  id: string;
+  label: string;
+  providerSlug: string;
   /** The provider's human name (`displayName` in its yml) — pickers show it
    * next to each model so two providers serving the same id are tellable
    * apart. */
-  providerLabel: v.string(),
-  credential: credentialAuthValidator,
+  providerLabel: string;
+  credential: ComposerCredentialAuth;
   /** Present when the model's reasoning depth is controllable — the effort
    * picker renders only for these. `toolsRequireOff` marks a model whose
    * endpoint refuses tools+effort together: the picker offers no levels and
    * says why (the resolver sends the catalog's off value regardless). */
-  reasoning: v.optional(
-    v.object({
-      knob: v.union(v.literal('effort'), v.literal('budget-tokens')),
-      toolsRequireOff: v.optional(v.boolean()),
-    }),
-  ),
+  reasoning?: {
+    knob: 'effort' | 'budget-tokens';
+    toolsRequireOff?: boolean;
+  };
   /** The model can see images (catalog `vision` tag) — the composer warns
    * when attachments are staged for a model without it. */
-  vision: v.optional(v.boolean()),
-});
-
-type ComposerModelOption = Infer<typeof composerModelOptionValidator>;
+  vision?: boolean;
+}
 /**
  * The per-hit projection behind the model picker — pure, so the 0.5 backend
  * runs it over its own catalog walk. Keyed by (provider, id), first-wins per

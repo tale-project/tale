@@ -7,12 +7,12 @@ import {
   DEFAULT_SANDBOX_QUOTA,
   type SessionBudget,
 } from '../../../convex/sandbox/quota_policy.ts';
-import { sessionIdForWorkflowExecution } from '../../../convex/sandbox/session_naming.ts';
 import {
   SANDBOX_MAX_SESSIONS_PER_OWNER,
   SANDBOX_SESSION_LIVE_STATUSES,
   SANDBOX_SESSION_MAX_LIFETIME_MS,
-} from '../../../convex/sandbox/sessions_schema.ts';
+} from '../../../convex/sandbox/session_constants.ts';
+import { sessionIdForWorkflowExecution } from '../../../convex/sandbox/session_naming.ts';
 import type { SandboxQuotaConfig } from '../../../lib/shared/schemas/governance.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';

@@ -40,7 +40,7 @@ import {
   type SkillDocumentView,
   type SkillListingView,
   type SkillSummaryView,
-} from './validators';
+} from './views';
 
 /** `skills/<slug>/SKILL.md` — the path an operator sees, org-tree relative. */
 function relativeSkillPath(slug: string): string {

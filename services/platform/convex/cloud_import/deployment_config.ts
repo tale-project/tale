@@ -11,7 +11,7 @@
  * single-tenant registrations created after 2018-10-15.
  */
 
-import type { CloudImportProvider } from './schema';
+import type { CloudImportProvider } from './types';
 
 export const CLOUD_IMPORT_OAUTH_CALLBACK_PATH =
   '/api/cloud-import/oauth2/callback';

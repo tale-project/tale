@@ -2,7 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { resolveCloudImportOauthApp } from '../../../convex/cloud_import/deployment_config.ts';
-import type { CloudImportProvider } from '../../../convex/cloud_import/schema.ts';
+import type { CloudImportProvider } from '../../../convex/cloud_import/types.ts';
 import { maskSecret } from '../../../convex/connector_credentials/masking.ts';
 import { resolveOauthAppCredentials } from '../../../convex/http_connectors/deployment_config.ts';
 import {

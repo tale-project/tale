@@ -21,8 +21,6 @@
  * `'use node'` by necessity — the harness facts and org providers are files.
  */
 
-import { v, type Infer } from 'convex/values';
-
 import {
   buildHarnessTable,
   resolveExecution,
@@ -32,32 +30,28 @@ import type {
   HarnessDefinition,
   ModelCatalogEntry,
 } from '../../../lib/shared/schemas/providers';
-const harnessManagedStatusValidator = v.union(
-  v.object({
-    available: v.literal(true),
-    /** How many directly-served models the managed lane offers this harness. */
-    modelCount: v.number(),
-    /** The model a turn runs when the composer sends no explicit pick. */
-    defaultModelId: v.string(),
-  }),
-  v.object({
-    available: v.literal(false),
-    reason: v.literal('no-direct-credential'),
-  }),
-);
 
-const harnessStatusValidator = v.object({
-  slug: v.string(),
-  label: v.string(),
-  managed: harnessManagedStatusValidator,
+export type HarnessManagedStatus =
+  | {
+      available: true;
+      /** How many directly-served models the managed lane offers this harness. */
+      modelCount: number;
+      /** The model a turn runs when the composer sends no explicit pick. */
+      defaultModelId: string;
+    }
+  | {
+      available: false;
+      reason: 'no-direct-credential';
+    };
+
+export interface HarnessStatusEntry {
+  slug: string;
+  label: string;
+  managed: HarnessManagedStatus;
   /** Vendor subscriptions bound to this harness; `usable: false` marks an
    * inert binding (the harness cannot accept bring-your-own credentials). */
-  subscriptions: v.array(
-    v.object({ providerSlug: v.string(), usable: v.boolean() }),
-  ),
-});
-
-export type HarnessStatusEntry = Infer<typeof harnessStatusValidator>;
+  subscriptions: { providerSlug: string; usable: boolean }[];
+}
 
 /** A subscription-flavored credential, resolver-shaped. */
 type SubscriptionAuth = Extract<

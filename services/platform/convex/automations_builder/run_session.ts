@@ -1,7 +1,7 @@
 'use node';
 
 /**
- * The Convex host for an automation builder session.
+ * The server host for an automation builder session.
  *
  * Everything that decides how a session behaves lives in
  * `lib/automations_builder/` and is pure. This module is the wiring: it
@@ -20,8 +20,6 @@
  * draft under construction can never send a real message or write to a real
  * system. Live runs belong to deployment, behind the deploy gate.
  */
-
-import { v } from 'convex/values';
 
 import { runBuilderSession } from '../../lib/automations_builder/session';
 import { installConnectorCatalog } from '../../lib/connectors/dispatcher';
@@ -120,27 +118,3 @@ export async function runSessionWithStore(
   );
   return outcome;
 }
-
-/** The session outcome on the wire — shared by every host that returns one
- * (the internal action below, and the client-facing surface in `actions.ts`). */
-export const builderSessionOutcomeValidator = v.object({
-  status: v.union(
-    v.literal('succeeded'),
-    v.literal('gave-up'),
-    v.literal('cancelled'),
-  ),
-  reason: v.optional(v.string()),
-  saved: v.optional(v.object({ name: v.string(), version: v.number() })),
-  turns: v.number(),
-  restarts: v.number(),
-  usage: v.object({ prompt: v.number(), completion: v.number() }),
-  steps: v.array(
-    v.object({
-      turn: v.number(),
-      kind: v.string(),
-      method: v.optional(v.string()),
-      note: v.optional(v.string()),
-      progress: v.optional(v.boolean()),
-    }),
-  ),
-});

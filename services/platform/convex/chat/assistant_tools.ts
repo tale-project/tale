@@ -58,7 +58,6 @@ import { SafeFetchError, isPrivateIp, safeFetch } from '../lib/http/safe_fetch';
 import type { AgentReadSubject } from '../lib/rls/helpers/agent_read_access';
 import type { Doc } from '../lib/rows';
 import { detectListingIntent } from '../lib/search';
-import { toId } from '../lib/type_cast_helpers';
 import {
   sanitizeUntrustedField,
   wrapUntrusted,
@@ -1314,7 +1313,7 @@ export function createChatToolExecutor(
             excludeArchived: true,
             ...(status !== undefined ? { status } : {}),
             ...(call.projectId !== undefined
-              ? { projectId: toId<'projects'>(call.projectId) }
+              ? { projectId: call.projectId }
               : {}),
             paginationOpts: { numItems: limit, cursor },
           },
@@ -1754,7 +1753,7 @@ export function createChatToolExecutor(
       try {
         scoped = await ctx.runQuery(
           internal.tasks.internal_queries.getTaskByIdInternal,
-          { taskId: toId<'tasks'>(taskId), organizationId: who.organizationId },
+          { taskId: taskId, organizationId: who.organizationId },
         );
       } catch {
         await recordDispatch('rag_fetch', missing.status, missing.message);
@@ -1847,7 +1846,7 @@ export function createChatToolExecutor(
           {
             organizationId: who.organizationId,
             projectIds: [...access.projectIds],
-            projectId: toId<'projects'>(projectId),
+            projectId: projectId,
             term: '',
             // An explicit listing, so the page size is honoured (the old
             // fallback pinned its own cap and `truncated` could never be

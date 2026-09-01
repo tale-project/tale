@@ -30,7 +30,7 @@ import {
 import {
   isValidScanInterval,
   SCAN_INTERVAL_VALUES,
-} from '../../../convex/websites/validators.ts';
+} from '../../../convex/websites/types.ts';
 import {
   metaDescription,
   normalizeListedUrl,

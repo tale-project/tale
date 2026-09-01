@@ -23,15 +23,12 @@
  * of their history, so the next event starts a fresh row.
  */
 
-import type { Infer } from 'convex/values';
-
 import { isActionableNotificationType } from '../../lib/shared/attention';
 import type { MutationCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import type { Doc, Id } from '../lib/rows';
-import type { notificationTypeValidator } from './schema';
+import type { NotificationType } from './types';
 
-type NotificationType = Infer<typeof notificationTypeValidator>;
 type ResourceType = Doc<'userNotifications'>['resourceType'];
 
 /**

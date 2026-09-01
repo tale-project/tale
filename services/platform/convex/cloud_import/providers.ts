@@ -8,7 +8,7 @@
  * for single-tenant app registrations).
  */
 
-import type { CloudImportProvider } from './schema';
+import type { CloudImportProvider } from './types';
 
 export interface CloudImportProviderEndpoints {
   readonly displayName: string;

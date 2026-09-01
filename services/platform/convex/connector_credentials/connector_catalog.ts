@@ -19,8 +19,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { type Infer, v } from 'convex/values';
-
 import {
   connectorBearerScheme,
   findConnector,
@@ -28,20 +26,20 @@ import {
   resolveConnectorsDir,
   type LoadConnectorCatalogOptions,
 } from '../../lib/connectors/catalog';
-import { connectorAuthMethodValidator } from './schema';
+import type { ConnectorAuthMethod } from './types';
 
 export { connectorBearerScheme, findConnector, loadConnectorDefinitions };
 export type { LoadConnectorCatalogOptions };
 
 /** One shipped connector as the settings catalog lists it. Mirrors
  * `ConnectorSummary` in the app's `connectors/hooks/backend.ts`. */
-const connectorSummaryValidator = v.object({
-  slug: v.string(),
-  displayName: v.string(),
-  description: v.string(),
-  tags: v.array(v.string()),
-  endpointMode: v.union(v.literal('fixed'), v.literal('per-credential')),
-  authMethods: v.array(connectorAuthMethodValidator),
+interface ConnectorSummary {
+  slug: string;
+  displayName: string;
+  description: string;
+  tags: string[];
+  endpointMode: 'fixed' | 'per-credential';
+  authMethods: ConnectorAuthMethod[];
   /**
    * The connector's non-secret per-credential settings, as declared. The create
    * form has to RENDER these: `createCredential` validates the submitted config
@@ -49,26 +47,18 @@ const connectorSummaryValidator = v.object({
    * collect them cannot author a credential for any connector declaring one.
    * Not secret — labels, types and defaults from the shipped connector.
    */
-  configFields: v.array(
-    v.object({
-      key: v.string(),
-      label: v.string(),
-      type: v.union(
-        v.literal('string'),
-        v.literal('number'),
-        v.literal('boolean'),
-      ),
-      description: v.optional(v.string()),
-      required: v.boolean(),
-      enum: v.optional(v.array(v.string())),
-      default: v.optional(v.union(v.string(), v.number(), v.boolean())),
-    }),
-  ),
-  actionCount: v.number(),
-  iconUrl: v.optional(v.string()),
-});
-
-type ConnectorSummary = Infer<typeof connectorSummaryValidator>;
+  configFields: Array<{
+    key: string;
+    label: string;
+    type: 'string' | 'number' | 'boolean';
+    description?: string;
+    required: boolean;
+    enum?: string[];
+    default?: string | number | boolean;
+  }>;
+  actionCount: number;
+  iconUrl?: string;
+}
 
 /**
  * The connector's shipped `icon.svg` as an inline data URL, or `undefined`

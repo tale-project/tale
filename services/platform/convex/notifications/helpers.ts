@@ -1,13 +1,11 @@
-import type { Infer } from 'convex/values';
-
 import type { MutationCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import type {
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_SEVERITIES,
-  notificationLinkValidator,
-} from './schema';
+  NotificationLink,
+} from './types';
 
 type Category = (typeof NOTIFICATION_CATEGORIES)[number];
 type Severity = (typeof NOTIFICATION_SEVERITIES)[number];
@@ -42,7 +40,7 @@ interface WriteNotificationArgs {
    */
   subjectUserId?: string;
   /** Optional in-app deep-link target for the notification body. */
-  link?: Infer<typeof notificationLinkValidator>;
+  link?: NotificationLink;
 }
 
 /**

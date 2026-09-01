@@ -1,5 +1,3 @@
-import { toConvexJsonRecord } from '../../lib/type_cast_helpers';
-import type { ConvexJsonRecord } from '../../lib/validators/json';
 import { attachmentsForMetadata } from './attachments_for_metadata';
 import { NO_SUBJECT } from './constants';
 import type { EmailType } from './types';
@@ -8,8 +6,8 @@ import type { EmailType } from './types';
  * Build rich metadata object for email message
  * Preserves both text and HTML content separately in metadata
  */
-export function buildEmailMetadata(email: EmailType): ConvexJsonRecord {
-  return toConvexJsonRecord({
+export function buildEmailMetadata(email: EmailType): Record<string, unknown> {
+  return {
     from: email.from,
     to: email.to,
     cc: email.cc,
@@ -24,5 +22,5 @@ export function buildEmailMetadata(email: EmailType): ConvexJsonRecord {
     flags: email.flags,
     attachments: attachmentsForMetadata(email.attachments),
     subject: email.subject || NO_SUBJECT,
-  });
+  };
 }

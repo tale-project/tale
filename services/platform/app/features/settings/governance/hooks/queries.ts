@@ -4,7 +4,7 @@ import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
-import type { SoftDeleteResourceType } from '@/convex/governance/soft_delete_validators';
+import type { SoftDeleteResourceType } from '@/convex/governance/soft_delete';
 import {
   CHAT_MAX_FILE_SIZE,
   CHAT_UPLOAD_ALLOWED_TYPES,

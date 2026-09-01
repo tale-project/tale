@@ -2,22 +2,60 @@
  * Type definitions for website operations
  */
 
-import type { Infer } from 'convex/values';
-
 import type { Id } from '../lib/rows';
-import type {
-  websiteKindValidator,
-  websiteStatusValidator,
-  websiteValidator,
-} from './validators';
 
-// =============================================================================
-// INFERRED TYPES (from validators)
-// =============================================================================
+export type WebsiteStatus =
+  | 'idle'
+  | 'scanning'
+  | 'active'
+  | 'error'
+  | 'deleting';
 
-export type WebsiteStatus = Infer<typeof websiteStatusValidator>;
-export type WebsiteKind = Infer<typeof websiteKindValidator>;
-export type Website = Infer<typeof websiteValidator>;
+/** What a websites row IS: a crawled site (pages discovered via
+ * robots/sitemaps/links) or a curated list of URLs fetched verbatim. Absent
+ * on rows that predate the distinction — read absent as 'site'. */
+export type WebsiteKind = 'site' | 'list';
+
+/**
+ * The allowed scan-interval cadences. This is the single source of truth for
+ * every write path (REST, the agent write tool, and the website routes) —
+ * `scanIntervalToSeconds` maps exactly these values, so an unrecognized value
+ * would silently fall back to the 6h default and get crawled at the wrong rate.
+ */
+export const SCAN_INTERVAL_VALUES = [
+  '60m',
+  '6h',
+  '12h',
+  '1d',
+  '5d',
+  '7d',
+  '30d',
+] as const;
+
+export type ScanInterval = (typeof SCAN_INTERVAL_VALUES)[number];
+
+export function isValidScanInterval(value: unknown): value is ScanInterval {
+  return (
+    typeof value === 'string' &&
+    (SCAN_INTERVAL_VALUES as readonly string[]).includes(value)
+  );
+}
+
+export interface Website {
+  _id: string;
+  _creationTime: number;
+  organizationId: string;
+  domain: string;
+  kind?: WebsiteKind;
+  title?: string;
+  description?: string;
+  scanInterval: string;
+  lastScannedAt?: number;
+  status?: WebsiteStatus;
+  pageCount?: number;
+  crawledPageCount?: number;
+  metadata?: Record<string, unknown>;
+}
 
 // =============================================================================
 // MANUAL TYPES (no corresponding validator)

@@ -1,18 +1,93 @@
-import type { Infer } from 'convex/values';
+import type { SoftDeleteStatus } from '../governance/soft_delete';
 
-import type {
-  auditLogActorTypeValidator,
-  auditLogCategoryValidator,
-  auditLogStatusValidator,
-  auditLogItemValidator,
-  auditLogFilterValidator,
-} from './validators';
+export const AUDIT_LOG_ACTOR_TYPES = [
+  'user',
+  'system',
+  'api',
+  'workflow',
+] as const;
+export const AUDIT_LOG_CATEGORIES = [
+  'auth',
+  'member',
+  'data',
+  'connector',
+  // Legacy spelling of `connector` from before the integration→connector
+  // rename (#2876). 0.4 deploys never write it; accepted so pre-rename LOCAL
+  // dev rows keep validating (audit rows are immutable history — a hash
+  // chain — so they are read as-is rather than rewritten).
+  'integration',
+  'workflow',
+  'security',
+  'admin',
+  'ai',
+  'skill',
+  'agent',
+] as const;
+export const AUDIT_LOG_STATUSES = ['success', 'failure', 'denied'] as const;
 
-export type AuditLogActorType = Infer<typeof auditLogActorTypeValidator>;
-export type AuditLogCategory = Infer<typeof auditLogCategoryValidator>;
-export type AuditLogStatus = Infer<typeof auditLogStatusValidator>;
-export type AuditLogItem = Infer<typeof auditLogItemValidator>;
-export type AuditLogFilter = Infer<typeof auditLogFilterValidator>;
+export type AuditLogActorType = (typeof AUDIT_LOG_ACTOR_TYPES)[number];
+export type AuditLogCategory = (typeof AUDIT_LOG_CATEGORIES)[number];
+export type AuditLogStatus = (typeof AUDIT_LOG_STATUSES)[number];
+
+/** One audit-log row as the read surfaces return it. */
+export interface AuditLogItem {
+  _id: string;
+  _creationTime: number;
+  organizationId: string;
+
+  actorId: string;
+  actorEmail?: string;
+  actorRole?: string;
+  actorType: AuditLogActorType;
+
+  action: string;
+  category: AuditLogCategory;
+
+  resourceType: string;
+  resourceId?: string;
+  resourceName?: string;
+
+  previousState?: Record<string, unknown>;
+  newState?: Record<string, unknown>;
+  changedFields?: string[];
+
+  sessionId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  requestId?: string;
+
+  timestamp: number;
+  status: AuditLogStatus;
+  errorMessage?: string;
+  metadata?: Record<string, unknown>;
+
+  integrityHash?: string;
+  previousHash?: string;
+  chainSuccessor?: string;
+  piiScrubbed?: boolean;
+  piiScrubbedAt?: number;
+
+  actorEmailHash?: string;
+  actorIpHash?: string;
+
+  // Patched onto the row by retention soft-delete (`markRowExpiredGeneric`).
+  // Excluded from the integrity hash via `EXCLUDED_FIELDS` in
+  // `audit_hash.ts`; declared here so read projections don't reject
+  // soft-deleted rows.
+  lifecycleStatus?: SoftDeleteStatus;
+  statusChangedAt?: number;
+}
+
+export interface AuditLogFilter {
+  category?: AuditLogCategory;
+  actorId?: string;
+  resourceType?: string;
+  resourceId?: string;
+  status?: AuditLogStatus;
+  startDate?: number;
+  endDate?: number;
+  search?: string;
+}
 
 export interface CreateAuditLogArgs {
   organizationId: string;

@@ -34,7 +34,7 @@ import {
   type AgentListingView,
   type AgentSummaryView,
   type ResolvedAgentView,
-} from './validators';
+} from './views';
 
 /**
  * Agents only know `private | org`, so the member's teams never influence
@@ -87,10 +87,11 @@ function assertValidSlug(slug: string): void {
   }
 }
 
-/** How a caller is identified to the file layer (see `agentViewerArgs`). */
+/** How a caller is identified to the file layer. */
 export interface AgentCallerArgs {
   orgSlug: string;
   viewerUserId: string;
+  /** True when the member may administer the org's shared configuration. */
   isOrgAdmin: boolean;
 }
 
@@ -177,14 +178,24 @@ export async function resolveAgentForCaller(
  * An omitted optional field means "leave it as it is", so an edit that only
  * changes the instructions cannot blank the icon or widen a binding list.
  */
-/** The edit surface (see `agentEditArgs` for the field semantics). */
+/** The edit surface. Everything else in the file round-trips. */
 export interface AgentEditInput {
   displayName: string;
   description?: string;
   instructions?: string;
+  /**
+   * Absent keeps an existing agent's current visibility and makes a new one
+   * `private` — an agent starts as its author's own, and sharing it is an
+   * explicit edit to `org`.
+   */
   visibility?: AgentDefinition['visibility'];
   icon?: string;
   labels?: string[];
+  /**
+   * Absent leaves the allowlist as it is; an empty array narrows to nothing;
+   * `null` REMOVES the narrowing (back to "everything the org offers") —
+   * without it a widening would be inexpressible, since absent means keep.
+   */
   tools?: string[] | null;
   skills?: string[] | null;
   knowledge?: AgentDefinition['knowledge'];

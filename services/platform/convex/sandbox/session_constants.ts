@@ -1,20 +1,3 @@
-import { v } from 'convex/values';
-
-/**
- * One entry of an op row's `liveTimeline` — the AI-SDK UI-part shape the run
- * views render. Exported so the public op-reading queries (automation agent
- * node, task-agent run) project it without re-declaring the shape.
- */
-export const sessionOpTimelinePartValidator = v.object({
-  type: v.string(),
-  text: v.optional(v.string()),
-  state: v.optional(v.string()),
-  toolCallId: v.optional(v.string()),
-  input: v.optional(v.any()),
-  output: v.optional(v.any()),
-  errorText: v.optional(v.string()),
-});
-
 /**
  * Deterministic name of the workflow event that wakes a parked sandbox step
  * waiting on capacity. A parked durable step does `step.awaitEvent({ name })`;
