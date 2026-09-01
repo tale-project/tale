@@ -114,7 +114,7 @@
     "micromark-extension-gfm": "3.0.0",
     "mssql": "12.2.1",
     "mustache": "4.2.0",
-    "mysql2": "3.21.1",
+    "mysql2": "3.23.1",
     "nodemailer": "9.0.3",
     "openai": "6.42.0",
     "parse5": "8.0.0",
