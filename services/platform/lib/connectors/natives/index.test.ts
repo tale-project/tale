@@ -494,4 +494,52 @@ describe('dispatching the shipped native actions', () => {
       mailTransport: transport,
     });
   });
+
+  describe('task.update_status offers only the statuses it can honour', () => {
+    const move = (status: string) =>
+      executeConnectorAction({
+        connector: 'task',
+        action: 'update_status',
+        input: { taskId: 'tsk_1', status },
+        caller: { kind: 'workflow', runId: 'run_1', nodeId: 'node_1' },
+        ctx: { organizationId: ORG, mode: 'live', credentials },
+      });
+
+    it('refuses `done` on the CONTRACT, before any store is touched', async () => {
+      // Completion belongs to the human review gate, so the catalog schema
+      // does not list it: the refusal names the values that DO work, and it
+      // lands at authoring/dispatch time instead of mid-run.
+      await expect(move('done')).rejects.toMatchObject({
+        code: 'INPUT_INVALID',
+      });
+      await expect(move('done')).rejects.toThrow(/in_review/);
+    });
+
+    it('lets an automation cancel — abandoning a card is not completing it', async () => {
+      expect(await move('cancelled')).toMatchObject({
+        status: 'ok',
+        backend: 'native',
+      });
+    });
+
+    it('renders a store refusal CODE as a sentence an operator can act on', async () => {
+      const restore = registerNativeConnectors({
+        webdav: store,
+        sandboxScripts: scriptRunner,
+        documents: documentStore,
+        conversations: conversationStore,
+        mailTransport: transport,
+        tasks: {
+          ...taskStore,
+          updateStatus: () =>
+            Promise.resolve({ ok: false, reason: 'TASK_HAS_OPEN_SUBTASKS' }),
+        },
+      });
+      try {
+        await expect(move('cancelled')).rejects.toThrow(/open subtasks/);
+      } finally {
+        restore();
+      }
+    });
+  });
 });

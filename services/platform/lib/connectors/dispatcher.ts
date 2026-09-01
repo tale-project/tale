@@ -382,6 +382,22 @@ function validatorFor(action: ConnectorAction): ValidateFunction {
   return compiled;
 }
 
+/**
+ * The values an `enum` violation would have accepted, appended to Ajv's own
+ * sentence. Ajv says "must be equal to one of the allowed values" and then
+ * does not say which — leaving the one question the caller actually has
+ * unanswered. Every other keyword renders as-is.
+ */
+function allowedValues(error: { keyword: string; params?: unknown }): string {
+  if (error.keyword !== 'enum') return '';
+  const params: unknown = error.params;
+  const allowed =
+    typeof params === 'object' && params !== null && 'allowedValues' in params
+      ? params.allowedValues
+      : undefined;
+  return Array.isArray(allowed) ? ` (${allowed.join(', ')})` : '';
+}
+
 /** FNV-1a over the canonical call — same call, same key, no crypto import so
  * the derivation runs anywhere the dispatcher does. */
 function derivedIdempotencyKey(
@@ -503,7 +519,7 @@ export async function executeConnectorAction(
   const check = validatorFor(action);
   if (!check(input)) {
     const detail = (check.errors ?? [])
-      .map((e) => `input${e.instancePath} ${e.message}`)
+      .map((e) => `input${e.instancePath} ${e.message}${allowedValues(e)}`)
       .join('; ');
     throw new ConnectorError(
       'INPUT_INVALID',

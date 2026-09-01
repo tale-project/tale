@@ -21,9 +21,7 @@ import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
 import { kickAgentRun } from './agent-runs.ts';
 import {
   agentRecordTaskOutputsTrusted,
-  agentUpdateTaskStatusTrusted,
   handTaskToInProgressForKick,
-  type TaskStatus,
 } from './service.ts';
 
 /**
@@ -427,20 +425,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
     },
 
     // ------------------------------------------------- trusted task writers
-    'tasks/internal_mutations:agentUpdateTaskStatus': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as {
-        organizationId: string;
-        actorId: string;
-        taskId: string;
-        status: TaskStatus;
-        review?: { runId: string };
-      };
-      return transactSerializable(sql, (tx) =>
-        agentUpdateTaskStatusTrusted(tx, args),
-      );
-    },
-
+    // `agentUpdateTaskStatus` is NOT restated here: the sandbox map's write
+    // lane already answers it, for this host and the in-container dispatch
+    // alike. Two copies of one flip would be two places to drift.
     'tasks/internal_mutations:agentRecordTaskOutputs': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as Parameters<typeof agentRecordTaskOutputsTrusted>[1];

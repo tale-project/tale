@@ -2,31 +2,65 @@ import type { Sql } from 'postgres';
 
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { resolveAgentSecretsEnv } from '../agent_secrets/service.ts';
+import { automationAskShimHandlers } from '../automations/ask-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import { addTaskComment } from '../tasks/comments.ts';
+import { workspaceWriteShimHandlers } from './workspace-write-shim.ts';
 
 /**
  * Handler map for the REUSED workspace-tool bridge
  * (`node_only/sandbox/workspace_tools_bridge.ts`) — everything the chat
  * lane's shim already answers (knowledge search, entity queries, the read
  * matrix, audit) plus the session-scoped seams the bridge adds: the
- * binding-derived access resolvers, the tool-call ledger, and the trusted
- * agent-comment writer.
+ * binding-derived access resolvers, the tool-call ledger, the trusted
+ * agent-comment writer, the write lane (`workspace-write-shim.ts`), and the
+ * ask lane (`automations/ask-shim.ts`).
  *
- * Binding resolution mirrors `sandbox/workspace_access.sessionBinding` for
- * the owners 0.5 has: a `project_agent` session acts inside its project;
- * `workflow_run` sessions resolve to `none` until the automations engine
- * ports (their runs cannot exist yet); a user-keyed session may READ as
- * that user. `ask_human` (`automations/human_asks:createAskForExec`) is
- * deliberately NOT in this map — a call fails loud naming the handler until
- * the automations domain lands.
+ * Binding resolution mirrors 0.4's `sandbox/workspace_access.sessionBinding`
+ * for every owner 0.5 has:
+ *
+ *  - a `project_agent` session acts inside its agent's project;
+ *  - a `workflow_run` session acts as its automation run — pinned to the
+ *    run's project, or ORG-WIDE ACROSS THE AUTOMATION'S BOUND PROJECTS when
+ *    the run carries none (an automation with no bindings is org-level, and
+ *    reads the whole organization);
+ *  - a user-keyed session may READ as that user.
+ *
+ * Fail-closed everywhere else: a run whose project row is gone resolves to
+ * `none` rather than widening to the org.
  */
 
 interface BindingResolution {
-  kind: 'project' | 'none';
+  kind: 'project' | 'org_run' | 'none';
   projectId?: string;
   actorId?: string;
+  /** `org_run` only: the automation's bound projects, empty when it is truly
+   * org-level. */
+  boundProjectIds?: string[];
+}
+
+/**
+ * The projects an org-wide automation run may act on — the deploy-time
+ * bindings of the automation this run belongs to.
+ *
+ * Read STRAIGHT off the binding rows, never joined against `projects`: an
+ * empty set means "org-level, unbounded", so a join that dropped a row would
+ * WIDEN this run's authority. An id whose project is gone simply matches
+ * nothing downstream, which is the fail-closed direction.
+ */
+async function boundProjectIdsOf(
+  sql: Sql,
+  organizationId: string,
+  automationName: string,
+): Promise<string[]> {
+  const rows = await sql<{ projectId: string }[]>`
+    SELECT project_id AS "projectId"
+    FROM app.automation_project_bindings
+    WHERE org_id = ${organizationId}
+      AND automation_name = ${automationName}
+  `;
+  return rows.map((row) => row.projectId);
 }
 
 async function resolveSessionBinding(
@@ -66,7 +100,36 @@ async function resolveSessionBinding(
     }
     return { kind: 'none' };
   }
-  // workflow_run bindings resolve with the automations engine port.
+  if (session.ownerType === 'workflow_run') {
+    // Step-scoped owners are `${runId}:<suffix>` (the 0.4 spelling the
+    // automation host still mints).
+    const runId = session.ownerId.split(':')[0] ?? '';
+    const runs = await sql<{ name: string; projectId: string | null }[]>`
+      SELECT name, project_id AS "projectId" FROM app.automation_runs
+      WHERE id = ${runId} AND org_id = ${organizationId}
+      LIMIT 1
+    `;
+    const run = runs[0];
+    if (!run) return { kind: 'none' };
+    // Writes are attributed to the AUTOMATION, not to whoever started the
+    // run — the same actor the engine's own task natives use.
+    const actorId = `automation:${run.name}`;
+    if (run.projectId !== null) {
+      const projects = await sql<{ id: string }[]>`
+        SELECT id FROM app.projects
+        WHERE id = ${run.projectId} AND org_id = ${organizationId}
+        LIMIT 1
+      `;
+      // A run pinned to a project whose row is gone stays fail-closed.
+      if (projects.length === 0) return { kind: 'none' };
+      return { kind: 'project', projectId: run.projectId, actorId };
+    }
+    return {
+      kind: 'org_run',
+      actorId,
+      boundProjectIds: await boundProjectIdsOf(sql, organizationId, run.name),
+    };
+  }
   return { kind: 'none' };
 }
 
@@ -105,6 +168,12 @@ async function projectKnowledgeScope(
 export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
   const base = chatShimHandlers(sql);
   return {
+    // The two lanes the dispatch reaches beyond the read doors: the task /
+    // document writers, and `ask_human`. Both are stated here because the
+    // in-container dispatch builds ITS shim from this map alone.
+    ...workspaceWriteShimHandlers(sql),
+    ...automationAskShimHandlers(sql),
+
     'agent_secrets/actions:resolveAgentSecretsEnv': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the turn-equipment resolver passes exactly this shape
       const args = raw as {
@@ -167,6 +236,20 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
           ),
         };
       }
+      if (binding.kind === 'org_run') {
+        // An org-level run reads the org HUB — the knowledge every member
+        // shares — not the union of every project's attached files. The
+        // pseudo-team is what makes a hub document visible at all in 0.5.
+        return {
+          allowed: true,
+          scope: {
+            teamIds: [`org_${args.organizationId}`],
+            projectIds: [],
+            includeHub: true,
+            archivedProjectIds: [],
+          },
+        };
+      }
       if (args.userId !== undefined) {
         // A user-keyed session reads what that USER reads — the same
         // resolver the chat lane uses.
@@ -207,6 +290,21 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
           allowed: true,
           actorId: binding.actorId,
           scope: { kind: 'project', projectId: binding.projectId },
+        };
+      }
+      if (binding.kind === 'org_run' && binding.actorId !== undefined) {
+        return {
+          allowed: true,
+          actorId: binding.actorId,
+          scope: {
+            kind: 'org',
+            // A multi-bound automation stays inside its bound projects; only
+            // an automation with NO bindings is org-wide (absent = unbounded,
+            // which is the shape the bridge's target resolver reads).
+            ...((binding.boundProjectIds ?? []).length > 0
+              ? { allowedProjectIds: binding.boundProjectIds }
+              : {}),
+          },
         };
       }
       if (

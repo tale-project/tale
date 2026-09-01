@@ -1077,6 +1077,132 @@ export async function updateTaskStatus(
 }
 
 /**
+ * TRUSTED agent-side CREATE — the `task_create` workspace tool's lower half.
+ * The dispatch already resolved which project this session may write to
+ * (`resolveSessionActionContext`), so there is no role matrix here; what stays
+ * is the task-ops shape: an agent files into the neutral inbox columns only,
+ * mints the labels it names (an agent cannot open the label catalog itself),
+ * and may subtask a ROOT card but never a subtask — decomposition is one level
+ * deep. Attribution is the binding actor (`created_by_type: 'agent'`), and the
+ * agent does NOT auto-subscribe: it is not a person who wants the bells.
+ */
+export async function agentCreateTaskTrusted(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    actorId: string;
+    projectId: string;
+    title: string;
+    description?: string;
+    /** Neutral inbox columns only — the bridge narrows before calling. */
+    status?: Extract<TaskStatus, 'backlog' | 'todo'>;
+    priority?: TaskPriority;
+    labels?: string[];
+    parentTaskId?: string;
+  },
+): Promise<{ taskId: string }> {
+  const project = await loadProjectOrThrow(tx, args.projectId);
+  // A project in ANOTHER org reads as missing, never as forbidden: the tool
+  // takes an opaque id, and two different refusals would tell a bound run
+  // whether a foreign id exists.
+  if (project.organizationId !== args.organizationId) {
+    throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
+  }
+  const title = validateTitle(args.title);
+  const description = validateDescription(args.description);
+  const status = args.status ?? 'backlog';
+
+  if (args.parentTaskId !== undefined) {
+    const parent = await loadTaskOrThrow(tx, args.parentTaskId);
+    if (
+      parent.organizationId !== args.organizationId ||
+      parent.projectId !== args.projectId
+    ) {
+      throw new TaskError('TASK_PARENT_PROJECT_MISMATCH', 'Parent mismatch');
+    }
+    if (parent.archivedAt !== null) {
+      throw new TaskError('TASK_PARENT_ARCHIVED', 'Parent archived');
+    }
+    if (parent.parentTaskId !== null) {
+      throw new TaskError('TASK_DEPTH_EXCEEDED', 'Subtasks do not nest');
+    }
+  }
+
+  const labelIds =
+    (await resolveProjectLabels(tx, {
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+      names: args.labels,
+      createdBy: args.actorId,
+      createIfMissing: true,
+    })) ?? [];
+  const now = Date.now();
+  const rank = await computeEndRank(tx, args.projectId, status);
+  const number = await nextTaskNumber(tx, args.projectId);
+  const inserted = await tx<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, description, status, priority, label_ids,
+      parent_task_id, rank, number, created_by, created_by_type,
+      created_at_ms, updated_at_ms, status_changed_at_ms
+    ) VALUES (
+      ${args.organizationId}, ${args.projectId}, ${title},
+      ${description ?? null}, ${status}, ${args.priority ?? null}, ${labelIds},
+      ${args.parentTaskId ?? null}, ${rank}, ${number}, ${args.actorId},
+      'agent', ${now}, ${now}, ${now}
+    )
+    RETURNING id
+  `;
+  const taskId = inserted[0]?.id;
+  if (!taskId) {
+    throw new TaskError('TASK_CREATE_FAILED', 'Insert failed');
+  }
+  await applyTaskCountTransition(
+    tx,
+    args.projectId,
+    'none',
+    taskCountBucket({ status, archivedAt: null }),
+  );
+  await recordActivity(tx, {
+    task: {
+      id: taskId,
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+    },
+    actorType: 'agent',
+    actorId: args.actorId,
+    action: 'created',
+    toValue: status,
+  });
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    actorId: args.actorId,
+    actorType: 'api',
+    action: TASK_AUDIT_ACTIONS.created,
+    category: 'data',
+    resourceType: TASK_RESOURCE_TYPE,
+    resourceId: taskId,
+    resourceName: title,
+    metadata: {
+      viaAgent: true,
+      projectId: args.projectId,
+      parentTaskId: args.parentTaskId ?? null,
+    },
+    status: 'success',
+  });
+  await emitEvent(tx, {
+    organizationId: args.organizationId,
+    eventType: 'task.created',
+    eventData: {
+      taskId,
+      projectId: args.projectId,
+      actorType: 'agent',
+      actorId: args.actorId,
+    },
+  });
+  return { taskId };
+}
+
+/**
  * TRUSTED agent-side status flip — the settle's park to `in_review` (and the
  * failure paths that leave `in_progress` alone). The turn host already
  * resolved authority (the run belongs to the agent); this is the lower half:
@@ -1095,10 +1221,13 @@ export async function agentUpdateTaskStatusTrusted(
      * insert by runId — the burned-claim replay never double-mints). */
     review?: { runId: string };
   },
+  // `reason` is a CODE, not prose: the workspace-tool bridge branches on
+  // `AGENTS_CANNOT_COMPLETE` to tell the agent to park at `in_review`
+  // instead, and the connector native renders each code as a sentence.
 ): Promise<{ ok: boolean; reason?: string }> {
   const task = await loadTaskOrThrow(tx, args.taskId);
   if (task.organizationId !== args.organizationId) {
-    return { ok: false, reason: 'wrong organization' };
+    return { ok: false, reason: 'TASK_WRONG_ORGANIZATION' };
   }
   const mintReview = async (): Promise<void> => {
     if (args.review === undefined || args.status !== 'in_review') return;
@@ -1113,8 +1242,21 @@ export async function agentUpdateTaskStatusTrusted(
     await mintReview();
     return { ok: true };
   }
-  if (TERMINAL_STATUSES.has(args.status)) {
-    return { ok: false, reason: 'agents never complete work' };
+  // `done` is the REVIEW GATE's to give: an agent or an automation parks
+  // finished work at `in_review` and a person certifies it. Cancelling is a
+  // different act — abandoning work rather than certifying it — and the
+  // automation lane has always been allowed to make it ("this ticket is
+  // obsolete, close the card"), so only completion is reserved here.
+  if (args.status === 'done') {
+    return { ok: false, reason: 'AGENTS_CANNOT_COMPLETE' };
+  }
+  // Same bound the human writer keeps: nothing goes terminal over children
+  // that are still open, or the board loses them.
+  if (
+    TERMINAL_STATUSES.has(args.status) &&
+    (await hasOpenChildren(tx, args.taskId))
+  ) {
+    return { ok: false, reason: 'TASK_HAS_OPEN_SUBTASKS' };
   }
   // A non-human leave from `in_review` WITHDRAWS any pending review — no
   // human decided, so nothing is recorded as approved.
@@ -1125,10 +1267,15 @@ export async function agentUpdateTaskStatusTrusted(
   });
   const now = Date.now();
   const rank = await computeEndRank(tx, task.projectId, args.status);
+  // Terminal keeps its original completion stamp on a re-close and loses it
+  // on the way back out — the human writer's rule, so the two lanes agree.
+  const completedAt = TERMINAL_STATUSES.has(args.status)
+    ? (task.completedAt ?? now)
+    : null;
   await tx`
     UPDATE app.tasks SET
-      status = ${args.status}, rank = ${rank}, updated_at_ms = ${now},
-      status_changed_at_ms = ${now}
+      status = ${args.status}, rank = ${rank}, completed_at_ms = ${completedAt},
+      updated_at_ms = ${now}, status_changed_at_ms = ${now}
     WHERE id = ${args.taskId}
   `;
   await applyTaskCountTransition(
@@ -2036,6 +2183,49 @@ export async function listTasksByProject(
     truncated,
     canEdit,
   };
+}
+
+/** How many cards one `task_find` may walk. The tool answers a working set,
+ * not a board: an agent that needs more should filter harder. */
+export const AGENT_TASK_LIST_CAP = 200;
+
+/**
+ * The `task_find` read — undecorated rows for an agent, NOT a board page.
+ * Authority is resolved before this call (`resolveSessionActionContext`), so
+ * the project set arrives as an argument: one project for a project-bound run,
+ * its automation's bound set for an org-wide one, and nothing at all for a
+ * truly org-level run, which reads the whole organization. Labels and folder
+ * facts are skipped — the model reads titles and status, not chips.
+ */
+export async function listTasksForAgent(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    projectId?: string;
+    projectIds?: string[];
+    status?: TaskStatus;
+    assigneeId?: string;
+    includeArchived?: boolean;
+  },
+): Promise<TaskRow[]> {
+  // One named project wins over the bound set — the caller already checked it
+  // is inside that set, and an empty set would otherwise read as org-wide.
+  const scoped =
+    args.projectId !== undefined ? [args.projectId] : (args.projectIds ?? null);
+  const filters: TaskListFilters = {
+    ...(args.includeArchived === true ? { includeArchived: true } : {}),
+    ...(args.status !== undefined ? { status: args.status } : {}),
+    ...(args.assigneeId !== undefined ? { assigneeId: args.assigneeId } : {}),
+  };
+  const rows = await sql<TaskRow[]>`
+    SELECT ${sql.unsafe(TASK_COLUMNS)} FROM app.tasks
+    WHERE org_id = ${args.organizationId}
+      AND (${scoped === null} OR project_id = ANY(${scoped ?? []}))
+      AND ${boardFilterClause(sql, filters)}
+    ORDER BY status ASC, rank ASC
+    LIMIT ${AGENT_TASK_LIST_CAP}
+  `;
+  return [...rows];
 }
 
 /**

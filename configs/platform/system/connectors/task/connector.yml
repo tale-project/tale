@@ -39,8 +39,11 @@ actions:
     exampleInput: { taskId: 'tsk_1' }
   - name: update_status
     description: >-
-      Move a task to a new status. The automation acts as the workflow actor;
-      moving to done stays reserved for the human review gate.
+      Move a task to a new status. The automation acts as the workflow actor.
+      Completing is not on offer — done stays reserved for the human review
+      gate, so park finished work at in_review and let a person certify it.
+      Cancelling is yours to do: abandoning a card is not completing it.
+      A task with open subtasks cannot go terminal until those are closed.
     effects: write
     input:
       type: object
@@ -50,7 +53,7 @@ actions:
         taskId: { type: string, description: The task id. }
         status:
           type: string
-          enum: [backlog, todo, in_progress, in_review, done, cancelled]
+          enum: [backlog, todo, in_progress, in_review, cancelled]
     output: '{ ok: boolean, status: string }'
     mock: |
       return { ok: true, status: String(input.status) };

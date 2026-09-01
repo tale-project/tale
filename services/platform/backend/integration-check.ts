@@ -17350,6 +17350,357 @@ async function checkSandboxSessions(
 }
 
 /**
+ * The AUTOMATION RUN's tool lane, end to end through `POST /api/tools/execute`
+ * — the door an agent container actually knocks on.
+ *
+ * This is the chain that shipped broken to demo05: the session-token half was
+ * covered by a `project_agent` fixture and the handler half by direct map
+ * calls, so nothing ever ran a `workflow_run` session through the HTTP door.
+ * `ask_human` threw `[ctx-shim] un-shimmed …` and every task/document tool
+ * refused with `no_access_context`. Both bindings are exercised here: a run
+ * PINNED to a project, and an org-wide run of a multi-bound automation.
+ */
+async function checkAutomationRunToolLane(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { createHash } = await import('node:crypto');
+  const { toJson } = await import('./db/sql.ts');
+  const sessions = await import('./domains/sandbox/sessions.ts');
+
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const newProject = async (name: string): Promise<string> => {
+    const res = z.object({ projectId: z.string() }).safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, {
+          name,
+        })
+      ).json(),
+    );
+    return res.success ? res.data.projectId : '';
+  };
+  const boundProjectId = await newProject('Run Tools Bound');
+  const otherProjectId = await newProject('Run Tools Other');
+  const unboundProjectId = await newProject('Run Tools Unbound');
+
+  // A live agent turn is what an ask attaches to: the cursor names the exec
+  // and carries no result yet.
+  const liveCursor = { cursor: { node: 'agent', agent: { execId: 'exec-1' } } };
+  const now = Date.now();
+  const pinnedRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, project_id, name, version, status, mode, started_by,
+      input, checkpoints, started_at_ms
+    ) VALUES (
+      ${orgId}, ${boundProjectId}, 'itest-run-tools-pinned', 1, 'running',
+      'live', ${userId}, ${sql.json({})}, ${sql.json(toJson(liveCursor))},
+      ${now}
+    ) RETURNING id
+  `;
+  const orgRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by,
+      input, checkpoints, started_at_ms
+    ) VALUES (
+      ${orgId}, 'itest-run-tools-org', 1, 'running', 'live', ${userId},
+      ${sql.json({})}, ${sql.json(toJson(liveCursor))}, ${now}
+    ) RETURNING id
+  `;
+  const pinnedRunId = pinnedRun[0]?.id ?? '';
+  const orgRunId = orgRun[0]?.id ?? '';
+  // The org-level automation is bound to TWO projects — its runs act across
+  // exactly those, never the whole organization.
+  for (const projectId of [boundProjectId, otherProjectId]) {
+    await sql`
+      INSERT INTO app.automation_project_bindings (
+        org_id, automation_name, project_id, bound_at_ms, bound_by
+      ) VALUES (
+        ${orgId}, 'itest-run-tools-org', ${projectId}, ${now}, ${userId}
+      )
+      ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
+    `;
+  }
+
+  const GRANTS = [
+    'ask_human',
+    'task_find',
+    'task_create',
+    'task_update_status',
+    'task_upsert_by_external_ref',
+    'document_create',
+  ];
+  // The step-scoped owner spelling (`${runId}:<suffix>`) is what the agent
+  // host mints — the resolver must split it back to the run.
+  const seedSession = async (
+    sessionId: string,
+    ownerId: string,
+    token: string,
+  ): Promise<void> => {
+    await sql`
+      INSERT INTO app.sandbox_sessions (
+        org_id, session_id, status, owner_type, owner_id, created_by,
+        created_at_ms, expires_at_ms
+      ) VALUES (
+        ${orgId}, ${sessionId}, 'active', 'workflow_run', ${ownerId},
+        'itest:run-tools', ${now}, ${now + 3_600_000}
+      )
+    `;
+    await sessions.insertSessionToken(sql, {
+      organizationId: orgId,
+      sessionId,
+      tokenHash: createHash('sha256').update(token).digest('hex'),
+      scope: {
+        agentKind: 'claude-code',
+        allowedModels: [],
+        connectorGrants: [],
+        budgetCents: 100,
+        toolGrants: GRANTS,
+      },
+      ttlMs: 60_000,
+    });
+  };
+  const pinnedToken = 'itest-vk-run-pinned';
+  const orgToken = 'itest-vk-run-org';
+  await seedSession('itest-run-pinned', `${pinnedRunId}:agent`, pinnedToken);
+  await seedSession('itest-run-org', orgRunId, orgToken);
+
+  const dispatch = async (
+    token: string,
+    tool: string,
+    args: Record<string, unknown>,
+  ): Promise<{ status: string; raw: string }> => {
+    const res = await fetch(`${base}/api/tools/execute`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ tool, args }),
+    });
+    const body: unknown = await res.json();
+    const parsed = z.object({ status: z.string() }).loose().safeParse(body);
+    return {
+      status: parsed.success ? parsed.data.status : 'PARSE_ERROR',
+      raw: JSON.stringify(body),
+    };
+  };
+
+  // --- the project-bound run: escalate, then file work on its own board.
+  const asked = await dispatch(pinnedToken, 'ask_human', {
+    question: 'Which ledger account applies to this invoice?',
+  });
+  const askRows = await sql<{ runId: string; execId: string }[]>`
+    SELECT run_id AS "runId", exec_id AS "execId"
+    FROM app.automation_human_asks
+    WHERE session_id = 'itest-run-pinned' AND status = 'pending'
+  `;
+  const created = await dispatch(pinnedToken, 'task_create', {
+    title: 'Reconcile the invoice',
+    description: 'Filed by the run under test.',
+  });
+  const createdTaskId = z
+    .object({ output: z.object({ taskId: z.string() }).loose() })
+    .loose()
+    .safeParse(JSON.parse(created.raw));
+  const taskId = createdTaskId.success ? createdTaskId.data.output.taskId : '';
+  const taskRow = await sql<
+    { projectId: string; createdBy: string; createdByType: string }[]
+  >`
+    SELECT project_id AS "projectId", created_by AS "createdBy",
+           created_by_type AS "createdByType"
+    FROM app.tasks WHERE id = ${taskId} LIMIT 1
+  `;
+  const found = await dispatch(pinnedToken, 'task_find', {});
+  const moved = await dispatch(pinnedToken, 'task_update_status', {
+    taskId,
+    status: 'in_progress',
+  });
+  // The one status an agent may never set — the refusal must carry the
+  // review-gate guidance, not a generic "refused".
+  const completing = await dispatch(pinnedToken, 'task_update_status', {
+    taskId,
+    status: 'done',
+  });
+  // Cancelling IS the run's to do — abandoning a card is not completing it —
+  // but not over a child that is still open. The subtask is created through
+  // the tool door too, so the depth-1 create path carries the case.
+  const subtask = await dispatch(pinnedToken, 'task_create', {
+    title: 'A child that is still open',
+    parentTaskId: taskId,
+  });
+  const blockedCancel = await dispatch(pinnedToken, 'task_update_status', {
+    taskId,
+    status: 'cancelled',
+  });
+  const childId = z
+    .object({ output: z.object({ taskId: z.string() }).loose() })
+    .loose()
+    .safeParse(JSON.parse(subtask.raw));
+  const cancelChild = await dispatch(pinnedToken, 'task_update_status', {
+    taskId: childId.success ? childId.data.output.taskId : '',
+    status: 'cancelled',
+  });
+  const cancelParent = await dispatch(pinnedToken, 'task_update_status', {
+    taskId,
+    status: 'cancelled',
+  });
+  const cancelledRow = await sql<{ status: string; completedAt: number }[]>`
+    SELECT status, completed_at_ms::float8 AS "completedAt"
+    FROM app.tasks WHERE id = ${taskId} LIMIT 1
+  `;
+
+  // A card on another project's board is out of reach for a pinned run, and
+  // reads as MISSING rather than forbidden (no existence oracle).
+  const foreign = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, number, created_by,
+      created_by_type, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${unboundProjectId}, 'Someone else''s card', 'backlog',
+      'a1', 1, ${userId}, 'user', ${now}, ${now}
+    ) RETURNING id
+  `;
+  const reachForeign = await dispatch(pinnedToken, 'task_update_status', {
+    taskId: foreign[0]?.id ?? '',
+    status: 'in_progress',
+  });
+  const wrote = await dispatch(pinnedToken, 'document_create', {
+    name: 'run-report.md',
+    content: '# Findings\n\nThe run wrote this.',
+    contentType: 'text/markdown',
+  });
+  const documentRow = await sql<
+    { projectId: string | null; createdBy: string | null; fileRef: string }[]
+  >`
+    SELECT d.project_id AS "projectId", d.created_by AS "createdBy",
+           d.file_ref AS "fileRef"
+    FROM app.documents d
+    WHERE d.org_id = ${orgId} AND d.title = 'run-report.md'
+    LIMIT 1
+  `;
+  // The blob is bound to the document AND handed to the indexer. The status
+  // is read as "indexing was requested", never as a literal `queued`: the
+  // worker is live here, so the row may already have moved on.
+  const linkedFile = await sql<{ ragStatus: string | null }[]>`
+    SELECT rag_status AS "ragStatus" FROM app.file_metadata
+    WHERE org_id = ${orgId} AND storage_ref = ${documentRow[0]?.fileRef ?? ''}
+      AND document_id IS NOT NULL
+  `;
+
+  // The idempotent external-item sync: the same (system, id) pair twice is
+  // ONE card, and a bound run's dedupe is forced project-local.
+  const syncArgs = {
+    externalSystem: 'itest-tracker',
+    externalId: 'ISSUE-7',
+    title: 'Synced from the tracker',
+  };
+  const syncedFirst = await dispatch(
+    pinnedToken,
+    'task_upsert_by_external_ref',
+    syncArgs,
+  );
+  const syncedAgain = await dispatch(
+    pinnedToken,
+    'task_upsert_by_external_ref',
+    {
+      ...syncArgs,
+      title: 'Synced from the tracker (renamed)',
+    },
+  );
+  const syncedRows = await sql<{ id: string; title: string }[]>`
+    SELECT id, title FROM app.tasks
+    WHERE org_id = ${orgId} AND external_system = 'itest-tracker'
+      AND external_id = 'ISSUE-7'
+  `;
+
+  // --- the org-wide run: bounded by its automation's bindings.
+  const needsProject = await dispatch(orgToken, 'task_create', {
+    title: 'Where does this go?',
+  });
+  const outsideBindings = await dispatch(orgToken, 'task_create', {
+    title: 'Not allowed here',
+    projectId: unboundProjectId,
+  });
+  const insideBindings = await dispatch(orgToken, 'task_create', {
+    title: 'Filed on a bound board',
+    projectId: otherProjectId,
+  });
+  const orgFind = await dispatch(orgToken, 'task_find', {});
+  const orgFindRaw = orgFind.raw;
+  // An org-level run's document is a HUB document — it belongs to no project.
+  const orgWrote = await dispatch(orgToken, 'document_create', {
+    name: 'org-run-notes.md',
+    content: '# Notes\n\nOrg-level run.',
+    contentType: 'text/markdown',
+  });
+  const hubDocument = await sql<{ projectId: string | null }[]>`
+    SELECT project_id AS "projectId" FROM app.documents
+    WHERE org_id = ${orgId} AND title = 'org-run-notes.md'
+  `;
+
+  // Hand back the workflow session budget — the org's cap is small, and the
+  // spawner scenarios that follow provision real sessions of their own.
+  for (const sessionId of ['itest-run-pinned', 'itest-run-org']) {
+    await sessions.markSessionDestroyed(sql, {
+      organizationId: orgId,
+      sessionId,
+    });
+  }
+
+  record(
+    'automation-run tool lane (workflow_run session through /api/tools/execute)',
+    asked.status === 'ok' &&
+      askRows.length === 1 &&
+      askRows[0]?.runId === pinnedRunId &&
+      askRows[0]?.execId === 'exec-1' &&
+      created.status === 'ok' &&
+      taskRow[0]?.projectId === boundProjectId &&
+      taskRow[0]?.createdByType === 'agent' &&
+      taskRow[0]?.createdBy === 'automation:itest-run-tools-pinned' &&
+      found.status === 'ok' &&
+      found.raw.includes('Reconcile the invoice') &&
+      moved.status === 'ok' &&
+      completing.status === 'unavailable' &&
+      completing.raw.includes('in_review') &&
+      subtask.status === 'ok' &&
+      blockedCancel.status === 'unavailable' &&
+      blockedCancel.raw.includes('subtask') &&
+      cancelChild.status === 'ok' &&
+      cancelParent.status === 'ok' &&
+      cancelledRow[0]?.status === 'cancelled' &&
+      typeof cancelledRow[0]?.completedAt === 'number' &&
+      reachForeign.status === 'not_found' &&
+      wrote.status === 'ok' &&
+      documentRow[0]?.projectId === boundProjectId &&
+      documentRow[0]?.createdBy === 'automation:itest-run-tools-pinned' &&
+      linkedFile.length === 1 &&
+      linkedFile[0]?.ragStatus !== null &&
+      syncedFirst.status === 'ok' &&
+      syncedAgain.status === 'ok' &&
+      syncedRows.length === 1 &&
+      syncedRows[0]?.title === 'Synced from the tracker (renamed)' &&
+      needsProject.status === 'invalid_args' &&
+      needsProject.raw.includes(boundProjectId) &&
+      outsideBindings.status === 'invalid_args' &&
+      insideBindings.status === 'ok' &&
+      orgFind.status === 'ok' &&
+      orgFindRaw.includes('Filed on a bound board') &&
+      !orgFindRaw.includes("Someone else's card") &&
+      orgWrote.status === 'ok' &&
+      hubDocument.length === 1 &&
+      hubDocument[0]?.projectId === null,
+    `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")}, hubDoc=${orgWrote.status}/${hubDocument[0]?.projectId === null})`,
+  );
+}
+
+/**
  * Sandbox spawner dispatch: the REUSED session client (HMAC signing, drain
  * semantics) against a fake spawner that VERIFIES every signature, plus the
  * provisioning choreography (reuse-in-place, phantom heal, orphan adopt,
@@ -25529,6 +25880,7 @@ async function main(): Promise<void> {
     await checkAutoRetryAndKickPlan(sql, baseUrl, authCtx);
     await checkReviewArc(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSandboxSessions(sql, authCtx);
+    await checkAutomationRunToolLane(sql, baseUrl, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkWatchdogs(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(

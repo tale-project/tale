@@ -6,12 +6,10 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
-import {
-  dismissAgentQuestionNotifications,
-  notifyAgentQuestionAsked,
-} from '../collab/service.ts';
+import { dismissAgentQuestionNotifications } from '../collab/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
+import { automationAskShimHandlers } from './ask-shim.ts';
 import {
   claimRun,
   continueRun,
@@ -44,6 +42,9 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
     // (knowledge, entity legs, session ops, gateway bookkeeping) — the
     // automation agent node runs on the same substrate.
     ...agentTurnShimHandlers(sql),
+    // The ask lane's CREATE side, stated here rather than inherited: it is
+    // this domain's own contract, not something the sandbox map lends it.
+    ...automationAskShimHandlers(sql),
 
     'automations/mutations:claimRun': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
@@ -431,125 +432,8 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
     },
 
     // ----------------------------------------------------- the ask lane
-    'automations/human_asks:createAskForExec': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge passes exactly this shape
-      const args = raw as {
-        organizationId: string;
-        sessionId: string;
-        question: string;
-        questions?: unknown;
-      };
-      const question = args.question.trim().slice(0, 4000);
-      if (question === '') {
-        return { refused: 'the question is empty' };
-      }
-      const sessions = await sql<{ ownerType: string; ownerId: string }[]>`
-        SELECT owner_type AS "ownerType", owner_id AS "ownerId"
-        FROM app.sandbox_sessions
-        WHERE session_id = ${args.sessionId}
-          AND org_id = ${args.organizationId}
-        ORDER BY created_at_ms DESC
-        LIMIT 1
-      `;
-      const session = sessions[0];
-      if (!session || session.ownerType !== 'workflow_run') {
-        return { refused: 'this session is not an automation run session' };
-      }
-      const runId = session.ownerId.split(':')[0] ?? '';
-      const runs = await sql<
-        { status: string; checkpoints: unknown; taskId: string | null }[]
-      >`
-        SELECT status, checkpoints, input -> 'task' ->> 'id' AS "taskId"
-        FROM app.automation_runs
-        WHERE id = ${runId} AND org_id = ${args.organizationId}
-        LIMIT 1
-      `;
-      const run = runs[0];
-      if (!run) {
-        return { refused: 'the automation run behind this session is gone' };
-      }
-      if (!['waiting', 'running', 'queued'].includes(run.status)) {
-        return { refused: 'the automation run has already finished' };
-      }
-      const checkpoints =
-        run.checkpoints !== null && typeof run.checkpoints === 'object'
-          ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper owns this JSON shape
-            (run.checkpoints as {
-              cursor?: {
-                node?: string;
-                agent?: { execId?: string; result?: unknown };
-              };
-            })
-          : {};
-      const agent = checkpoints.cursor?.agent;
-      if (agent === undefined || agent.result !== undefined) {
-        return { refused: 'the run has no live agent turn right now' };
-      }
-      const execId = agent.execId ?? '';
-      // A run bound to a task carries it in its input; resolve it ONCE and
-      // hang the ask off it, so the bell deep-links to the card the person
-      // is being asked about instead of the bare dashboard.
-      const task = await resolveRunTask(sql, args.organizationId, run.taskId);
-      const existing = await sql<{ id: string; question: string }[]>`
-        SELECT id, question FROM app.automation_human_asks
-        WHERE session_id = ${args.sessionId} AND exec_id = ${execId}
-          AND status = 'pending'
-        LIMIT 1
-      `;
-      if (existing[0]) {
-        const merged = `${existing[0].question}\n\n---\n\n${question}`.slice(
-          0,
-          4000,
-        );
-        await sql`
-          UPDATE app.automation_human_asks SET
-            question = ${merged}, questions = NULL
-          WHERE id = ${existing[0].id}
-        `;
-        await notifyAskBestEffort(sql, {
-          organizationId: args.organizationId,
-          askId: existing[0].id,
-          runId,
-          question: merged,
-          task,
-        });
-        return {
-          askId: existing[0].id,
-          ...(task !== null ? { taskId: task.id } : {}),
-          question,
-          folded: true,
-        };
-      }
-      const inserted = await sql<{ id: string }[]>`
-        INSERT INTO app.automation_human_asks (
-          org_id, run_id, node_id, session_id, exec_id, question, questions,
-          status, expires_at_ms, task_id, created_at_ms
-        ) VALUES (
-          ${args.organizationId}, ${runId},
-          ${checkpoints.cursor?.node ?? ''}, ${args.sessionId}, ${execId},
-          ${question},
-          ${args.questions === undefined ? null : sql.json(toJson(args.questions))},
-          'pending', ${Date.now() + 7 * 24 * 3_600_000}, ${task?.id ?? null},
-          ${Date.now()}
-        )
-        RETURNING id
-      `;
-      const askId = inserted[0]?.id ?? '';
-      await notifyAskBestEffort(sql, {
-        organizationId: args.organizationId,
-        askId,
-        runId,
-        question,
-        task,
-      });
-      return {
-        askId,
-        ...(task !== null ? { taskId: task.id } : {}),
-        question,
-        folded: false,
-      };
-    },
-
+    // The CREATE side (`createAskForExec`) lives in `ask-shim.ts` and is
+    // spread below — the sandbox tool dispatch registers the same handler.
     'automations/human_asks:getPendingAskForExec': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { sessionId: string; execId: string };
@@ -747,55 +631,6 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       return null;
     },
   };
-}
-
-/** Bell fan-out for one ask — best-effort (a notify failure must never fail
- * the ask itself); the audience is everyone who can see the run's project. */
-/** The task an automation run was started FOR, when it still exists in this
- * org — a stale or foreign id in the run input resolves to no task rather
- * than a bell pointing at someone else's card (0.4's `normalizeId` guard). */
-async function resolveRunTask(
-  sql: Sql,
-  organizationId: string,
-  taskId: string | null,
-): Promise<{ id: string; title: string; projectId: string } | null> {
-  if (taskId === null || taskId === '') return null;
-  const rows = await sql<{ id: string; title: string; projectId: string }[]>`
-    SELECT id, title, project_id AS "projectId" FROM app.tasks
-    WHERE id = ${taskId} AND org_id = ${organizationId}
-    LIMIT 1
-  `;
-  return rows[0] ?? null;
-}
-
-async function notifyAskBestEffort(
-  sql: Sql,
-  args: {
-    organizationId: string;
-    askId: string;
-    runId: string;
-    question: string;
-    task: { id: string; title: string; projectId: string } | null;
-  },
-): Promise<void> {
-  try {
-    const runs = await sql<{ name: string; projectId: string | null }[]>`
-      SELECT name, project_id AS "projectId" FROM app.automation_runs
-      WHERE id = ${args.runId} LIMIT 1
-    `;
-    const run = runs[0];
-    await notifyAgentQuestionAsked(sql, {
-      organizationId: args.organizationId,
-      askId: args.askId,
-      runId: args.runId,
-      question: args.question,
-      automationLabel: run?.name ?? 'automation',
-      task: args.task,
-      ...(run?.projectId != null ? { projectId: run.projectId } : {}),
-    });
-  } catch (error) {
-    console.warn('[asks] bell fan-out failed:', error);
-  }
 }
 
 /** The scheduler seam for the automation shims: the reused hosts' scheduled

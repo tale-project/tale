@@ -3,10 +3,10 @@
  * automation capabilities: read a task, move its status, write and read its
  * discussion comments.
  *
- * The thin rim: input narrowing and the marker-window semantics. The store —
- * bound per invocation by the Convex surface — fronts the task domain's own
- * internal mutations, so actor attribution, the "agents never complete work"
- * invariant, and org scoping stay where they live today.
+ * The thin rim: input narrowing and the marker-window semantics. The store
+ * fronts the task domain's own trusted writers, so actor attribution, the
+ * "agents never complete work" invariant, and org scoping stay where they
+ * live today.
  */
 
 import { z } from 'zod';
@@ -17,12 +17,21 @@ import type {
 } from '../dispatcher';
 import { ConnectorError } from '../errors';
 
-const TASK_STATUSES = [
+/**
+ * The statuses an automation may MOVE a task to — every column except `done`.
+ *
+ * `done` is absent on purpose, and this list is the contract's honest half:
+ * completion belongs to the human review gate (the catalog entry has said so
+ * since the connector shipped), so offering it here would only let someone
+ * author a node that is refused every time it runs. Cancelling is not
+ * completing — abandoning a card is an automation's call to make — so it
+ * stays.
+ */
+const AUTOMATION_TASK_STATUSES = [
   'backlog',
   'todo',
   'in_progress',
   'in_review',
-  'done',
   'cancelled',
 ] as const;
 
@@ -52,7 +61,7 @@ export interface WorkflowTaskStore {
   updateStatus(args: {
     organizationId: string;
     taskId: string;
-    status: (typeof TASK_STATUSES)[number];
+    status: (typeof AUTOMATION_TASK_STATUSES)[number];
   }): Promise<{ ok: boolean; reason?: string }>;
   comment(args: {
     organizationId: string;
@@ -69,8 +78,27 @@ export interface WorkflowTaskStore {
 const taskRef = z.object({ taskId: z.string().min(1) });
 
 const updateStatusInput = taskRef
-  .extend({ status: z.enum(TASK_STATUSES) })
+  .extend({ status: z.enum(AUTOMATION_TASK_STATUSES) })
   .strict();
+
+/**
+ * The task store answers a refusal CODE (the workspace-tool bridge branches on
+ * it); an operator reading a failed run needs the sentence. Rendering happens
+ * here, at the surface that shows people the message — the store stays
+ * machine-readable, and an unknown code still says something true.
+ */
+function refusalSentence(reason: string | undefined): string {
+  switch (reason) {
+    case 'AGENTS_CANNOT_COMPLETE':
+      return 'an automation cannot close a task — moving to done stays reserved for the human review gate, so park it at in_review instead';
+    case 'TASK_HAS_OPEN_SUBTASKS':
+      return 'the task still has open subtasks; close or cancel those first';
+    case 'TASK_WRONG_ORGANIZATION':
+      return 'that task belongs to another organization';
+    default:
+      return reason ?? 'the transition is not allowed';
+  }
+}
 
 const commentInput = taskRef
   .extend({
@@ -142,7 +170,7 @@ export function platformTaskNatives(
     if (!moved.ok) {
       throw new ConnectorError(
         'INPUT_INVALID',
-        `task.update_status refused: ${moved.reason ?? 'the transition is not allowed'}`,
+        `task.update_status refused: ${refusalSentence(moved.reason)}`,
         {},
       );
     }
