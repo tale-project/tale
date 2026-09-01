@@ -1,8 +1,8 @@
 import type { Context } from 'hono';
 import type { Sql } from 'postgres';
 
-import { EDITOR_ROLES } from '../../convex/projects/access.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
+import { EDITOR_ROLES } from '../core/projects/access.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
 import { getProjectAuthContext } from '../domains/projects/service.ts';
 import { RateLimitExceededError, checkIpRateLimit } from '../lib/rate-limit.ts';

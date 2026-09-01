@@ -7,7 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { loadHarnesses } from '../../convex/lib/providers/load_system_config';
+import { loadHarnesses } from '../../backend/core/lib/providers/load_system_config';
 import type { HarnessDefinition } from '../shared/schemas/providers';
 import { buildHarnessExec, isClaudeModelRef } from './exec-builder';
 import { GOLDEN_BYO_ENV, GOLDEN_GATEWAY, goldenBattery } from './test-helpers';

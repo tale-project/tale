@@ -1,8 +1,8 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { getFileMetadata } from '../../../convex/google_drive/get_file_metadata.ts';
-import { importFiles } from '../../../convex/google_drive/import_files.ts';
-import { listFolderContents } from '../../../convex/google_drive/list_folder_contents.ts';
+import { getFileMetadata } from '../../core/google_drive/get_file_metadata.ts';
+import { importFiles } from '../../core/google_drive/import_files.ts';
+import { listFolderContents } from '../../core/google_drive/list_folder_contents.ts';
 import { resolveCloudAccessToken } from '../cloud_import/service.ts';
 import {
   cancelSyncConfigRow,

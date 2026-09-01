@@ -4,14 +4,6 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import {
-  collectAllApplicableRules,
-  collectWarnings,
-  resolveEffectiveLimits,
-  type BudgetWarning,
-} from '../../../convex/governance/budget_enforcement.ts';
-import { buildPeriodKey } from '../../../convex/governance/helpers.ts';
-import { isAdmin } from '../../../convex/lib/rls/helpers/role_helpers.ts';
-import {
   dsarGovernanceConfigSchema,
   isFilePolicyType,
   POLICY_SCHEMAS,
@@ -20,6 +12,14 @@ import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  collectAllApplicableRules,
+  collectWarnings,
+  resolveEffectiveLimits,
+  type BudgetWarning,
+} from '../../core/governance/budget_enforcement.ts';
+import { buildPeriodKey } from '../../core/governance/helpers.ts';
+import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,

@@ -1,18 +1,17 @@
 // Byte-parity guard for the WebDAV HMAC helpers. The crypto primitives
-// (hmacHash / timingSafeEqual) are hand-duplicated in lib/webdav/auth.ts
-// (Hono / Node side) and convex/webdav/helpers.ts (Convex V8 isolate side)
-// because the isolate cannot import from lib/. If the two copies ever
-// drift, Basic-auth silently breaks: a password hashed by helpers.ts at
-// create time would no longer match the digest auth.ts computes at login.
-// This test pins both to the same known-answer vector — the missing test
-// that auth.ts's header comment promised.
+// (hmacHash / timingSafeEqual) are hand-duplicated in lib/webdav/auth.ts and
+// backend/core/webdav/helpers.ts (a split inherited from the retired Convex
+// isolate, which could not import from lib/). If the two copies ever drift,
+// Basic-auth silently breaks: a password hashed by helpers.ts at create time
+// would no longer match the digest auth.ts computes at login. This test pins
+// both to the same known-answer vector.
 
 import { describe, expect, it } from 'vitest';
 
 import {
   hmacHash as hmacHashHelpers,
   timingSafeEqual as timingSafeEqualHelpers,
-} from '../../convex/webdav/helpers';
+} from '../../backend/core/webdav/helpers';
 import {
   hmacHash as hmacHashAuth,
   timingSafeEqual as timingSafeEqualAuth,
@@ -28,7 +27,7 @@ const PASSWORD = 'app-pass-1234-5678-90ab';
 const EXPECTED =
   'a2bbb0a6897a8e7426813c57c6f1bdeeeb45cb8d177e2ff18c22a3f9f6e5ee30';
 
-describe('webdav HMAC helper parity (auth.ts ↔ convex/webdav/helpers.ts)', () => {
+describe('webdav HMAC helper parity (auth.ts ↔ backend/core/webdav/helpers.ts)', () => {
   it('both hmacHash copies produce the pinned digest', async () => {
     const fromAuth = await hmacHashAuth(PASSWORD, KEY_HEX);
     const fromHelpers = await hmacHashHelpers(PASSWORD, KEY_HEX);

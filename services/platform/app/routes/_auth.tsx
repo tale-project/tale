@@ -9,7 +9,6 @@ import { useEffect } from 'react';
 
 import { LogoLink } from '@/app/components/ui/logo/logo-link';
 import { AuthSsoHeader } from '@/app/features/auth/components/auth-sso-header';
-import { clearConvexTokenCache } from '@/app/lib/auth/convex-token-cache';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
 
@@ -35,11 +34,9 @@ function isSsoOrgPickerStep(pathname: string, searchStr: string): boolean {
 
 function AuthLayout() {
   // An auth screen is the only same-tab door to a user switch: drop the
-  // pre-auth caches so the next sign-in can never pre-authenticate the
-  // websocket — or hydrate the dashboard shell — as the previous account
-  // (see convex-token-cache / member-context-cache, epic #2386).
+  // pre-auth cache so the next sign-in can never hydrate the dashboard
+  // shell as the previous account (see member-context-cache, epic #2386).
   useEffect(() => {
-    clearConvexTokenCache();
     clearMemberContextCache();
   }, []);
 

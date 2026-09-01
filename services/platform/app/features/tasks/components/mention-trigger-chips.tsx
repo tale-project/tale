@@ -3,7 +3,7 @@
 import { Ban, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { parseMentionTokens } from '@/convex/tasks/mentions';
+import { parseMentionTokens } from '@/backend/core/tasks/mentions';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

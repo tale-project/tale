@@ -2,12 +2,12 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { resolveCloudImportOauthRedirectUri } from '../../../convex/cloud_import/deployment_config.ts';
-import { MICROSOFT_CLOUD_IMPORT_SCOPES } from '../../../convex/cloud_import/providers.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { resolveCloudImportOauthRedirectUri } from '../../core/cloud_import/deployment_config.ts';
+import { MICROSOFT_CLOUD_IMPORT_SCOPES } from '../../core/cloud_import/providers.ts';
 import {
   CLOUD_IMPORT_APP_SLUGS,
   deleteOauthApp,

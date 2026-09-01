@@ -81,17 +81,15 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: services/platform/dist
-          key: e2e-dist-${{ runner.os }}-${{ hashFiles('services/platform/app/**', 'services/platform/lib/**', 'services/platform/convex/**', 'services/platform/public/**', 'services/platform/*.json', 'services/platform/*.ts', 'packages/ui/src/**', 'packages/ui/*.json', 'bun.lock') }}
+          key: e2e-dist-${{ runner.os }}-${{ hashFiles('services/platform/app/**', 'services/platform/lib/**', 'services/platform/backend/core/**', 'services/platform/public/**', 'services/platform/*.json', 'services/platform/*.ts', 'packages/ui/src/**', 'packages/ui/*.json', 'bun.lock') }}
 
       # Serve a production build instead of the Vite dev server. `vite dev`
       # transpiles on the fly — the dominant CPU consumer that, on the 4-vCPU
-      # runner, starved the local Convex backend into flooding its hard 1s
-      # function-execution timeout and flaking the suite. A prebuilt dist/ makes
-      # the webServer (scripts/dev.ts, TALE_E2E_SERVE_BUILD=1) serve via
-      # `vite preview`: static assets + Convex proxy only, no transpilation.
+      # runner, starved the backend into flaking the suite. A prebuilt dist/
+      # makes the webServer (scripts/dev.ts, TALE_E2E_SERVE_BUILD=1) serve via
+      # `vite preview`: static assets + API proxy only, no transpilation.
       # Built here (not inside the webServer) so the boot stays inside the
-      # Playwright webServer timeout. The committed convex/_generated lets the
-      # client bundle build without a live backend. Skipped on a dist-cache hit.
+      # Playwright webServer timeout. Skipped on a dist-cache hit.
       - name: Build platform (prod bundle for E2E preview)
         if: steps.dist-cache.outputs.cache-hit != 'true'
         working-directory: services/platform

@@ -1,23 +1,23 @@
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 
-import { getProviderCatalog } from '../../../convex/lib/providers/catalog_fetch.ts';
-import { credentialAuthFor } from '../../../convex/lib/providers/credential_auth.ts';
-import {
-  deriveHarnessStatus,
-  type SubscriptionCredentialFact,
-} from '../../../convex/lib/providers/harness_status.ts';
-import {
-  loadHarnesses,
-  readSystemEntryIcon,
-} from '../../../convex/lib/providers/load_system_config.ts';
-import { resolveProvidersForOrg } from '../../../convex/lib/providers/org_providers.ts';
-import { resolveOrgVisionModel } from '../../../convex/lib/providers/resolve_vision_model.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+import { getProviderCatalog } from '../../core/lib/providers/catalog_fetch.ts';
+import { credentialAuthFor } from '../../core/lib/providers/credential_auth.ts';
+import {
+  deriveHarnessStatus,
+  type SubscriptionCredentialFact,
+} from '../../core/lib/providers/harness_status.ts';
+import {
+  loadHarnesses,
+  readSystemEntryIcon,
+} from '../../core/lib/providers/load_system_config.ts';
+import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
+import { resolveOrgVisionModel } from '../../core/lib/providers/resolve_vision_model.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listComposerModels } from '../chat/composer.ts';

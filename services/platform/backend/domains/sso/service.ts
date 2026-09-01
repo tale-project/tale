@@ -1,14 +1,14 @@
 import { generateId } from 'better-auth';
 import type { Sql } from 'postgres';
 
-import { mapEntraRoleToPlatformRole } from '../../../convex/enterprise_sso/entra_id/role_mapping.ts';
-import { shouldSyncMemberRole } from '../../../convex/enterprise_sso/find_or_create_sso_user.ts';
+import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
+import { mapEntraRoleToPlatformRole } from '../../core/enterprise_sso/entra_id/role_mapping.ts';
+import { shouldSyncMemberRole } from '../../core/enterprise_sso/find_or_create_sso_user.ts';
 import type {
   PlatformRole,
   SsoUserInfo,
-} from '../../../convex/enterprise_sso/types.ts';
-import { normalizeAuthEmail } from '../../../convex/lib/auth/normalize_auth_email.ts';
-import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
+} from '../../core/enterprise_sso/types.ts';
+import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { resolveProvisioning } from './config.ts';
 
 /**

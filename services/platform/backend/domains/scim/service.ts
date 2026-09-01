@@ -1,13 +1,13 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { normalizeAuthEmail } from '../../../convex/lib/auth/normalize_auth_email.ts';
+import { AppError } from '../../../lib/shared/errors/app-error';
+import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import {
   classifyDeprovision,
   classifyUserOwnership,
   composeDesiredMembers,
   planActivation,
-} from '../../../convex/scim/internal_mutations.ts';
-import { AppError } from '../../../lib/shared/errors/app-error';
+} from '../../core/scim/internal_mutations.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveProvisioning } from '../sso/config.ts';
 

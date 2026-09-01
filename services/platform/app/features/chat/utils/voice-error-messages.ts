@@ -8,7 +8,7 @@
  * pull it without dragging the other's render path.
  *
  * Code coverage:
- *  - Server-classified codes from `convex/tts/error_codes.ts`
+ *  - Server-classified codes from `backend/core/tts/error_codes.ts`
  *    (NO_PROVIDER, UNKNOWN_*, RATE_LIMITED, BUDGET_EXCEEDED, TIMEOUT,
  *    PROVIDER_*, PROVIDER_INVALID_RESPONSE, HOST_POLICY,
  *    MESSAGE_CHAR_LIMIT, CONTENTION, WATCHDOG_TIMEOUT,

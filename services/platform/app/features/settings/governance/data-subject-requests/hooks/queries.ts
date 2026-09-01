@@ -1,6 +1,6 @@
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import type { ErasureStatus } from '@/convex/governance/erasure_constants';
+import type { ErasureStatus } from '@/backend/core/governance/erasure_constants';
 
 export function useListErasureRequests(args: {
   organizationId: string | undefined;

@@ -36,7 +36,7 @@ export async function handleDelete(
     };
   }
 
-  const resolved = await ctx.convex.query(
+  const resolved = await ctx.backend.query(
     anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
@@ -50,7 +50,7 @@ export async function handleDelete(
 
   try {
     if (resolved.kind === 'document') {
-      await ctx.convex.mutation(
+      await ctx.backend.mutation(
         anyRefs.webdav.tree_mutations.softDeleteDocument,
         {
           organizationId: auth.organizationId,
@@ -74,7 +74,7 @@ export async function handleDelete(
           body: descendantLock.body,
         };
       }
-      await ctx.convex.mutation(
+      await ctx.backend.mutation(
         anyRefs.webdav.tree_mutations.deleteFolderCascade,
         {
           organizationId: auth.organizationId,
@@ -114,7 +114,7 @@ export async function handleDelete(
   // Removing a resource removes its locks (RFC 4918 §9.6.1) — drop the
   // lock row(s) for this path and any descendants so a stale lock can't
   // 423 a later recreate of the same name.
-  await ctx.convex
+  await ctx.backend
     .mutation(anyRefs.webdav.lock_mutations.deleteLocksUnderPath, {
       organizationId: auth.organizationId,
       resourcePath: lockKeyFromParsed(parsed),

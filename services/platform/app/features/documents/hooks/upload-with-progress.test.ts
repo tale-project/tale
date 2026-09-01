@@ -8,8 +8,6 @@ vi.mock('@/app/hooks/use-backend-mutation', () => ({
 vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutateAsync: vi.fn() }),
 }));
-vi.mock('@/convex/_generated/api', () => ({ api: {} }));
-
 import { uploadWithProgress } from './mutations';
 
 /**

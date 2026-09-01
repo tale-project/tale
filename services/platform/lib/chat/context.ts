@@ -37,7 +37,6 @@
  * Layer A: pure, no `node:*`, no Convex, no model call.
  */
 
-import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../convex/lib/untrusted_content';
 import { boundJson } from '../shared/utils/bound-json';
 import { narrowBcp47 } from '../shared/utils/narrow-bcp47';
 import { pickField } from '../shared/utils/pick-field';
@@ -47,6 +46,7 @@ import {
   type ChatMessage,
   type MessagePart,
 } from './types';
+import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from './untrusted-content';
 
 /** The canonical block order. The assembler emits a subsequence of this list
  * — never a reordering, never an extra. */

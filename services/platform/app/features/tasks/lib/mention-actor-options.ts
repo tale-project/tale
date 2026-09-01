@@ -20,14 +20,14 @@ export interface MentionActorOption {
   name: string;
   email?: string;
   /** The `@token` inserted into the text — picked to match a handle the
-   *  server directory resolves (`convex/tasks/directory.ts::memberHandles`). */
+   *  server directory resolves (`backend/domains/collab/mention-directory.ts::memberHandles`). */
   handle: string;
 }
 
 /**
  * Mentionable actors for a project, in picker order: org members first, then
  * agents, then the automations operating this board — the same population the
- * server resolves mentions against (`convex/tasks/directory.ts`). Agent
+ * server resolves mentions against (`backend/domains/collab/mention-directory.ts`). Agent
  * scoping follows the project agent gates: the default `agentMode: 'all'`
  * exposes every org agent (recommended ones first); `'restricted'` limits the
  * list to the project's `allowedAgentSlugs`. Automations are the deployed

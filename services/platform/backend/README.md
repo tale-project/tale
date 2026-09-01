@@ -6,9 +6,9 @@ image**: the same image starts as an `api` container or a `worker` container
 (role picked at boot), replacing the separate Convex container. The default
 deployment runs one of each; either role scales horizontally on its own. 0.5
 is a fresh instance (no data migration). This backend now carries the whole
-product surface: the Convex service is deleted and the remaining `convex/`
-tree holds only the 0.4 function layer the app's adapter seam still types
-itself against — see `MIGRATION.md` for what is left to remove.
+product surface. The domain logic ported from 0.4 lives in `core/` (driven
+through the ctx-shim seams by the doors and jobs here); `MIGRATION.md` is the
+campaign ledger that got it here.
 
 ## Constitution
 
@@ -53,22 +53,20 @@ Sentry-compatible error reporting, errors only, no traces; see
 `error-reporting.ts`). Production runtime is
 **Node** (>= 22.18) running the `.ts` sources directly with
 `--experimental-transform-types` and the `node-loader.mjs` resolve hook — the
-hook lets the backend import runtime-clean 0.4 modules (extensionless
-specifiers under `../convex/**` and `../lib/**`) unchanged, so ports reuse
-instead of fork-copying. Bun stays the package manager, build toolchain, and
+hook lets the backend import the ported modules (extensionless specifiers
+under `core/**` and `../lib/**`) unchanged, so ports reuse instead of
+fork-copying. Bun stays the package manager, build toolchain, and
 dev runner for the rest of the workspace.
 
 Run locally: `bun run --filter @tale/platform backend:dev` (needs
 `DATABASE_URL`; `TALE_CONFIG_DIR`/`TALE_CONFIG_BUILTIN_DIR` for org-config
 reads and scaffolding).
 
-To put the web app's dev server in front of it, start Vite with
-`TALE_BACKEND_URL=http://127.0.0.1:<PORT>` — `/api/auth`, `/api/app`, and
-`/events` then proxy here while every other route keeps flowing to Convex
-(the incremental-migration dev posture; see `vite.config.ts`). The app-side
-data layer for these lanes lives in `app/lib/backend/` (fetch client,
-`['backend', orgId, entity]` query keys, and the `/events` hint →
-`invalidateQueries` hook).
+`bun run dev` (repo root or this workspace) spawns this backend and the Vite
+dev server together; Vite proxies `/api`, `/events`, `/dav`, and `/scim` here
+(see `vite.config.ts`, `TALE_BACKEND_URL`). The app-side data layer lives in
+`app/lib/backend/` (fetch client, `['backend', orgId, entity]` query keys,
+and the `/events` hint → `invalidateQueries` hook).
 
 ## Tests
 
@@ -126,14 +124,11 @@ data layer for these lanes lives in `app/lib/backend/` (fetch client,
   unqualified tables — they land in the first `search_path` schema (`tale` on
   the tale-db image).
 
-## Ported surface (so far)
+## Surface
 
-`/api/app/*`: audit-logs, members, notifications, organizations,
-user-preferences, users — see [MIGRATION.md](./MIGRATION.md) for the
-domain-by-domain ledger and what each row still owes.
-
-## Deliberately not here yet
-
-SSO/trusted-headers/SCIM doors, 2FA org-enforcement hooks, crons, the
-remaining domain ports (tracked in [MIGRATION.md](./MIGRATION.md)), proxy
-routing, dev-loop integration.
+Every product domain is served here — `/api/app/*`, the `/api/v1` REST
+machine door, `/api/auth`, `/events`, `/dav`, `/scim`, webhooks, and the
+pg-boss job lanes (automations, agent turns, sync, watchdogs, crons).
+[MIGRATION.md](./MIGRATION.md) is the completed campaign ledger — the
+domain-by-domain record of how each surface got here and the semantics it
+carries.

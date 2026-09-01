@@ -2,17 +2,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
-  // Never resolves — proves the token warm is kicked in parallel with (not
-  // serially after) the session fetch.
+  // Never resolves — warmSession must not await it.
   getSession: vi.fn(() => new Promise(() => {})),
-  warmConvexToken: vi.fn(),
 }));
 
 vi.mock('@/lib/auth-client', () => ({
   authClient: { getSession: h.getSession },
-}));
-vi.mock('@/app/lib/auth/convex-token-cache', () => ({
-  warmConvexToken: h.warmConvexToken,
 }));
 
 import { sessionQueryOptions, warmSession } from './session-query';
@@ -22,14 +17,13 @@ describe('warmSession', () => {
     vi.clearAllMocks();
   });
 
-  it('kicks the session fetch and the Convex token warm in parallel', () => {
+  it('kicks the session fetch without awaiting it', () => {
     warmSession();
 
-    // Both hops start in the same synchronous tick; the session promise is
-    // still pending, so the token warm cannot be gated on its result (this is
-    // the serial→parallel collapse of epic #2386).
+    // The fetch starts in the same synchronous tick; the pending promise
+    // proves nothing downstream is gated on its result (the serial→parallel
+    // collapse of epic #2386).
     expect(h.getSession).toHaveBeenCalledTimes(1);
-    expect(h.warmConvexToken).toHaveBeenCalledTimes(1);
   });
 });
 

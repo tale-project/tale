@@ -53,16 +53,12 @@ export default {
         // Bun production server — invoked by docker-entrypoint.sh, not from
         // package.json scripts, so knip can't auto-detect it via the npm plugin.
         'server.ts',
-        // Platform-only: Convex backend (separate runtime, not reachable via the
-        // SPA's import graph) and platform-specific app subtrees.
-        'convex/**/*.ts',
-        '!convex/_generated/**',
-        '!convex/betterAuth/_generated/**',
-        // 0.5 Postgres backend — same shape as Convex: a separate Node runtime
-        // not reachable via the SPA's import graph. Domain files are the public
-        // surface (name-dispatched via the `internal.x.y.z` shim); knip cannot
-        // see that second graph, so they must be entries. Covers
-        // `backend/integration-check.ts` (invoked by `backend:integration`).
+        // Postgres backend — a separate Node runtime not reachable via the
+        // SPA's import graph. Domain files are the public surface
+        // (name-dispatched via the `internal.x.y.z` shim); knip cannot see
+        // that second graph, so they must be entries. Covers the ported
+        // logic under `backend/core/` and `backend/integration-check.ts`
+        // (invoked by `backend:integration`).
         'backend/**/*.ts',
         'app/features/**/*.{ts,tsx}',
         'app/hooks/**/*.{ts,tsx}',

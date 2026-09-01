@@ -1,21 +1,21 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { resolveMicrosoftCloudImportTenantId } from '../../../convex/cloud_import/deployment_config.ts';
+import { resolveMicrosoftCloudImportTenantId } from '../../core/cloud_import/deployment_config.ts';
 import {
   refreshGoogleAccessToken,
   refreshMicrosoftAccessToken,
   type RefreshedTokens,
-} from '../../../convex/cloud_import/token_refresh.ts';
+} from '../../core/cloud_import/token_refresh.ts';
 import {
   parseSecretPayload,
   type ConnectorSecretPayload,
-} from '../../../convex/connector_credentials/auth_injection.ts';
-import { OAUTH_STATE_TTL_MS } from '../../../convex/http_connectors/oauth_state.ts';
+} from '../../core/connector_credentials/auth_injection.ts';
+import { OAUTH_STATE_TTL_MS } from '../../core/http_connectors/oauth_state.ts';
 import {
   decryptSecret,
   encryptSecret,
   type EncryptedSecret,
-} from '../../../convex/lib/secret_box.ts';
+} from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
 import { resolveCloudImportApp } from '../connectors/oauth-apps.ts';
 

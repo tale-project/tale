@@ -1,9 +1,9 @@
 import type { Sql } from 'postgres';
 
-import { loadSeedablePacks } from '../../../convex/provisioning/provision_default_automations.ts';
 import { automationPresentationSchema } from '../../../lib/shared/schemas/automation_presentation.ts';
 import { automationSettingsSchema } from '../../../lib/shared/schemas/automation_settings.ts';
 import { taskSubjectContractSchema } from '../../../lib/shared/schemas/task_contract.ts';
+import { loadSeedablePacks } from '../../core/provisioning/provision_default_automations.ts';
 import { saveVersion, setTrigger } from '../automations/store.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
 import {

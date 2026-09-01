@@ -69,8 +69,8 @@ vi.mock(
 // The image-attachment upload lane talks to Convex (upload handoff, policy
 // read, file-metadata registration) — none of which exists here. An inert
 // stand-in keeps the composer's attach surface mounted with nothing staged.
-vi.mock('@/app/features/shared/files/use-convex-file-upload', () => ({
-  useConvexFileUpload: () => ({
+vi.mock('@/app/features/shared/files/use-file-upload', () => ({
+  useFileUpload: () => ({
     attachments: [],
     setAttachments: vi.fn(),
     uploadingFiles: [],

@@ -34,7 +34,7 @@ export async function handleUnlock(
   }
 
   try {
-    await ctx.convex.mutation(anyRefs.webdav.lock_mutations.releaseLock, {
+    await ctx.backend.mutation(anyRefs.webdav.lock_mutations.releaseLock, {
       lockToken: token,
       ownerUserId: auth.userId,
       organizationId: auth.organizationId,

@@ -2,14 +2,14 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { importFiles } from '../../../convex/onedrive/import_files.ts';
-import { listFiles } from '../../../convex/onedrive/list_files.ts';
-import { listSharePointDrives } from '../../../convex/onedrive/list_sharepoint_drives.ts';
-import { listSharePointFiles } from '../../../convex/onedrive/list_sharepoint_files.ts';
-import { listSharePointSites } from '../../../convex/onedrive/list_sharepoint_sites.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { importFiles } from '../../core/onedrive/import_files.ts';
+import { listFiles } from '../../core/onedrive/list_files.ts';
+import { listSharePointDrives } from '../../core/onedrive/list_sharepoint_drives.ts';
+import { listSharePointFiles } from '../../core/onedrive/list_sharepoint_files.ts';
+import { listSharePointSites } from '../../core/onedrive/list_sharepoint_sites.ts';
 import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
 import {
   cancelSyncConfig,

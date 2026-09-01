@@ -1,6 +1,14 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  metaDescription,
+  normalizeListedUrl,
+  siteHosts,
+} from '../../../lib/knowledge/crawl-parse.ts';
+import { htmlTitle } from '../../../lib/knowledge/html-to-text.ts';
+import { safeFetch } from '../../../lib/net/safe-fetch.ts';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
+import {
   deregisterDomain,
   fetchWebsiteInfoFromCorpus,
   isMemberDomain,
@@ -10,41 +18,33 @@ import {
   registerUrlList,
   searchDomainContent,
   setScanInterval,
-} from '../../../convex/knowledge/crawl.ts';
+} from '../../core/knowledge/crawl.ts';
 import {
   scanDueWebsitesImpl,
   scanWebsiteImpl,
-} from '../../../convex/knowledge/crawl_action.ts';
-import { getKnowledgePoolForOrg } from '../../../convex/knowledge/pool.ts';
-import { safeFetch } from '../../../convex/lib/http/safe_fetch.ts';
-import { toWebsiteDomain } from '../../../convex/websites/create_website.ts';
-import { scanIntervalToSeconds } from '../../../convex/websites/internal_actions.ts';
-import { matchesWebsiteSearch } from '../../../convex/websites/match_website_search.ts';
+} from '../../core/knowledge/crawl_action.ts';
+import { getKnowledgePoolForOrg } from '../../core/knowledge/pool.ts';
+import { toWebsiteDomain } from '../../core/websites/create_website.ts';
+import { scanIntervalToSeconds } from '../../core/websites/internal_actions.ts';
+import { matchesWebsiteSearch } from '../../core/websites/match_website_search.ts';
 import {
   CONNECTION_FAILURES_BEFORE_PAUSE,
   connectionFailureCount,
   lastScanAttemptAt,
   scanPausedAt,
   type ScanSchedulingSite,
-} from '../../../convex/websites/scan_scheduling.ts';
+} from '../../core/websites/scan_scheduling.ts';
 import {
   isValidScanInterval,
   SCAN_INTERVAL_VALUES,
-} from '../../../convex/websites/validators.ts';
-import {
-  metaDescription,
-  normalizeListedUrl,
-  siteHosts,
-} from '../../../lib/knowledge/crawl-parse.ts';
-import { htmlTitle } from '../../../lib/knowledge/html-to-text.ts';
-import { isRecord } from '../../../lib/utils/type-utils.ts';
+} from '../../core/websites/types.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   createCtxShim,
   type ShimHandlers,
   type ShimScheduler,
-} from '../../lib/convex-shim.ts';
+} from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';

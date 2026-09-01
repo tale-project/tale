@@ -13,7 +13,7 @@ import { ComparisonResults } from '@/app/features/documents/components/document-
 import { useDocumentComparison } from '@/app/features/documents/hooks/use-document-comparison';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
-import type { BlobRef } from '@/convex/lib/storage/blob_ref';
+import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

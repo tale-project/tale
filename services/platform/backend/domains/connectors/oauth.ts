@@ -1,20 +1,20 @@
 import type { Sql } from 'postgres';
 
-import { generatePkcePair } from '../../../convex/enterprise_sso/pkce.ts';
-import { buildAuthorizeUrl } from '../../../convex/http_connectors/authorize_url.ts';
+import { findConnector } from '../../../lib/connectors/catalog.ts';
+import { generatePkcePair } from '../../core/enterprise_sso/pkce.ts';
+import { buildAuthorizeUrl } from '../../core/http_connectors/authorize_url.ts';
 import {
   oauthAppEnvPrefix,
   resolveConnectorSettingsUrl,
   resolveOauthRedirectUri,
-} from '../../../convex/http_connectors/deployment_config.ts';
+} from '../../core/http_connectors/deployment_config.ts';
 import {
   hashStateToken,
   isPlausibleStateToken,
   mintStateToken,
   OAUTH_STATE_TTL_MS,
-} from '../../../convex/http_connectors/oauth_state.ts';
-import { exchangeAuthorizationCode } from '../../../convex/http_connectors/token_exchange.ts';
-import { findConnector } from '../../../lib/connectors/catalog.ts';
+} from '../../core/http_connectors/oauth_state.ts';
+import { exchangeAuthorizationCode } from '../../core/http_connectors/token_exchange.ts';
 import { createCredential } from '../connector_credentials/service.ts';
 import {
   applyMicrosoftTenant,

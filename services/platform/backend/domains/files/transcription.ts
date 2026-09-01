@@ -1,18 +1,18 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { transcribeAudioImpl } from '../../../convex/file_metadata/transcribe_audio.ts';
-import { pickExtensionFromMime } from '../../../convex/file_metadata/transcribe_dictation.ts';
-import { requestTranscription } from '../../../convex/file_metadata/transcription_request.ts';
-import { estimateTranscriptionCostCents } from '../../../convex/governance/cost_estimation.ts';
-import { checkProviderHostPolicy } from '../../../convex/lib/http/host_policy.ts';
-import { resolveTranscriptionModel } from '../../../convex/lib/providers/resolve_transcription_model.ts';
+import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import { TRANSCRIPTION_SLUG } from '../../../lib/shared/constants/usage.ts';
+import { transcribeAudioImpl } from '../../core/file_metadata/transcribe_audio.ts';
+import { pickExtensionFromMime } from '../../core/file_metadata/transcribe_dictation.ts';
+import { requestTranscription } from '../../core/file_metadata/transcription_request.ts';
+import { estimateTranscriptionCostCents } from '../../core/governance/cost_estimation.ts';
+import { resolveTranscriptionModel } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   createCtxShim,
   type ShimHandlers,
   type ShimScheduler,
-} from '../../lib/convex-shim.ts';
+} from '../../lib/ctx-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import { heartbeatJobByStorageRef } from '../video_links/service.ts';

@@ -2,12 +2,12 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { resolveTtsModel } from '../../../convex/lib/providers/resolve_tts_model.ts';
-import { errorCodeFromCaught } from '../../../convex/tts/error_codes.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+import { resolveTtsModel } from '../../core/lib/providers/resolve_tts_model.ts';
+import { errorCodeFromCaught } from '../../core/tts/error_codes.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveObjectStore, s3PresignGetUrl } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { chatShimHandlers } from '../chat/shim.ts';

@@ -2,44 +2,8 @@ import { unlink } from 'node:fs/promises';
 
 import type { Sql } from 'postgres';
 
-import { decideInstanceAdmin } from '../../../convex/deployment/auth_policy.ts';
-import { isDeploymentEditor } from '../../../convex/deployment/editors.ts';
-import {
-  MAX_FILE_SIZE_BYTES,
-  PREVIEWABLE_DEPLOYMENT_SECRET_KEYS,
-  maskDeploymentSecret,
-  parseDeploymentConfig,
-  parseDeploymentSecrets,
-  resolveDeploymentConfigPath,
-  resolveDeploymentSecretsPath,
-  resolveLegacyDeploymentConfigPath,
-  serializeDeploymentConfig,
-} from '../../../convex/deployment/file_utils.ts';
-import {
-  UndecryptableExistingSecretError,
-  prepareMergedDeploymentSecrets,
-} from '../../../convex/deployment/secret_io.ts';
-import { testDatastoreConnection } from '../../../convex/deployment/test_datastore_connection.ts';
-import {
-  atomicWrite,
-  atomicWriteSecret,
-  errnoCode,
-  readJsonFile,
-  sha256,
-} from '../../../convex/lib/file_io.ts';
-import { checkProviderHostPolicy } from '../../../convex/lib/http/host_policy.ts';
-import {
-  SafeFetchError,
-  safeFetch,
-} from '../../../convex/lib/http/safe_fetch.ts';
-import {
-  EncryptedFileWithoutKeyError,
-  decryptSecretsFile,
-  encryptJsonWithSops,
-  hasSopsKey,
-  invalidateSecretsCache,
-} from '../../../convex/lib/sops.ts';
-import { sanitizeError } from '../../../convex/lib/utils/sanitize_secrets.ts';
+import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
+import { SafeFetchError, safeFetch } from '../../../lib/net/safe-fetch.ts';
 import type {
   DeploymentConfig,
   DeploymentSecretKey,
@@ -51,6 +15,39 @@ import {
   deploymentConfigSchema,
   pgConnectionSchema,
 } from '../../../lib/shared/schemas/deployment.ts';
+import { decideInstanceAdmin } from '../../core/deployment/auth_policy.ts';
+import { isDeploymentEditor } from '../../core/deployment/editors.ts';
+import {
+  MAX_FILE_SIZE_BYTES,
+  PREVIEWABLE_DEPLOYMENT_SECRET_KEYS,
+  maskDeploymentSecret,
+  parseDeploymentConfig,
+  parseDeploymentSecrets,
+  resolveDeploymentConfigPath,
+  resolveDeploymentSecretsPath,
+  resolveLegacyDeploymentConfigPath,
+  serializeDeploymentConfig,
+} from '../../core/deployment/file_utils.ts';
+import {
+  UndecryptableExistingSecretError,
+  prepareMergedDeploymentSecrets,
+} from '../../core/deployment/secret_io.ts';
+import { testDatastoreConnection } from '../../core/deployment/test_datastore_connection.ts';
+import {
+  atomicWrite,
+  atomicWriteSecret,
+  errnoCode,
+  readJsonFile,
+  sha256,
+} from '../../core/lib/file_io.ts';
+import {
+  EncryptedFileWithoutKeyError,
+  decryptSecretsFile,
+  encryptJsonWithSops,
+  hasSopsKey,
+  invalidateSecretsCache,
+} from '../../core/lib/sops.ts';
+import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 
 /**

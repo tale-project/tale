@@ -28,7 +28,7 @@ import {
   loadHarnesses,
   loadProviderDefinitions,
   loadStaticCatalogs,
-} from '../convex/lib/providers/load_system_config';
+} from '../backend/core/lib/providers/load_system_config';
 import { loadConnectorDefinitions } from '../lib/connectors/catalog';
 
 // scripts/ -> services/platform -> services -> repo root -> configs/platform/system

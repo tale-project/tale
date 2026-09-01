@@ -6,8 +6,8 @@ import type { Sql } from 'postgres';
 import {
   dispatchWorkspaceToolImpl,
   workspaceToolStatusImpl,
-} from '../../../convex/node_only/sandbox/workspace_tools_bridge.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+} from '../../core/node_only/sandbox/workspace_tools_bridge.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { getSessionTokenByHash } from './sessions.ts';
 import { sandboxToolShimHandlers } from './shim.ts';
 

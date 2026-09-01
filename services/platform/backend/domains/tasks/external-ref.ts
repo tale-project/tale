@@ -3,11 +3,11 @@ import type { Sql, TransactionSql } from 'postgres';
 import {
   TASK_AUDIT_ACTIONS,
   TASK_RESOURCE_TYPE,
-} from '../../../convex/tasks/audit_actions.ts';
+} from '../../core/tasks/audit_actions.ts';
 import {
   taskWorkflowSubjectInput,
   truncateImportedTitle,
-} from '../../../convex/tasks/helpers.ts';
+} from '../../core/tasks/helpers.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { beginRun } from '../automations/store.ts';
 import { emitEvent } from '../events/emit.ts';

@@ -5,16 +5,16 @@ import {
   driveWorkflowAgentTurnImpl,
   resumeWorkflowAgentTurnWithAnswerImpl,
   startWorkflowAgentTurnImpl,
-} from '../../convex/automations/agent_host.ts';
-import { stepRunImpl } from '../../convex/automations/stepper.ts';
-import { generateThreadTitleImpl } from '../../convex/chat/generate_title.ts';
-import { removeOrgSubtree } from '../../convex/organizations/scaffold.ts';
+} from '../core/automations/agent_host.ts';
+import { stepRunImpl } from '../core/automations/stepper.ts';
+import { generateThreadTitleImpl } from '../core/chat/generate_title.ts';
+import { removeOrgSubtree } from '../core/organizations/scaffold.ts';
 import {
   driveTaskAgentTurnImpl,
   startTaskAgentTurnImpl,
   steerTaskAgentTurnImpl,
-} from '../../convex/tasks/agent_run_host.ts';
-import { resolveAutoRetryBudget } from '../../convex/tasks/task_auto_retry.ts';
+} from '../core/tasks/agent_run_host.ts';
+import { resolveAutoRetryBudget } from '../core/tasks/task_auto_retry.ts';
 import {
   automationShimHandlers,
   automationShimScheduler,
@@ -59,7 +59,7 @@ import {
   runWebsitesScan,
   runWebsitesScanDue,
 } from '../domains/websites/service.ts';
-import { createCtxShim } from '../lib/convex-shim.ts';
+import { createCtxShim } from '../lib/ctx-shim.ts';
 
 /** One task handler; `payload` is a job row — external input, re-validate. */
 export type TaskHandler = (payload: unknown) => Promise<void>;

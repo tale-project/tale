@@ -4242,9 +4242,6 @@ metadata:
   apiDocs:
     title: API-Dokumentation
     description: Die Tale-API mit interaktiver Dokumentation erkunden.
-  convexDashboard:
-    title: Convex Dashboard
-    description: Das Convex-Backend verwalten.
   knowledge:
     title: Wissen
     description: deine Wissensdatenbank für KI-Agents verwalten.

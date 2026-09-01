@@ -33,7 +33,6 @@ import { useAuth } from '@/app/hooks/use-session-user';
 import { TeamFilterProvider } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { setActiveOrganizationId } from '@/app/lib/active-organization';
-import { getCachedConvexTokenUserId } from '@/app/lib/auth/convex-token-cache';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import {
   memberContextQuery,
@@ -164,13 +163,12 @@ function DashboardLayout() {
     memberContext?.status === 'ok' ? memberContext.role : null;
   // Instant shell hydration (epic #2386): while the live member context is
   // still resolving on a fresh load, fall back to the persisted last-known
-  // role — only once the websocket is backend-authenticated (so everything the
+  // role — only once the session is authenticated (so everything the
   // hydrated shell mounts fires authorized queries) and only when the cached
-  // record matches this exact user + org (the read rejects everything else;
-  // the identity hint is the resolved session's user, or before it resolves,
-  // the user the pre-auth token authenticated as). The live subscription
-  // confirms or corrects the shell within one round trip.
-  const shellUserId = session?.data?.user?.id ?? getCachedConvexTokenUserId();
+  // record matches this exact user + org (the read rejects everything else).
+  // The live membership query confirms or corrects the shell within one
+  // round trip.
+  const shellUserId = session?.data?.user?.id ?? null;
   const persistedRole =
     isAuthenticated && memberContext === undefined && shellUserId
       ? readCachedMemberContextRole(shellUserId, organizationId)

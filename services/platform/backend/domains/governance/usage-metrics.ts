@@ -6,7 +6,7 @@ import {
   type GetOrgUsageMetricsArgs,
   type OrgUsageMetrics,
   type UsageLedgerFoldRow,
-} from '../../../convex/governance/get_org_usage_metrics.ts';
+} from '../../core/governance/get_org_usage_metrics.ts';
 
 /**
  * The usage metrics page's read — the 0.4 fold REUSED over one bounded SQL

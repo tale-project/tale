@@ -1,38 +1,40 @@
 # @tale/platform
 
-Tale's web application. Vite SPA with TanStack Start, served behind the proxy.
-
-## Overview
-
-Talks to the standalone `convex` service over the internal Docker network. Pushes Convex functions to that service via `bunx convex deploy` at startup; clients reach Convex through the proxy, not through this container. Calls `rag` and `crawler` for knowledge ingestion and retrieval.
+Tale's web application and its backend. A Vite SPA (React 19 + TanStack
+Router) served behind the proxy, plus the Postgres backend (`backend/` — a
+Hono HTTP/SSE API and pg-boss job queues) that carries the whole product
+surface. One image ships both: the web tier and the backend's `api` / `worker`
+roles (role picked at boot).
 
 ## Interface
 
 Ports:
 
-- `3000` — Vite app (static server)
+- `3000` — Vite app (static server, `server.ts`)
+- `3005` — backend HTTP/SSE API (`backend/main.ts`, `api`/`all` roles)
 
 Endpoints:
 
 - `GET /api/health` — JSON status, used by the proxy for blue-green health checks
+- `/api/auth`, `/api/app`, `/api/v1`, `/events`, `/dav`, `/scim` — the backend's doors (see [backend/README.md](backend/README.md))
 
 ## Configuration
 
 Notable variables (canonical list in `compose.yml`, which is local-dev only — production deployments use CLI-generated compose configs via `tale deploy`):
 
 - `HOST`, `PORT`, `LOG_LEVEL`
-- `CONVEX_URL`, `CONVEX_DEPLOY_KEY` — point at the `convex` service
+- `DATABASE_URL` — the backend's Postgres
 - `SANDBOX_URL` — internal DNS to the sandbox spawner
 - `KNOWLEDGE_DATABASE_URL` — knowledge corpus (ParadeDB) used by the in-process RAG/crawler path
-- `INSTANCE_NAME`, `INSTANCE_SECRET` — used when generating Convex admin keys
+- `INSTANCE_SECRET` — root secret the WebDAV HMAC and encryption keys derive from
+- `TALE_CONFIG_DIR`, `TALE_CONFIG_BUILTIN_DIR`, `TALE_CONFIG_SYSTEM_DIR` — the file-based org-config trees
 
 ## Development
 
 ```bash
 docker compose up -d platform        # via Compose (recommended)
-bun run setup:check                  # pre-flight: Bun, Python, uv, ports, Convex CLI
-bun run dev                          # default: spawns an ephemeral local Convex backend
-CONVEX_EXTERNAL=true bun run dev     # connects Vite to the convex container (docker compose up convex)
+bun run setup:check                  # pre-flight: Bun, Node, Docker, ports
+bun run dev                          # spawns the backend (+ its Postgres) and Vite together
 bun run check                        # format + lint + typecheck + tests
 ```
 
@@ -40,10 +42,9 @@ For prerequisites, the pre-flight check, and port-conflict handling, see the [co
 
 ## Layout
 
-- `app/` — TanStack Start routes, features, and UI components
-- `convex/` — Convex functions deployed to the `convex` service
-- `lib/` — shared utilities, including TanStack DB collection infrastructure
+- `app/` — TanStack Router routes, features, and UI components
+- `backend/` — the Postgres backend: doors, jobs, auth, migrations; `backend/core/` is the ported domain logic the doors and jobs drive
+- `lib/` — shared utilities (schemas, i18n, PII, harnesses, WebDAV protocol layer, …)
 - `messages/` — i18n message catalogues (`en.json` is the source of truth)
 - `scripts/` — operational helpers (see `scripts/README.md`)
 - `server.ts` — minimal HTTP shim wrapping the Vite static server with `/api/health`
-- `generate-admin-key.sh` — generates Convex admin keys for the dashboard

@@ -40,10 +40,6 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
     data: args === 'skip' ? undefined : h.state.policyRow,
   }),
 }));
-vi.mock('@/convex/_generated/api', () => ({
-  api: { governance: { queries: { getPolicy: 'getPolicy' } } },
-}));
-
 import { useSessionIdleWatchdog } from './use-session-idle-watchdog';
 
 const MINUTE = 60_000;

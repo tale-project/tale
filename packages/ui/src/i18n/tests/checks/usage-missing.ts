@@ -59,7 +59,7 @@ export function findMissingKeyRefs(config: MissingKeyRefsConfig): Finding[] {
   const {
     serviceRoot,
     messagesDir = path.join(serviceRoot, 'messages'),
-    scanRoots = ['app', 'components', 'hooks', 'lib', 'convex'],
+    scanRoots = ['app', 'components', 'hooks', 'lib', 'backend'],
     allowlistPath = path.join(serviceRoot, 'lib/i18n/keys-dynamic.yml'),
     baseFiles = ['en.yml', 'global.yml'],
   } = config;

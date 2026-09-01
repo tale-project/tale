@@ -65,7 +65,7 @@ export async function handlePropfind(
   const propfindRequest = parsePropfindBody(bodyText);
 
   // Resolve the URL to a node — root, folder, or document.
-  const resolved = await ctx.convex.query(
+  const resolved = await ctx.backend.query(
     anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
@@ -111,7 +111,7 @@ export async function handlePropfind(
       index: props.length - 1,
     });
   } else {
-    const doc = await ctx.convex.query(
+    const doc = await ctx.backend.query(
       anyRefs.webdav.tree_queries.getDocumentProps,
       {
         organizationId: auth.organizationId,
@@ -132,7 +132,7 @@ export async function handlePropfind(
 
   if (depth === 1 && (resolved.kind === 'root' || resolved.kind === 'folder')) {
     const folderId = resolved.kind === 'folder' ? resolved.folderId : null;
-    const listing = await ctx.convex.query(
+    const listing = await ctx.backend.query(
       anyRefs.webdav.tree_queries.listCollection,
       {
         organizationId: auth.organizationId,
@@ -211,7 +211,7 @@ export async function handlePropfind(
   await Promise.all(
     lookups.map(async ({ path, index }) => {
       try {
-        const result = await ctx.convex.query(
+        const result = await ctx.backend.query(
           anyRefs.webdav.lock_queries.findLockForPath,
           {
             organizationId: auth.organizationId,

@@ -1,6 +1,5 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { ingestVideoLinkImpl } from '../../../convex/video_links/ingest_video_link.ts';
 import { CHAT_AUDIO_MAX_DURATION_SEC } from '../../../lib/shared/file-types.ts';
 import {
   isPlaylistUrl,
@@ -8,13 +7,14 @@ import {
   normalizeUrlForHash,
 } from '../../../lib/shared/video-url.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
+import { ingestVideoLinkImpl } from '../../core/video_links/ingest_video_link.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   createCtxShim,
   type ShimHandlers,
   type ShimScheduler,
-} from '../../lib/convex-shim.ts';
+} from '../../lib/ctx-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
   claimBrowserSession,

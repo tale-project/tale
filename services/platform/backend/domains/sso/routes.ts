@@ -1,18 +1,18 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import { ssoAuthorizeHandler } from '../../../convex/enterprise_sso/login/authorize_handler.ts';
-import { ssoCallbackHandler } from '../../../convex/enterprise_sso/login/callback_handler.ts';
-import { ssoDiscoverHandler } from '../../../convex/enterprise_sso/login/discover_handler.ts';
+import { ssoAuthorizeHandler } from '../../core/enterprise_sso/login/authorize_handler.ts';
+import { ssoCallbackHandler } from '../../core/enterprise_sso/login/callback_handler.ts';
+import { ssoDiscoverHandler } from '../../core/enterprise_sso/login/discover_handler.ts';
 import type {
   FinishLogin,
   FinishLoginArgs,
-} from '../../../convex/enterprise_sso/login/finish_login.ts';
-import { samlAcsHandler } from '../../../convex/enterprise_sso/saml/acs_handler.ts';
-import { samlLoginHandler } from '../../../convex/enterprise_sso/saml/login_handler.ts';
-import { samlMetadataHandler } from '../../../convex/enterprise_sso/saml/metadata_handler.ts';
-import { signCookieValue } from '../../../convex/enterprise_sso/sign_cookie_value.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+} from '../../core/enterprise_sso/login/finish_login.ts';
+import { samlAcsHandler } from '../../core/enterprise_sso/saml/acs_handler.ts';
+import { samlLoginHandler } from '../../core/enterprise_sso/saml/login_handler.ts';
+import { samlMetadataHandler } from '../../core/enterprise_sso/saml/metadata_handler.ts';
+import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { ssoShimHandlers } from './shim.ts';
 
 /**

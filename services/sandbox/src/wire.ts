@@ -1,18 +1,13 @@
 // Wire-protocol enums + literals shared between server.ts, spawn.ts, and
-// the response builder. Mirrors `services/platform/convex/sandbox/wire.ts`
-// on the Convex side — the spawner cannot import from Convex (different
-// runtime, different package), so this is a parallel file. Both ends must
-// stay in sync; the platform side carries a compile-time `satisfies`
-// assertion (see `convex/node_only/sandbox/helpers/spawner_client.ts`)
-// that asserts these literals are a subset of the Convex `sandboxRunStatusLiterals`
-// / `sandboxErrorCodeLiterals` / `sandboxPhaseEventLiterals` arrays, so a
-// drift on either side fails the CI typecheck.
+// the response builder. This file is the contract's home: the platform's
+// session-exec drivers (services/platform/backend/core/node_only/sandbox/)
+// parse these phase/SSE/error strings structurally off the stream, and the
+// platform integration suite drives a fake spawner speaking exactly this
+// protocol — that suite is what catches a drift.
 
-// `sandboxRunStatusLiterals` lives only on the Convex side
-// (`services/platform/convex/sandbox/wire.ts`) — the spawner never emits a
-// run-status string, only phase events + a final result with one of three
-// terminal `status` values (`completed | failed | cancelled`). Kept off
-// this file deliberately so unused-export sweeps stay clean.
+// There is deliberately no run-status vocabulary here — the spawner never
+// emits a run-status string, only phase events + a final result with one of
+// three terminal `status` values (`completed | failed | cancelled`).
 
 export const sandboxErrorCodeLiterals = [
   'TIMEOUT',
@@ -39,9 +34,8 @@ export const sandboxErrorCodeLiterals = [
   // Pre-stage attestation failure raised by the platform when
   // `ExecuteResponse.priorStage.skipped` shows files the platform expected
   // to inject didn't actually make it onto `/agent/output/`. The
-  // spawner never emits this code itself — it's an action-side gate — but
-  // the literal lives here so the parity guard on the Convex side stays
-  // satisfied.
+  // spawner never emits this code itself — it's a platform-side gate — but
+  // the literal lives here so the vocabulary stays complete in one place.
   'PRE_STAGE_FAILED',
   // Output-pipeline completeness gate: the action treats any non-empty
   // `uploadStats.failures` as fatal so a partially-harvested workspace
@@ -62,28 +56,10 @@ export const sandboxErrorCodeLiterals = [
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];
 
-/**
- * SSE event types emitted by `POST /v1/execute`. The spawner emits:
- *  - `phase` — zero or more transitions (preparing → installing → running)
- *  - `stdout` / `stderr` — incremental output deltas while the container
- *    is alive (added so the canvas can tail output instead of waiting for
- *    the terminal `result` event with the whole base64'd buffer).
- *  - `result` — exactly one terminal event with the canonical
- *    ExecuteResponse shape.
- *  - `error` — zero or one SSE-side transport error (e.g. spawn aborted
- *    before a result was produced).
- *
- * The convex side has a compile-time parity guard
- * (services/platform/convex/sandbox/wire.ts) that fails CI typecheck if
- * either side drifts.
- */
-export const sandboxSseEventLiterals = [
-  'phase',
-  'stdout',
-  'stderr',
-  'result',
-  'error',
-] as const;
+// The session SSE event names (`phase` / `stdout` / `stderr` / `result` /
+// `error`) live at their emission sites in `session/session-routes.ts`,
+// pinned by that module's tests — the one-shot `/v1/execute` lane that once
+// declared them here as a vocabulary is retired.
 
 // Stable id alphabet for executionId (Convex doc id + base32-ish dev ids).
 // Used by both the server route regex and the spawn-time argv assertions.
@@ -95,8 +71,7 @@ export const ORG_ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 // ---------------------------------------------------------------------------
 // Persistent sessions (sessions plan, milestone A). The `/v1/sessions` API is
 // a sibling of the one-shot `/v1/execute` path; literals live here so the
-// Convex-side mirror (`convex/sandbox/wire.ts`) can keep its compile-time
-// parity guard over a single import surface.
+// whole wire vocabulary has a single import surface.
 // ---------------------------------------------------------------------------
 
 /**

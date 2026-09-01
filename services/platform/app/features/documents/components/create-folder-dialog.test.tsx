@@ -36,10 +36,6 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: mockToast }),
 }));
 
-vi.mock('@/convex/lib/type_cast_helpers', () => ({
-  toId: (id: string) => id,
-}));
-
 const mockTeams = [
   { id: 'team-1', name: 'Sales' },
   { id: 'team-2', name: 'Support' },

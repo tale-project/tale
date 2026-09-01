@@ -133,7 +133,7 @@ jobs:
 
       # yt-dlp + deno + ffmpeg + the bgutil plugin are self-provisioned by the
       # live YouTube ingestion test via `ensureVideoToolchain()` in a
-      # `beforeAll` (convex/video_links/ytdlp_toolchain.ts). It still runs here
+      # `beforeAll` (backend/core/video_links/ytdlp_toolchain.ts). It still runs here
       # because GitHub runners are datacenter IPs — the environment where
       # YouTube's bot wall appears — so a green run proves the shipped anti-bot
       # stack actually gets past it.

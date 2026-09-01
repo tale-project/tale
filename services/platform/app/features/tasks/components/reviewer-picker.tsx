@@ -13,7 +13,7 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { EDITOR_ROLES } from '@/convex/projects/access';
+import { EDITOR_ROLES } from '@/backend/core/projects/access';
 import { useT } from '@/lib/i18n/client';
 
 import { useAssignableActors } from '../hooks/use-actor-directory';

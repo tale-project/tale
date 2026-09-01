@@ -46,7 +46,7 @@ export async function handleProppatch(
     return { status: 403, headers: {}, body: 'Trash is read-only' };
   }
 
-  const resolved = await ctx.convex.query(
+  const resolved = await ctx.backend.query(
     anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,

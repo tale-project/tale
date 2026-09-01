@@ -2,7 +2,7 @@
 # Tale Web (Marketing site) — Standalone Docker Compose
 # =============================================================================
 # The marketing site at www.tale.dev runs independently of the platform stack
-# (services/platform, convex, db, knowledge-db, proxy, sandbox) and has its own
+# (services/platform, db, knowledge-db, proxy, sandbox) and has its own
 # environment file at services/web/.env.example.
 #
 # Usage:

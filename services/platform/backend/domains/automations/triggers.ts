@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 
-import { dueOccurrence } from '../../../convex/automations/cron.ts';
+import { dueOccurrence } from '../../core/automations/cron.ts';
 import {
   hashWebhookToken,
   isPlausibleWebhookToken,
   tokenHashEquals,
-} from '../../../convex/automations/webhook_token.ts';
+} from '../../core/automations/webhook_token.ts';
 import { AutomationError, beginRun, beginRunInTx } from './store.ts';
 
 /**

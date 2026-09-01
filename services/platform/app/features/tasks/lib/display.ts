@@ -7,7 +7,7 @@ import type { TaskRow } from '@/app/lib/backend/contract/docs';
 
 /**
  * One attached label as the read paths return it. The stored document holds
- * `labelIds` into the project catalog; `convex/tasks/queries.ts` resolves
+ * `labelIds` into the project catalog; the task read layer resolves
  * those to `{ id, name, color }` before they reach the client. `id` is absent
  * only for a document still carrying pre-catalog string labels (see
  * `withResolvedLabels`' mid-migration fallback).
@@ -63,7 +63,7 @@ export function isTaskStatus(value: string): value is TaskStatus {
 }
 
 /**
- * Maps a stored activity `action` (see convex/tasks/helpers.ts `recordActivity`)
+ * Maps a stored activity `action` (see backend/core/tasks/helpers.ts `recordActivity`)
  * to its `tasks` i18n key. Unknown actions fall back to the raw string at the
  * call site, so the timeline degrades gracefully if a new action ships.
  */
@@ -84,7 +84,7 @@ export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
 
 /**
  * Maps a run-admission `refusedReason` code (stored as the `toValue` of an
- * `'agent_run.refused'` activity row — see convex/agents/run_agent_on_task.ts)
+ * `'agent_run.refused'` activity row)
  * to its `tasks` i18n key. Unknown codes fall back to the raw string at the
  * call site. Lowercase phrases: they render mid-sentence in the timeline.
  */

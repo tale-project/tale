@@ -15,7 +15,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { loadHarnesses } from '../../convex/lib/providers/load_system_config';
+import { loadHarnesses } from '../../backend/core/lib/providers/load_system_config';
 import {
   harnessDefinitionSchema,
   type HarnessDefinition,

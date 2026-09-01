@@ -1,6 +1,5 @@
 import { apiKeyClient } from '@better-auth/api-key/client';
 import { passkeyClient } from '@better-auth/passkey/client';
-import { convexClient } from '@convex-dev/better-auth/client/plugins';
 import {
   organizationClient,
   twoFactorClient,
@@ -62,7 +61,6 @@ export const authClient = createAuthClient({
     },
   },
   plugins: [
-    convexClient(),
     apiKeyClient(),
     // WebAuthn / passkeys (#1508). Exposes authClient.passkey.* for the
     // registration + authentication ceremonies the browser drives.

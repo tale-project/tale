@@ -4,11 +4,11 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { isAdmin } from '../../../convex/lib/rls/helpers/role_helpers.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 
 /**

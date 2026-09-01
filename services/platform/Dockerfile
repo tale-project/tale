@@ -74,17 +74,17 @@ COPY services/platform/vite.config.ts \
      ./services/platform/
 
 COPY packages/ui ./packages/ui
-# @tale/shared backs the convex logger + the knowledge config/db/utils re-export
-# shims; convex deploy bundles its source at runtime, so the full source (not
-# just package.json) must be present for the `@tale/shared/*` subpath imports to
-# resolve. Mirrors the packages/ui copy above.
+# @tale/shared is imported unbundled at runtime (`@tale/shared/*` subpaths),
+# so the full source (not just package.json) must be present. Mirrors the
+# packages/ui copy above.
 COPY packages/shared ./packages/shared
 
 COPY services/platform/app ./services/platform/app
-# lib/agent-adapters lives here now (convex run_agent.ts bundles it at deploy
-# time), so the lib copy below carries it into the builder.
 COPY services/platform/lib ./services/platform/lib
-COPY services/platform/convex ./services/platform/convex
+# The app imports type/constant vocabulary from `@/backend/core/**`, so the
+# core tree must be present before `vite build`; the rest of backend/ is
+# copied after the build (below) to keep the build cache narrow.
+COPY services/platform/backend/core ./services/platform/backend/core
 COPY services/platform/public ./services/platform/public
 COPY services/platform/types ./services/platform/types
 COPY services/platform/messages ./services/platform/messages
@@ -132,8 +132,8 @@ COPY services/platform/backend ./services/platform/backend
 # runner, this keeps the builder intact: full (unpruned) node_modules — vite +
 # the rolldown bundler + lightningcss + @parcel/watcher — and the complete
 # frontend source under /app/services/platform. That is what lets the entrypoint
-# run `vite build --watch` (frontend hot reload) and `convex dev` (function hot
-# push) against the host source bind-mounted by compose.dev.yml. The image ships
+# run `vite build --watch` (frontend hot reload) against the host source
+# bind-mounted by compose.dev.yml. The image ships
 # the already-built dist/ from the builder, so server.ts serves immediately
 # while the first watch rebuild runs in the background.
 #
@@ -165,12 +165,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && ln -sfn /app/node_modules /app/services/platform/node_modules \
     && chmod +x /app/services/platform/docker-entrypoint.sh
 
-# convex.json carries `node.externalPackages`; `convex deploy`/`convex dev` read
-# it from the platform dir. Absent → heavy node-only libs (jsdom, …) get bundled
-# inline and the push fails at analyze. (The runner copies it for the same
-# reason.)
-COPY services/platform/convex.json /app/services/platform/convex.json
-
 # Override the builder's production defaults. These mirror the runner's runtime
 # ENV (so the entrypoint behaves identically) except NODE_ENV, which gates the
 # dev hot-reload watchers, and TALE_DEV_NO_PRIVDROP, which keeps the container
@@ -179,9 +173,7 @@ ENV NODE_ENV=development \
     TALE_VERSION=${VERSION} \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
-    CONVEX_URL=http://convex:3210 \
     SANDBOX_STORAGE_INTERNAL_BASE_URL=http://convex:3210 \
-    INSTANCE_NAME=tale_platform \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
     TALE_CONFIG_BUILTIN_DIR=/app/builtin \
@@ -366,7 +358,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 ARG VERSION=dev
 LABEL org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="tale-platform" \
-      org.opencontainers.image.description="Tale Platform — TanStack Start SPA + Convex Backend" \
+      org.opencontainers.image.description="Tale Platform — TanStack Start SPA + Postgres backend" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
       org.opencontainers.image.vendor="Tale" \
       org.opencontainers.image.licenses="MIT"
@@ -375,45 +367,26 @@ ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
-    # Convex service DNS name (compose-internal). Overridable via CONVEX_URL.
-    CONVEX_URL=http://convex:3210 \
-    # Origin that the sandbox spawner uses to POST presigned-URL output
-    # uploads back to Convex. Read by Convex Node actions via process.env
-    # in toSandboxStorageUrl() (see convex/lib/helpers/public_storage_url.ts).
-    # Node actions only see vars that this container's entrypoint pushes
-    # into Convex's deployment env via `convex env set`, so baking the
-    # value into the platform image is what guarantees the rewrite has
-    # a reachable origin on every docker deploy. Direct to convex:3210
-    # rather than the Caddy proxy because Caddy is HTTPS-only with a
-    # self-signed cert and would 308-redirect plain HTTP POSTs.
+    # Origin the in-sandbox daemons use to fetch staged blobs — the
+    # sandbox-net alias, read via process.env in toSandboxStorageUrl()
+    # (see backend/core/lib/helpers/public_storage_url.ts). Baked so the
+    # rewrite has a reachable origin on every docker deploy. Direct rather
+    # than the Caddy proxy because Caddy is HTTPS-only with a self-signed
+    # cert and would 308-redirect plain HTTP POSTs.
     SANDBOX_STORAGE_INTERNAL_BASE_URL=http://convex:3210 \
-    # INSTANCE_NAME is shared with convex service; platform uses it + INSTANCE_SECRET
-    # to compute the admin key for `bunx convex env set` and `bunx convex deploy`.
-    INSTANCE_NAME=tale_platform \
     DO_NOT_TRACK=1 \
-    # Semantic value of the file-config parent path inside the convex
-    # container. Platform forces this at push time in docker-entrypoint.sh
-    # (to tombstone any stale host-side `.env` value). Under the org-first
-    # layout, every per-domain config dir is derived as
-    # $TALE_CONFIG_DIR/<orgSlug>/<domain>/ — e.g.
-    # /app/data/default/agents/, /app/data/default/providers/, etc.
-    # The previous per-domain env vars (AGENTS_DIR, …) are no longer
-    # honored; the entrypoint actively purges them from Convex on every
-    # boot.
+    # The file-config parent path. Under the org-first layout, every
+    # per-domain config dir is derived as $TALE_CONFIG_DIR/<orgSlug>/<domain>/
+    # — e.g. /app/data/default/agents/, /app/data/default/providers/, etc.
     TALE_CONFIG_DIR=/app/data \
-    # Read-only builtin catalog baked into the convex image (see
-    # services/convex/Dockerfile). Declared here because Convex Node
-    # actions only see env vars that this container pushes to Convex's
-    # deployment env via the entrypoint's `convex env set` loop — even
-    # though the path points at files inside the *convex* container.
-    # Generic catalog — its children ARE the domains
-    # ($TALE_CONFIG_BUILTIN_DIR/<domain>/), with no org level and no fallback.
-    # Every org is seeded from it. See convex/organizations/scaffold.ts.
+    # Read-only builtin catalog baked into this image (COPY below). Generic
+    # catalog — its children ARE the domains ($TALE_CONFIG_BUILTIN_DIR/<domain>/),
+    # with no org level and no fallback. Every org is seeded from it. See
+    # backend/core/organizations/scaffold.ts.
     TALE_CONFIG_BUILTIN_DIR=/app/builtin \
     # Org-independent system config (providers/models/harnesses/connectors),
-    # read by 'use node' actions. Same push-to-Convex-env path as above; a
-    # container has no repo checkout to fall back on. Baked at /app/system in
-    # the convex image (services/convex/Dockerfile).
+    # baked at /app/system below; a container has no repo checkout to fall
+    # back on.
     TALE_CONFIG_SYSTEM_DIR=/app/system \
     # Where the corpus DDL lives in this image (copied below). Set
     # explicitly because `findMigrationsDir`'s fallback walks up the module
@@ -428,11 +401,6 @@ COPY --from=pruner --chown=app:app \
      /app/services/platform/sla-targets.ts \
      /app/services/platform/status-probe.ts \
      ./
-COPY --from=pruner --chown=app:app /app/services/platform/convex ./convex
-# convex.json carries `node.externalPackages`; the runtime `convex deploy` (run
-# from /app) reads it from /app/convex.json. Without it the heavy node-only libs
-# (jsdom, …) get bundled inline and the push fails at analyze.
-COPY --chown=app:app services/platform/convex.json ./convex.json
 COPY --from=pruner --chown=app:app /app/services/platform/lib ./lib
 # 0.5 backend sources (run unbundled by Node via type stripping; role dispatch
 # in docker-entrypoint.sh execs `node /app/backend/main.ts`).
@@ -494,9 +462,7 @@ ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
     PORT=3000 \
     HOSTNAME="0.0.0.0" \
-    CONVEX_URL=http://convex:3210 \
     SANDBOX_STORAGE_INTERNAL_BASE_URL=http://convex:3210 \
-    INSTANCE_NAME=tale_platform \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
     TALE_CONFIG_BUILTIN_DIR=/app/builtin \

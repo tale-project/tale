@@ -1,9 +1,9 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { conversationAssignmentAllows } from '../../../convex/lib/rls/helpers/conversation_assignment.ts';
 import { projectConversationItem } from '../../../lib/shared/conversations/conversation-item.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
+import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';

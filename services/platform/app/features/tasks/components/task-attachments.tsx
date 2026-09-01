@@ -7,7 +7,7 @@ import { useId, useMemo, useState } from 'react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FileAttachmentDisplay } from '@/app/features/shared/files/file-displays';
-import type { FileAttachment } from '@/app/features/shared/files/use-convex-file-upload';
+import type { FileAttachment } from '@/app/features/shared/files/use-file-upload';
 import { useFileUrls } from '@/app/features/shared/files/use-file-url';
 import {
   ImagePreviewDialog,
@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils/cn';
 /**
  * Task image/document attachments — shared by the create draft and the saved
  * detail view. Purely presentational: the parent owns the list and wires upload
- * + remove (create accumulates in `useConvexFileUpload`; edit persists each
+ * + remove (create accumulates in `useFileUpload`; edit persists each
  * change through `updateTask`). Reuses the chat {@link FileAttachmentDisplay}
  * renderer (image thumbnail / file chip) and the {@link FileUpload} drop-zone
  * primitive. Read-only callers with no attachments render nothing.

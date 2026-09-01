@@ -17,20 +17,6 @@ vi.mock('@/app/hooks/use-backend-mutation', () => ({
   useBackendMutation: () => mockMutationResult,
 }));
 
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    documents: {
-      mutations: {
-        deleteDocument: 'deleteDocument',
-        updateDocument: 'updateDocument',
-      },
-      queries: {
-        listDocuments: 'listDocuments',
-      },
-    },
-  },
-}));
-
 import { useDeleteDocument, useUpdateDocument } from './mutations';
 
 describe('useDeleteDocument', () => {

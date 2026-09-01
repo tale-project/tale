@@ -74,7 +74,7 @@ export interface I18nTestsConfig {
 
   /**
    * Source roots scanned by the usage check for `t()` / `useT()` / dotted
-   * literals. Defaults to `['app', 'components', 'hooks', 'lib', 'convex']`;
+   * literals. Defaults to `['app', 'components', 'hooks', 'lib', 'backend']`;
    * missing roots are skipped without error.
    */
   scanRoots?: string[];

@@ -1,4 +1,3 @@
-import { getFunctionName, anyApi, componentsGeneric } from 'convex/server';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -9,29 +8,41 @@ import {
 
 /**
  * The ctx shim's handler tables are keyed by the strings the RETIRED runtime's
- * namer produced. This suite is the proof that ours produces the same ones —
- * run against the package itself, while it is still installed, over every name
- * the reused tree actually uses plus the shapes that are easy to get wrong
- * (a `default` export, a nested module path, a component reference).
- *
- * When `convex` finally leaves `package.json`, the comparison goes and the
- * table of expected strings stays: the format is ours to keep either way.
+ * namer produced. While the `convex` package was still installed, this suite
+ * compared our namer against the package's over every shape below; the package
+ * is gone, the comparison went with it, and the expected strings stay — the
+ * format is ours to keep.
  */
 
-// oxlint-disable-next-line typescript/no-explicit-any -- both sides are proxies; the test is about the strings they yield
+// oxlint-disable-next-line typescript/no-explicit-any -- a recording proxy; the test is about the strings it yields
 type Refs = any;
 
 const ours: Refs = createFunctionRefs();
-const theirs: Refs = anyApi;
 
-const PATHS: readonly string[][] = [
-  ['tasks', 'helpers', 'recordActivity'],
-  ['audit_logs', 'internal_mutations', 'createAuditLog'],
-  ['node_only', 'sandbox', 'session_exec', 'runExec'],
-  ['chat', 'messages', 'appendMessageInternal'],
-  ['lib', 'config_store', 'actions', 'readConfigArea'],
-  ['enterprise_sso', 'login', 'callback_handler', 'default'],
-  ['provisioning', 'default'],
+const CASES: readonly (readonly [readonly string[], string])[] = [
+  [['tasks', 'helpers', 'recordActivity'], 'tasks/helpers:recordActivity'],
+  [
+    ['audit_logs', 'internal_mutations', 'createAuditLog'],
+    'audit_logs/internal_mutations:createAuditLog',
+  ],
+  [
+    ['node_only', 'sandbox', 'session_exec', 'runExec'],
+    'node_only/sandbox/session_exec:runExec',
+  ],
+  [
+    ['chat', 'messages', 'appendMessageInternal'],
+    'chat/messages:appendMessageInternal',
+  ],
+  [
+    ['lib', 'config_store', 'actions', 'readConfigArea'],
+    'lib/config_store/actions:readConfigArea',
+  ],
+  // A `default` export keeps only the module path.
+  [
+    ['enterprise_sso', 'login', 'callback_handler', 'default'],
+    'enterprise_sso/login/callback_handler',
+  ],
+  [['provisioning', 'default'], 'provisioning'],
 ];
 
 function walk(root: Refs, path: readonly string[]): Refs {
@@ -39,12 +50,10 @@ function walk(root: Refs, path: readonly string[]): Refs {
 }
 
 describe('functionRefName matches the retired runtime', () => {
-  it.each(PATHS.map((p) => [p.join('.'), p] as const))(
+  it.each(CASES.map(([p, expected]) => [p.join('.'), p, expected] as const))(
     'names %s the same way',
-    (_label, path) => {
-      expect(functionRefName(walk(ours, path))).toBe(
-        getFunctionName(walk(theirs, path)),
-      );
+    (_label, path, expected) => {
+      expect(functionRefName(walk(ours, path))).toBe(expected);
     },
   );
 
@@ -76,15 +85,13 @@ describe('functionRefName matches the retired runtime', () => {
 });
 
 describe('component references keep their raw path', () => {
-  it('matches what the retired runtime addressed the adapter by', () => {
+  it('addresses the adapter the way the retired runtime did', () => {
     const oursRef: Refs = createComponentRefs();
-    const theirsRef: Refs = componentsGeneric();
-    const path = ['betterAuth', 'adapter', 'findOne'] as const;
-    // The runtime's `getFunctionName` REFUSES a component reference (it has no
-    // name, only an address), which is why the shim reads the address itself.
-    expect(() => getFunctionName(walk(theirsRef, path))).toThrow();
-    expect(functionRefName(walk(oursRef, path))).toBe(
-      '_reference/childComponent/betterAuth/adapter/findOne',
-    );
+    // The retired runtime's `getFunctionName` REFUSED a component reference
+    // (it has no name, only an address), which is why the shim reads the
+    // address itself.
+    expect(
+      functionRefName(walk(oursRef, ['betterAuth', 'adapter', 'findOne'])),
+    ).toBe('_reference/childComponent/betterAuth/adapter/findOne');
   });
 });

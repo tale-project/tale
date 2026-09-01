@@ -3,7 +3,7 @@
  *
  * A reused 0.4 body addresses another handler as `internal.a.b.c`. That
  * expression carries no code and no import — only a NAME — and the 0.5 ctx
- * shim (`backend/lib/convex-shim.ts`) dispatches that name to a SQL-backed
+ * shim (`backend/lib/ctx-shim.ts`) dispatches that name to a SQL-backed
  * handler. So the whole contract is: how a dotted path becomes a string, and
  * how a reference gives that string back.
  *

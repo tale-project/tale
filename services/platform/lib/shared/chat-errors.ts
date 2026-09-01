@@ -60,7 +60,7 @@ export function isChatErrorCode(value: unknown): value is ChatErrorCode {
  * Codes that are a property of the PROVIDER/account, not the specific model:
  * every model on the same provider would fail the same way deterministically.
  * The failover loop skips the rest of the provider's models when one of these
- * occurs (see `classifyFailureScope` in convex/providers/errors.ts).
+ * occurs (see `classifyFailureScope` below).
  *
  * Transient failures (5xx, overload, timeout, ECONNRESET, 429) are deliberately
  * NOT here: on an aggregator a sibling model may route to a healthy upstream,

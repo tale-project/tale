@@ -3,18 +3,18 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { sessionCancelExec } from '../../../convex/node_only/sandbox/helpers/session_client.ts';
-import {
-  DEFAULT_SANDBOX_QUOTA,
-  sessionBudgetForOwnerType,
-  sessionCapFor,
-  type SessionBudget,
-} from '../../../convex/sandbox/quota_policy.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import {
+  DEFAULT_SANDBOX_QUOTA,
+  sessionBudgetForOwnerType,
+  sessionCapFor,
+  type SessionBudget,
+} from '../../core/sandbox/quota_policy.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { pinSession, reconcileSession, teardownSession } from './service.ts';
 import {

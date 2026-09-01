@@ -3,18 +3,6 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import {
-  buildImpactPreview,
-  diffBounds,
-} from '../../../convex/governance/retention_bounds_proposal.ts';
-import {
-  assertWithinBounds,
-  buildBoundsByCategory,
-  RetentionBoundsViolation,
-  applyEnvTighteningAll,
-  isRetentionDisabled,
-  RetentionConfigMissingError,
-} from '../../../convex/governance/retention_floors.ts';
 import { retentionPolicyConfigSchema } from '../../../lib/shared/schemas/governance.ts';
 import {
   hashAppliedBounds,
@@ -24,6 +12,18 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  buildImpactPreview,
+  diffBounds,
+} from '../../core/governance/retention_bounds_proposal.ts';
+import {
+  assertWithinBounds,
+  buildBoundsByCategory,
+  RetentionBoundsViolation,
+  applyEnvTighteningAll,
+  isRetentionDisabled,
+  RetentionConfigMissingError,
+} from '../../core/governance/retention_floors.ts';
 import { writeGovernancePolicyFile } from '../../lib/governance-policy-write.ts';
 import {
   readGovernancePolicyForOrg,

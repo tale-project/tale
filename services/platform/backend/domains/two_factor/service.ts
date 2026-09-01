@@ -1,13 +1,13 @@
 import { symmetricDecrypt } from 'better-auth/crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
-import { mergeStrictestTwoFactorPolicy } from '../../../convex/governance/helpers.ts';
+import { DEFAULT_TWO_FACTOR_POLICY } from '../../../lib/shared/schemas/governance.ts';
+import { mergeStrictestTwoFactorPolicy } from '../../core/governance/helpers.ts';
 import {
   computeLockedUntil,
   DEFAULT_LOGIN_POLICY,
   selectStrictestPolicy,
-} from '../../../convex/login_attempts/helpers.ts';
-import { DEFAULT_TWO_FACTOR_POLICY } from '../../../lib/shared/schemas/governance.ts';
+} from '../../core/login_attempts/helpers.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 

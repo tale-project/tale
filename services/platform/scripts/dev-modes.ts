@@ -27,17 +27,3 @@ export function shouldOpenBrowser(
   if (flag === undefined || flag.trim() === '') return true;
   return isTruthy(flag);
 }
-
-/**
- * Adopt the backend endpoints allocated for THIS project from a
- * freshly-parsed .env.local. On a fresh checkout the CLI writes only
- * VITE_CONVEX_URL / VITE_CONVEX_SITE_URL (and CONVEX_DEPLOYMENT) — and when the
- * default ports are taken (a second stack on one machine, e.g. an isolated E2E
- * worktree beside `bun dev`) it picks OTHER ports. Everything that keys on
- * CONVEX_URL / CONVEX_SITE_PROXY_URL (the readiness probe, the health check,
- * the auth-route wait, the Vite proxy) falls back to :3210/:3211, so without
- * this back-fill an isolated stack false-positives its probes against a
- * NEIGHBOURING backend and silently proxies every /api and /ws_api request
- * into it — test writes landing in the dev database. Explicit values win:
- * only unset keys are filled. Pure given both env records.
- */

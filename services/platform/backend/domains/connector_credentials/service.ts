@@ -1,26 +1,26 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   buildAuthHeader,
   buildSecretBindings,
   parseSecretPayload,
   SecretPayloadError,
   type ConnectorSecretPayload,
-} from '../../../convex/connector_credentials/auth_injection.ts';
+} from '../../core/connector_credentials/auth_injection.ts';
 import {
   connectorBearerScheme,
   loadConnectorDefinitions,
-} from '../../../convex/connector_credentials/connector_catalog.ts';
-import { withImapFromAddress } from '../../../convex/connector_credentials/imap_from_address.ts';
-import { maskPayload } from '../../../convex/connector_credentials/masking.ts';
-import { normalizeEndpointOrigin } from '../../../convex/connector_credentials/mutations.ts';
+} from '../../core/connector_credentials/connector_catalog.ts';
+import { withImapFromAddress } from '../../core/connector_credentials/imap_from_address.ts';
+import { maskPayload } from '../../core/connector_credentials/masking.ts';
+import { normalizeEndpointOrigin } from '../../core/connector_credentials/mutations.ts';
 import {
   decryptSecret,
   encryptSecret,
   KeyRotatedError,
   type EncryptedSecret,
-} from '../../../convex/lib/secret_box.ts';
-import { AppError } from '../../../lib/shared/errors/app-error';
+} from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
 
 /**

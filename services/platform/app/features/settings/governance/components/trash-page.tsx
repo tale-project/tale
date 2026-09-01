@@ -19,7 +19,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import {
   SOFT_DELETE_RESOURCE_TYPES,
   type SoftDeleteResourceType,
-} from '@/convex/governance/soft_delete_validators';
+} from '@/backend/core/governance/soft_delete';
 import { useT } from '@/lib/i18n/client';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';

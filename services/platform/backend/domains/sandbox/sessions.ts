@@ -1,19 +1,19 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { SandboxQuotaConfig } from '../../../lib/shared/schemas/governance.ts';
 import {
   requireSessionBudgetForOwnerType,
   sessionBudgetForOwnerType,
   sessionCapFor,
   DEFAULT_SANDBOX_QUOTA,
   type SessionBudget,
-} from '../../../convex/sandbox/quota_policy.ts';
-import { sessionIdForWorkflowExecution } from '../../../convex/sandbox/session_naming.ts';
+} from '../../core/sandbox/quota_policy.ts';
 import {
   SANDBOX_MAX_SESSIONS_PER_OWNER,
   SANDBOX_SESSION_LIVE_STATUSES,
   SANDBOX_SESSION_MAX_LIFETIME_MS,
-} from '../../../convex/sandbox/sessions_schema.ts';
-import type { SandboxQuotaConfig } from '../../../lib/shared/schemas/governance.ts';
+} from '../../core/sandbox/session_constants.ts';
+import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';

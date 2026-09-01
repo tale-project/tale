@@ -19,7 +19,7 @@ interface VoiceOutputPolicyEditorProps {
 }
 
 // Backend default is ON when the policy row is missing (see
-// `isVoiceOutputOrgEnabled` in convex/tts/queries.ts). Mirror that here so
+// `isVoiceOutputOrgEnabled` in backend/domains/tts/service.ts). Mirror that here so
 // the toggle reflects effective state, not just persisted state.
 const parseConfig = createConfigParser(voiceOutputConfigSchema, () => ({
   enabled: true,

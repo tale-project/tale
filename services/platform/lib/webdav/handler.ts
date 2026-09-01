@@ -41,7 +41,7 @@ function getHmacSecret(): string {
     !/^[0-9a-f]+$/i.test(raw)
   ) {
     throw new Error(
-      `WEBDAV_APP_PASSWORD_HMAC_KEY is unset, too short (need >= ${WEBDAV_HMAC_KEY_MIN_LENGTH} hex chars), or non-hex. Set via 'convex env set WEBDAV_APP_PASSWORD_HMAC_KEY=$(openssl rand -hex 32)' and mirror to platform env via docker-entrypoint.`,
+      `WEBDAV_APP_PASSWORD_HMAC_KEY is unset, too short (need >= ${WEBDAV_HMAC_KEY_MIN_LENGTH} hex chars), or non-hex. It derives from INSTANCE_SECRET automatically; to set it explicitly use WEBDAV_APP_PASSWORD_HMAC_KEY=$(openssl rand -hex 32) in the environment.`,
     );
   }
   cachedHmacSecret = raw;
@@ -87,7 +87,7 @@ export async function dispatch(
   const authResult = await verifyBasicAuthForDav(req, ctx, parsed.orgSlug, {
     hmacSecret,
     resolveOrgAndMembership: async (orgSlug, userId) => {
-      const r = await ctx.convex.query(
+      const r = await ctx.backend.query(
         anyRefs.webdav.org_queries.resolveOrgAndCheckMembership,
         { orgSlug, userId },
       );

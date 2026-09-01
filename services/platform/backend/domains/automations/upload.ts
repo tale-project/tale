@@ -1,19 +1,19 @@
 import type { Sql } from 'postgres';
 
+import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import {
   uploadAutomationImpl,
   type UploadArgs,
   type UploadResult,
-} from '../../../convex/automations/upload_impl.ts';
+} from '../../core/automations/upload_impl.ts';
 import {
   parseBlobRef,
   s3KeyBelongsToOrg,
-} from '../../../convex/lib/storage/blob_ref.ts';
+} from '../../core/lib/storage/blob_ref.ts';
 import {
   s3DeleteObject,
   s3GetObjectBytes,
-} from '../../../convex/lib/storage/object_store.ts';
-import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
+} from '../../core/lib/storage/object_store.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { bindProject, saveVersion } from './store.ts';
 

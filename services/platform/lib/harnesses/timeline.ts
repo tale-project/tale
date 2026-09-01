@@ -21,7 +21,7 @@
  */
 
 /** One entry of a turn's live transcript, in the AI-SDK UI-part shape the
- * run views render (`sessionOpTimelinePartValidator` is its runtime twin). */
+ * run views render — the shape of an op row's `liveTimeline` entries. */
 export interface TimelinePart {
   type: string;
   text?: string;

@@ -1,19 +1,19 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import {
-  handleMcpRequest,
-  mcpGetNotAllowed,
-} from '../../convex/automations_builder/mcp_http.ts';
-import { loadConnectorDefinitions } from '../../convex/connector_credentials/connector_catalog.ts';
 import { installConnectorCatalog } from '../../lib/connectors/dispatcher.ts';
 import { registerConnector } from '../../lib/connectors/registry.ts';
 import { dispatch } from '../../lib/engine/api/dispatch.ts';
 import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner.ts';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm.ts';
+import {
+  handleMcpRequest,
+  mcpGetNotAllowed,
+} from '../core/automations_builder/mcp_http.ts';
+import { loadConnectorDefinitions } from '../core/connector_credentials/connector_catalog.ts';
 import { pgAutomationStore } from '../domains/automations/dispatch-store.ts';
 import { dispatchCapabilityAs } from '../domains/chat/capabilities.ts';
-import { createCtxShim, type ShimHandlers } from '../lib/convex-shim.ts';
+import { createCtxShim, type ShimHandlers } from '../lib/ctx-shim.ts';
 import type { RestEnv } from './shared.ts';
 
 /**

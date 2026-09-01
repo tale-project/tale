@@ -1,7 +1,7 @@
 import type { Sql } from 'postgres';
 
-import { sessionExecStatus } from '../../../convex/node_only/sandbox/helpers/session_client.ts';
-import { sessionOpLastSignOfLifeMs } from '../../../convex/sandbox/agent_deadline.ts';
+import { sessionExecStatus } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import { sessionOpLastSignOfLifeMs } from '../../core/sandbox/agent_deadline.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { claimRecoveryResume, RECOVERY_STALE_MS } from '../sandbox/recovery.ts';
 

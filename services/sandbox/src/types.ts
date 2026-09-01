@@ -4,24 +4,6 @@
 
 import type { RuntimeTier } from './runtime-tier.ts';
 
-/**
- * Per-file harvest outcome. `storageId` is the Convex storage id allocated
- * when the spawner POSTed the bytes to the pre-signed upload URL; the
- * platform side just inserts the matching `fileMetadata` row.
- *
- * `sha256` (hex) is the digest of the raw bytes computed during harvest.
- * Used for the cumulative `artifactOutputs` manifest (crispy-curry plan §1)
- * and for pre-stage attestation when the same file is later re-injected
- * into another run's `/agent/output/`.
- */
-export interface OutputFile {
-  name: string;
-  storageId: string;
-  size: number;
-  contentType: string;
-  sha256: string;
-}
-
 export interface SpawnerConfig {
   // Execution backend (env SANDBOX_BACKEND). 'docker' spawns sibling
   // containers via the host docker socket (Compose, the default);

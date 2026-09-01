@@ -233,7 +233,7 @@ async function provisionVideoToolchain(): Promise<void> {
   }
   try {
     const { ensureVideoToolchain } =
-      await import('../convex/video_links/ytdlp_toolchain');
+      await import('../backend/core/video_links/ytdlp_toolchain');
     const tc = await ensureVideoToolchain();
     process.env.VIDEO_INGEST_BIN_DIR ||= tc.binDir;
     process.env.VIDEO_INGEST_FFMPEG_LOCATION ||= tc.ffmpegLocation;

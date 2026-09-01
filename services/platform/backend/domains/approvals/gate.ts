@@ -1,6 +1,6 @@
 import type { Sql } from 'postgres';
 
-import { resolveApprovalRequirement } from '../../../convex/approvals/policy.ts';
+import { resolveApprovalRequirement } from '../../core/approvals/policy.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 

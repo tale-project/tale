@@ -1,5 +1,5 @@
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
-import type { ContactInfo } from '@/convex/conversations/types';
+import type { ContactInfo } from '@/backend/core/conversations/types';
 import { formatEnumLabel } from '@/lib/utils/string';
 
 /**

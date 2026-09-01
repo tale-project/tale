@@ -192,7 +192,7 @@ export async function handleGet(
   headOnly: boolean,
   req?: WebDAVRequest,
 ): Promise<WebDAVResponse> {
-  const resolved = await ctx.convex.query(
+  const resolved = await ctx.backend.query(
     anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
@@ -214,7 +214,7 @@ export async function handleGet(
     };
   }
 
-  const doc = await ctx.convex.query(
+  const doc = await ctx.backend.query(
     anyRefs.webdav.tree_queries.getDocumentProps,
     {
       organizationId: auth.organizationId,
@@ -301,7 +301,7 @@ export async function handleGet(
   // The /storage httpAction (ctx.storage.get) buffers the whole blob in the
   // isolate and caps at its memory limit — keep it only as a fallback for
   // deployments where the direct URL isn't reachable from this process.
-  const directUrl: unknown = await ctx.convex
+  const directUrl: unknown = await ctx.backend
     .query(anyRefs.webdav.tree_queries.getWebdavBlobUrl, {
       storageId: doc.fileId,
     })
@@ -316,7 +316,7 @@ export async function handleGet(
     // unreachable from this container; re-home onto the reachable backend
     // origin so the fast streaming path works in compose (no :3211 fallback).
     upstream = await fetchBlob(
-      rewriteStorageOrigin(directUrl, ctx.convexApiUrl),
+      rewriteStorageOrigin(directUrl, ctx.backendApiUrl),
       'direct',
     );
   }

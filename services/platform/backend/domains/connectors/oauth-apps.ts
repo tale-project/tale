@@ -1,15 +1,15 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
-import { resolveCloudImportOauthApp } from '../../../convex/cloud_import/deployment_config.ts';
-import type { CloudImportProvider } from '../../../convex/cloud_import/schema.ts';
-import { maskSecret } from '../../../convex/connector_credentials/masking.ts';
-import { resolveOauthAppCredentials } from '../../../convex/http_connectors/deployment_config.ts';
+import { resolveCloudImportOauthApp } from '../../core/cloud_import/deployment_config.ts';
+import type { CloudImportProvider } from '../../core/cloud_import/types.ts';
+import { maskSecret } from '../../core/connector_credentials/masking.ts';
+import { resolveOauthAppCredentials } from '../../core/http_connectors/deployment_config.ts';
 import {
   decryptSecret,
   encryptSecret,
   type EncryptedSecret,
-} from '../../../convex/lib/secret_box.ts';
+} from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 

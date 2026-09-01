@@ -1,8 +1,6 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import { resolveConnectorSettingsUrl } from '../../../convex/http_connectors/deployment_config.ts';
-import { renderConnectorErrorPage } from '../../../convex/http_connectors/error_page.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { Auth } from '../../auth/auth.ts';
 import {
@@ -10,6 +8,8 @@ import {
   requireOrganizationMember,
 } from '../../auth/membership.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
+import { resolveConnectorSettingsUrl } from '../../core/http_connectors/deployment_config.ts';
+import { renderConnectorErrorPage } from '../../core/http_connectors/error_page.ts';
 import { completeOauth2, startOauth2 } from './oauth.ts';
 
 /**

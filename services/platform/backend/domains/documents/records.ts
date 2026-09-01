@@ -1,6 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { checkProjectAccess } from '../../../convex/projects/access.ts';
+import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';

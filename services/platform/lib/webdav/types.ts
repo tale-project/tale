@@ -135,20 +135,14 @@ export interface WebDAVBackend {
 
 // Shared ctx threaded into every dispatch — built once at server start.
 export interface WebDAVCtx {
-  convex: WebDAVBackend;
+  backend: WebDAVBackend;
   // Public base URL used to materialize blob fetch URLs for GET (we
-  // proxy through Convex /storage). Falls back to convex client's URL.
+  // proxy legacy `_storage` blobs through the backend).
   storageBaseUrl: string;
-  // Token used to call /storage from the platform server (same as the
-  // Convex deployment URL — bearer auth not required for /storage since
-  // the storageId itself is hard to guess).
-
-  // Backend API origin (CONVEX_URL, :3210). `ctx.storage.generateUploadUrl()`
-  // / `getUrl()` return URLs carrying the backend's *self-reported* origin
-  // (`http://127.0.0.1:3210` self-hosted), which is unreachable from inside the
-  // platform container (Convex is a separate container, `http://convex:3210`).
+  // Backend API origin. Legacy `_storage` upload/get URLs carry a
+  // self-reported origin that may be unreachable from this process;
   // PUT/GET re-home those URLs onto this origin via `rewriteStorageOrigin`.
-  convexApiUrl: string;
+  backendApiUrl: string;
 }
 
 export interface ParsedPath {

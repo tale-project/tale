@@ -1,13 +1,13 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 
-import { readSkillBundleForViewer } from '../../../convex/skills/file_actions.ts';
-import { isAutoRetryableFailure } from '../../../convex/tasks/task_auto_retry.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { isFilePolicyType } from '../../../lib/shared/schemas/governance';
+import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
+import { isAutoRetryableFailure } from '../../core/tasks/task_auto_retry.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import type { ShimHandlers, ShimScheduler } from '../../lib/convex-shim.ts';
+import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { orgAdapterShimHandlers } from '../knowledge/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';

@@ -4,13 +4,13 @@ import {
   decryptSecret,
   encryptSecret,
   type EncryptedSecret,
-} from '../../../convex/lib/secret_box.ts';
+} from '../../core/lib/secret_box.ts';
 import {
   MAX_ENV_VARS_PER_USER,
   SECRET_MASK,
   validateEnvKey,
   validateEnvValue,
-} from '../../../convex/sandbox/user_env_constants.ts';
+} from '../../core/sandbox/user_env_constants.ts';
 import { toJson } from '../../db/sql.ts';
 
 /**

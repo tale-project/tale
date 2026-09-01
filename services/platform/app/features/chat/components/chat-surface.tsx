@@ -50,7 +50,7 @@ import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { useMyBudgetStatus } from '@/app/features/settings/governance/hooks/queries';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
-import { useConvexFileUpload } from '@/app/features/shared/files/use-convex-file-upload';
+import { useFileUpload } from '@/app/features/shared/files/use-file-upload';
 import {
   freezeActiveStream,
   resetGlobalFreeze,
@@ -835,7 +835,7 @@ function ChatSurfaceInner({
     }),
     [organizationId, threadId],
   );
-  const attachmentUpload = useConvexFileUpload(uploadConfig);
+  const attachmentUpload = useFileUpload(uploadConfig);
   // The picker's `accept` filter mirrors 0.3's `effectiveAccept`: the org
   // upload policy's extension list when one is enforced, else the full
   // chat family. Validation happens in the upload hook either way.

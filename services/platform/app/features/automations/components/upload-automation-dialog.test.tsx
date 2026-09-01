@@ -51,22 +51,6 @@ vi.mock('../hooks/mutations', () => ({
   useDeployAutomation: () => ({ mutate: deployMutate, isPending: false }),
 }));
 
-// The generated api proxies are plain objects here; the useMutation mock keys
-// off the reference identity strings below.
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    automations: {
-      upload_action: { uploadAutomation: 'automations/upload_action' },
-      upload_mutations: {
-        generateAutomationUploadUrl:
-          'automations/upload_mutations:generateAutomationUploadUrl',
-        recordAutomationUploadIntent:
-          'automations/upload_mutations:recordAutomationUploadIntent',
-      },
-    },
-  },
-}));
-
 import { UploadAutomationDialog } from './upload-automation-dialog';
 
 const fetchMock = vi.fn();

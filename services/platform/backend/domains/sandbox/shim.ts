@@ -1,6 +1,6 @@
 import type { Sql } from 'postgres';
 
-import type { ShimHandlers } from '../../lib/convex-shim.ts';
+import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { resolveAgentSecretsEnv } from '../agent_secrets/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';

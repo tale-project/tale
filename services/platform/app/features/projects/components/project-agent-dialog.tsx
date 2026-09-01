@@ -21,7 +21,7 @@ import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
-import { AGENT_TOOL_CATALOG } from '@/convex/sandbox/tool_names';
+import { AGENT_TOOL_CATALOG } from '@/backend/core/sandbox/tool_names';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 

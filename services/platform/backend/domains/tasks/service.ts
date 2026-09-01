@@ -1,20 +1,20 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
-  checkProjectAccess,
-  EDITOR_ROLES,
-} from '../../../convex/projects/access.ts';
-import { canClaimTask } from '../../../convex/tasks/access.ts';
-import {
-  TASK_AUDIT_ACTIONS,
-  TASK_RESOURCE_TYPE,
-} from '../../../convex/tasks/audit_actions.ts';
-import { initialRank, rankBetween } from '../../../convex/tasks/rank.ts';
-import { REVIEW_POLICY_REFUSAL_CODES } from '../../../convex/tasks/review_shared.ts';
-import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
 } from '../../../lib/shared/task-label-colors.ts';
+import {
+  checkProjectAccess,
+  EDITOR_ROLES,
+} from '../../core/projects/access.ts';
+import { canClaimTask } from '../../core/tasks/access.ts';
+import {
+  TASK_AUDIT_ACTIONS,
+  TASK_RESOURCE_TYPE,
+} from '../../core/tasks/audit_actions.ts';
+import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
+import { REVIEW_POLICY_REFUSAL_CODES } from '../../core/tasks/review_shared.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';

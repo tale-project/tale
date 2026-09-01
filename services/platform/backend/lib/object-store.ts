@@ -7,8 +7,8 @@ import {
   s3PresignPutUrl,
   s3PutObject,
   type S3ObjectStore,
-} from '../../convex/lib/storage/object_store.ts';
-import { readOrgObjectStorageConnection } from '../../convex/object_storage/file_utils.ts';
+} from '../core/lib/storage/object_store.ts';
+import { readOrgObjectStorageConnection } from '../core/object_storage/file_utils.ts';
 
 /**
  * 0.5 object-store resolution — S3-compatible storage is THE blob backend

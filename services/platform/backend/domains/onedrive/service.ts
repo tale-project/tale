@@ -1,28 +1,28 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
-  pickMicrosoftAccount,
-  type MicrosoftAccountCandidate,
-} from '../../../convex/accounts/microsoft_account.ts';
-import { extractExtension } from '../../../convex/documents/extract_extension.ts';
-import { extractTenantId } from '../../../convex/enterprise_sso/entra_id/constants.ts';
-import { sourceFromProvider } from '../../../convex/file_metadata/source_from_provider.ts';
-import { deleteKnowledgeDocument } from '../../../convex/legacy/knowledge_delete.ts';
-import { getFileMetadata } from '../../../convex/onedrive/get_file_metadata.ts';
-import { importFiles } from '../../../convex/onedrive/import_files.ts';
-import type { FileItem } from '../../../convex/onedrive/list_folder_contents.ts';
-import { listFolderContents } from '../../../convex/onedrive/list_folder_contents.ts';
-import {
-  buildSyncImportItems,
-  selectDocumentsToPrune,
-  type SyncedDocumentRef,
-} from '../../../convex/onedrive/reconcile_folder_sync.ts';
-import { refreshToken as refreshMicrosoftLoginToken } from '../../../convex/onedrive/refresh_token.ts';
-import {
   isRagIndexableFile,
   resolveFileType,
 } from '../../../lib/shared/file-types.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
+import {
+  pickMicrosoftAccount,
+  type MicrosoftAccountCandidate,
+} from '../../core/accounts/microsoft_account.ts';
+import { extractExtension } from '../../core/documents/extract_extension.ts';
+import { extractTenantId } from '../../core/enterprise_sso/entra_id/constants.ts';
+import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
+import { deleteKnowledgeDocument } from '../../core/legacy/knowledge_delete.ts';
+import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
+import { importFiles } from '../../core/onedrive/import_files.ts';
+import type { FileItem } from '../../core/onedrive/list_folder_contents.ts';
+import { listFolderContents } from '../../core/onedrive/list_folder_contents.ts';
+import {
+  buildSyncImportItems,
+  selectDocumentsToPrune,
+  type SyncedDocumentRef,
+} from '../../core/onedrive/reconcile_folder_sync.ts';
+import { refreshToken as refreshMicrosoftLoginToken } from '../../core/onedrive/refresh_token.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';

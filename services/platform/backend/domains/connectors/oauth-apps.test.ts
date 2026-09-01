@@ -1,7 +1,7 @@
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { encryptSecret } from '../../../convex/lib/secret_box.ts';
+import { encryptSecret } from '../../core/lib/secret_box.ts';
 import {
   applyMicrosoftTenant,
   getCloudImportAppStatus,

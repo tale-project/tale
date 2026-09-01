@@ -53,7 +53,7 @@ export default defineConfig({
       'node_modules',
       '.next',
       'dist',
-      'convex/**',
+      'backend/**',
       '**/*.browser.test.{ts,tsx}',
     ],
     deps: {

@@ -10,7 +10,7 @@ import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
-import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from '@/convex/knowledge/rag_error_codes';
+import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from '@/backend/core/knowledge/rag_error_codes';
 import { useT } from '@/lib/i18n/client';
 import type { RagStatus } from '@/types/documents';
 

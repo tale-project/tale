@@ -456,7 +456,7 @@ export const CHAT_UPLOAD_ALLOWED_TYPES: readonly string[] = [
  * subset of {@link CHAT_UPLOAD_ALLOWED_TYPES} that drops audio/video — task
  * attachments are reference material (screenshots, specs, sheets), not media
  * that flows through the transcription pipeline. Used for BOTH the client
- * upload gate (`useConvexFileUpload({ allowedTypes })`) and the server-side
+ * upload gate (`useFileUpload({ allowedTypes })`) and the server-side
  * `validateTaskAttachments` check. Pair with {@link DOCUMENT_UPLOAD_ACCEPT} for
  * the file-picker `accept` attribute.
  */
@@ -640,7 +640,7 @@ export interface AttachmentCapsConfig {
 /**
  * Generic count/size/MIME cap check shared by every server-side surface that
  * re-enforces a composer's client-side attachment caps — a scripted client
- * bypassing the upload widget's gates (`useConvexFileUpload` and friends)
+ * bypassing the upload widget's gates (`useFileUpload` and friends)
  * could otherwise attach an unbounded `attachments[]` to a public mutation.
  * Each caller supplies its own caps + error codes and stays the single
  * source of truth for its own limits; this only owns the check ORDER (count,
@@ -905,7 +905,7 @@ export function getDocumentPreviewKind(
  * Extensions (lowercase, no dot) in-process RAG indexing can handle.
  *
  * MUST stay in sync with `ALL_SUPPORTED_EXTENSIONS` in
- * `services/platform/convex/lib/knowledge/extraction/router.ts` (minus the
+ * `services/platform/backend/core/lib/knowledge/extraction/router.ts` (minus the
  * deliberately-unindexed `SENSITIVE_EXTENSIONS` like `.log`). Update both
  * sides in the same commit.
  *

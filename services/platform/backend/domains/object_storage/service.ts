@@ -3,6 +3,9 @@ import path from 'node:path';
 
 import type { Sql } from 'postgres';
 
+import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
+import { zodErrorMessage } from '../../../lib/shared/schemas/format-error.ts';
+import { objectStorageConnectionFileSchema } from '../../../lib/shared/schemas/object_storage.ts';
 import {
   atomicWrite,
   atomicWriteSecret,
@@ -11,14 +14,13 @@ import {
   readFileSafe,
   removeDirSafe,
   removeFileSafe,
-} from '../../../convex/lib/file_io.ts';
-import { checkProviderHostPolicy } from '../../../convex/lib/http/host_policy.ts';
+} from '../../core/lib/file_io.ts';
 import {
   encryptJsonWithSops,
   hasSopsKey,
   invalidateSecretsCache,
-} from '../../../convex/lib/sops.ts';
-import { parseBlobRef } from '../../../convex/lib/storage/blob_ref.ts';
+} from '../../core/lib/sops.ts';
+import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import {
   buildS3ObjectStore,
   invalidateOrgObjectStore,
@@ -27,7 +29,7 @@ import {
   s3HeadObject,
   s3PutObject,
   type S3ObjectStore,
-} from '../../../convex/lib/storage/object_store.ts';
+} from '../../core/lib/storage/object_store.ts';
 import {
   parseObjectStorageConnectionJson,
   readObjectStorageSecrets,
@@ -38,9 +40,7 @@ import {
   serializeObjectStorageConnectionJson,
   serializeObjectStorageSecretsJson,
   type ObjectStorageConnectionFile,
-} from '../../../convex/object_storage/file_utils.ts';
-import { zodErrorMessage } from '../../../lib/shared/schemas/format-error.ts';
-import { objectStorageConnectionFileSchema } from '../../../lib/shared/schemas/object_storage.ts';
+} from '../../core/object_storage/file_utils.ts';
 import { toJson } from '../../db/sql.ts';
 import { clearObjectStoreCache } from '../../lib/object-store.ts';
 

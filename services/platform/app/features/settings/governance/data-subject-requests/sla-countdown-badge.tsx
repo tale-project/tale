@@ -7,7 +7,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-import type { ErasureStatus } from '@/convex/governance/erasure_constants';
+import type { ErasureStatus } from '@/backend/core/governance/erasure_constants';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

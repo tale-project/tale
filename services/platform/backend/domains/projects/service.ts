@@ -1,17 +1,5 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import {
-  ADMIN_ROLES,
-  checkProjectAccess,
-  EDITOR_ROLES,
-  isOrgWideProject,
-  normalizeSharing,
-} from '../../../convex/projects/access.ts';
-import {
-  PROJECT_AUDIT_ACTIONS,
-  PROJECT_RESOURCE_TYPE,
-} from '../../../convex/projects/audit_actions.ts';
-import { normalizeToolGrants } from '../../../convex/sandbox/tool_names.ts';
 import { isHarnessSlug } from '../../../lib/harnesses/types.ts';
 import {
   deriveProjectKey,
@@ -20,6 +8,18 @@ import {
   PROJECT_KEY_MAX,
 } from '../../../lib/shared/project_key.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
+import {
+  ADMIN_ROLES,
+  checkProjectAccess,
+  EDITOR_ROLES,
+  isOrgWideProject,
+  normalizeSharing,
+} from '../../core/projects/access.ts';
+import {
+  PROJECT_AUDIT_ACTIONS,
+  PROJECT_RESOURCE_TYPE,
+} from '../../core/projects/audit_actions.ts';
+import { normalizeToolGrants } from '../../core/sandbox/tool_names.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { emitEvent } from '../events/emit.ts';

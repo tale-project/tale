@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { FileAttachment } from '@/app/features/shared/files/types';
 import { toast } from '@/app/hooks/use-toast';
 import { fileStatusesQuery } from '@/app/lib/backend/chat';
-import type { BlobRef } from '@/convex/lib/storage/blob_ref';
+import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import {
   isAudioOrVideo,
@@ -30,7 +30,7 @@ export interface FileIndexingInfo {
 /**
  * RAG-indexing status for document / text attachments staged in the
  * composer — the set the upload hook defers its success toast for
- * (`willIndex` in `use-convex-file-upload`). Reactive Convex query; the
+ * (`willIndex` in `use-file-upload`). Reactive Convex query; the
  * server-side poll chain patches the row as ingestion progresses and the
  * watchdog guarantees a terminal state, so no client polling is needed.
  *

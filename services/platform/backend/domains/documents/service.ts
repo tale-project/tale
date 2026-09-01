@@ -1,13 +1,13 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { hasTeamAccess } from '../../../convex/lib/team_access.ts';
-import { checkProjectAccess } from '../../../convex/projects/access.ts';
 import {
   DOCUMENT_MAX_FILE_SIZE,
   DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
   isAllowedDocumentUpload,
   resolveFileType,
 } from '../../../lib/shared/file-types.ts';
+import { hasTeamAccess } from '../../core/lib/team_access.ts';
+import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {

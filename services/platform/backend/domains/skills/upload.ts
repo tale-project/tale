@@ -1,20 +1,5 @@
 import type { Sql } from 'postgres';
 
-import {
-  parseBlobRef,
-  s3KeyBelongsToOrg,
-} from '../../../convex/lib/storage/blob_ref.ts';
-import {
-  s3DeleteObject,
-  s3GetObjectBytes,
-} from '../../../convex/lib/storage/object_store.ts';
-import { parseSkillBundleZip } from '../../../convex/skills/bundle_zip.ts';
-import { normalizedBundleFiles } from '../../../convex/skills/file_actions.ts';
-import {
-  createOrgSkillReader,
-  listSkillBundleFileEntries,
-  writeSkillBundleFiles,
-} from '../../../convex/skills/file_utils.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { MAX_SKILL_BUNDLE_TOTAL_BYTES } from '../../../lib/shared/schemas/skills.ts';
 import { readOrgSkill } from '../../../lib/skills/listing.ts';
@@ -23,6 +8,21 @@ import {
   canEditSkill,
   type UserSkillViewer,
 } from '../../../lib/skills/visibility.ts';
+import {
+  parseBlobRef,
+  s3KeyBelongsToOrg,
+} from '../../core/lib/storage/blob_ref.ts';
+import {
+  s3DeleteObject,
+  s3GetObjectBytes,
+} from '../../core/lib/storage/object_store.ts';
+import { parseSkillBundleZip } from '../../core/skills/bundle_zip.ts';
+import { normalizedBundleFiles } from '../../core/skills/file_actions.ts';
+import {
+  createOrgSkillReader,
+  listSkillBundleFileEntries,
+  writeSkillBundleFiles,
+} from '../../core/skills/file_utils.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 
 /**

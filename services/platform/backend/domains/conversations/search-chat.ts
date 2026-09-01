@@ -1,10 +1,10 @@
 import type { Sql } from 'postgres';
 
-import { conversationAssignmentAllows } from '../../../convex/lib/rls/helpers/conversation_assignment.ts';
-import { rowMatches } from '../../../convex/lib/search/relevance.ts';
-import { contactsSearchStrategy } from '../../../convex/lib/search/strategies/contacts.ts';
 import { htmlToText } from '../../../lib/knowledge/html-to-text.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
+import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
+import { rowMatches } from '../../core/lib/search/relevance.ts';
+import { contactsSearchStrategy } from '../../core/lib/search/strategies/contacts.ts';
 import { viewerIsAdmin } from './service.ts';
 
 /**

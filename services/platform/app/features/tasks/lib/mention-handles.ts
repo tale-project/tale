@@ -1,13 +1,13 @@
 /**
  * Client-side mirror of the server's mention-handle derivation
- * (`convex/tasks/directory.ts::memberHandles`). The composer inserts the
+ * (`backend/domains/collab/mention-directory.ts::memberHandles`). The composer inserts the
  * FIRST server-resolvable handle; the read views resolve EVERY variant back
  * to a display name, so a mention typed in any form (`@alice.smith`,
  * `@alicesmith`, `@alice`) renders as the person's name.
  */
 
 /** The plain-text token charset the server's mention parser accepts
- *  (`convex/tasks/mentions.ts::MENTION_RE`) — a handle outside it can never
+ *  (`backend/core/tasks/mentions.ts::MENTION_RE`) — a handle outside it can never
  *  resolve, so such candidates are skipped. Includes `/` so pack agent
  *  slugs (`github/create-pull-requests/pr-creator`) round-trip. */
 export const MENTION_TOKEN_RE = /^[a-zA-Z0-9._/-]+$/;
@@ -47,7 +47,7 @@ export interface MentionableAgent {
 }
 
 /** All candidate handles for a project agent instance, lowercased, the
- *  server derivation order (`convex/tasks/directory.ts::agentInstanceHandles`):
+ *  server derivation order (`backend/domains/collab/mention-directory.ts::agentInstanceHandles`):
  *  dotted name → squashed name → instance id (the collision-proof fallback
  *  the server also resolves). */
 export function agentHandleVariants(agent: MentionableAgent): string[] {
@@ -81,7 +81,7 @@ export interface MentionableAutomation {
 }
 
 /** All candidate handles for a deployed automation, lowercased, the server
- *  derivation order (`convex/tasks/directory.ts::automationHandles`): store
+ *  derivation order (`backend/domains/collab/mention-directory.ts::automationHandles`): store
  *  name → dotted display name → squashed display name. */
 export function automationHandleVariants(
   automation: MentionableAutomation,

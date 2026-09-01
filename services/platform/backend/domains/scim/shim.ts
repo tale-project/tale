@@ -1,7 +1,7 @@
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import type { ShimHandlers } from '../../lib/convex-shim.ts';
+import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import {
   deleteGroup,
   deprovisionUser,

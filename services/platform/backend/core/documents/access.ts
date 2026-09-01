@@ -1,0 +1,326 @@
+/**
+ * Shared document access layer.
+ *
+ * Documents live in exactly one of two scopes (`projectId` and `teamId` are
+ * mutually exclusive — enforced in `attachDocumentToProject`):
+ *
+ * - Knowledge Hub (org/team library): `projectId` unset. Team rules apply —
+ *   no teams means org-wide (`hasTeamAccess`).
+ * - Project files: `projectId` set. Never part of the Knowledge Hub; readable
+ *   only by users with access to the owning project (`checkProjectAccess`).
+ *
+ * `hasTeamAccess` alone cannot tell the scopes apart — a project doc has no
+ * team fields and would read as org-wide. The scope decision has one owner —
+ * this module — so every hub read path (lists, pickers, agent scopes, REST,
+ * WebDAV) filters through `hasKnowledgeHubDocumentAccess` (sync, list-safe)
+ * or `canReadDocument` (async, resolves project access for single-doc reads).
+ */
+
+import { AppError } from '../../../lib/shared/errors/app-error';
+import type { MutationCtx, QueryCtx } from '../lib/ctx';
+import { getUserTeamIds } from '../lib/get_user_teams';
+import type { Doc } from '../lib/rows';
+import { hasTeamAccess } from '../lib/team_access';
+import { hasProjectAccess, type ProjectAccessResult } from '../projects/access';
+import {
+  NO_PROJECT_ACCESS,
+  resolveProjectAccessForUser,
+  resolveUserAccessContext,
+} from '../projects/resolve_project_access';
+
+/** The scope fields a visibility decision reads. All optional: a Knowledge
+ *  Hub document carries none of them. */
+interface DocumentScopeFields {
+  projectId?: string | null;
+  teamId?: string | null;
+  teamTags?: string[];
+}
+
+/**
+ * A document attached to a project. Such documents are not Knowledge Hub
+ * rows: they must never surface in org/team library listings, pickers, or
+ * agent knowledge scopes outside their project.
+ */
+export function isProjectScopedDocument(doc: DocumentScopeFields): boolean {
+  return doc.projectId != null;
+}
+
+/**
+ * Whether a user can see a document in Knowledge Hub surfaces (library
+ * lists, `@` mention picker, agent document tools, workflow ACLs).
+ *
+ * Project-scoped documents are never hub-visible, regardless of the user's
+ * project access — project files surface through the project's own queries
+ * (`listProjectDocuments`) instead.
+ */
+export function hasKnowledgeHubDocumentAccess(
+  doc: DocumentScopeFields,
+  userTeamIds: string[] | Set<string>,
+): boolean {
+  if (isProjectScopedDocument(doc)) return false;
+  return hasTeamAccess(doc, userTeamIds);
+}
+
+/**
+ * Resolve the caller's access matrix on a project-scoped document's owning
+ * project (read for viewing, edit for update/delete — the same standard as
+ * `attachDocumentToProject`/`detachDocumentFromProject`). Returns null when
+ * the document is not project-scoped; callers fall back to team rules then.
+ * Costs a member + team lookup, so it is for single-document paths only.
+ */
+export async function checkProjectDocumentAccess(
+  ctx: QueryCtx | MutationCtx,
+  doc: Doc<'documents'>,
+  args: { userId: string; organizationId: string },
+): Promise<ProjectAccessResult | null> {
+  if (!isProjectScopedDocument(doc) || !doc.projectId) return null;
+  if (doc.organizationId !== args.organizationId) return NO_PROJECT_ACCESS;
+  return resolveProjectAccessForUser(ctx, doc.projectId, args);
+}
+
+/**
+ * Whether a user can read a specific document, whatever its scope.
+ *
+ * Knowledge Hub docs follow team access; project docs require access to the
+ * owning project (org role + team membership vs the project's teams). Use on
+ * single-document paths (point reads, mutation guards) — it costs a member +
+ * team lookup for project docs, so it is not for per-row list filtering.
+ */
+export async function canReadDocument(
+  ctx: QueryCtx | MutationCtx,
+  doc: Doc<'documents'>,
+  args: { userId: string; organizationId: string },
+): Promise<boolean> {
+  if (doc.organizationId !== args.organizationId) return false;
+
+  if (!isProjectScopedDocument(doc)) {
+    const userTeamIds = await getUserTeamIds(ctx, args.userId);
+    return hasKnowledgeHubDocumentAccess(doc, userTeamIds);
+  }
+
+  const access = await checkProjectDocumentAccess(ctx, doc, args);
+  return access?.canRead ?? false;
+}
+
+/**
+ * Require visibility of a specific document without disclosing whether an
+ * inaccessible row exists. Mutation doors use this before any state or write
+ * permission checks so a raw document id cannot probe another team's scope.
+ */
+export async function assertDocumentVisibleToUser(
+  ctx: QueryCtx | MutationCtx,
+  doc: Doc<'documents'>,
+  args: { userId: string; organizationId: string },
+): Promise<void> {
+  if (await canReadDocument(ctx, doc, args)) return;
+  throw new AppError({
+    code: 'DOCUMENT_NOT_FOUND',
+    message: 'Document not found',
+  });
+}
+
+type DocumentRecordFields = Pick<Doc<'documents'>, 'record'>;
+
+/**
+ * Controlled-record content freeze (documents/records.ts owns the lifecycle).
+ *
+ * Content-mutating writes are allowed ONLY while a document is uncontrolled
+ * or its record sits in `draft`: `in_review` is frozen so the named reviewer
+ * reviews a FIXED artifact, and `approved` is immutable until
+ * `openRecordRevision` opens the next draft. "Content" means the bytes and
+ * their identity fields (`content`, `fileId`, `extension`, `mimeType`,
+ * `contentHash`) — renames, folder moves, team/metadata edits stay allowed
+ * in every state (title is identity, not content).
+ */
+export function isRecordContentFrozen(doc: DocumentRecordFields): boolean {
+  return doc.record !== undefined && doc.record.state !== 'draft';
+}
+
+/**
+ * Refuse a content-mutating write on a frozen controlled record. One guard,
+ * wired into EVERY content write path (public update, internal/REST update,
+ * WebDAV PUT, connector/sync upsert) — a new content writer MUST call this.
+ */
+export function assertRecordContentWritable(doc: DocumentRecordFields): void {
+  if (!isRecordContentFrozen(doc)) return;
+  throw new AppError({
+    code: 'DOCUMENT_RECORD_FROZEN',
+    message:
+      doc.record?.state === 'in_review'
+        ? 'This controlled record is in review and frozen. Wait for the review decision (or request changes) before editing its content.'
+        : 'This controlled record is approved and immutable. Open a new revision to edit its content.',
+    state: doc.record?.state,
+  });
+}
+
+/**
+ * Generic writers may update an uncontrolled document, but controlled-record
+ * bytes and identity fields have exactly one door: the attested replacement
+ * flow in `documents/records.ts`. Check the frozen state first to preserve the
+ * established in-review/approved errors; a draft then gets the dedicated-flow
+ * error rather than being silently replaceable through another writer.
+ */
+export function assertGenericDocumentContentWritable(
+  doc: DocumentRecordFields,
+): void {
+  assertRecordContentWritable(doc);
+  if (doc.record === undefined) return;
+  throw new AppError({
+    code: 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED',
+    message:
+      'Replace controlled-record content through the dedicated replacement flow.',
+    state: doc.record.state,
+  });
+}
+
+/**
+ * Why a controlled record refuses trash/delete — `null` when it may be
+ * trashed.
+ *
+ * Protection follows the record's EVIDENCE, not merely its current state: a
+ * record is protected while `in_review` or `approved`, AND for the rest of
+ * its life once any version has been approved (`retained_history`) — an
+ * approved snapshot is the signed artifact a reviewer stands behind, and it
+ * does not stop being that because a later revision is being drafted.
+ * Without the second rule, "open a new revision, then delete" quietly
+ * destroys the approved history the whole lifecycle exists to preserve.
+ *
+ * The single source of truth for every delete path — direct delete, WebDAV,
+ * knowledge entries, the folder-delete cascade pre-walk — and for the
+ * `hasApprovedVersions` row projection the UI delete gate reads. A path
+ * re-deriving this from `state` alone is the bug this predicate exists to
+ * prevent.
+ */
+export type RecordTrashRefusal = 'in_review' | 'approved' | 'retained_history';
+
+export function recordTrashRefusal(
+  record: Doc<'documents'>['record'],
+): RecordTrashRefusal | null {
+  if (record === undefined) return null;
+  if (record.state === 'in_review') return 'in_review';
+  if (record.state === 'approved') return 'approved';
+  return record.approvedVersions.length > 0 ? 'retained_history' : null;
+}
+
+/**
+ * Refuse trashing/deleting a protected controlled record
+ * (`recordTrashRefusal`). Uncontrolled documents, and controlled ones still
+ * drafting their FIRST (never-approved) version, trash/delete exactly as
+ * they did before.
+ */
+export function assertRecordTrashable(doc: DocumentRecordFields): void {
+  if (doc.record === undefined) return;
+  const refusal = recordTrashRefusal(doc.record);
+  if (refusal === null) return;
+  throw new AppError({
+    code: 'DOCUMENT_RECORD_PROTECTED',
+    message:
+      refusal === 'in_review'
+        ? 'This controlled record is in review and cannot be deleted. Resolve the review first.'
+        : refusal === 'approved'
+          ? 'This controlled record is approved and cannot be deleted. Its approved version is a retained record.'
+          : 'This controlled record has an approved version in its history, which is a retained record, so it cannot be deleted.',
+    state: doc.record.state,
+  });
+}
+
+/**
+ * A caller's document visibility for knowledge RETRIEVAL, as sets rather than
+ * per-row checks — what the corpus access filter
+ * (`lib/knowledge/types.ts` `KnowledgeAccessScope`) consumes.
+ *
+ * Declared ONCE. It used to be declared three times — the resolver's returns,
+ * the re-check's args, and the sandbox bridge's returns — and adding a field
+ * to the scope meant finding all three; a missed one presented as knowledge
+ * search having gone quiet. `threadIds` is not here: it belongs to the chat
+ * lane's request, not to what the resolver derives, and the re-check adds it
+ * to its own args.
+ */
+export interface ResolvedKnowledgeAccess {
+  teamIds: string[];
+  projectIds: string[];
+  includeHub: boolean;
+  /** Whether conversation-scoped rows are admitted for the re-check to decide. */
+  includeConversationScoped?: boolean;
+  /**
+   * Which of `projectIds` are archived. NOT a narrowing of what is
+   * retrievable: an archived project's material stays searchable and citable.
+   * It travels so a result can be labelled as belonging to a retired project,
+   * and it is a subset of `projectIds` — a project the caller cannot read is
+   * absent from both. Optional: absent reads as "none known", which
+   * under-labels rather than over-filters.
+   */
+  archivedProjectIds?: string[];
+  /** The user the scope was resolved for. Needed to decide a
+   *  conversation-scoped corpus row by its live assignment. */
+  userId?: string;
+}
+
+/** Fail-closed scope: no hub, no teams, no projects — a search sees nothing. */
+export const NO_KNOWLEDGE_ACCESS: ResolvedKnowledgeAccess = {
+  teamIds: [],
+  projectIds: [],
+  includeHub: false,
+  archivedProjectIds: [],
+};
+
+/**
+ * The teams and projects whose documents a USER may retrieve — the retrieval
+ * twin of the listing rules above, derived from the SAME sources so a search
+ * can never surface a document the library would hide:
+ *
+ * - teams: the user's `teamMemberMirror` memberships (`getUserTeamIds`), plus
+ *   the `org_<organizationId>` pseudo-team every member implicitly holds
+ *   (parity with `getAccessibleDocumentIds`);
+ * - projects: every project `hasProjectAccess` grants — org-wide projects,
+ *   the user's team-shared projects, and all of them for org admins;
+ * - the org hub is always visible to a member.
+ *
+ * Fails CLOSED ({@link NO_KNOWLEDGE_ACCESS}) when the caller's membership
+ * cannot be proven, mirroring `resolveUserAccessContext`. Walks the org's
+ * projects once per call — bounded by project count, for retrieval dispatches,
+ * not per-row list filtering.
+ */
+export async function resolveKnowledgeAccessForUser(
+  ctx: QueryCtx | MutationCtx,
+  args: { organizationId: string; userId: string },
+): Promise<ResolvedKnowledgeAccess> {
+  const context = await resolveUserAccessContext(
+    ctx,
+    args.organizationId,
+    args.userId,
+  );
+  if (context === null || context.role === 'disabled') {
+    return { ...NO_KNOWLEDGE_ACCESS };
+  }
+
+  const teamIds = [
+    ...new Set([`org_${args.organizationId}`, ...context.teamIds]),
+  ];
+
+  const projectIds: string[] = [];
+  // Collected in the SAME walk, so labelling costs no extra reads.
+  const archivedProjectIds: string[] = [];
+  const projects = ctx.db
+    .query('projects')
+    .withIndex('by_organization', (q) =>
+      q.eq('organizationId', args.organizationId),
+    );
+  for await (const project of projects) {
+    if (hasProjectAccess(project, context.teamIds, context.role)) {
+      projectIds.push(project._id);
+      if (project.archivedAt) archivedProjectIds.push(project._id);
+    }
+  }
+
+  return {
+    teamIds,
+    projectIds,
+    includeHub: true,
+    archivedProjectIds,
+    userId: args.userId,
+    // Emailed attachments are considered; the Convex-truth re-check decides
+    // each one by the conversation's current assignment.
+    includeConversationScoped: true,
+  };
+}

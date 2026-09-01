@@ -5,7 +5,7 @@ import {
 } from '@casl/ability';
 
 /**
- * Platform resource subjects — matches the Convex RLS table keys in convex/auth.ts.
+ * Platform resource subjects — matches the server-side access keys in backend/auth/access.ts.
  */
 export type PlatformResource =
   | 'approvals'
@@ -47,7 +47,7 @@ export type AppAbility = MongoAbility<[AppAction, AppSubject]>;
 
 /**
  * Builds a CASL ability instance for the given platform role.
- * Mirrors the permission matrix defined in convex/auth.ts.
+ * Mirrors the permission matrix defined in backend/auth/access.ts.
  */
 export function defineAbilityFor(role: string | null): AppAbility {
   const { can, cannot, build } = new AbilityBuilder<AppAbility>(

@@ -1,7 +1,8 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { TASK_AUDIT_ACTIONS } from '../../../convex/tasks/audit_actions.ts';
 import { parseTaskSubjectContract } from '../../../lib/shared/schemas/task_contract.ts';
+import { TASK_AUDIT_ACTIONS } from '../../core/tasks/audit_actions.ts';
+import type { CommentEventComment } from '../../core/tasks/types.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -191,17 +192,16 @@ export async function addTaskComment(
     metadata: { taskId: args.taskId },
     status: 'success',
   });
+  const comment: CommentEventComment = {
+    body,
+    projectId: task.projectId,
+    taskId: args.taskId,
+    mentions,
+  };
   await emitEvent(tx, {
     organizationId: auth.organizationId,
     eventType: 'comment.created',
-    eventData: {
-      comment: {
-        body,
-        projectId: task.projectId,
-        taskId: args.taskId,
-        mentions,
-      },
-    },
+    eventData: { comment },
   });
   await emitHintInTx(tx, {
     orgId: auth.organizationId,

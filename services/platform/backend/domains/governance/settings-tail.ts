@@ -1,15 +1,12 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { isLoosening } from '../../../convex/governance/dsar_policy.ts';
-import {
-  decryptSecret,
-  encryptSecret,
-} from '../../../convex/lib/secret_box.ts';
 import {
   dsarGovernanceConfigSchema,
   DEFAULT_DSAR_GOVERNANCE,
   type DsarGovernanceConfig,
 } from '../../../lib/shared/schemas/governance.ts';
+import { isLoosening } from '../../core/governance/dsar_policy.ts';
+import { decryptSecret, encryptSecret } from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
 import { writeGovernancePolicyFile } from '../../lib/governance-policy-write.ts';
 import {

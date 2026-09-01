@@ -1,14 +1,5 @@
 import type { Sql } from 'postgres';
 
-import { signHostcallToken } from '../../../convex/connectors/hostcall_token.ts';
-import {
-  ingestEmails,
-  ingestSentEmails,
-  listMailboxMessages,
-  querySyncCursor,
-  syncMailbox,
-} from '../../../convex/conversations/sync_mailbox.ts';
-import { codeRunnerForSession } from '../../../convex/node_only/sandbox/engine_exec_runner.ts';
 import { loadConnectorDefinitions } from '../../../lib/connectors/catalog.ts';
 import {
   executeConnectorAction,
@@ -36,7 +27,16 @@ import {
   type CodeRunner,
 } from '../../../lib/engine/core/runner.ts';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+import { signHostcallToken } from '../../core/connectors/hostcall_token.ts';
+import {
+  ingestEmails,
+  ingestSentEmails,
+  listMailboxMessages,
+  querySyncCursor,
+  syncMailbox,
+} from '../../core/conversations/sync_mailbox.ts';
+import { codeRunnerForSession } from '../../core/node_only/sandbox/engine_exec_runner.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';

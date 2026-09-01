@@ -43,10 +43,6 @@ vi.mock('@/app/hooks/use-toast', () => ({
   toast: vi.fn(),
 }));
 
-vi.mock('@/convex/lib/type_cast_helpers', () => ({
-  toId: (id: string) => id,
-}));
-
 vi.mock('../hooks/actions', () => ({
   useRetryRagIndexing: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));

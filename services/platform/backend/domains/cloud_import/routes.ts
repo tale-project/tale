@@ -2,6 +2,12 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
+import { getString, isRecord } from '../../../lib/utils/type-utils.ts';
+import type { Auth } from '../../auth/auth.ts';
+import { findOrganizationMember } from '../../auth/membership.ts';
+import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
+import { requireSession, type SessionBundle } from '../../auth/session.ts';
 import {
   cloudImportMicrosoftTenantMissingEnvNames,
   cloudImportOauthMissingEnvNames,
@@ -9,33 +15,27 @@ import {
   resolveCloudImportOauthRedirectUri,
   resolveDocumentsUrl,
   resolveMicrosoftCloudImportTenantId,
-} from '../../../convex/cloud_import/deployment_config.ts';
+} from '../../core/cloud_import/deployment_config.ts';
 import {
   getCloudImportProviderEndpoints,
   type CloudImportProviderEndpoints,
-} from '../../../convex/cloud_import/providers.ts';
+} from '../../core/cloud_import/providers.ts';
 import {
   EntraIssuerError,
   extractTenantId,
-} from '../../../convex/enterprise_sso/entra_id/constants.ts';
-import { generatePkcePair } from '../../../convex/enterprise_sso/pkce.ts';
-import { buildAuthorizeUrl } from '../../../convex/http_connectors/authorize_url.ts';
+} from '../../core/enterprise_sso/entra_id/constants.ts';
+import { generatePkcePair } from '../../core/enterprise_sso/pkce.ts';
+import { buildAuthorizeUrl } from '../../core/http_connectors/authorize_url.ts';
 import {
   renderConnectorErrorPage,
   type ConnectorErrorKind,
-} from '../../../convex/http_connectors/error_page.ts';
+} from '../../core/http_connectors/error_page.ts';
 import {
   hashStateToken,
   isPlausibleStateToken,
   mintStateToken,
-} from '../../../convex/http_connectors/oauth_state.ts';
-import { exchangeAuthorizationCode } from '../../../convex/http_connectors/token_exchange.ts';
-import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
-import { getString, isRecord } from '../../../lib/utils/type-utils.ts';
-import type { Auth } from '../../auth/auth.ts';
-import { findOrganizationMember } from '../../auth/membership.ts';
-import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
-import { requireSession, type SessionBundle } from '../../auth/session.ts';
+} from '../../core/http_connectors/oauth_state.ts';
+import { exchangeAuthorizationCode } from '../../core/http_connectors/token_exchange.ts';
 import {
   getCloudImportAppStatus,
   resolveCloudImportApp,

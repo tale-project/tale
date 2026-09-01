@@ -1,20 +1,20 @@
 import type { Sql } from 'postgres';
 
-import {
-  applyEnvTighteningAll,
-  clampConfigToBounds,
-  isRetentionDisabled,
-  type EffectiveBoundDef,
-} from '../../../convex/governance/retention_floors.ts';
-import { deleteKnowledgeDocument } from '../../../convex/legacy/knowledge_delete.ts';
-import { readDomainConfigFile } from '../../../convex/lib/config_store/read_domain_file.ts';
-import { getConfigRoot } from '../../../convex/lib/file_io.ts';
-import { parseBlobRef } from '../../../convex/lib/storage/blob_ref.ts';
 import type { RetentionPolicyConfig } from '../../../lib/shared/schemas/governance.ts';
 import {
   retentionDefaultsConfigSchema,
   type RetentionCategory,
 } from '../../../lib/shared/schemas/retention.ts';
+import {
+  applyEnvTighteningAll,
+  clampConfigToBounds,
+  isRetentionDisabled,
+  type EffectiveBoundDef,
+} from '../../core/governance/retention_floors.ts';
+import { deleteKnowledgeDocument } from '../../core/legacy/knowledge_delete.ts';
+import { readDomainConfigFile } from '../../core/lib/config_store/read_domain_file.ts';
+import { getConfigRoot } from '../../core/lib/file_io.ts';
+import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { toJson } from '../../db/sql.ts';
 import { resolveObjectStore, s3DeleteObject } from '../../lib/object-store.ts';
 import {

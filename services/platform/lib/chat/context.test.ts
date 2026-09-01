@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../convex/lib/untrusted_content';
 import {
   assembleContext,
   CONTEXT_BLOCK_ORDER,
@@ -10,6 +9,7 @@ import {
 } from './context';
 import type { ChatMessage } from './types';
 import { estimateMessageTokens, estimateTokens } from './types';
+import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from './untrusted-content';
 
 /**
  * The context contract is an ORDER, so these tests assert the order itself —

@@ -1,6 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
 
-import { warmConvexToken } from '@/app/lib/auth/convex-token-cache';
 import { authClient } from '@/lib/auth-client';
 
 /**
@@ -61,10 +60,4 @@ export function invalidateAuthState(queryClient: QueryClient): Promise<void> {
 export function warmSession(): void {
   if (typeof window === 'undefined') return;
   void authClient.getSession();
-  // Also mint the Convex JWT at module load, in PARALLEL with the session
-  // fetch — the second serial hop that gates the websocket authentication on
-  // cold load. The result is persisted and kept in flight so the auth
-  // provider's first `fetchAccessToken` consumes it instead of starting a
-  // third HTTP hop (see convex-token-cache).
-  warmConvexToken();
 }
