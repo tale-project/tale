@@ -17528,6 +17528,34 @@ async function checkAutomationRunToolLane(
     taskId,
     status: 'done',
   });
+  // Cancelling IS the run's to do — abandoning a card is not completing it —
+  // but not over a child that is still open. The subtask is created through
+  // the tool door too, so the depth-1 create path carries the case.
+  const subtask = await dispatch(pinnedToken, 'task_create', {
+    title: 'A child that is still open',
+    parentTaskId: taskId,
+  });
+  const blockedCancel = await dispatch(pinnedToken, 'task_update_status', {
+    taskId,
+    status: 'cancelled',
+  });
+  const childId = z
+    .object({ output: z.object({ taskId: z.string() }).loose() })
+    .loose()
+    .safeParse(JSON.parse(subtask.raw));
+  const cancelChild = await dispatch(pinnedToken, 'task_update_status', {
+    taskId: childId.success ? childId.data.output.taskId : '',
+    status: 'cancelled',
+  });
+  const cancelParent = await dispatch(pinnedToken, 'task_update_status', {
+    taskId,
+    status: 'cancelled',
+  });
+  const cancelledRow = await sql<{ status: string; completedAt: number }[]>`
+    SELECT status, completed_at_ms::float8 AS "completedAt"
+    FROM app.tasks WHERE id = ${taskId} LIMIT 1
+  `;
+
   // A card on another project's board is out of reach for a pinned run, and
   // reads as MISSING rather than forbidden (no existence oracle).
   const foreign = await sql<{ id: string }[]>`
@@ -17641,6 +17669,13 @@ async function checkAutomationRunToolLane(
       moved.status === 'ok' &&
       completing.status === 'unavailable' &&
       completing.raw.includes('in_review') &&
+      subtask.status === 'ok' &&
+      blockedCancel.status === 'unavailable' &&
+      blockedCancel.raw.includes('subtask') &&
+      cancelChild.status === 'ok' &&
+      cancelParent.status === 'ok' &&
+      cancelledRow[0]?.status === 'cancelled' &&
+      typeof cancelledRow[0]?.completedAt === 'number' &&
       reachForeign.status === 'not_found' &&
       wrote.status === 'ok' &&
       documentRow[0]?.projectId === boundProjectId &&
@@ -17661,7 +17696,7 @@ async function checkAutomationRunToolLane(
       orgWrote.status === 'ok' &&
       hubDocument.length === 1 &&
       hubDocument[0]?.projectId === null,
-    `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")}, hubDoc=${orgWrote.status}/${hubDocument[0]?.projectId === null})`,
+    `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")}, hubDoc=${orgWrote.status}/${hubDocument[0]?.projectId === null})`,
   );
 }
 

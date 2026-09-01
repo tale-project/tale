@@ -3,10 +3,10 @@
  * automation capabilities: read a task, move its status, write and read its
  * discussion comments.
  *
- * The thin rim: input narrowing and the marker-window semantics. The store —
- * bound per invocation by the Convex surface — fronts the task domain's own
- * internal mutations, so actor attribution, the "agents never complete work"
- * invariant, and org scoping stay where they live today.
+ * The thin rim: input narrowing and the marker-window semantics. The store
+ * fronts the task domain's own trusted writers, so actor attribution, the
+ * "agents never complete work" invariant, and org scoping stay where they
+ * live today.
  */
 
 import { z } from 'zod';
@@ -17,12 +17,21 @@ import type {
 } from '../dispatcher';
 import { ConnectorError } from '../errors';
 
-const TASK_STATUSES = [
+/**
+ * The statuses an automation may MOVE a task to — every column except `done`.
+ *
+ * `done` is absent on purpose, and this list is the contract's honest half:
+ * completion belongs to the human review gate (the catalog entry has said so
+ * since the connector shipped), so offering it here would only let someone
+ * author a node that is refused every time it runs. Cancelling is not
+ * completing — abandoning a card is an automation's call to make — so it
+ * stays.
+ */
+const AUTOMATION_TASK_STATUSES = [
   'backlog',
   'todo',
   'in_progress',
   'in_review',
-  'done',
   'cancelled',
 ] as const;
 
@@ -52,7 +61,7 @@ export interface WorkflowTaskStore {
   updateStatus(args: {
     organizationId: string;
     taskId: string;
-    status: (typeof TASK_STATUSES)[number];
+    status: (typeof AUTOMATION_TASK_STATUSES)[number];
   }): Promise<{ ok: boolean; reason?: string }>;
   comment(args: {
     organizationId: string;
@@ -69,7 +78,7 @@ export interface WorkflowTaskStore {
 const taskRef = z.object({ taskId: z.string().min(1) });
 
 const updateStatusInput = taskRef
-  .extend({ status: z.enum(TASK_STATUSES) })
+  .extend({ status: z.enum(AUTOMATION_TASK_STATUSES) })
   .strict();
 
 /**

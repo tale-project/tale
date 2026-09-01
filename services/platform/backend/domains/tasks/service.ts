@@ -1223,7 +1223,7 @@ export async function agentUpdateTaskStatusTrusted(
   },
   // `reason` is a CODE, not prose: the workspace-tool bridge branches on
   // `AGENTS_CANNOT_COMPLETE` to tell the agent to park at `in_review`
-  // instead, and the connector native relays it verbatim.
+  // instead, and the connector native renders each code as a sentence.
 ): Promise<{ ok: boolean; reason?: string }> {
   const task = await loadTaskOrThrow(tx, args.taskId);
   if (task.organizationId !== args.organizationId) {
@@ -1242,8 +1242,21 @@ export async function agentUpdateTaskStatusTrusted(
     await mintReview();
     return { ok: true };
   }
-  if (TERMINAL_STATUSES.has(args.status)) {
+  // `done` is the REVIEW GATE's to give: an agent or an automation parks
+  // finished work at `in_review` and a person certifies it. Cancelling is a
+  // different act — abandoning work rather than certifying it — and the
+  // automation lane has always been allowed to make it ("this ticket is
+  // obsolete, close the card"), so only completion is reserved here.
+  if (args.status === 'done') {
     return { ok: false, reason: 'AGENTS_CANNOT_COMPLETE' };
+  }
+  // Same bound the human writer keeps: nothing goes terminal over children
+  // that are still open, or the board loses them.
+  if (
+    TERMINAL_STATUSES.has(args.status) &&
+    (await hasOpenChildren(tx, args.taskId))
+  ) {
+    return { ok: false, reason: 'TASK_HAS_OPEN_SUBTASKS' };
   }
   // A non-human leave from `in_review` WITHDRAWS any pending review — no
   // human decided, so nothing is recorded as approved.
@@ -1254,10 +1267,15 @@ export async function agentUpdateTaskStatusTrusted(
   });
   const now = Date.now();
   const rank = await computeEndRank(tx, task.projectId, args.status);
+  // Terminal keeps its original completion stamp on a re-close and loses it
+  // on the way back out — the human writer's rule, so the two lanes agree.
+  const completedAt = TERMINAL_STATUSES.has(args.status)
+    ? (task.completedAt ?? now)
+    : null;
   await tx`
     UPDATE app.tasks SET
-      status = ${args.status}, rank = ${rank}, updated_at_ms = ${now},
-      status_changed_at_ms = ${now}
+      status = ${args.status}, rank = ${rank}, completed_at_ms = ${completedAt},
+      updated_at_ms = ${now}, status_changed_at_ms = ${now}
     WHERE id = ${args.taskId}
   `;
   await applyTaskCountTransition(
