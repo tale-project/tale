@@ -22,14 +22,10 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 ## Repo-specific boundaries
 
-- **Never run `bun run setup:clean`** (wipes `services/platform/.convex/local/`) unless the user
-  explicitly asked to delete their local Convex dev data — automatic dev maintenance handles module
-  bloat; the clean script requires typing `delete local convex` on purpose.
 - **Org configuration is files, not tables** — per-org config is JSON/YAML under
-  `$TALE_CONFIG_DIR/<org>/<domain>/` (Zod schemas in `lib/shared/schemas/`), never a Convex table
-  or DB row.
+  `$TALE_CONFIG_DIR/<org>/<domain>/` (Zod schemas in `lib/shared/schemas/`), never a DB row.
 - **Tenant isolation — nothing org-owned is shared across organizations** — any new org-owned data
-  (a Convex table or field, an org config domain, a cache, a DB pool, an egress/browser-session
+  (a table or column, an org config domain, a cache, a DB pool, an egress/browser-session
   store, the RAG/crawler corpora `private_knowledge`/`public_web` + their embeddings) MUST be
   scoped and queried per organization. Per-org knowledge routing is
   `getKnowledgePoolForOrg(orgSlug)`, never the deployment-default `getKnowledgePool()`; introducing
