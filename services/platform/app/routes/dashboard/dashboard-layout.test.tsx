@@ -26,7 +26,6 @@ vi.mock('@tanstack/react-router', () => ({
     // Route.useRouteContext(); stub it so the prewarm is a harmless no-op here.
     useRouteContext: () => ({
       queryClient: { fetchQuery: vi.fn().mockResolvedValue(undefined) },
-      convexQueryClient: { convexClient: { action: vi.fn() } },
     }),
     ...config,
   }),
@@ -45,11 +44,6 @@ const mockUseConvexAuth = vi.fn(() => ({
   isLoading: false,
   isAuthenticated: true,
 }));
-vi.mock('convex/react', () => ({
-  useSessionUser: () => mockUseConvexAuth(),
-  useMutation: () => vi.fn(),
-}));
-
 // The layout's auth flags come from the SESSION PROBE now (useAuth), not
 // the websocket — the same control var drives both in these scenarios.
 vi.mock('@/app/hooks/use-session-user', () => ({
@@ -97,16 +91,6 @@ vi.mock('@/lib/i18n/client', () => ({
 
 vi.mock('@/lib/permissions/ability', () => ({
   defineAbilityFor: () => ({ can: () => false, cannot: () => true }),
-}));
-
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    members: { queries: { getCurrentMemberContext: 'mock-query-ref' } },
-    two_factor: { queries: { getStatus: 'mock-status-ref' } },
-    organizations: {
-      record_org_switch: { recordOrgSwitch: 'mock-record-org-switch' },
-    },
-  },
 }));
 
 vi.mock('@/app/features/auth/components/two-factor-grace-banner', () => ({

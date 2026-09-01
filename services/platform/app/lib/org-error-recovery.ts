@@ -16,12 +16,11 @@
  * create-org wizard) and re-persists it.
  *
  * A cache subscription, NOT `QueryCache({ onError })`: `onError` only fires
- * when a queryFn rejects, but the @convex-dev/react-query bridge delivers a
- * LIVE subscription failure by writing the error state directly
- * (`query.setState`) — exactly what an open tab receives when its org is
- * deleted mid-session. Observing cache events covers both delivery paths
- * (verified manually: an open dashboard tab whose org was deleted only
- * received the structured error via the setState path).
+ * when a queryFn rejects, but an error can also land by a write to the query
+ * state directly (`query.setState`) — the path the retired live-subscription
+ * bridge used when an open tab's org was deleted mid-session. Observing cache
+ * events covers both delivery paths (verified manually at the time: the open
+ * dashboard tab only received the structured error via the setState path).
  *
  * Deliberately NOT triggered by `ORG_FORBIDDEN` (org exists, caller isn't a
  * member): the dashboard layout renders the intentional "you've been removed"

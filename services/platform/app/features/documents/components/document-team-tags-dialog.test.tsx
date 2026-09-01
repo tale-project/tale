@@ -59,10 +59,6 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => mockTeamsData,
 }));
 
-vi.mock('@/convex/lib/type_cast_helpers', () => ({
-  toId: (id: string) => id,
-}));
-
 // Lightweight stand-in for the real multi-select: one checkbox per team that
 // toggles membership in the selected set, plus an org-wide indicator when the
 // selection is empty.

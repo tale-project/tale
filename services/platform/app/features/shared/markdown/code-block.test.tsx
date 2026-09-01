@@ -5,10 +5,6 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 
 import { CodeBlock, HighlightedCode } from './code-block';
 
-vi.mock('convex/react', () => ({
-  useMutation: () => vi.fn(),
-}));
-
 vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));

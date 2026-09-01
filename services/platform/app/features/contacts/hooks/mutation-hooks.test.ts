@@ -17,22 +17,6 @@ vi.mock('@/app/hooks/use-backend-mutation', () => ({
   useBackendMutation: () => mockMutationResult,
 }));
 
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    contacts: {
-      mutations: {
-        bulkCreateContacts: 'bulkCreateContacts',
-        createContact: 'createContact',
-        deleteContact: 'deleteContact',
-        updateContact: 'updateContact',
-      },
-      queries: {
-        listContacts: 'listContacts',
-      },
-    },
-  },
-}));
-
 import {
   useBulkCreateContacts,
   useCreateContact,

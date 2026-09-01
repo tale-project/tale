@@ -15,20 +15,6 @@ vi.mock('@/app/hooks/use-backend-mutation', () => ({
   }),
 }));
 
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    team_members: {
-      mutations: {
-        addMember: 'addMember',
-        removeMember: 'removeMember',
-      },
-      queries: {
-        listByTeam: 'listByTeam',
-      },
-    },
-  },
-}));
-
 import {
   useAddTeamMember,
   useCreateTeamMember,

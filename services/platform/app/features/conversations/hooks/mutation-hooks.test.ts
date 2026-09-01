@@ -17,22 +17,6 @@ vi.mock('@/app/hooks/use-backend-mutation', () => ({
   useBackendMutation: () => mockMutationResult,
 }));
 
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    conversations: {
-      mutations: {
-        closeConversation: 'closeConversation',
-        reopenConversation: 'reopenConversation',
-        markConversationAsRead: 'markConversationAsRead',
-        markConversationAsSpam: 'markConversationAsSpam',
-      },
-      queries: {
-        listConversations: 'listConversations',
-      },
-    },
-  },
-}));
-
 import {
   useCloseConversation,
   useReopenConversation,

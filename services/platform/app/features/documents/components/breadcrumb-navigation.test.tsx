@@ -29,10 +29,6 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
-vi.mock('@/convex/lib/type_cast_helpers', () => ({
-  toId: (id: string) => id,
-}));
-
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => ({
     data: [
@@ -41,16 +37,6 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
     ],
     isLoading: false,
   }),
-}));
-
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    folders: {
-      queries: {
-        getFolderBreadcrumb: 'getFolderBreadcrumb',
-      },
-    },
-  },
 }));
 
 import { BreadcrumbNavigation } from './breadcrumb-navigation';

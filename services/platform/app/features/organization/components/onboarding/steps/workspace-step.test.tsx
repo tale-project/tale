@@ -13,11 +13,6 @@ vi.mock('@/app/hooks/use-session-user', () => ({
   useAuth: () => ({ user: { userId: 'user-1' } }),
 }));
 
-const recordOrgSwitch = vi.fn().mockResolvedValue(null);
-vi.mock('convex/react', () => ({
-  useMutation: () => recordOrgSwitch,
-}));
-
 vi.mock('@/app/hooks/use-toast', () => ({
   toast: vi.fn(),
 }));

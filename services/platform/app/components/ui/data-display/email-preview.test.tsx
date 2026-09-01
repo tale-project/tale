@@ -77,16 +77,13 @@ describe('rewriteExternalImageSrcs', () => {
     expect(result).toBe(html);
   });
 
-  it('does not rewrite Convex storage URLs', () => {
+  it('proxies retired-platform storage URLs like any other external image', () => {
+    // .convex.cloud/.convex.site used to be allowlisted; the platforms behind
+    // them are retired, so such a URL is just an external host now.
     const html = '<img src="https://my-app.convex.cloud/storage?id=abc123">';
     const result = rewriteExternalImageSrcs(html, proxyBase);
-    expect(result).toBe(html);
-  });
-
-  it('does not rewrite Convex site URLs', () => {
-    const html = '<img src="https://my-app.convex.site/image.png">';
-    const result = rewriteExternalImageSrcs(html, proxyBase);
-    expect(result).toBe(html);
+    expect(result).toContain('/api/image-proxy?url=');
+    expect(result).not.toBe(html);
   });
 
   it('does not rewrite cid: references', () => {

@@ -17,27 +17,6 @@ vi.mock('@/app/hooks/use-backend-mutation', () => ({
   useBackendMutation: () => mockMutationResult,
 }));
 
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    users: {
-      mutations: {
-        setMemberPassword: 'setMemberPassword',
-        createMember: 'createMember',
-      },
-    },
-    members: {
-      mutations: {
-        removeMember: 'removeMember',
-        updateMemberRole: 'updateMemberRole',
-        updateMemberDisplayName: 'updateMemberDisplayName',
-      },
-      queries: {
-        listByOrganization: 'listByOrganization',
-      },
-    },
-  },
-}));
-
 import {
   useCreateMember,
   useRemoveMember,

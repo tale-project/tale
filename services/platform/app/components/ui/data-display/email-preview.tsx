@@ -240,12 +240,6 @@ export function rewriteExternalImageSrcs(
       try {
         const parsed = new URL(srcUrl);
         if (parsed.origin === proxyOrigin) return _match;
-        if (
-          parsed.hostname.endsWith('.convex.cloud') ||
-          parsed.hostname.endsWith('.convex.site')
-        ) {
-          return _match;
-        }
       } catch {
         return _match;
       }

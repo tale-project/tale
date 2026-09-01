@@ -49,17 +49,14 @@ const fixtures = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/app/hooks/use-backend-query', async () => {
-  const { getFunctionName } = await import('convex/server');
-  return {
-    useBackendQuery: (fn: never) => ({
-      data: getFunctionName(fn).includes('getGuardrailStats')
-        ? fixtures.guardrails
-        : fixtures.health,
-      isLoading: false,
-    }),
-  };
-});
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (name: string) => ({
+    data: name.includes('getGuardrailStats')
+      ? fixtures.guardrails
+      : fixtures.health,
+    isLoading: false,
+  }),
+}));
 
 describe('ChatHealthMetricsPage', () => {
   it('renders the title, period control, cards, breakdowns, and guardrail stats', () => {
