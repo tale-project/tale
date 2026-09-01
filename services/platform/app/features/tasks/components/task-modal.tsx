@@ -38,14 +38,14 @@ import { useProject } from '@/app/features/projects/hooks/queries';
 import { extractPastedImageFiles } from '@/app/features/shared/files/clipboard-images';
 import {
   type FileAttachment,
-  useConvexFileUpload,
-} from '@/app/features/shared/files/use-convex-file-upload';
+  useFileUpload,
+} from '@/app/features/shared/files/use-file-upload';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
-import { TASK_TITLE_MAX } from '@/convex/tasks/helpers';
+import { TASK_TITLE_MAX } from '@/backend/core/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
@@ -714,7 +714,7 @@ function CreateTaskBody({
   const activeTemplate =
     templates.find((entry) => entry.automationSlug === templateSlug) ?? null;
   const { attachments, uploadingFiles, uploadFiles, removeAttachment } =
-    useConvexFileUpload({
+    useFileUpload({
       organizationId,
       allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
     });
@@ -1020,12 +1020,10 @@ function EditTaskBody({
   const assignTask = useAssignTask();
   const setTaskReviewer = useSetTaskReviewer();
   const createTask = useCreateTask();
-  const { uploadingFiles, uploadFiles, clearAttachments } = useConvexFileUpload(
-    {
-      organizationId: task?.organizationId ?? '',
-      allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
-    },
-  );
+  const { uploadingFiles, uploadFiles, clearAttachments } = useFileUpload({
+    organizationId: task?.organizationId ?? '',
+    allowedTypes: [...TASK_UPLOAD_ALLOWED_TYPES],
+  });
 
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [archiveOpen, setArchiveOpen] = useState(false);

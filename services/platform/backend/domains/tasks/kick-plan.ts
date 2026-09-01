@@ -1,6 +1,6 @@
 import type { Sql } from 'postgres';
 
-import { resolveTaskKickResume } from '../../../convex/tasks/task_kick_resume.ts';
+import { resolveTaskKickResume } from '../../core/tasks/task_kick_resume.ts';
 
 /**
  * The kick-time resume plan over PG — the 0.5 twin of

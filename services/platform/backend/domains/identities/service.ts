@@ -3,7 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import {
   buildExternalOwnerId,
   isExternalOwnerId,
-} from '../../../convex/identities/external_identities_helpers.ts';
+} from '../../core/identities/external_identities_helpers.ts';
 
 /**
  * External author identities — the 0.4 `identities/external_identities.ts`

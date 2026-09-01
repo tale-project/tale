@@ -1,14 +1,14 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import {
-  assertGenericDocumentContentWritable,
-  assertRecordTrashable,
-} from '../../../convex/documents/access.ts';
-import { extractExtension } from '../../../convex/documents/extract_extension.ts';
-import { canonicalResourcePath } from '../../../convex/webdav/helpers.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { resolveFileType } from '../../../lib/shared/file-types.ts';
 import { isTextBasedFile } from '../../../lib/utils/text-file-types.ts';
+import {
+  assertGenericDocumentContentWritable,
+  assertRecordTrashable,
+} from '../../core/documents/access.ts';
+import { extractExtension } from '../../core/documents/extract_extension.ts';
+import { canonicalResourcePath } from '../../core/webdav/helpers.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   buildObjectKey,
@@ -34,7 +34,7 @@ import {
 } from '../legal_holds/service.ts';
 
 /**
- * The WebDAV backing handlers — the 0.5 twins of `convex/webdav/*` (tree,
+ * The WebDAV backing handlers — the 0.5 twins of `backend/core/webdav/*` (tree,
  * locks, app passwords, org resolve) plus the blob-upload handoff, keyed by
  * the SAME function names the REUSED `lib/webdav` protocol layer addresses
  * through its ConvexHttpClient. `client-shim.ts` maps those names here, so

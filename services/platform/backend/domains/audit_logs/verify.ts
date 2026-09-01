@@ -1,6 +1,6 @@
 import type { Sql } from 'postgres';
 
-import { computeAuditHash } from '../../../convex/lib/helpers/audit_hash.ts';
+import { computeAuditHash } from '../../core/lib/helpers/audit_hash.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 import { rowToHashInput } from './hash-input.ts';
 import type { AuditLogRow } from './types.ts';

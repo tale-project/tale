@@ -1,6 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { computeAuditHash } from '../../../convex/lib/helpers/audit_hash.ts';
+import { computeAuditHash } from '../../core/lib/helpers/audit_hash.ts';
 import { toJson } from '../../db/sql.ts';
 import {
   buildAuditRecordHashInput,

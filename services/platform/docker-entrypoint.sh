@@ -32,10 +32,9 @@ log_error()   { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR $*" >&2; }
 log_section() { echo; echo "════════════════════════════════════"; echo "  $*"; echo "════════════════════════════════════"; }
 
 # ----------------------------------------------------------------------------
-# Privilege handling: platform no longer owns /app/data. The only thing the
-# re-exec dance still does is make sure we run as the app user so that Bun
-# picks up the right HOME etc. Volume ownership is now the convex container's
-# problem.
+# Privilege handling: the re-exec dance makes sure we run as the app user so
+# that Bun picks up the right HOME etc. (the entrypoint re-asserts config-volume
+# ownership earlier, while still root).
 # ----------------------------------------------------------------------------
 # ============================================================================
 # SSRF egress firewall (defense-in-depth) — installed while still root
@@ -226,13 +225,13 @@ ensure_instance_secret
 # Layout detection (prod runner vs dev image)
 # ----------------------------------------------------------------------------
 # The production runner flattens the platform into /app: server.ts at
-# /app/server.ts, functions at /app/convex, cwd /app. The dev image (Dockerfile
-# `dev` stage) is the unpruned `builder` and keeps the monorepo layout:
-# server.ts + vite config + functions live under /app/services/platform. One
-# entrypoint serves both, so resolve the two roots from a marker that ONLY the
-# flat layout has (/app/server.ts) and cd into the platform dir. Bind-mounting
-# the convex tree over /app/services/platform/convex (compose.dev.yml) does NOT
-# create /app/server.ts, so the detection stays correct under that mount.
+# /app/server.ts, backend sources at /app/backend, cwd /app. The dev image
+# (Dockerfile `dev` stage) is the unpruned `builder` and keeps the monorepo
+# layout: server.ts + vite config + backend live under /app/services/platform.
+# One entrypoint serves both, so resolve the two roots from a marker that ONLY
+# the flat layout has (/app/server.ts) and cd into the platform dir.
+# Bind-mounting sources over /app/services/platform (compose.dev.yml) does NOT
+# create /app/server.ts, so the detection stays correct under those mounts.
 if [ -f /app/server.ts ]; then
   PLATFORM_DIR=/app
 else

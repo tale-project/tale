@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 
 import type { FileAttachment } from '@/app/features/shared/files/types';
 import { fileStatusesQuery } from '@/app/lib/backend/chat';
-import type { BlobRef } from '@/convex/lib/storage/blob_ref';
+import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { isAudioOrVideo } from '@/lib/shared/file-types';
 
 import { useChatQueryClient } from '../data/chat-backend';

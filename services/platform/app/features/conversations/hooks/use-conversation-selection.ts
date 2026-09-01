@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 
-import type { ConversationItem } from '@/convex/conversations/types';
+import type { ConversationItem } from '@/backend/core/conversations/types';
 
 import type { SelectionState } from '../types/selection';
 

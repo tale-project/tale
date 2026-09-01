@@ -47,7 +47,7 @@ export async function handlePut(
   }
 
   // Pre-check existence to choose 201 vs 204 (RFC 4918 §9.7.1).
-  const resolved = await ctx.convex.query(
+  const resolved = await ctx.backend.query(
     anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
@@ -72,7 +72,7 @@ export async function handlePut(
       ifMatch !== null ||
       (ifNoneMatch !== null && ifNoneMatch.trim() !== '*'))
   ) {
-    const props = await ctx.convex.query(
+    const props = await ctx.backend.query(
       anyRefs.webdav.tree_queries.getDocumentProps,
       { organizationId: auth.organizationId, documentId: resolved.documentId },
     );
@@ -158,7 +158,7 @@ export async function handlePut(
   // endpoint — leave it untouched. See ctx.ts.
   let uploadTarget: { url: string; method: 'POST' | 'PUT'; s3Ref?: string };
   if (declaredSize !== null) {
-    const handoff: unknown = await ctx.convex.action(
+    const handoff: unknown = await ctx.backend.action(
       anyRefs.files.blob_actions.generateWebdavBlobUpload,
       { organizationId: auth.organizationId, contentType },
     );
@@ -171,7 +171,7 @@ export async function handlePut(
     }
     uploadTarget = handoff;
   } else {
-    const rawUploadUrl: unknown = await ctx.convex.mutation(
+    const rawUploadUrl: unknown = await ctx.backend.mutation(
       anyRefs.webdav.tree_mutations.generateWebdavUploadUrl,
       {},
     );
@@ -186,7 +186,7 @@ export async function handlePut(
   }
   const uploadUrl =
     uploadTarget.method === 'POST'
-      ? rewriteStorageOrigin(uploadTarget.url, ctx.convexApiUrl)
+      ? rewriteStorageOrigin(uploadTarget.url, ctx.backendApiUrl)
       : uploadTarget.url;
 
   // Wrap the body in a counter so we can fail the request if the
@@ -254,7 +254,7 @@ export async function handlePut(
   const xOcMtime = parseMtimeHeader(req.headers.get('x-oc-mtime'));
 
   try {
-    const result = await ctx.convex.mutation(
+    const result = await ctx.backend.mutation(
       anyRefs.webdav.tree_mutations.ingestPutBlob,
       {
         organizationId: auth.organizationId,
@@ -277,7 +277,7 @@ export async function handlePut(
     // to avoid a permanent _storage leak (a missing-parent PUT is a common
     // sync-client race). Fire-and-forget — the client still gets the real
     // error below.
-    void ctx.convex
+    void ctx.backend
       .mutation(anyRefs.webdav.tree_mutations.deleteWebdavBlob, {
         storageId,
         organizationId: auth.organizationId,

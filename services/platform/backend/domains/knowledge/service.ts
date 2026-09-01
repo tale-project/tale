@@ -1,36 +1,36 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { readOrgEmbeddingConfig } from '../../../convex/knowledge/connection.ts';
-import { applyCorpusSchema } from '../../../convex/knowledge/ddl.ts';
-import { pinDimensions } from '../../../convex/knowledge/dimensions.ts';
+import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
+import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
+import { applyCorpusSchema } from '../../core/knowledge/ddl.ts';
+import { pinDimensions } from '../../core/knowledge/dimensions.ts';
 import {
   EmbeddingNotConfigured,
   embedderForOrg,
-} from '../../../convex/knowledge/embedding.ts';
+} from '../../core/knowledge/embedding.ts';
 import {
   fetchDocumentByFileId,
   type FetchDocumentByFileIdArgs,
   type FetchedDocument,
-} from '../../../convex/knowledge/fetch.ts';
-import { indexDocument } from '../../../convex/knowledge/indexing.ts';
-import { parsePiiConfig } from '../../../convex/knowledge/pii_gate.ts';
+} from '../../core/knowledge/fetch.ts';
+import { indexDocument } from '../../core/knowledge/indexing.ts';
+import { parsePiiConfig } from '../../core/knowledge/pii_gate.ts';
 import {
   getKnowledgePool,
   getKnowledgePoolForOrg,
   resolveOrgUrl,
-} from '../../../convex/knowledge/pool.ts';
+} from '../../core/knowledge/pool.ts';
 import {
   searchKnowledge,
   type SearchKnowledgeArgs,
-} from '../../../convex/knowledge/search.ts';
+} from '../../core/knowledge/search.ts';
 import {
   extractText,
   isSupported,
-} from '../../../convex/lib/knowledge/extraction/router.ts';
-import { parseBlobRef } from '../../../convex/lib/storage/blob_ref.ts';
-import { s3GetObjectBytes } from '../../../convex/lib/storage/object_store.ts';
-import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
-import { createCtxShim, type ShimHandlers } from '../../lib/convex-shim.ts';
+} from '../../core/lib/knowledge/extraction/router.ts';
+import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
+import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
+import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';

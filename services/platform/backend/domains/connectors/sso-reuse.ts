@@ -3,7 +3,7 @@ import type { Sql } from 'postgres';
 import {
   EntraIssuerError,
   extractTenantId,
-} from '../../../convex/enterprise_sso/entra_id/constants.ts';
+} from '../../core/enterprise_sso/entra_id/constants.ts';
 import { readSsoConnection, readSsoSecrets } from '../sso/config.ts';
 
 /**

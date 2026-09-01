@@ -1,7 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { decideInstanceAdmin } from '../../../convex/deployment/auth_policy.ts';
-import { encryptString } from '../../../convex/lib/crypto/encrypt_string.ts';
+import { decideInstanceAdmin } from '../../core/deployment/auth_policy.ts';
+import { encryptString } from '../../core/lib/crypto/encrypt_string.ts';
 
 /**
  * Browser-session pool — the 0.5 twin of `convex/browser_sessions`: warmed

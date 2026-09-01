@@ -214,8 +214,7 @@ export async function getFeedbackStats(
     provider?: string;
   },
 ): Promise<Record<string, unknown>> {
-  const { computeFeedbackStats } =
-    await import('../../../convex/feedback/stats.ts');
+  const { computeFeedbackStats } = await import('../../core/feedback/stats.ts');
   const now = Date.now();
   const cutoffMs =
     args.periodDays !== undefined ? now - args.periodDays * DAY_MS : null;

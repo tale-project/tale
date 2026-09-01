@@ -1,6 +1,6 @@
 import type { Sql } from 'postgres';
 
-import { resolveDateNotifyAudience } from '../../../convex/tasks/date_notification_recipients.ts';
+import { resolveDateNotifyAudience } from '../../core/tasks/date_notification_recipients.ts';
 import { notifyUser } from '../collab/service.ts';
 
 /**

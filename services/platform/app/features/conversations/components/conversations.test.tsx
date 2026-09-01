@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
-import type { ConversationItem } from '@/convex/conversations/types';
+import type { ConversationItem } from '@/backend/core/conversations/types';
 import { render, screen } from '@/tests/utils/render';
 
 import { Conversations } from './conversations';

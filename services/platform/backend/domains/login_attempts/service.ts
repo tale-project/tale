@@ -1,16 +1,16 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { normalizeAuthEmail } from '../../../convex/lib/auth/normalize_auth_email.ts';
+import { getUserOrganizations } from '../../auth/membership.ts';
+import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import {
   splitEmailForAudit,
   splitIpForAudit,
-} from '../../../convex/lib/helpers/pii_hash.ts';
+} from '../../core/lib/helpers/pii_hash.ts';
 import {
   computeLockedUntil,
   DEFAULT_LOGIN_POLICY,
   selectStrictestPolicy,
-} from '../../../convex/login_attempts/helpers.ts';
-import { getUserOrganizations } from '../../auth/membership.ts';
+} from '../../core/login_attempts/helpers.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';

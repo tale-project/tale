@@ -6,12 +6,12 @@ import {
   MAX_AGENT_SECRETS_PER_ORG,
   validateAgentSecretName,
   validateAgentSecretValue,
-} from '../../../convex/agent_secrets/constants.ts';
+} from '../../core/agent_secrets/constants.ts';
 import {
   decryptSecret,
   encryptSecret,
   type EncryptedSecret,
-} from '../../../convex/lib/secret_box.ts';
+} from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';

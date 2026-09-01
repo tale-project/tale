@@ -55,7 +55,7 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
       return null;
     },
     // findCandidatesByPrefix is a read-only internalQuery (auth.ts calls
-    // ctx.convex.query). Default returns the one valid candidate whose
+    // ctx.backend.query). Default returns the one valid candidate whose
     // hashed password matches our test password.
     'webdav/app_password_queries:findCandidatesByPrefix': async () => {
       return [
@@ -95,7 +95,7 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
     return Promise.resolve(handler(args));
   };
 
-  const fakeConvex: WebDAVBackend = {
+  const fakeBackend: WebDAVBackend = {
     query: (ref: unknown, args?: unknown) => dispatchByName(queries, ref, args),
     mutation: (ref: unknown, args?: unknown) =>
       dispatchByName(mutations, ref, args),
@@ -107,9 +107,9 @@ export function makeStubCtx(overrides: StubOverrides = {}): WebDAVCtx {
   };
 
   return {
-    convex: fakeConvex,
+    backend: fakeBackend,
     storageBaseUrl: 'http://localhost:3211',
-    convexApiUrl: 'http://localhost:3210',
+    backendApiUrl: 'http://localhost:3210',
   };
 }
 
@@ -197,8 +197,8 @@ function bytesToHex(bytes: Uint8Array): string {
   return s;
 }
 
-// Re-export so tests can compare against the same code referenced in
-// move/etc. without re-importing convex/values directly.
+// Re-export so tests can compare against the same error type move/etc.
+// throw without importing it from a second path.
 export { AppError };
 
 // Read a WebDAVResponse body as text. Handlers occasionally return

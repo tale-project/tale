@@ -24,13 +24,17 @@
 
 import { mkdir } from 'node:fs/promises';
 
-import { atomicWrite, atomicWriteSecret } from '../../../convex/lib/file_io.ts';
+import {
+  resolveBundledObjectStore,
+  type BundledObjectStore,
+} from '../../../lib/utils/bundled-object-store.ts';
+import { atomicWrite, atomicWriteSecret } from '../../core/lib/file_io.ts';
 import {
   encryptJsonWithSops,
   hasSopsKey,
   invalidateSecretsCache,
-} from '../../../convex/lib/sops.ts';
-import { buildS3ObjectStore } from '../../../convex/lib/storage/object_store.ts';
+} from '../../core/lib/sops.ts';
+import { buildS3ObjectStore } from '../../core/lib/storage/object_store.ts';
 import {
   readOrgObjectStorageConnection,
   resolveObjectStorageConnectionFilePath,
@@ -38,11 +42,7 @@ import {
   resolveObjectStorageDir,
   serializeObjectStorageConnectionJson,
   serializeObjectStorageSecretsJson,
-} from '../../../convex/object_storage/file_utils.ts';
-import {
-  resolveBundledObjectStore,
-  type BundledObjectStore,
-} from '../../../lib/utils/bundled-object-store.ts';
+} from '../../core/object_storage/file_utils.ts';
 import { clearObjectStoreCache } from '../../lib/object-store.ts';
 
 /** The config tree the deployment default lives under. */

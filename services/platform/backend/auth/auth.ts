@@ -7,13 +7,13 @@ import { organization, twoFactor } from 'better-auth/plugins';
 import pg from 'pg';
 import type { Sql } from 'postgres';
 
-import { getClientIp } from '../../convex/lib/utils/client_ip.ts';
 import { assertValidOrgSlug } from '../../lib/shared/constants/org-slug.ts';
 import { isReservedOrgSlug } from '../../lib/shared/constants/reserved-org-slugs.ts';
 import { DEFAULT_TRUSTED_PROXIES } from '../../lib/shared/schemas/governance.ts';
 import { organizationNameSchema } from '../../lib/shared/schemas/organizations.ts';
 import { sessionIdleWindowSeconds } from '../../lib/shared/session-idle.ts';
 import { getString, isRecord } from '../../lib/utils/type-utils.ts';
+import { getClientIp } from '../core/lib/utils/client_ip.ts';
 import { logJoinedOrganization } from '../domains/audit_logs/service.ts';
 import {
   clearOnSuccess,

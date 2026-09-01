@@ -1,6 +1,6 @@
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
-import type { AuditLogFilter } from '@/convex/audit_logs/types';
+import type { AuditLogFilter } from '@/backend/core/audit_logs/types';
 
 export function useListAuditLogs(
   organizationId: string,

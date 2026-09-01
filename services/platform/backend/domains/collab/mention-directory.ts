@@ -1,12 +1,12 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { hasProjectAccess } from '../../../convex/projects/access.ts';
+import { hasProjectAccess } from '../../core/projects/access.ts';
 import {
   extractMentions,
   findUnresolvedMentionTokens,
   type MentionDirectoryEntry,
   type ResolvedMention,
-} from '../../../convex/tasks/mentions.ts';
+} from '../../core/tasks/mentions.ts';
 import { listAutomations } from '../automations/store.ts';
 
 /**

@@ -127,7 +127,7 @@ services/db/
 !services/db/package.json
 # The knowledge corpus migrations ship IN the image: a new BYO corpus is
 # prepared at runtime from these files, and without them that degrades to a
-# "apply them yourself" notice (the guard test in convex/knowledge pins both
+# "apply them yourself" notice (the guard test in backend/core/knowledge pins both
 # the COPY and the ENV).
 !services/db/migrations/
 !services/db/migrations/knowledge-db/**

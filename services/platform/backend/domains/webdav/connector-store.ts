@@ -1,11 +1,11 @@
 import type { Sql } from 'postgres';
 
-import { s3GetObjectBytes } from '../../../convex/lib/storage/object_store.ts';
 import {
   WebdavStoreError,
   type WebdavStore,
 } from '../../../lib/connectors/natives/index.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { putOrgBlobBytes } from '../files/service.ts';

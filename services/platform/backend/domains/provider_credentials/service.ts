@@ -1,15 +1,15 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import type { EncryptedSecret } from '../../../convex/lib/secret_box.ts';
-import { encryptSecret } from '../../../convex/lib/secret_box.ts';
-import { maskSecret } from '../../../convex/provider_credentials/masking.ts';
+import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
+import type { EncryptedSecret } from '../../core/lib/secret_box.ts';
+import { encryptSecret } from '../../core/lib/secret_box.ts';
+import { maskSecret } from '../../core/provider_credentials/masking.ts';
 import {
   resolveProviderCredential as resolveProviderCredential04,
   type ResolvedProviderCredential,
-} from '../../../convex/provider_credentials/resolve_credential.ts';
-import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
+} from '../../core/provider_credentials/resolve_credential.ts';
 import { toJson } from '../../db/sql.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 
 /**
@@ -140,7 +140,7 @@ export async function resolveProviderCredential(
 ): Promise<ResolvedProviderCredential> {
   const shim = createCtxShim(credentialShimHandlers(sql));
   return resolveProviderCredential04(
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused 0.4 resolver touches only runQuery (see convex-shim contract)
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused 0.4 resolver touches only runQuery (see ctx-shim contract)
     shim as unknown as Parameters<typeof resolveProviderCredential04>[0],
     {
       organizationId: args.organizationId,

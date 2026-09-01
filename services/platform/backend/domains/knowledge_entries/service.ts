@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
-import { validateTopicAndContent } from '../../../convex/knowledge_entries/helpers.ts';
+import { validateTopicAndContent } from '../../core/knowledge_entries/helpers.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {

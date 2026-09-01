@@ -3,13 +3,13 @@ import path from 'node:path';
 
 import type { Sql, TransactionSql } from 'postgres';
 
-import { resolveGovernanceDir } from '../../convex/governance/file_utils.ts';
 import {
   DEFAULT_PASSWORD_POLICY,
   mergeStrictestPasswordPolicy,
   policyTypeToFileBase,
   type PasswordPolicyConfig,
 } from '../../lib/shared/schemas/governance.ts';
+import { resolveGovernanceDir } from '../core/governance/file_utils.ts';
 import { readGovernancePolicyForOrg, resolveOrgSlug } from './org-config.ts';
 
 /**

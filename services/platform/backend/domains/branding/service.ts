@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import type { Sql } from 'postgres';
 
+import { brandingJsonSchema } from '../../../lib/shared/schemas/branding.ts';
 import {
   buildBrandingImageUrl,
   MAX_FILE_SIZE_BYTES,
@@ -18,7 +19,7 @@ import {
   validateImageType,
   type BrandingJsonConfig,
   type BrandingReadResult,
-} from '../../../convex/branding/file_utils.ts';
+} from '../../core/branding/file_utils.ts';
 import {
   atomicWrite,
   atomicWriteBuffer,
@@ -27,8 +28,7 @@ import {
   pruneHistory,
   readFileSafe,
   readJsonFile,
-} from '../../../convex/lib/file_io.ts';
-import { brandingJsonSchema } from '../../../lib/shared/schemas/branding.ts';
+} from '../../core/lib/file_io.ts';
 
 /**
  * Branding file I/O — the 0.5 twin of `convex/branding/file_actions.ts`

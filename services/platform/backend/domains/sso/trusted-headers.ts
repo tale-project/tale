@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import { resolveTeams } from '../../../convex/betterAuth/trusted_headers/resolve_team_names.ts';
-import { signCookieValue } from '../../../convex/enterprise_sso/sign_cookie_value.ts';
-import { parseTeamsHeader } from '../../../convex/trusted_headers_auth/authenticate_handler.ts';
 import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
+import { resolveTeams } from '../../core/betterAuth/trusted_headers/resolve_team_names.ts';
+import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
+import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 
 /**

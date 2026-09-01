@@ -44,7 +44,7 @@ import { extractPastedImageFiles } from '@/app/features/shared/files/clipboard-i
 import type { FileAttachment } from '@/app/features/shared/files/types';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
-import type { BlobRef } from '@/convex/lib/storage/blob_ref';
+import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 

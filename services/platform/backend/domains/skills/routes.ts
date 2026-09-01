@@ -2,19 +2,19 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import {
-  deleteSkillForViewer,
-  listSkillsForViewer,
-  readSkillAssetForViewer,
-  readSkillForViewer,
-  saveSkillForViewer,
-} from '../../../convex/skills/file_actions.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  deleteSkillForViewer,
+  listSkillsForViewer,
+  readSkillAssetForViewer,
+  readSkillForViewer,
+  saveSkillForViewer,
+} from '../../core/skills/file_actions.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { uploadSkillBundlePg } from './upload.ts';
 

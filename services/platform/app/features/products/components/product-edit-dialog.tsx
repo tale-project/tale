@@ -18,7 +18,7 @@ import {
   PRODUCT_DESCRIPTION_MAX,
   PRODUCT_IMAGE_URL_MAX,
   PRODUCT_NAME_MAX,
-} from '@/convex/products/field_limits';
+} from '@/backend/core/products/field_limits';
 import { useT } from '@/lib/i18n/client';
 
 import { useUpdateProduct } from '../hooks/mutations';

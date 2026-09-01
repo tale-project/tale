@@ -2,16 +2,16 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import {
-  browserFacing,
-  s3PresignGetUrl,
-  s3PutObject,
-} from '../../../convex/lib/storage/object_store.ts';
 import { authorizeRls } from '../../auth/access.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  browserFacing,
+  s3PresignGetUrl,
+  s3PutObject,
+} from '../../core/lib/storage/object_store.ts';
 import { resolveObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listBlockCounters } from '../login_attempts/service.ts';

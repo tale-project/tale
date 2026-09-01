@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
-import { AUTO_RETRY_MAX_ATTEMPTS } from '../../../convex/tasks/task_auto_retry.ts';
+import { AUTO_RETRY_MAX_ATTEMPTS } from '../../core/tasks/task_auto_retry.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 

@@ -1,36 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
-import {
-  testDatastoreConnection,
-  type DatastoreTestResult,
-} from '../../../convex/deployment/test_datastore_connection.ts';
-import {
-  connectionFilePath,
-  connectionSecretsFilePath,
-  embeddingFilePath,
-  knowledgeConfigDir,
-  readPassword,
-} from '../../../convex/knowledge/connection.ts';
-import { invalidateOrgUrl } from '../../../convex/knowledge/pool.ts';
-import {
-  atomicWrite,
-  atomicWriteSecret,
-  generateHistoryTimestamp,
-  pruneHistory,
-  readFileSafe,
-  removeDirSafe,
-  removeFileSafe,
-  safeJoinWithinDir,
-} from '../../../convex/lib/file_io.ts';
-import { checkProviderHostPolicy } from '../../../convex/lib/http/host_policy.ts';
-import { getProviderCatalog } from '../../../convex/lib/providers/catalog_fetch.ts';
-import { resolveProvidersForOrg } from '../../../convex/lib/providers/org_providers.ts';
-import {
-  encryptJsonWithSops,
-  hasSopsKey,
-  invalidateSecretsCache,
-} from '../../../convex/lib/sops.ts';
+import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import { pickEmbeddingRecommendations } from '../../../lib/shared/providers/embedding_recommendations.ts';
 import { zodErrorMessage } from '../../../lib/shared/schemas/format-error.ts';
 import {
@@ -43,6 +14,35 @@ import {
   type KnowledgeConnectionSecrets,
   type KnowledgeEmbeddingConfig,
 } from '../../../lib/shared/schemas/knowledge.ts';
+import {
+  testDatastoreConnection,
+  type DatastoreTestResult,
+} from '../../core/deployment/test_datastore_connection.ts';
+import {
+  connectionFilePath,
+  connectionSecretsFilePath,
+  embeddingFilePath,
+  knowledgeConfigDir,
+  readPassword,
+} from '../../core/knowledge/connection.ts';
+import { invalidateOrgUrl } from '../../core/knowledge/pool.ts';
+import {
+  atomicWrite,
+  atomicWriteSecret,
+  generateHistoryTimestamp,
+  pruneHistory,
+  readFileSafe,
+  removeDirSafe,
+  removeFileSafe,
+  safeJoinWithinDir,
+} from '../../core/lib/file_io.ts';
+import { getProviderCatalog } from '../../core/lib/providers/catalog_fetch.ts';
+import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
+import {
+  encryptJsonWithSops,
+  hasSopsKey,
+  invalidateSecretsCache,
+} from '../../core/lib/sops.ts';
 
 /**
  * The knowledge-DB + embedding ADMIN config (the 0.4 `knowledge/actions` +

@@ -28,7 +28,7 @@ import type { FileTranscriptionInfo } from '@/app/features/chat/hooks/use-file-t
 import type { FileAttachment } from '@/app/features/shared/files/types';
 import { useFileUrl } from '@/app/features/shared/files/use-file-url';
 import { ImagePreviewDialog } from '@/app/features/shared/markdown/image-preview-dialog';
-import type { BlobRef } from '@/convex/lib/storage/blob_ref';
+import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo, isImage } from '@/lib/shared/file-types';
 import { formatFileSize } from '@/lib/utils/format/file';

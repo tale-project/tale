@@ -1,21 +1,21 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { FilePolicyType } from '../../lib/shared/schemas/governance.ts';
 import {
   MAX_HISTORY_ENTRIES,
   resolveHistoryDir,
   resolvePolicyFilePath,
   resolvePolicyYamlFilePath,
   serializePolicyYaml,
-} from '../../convex/governance/file_utils.ts';
+} from '../core/governance/file_utils.ts';
 import {
   atomicWrite,
   generateHistoryTimestamp,
   pruneHistory,
   readFileSafe,
   removeFileSafe,
-} from '../../convex/lib/file_io.ts';
-import type { FilePolicyType } from '../../lib/shared/schemas/governance.ts';
+} from '../core/lib/file_io.ts';
 import { clearOrgConfigCaches } from './org-config.ts';
 
 /**

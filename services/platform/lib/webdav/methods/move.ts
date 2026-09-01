@@ -153,7 +153,7 @@ async function doMoveOrCopy(
     }
   }
 
-  const src = await ctx.convex.query(anyRefs.webdav.tree_queries.resolvePath, {
+  const src = await ctx.backend.query(anyRefs.webdav.tree_queries.resolvePath, {
     organizationId: auth.organizationId,
     namespace: parsed.namespace,
     segments: parsed.segments,
@@ -189,7 +189,7 @@ async function doMoveOrCopy(
             overwrite,
             userId: auth.userId,
           };
-    const result = await ctx.convex.mutation(
+    const result = await ctx.backend.mutation(
       op === 'MOVE'
         ? anyRefs.webdav.tree_mutations.moveResource
         : anyRefs.webdav.tree_mutations.copyResource,
@@ -201,7 +201,7 @@ async function doMoveOrCopy(
     // (RFC 4918 §9.9: MOVE relocates the resource and its locks don't
     // follow in v1). COPY leaves the source intact, so nothing to clean.
     if (op === 'MOVE') {
-      await ctx.convex
+      await ctx.backend
         .mutation(anyRefs.webdav.lock_mutations.deleteLocksUnderPath, {
           organizationId: auth.organizationId,
           resourcePath: lockKeyFromParsed(parsed),

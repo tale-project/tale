@@ -1,20 +1,20 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  getUserTeamIds,
+  findOrganizationMember,
+} from '../../auth/membership.ts';
+import {
   evaluateFeatureFlags,
   type ResolvedFeatureFlags,
-} from '../../../convex/governance/feature_enforcement.ts';
-import { buildPeriodKeyFromTimestamp } from '../../../convex/governance/helpers.ts';
+} from '../../core/governance/feature_enforcement.ts';
+import { buildPeriodKeyFromTimestamp } from '../../core/governance/helpers.ts';
 import {
   evaluateModelAccess,
   filterAccessibleModels,
   type ModelAccessCheckResult,
-} from '../../../convex/governance/model_access_enforcement.ts';
-import { findApplicableModelRule } from '../../../convex/governance/resolve_default_model.ts';
-import {
-  getUserTeamIds,
-  findOrganizationMember,
-} from '../../auth/membership.ts';
+} from '../../core/governance/model_access_enforcement.ts';
+import { findApplicableModelRule } from '../../core/governance/resolve_default_model.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 
 /**

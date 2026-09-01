@@ -1,5 +1,5 @@
-import { fetchReleasesPageImpl } from '../../../convex/changelog/internal_actions.ts';
 import { compareVersions } from '../../../lib/compare-versions.ts';
+import { fetchReleasesPageImpl } from '../../core/changelog/internal_actions.ts';
 
 /**
  * The in-app changelog — the 0.5 twin of `convex/changelog/*`: the GitHub

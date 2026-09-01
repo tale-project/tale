@@ -12,7 +12,7 @@ import { toast } from '@/app/hooks/use-toast';
 import {
   CONTENT_MAX_LENGTH,
   TOPIC_MAX_LENGTH,
-} from '@/convex/knowledge_entries/constants';
+} from '@/backend/core/knowledge_entries/constants';
 import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 

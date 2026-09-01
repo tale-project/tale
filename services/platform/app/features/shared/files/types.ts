@@ -1,4 +1,4 @@
-import type { FileAttachment } from './use-convex-file-upload';
+import type { FileAttachment } from './use-file-upload';
 
 export type { FileAttachment };
 

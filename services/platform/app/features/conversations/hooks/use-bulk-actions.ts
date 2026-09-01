@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 
 import { toast } from '@/app/hooks/use-toast';
-import type { ConversationItem } from '@/convex/conversations/types';
+import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
 
 import type { SelectionState } from '../types/selection';

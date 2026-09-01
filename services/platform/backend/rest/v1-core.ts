@@ -2,22 +2,22 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { defineAbilityFor } from '../../lib/permissions/ability.ts';
+import { AppError } from '../../lib/shared/errors/app-error';
+import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
+import { getUserTeamIds } from '../auth/membership.ts';
 import {
   deleteAgentForCaller,
   listAgentsForCaller,
   readAgentForCaller,
   saveAgentForCaller,
-} from '../../convex/agents/file_actions.ts';
+} from '../core/agents/file_actions.ts';
 import {
   deleteSkillForViewer,
   listSkillsForViewer,
   readSkillForViewer,
   saveSkillForViewer,
-} from '../../convex/skills/file_actions.ts';
-import { defineAbilityFor } from '../../lib/permissions/ability.ts';
-import { AppError } from '../../lib/shared/errors/app-error';
-import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
-import { getUserTeamIds } from '../auth/membership.ts';
+} from '../core/skills/file_actions.ts';
 import {
   bulkCreateContacts,
   createContact,

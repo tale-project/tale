@@ -3,7 +3,6 @@ import { streamSSE } from 'hono/streaming';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { sanitizeError } from '../../../convex/lib/utils/sanitize_secrets.ts';
 import {
   classifyChatErrorCode,
   encodeChatError,
@@ -12,6 +11,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { isBackendDraining } from '../control/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';

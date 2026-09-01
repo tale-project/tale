@@ -6,7 +6,7 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
-import { DEFAULT_COUNT_CAP } from '@/convex/lib/helpers/count_items_in_org';
+import { DEFAULT_COUNT_CAP } from '@/backend/core/lib/helpers/count_items_in_org';
 import { useT } from '@/lib/i18n/client';
 
 import { useApproxConversationCountByStatus } from '../hooks/queries';

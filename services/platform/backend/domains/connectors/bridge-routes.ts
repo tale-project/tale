@@ -3,14 +3,14 @@ import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import { verifyHostcallToken } from '../../../convex/connectors/hostcall_token.ts';
-import {
-  bridgeConnectorStatusImpl,
-  runBridgeConnectorImpl,
-} from '../../../convex/node_only/sandbox/connectors_bridge.ts';
 import { findConnector } from '../../../lib/connectors/catalog.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { createLiveHost } from '../../../lib/connectors/live-host.ts';
+import { verifyHostcallToken } from '../../core/connectors/hostcall_token.ts';
+import {
+  bridgeConnectorStatusImpl,
+  runBridgeConnectorImpl,
+} from '../../core/node_only/sandbox/connectors_bridge.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';
 import { getSessionTokenByHash } from '../sandbox/sessions.ts';
 import { runConnectorAction } from './service.ts';

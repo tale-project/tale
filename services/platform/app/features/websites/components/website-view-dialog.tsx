@@ -33,7 +33,7 @@ import type {
   CrawlerChunk,
   CrawlerPage,
   CrawlerSearchResult,
-} from '@/convex/websites/types';
+} from '@/backend/core/websites/types';
 import { useT } from '@/lib/i18n/client';
 
 import { isScanPaused } from '../lib/scan-paused';

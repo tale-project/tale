@@ -2,35 +2,35 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import {
-  resourceTypes,
-  schemas,
-  serviceProviderConfig,
-} from '../../../convex/scim/discovery.ts';
-import {
-  generateScimToken,
-  hashScimToken,
-  scimTokenPrefix,
-} from '../../../convex/scim/helpers/crypto.ts';
-import {
-  scimGroupResourceImpl,
-  scimGroupsImpl,
-  scimUserResourceImpl,
-  scimUsersImpl,
-  type ScimRc,
-} from '../../../convex/scim/http_actions.ts';
-import {
-  SCIM_CORS_HEADERS,
-  scimError,
-  scimJson,
-} from '../../../convex/scim/responses.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+import {
+  resourceTypes,
+  schemas,
+  serviceProviderConfig,
+} from '../../core/scim/discovery.ts';
+import {
+  generateScimToken,
+  hashScimToken,
+  scimTokenPrefix,
+} from '../../core/scim/helpers/crypto.ts';
+import {
+  scimGroupResourceImpl,
+  scimGroupsImpl,
+  scimUserResourceImpl,
+  scimUsersImpl,
+  type ScimRc,
+} from '../../core/scim/http_actions.ts';
+import {
+  SCIM_CORS_HEADERS,
+  scimError,
+  scimJson,
+} from '../../core/scim/responses.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { ssoShimHandlers } from '../sso/shim.ts';
 import {
   disableScim,

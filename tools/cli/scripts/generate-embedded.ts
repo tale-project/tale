@@ -19,7 +19,7 @@ const REPO_ROOT = resolve(CLI_ROOT, '../..');
 // `update` actions key their reference tree (`.tale/reference/builtin-configs/`)
 // on that label, and the catalog's `<domain>/...` shape is unchanged.
 const REFERENCE_DIRS: [string, string][] = [
-  ['services/platform/convex', 'convex'],
+  ['services/platform/backend/core', 'backend/core'],
   ['services/platform/lib', 'lib'],
   ['configs/platform/custom', 'builtin-configs'],
 ];

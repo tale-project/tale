@@ -1,7 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { encryptSecret } from '../../../convex/lib/secret_box.ts';
 import { SECRET_NAME_RE } from '../../../lib/shared/schemas/secrets.ts';
+import { encryptSecret } from '../../core/lib/secret_box.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import {

@@ -77,7 +77,7 @@ export async function handleLock(
     }
     try {
       for (const token of tokens) {
-        const existing = await ctx.convex.query(
+        const existing = await ctx.backend.query(
           anyRefs.webdav.lock_queries.findLockByToken,
           { token },
         );
@@ -95,7 +95,7 @@ export async function handleLock(
         ) {
           continue;
         }
-        const refreshed = await ctx.convex.mutation(
+        const refreshed = await ctx.backend.mutation(
           anyRefs.webdav.lock_mutations.refreshLock,
           {
             lockToken: token,
@@ -133,7 +133,7 @@ export async function handleLock(
   // RFC §9.10.4 + §7.3: LOCK on a non-existent URI creates an empty
   // resource bound to the lock — clients use this to reserve a name
   // before a PUT. Status code must be 201 Created in that case.
-  const resolved = await ctx.convex.query(
+  const resolved = await ctx.backend.query(
     anyRefs.webdav.tree_queries.resolvePath,
     {
       organizationId: auth.organizationId,
@@ -154,7 +154,7 @@ export async function handleLock(
   const lockKey = lockKeyFromParsed(parsed);
 
   try {
-    await ctx.convex.mutation(anyRefs.webdav.lock_mutations.createLock, {
+    await ctx.backend.mutation(anyRefs.webdav.lock_mutations.createLock, {
       organizationId: auth.organizationId,
       resourcePath: lockKey,
       lockToken,

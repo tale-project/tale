@@ -2,11 +2,11 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { importFiles } from '../../../convex/google_drive/import_files.ts';
-import { listFiles } from '../../../convex/google_drive/list_files.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { importFiles } from '../../core/google_drive/import_files.ts';
+import { listFiles } from '../../core/google_drive/list_files.ts';
 import { SyncConfigError } from '../onedrive/service.ts';
 import {
   cancelSyncConfig,

@@ -2,22 +2,22 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
-import { attestDocumentContentType } from '../../../convex/documents/attest_document_bytes.ts';
-import {
-  putImmutableS3Blob,
-  s3BlobSize,
-} from '../../../convex/lib/storage/blob_access.ts';
-import {
-  encodeS3Ref,
-  parseBlobRef,
-  s3KeyBelongsToOrg,
-} from '../../../convex/lib/storage/blob_ref.ts';
-import { s3GetObjectBytes } from '../../../convex/lib/storage/object_store.ts';
-import { checkProjectAccess } from '../../../convex/projects/access.ts';
 import {
   DOCUMENT_MAX_FILE_SIZE,
   isRagIndexableFile,
 } from '../../../lib/shared/file-types.ts';
+import { attestDocumentContentType } from '../../core/documents/attest_document_bytes.ts';
+import {
+  putImmutableS3Blob,
+  s3BlobSize,
+} from '../../core/lib/storage/blob_access.ts';
+import {
+  encodeS3Ref,
+  parseBlobRef,
+  s3KeyBelongsToOrg,
+} from '../../core/lib/storage/blob_ref.ts';
+import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
+import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import {

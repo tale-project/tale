@@ -2,11 +2,6 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import {
-  generateAppPasswordSecret,
-  hmacHash,
-  requireHmacSecret,
-} from '../../../convex/webdav/helpers.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs.ts';
 import { fetchAdapter } from '../../../lib/webdav/adapters/fetch.ts';
@@ -14,6 +9,11 @@ import type { WebDAVCtx } from '../../../lib/webdav/types.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  generateAppPasswordSecret,
+  hmacHash,
+  requireHmacSecret,
+} from '../../core/webdav/helpers.ts';
 import {
   checkOrganizationRateLimit,
   RateLimitExceededError,
@@ -25,7 +25,7 @@ import { webdavHandlers } from './handlers.ts';
  * dispatch, Basic-auth verify, PROPFIND/GET/PUT/MKCOL/DELETE/MOVE/COPY/
  * LOCK/UNLOCK method handlers) served by the backend at `/dav/<orgSlug>/…`,
  * with its ConvexHttpClient replaced by a name-keyed shim over the PG
- * handlers — the same dispatch idea as `lib/convex-shim.ts`, at the
+ * handlers — the same dispatch idea as `lib/ctx-shim.ts`, at the
  * client's `.query/.mutation/.action` surface (the protocol layer addresses
  * functions through the name proxy, so `functionRefName` yields the same
  * `path/module:export` names the handler map keys on; an unmapped name
@@ -56,14 +56,14 @@ function buildWebdavCtx(sql: Sql): WebDAVCtx {
     action: call,
   };
   return {
-    convex: shim,
+    backend: shim,
     // The /storage proxy fallback only fires when the direct-URL lane
     // reports the blob gone; pointing it at an unroutable origin keeps
     // that lane an honest 404/502 instead of a second storage door.
     storageBaseUrl: 'http://webdav-storage-proxy.invalid',
     // Upload URLs are presigned S3 PUTs (never rewritten); the Convex-POST
     // lane is refused up front, so there is no origin to re-home.
-    convexApiUrl: '',
+    backendApiUrl: '',
   };
 }
 

@@ -12,7 +12,7 @@ interface MessagesUsageConfig {
   /**
    * Top-level directories to scan for `t()` / `useT()` usage. Missing
    * directories are skipped. Defaults to `['app', 'components', 'hooks',
-   * 'lib', 'convex']` so the same list works across services with different
+   * 'lib', 'backend']` so the same list works across services with different
    * layouts.
    */
   scanRoots?: string[];
@@ -460,7 +460,7 @@ export function defineMessagesUsageTests(config: MessagesUsageConfig): void {
   const {
     serviceRoot,
     messagesDir = path.join(serviceRoot, 'messages'),
-    scanRoots = ['app', 'components', 'hooks', 'lib', 'convex'],
+    scanRoots = ['app', 'components', 'hooks', 'lib', 'backend'],
     allowlistPath = path.join(serviceRoot, 'lib/i18n/keys-dynamic.yml'),
     baseFiles = ['en.yml', 'global.yml'],
   } = config;

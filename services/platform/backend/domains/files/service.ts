@@ -1,11 +1,8 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import {
-  encodeS3Ref,
-  parseBlobRef,
-} from '../../../convex/lib/storage/blob_ref.ts';
-import { s3KeyBelongsToOrg } from '../../../convex/lib/storage/blob_ref.ts';
-import { browserFacing } from '../../../convex/lib/storage/object_store.ts';
+import { encodeS3Ref, parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
+import { s3KeyBelongsToOrg } from '../../core/lib/storage/blob_ref.ts';
+import { browserFacing } from '../../core/lib/storage/object_store.ts';
 import {
   buildObjectKey,
   resolveObjectStore,

@@ -34,10 +34,10 @@ import type { PgBoss } from 'pg-boss';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { computeAuditHash } from '../convex/lib/helpers/audit_hash.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
@@ -1820,7 +1820,7 @@ async function checkFiles(
   // bucket and re-run the seeder — the 'present' path re-ensures the bucket
   // when the default still points at the bundled store.
   const { buildS3ObjectStore } =
-    await import('../convex/lib/storage/object_store.ts');
+    await import('./core/lib/storage/object_store.ts');
   const probeS3 = buildS3ObjectStore(
     { region: 'us-east-1', endpoint, forcePathStyle: true, bucket },
     { accessKeyId, secretAccessKey },
@@ -2136,7 +2136,7 @@ async function checkDocuments(
       : undefined;
   // The read fallback row must be reachable through the CHAT map too — it
   // was registered only on the sandbox door once, which made every chat
-  // `rag_fetch` inline read die as "[convex-shim] un-shimmed".
+  // `rag_fetch` inline read die as "[ctx-shim] un-shimmed".
   const readDoor =
     chatShimHandlers(sql)['documents/internal_queries:findDocumentByFileId'];
   const notesRef = userNamed.success
@@ -3835,8 +3835,7 @@ async function checkKnowledge(
       `;
       return rows[0]?.status === 'completed';
     }, 60_000);
-    const { getKnowledgePoolForOrg } =
-      await import('../convex/knowledge/pool.ts');
+    const { getKnowledgePoolForOrg } = await import('./core/knowledge/pool.ts');
     const corpusPool = await getKnowledgePoolForOrg(orgSlug);
     const corpusRows = await corpusPool<
       { status: string; total: number; stored: string }[]
@@ -6471,7 +6470,7 @@ async function checkSsoLogin(
   const { createServer } = await import('node:http');
   const { createHash } = await import('node:crypto');
   const { serializeSsoConnectionYaml, resolveSsoDir } =
-    await import('../convex/enterprise_sso/file_utils.ts');
+    await import('./core/enterprise_sso/file_utils.ts');
 
   // --- fake OIDC IdP -------------------------------------------------------
   let seenChallenge = '';
@@ -6771,7 +6770,7 @@ async function checkSamlLogin(
   const { createHash, createSign, generateKeyPairSync } =
     await import('node:crypto');
   const { serializeSsoConnectionYaml, resolveSsoDir } =
-    await import('../convex/enterprise_sso/file_utils.ts');
+    await import('./core/enterprise_sso/file_utils.ts');
 
   const ssoDir = resolveSsoDir(orgSlug);
   const connectionPath = path.join(ssoDir, 'connection.yml');
@@ -7062,7 +7061,7 @@ async function checkEntraLogin(
   orgSlug: string,
 ): Promise<void> {
   const { serializeSsoConnectionYaml, resolveSsoDir } =
-    await import('../convex/enterprise_sso/file_utils.ts');
+    await import('./core/enterprise_sso/file_utils.ts');
   const tenantId = '8f1e2b3c-4d5a-6789-abcd-ef0123456789';
   const appRoleId = 'b31e4c77-11aa-4c8d-9f3e-2b6d5a7c9e01';
   const ssoDir = resolveSsoDir(orgSlug);
@@ -7926,9 +7925,9 @@ async function checkSandboxBlobDoor(
   const { resolveOrgSlug } = await import('./lib/org-config.ts');
   const { resolveObjectStore, s3PutObject, buildObjectKey } =
     await import('./lib/object-store.ts');
-  const { encodeS3Ref } = await import('../convex/lib/storage/blob_ref.ts');
+  const { encodeS3Ref } = await import('./core/lib/storage/blob_ref.ts');
   const { signStageToken } =
-    await import('../convex/lib/storage/sandbox_stage_token.ts');
+    await import('./core/lib/storage/sandbox_stage_token.ts');
   const orgSlug = (await resolveOrgSlug(sql, ctx.orgId)) ?? '';
   const store = await resolveObjectStore(orgSlug);
   const key = buildObjectKey(store, orgSlug);
@@ -9788,7 +9787,7 @@ async function checkRecoverySweeps(
     SELECT "slug" FROM "organization" WHERE "id" = ${orgId} LIMIT 1
   `;
   const { getKnowledgePoolForOrg, PRIVATE_KNOWLEDGE_SCHEMA } =
-    await import('../convex/knowledge/pool.ts');
+    await import('./core/knowledge/pool.ts');
   let corpusSeeded = false;
   try {
     const pool = await getKnowledgePoolForOrg(orgSlugRow[0]?.slug ?? '');
@@ -10255,7 +10254,7 @@ async function checkConnectorOauth(
     // proved the HTTP shell.
     const happyState = 'itest-oauth-state-value';
     const { hashStateToken } =
-      await import('../convex/http_connectors/oauth_state.ts');
+      await import('./core/http_connectors/oauth_state.ts');
     await oauth.createPendingAuthorization(sql, {
       stateHash: await hashStateToken(happyState),
       organizationId: orgId,
@@ -13391,7 +13390,7 @@ async function checkOauthAppSsoReuse(
 ): Promise<void> {
   const { cookie, orgId } = ctx;
   const { serializeSsoConnectionYaml, resolveSsoDir } =
-    await import('../convex/enterprise_sso/file_utils.ts');
+    await import('./core/enterprise_sso/file_utils.ts');
   const savedSiteUrl = process.env.SITE_URL;
   process.env.SITE_URL = base;
 
@@ -13577,7 +13576,7 @@ async function checkCloudImport(
     storeCloudAuthorization,
   } = await import('./domains/cloud_import/service.ts');
   const { hashStateToken } =
-    await import('../convex/http_connectors/oauth_state.ts');
+    await import('./core/http_connectors/oauth_state.ts');
 
   // Start: a signed-in member gets a 302 to the vendor with PKCE + state.
   const start = await fetch(
@@ -14744,7 +14743,7 @@ async function checkWebsitesCrawl(
 ): Promise<void> {
   const { cookie, orgId } = ctx;
   const websites = await import('./domains/websites/service.ts');
-  const scheduling = await import('../convex/websites/scan_scheduling.ts');
+  const scheduling = await import('./core/websites/scan_scheduling.ts');
 
   const DOMAIN = 'itest-crawl.example';
   const site = new Map<
@@ -14801,7 +14800,7 @@ async function checkWebsitesCrawl(
     preconnect: (): void => {},
   });
 
-  const corpus = await import('../convex/knowledge/pool.ts');
+  const corpus = await import('./core/knowledge/pool.ts');
   const pool = corpus.getKnowledgePool();
 
   // Park the org's embedding config (an earlier check pointed it at a now-
@@ -15911,8 +15910,7 @@ async function checkBrowserSessions(
 ): Promise<void> {
   const { cookie, orgId, userId } = ctx;
   const browser = await import('./domains/browser_sessions/service.ts');
-  const { decryptString } =
-    await import('../convex/lib/crypto/decrypt_string.ts');
+  const { decryptString } = await import('./core/lib/crypto/decrypt_string.ts');
   const savedAdmins = process.env.TALE_DEPLOYMENT_CONFIG_ADMINS;
   const emailRows = await sql<{ email: string }[]>`
     SELECT "email" FROM "user" WHERE "id" = ${userId} LIMIT 1
@@ -22218,7 +22216,7 @@ async function checkDataResidency(
   const byoBucket = 'itest-byo';
   // Create the BYO bucket directly (MinIO: signed PUT on the bucket URL).
   const { buildS3ObjectStore } =
-    await import('../convex/lib/storage/object_store.ts');
+    await import('./core/lib/storage/object_store.ts');
   const byoStore = buildS3ObjectStore(
     {
       region: 'us-east-1',
@@ -22377,9 +22375,8 @@ async function checkDataResidency(
   // A migrated object is REALLY in the BYO bucket now.
   let landed = false;
   if (realStatus !== null && realStatus.sample.length > 0) {
-    const { parseBlobRef } = await import('../convex/lib/storage/blob_ref.ts');
-    const { s3HeadObject } =
-      await import('../convex/lib/storage/object_store.ts');
+    const { parseBlobRef } = await import('./core/lib/storage/blob_ref.ts');
+    const { s3HeadObject } = await import('./core/lib/storage/object_store.ts');
     const sampleRef = realStatus.sample[0]?.ref ?? '';
     try {
       const parsed = parseBlobRef(sampleRef);
@@ -23465,7 +23462,7 @@ async function checkMetricsSurface(
 
   // ---- the run dialog's execution log ---------------------------------
   const { sessionIdForWorkflowExecution } =
-    await import('../convex/sandbox/session_naming.ts');
+    await import('./core/sandbox/session_naming.ts');
   const logRun = await sql<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, started_at_ms

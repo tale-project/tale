@@ -1,7 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { hasTeamAccess } from '../../../convex/lib/team_access.ts';
-import { checkProjectAccess } from '../../../convex/projects/access.ts';
+import { hasTeamAccess } from '../../core/lib/team_access.ts';
+import { checkProjectAccess } from '../../core/projects/access.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
 import {

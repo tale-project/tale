@@ -37,18 +37,14 @@
  * refusal or a request that never produced a response throws.
  */
 
-import { checkProviderHostPolicy } from '../../convex/lib/http/host_policy';
-import {
-  safeFetch,
-  safeFetchBinary,
-  SafeFetchError,
-} from '../../convex/lib/http/safe_fetch';
 import type {
   ConnectorContext,
   ConnectorHostCapabilities,
   ConnectorHttpRequest,
   ConnectorHttpResponse,
 } from '../engine/core/slots';
+import { checkProviderHostPolicy } from '../net/host-policy';
+import { safeFetch, safeFetchBinary, SafeFetchError } from '../net/safe-fetch';
 import type { Connector } from '../shared/schemas/connectors';
 import { ConnectorError } from './errors';
 

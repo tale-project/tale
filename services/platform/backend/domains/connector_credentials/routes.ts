@@ -2,12 +2,12 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { listConnectorSummaries } from '../../../convex/connector_credentials/connector_catalog.ts';
-import { resolveOauthAppCredentials } from '../../../convex/http_connectors/deployment_config.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { listConnectorSummaries } from '../../core/connector_credentials/connector_catalog.ts';
+import { resolveOauthAppCredentials } from '../../core/http_connectors/deployment_config.ts';
 import { listOauthApps } from '../connectors/oauth-apps.ts';
 import {
   ConnectorCredentialError,

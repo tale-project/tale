@@ -1,15 +1,15 @@
 import type { Sql } from 'postgres';
 
-import { sendConnectorAction } from '../../../convex/conversations/connector_slug.ts';
-import { ACTIONABLE_EMAIL_CONNECTORS } from '../../../convex/notifications/actionable_email_connectors.ts';
+import { defaultLocale as appDefaultLocale } from '../../../lib/i18n/config.ts';
+import { clampToSupportedLocale } from '../../../lib/shared/utils/get-organization-default-locale.ts';
+import { sendConnectorAction } from '../../core/conversations/connector_slug.ts';
+import { ACTIONABLE_EMAIL_CONNECTORS } from '../../core/notifications/actionable_email_connectors.ts';
 import {
   buildActionableEmailInput,
   pickSendableMailbox,
-} from '../../../convex/notifications/actionable_email_input.ts';
-import { renderActionableEmailContent } from '../../../convex/notifications/notification_messages.ts';
-import { buildPersonalNotificationUrl } from '../../../convex/notifications/personal_notification_url.ts';
-import { defaultLocale as appDefaultLocale } from '../../../lib/i18n/config.ts';
-import { clampToSupportedLocale } from '../../../lib/shared/utils/get-organization-default-locale.ts';
+} from '../../core/notifications/actionable_email_input.ts';
+import { renderActionableEmailContent } from '../../core/notifications/notification_messages.ts';
+import { buildPersonalNotificationUrl } from '../../core/notifications/personal_notification_url.ts';
 import type { TaskPayloads } from '../../jobs/tasks.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 

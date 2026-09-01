@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import { resolveSlackSigningSecret } from '../../../convex/http_connectors/deployment_config.ts';
+import { DEFAULT_TRUSTED_PROXIES } from '../../../lib/shared/schemas/governance.ts';
+import { getString, isRecord } from '../../../lib/utils/type-utils.ts';
+import { resolveSlackSigningSecret } from '../../core/http_connectors/deployment_config.ts';
 import {
   SLACK_MAX_BODY_BYTES,
   verifySlackSignature,
-} from '../../../convex/http_connectors/slack_signature.ts';
-import { getClientIp } from '../../../convex/lib/utils/client_ip.ts';
-import { DEFAULT_TRUSTED_PROXIES } from '../../../lib/shared/schemas/governance.ts';
-import { getString, isRecord } from '../../../lib/utils/type-utils.ts';
+} from '../../core/http_connectors/slack_signature.ts';
+import { getClientIp } from '../../core/lib/utils/client_ip.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicy } from '../../lib/org-config.ts';
 import {

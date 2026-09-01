@@ -2,11 +2,11 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import { hashPassword } from 'better-auth/crypto';
 import type { Sql } from 'postgres';
 
-import { normalizeAuthEmail } from '../../../convex/lib/auth/normalize_auth_email.ts';
 import {
   isPasswordValid,
   passwordPolicyViolations,
 } from '../../../lib/shared/schemas/password.ts';
+import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { scaffoldNewOrganization } from '../organizations/scaffold.ts';
 import { recordPasswordChange } from '../users/service.ts';

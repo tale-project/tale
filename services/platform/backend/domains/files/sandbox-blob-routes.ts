@@ -5,8 +5,8 @@ import {
   isS3Ref,
   parseBlobRef,
   s3KeyBelongsToOrg,
-} from '../../../convex/lib/storage/blob_ref.ts';
-import { verifyStageToken } from '../../../convex/lib/storage/sandbox_stage_token.ts';
+} from '../../core/lib/storage/blob_ref.ts';
+import { verifyStageToken } from '../../core/lib/storage/sandbox_stage_token.ts';
 import { resolveObjectStore, s3PresignGetUrl } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 

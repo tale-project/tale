@@ -1,18 +1,18 @@
 import type { Sql } from 'postgres';
 
-import {
-  persistFiles,
-  readExisting,
-  removeConnectionFiles,
-} from '../../../convex/enterprise_sso/config/file_store.ts';
-import { withoutGraphFileScopes } from '../../../convex/enterprise_sso/entra_id/constants.ts';
-import { getAdapter } from '../../../convex/enterprise_sso/registry.ts';
-import { fetchAndParseIdpMetadataImpl } from '../../../convex/enterprise_sso/saml/parse_metadata.ts';
-import { getPublicHttpApiUrl } from '../../../convex/lib/helpers/public_storage_url.ts';
 import type {
   SsoConnectionFile,
   SsoConnectionSecrets,
 } from '../../../lib/shared/schemas/enterprise_sso.ts';
+import {
+  persistFiles,
+  readExisting,
+  removeConnectionFiles,
+} from '../../core/enterprise_sso/config/file_store.ts';
+import { withoutGraphFileScopes } from '../../core/enterprise_sso/entra_id/constants.ts';
+import { getAdapter } from '../../core/enterprise_sso/registry.ts';
+import { fetchAndParseIdpMetadataImpl } from '../../core/enterprise_sso/saml/parse_metadata.ts';
+import { getPublicHttpApiUrl } from '../../core/lib/helpers/public_storage_url.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { getScimStatus } from '../scim/service.ts';

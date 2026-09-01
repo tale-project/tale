@@ -7,7 +7,7 @@ import {
   sessionDestroy,
   sessionIsAlive,
   sessionSetPinned,
-} from '../../../convex/node_only/sandbox/helpers/session_client.ts';
+} from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   getSessionBySessionId,
   markSessionDestroyed,

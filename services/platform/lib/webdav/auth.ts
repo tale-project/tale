@@ -6,12 +6,11 @@ import {
   type WebDAVRequest,
 } from './types';
 
-// MIRROR OF convex/webdav/helpers.ts — keep these in sync. The Convex
-// isolate cannot import from lib/, so the `hexToBytes` / `encodeText` /
-// `bytesToHex` / `hmacHash` / `timingSafeEqual` helpers are duplicated
-// here. If you change one, change both — and update the unit-test
-// vector (`lib/webdav/auth.test.ts` once added) that pins them to the
-// same output bytes.
+// MIRROR OF backend/core/webdav/helpers.ts — keep these in sync. The
+// duplication predates the Postgres port (the retired Convex isolate could
+// not import from lib/); both sides are Node now, so folding them into one
+// copy is possible and worth its own change. Until then: if you change one,
+// change both — auth-parity.test.ts pins them to the same output bytes.
 
 // Outcome of Basic-auth verification + org-slug resolution.
 //
@@ -126,8 +125,8 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 // Exported for the cross-module parity test (auth-parity.test.ts), which
-// pins this against the convex/webdav/helpers.ts duplicate. Not part of
-// the public auth surface otherwise.
+// pins this against the backend/core/webdav/helpers.ts duplicate. Not part
+// of the public auth surface otherwise.
 export async function hmacHash(
   plaintext: string,
   secretHex: string,
@@ -189,7 +188,7 @@ export async function verifyBasicAuthForDav(
   // nothing, so legitimate clients never deplete the bucket.
   const chargeFailure = async (organizationId: string): Promise<boolean> => {
     try {
-      await ctx.convex.mutation(
+      await ctx.backend.mutation(
         anyRefs.webdav.app_password_queries.chargeWebdavAuthFailure,
         { organizationId, clientIp },
       );
@@ -223,7 +222,7 @@ export async function verifyBasicAuthForDav(
   // findCandidatesByPrefix is a read-only internalQuery — it consumes no
   // rate-limit token. Throttling is charged below, only on a failed
   // match, so successful auths never deplete the bucket.
-  const rawCandidates = await ctx.convex.query(
+  const rawCandidates = await ctx.backend.query(
     anyRefs.webdav.app_password_queries.findCandidatesByPrefix,
     {
       organizationId: orgRow.organizationId,
@@ -278,7 +277,7 @@ export async function verifyBasicAuthForDav(
   const lastTouch = lastUseTouchAt.get(matched._id) ?? 0;
   if (now - lastTouch > LAST_USE_TOUCH_INTERVAL_MS) {
     lastUseTouchAt.set(matched._id, now);
-    void ctx.convex
+    void ctx.backend
       .mutation(anyRefs.webdav.app_password_mutations.recordAppPasswordUse, {
         id: matched._id,
         at: now,

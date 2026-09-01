@@ -1,6 +1,6 @@
 import type { Sql } from 'postgres';
 
-import { sessionOpLastSignOfLifeMs } from '../../../convex/sandbox/agent_deadline.ts';
+import { sessionOpLastSignOfLifeMs } from '../../core/sandbox/agent_deadline.ts';
 
 /**
  * The agent-turn recovery primitives shared by the task and automation

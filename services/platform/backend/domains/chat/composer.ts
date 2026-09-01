@@ -1,14 +1,14 @@
 import type { Sql } from 'postgres';
 
-import { collectComposerOptions } from '../../../convex/chat/composer.ts';
-import { listConnectorSummaries } from '../../../convex/connector_credentials/connector_catalog.ts';
-import { walkChatCatalog } from '../../../convex/lib/providers/chat_catalog.ts';
+import { collectComposerOptions } from '../../core/chat/composer.ts';
+import { listConnectorSummaries } from '../../core/connector_credentials/connector_catalog.ts';
+import { walkChatCatalog } from '../../core/lib/providers/chat_catalog.ts';
 import {
   loadHarnesses,
   readSystemEntryIcon,
-} from '../../../convex/lib/providers/load_system_config.ts';
-import { listSkillsForViewer } from '../../../convex/skills/file_actions.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+} from '../../core/lib/providers/load_system_config.ts';
+import { listSkillsForViewer } from '../../core/skills/file_actions.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listConnectedConnectorSlugs } from '../connector_credentials/service.ts';
 import { getAccessibleModelsForUser } from '../governance/service.ts';

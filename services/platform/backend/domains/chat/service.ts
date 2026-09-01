@@ -1,11 +1,11 @@
 import type { Sql } from 'postgres';
 
+import type { TurnOutcome } from '../../../lib/chat/turn.ts';
 import {
   executeTurn,
   type ExecuteTurnArgs,
-} from '../../../convex/chat/turn_action.ts';
-import type { TurnOutcome } from '../../../lib/chat/turn.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+} from '../../core/chat/turn_action.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { chatShimHandlers } from './shim.ts';
 import { createPgTurnStore, createPgUsageLedger } from './store.ts';
 

@@ -1,20 +1,20 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { validateConversationAttachmentCaps } from '../../../convex/conversations/attachments.ts';
-import { buildThreadingHeaders } from '../../../convex/conversations/build_threading_headers.ts';
-import { sendConnectorAction } from '../../../convex/conversations/connector_slug.ts';
-import { inboundRecipientAddress } from '../../../convex/conversations/reply_from.ts';
+import { ConnectorError } from '../../../lib/connectors/errors.ts';
+import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
+import { validateConversationAttachmentCaps } from '../../core/conversations/attachments.ts';
+import { buildThreadingHeaders } from '../../core/conversations/build_threading_headers.ts';
+import { sendConnectorAction } from '../../core/conversations/connector_slug.ts';
+import { inboundRecipientAddress } from '../../core/conversations/reply_from.ts';
 import {
   BULK_REPLY_CAP,
   buildReplySubject,
   splitHtmlText,
-} from '../../../convex/conversations/reply_to_conversation.ts';
+} from '../../core/conversations/reply_to_conversation.ts';
 import {
   buildSendInput,
   externalIdFromSendOutput,
-} from '../../../convex/conversations/send_input.ts';
-import { ConnectorError } from '../../../lib/connectors/errors.ts';
-import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
+} from '../../core/conversations/send_input.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { TaskPayloads } from '../../jobs/tasks.ts';

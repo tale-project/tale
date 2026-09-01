@@ -2,7 +2,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 
-import type { ConversationItem } from '@/convex/conversations/types';
+import type { ConversationItem } from '@/backend/core/conversations/types';
 
 import type { SelectionState } from '../types/selection';
 

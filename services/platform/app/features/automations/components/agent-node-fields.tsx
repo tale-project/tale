@@ -33,7 +33,7 @@ import {
   findSelectedModel,
   toModelOptions,
 } from '@/app/features/projects/lib/model-options';
-import { AGENT_TOOL_CATALOG } from '@/convex/sandbox/tool_names';
+import { AGENT_TOOL_CATALOG } from '@/backend/core/sandbox/tool_names';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 

@@ -1,28 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import {
-  checkRuleAgainstUsage,
-  collectAllApplicableRules,
-  resolveEffectiveLimits,
-  type BudgetCheckResult,
-} from '../../../convex/governance/budget_enforcement.ts';
-import { estimateTtsCostCents } from '../../../convex/governance/cost_estimation.ts';
-import { buildPeriodKey } from '../../../convex/governance/helpers.ts';
-import { checkProviderHostPolicy } from '../../../convex/lib/http/host_policy.ts';
+import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import {
   SafeFetchError,
   safeFetchBinary,
-} from '../../../convex/lib/http/safe_fetch.ts';
-import { resolveTtsModel } from '../../../convex/lib/providers/resolve_tts_model.ts';
-import { sanitizeError } from '../../../convex/lib/utils/sanitize_secrets.ts';
-import { AUDIO_MIME_BY_FORMAT } from '../../../convex/tts/audio_mime.ts';
-import {
-  errorCodeFromCaught,
-  parseRetryAfterMs,
-  TtsProviderHttpError,
-  ttsErrorCodeLiterals,
-  type TtsErrorCode,
-} from '../../../convex/tts/error_codes.ts';
+} from '../../../lib/net/safe-fetch.ts';
 import {
   MAX_TTS_CHARS_PER_MESSAGE,
   MAX_TTS_CHUNK_CHARS,
@@ -33,9 +15,27 @@ import {
 } from '../../../lib/shared/constants/tts.ts';
 import { TTS_SLUG } from '../../../lib/shared/constants/usage.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
+import {
+  checkRuleAgainstUsage,
+  collectAllApplicableRules,
+  resolveEffectiveLimits,
+  type BudgetCheckResult,
+} from '../../core/governance/budget_enforcement.ts';
+import { estimateTtsCostCents } from '../../core/governance/cost_estimation.ts';
+import { buildPeriodKey } from '../../core/governance/helpers.ts';
+import { resolveTtsModel } from '../../core/lib/providers/resolve_tts_model.ts';
+import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
+import { AUDIO_MIME_BY_FORMAT } from '../../core/tts/audio_mime.ts';
+import {
+  errorCodeFromCaught,
+  parseRetryAfterMs,
+  TtsProviderHttpError,
+  ttsErrorCodeLiterals,
+  type TtsErrorCode,
+} from '../../core/tts/error_codes.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { TaskPayloads } from '../../jobs/tasks.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
   checkOrganizationRateLimit,

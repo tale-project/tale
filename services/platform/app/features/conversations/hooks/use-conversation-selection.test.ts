@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import type { ConversationItem } from '@/convex/conversations/types';
+import type { ConversationItem } from '@/backend/core/conversations/types';
 
 import { useConversationSelection } from './use-conversation-selection';
 

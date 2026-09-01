@@ -28,7 +28,7 @@ import type {
   CrawlerChunk,
   CrawlerPage,
   CrawlerSearchResult,
-} from '@/convex/websites/types';
+} from '@/backend/core/websites/types';
 import { useT } from '@/lib/i18n/client';
 
 const PAGE_SIZE = 20;

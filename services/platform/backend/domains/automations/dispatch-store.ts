@@ -1,9 +1,5 @@
 import type { Sql } from 'postgres';
 
-import {
-  boundRunTrace,
-  truncateRunDetail,
-} from '../../../convex/automations/bound_run_payload.ts';
 import type {
   DispatchStore,
   RunDetail,
@@ -13,6 +9,10 @@ import type {
 } from '../../../lib/engine/api/dispatch.ts';
 import type { Automation } from '../../../lib/engine/core/types.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
+import {
+  boundRunTrace,
+  truncateRunDetail,
+} from '../../core/automations/bound_run_payload.ts';
 import { toJson } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {

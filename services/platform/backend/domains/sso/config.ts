@@ -9,9 +9,9 @@ import {
   validateSsoConnectionData,
   type SsoConnectionFile,
   type SsoConnectionSecrets,
-} from '../../../convex/enterprise_sso/file_utils.ts';
-import { readDomainConfigFile } from '../../../convex/lib/config_store/read_domain_file.ts';
-import { readFileSafe } from '../../../convex/lib/file_io.ts';
+} from '../../core/enterprise_sso/file_utils.ts';
+import { readDomainConfigFile } from '../../core/lib/config_store/read_domain_file.ts';
+import { readFileSafe } from '../../core/lib/file_io.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 
 /**

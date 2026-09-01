@@ -2,11 +2,11 @@ import { randomBytes } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
-import { checkProjectAccess } from '../../../convex/projects/access.ts';
 import {
   getUserTeamIds,
   findOrganizationMember,
 } from '../../auth/membership.ts';
+import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { assertNotHeld, loadActiveHolds } from '../legal_holds/service.ts';

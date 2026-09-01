@@ -4,8 +4,8 @@ import { z } from 'zod';
 import {
   buildSamlAuthnRedirectImpl,
   validateSamlResponseImpl,
-} from '../../../convex/enterprise_sso/saml/validate_assertion.ts';
-import type { ShimHandlers } from '../../lib/convex-shim.ts';
+} from '../../core/enterprise_sso/saml/validate_assertion.ts';
+import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import {
   discoverByEmail,

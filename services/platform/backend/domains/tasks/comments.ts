@@ -1,8 +1,8 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { TASK_AUDIT_ACTIONS } from '../../../convex/tasks/audit_actions.ts';
-import type { CommentEventComment } from '../../../convex/tasks/types.ts';
 import { parseTaskSubjectContract } from '../../../lib/shared/schemas/task_contract.ts';
+import { TASK_AUDIT_ACTIONS } from '../../core/tasks/audit_actions.ts';
+import type { CommentEventComment } from '../../core/tasks/types.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';

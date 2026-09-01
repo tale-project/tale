@@ -1,10 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { isActionableNotificationType } from '../../../lib/shared/attention.ts';
 import {
   coalesceKeyFor,
   NOTIFICATION_EMAIL_DEBOUNCE_MS,
-} from '../../../convex/collab/coalesce.ts';
-import { isActionableNotificationType } from '../../../lib/shared/attention.ts';
+} from '../../core/collab/coalesce.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';

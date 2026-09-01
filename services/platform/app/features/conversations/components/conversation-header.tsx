@@ -25,7 +25,7 @@ import { toast } from '@/app/hooks/use-toast';
 import {
   mailboxSideAddress,
   resolveReplyFrom,
-} from '@/convex/conversations/reply_from';
+} from '@/backend/core/conversations/reply_from';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 

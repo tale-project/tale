@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 
-import type { BlobRef } from '@/convex/lib/storage/blob_ref';
+import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 
-/** Mirrors `MAX_KB_REFERENCES` in convex/agents/chat_turn.ts. */
+/** The cap on knowledge references a chat turn accepts. */
 export const MAX_KB_MENTIONS = 5;
 
 /**
@@ -87,7 +87,7 @@ export function useKbMentions(): UseKbMentionsResult {
   // Synchronous source of truth alongside the render state: updated at
   // mutation time (not render time) so clearMentions can return the snapshot
   // and back-to-back adds in one tick don't read a stale list. Same pattern
-  // as use-convex-file-upload's attachmentsRef.
+  // as use-file-upload's attachmentsRef.
   const mentionsRef = useRef(mentions);
   const commit = useCallback((next: KbMention[]) => {
     mentionsRef.current = next;

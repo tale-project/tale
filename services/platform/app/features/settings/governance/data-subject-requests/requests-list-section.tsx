@@ -20,7 +20,7 @@ import { useAbility } from '@/app/hooks/use-ability';
 import {
   ERASURE_STATUSES,
   type ErasureStatus,
-} from '@/convex/governance/erasure_constants';
+} from '@/backend/core/governance/erasure_constants';
 import { useT } from '@/lib/i18n/client';
 
 import { FileRequestDialog } from './file-request-dialog';

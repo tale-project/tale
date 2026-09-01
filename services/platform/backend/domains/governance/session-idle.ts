@@ -1,10 +1,10 @@
 import type { Sql } from 'postgres';
 
-import { shouldRevokeIdleSession } from '../../../convex/governance/session_idle_enforcement.ts';
 import {
   parseSessionIdleTimeoutMinutes,
   resolveEffectiveIdleMinutes,
 } from '../../../lib/shared/session-idle.ts';
+import { shouldRevokeIdleSession } from '../../core/governance/session_idle_enforcement.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 

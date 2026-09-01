@@ -64,7 +64,7 @@ export async function checkCollectionDescendantLocks(
   parsed: Pick<ParsedPath, 'namespace' | 'segments'>,
 ): Promise<LockCheckResult> {
   const clauses = parseIfHeader(req.headers.get('if'));
-  const raw: unknown = await ctx.convex.query(
+  const raw: unknown = await ctx.backend.query(
     anyRefs.webdav.lock_queries.findLocksUnderPath,
     {
       organizationId: auth.organizationId,
@@ -109,14 +109,14 @@ async function runLockCheck(
   const clauses = parseIfHeader(req.headers.get('if'));
 
   for (const { path, requireInfinity } of candidates) {
-    const found = await ctx.convex.query(
+    const found = await ctx.backend.query(
       anyRefs.webdav.lock_queries.findLockForPath,
       { organizationId: auth.organizationId, resourcePath: path },
     );
 
     if (found?.expiredId) {
       // Fire-and-forget eviction. Lazy cleanup pattern — don't await.
-      void ctx.convex
+      void ctx.backend
         .mutation(anyRefs.webdav.lock_mutations.deleteLockIfStale, {
           id: found.expiredId,
         })

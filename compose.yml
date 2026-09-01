@@ -435,7 +435,7 @@ services:
       # Where the BROWSER reaches the store: the site origin, behind which the
       # proxy forwards `/<bucket>/*` verbatim. Presigned URLs are signed
       # against this, the internal endpoint above is what the backend itself
-      # uses — see `browserFacing` in convex/lib/storage/object_store.ts.
+      # uses — see `browserFacing` in backend/core/lib/storage/object_store.ts.
       OBJECT_STORE_PUBLIC_ENDPOINT: ${OBJECT_STORE_PUBLIC_ENDPOINT:-${SITE_URL:-http://localhost}}
     env_file:
       - path: .env
@@ -500,7 +500,7 @@ services:
       # Where the BROWSER reaches the store: the site origin, behind which the
       # proxy forwards `/<bucket>/*` verbatim. Presigned URLs are signed
       # against this, the internal endpoint above is what the backend itself
-      # uses — see `browserFacing` in convex/lib/storage/object_store.ts.
+      # uses — see `browserFacing` in backend/core/lib/storage/object_store.ts.
       OBJECT_STORE_PUBLIC_ENDPOINT: ${OBJECT_STORE_PUBLIC_ENDPOINT:-${SITE_URL:-http://localhost}}
     env_file:
       - path: .env

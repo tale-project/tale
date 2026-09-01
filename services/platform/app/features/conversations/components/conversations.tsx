@@ -21,7 +21,7 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
-import type { ConversationItem } from '@/convex/conversations/types';
+import type { ConversationItem } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { filterByTextSearch } from '@/lib/utils/filtering';

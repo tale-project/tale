@@ -1,10 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { checkProjectAccess } from '../../../convex/projects/access.ts';
 import {
   getUserTeamIds,
   findOrganizationMember,
 } from '../../auth/membership.ts';
+import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';

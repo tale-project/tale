@@ -16,7 +16,7 @@ import { useToast } from '@/app/hooks/use-toast';
 import {
   ERASURE_REASON_CODES,
   type ErasureReasonCode,
-} from '@/convex/governance/erasure_constants';
+} from '@/backend/core/governance/erasure_constants';
 import { useT } from '@/lib/i18n/client';
 
 import { mapDsrError } from './data-subject-requests-errors';

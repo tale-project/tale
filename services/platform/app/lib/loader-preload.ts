@@ -5,7 +5,7 @@ import {
 import type { ArgsOf, QueryName } from '@/app/lib/backend/contract';
 import { MissingBackendRowError } from '@/app/lib/backend/missing-row';
 import type { RouterContext } from '@/app/router';
-import type { GOVERNANCE_POLICY_TYPES } from '@/convex/governance/schema';
+import type { GOVERNANCE_POLICY_TYPES } from '@/backend/core/governance/schema';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 type QueryArgs<Name extends QueryName> =

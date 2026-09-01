@@ -9,7 +9,7 @@ import { useCallback, useState } from 'react';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
-import type { ContactInfo } from '@/convex/conversations/types';
+import type { ContactInfo } from '@/backend/core/conversations/types';
 import { useT } from '@/lib/i18n/client';
 
 import { isContactDoc, UNKNOWN_CONTACT_EMAIL } from '../lib/contact-data';

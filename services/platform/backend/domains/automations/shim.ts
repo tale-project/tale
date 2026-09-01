@@ -4,7 +4,7 @@ import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import type { ShimHandlers, ShimScheduler } from '../../lib/convex-shim.ts';
+import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import {
   dismissAgentQuestionNotifications,

@@ -3,7 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import {
   hashWebhookToken,
   mintWebhookToken,
-} from '../../../convex/automations/webhook_token.ts';
+} from '../../core/automations/webhook_token.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';

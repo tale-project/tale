@@ -19,9 +19,9 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
-import { getClientIp } from '../../convex/lib/utils/client_ip.ts';
 import { loadTrustedProxies, type Auth } from '../auth/auth.ts';
 import { getUserOrganizations } from '../auth/membership.ts';
+import { getClientIp } from '../core/lib/utils/client_ip.ts';
 import { loadProjectSharedThread } from '../domains/chat/threads.ts';
 import { listLiveSessionsForOwner } from '../domains/sandbox/sessions.ts';
 import { checkIpRateLimit, RateLimitExceededError } from '../lib/rate-limit.ts';

@@ -4,7 +4,7 @@ import type { Sql } from 'postgres';
 import {
   isValidScanInterval,
   SCAN_INTERVAL_VALUES,
-} from '../../convex/websites/types.ts';
+} from '../core/websites/types.ts';
 import {
   createWebsiteRow,
   deregisterAndDeleteWebsite,

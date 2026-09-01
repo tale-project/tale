@@ -3,11 +3,11 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { resolveTaskServing } from '../../../convex/tasks/task_serving.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
-import { createCtxShim } from '../../lib/convex-shim.ts';
+import { resolveTaskServing } from '../../core/tasks/task_serving.ts';
+import { createCtxShim } from '../../lib/ctx-shim.ts';
 import {
   checkUserRateLimit,
   RateLimitExceededError,

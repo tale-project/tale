@@ -3,7 +3,7 @@ import type { Sql } from 'postgres';
 import {
   getKnowledgePoolForOrg,
   PRIVATE_KNOWLEDGE_SCHEMA,
-} from '../../../convex/knowledge/pool.ts';
+} from '../../core/knowledge/pool.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 
 /**

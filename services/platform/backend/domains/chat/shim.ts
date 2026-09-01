@@ -1,7 +1,7 @@
 import type { Sql } from 'postgres';
 
 import { findOrganizationMember } from '../../auth/membership.ts';
-import type { ShimHandlers } from '../../lib/convex-shim.ts';
+import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { searchConversationsForChat } from '../conversations/search-chat.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
@@ -37,7 +37,7 @@ import { getThreadLineageIds, setThreadTitleIfAbsent } from './threads.ts';
  *    database, and the tool layer already words empties for the model.
  *
  * Everything stays fail-loud for names NOT in this map — a new ctx call in
- * 0.4 surfaces as `[convex-shim] un-shimmed …` naming the function.
+ * 0.4 surfaces as `[ctx-shim] un-shimmed …` naming the function.
  */
 
 // 0.4 pagination contract the entity legs expect. The 0.5 cursor is a plain

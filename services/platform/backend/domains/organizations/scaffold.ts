@@ -1,4 +1,4 @@
-import { scaffoldOrgFromCatalog } from '../../../convex/organizations/scaffold.ts';
+import { scaffoldOrgFromCatalog } from '../../core/organizations/scaffold.ts';
 
 /**
  * Org config-tree scaffolding — the worker-job face of the 0.4 scaffolder.
