@@ -56,25 +56,10 @@ export const sandboxErrorCodeLiterals = [
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];
 
-/**
- * SSE event types emitted by `POST /v1/execute`. The spawner emits:
- *  - `phase` — zero or more transitions (preparing → installing → running)
- *  - `stdout` / `stderr` — incremental output deltas while the container
- *    is alive (added so the canvas can tail output instead of waiting for
- *    the terminal `result` event with the whole base64'd buffer).
- *  - `result` — exactly one terminal event with the canonical
- *    ExecuteResponse shape.
- *  - `error` — zero or one SSE-side transport error (e.g. spawn aborted
- *    before a result was produced).
- *
- */
-export const sandboxSseEventLiterals = [
-  'phase',
-  'stdout',
-  'stderr',
-  'result',
-  'error',
-] as const;
+// The session SSE event names (`phase` / `stdout` / `stderr` / `result` /
+// `error`) live at their emission sites in `session/session-routes.ts`,
+// pinned by that module's tests — the one-shot `/v1/execute` lane that once
+// declared them here as a vocabulary is retired.
 
 // Stable id alphabet for executionId (Convex doc id + base32-ish dev ids).
 // Used by both the server route regex and the spawn-time argv assertions.
