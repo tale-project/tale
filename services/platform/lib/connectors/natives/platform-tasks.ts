@@ -72,6 +72,25 @@ const updateStatusInput = taskRef
   .extend({ status: z.enum(TASK_STATUSES) })
   .strict();
 
+/**
+ * The task store answers a refusal CODE (the workspace-tool bridge branches on
+ * it); an operator reading a failed run needs the sentence. Rendering happens
+ * here, at the surface that shows people the message — the store stays
+ * machine-readable, and an unknown code still says something true.
+ */
+function refusalSentence(reason: string | undefined): string {
+  switch (reason) {
+    case 'AGENTS_CANNOT_COMPLETE':
+      return 'an automation cannot close a task — moving to done stays reserved for the human review gate, so park it at in_review instead';
+    case 'TASK_HAS_OPEN_SUBTASKS':
+      return 'the task still has open subtasks; close or cancel those first';
+    case 'TASK_WRONG_ORGANIZATION':
+      return 'that task belongs to another organization';
+    default:
+      return reason ?? 'the transition is not allowed';
+  }
+}
+
 const commentInput = taskRef
   .extend({
     body: z.string().min(1),
@@ -142,7 +161,7 @@ export function platformTaskNatives(
     if (!moved.ok) {
       throw new ConnectorError(
         'INPUT_INVALID',
-        `task.update_status refused: ${moved.reason ?? 'the transition is not allowed'}`,
+        `task.update_status refused: ${refusalSentence(moved.reason)}`,
         {},
       );
     }
