@@ -694,6 +694,32 @@ export interface ResolvedConnectorCredential {
   authHeader?: string;
 }
 
+/** The addressed row (explicit id-or-name ref, else the pair's default), or
+ * null on a miss — the 0.4 `resolveCredentialRefInternal` contract the work
+ * lanes' ctx shim serves to the reused credential broker. */
+export async function findCredentialForRef(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    credentialRef?: string;
+  },
+): Promise<CredentialRow | null> {
+  const rows = await rowsForConnector(
+    sql,
+    args.organizationId,
+    args.connectorSlug,
+  );
+  if (args.credentialRef === undefined) {
+    return rows.find((row) => row.isDefault) ?? null;
+  }
+  const ref = args.credentialRef.trim();
+  const byId = rows.find((row) => row.id === ref);
+  if (byId) return byId;
+  const needle = ref.toLowerCase();
+  return rows.find((row) => row.name.toLowerCase() === needle) ?? null;
+}
+
 /** Load the addressed row (explicit id-or-name ref, else the default). */
 async function loadRowForResolve(
   sql: Sql,
@@ -703,26 +729,15 @@ async function loadRowForResolve(
     credentialRef?: string;
   },
 ): Promise<CredentialRow> {
-  const rows = await rowsForConnector(
-    sql,
-    args.organizationId,
-    args.connectorSlug,
-  );
+  const row = await findCredentialForRef(sql, args);
+  if (row) return row;
   if (args.credentialRef === undefined) {
-    const fallback = rows.find((row) => row.isDefault);
-    if (fallback) return fallback;
     throw new ConnectorCredentialError(
       'CREDENTIAL_NONE_CONFIGURED',
       `No default credential is configured for "${args.connectorSlug}" — add one in Settings → Connectors, or name a credential explicitly.`,
       404,
     );
   }
-  const ref = args.credentialRef.trim();
-  const byId = rows.find((row) => row.id === ref);
-  if (byId) return byId;
-  const needle = ref.toLowerCase();
-  const byName = rows.find((row) => row.name.toLowerCase() === needle);
-  if (byName) return byName;
   throw new ConnectorCredentialError(
     'CREDENTIAL_NOT_FOUND',
     `No credential "${args.credentialRef}" is configured for "${args.connectorSlug}" — check the name, or add it in Settings → Connectors.`,
