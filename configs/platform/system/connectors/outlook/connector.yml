@@ -196,7 +196,13 @@ actions:
       kind: yaml-js
       live: |
         const h = { Accept: 'application/json' };
-        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(input.messageId)}`, { headers: h });
+        // $select the threading headers (internetMessageHeaders) alongside the
+        // full message projection — Graph omits internetMessageHeaders from the
+        // default shape, so without this a reply carries no In-Reply-To /
+        // References and threads nowhere. The field list is a superset of what
+        // conversation ingest reads, so nothing the default shape carried is lost.
+        const select = 'id,conversationId,internetMessageId,internetMessageHeaders,subject,bodyPreview,body,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,hasAttachments,isRead,isDraft,importance';
+        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(input.messageId)}?$select=${select}`, { headers: h });
         if (r.status === 401) throw new Error('Outlook get_message failed: authentication expired — re-authorize the connection.');
         if (r.status === 403) throw new Error('Outlook get_message failed: permission denied — verify the app has the required Microsoft Graph scopes.');
         if (r.status === 404) throw new Error(`Outlook get_message failed: message ${input.messageId} not found.`);

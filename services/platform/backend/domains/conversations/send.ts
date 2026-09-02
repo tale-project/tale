@@ -2,9 +2,12 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { validateConversationAttachmentCaps } from '../../core/conversations/attachments.ts';
 import { buildThreadingHeaders } from '../../core/conversations/build_threading_headers.ts';
 import { sendConnectorAction } from '../../core/conversations/connector_slug.ts';
+import { normalizeEmail } from '../../core/conversations/ingest/normalize_email.ts';
+import { normalizeExternalMessageId } from '../../core/conversations/ingest/normalize_external_message_id.ts';
 import { inboundRecipientAddress } from '../../core/conversations/reply_from.ts';
 import {
   BULK_REPLY_CAP,
@@ -830,6 +833,67 @@ export async function discardOutboundMessage(
   });
 }
 
+/** The `{ message }` / `{ email }` wrapper a mail get_message answers with. */
+function unwrapConnectorMessage(output: unknown): unknown {
+  if (!isRecord(output)) return output;
+  if ('message' in output) return output.message;
+  if ('email' in output) return output.email;
+  return output;
+}
+
+/**
+ * The external id to stamp on the sent row so a customer's reply threads back
+ * onto this conversation.
+ *
+ * Threading keys on the RFC Message-ID (an inbound reply's In-Reply-To carries
+ * it), but Gmail's send returns only its OWN API id. Storing that makes the
+ * reply's lookup miss AND makes buildThreadingHeaders later emit the API id as
+ * an invalid outgoing In-Reply-To on the next reply. So for Gmail we read the
+ * sent message back once to recover its RFC Message-ID. Best-effort: the send
+ * already succeeded, so a failed read-back keeps the API id rather than failing
+ * a message that was delivered. Outlook (Graph sendMail returns no id) relies on
+ * the Sent-folder sync; imap-smtp already returns the RFC id.
+ */
+export async function resolveSentExternalMessageId(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    connector: string;
+    connectorName: string;
+    output: unknown;
+  },
+): Promise<string | undefined> {
+  const fallback = externalIdFromSendOutput(args.connectorName, args.output);
+  if (args.connector !== 'gmail') return fallback;
+  const apiId =
+    isRecord(args.output) && typeof args.output.id === 'string'
+      ? args.output.id
+      : undefined;
+  if (apiId === undefined) return fallback;
+  try {
+    const fetched = await runConnectorAction(sql, {
+      organizationId: args.organizationId,
+      connector: 'gmail',
+      action: 'get_message',
+      input: { messageId: apiId },
+      mode: 'live',
+      caller: { kind: 'system', reason: 'conversation reply Message-ID' },
+    });
+    if (fetched.status !== 'ok') return fallback;
+    const rfc = normalizeExternalMessageId(
+      normalizeEmail(unwrapConnectorMessage(fetched.output)).messageId,
+    );
+    return rfc ?? fallback;
+  } catch (error) {
+    console.warn(
+      `[conversation-send] gmail Message-ID read-back failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return fallback;
+  }
+}
+
 /**
  * The scheduled delivery — the 0.4 `sendMessageViaConnectorAction` twin:
  * re-checks the row is still queued (an undo deleted it), runs the send
@@ -901,10 +965,12 @@ export async function runSendMessageJob(
     if (result.status !== 'ok') {
       throw new Error(result.message);
     }
-    const externalMessageId = externalIdFromSendOutput(
-      payload.connectorName,
-      result.output,
-    );
+    const externalMessageId = await resolveSentExternalMessageId(sql, {
+      organizationId: payload.organizationId,
+      connector,
+      connectorName: payload.connectorName,
+      output: result.output,
+    });
     const now = Date.now();
     await sql`
       UPDATE app.conversation_messages SET
