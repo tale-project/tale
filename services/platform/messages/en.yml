@@ -1299,7 +1299,6 @@ chat:
     waitingInput: Waiting for your answer
     waitingOn: Waiting on {detail}
   parts:
-    attachment: 'Attachment: {name}'
     toolCall: Called {tool}
     toolResult: Result from {tool}
     toolResultFailed: Failed
@@ -4095,6 +4094,9 @@ metadata:
   apiDocs:
     title: API documentation
     description: Explore the Tale API with interactive documentation.
+  convexDashboard:
+    title: Convex Dashboard
+    description: Manage the Convex backend.
   knowledge:
     title: Knowledge
     description: Manage your knowledge base for AI agents.
