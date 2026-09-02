@@ -241,6 +241,9 @@ export const conversationWriteAdapters: Record<string, WriteAdapter> = {
           ...(typeof args.assigneeUserId === 'string'
             ? { assigneeUserId: args.assigneeUserId }
             : {}),
+          ...(typeof args.assigneeTeamId === 'string'
+            ? { assigneeTeamId: args.assigneeTeamId }
+            : {}),
           ...(Array.isArray(args.attachments)
             ? { attachments: args.attachments }
             : {}),

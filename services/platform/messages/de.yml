@@ -1738,8 +1738,8 @@ conversations:
     subject: Betreff
     subjectPlaceholder: Worum geht es?
     assignLabel: Zuständig
-    assignPlaceholder: Mitglied auswählen
-    assignSearch: Mitglieder suchen
+    assignPlaceholder: Person oder Team wählen
+    assignSearch: Personen und Teams suchen
     assignYou: Du
     bodyPlaceholder: Schreib deine Nachricht…
     fillRequired: Wähle einen Kontakt, ein Postfach und einen Betreff, um zu senden.
@@ -1798,7 +1798,6 @@ conversations:
     assignee: Zuständig
     assign: Zuweisen
     assignedTo: 'Zuständig: {name}'
-    noMembers: Keine Mitglieder gefunden
     unassign: Zuweisung aufheben
     assignError: Zuständigkeit konnte nicht aktualisiert werden
     inboxSource: 'Postfach: {inbox}'

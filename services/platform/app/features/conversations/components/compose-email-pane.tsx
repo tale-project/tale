@@ -4,8 +4,14 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Center, Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Loader2Icon, Trash2Icon } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Check,
+  ChevronDown,
+  Loader2Icon,
+  Trash2Icon,
+  Users,
+} from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 
 import { PanelFooter } from '@/app/components/layout/panel-footer';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
@@ -14,13 +20,16 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
+import { selectTriggerClasses } from '@/app/components/ui/forms/select';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
 import {
@@ -49,6 +58,13 @@ const MessageEditor = lazyComponent(
     ),
   },
 );
+
+/** Prefixes / sentinels for the dual-dimension assign picker (person + team). */
+const USER_PREFIX = 'user:';
+const TEAM_PREFIX = 'team:';
+const PEOPLE_HEADER = '__people_header__';
+const TEAM_HEADER = '__team_header__';
+const UNASSIGN_TEAM = '__unassign_team__';
 
 /**
  * Build the full sender from an edited local part + the inbox's fixed domain.
@@ -101,6 +117,7 @@ export function ComposeEmailPane({
 }: ComposeEmailPaneProps) {
   const { t } = useT('conversations');
   const { user } = useAuth();
+  const assignTriggerId = useId();
   const { emailConnectors, isLoading: connectorsLoading } =
     useEmailConnectors(organizationId);
   const { mutateAsync: composeEmail } = useComposeEmailConversation();
@@ -125,12 +142,16 @@ export function ComposeEmailPane({
   );
   const [assigneeUserId, setAssigneeUserId, clearAssigneeUserId] =
     usePersistedState(`${draftPrefix}-assignee`, user?.userId ?? '');
+  const [assigneeTeamId, setAssigneeTeamId, clearAssigneeTeamId] =
+    usePersistedState(`${draftPrefix}-assignee-team`, '');
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
 
   // Default the assignee to the creator once auth resolves (a fresh draft has no
-  // stored value). Only admins can pick someone else; the field is read-only
-  // otherwise, and the server clamps a non-admin to self regardless.
+  // stored value). Only admins can pick someone else or a team; the field is
+  // read-only otherwise, and the server clamps a non-admin to self / no team.
   const { members = [] } = useMembers(organizationId);
+  const { teams = [] } = useOrgTeams();
   const { data: memberContext } = useCurrentMemberContext(organizationId);
   const canReassign =
     !!memberContext &&
@@ -140,22 +161,62 @@ export function ComposeEmailPane({
     if (!assigneeUserId && user?.userId) setAssigneeUserId(user.userId);
   }, [assigneeUserId, user?.userId, setAssigneeUserId]);
 
+  const assignee = members.find((m) => m.userId === assigneeUserId);
+  const assigneeName =
+    assignee?.displayName ?? assignee?.email ?? assigneeUserId;
+  const team = teams.find((tm) => tm.id === assigneeTeamId);
+  const teamName = team?.name;
+
+  // Shared-inbox model: person owner and team queue are independent. Trigger
+  // shows both when both are set (team · person), matching the header picker.
+  const assignTriggerLabel = useMemo(() => {
+    const parts: string[] = [];
+    if (teamName) parts.push(teamName);
+    if (assigneeName) parts.push(assigneeName);
+    return parts.length > 0 ? parts.join(' · ') : null;
+  }, [teamName, assigneeName]);
+
   const assigneeOptions = useMemo<SearchableSelectOption[]>(() => {
-    const sorted = [...members].sort((a, b) =>
-      a.userId === user?.userId ? -1 : b.userId === user?.userId ? 1 : 0,
-    );
-    return sorted.map((member) => ({
-      value: member.userId,
-      label: member.displayName ?? member.email ?? member.userId,
-      description: member.userId === user?.userId ? undefined : member.email,
-      labelBadge:
-        member.userId === user?.userId ? (
-          <Badge variant="outline" className="text-[10px]">
-            {t('compose.assignYou')}
-          </Badge>
-        ) : undefined,
-    }));
-  }, [members, user?.userId, t]);
+    const options: SearchableSelectOption[] = [];
+    if (members.length > 0) {
+      options.push({
+        value: PEOPLE_HEADER,
+        label: t('header.peopleSection'),
+        isSectionHeader: true,
+      });
+      const sorted = [...members].sort((a, b) =>
+        a.userId === user?.userId ? -1 : b.userId === user?.userId ? 1 : 0,
+      );
+      for (const member of sorted) {
+        options.push({
+          value: `${USER_PREFIX}${member.userId}`,
+          label: member.displayName ?? member.email ?? member.userId,
+          description:
+            member.userId === user?.userId ? undefined : member.email,
+          labelBadge:
+            member.userId === user?.userId ? (
+              <Badge variant="outline" className="text-[10px]">
+                {t('compose.assignYou')}
+              </Badge>
+            ) : undefined,
+        });
+      }
+    }
+    if (teams.length > 0) {
+      options.push({
+        value: TEAM_HEADER,
+        label: t('header.teamsSection'),
+        isSectionHeader: true,
+      });
+      for (const tm of teams) {
+        options.push({
+          value: `${TEAM_PREFIX}${tm.id}`,
+          label: tm.name,
+        });
+      }
+    }
+    return options;
+  }, [members, teams, user?.userId, t]);
 
   // Seeded recipient (from a contact row) wins over a restored draft contact.
   useEffect(() => {
@@ -214,13 +275,35 @@ export function ComposeEmailPane({
     clearSenderAddress();
     clearSubject();
     clearAssigneeUserId();
+    clearAssigneeTeamId();
   }, [
     clearContactId,
     clearConnectorName,
     clearSenderAddress,
     clearSubject,
     clearAssigneeUserId,
+    clearAssigneeTeamId,
   ]);
+
+  const handleAssignChange = (value: string) => {
+    if (value === PEOPLE_HEADER || value === TEAM_HEADER) return;
+    if (value === UNASSIGN_TEAM) {
+      clearAssigneeTeamId();
+      setAssignOpen(false);
+      return;
+    }
+    if (value.startsWith(USER_PREFIX)) {
+      const next = value.slice(USER_PREFIX.length);
+      if (next !== assigneeUserId) setAssigneeUserId(next);
+      setAssignOpen(false);
+      return;
+    }
+    if (value.startsWith(TEAM_PREFIX)) {
+      const next = value.slice(TEAM_PREFIX.length);
+      if (next !== assigneeTeamId) setAssigneeTeamId(next);
+      setAssignOpen(false);
+    }
+  };
 
   const discardDraft = useCallback(() => {
     clearDraftFields();
@@ -292,6 +375,7 @@ export function ComposeEmailPane({
         content: message,
         ...(sourceMarkdown ? { sourceMarkdown } : {}),
         ...(assigneeUserId ? { assigneeUserId } : {}),
+        ...(assigneeTeamId ? { assigneeTeamId } : {}),
         ...(dynamicSender && effectiveSender ? { from: effectiveSender } : {}),
         ...(uploaded?.length ? { attachments: uploaded } : {}),
       });
@@ -345,21 +429,85 @@ export function ComposeEmailPane({
 
               <SearchableSelect
                 label={t('compose.assignLabel')}
-                value={assigneeUserId || null}
-                onValueChange={setAssigneeUserId}
+                id={assignTriggerId}
+                // Two dimensions can be selected at once, so there is no single
+                // controlled value — current picks are marked via optionAction.
+                value={null}
+                onValueChange={handleAssignChange}
                 options={assigneeOptions}
                 disabled={!canReassign}
+                open={assignOpen}
+                onOpenChange={setAssignOpen}
                 placeholder={t('compose.assignPlaceholder')}
                 searchPlaceholder={t('compose.assignSearch')}
-                emptyText={t('header.noMembers')}
+                emptyText={t('header.noAssignees')}
                 aria-label={t('compose.assignLabel')}
-                optionAction={(opt) => (
-                  <AssigneeAvatar
-                    assigneeType="user"
-                    assigneeId={opt.value}
-                    name={opt.label}
-                  />
-                )}
+                trigger={
+                  <button
+                    type="button"
+                    id={assignTriggerId}
+                    disabled={!canReassign}
+                    className={selectTriggerClasses()}
+                  >
+                    <span
+                      className={cn(
+                        'truncate',
+                        !assignTriggerLabel && 'text-muted-foreground',
+                      )}
+                    >
+                      {assignTriggerLabel ?? t('compose.assignPlaceholder')}
+                    </span>
+                    <ChevronDown
+                      className="size-4 shrink-0 opacity-50"
+                      aria-hidden="true"
+                    />
+                  </button>
+                }
+                optionAction={(opt) => {
+                  if (opt.value.startsWith(USER_PREFIX)) {
+                    const uid = opt.value.slice(USER_PREFIX.length);
+                    return (
+                      <span className="flex items-center gap-1.5">
+                        {assigneeUserId === uid && (
+                          <Check className="text-primary size-4 shrink-0" />
+                        )}
+                        <AssigneeAvatar
+                          assigneeType="user"
+                          assigneeId={uid}
+                          name={opt.label}
+                        />
+                      </span>
+                    );
+                  }
+                  if (opt.value.startsWith(TEAM_PREFIX)) {
+                    const tid = opt.value.slice(TEAM_PREFIX.length);
+                    return (
+                      <span className="flex items-center gap-1.5">
+                        {assigneeTeamId === tid && (
+                          <Check className="text-primary size-4 shrink-0" />
+                        )}
+                        <Users
+                          className="text-muted-foreground size-4 shrink-0"
+                          aria-hidden="true"
+                        />
+                      </span>
+                    );
+                  }
+                  return null;
+                }}
+                footer={
+                  assigneeTeamId ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => handleAssignChange(UNASSIGN_TEAM)}
+                    >
+                      {t('header.unassignTeam')}
+                    </Button>
+                  ) : undefined
+                }
               />
 
               <Input

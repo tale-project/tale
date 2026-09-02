@@ -1691,8 +1691,8 @@ conversations:
     subject: Subject
     subjectPlaceholder: What's this about?
     assignLabel: Assign to
-    assignPlaceholder: Choose a member
-    assignSearch: Search members
+    assignPlaceholder: Choose a person or team
+    assignSearch: Search people and teams
     assignYou: You
     bodyPlaceholder: Write your message…
     fillRequired: Choose a contact, an inbox, and a subject to send.
@@ -1741,7 +1741,6 @@ conversations:
     assignee: Assignee
     assign: Assign
     assignedTo: Assigned to {name}
-    noMembers: No members found
     unassign: Unassign
     assignError: Couldn't update the assignee
     inboxSource: 'Inbox: {inbox}'

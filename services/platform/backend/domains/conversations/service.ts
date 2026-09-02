@@ -163,6 +163,8 @@ export interface CreateConversationArgs {
   organizationId: string;
   contactId?: string;
   assigneeUserId?: string;
+  /** Team queue (Better Auth teamId). May sit alongside assigneeUserId. */
+  assigneeTeamId?: string;
   externalMessageId?: string;
   subject?: string;
   status?: ConversationStatus;
@@ -181,12 +183,13 @@ export async function createConversation(
   const now = Date.now();
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.conversations (
-      org_id, contact_id, assignee_user_id, external_message_id, subject,
-      status, priority, type, channel, direction, connector_name, metadata,
-      created_at_ms
+      org_id, contact_id, assignee_user_id, assignee_team_id, external_message_id,
+      subject, status, priority, type, channel, direction, connector_name,
+      metadata, created_at_ms
     ) VALUES (
       ${args.organizationId}, ${args.contactId ?? null},
-      ${args.assigneeUserId ?? null}, ${args.externalMessageId ?? null},
+      ${args.assigneeUserId ?? null}, ${args.assigneeTeamId ?? null},
+      ${args.externalMessageId ?? null},
       ${args.subject ?? null}, ${args.status ?? 'open'},
       ${args.priority ?? null}, ${args.type ?? null}, ${args.channel ?? null},
       ${args.direction ?? null}, ${args.connectorName ?? null},
