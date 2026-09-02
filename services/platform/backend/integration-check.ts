@@ -3627,6 +3627,99 @@ async function checkProviderCredentials(
 }
 
 /**
+ * The mandatory retrieval re-check, which decides which corpus refs a turn may
+ * read. The SQL half of the two-gate design admits rows and fails open by
+ * design, so this function is the one that has to fail CLOSED. Needs no object
+ * storage — it is pure SQL over `app.file_metadata` and `app.documents` — so it
+ * runs on every invocation, unlike the S3-gated RAG loop below.
+ */
+async function checkRetrievalGate(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const org = `${ctx.orgId}-gate-fixture`;
+  const now = Date.now();
+  const { knowledgeShimHandlers } =
+    await import('./domains/knowledge/service.ts');
+
+  const docRows = await sql<{ id: string }[]>`
+    INSERT INTO app.documents (org_id, title, file_ref, lifecycle_status,
+                               created_by, created_at_ms, updated_at_ms)
+    VALUES (${org}, 'Gate fixture', 's3:gate/current.txt', 'active', 'gate-user',
+            ${now}, ${now})
+    RETURNING id
+  `;
+  const documentId = docRows[0]?.id ?? '';
+  const seedFile = async (
+    ref: string,
+    row: {
+      ragStatus?: string;
+      documentId?: string;
+      conversationId?: string;
+      lifecycle?: string;
+    },
+  ): Promise<void> => {
+    await sql`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, rag_status,
+        document_id, conversation_id, lifecycle_status, created_at_ms
+      ) VALUES (${org}, ${ref}, 'f.txt', 'text/plain', 10,
+                ${row.ragStatus ?? 'completed'}, ${row.documentId ?? null},
+                ${row.conversationId ?? null}, ${row.lifecycle ?? null}, ${now})
+    `;
+  };
+  // The one ref that must pass: the document's CURRENT file, live and un-trashed.
+  await seedFile('s3:gate/current.txt', { documentId });
+  // A replacement moved the document's file_ref on; this row is superseded.
+  await seedFile('s3:gate/superseded.txt', { documentId });
+  // A document id whose row is gone must not read as a hub document.
+  await seedFile('s3:gate/orphan.txt', { documentId: 'gate-no-such-document' });
+  // Bound to nothing: the corpus stamps no project and no team for this shape,
+  // which the SQL half reads as org-wide.
+  await seedFile('s3:gate/unbound.txt', {});
+  // An emailed attachment, denied until the conversation branch lands.
+  await seedFile('s3:gate/mail.txt', { conversationId: 'gate-conv' });
+  // Mid-reindex: the previous chunks are still in the corpus.
+  await seedFile('s3:gate/running.txt', { documentId, ragStatus: 'running' });
+  await seedFile('s3:gate/trashed.txt', { documentId, lifecycle: 'trashed' });
+
+  const expectations: [string, boolean][] = [
+    ['s3:gate/current.txt', true],
+    ['s3:gate/superseded.txt', false],
+    ['s3:gate/orphan.txt', false],
+    ['s3:gate/unbound.txt', false],
+    ['s3:gate/mail.txt', false],
+    ['s3:gate/running.txt', false],
+    ['s3:gate/trashed.txt', false],
+  ];
+  const handler =
+    knowledgeShimHandlers(sql)[
+      'documents/internal_queries:filterRetrievableRagFileIds'
+    ];
+  const parsed = z.array(z.string()).safeParse(
+    await handler?.({
+      organizationId: org,
+      fileIds: expectations.map(([ref]) => ref),
+      access: {
+        projectIds: [],
+        teamIds: [],
+        includeHub: true,
+        threadIds: [],
+      },
+    }),
+  );
+  const allowed = new Set(parsed.success ? parsed.data : []);
+  const wrong = expectations.filter(
+    ([ref, expect]) => allowed.has(ref) !== expect,
+  );
+  record(
+    'retrieval gate fails closed (unbound, superseded, orphan, mid-index)',
+    parsed.success && wrong.length === 0,
+    `parsed=${parsed.success}, wrong=${wrong.map(([ref]) => ref).join('|') || 'none'}, allowed=${[...allowed].join('|') || 'none'} (want only s3:gate/current.txt)`,
+  );
+}
+
+/**
  * Knowledge (RAG) vertical against the real corpus database and a local
  * fake embedding endpoint: upload → document bind → rag.index_file job
  * (extract → embed → chunk upsert) → hybrid search → windowed fetch.
@@ -25902,6 +25995,7 @@ async function main(): Promise<void> {
     await checkAgents(baseUrl, authCtx);
     await checkSkills(baseUrl, authCtx);
     await checkProviderCredentials(sql, baseUrl, authCtx);
+    await checkRetrievalGate(sql, authCtx);
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTts(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

@@ -63,9 +63,21 @@ interface AccessScopeArg {
 }
 
 /**
- * Tier-A retrievable filter over app tables: a file ref passes when its
- * metadata row belongs to the org AND (bound document is un-trashed and in
- * scope | thread-bound and the thread is in scope | legacy unbound same-org).
+ * The mandatory re-check over app tables: which corpus refs may this turn
+ * actually read.
+ *
+ * This is the gate `core/knowledge/corpus.ts` delegates to by name. The SQL
+ * half only ADMITS rows — its own comment says so — so this function is the
+ * one that decides, and it must FAIL CLOSED. A ref passes only when its
+ * metadata row belongs to the org, finished indexing, is not trashed, and
+ * lands in exactly one of the two allow branches: a bound document that is
+ * live, un-trashed, still the document's current file, and in scope; or a
+ * thread-bound upload whose thread is in the turn's lineage.
+ *
+ * Everything else is denied, including a row bound to nothing. Denying the
+ * unbound case is what 0.4 did, and it matters because the corpus stamps no
+ * project and no team for such a row, which the SQL half then reads as an
+ * org-wide hub row.
  */
 async function filterRetrievableRagFileIds(
   sql: Sql,
@@ -82,7 +94,12 @@ async function filterRetrievableRagFileIds(
     {
       storageRef: string;
       threadId: string | null;
+      conversationId: string | null;
+      ragStatus: string | null;
+      fileTrashed: boolean;
       documentId: string | null;
+      docExists: boolean;
+      docFileRef: string | null;
       docTrashed: boolean | null;
       docProjectId: string | null;
       docTeamId: string | null;
@@ -90,7 +107,12 @@ async function filterRetrievableRagFileIds(
     }[]
   >`
     SELECT fm.storage_ref AS "storageRef", fm.thread_id AS "threadId",
+           fm.conversation_id AS "conversationId",
+           fm.rag_status AS "ragStatus",
+           (fm.lifecycle_status = 'trashed') AS "fileTrashed",
            fm.document_id AS "documentId",
+           (d.id IS NOT NULL) AS "docExists",
+           d.file_ref AS "docFileRef",
            (d.lifecycle_status = 'trashed') AS "docTrashed",
            d.project_id AS "docProjectId", d.team_id AS "docTeamId",
            d.team_tags AS "docTeamTags"
@@ -111,8 +133,29 @@ async function filterRetrievableRagFileIds(
     if (!row) {
       continue;
     }
+    // Indexing has to have finished. A row mid-reindex still has its previous
+    // chunks in the corpus, and answering from them would serve content the
+    // caller's current scope was never checked against.
+    if (row.ragStatus !== 'completed') {
+      continue;
+    }
+    if (row.fileTrashed) {
+      continue;
+    }
     if (row.documentId !== null) {
+      // A document id pointing at a row that is gone is not a hub document —
+      // without this the LEFT JOIN's NULLs fall through to the hub branch and
+      // the ref is served to the whole org.
+      if (!row.docExists) {
+        continue;
+      }
       if (row.docTrashed === true) {
+        continue;
+      }
+      // A replacement upload moves the document's `file_ref` on and leaves the
+      // previous corpus row behind. Serving it would answer from a superseded
+      // version with nothing marking it stale.
+      if ((row.docFileRef ?? '') !== ref) {
         continue;
       }
       if (access === undefined) {
@@ -155,8 +198,18 @@ async function filterRetrievableRagFileIds(
       }
       continue;
     }
-    // Legacy/unbound: same-org fallback (the 0.4 posture).
-    retrievable.push(ref);
+    // An emailed attachment, once something indexes one. The allow branch
+    // belongs here and is decided by `conversationAssignmentAllows` against
+    // the conversation's CURRENT assignment, so a reassignment moves the
+    // attachment with the mail. Until that lands (#3121) a conversation-scoped
+    // row is denied rather than falling through.
+    if (row.conversationId !== null) {
+      continue;
+    }
+    // Bound to nothing: denied. The corpus stamps no project and no team for
+    // such a row, and the SQL half reads that as org-wide, so allowing it here
+    // would serve one caller's file to every member of the organization.
+    continue;
   }
   return retrievable;
 }
