@@ -14,6 +14,7 @@ import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell'
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { useT } from '@/lib/i18n/client';
 
+import { foldBreakdownEntries } from './breakdown-entries.ts';
 import { CancelDialog } from './cancel-dialog';
 import { ExtendDeadlineDialog } from './extend-deadline-dialog';
 import { useGetErasureRequest } from './hooks/queries';
@@ -511,38 +512,12 @@ function CancelledBlock({
   );
 }
 
-interface PerCategoryEntry {
-  rows?: number;
-  skippedByHold?: number;
-  blobs?: number;
-  attempts?: number;
-  blockCounters?: number;
-}
-
 function FullBreakdown({ snapshot }: { snapshot: Record<string, unknown> }) {
   const { t } = useT('governance');
   // Sort entries: non-zero first, zero-value categories collapsed to a
   // count at the bottom. Each known field uses an i18n label; unknown
   // category names fall back to the raw key.
-  const entries = Object.entries(snapshot);
-  const visible: { key: string; rows: number; skippedByHold: number }[] = [];
-  let zeroCount = 0;
-  for (const [key, value] of entries) {
-    if (typeof value !== 'object' || value === null) continue;
-    const e = value as PerCategoryEntry;
-    // `loginAttempts` uses {attempts, blockCounters} instead of {rows};
-    // sum them as the "rows" view for the breakdown.
-    const rows =
-      typeof e.rows === 'number'
-        ? e.rows
-        : (e.attempts ?? 0) + (e.blockCounters ?? 0);
-    const skippedByHold = e.skippedByHold ?? 0;
-    if (rows === 0 && skippedByHold === 0) {
-      zeroCount++;
-    } else {
-      visible.push({ key, rows, skippedByHold });
-    }
-  }
+  const { visible, zeroCount } = foldBreakdownEntries(snapshot);
 
   return (
     <details className="border-border bg-muted/20 group rounded-md border p-2 text-sm">
