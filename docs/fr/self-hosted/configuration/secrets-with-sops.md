@@ -46,7 +46,7 @@ echo "AGE-SECRET-KEY-1NEW..." >> /etc/tale/age-keys.txt
 # 3. Pointe .env sur le fichier et redémarre le conteneur plateforme
 sed -i 's|^SOPS_AGE_KEY=.*|# SOPS_AGE_KEY=|' .env
 sed -i 's|^# SOPS_AGE_KEY_FILE=.*|SOPS_AGE_KEY_FILE=/etc/tale/age-keys.txt|' .env
-docker compose restart tale-platform tale-convex
+docker compose restart platform backend-api backend-worker
 ```
 
 Maintenant l'ancienne et la nouvelle clé peuvent déchiffrer les fichiers existants. Re-sauvegarde la clé API de chaque fournisseur sous **Paramètres > Fournisseurs** — chaque sauvegarde produit du ciphertext lisible par les deux clés. Une fois que chaque fournisseur a été re-sauvegardé (la colonne **Dernière rotation** dans le tableau des fournisseurs te dit lesquels tiennent encore l'ancien ciphertext), retire l'ancienne clé du fichier :
@@ -54,7 +54,7 @@ Maintenant l'ancienne et la nouvelle clé peuvent déchiffrer les fichiers exist
 ```bash
 # 4. Drop la ligne de l'ancienne clé et redémarre à nouveau
 sed -i '/^AGE-SECRET-KEY-1OLD/d' /etc/tale/age-keys.txt
-docker compose restart tale-platform tale-convex
+docker compose restart platform backend-api backend-worker
 ```
 
 L'ordre est porteur : ne retire jamais l'ancienne clé avant que chaque fichier soit re-chiffré, sinon le conteneur plateforme échouera à lire les fichiers encore-anciens au prochain déchiffrement.

@@ -46,7 +46,7 @@ echo "AGE-SECRET-KEY-1NEW..." >> /etc/tale/age-keys.txt
 # 3. Point .env at the file and restart the platform container
 sed -i 's|^SOPS_AGE_KEY=.*|# SOPS_AGE_KEY=|' .env
 sed -i 's|^# SOPS_AGE_KEY_FILE=.*|SOPS_AGE_KEY_FILE=/etc/tale/age-keys.txt|' .env
-docker compose restart tale-platform tale-convex
+docker compose restart platform backend-api backend-worker
 ```
 
 Now both old and new keys can decrypt existing files. Re-save each provider's API key under **Settings > Providers** — each save produces ciphertext readable by both keys. Once every provider has been re-saved (the **Last rotated** column in the providers table tells you which still hold old ciphertext), remove the old key from the file:
@@ -54,7 +54,7 @@ Now both old and new keys can decrypt existing files. Re-save each provider's AP
 ```bash
 # 4. Drop the old key line and restart again
 sed -i '/^AGE-SECRET-KEY-1OLD/d' /etc/tale/age-keys.txt
-docker compose restart tale-platform tale-convex
+docker compose restart platform backend-api backend-worker
 ```
 
 The order is load-bearing: never remove the old key before every file is re-encrypted, or the platform container will fail to read the still-old files at the next decryption.
