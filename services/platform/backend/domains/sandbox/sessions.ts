@@ -17,6 +17,7 @@ import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
+import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 
 /**
  * The sandbox session substrate over PG — the 0.5 twin of
@@ -455,11 +456,24 @@ export async function resumeSessionSlot(
   });
 }
 
-/** Terminal: mark destroyed + revoke tokens + drop the checkpoint + ticket. */
+/** Terminal: revoke the gateway keys + mark destroyed + revoke tokens + drop
+ * the checkpoint + ticket. The single bottom of EVERY destroy — the admin
+ * Destroy, the watchdog's phantom heal, `provisionSession`'s heal, the owner
+ * cascades — so credential reclaim cannot be missed on one of them. */
 export async function markSessionDestroyed(
   sql: Sql,
   args: { organizationId: string; sessionId: string },
 ): Promise<boolean> {
+  // Credentials FIRST: the gateway key outlives the row (no native TTL), and
+  // the token flip below is what elects a single revoker — running it after
+  // the flip would find nothing to revoke. Best-effort by construction, so a
+  // down gateway cannot wedge the destroy; see `gateway-keys.ts`.
+  await revokeSessionGatewayKeys(sql, args).catch((error: unknown) => {
+    console.error(
+      `[sandbox] gateway key reclaim for destroyed ${args.sessionId} failed:`,
+      error,
+    );
+  });
   return sql
     .begin(async (tx) => {
       const now = Date.now();
