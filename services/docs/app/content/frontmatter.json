@@ -782,7 +782,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Architecture des conteneurs",
-      "description": "Quel conteneur possède quel travail dans une instance Tale en marche, le chemin de requête d'un message chat, et à quoi ressemble une panne de chaque conteneur."
+      "description": "Quel conteneur possède quel rôle dans une instance Tale en fonctionnement, le chemin de requête d'un message de chat, et à quoi ressemble une panne de chaque conteneur."
     }
   },
   "fr:self-hosted/operate/security/advisories": {
@@ -846,7 +846,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Architecture auto-hébergée",
-      "description": "Huit conteneurs, un fichier compose, deux bases Postgres. Cette page donne le modèle mental pour savoir ce que fait chaque conteneur, où vivent les données sur le disque et quels secrets comptent au premier boot."
+      "description": "Neuf conteneurs derrière un proxy Caddy, un Postgres, un stockage d'objets compatible S3. Cette page donne le modèle mental pour savoir ce que fait chaque conteneur, où vivent les données sur le disque et quels secrets comptent au premier boot."
     }
   },
   "fr:self-hosted/index": {
@@ -854,7 +854,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Auto-hébergé",
-      "description": "Tale auto-hébergé tourne sur ton infrastructure — on-premise, dans ton VPC, ou coupé du réseau. Sept conteneurs, tes données sur ton stockage, aucune facturation au siège.",
+      "description": "Tale auto-hébergé tourne sur ton infrastructure — on-premise, dans ton VPC, ou coupé du réseau. Neuf conteneurs, tes données sur ton stockage, aucune facturation au siège.",
       "kind": "index"
     }
   },
@@ -2023,7 +2023,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Self-hosted architecture",
-      "description": "Eight containers, one compose file, two Postgres databases. This page hands you the mental model for what each container does, where data lives on disk, and which secrets matter at first boot."
+      "description": "Nine containers behind a Caddy proxy, one Postgres, an S3-compatible blob store. This page hands you the mental model for what each container does, where data lives on disk, and which secrets matter at first boot."
     }
   },
   "en:self-hosted/index": {
@@ -2031,7 +2031,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Self-hosted",
-      "description": "Self-hosted Tale runs on your infrastructure — on-premises, in your VPC, or air-gapped. Seven containers, your data on your disk, no per-seat billing.",
+      "description": "Self-hosted Tale runs on your infrastructure — on-premises, in your VPC, or air-gapped. Nine containers, your data on your disk, no per-seat billing.",
       "kind": "index"
     }
   },
@@ -3136,7 +3136,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Container-Architektur",
-      "description": "Welcher Container welchen Job in einer laufenden Tale-Instanz hat, der Request-Pfad einer Chat-Nachricht und wie ein Ausfall jedes Containers aussieht."
+      "description": "Welcher Container in einer laufenden Tale-Instanz welche Aufgabe besitzt, der Anfragepfad einer Chat-Nachricht und wie ein Ausfall jedes Containers aussieht."
     }
   },
   "de:self-hosted/operate/security/advisories": {
@@ -3200,7 +3200,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Selbst gehostete Architektur",
-      "description": "Acht Container, eine compose-Datei, zwei Postgres-Datenbanken. Diese Seite vermittelt das mentale Modell, was jeder Container tut, wo Daten auf dem Storage liegen und welche Secrets beim ersten Boot zählen."
+      "description": "Neun Container hinter einem Caddy-Proxy, ein Postgres, ein S3-kompatibler Blob-Store. Diese Seite vermittelt das mentale Modell, was jeder Container tut, wo Daten auf dem Storage liegen und welche Secrets beim ersten Boot zählen."
     }
   },
   "de:self-hosted/index": {
@@ -3208,7 +3208,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Selbst gehostet",
-      "description": "Selbst gehostetes Tale läuft auf deiner Infrastruktur — on-premise, in deiner VPC oder air-gapped. Sieben Container, deine Daten auf deinem Storage, keine Pro-Sitz-Abrechnung.",
+      "description": "Selbst gehostetes Tale läuft auf deiner Infrastruktur — on-premise, in deiner VPC oder air-gapped. Neun Container, deine Daten auf deinem Storage, keine Pro-Sitz-Abrechnung.",
       "kind": "index"
     }
   },
