@@ -240,7 +240,7 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
 ```
 
-Und hol die Ergebnisse. Was die Automatisierung zurückgemeldet hat, steht in der Diskussion der Aufgabe; was sie abgelegt hat, liegt als Dateien im Quartalsordner — beides liest du durch denselben Zugang. Der Content-Endpoint streamt einen Convex-Blob direkt; bei einer Organisation mit eigenem Objektspeicher antwortet er mit **302** auf eine kurzlebige präsignierte URL, folge also Redirects:
+Und hol die Ergebnisse. Was die Automatisierung zurückgemeldet hat, steht in der Diskussion der Aufgabe; was sie abgelegt hat, liegt als Dateien im Quartalsordner — beides liest du durch denselben Zugang. Der Content-Endpoint streamt selbst keine Bytes: Jede Datei liegt im Objektspeicher, er antwortet also immer mit **302** auf eine kurzlebige präsignierte URL. Folge Redirects und behandle diese URL wie ein Credential — sie gibt die Bytes an jeden heraus, der sie hat, bis sie abläuft:
 
 ```bash
 curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \

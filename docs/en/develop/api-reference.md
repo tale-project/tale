@@ -240,7 +240,7 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
 ```
 
-And fetch the results. What the automation reported lands in the task's discussion; what it filed lands as files in the quarter's folder — both readable through the door. The content endpoint streams a Convex-stored blob directly and answers a **302** to a short-lived presigned URL on an organization with its own object storage, so follow redirects:
+And fetch the results. What the automation reported lands in the task's discussion; what it filed lands as files in the quarter's folder — both readable through the door. The content endpoint never streams bytes itself: every file lives in object storage, so it always answers a **302** to a short-lived presigned URL. Follow redirects, and treat that URL as a credential — it grants the bytes to whoever holds it until it expires:
 
 ```bash
 curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \

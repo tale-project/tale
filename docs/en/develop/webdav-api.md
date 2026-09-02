@@ -39,11 +39,11 @@ Every authenticated request also verifies the requesting user is an active membe
 | PROPFIND   | List a resource (Depth 0) or a collection's immediate children (Depth 1). The property list emitted is documented below. **Depth: infinity is rejected with 403** to prevent unbounded responses. | Required     |
 | PROPPATCH  | Returns 207 success per-property without storing values. Dead properties are not persisted in v1; PROPPATCH succeeds optimistically for client compatibility.                                     | Required     |
 | GET / HEAD | Stream the document blob. Sets `Content-Type`, `Content-Length`, `ETag`, and `Last-Modified`. GET on a collection returns 405.                                                                    | Required     |
-| PUT        | Create or replace a document. New blob is stored in Convex storage with content-hash dedup; the document row picks up `sourceProvider: "webdav"`. Returns 201 on create, 204 on overwrite.        | Required     |
+| PUT        | Create or replace a document. The body streams into the organisation's object store under a fresh key; the document row picks up `sourceProvider: "webdav"`. Returns 201 on create, 204 on overwrite. A request with no `Content-Length` (chunked transfer encoding) is refused — presigning the upload needs the length up front. | Required     |
 | DELETE     | Soft-delete a document (sets `lifecycleStatus: "trashed"`) or a folder (cascades trash on contained documents, hard-deletes the folder rows). Returns 204.                                        | Required     |
 | MKCOL      | Create a folder under an existing parent. Empty body only. Returns 201, 405 if the target exists, or 409 if the parent does not.                                                                  | Required     |
 | MOVE       | Rename or relocate. Atomic for documents. For folders, updates the `parentId` of the moved folder. Honours `Overwrite: T/F` and `If` headers. Returns 201 (new destination) or 204 (overwrite).   | Required     |
-| COPY       | Server-side copy. Document copies reuse the same Convex storage id (dedup). Folder copies recurse. Honours `Overwrite` and `If`.                                                                  | Required     |
+| COPY       | Server-side copy. A document copy is a second row pointing at the same stored object — no bytes move, and the object survives until the last row referencing it goes. Folder copies recurse. Honours `Overwrite` and `If`. | Required     |
 | LOCK       | Class 2 exclusive or shared write-lock. Timeout from `Timeout: Second-N` header, capped at 3600. Refresh by re-sending LOCK with `If: (<opaquelocktoken:...>)` and an empty body.                 | Required     |
 | UNLOCK     | Release a lock by its token. Only the lock owner can release. Returns 204.                                                                                                                        | Required     |
 
@@ -67,7 +67,7 @@ Dead properties are not stored. PROPPATCH echoes 200 for a dead property set on 
 
 ## Lock semantics
 
-Locks live in their own Convex table, keyed by `(organizationId, resourcePath)`. Wire form is `opaquelocktoken:<uuid>`. The server:
+Locks live in their own Postgres table, indexed on `(organizationId, resourcePath)`. Wire form is `opaquelocktoken:<uuid>`. The server:
 
 - Caps timeout at 3600 seconds. Requests for longer windows are clamped silently.
 - Treats `LOCK` with an `If: (<opaquelocktoken:UUID>)` header and an empty body as a refresh — the existing lock's expiry is bumped.
@@ -111,16 +111,16 @@ The server advertises `DAV: 1, 2` in the OPTIONS response.
 
 - `Depth: infinity` on PROPFIND is rejected with `403`.
 - `Timeout: Second-N` on LOCK is clamped to `[1, 3600]`.
-- PUT body size is capped at **5 GB** by default (`413` once exceeded), enforced both at the reverse proxy and in the platform server. Operators can raise or lower it with the `WEBDAV_MAX_PUT_BYTES` environment variable. The body is streamed to a Convex presigned URL with backpressure, so a large upload does not buffer in platform memory.
+- PUT body size is capped at **5 GB** by default (`413` once exceeded), enforced both at the reverse proxy and in the backend. Operators can raise or lower it with the `WEBDAV_MAX_PUT_BYTES` environment variable — set it on the proxy container too, or the proxy stays the binding cap. The body is streamed to a presigned object-store URL with backpressure, so a large upload never buffers in the backend's memory.
 - XML request bodies (PROPFIND / PROPPATCH / MKCOL / LOCK) are capped at **64 KB** (`413` once exceeded) — these envelopes are tiny by design.
 - App-passwords are hashed with HMAC-SHA256; the secret never appears in any response after the create call.
 - `lastUsedAt` is patched at most once per minute per app-password to avoid write storms on busy mounts.
 
 ## Network requirements
 
-The WebDAV endpoint runs inside the platform Hono server (`platform:3000` in compose). Caddy routes `/dav/*` to it via the default fallback — no extra configuration is required. The path requires the platform server to have `ADMIN_KEY` set in its environment so it can call internal Convex queries with admin auth.
+The WebDAV endpoint is served by the backend tier (`backend-api:3005` in compose). Caddy has its own `handle /dav/*` block that forwards to it and applies the body cap — no extra configuration is required. The endpoint needs no deployment-level credential: every request authenticates with its own app-password, and the handlers read and write Postgres in-process.
 
-For dev (`bun dev`), the same dispatch is mounted as a Vite middleware (`vite-plugins/serve-webdav.ts`) — `curl` and clients can hit `http://localhost:3000/dav/<orgSlug>/...` against a running dev server without rebuilding.
+For dev (`bun run dev`), Vite proxies `/dav` to the same backend, so `curl` and mounted clients can hit `http://localhost:3000/dav/<orgSlug>/...` against a running dev server.
 
 ## Security
 

@@ -240,7 +240,7 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
 ```
 
-Et récupère les résultats. Ce que l'automatisation a rapporté se trouve dans la discussion de la tâche ; ce qu'elle a déposé arrive comme fichiers dans le dossier du trimestre — les deux se lisent par le même accès. L'endpoint de contenu streame directement un blob stocké dans Convex ; sur une organisation avec son propre stockage objet, il répond **302** vers une URL présignée de courte durée, donc suis les redirections :
+Et récupère les résultats. Ce que l'automatisation a rapporté se trouve dans la discussion de la tâche ; ce qu'elle a déposé arrive comme fichiers dans le dossier du trimestre — les deux se lisent par le même accès. L'endpoint de contenu ne streame jamais les octets lui-même : chaque fichier vit dans le stockage objet, donc il répond toujours **302** vers une URL présignée de courte durée. Suis les redirections, et traite cette URL comme un credential — elle donne les octets à quiconque la détient, jusqu'à son expiration :
 
 ```bash
 curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \

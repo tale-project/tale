@@ -12,28 +12,46 @@ The symptom-first index is at [Troubleshooting](/self-hosted/operate/observabili
 | Signal                                      | Severity | Why it matters                                      |
 | ------------------------------------------- | -------- | --------------------------------------------------- |
 | `tale-proxy` health probe failing > 1 min   | page     | Every user sees a connection error                  |
-| `tale-platform` HTTP 5xx rate > 5 %         | page     | The UI is broken for a meaningful share of requests |
-| `tale-convex` WebSocket reconnect storm     | page     | UI loads but no data flows                          |
+| `tale-platform` health probe failing        | page     | The UI stops loading; the proxy answers 502         |
+| `backend-api` HTTP 5xx rate > 5 %           | page     | Every request the app makes goes through this tier  |
 | Postgres connections > 80 % of pool         | warn     | The next spike will start blocking                  |
 | `db-data` volume > 80 % full                | warn     | The operational Postgres goes read-only at full     |
 | `knowledge-db-data` volume > 80 % full      | warn     | Ingestion fails when the corpus database is full    |
-| `tale-knowledge-db` unreachable from convex | warn     | Knowledge search returns empty; ingestion stalls    |
+| `tale-knowledge-db` unreachable             | warn     | Knowledge search returns empty; ingestion stalls    |
+| `tale_backend_jobs{state="created"}` rising | warn     | The worker has stalled; nothing deferred is running |
+| `tale_backend_jobs{state="failed"}` growing | warn     | Jobs are exhausting their retries                   |
+| `tale-object-store` health probe failing    | page     | No file can be uploaded or opened                   |
 | Provider request error rate > 20 %          | warn     | The upstream LLM provider is having a bad day       |
 | Daily backup did not write                  | page     | Restore drill will fail at the worst moment         |
 | TLS cert renewal failed                     | warn     | Renews 30 d before expiry — you have time           |
 
-The first two pages are the actually-customer-impacting ones. The warns are catching trends before they tip into page territory.
+The pages are the actually-customer-impacting ones. The warns are catching trends before they tip into page territory.
+
+The 5xx rate comes from `tale_backend_http_requests_total{status="5xx"}` on `/metrics/backend`. The web tier emits no request series of its own — it serves static files — so its failures are visible as a failing container health probe and as 502s at the proxy, not as a Tale metric.
 
 ## Log signals to grep for
 
-Logs come through stdout per container, captured by Docker's `json-file` driver. The four phrases that consistently mean trouble:
+Logs come through stdout per container, captured by Docker's `json-file` driver. The backend prefixes its own lines with `[backend]`, and it logs no per-request line at all — requests are metrics, not log entries — so a quiet `backend-api` log is normal. The phrases that consistently mean trouble:
 
-- `panic` or `unexpected error` in `tale-convex` logs — Convex action crash.
-- `decryption failed` in `tale-platform` logs — SOPS age key mismatch with the file on disk.
+- `[backend] fatal startup error` in `backend-api` or `backend-worker` — the process could not boot. Usually a bad `DATABASE_URL` or a migration that will not apply.
+- `[backend] task <name> (job <id>) failed` in `backend-worker` — a background job threw. Repeated for the same task name is the tell that it will exhaust its retries.
+- `[backend] pg-boss error` in `backend-worker` — the queue engine itself is unhappy, which usually means Postgres is.
+- `decryption failed` in a backend log — SOPS age key mismatch with the file on disk.
 - `429 Too Many Requests` repeated from a provider — rate limit hit, agents will start failing.
-- `connection refused` or `ECONNREFUSED` to `knowledge-db` in `tale-convex` logs — the backend cannot reach the corpus database; ingestion and knowledge search fail.
+- `connection refused` or `ECONNREFUSED` to `knowledge-db` in a backend log — the corpus database is unreachable; ingestion and knowledge search fail.
 
 Pipe these to your aggregator as derived alerts; the metrics endpoints do not surface them as gauges.
+
+## Inspecting the job queue
+
+There is no queue UI and no CLI subcommand for jobs. Two doors exist, and both are enough. The gauge `tale_backend_jobs{state}` on `/metrics/backend` is the one to alert on. When you need the detail — which task, which payload — query the queue table directly in the application database:
+
+```bash
+docker compose exec db psql -U tale -d tale_app \
+  -c "SELECT name, state, count(*) FROM pgboss.job GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 20;"
+```
+
+`name` is the task identifier, one queue per identifier. A backlog concentrated on one name is a stuck task; a backlog spread across all of them is a stopped worker.
 
 ## Oncall checklist
 
@@ -58,7 +76,7 @@ Two response-time budgets are tracked as first-class signals: interactive dialog
 | Dialog input   | mean      | ~1 s   | 30 m   | `tale_dialog_ttft_seconds`    |
 | Long operation | mean      | ~40 s  | 6 h    | `tale_long_operation_seconds` |
 
-Each target also rides the platform metrics endpoint as `tale_sla_target_seconds{sla,statistic}`, so a Grafana panel draws the budget line straight from Prometheus instead of hard-coding it. The underlying latency series are the Convex function-execution histograms on `/metrics/convex`; relabel or record them to the names above so the rules resolve. The platform serves the ready-made recording and alerting rules at `/metrics/sla-rules` (behind the same bearer token as the other metrics paths) — fetch it once and reference the file under `rule_files:`, or paste the equivalent:
+Each target also rides the metrics endpoints as `tale_sla_target_seconds{sla,statistic}`, so a Grafana panel draws the budget line straight from Prometheus instead of hard-coding it. The `Underlying series` names above are not emitted directly — derive them from the backend's request histogram `tale_backend_http_request_duration_seconds` with a recording rule, so the SLA aggregation stays correct whichever route class carries the operation. The platform serves the ready-made recording and alerting rules at `/metrics/sla-rules` (behind the same bearer token as the other metrics paths) — fetch it once and reference the file under `rule_files:`, or paste the equivalent:
 
 ```yaml
 groups:

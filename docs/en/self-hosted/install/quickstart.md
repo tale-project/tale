@@ -83,7 +83,7 @@ On an empty instance there is no sign-up page to hunt for: the first visit lands
 
 <Note>
 
-[First admin](/self-hosted/install/first-admin) covers the wizard in detail, how teammates join, and the Convex dashboard admin key — a backend-inspection tool that plays no part in sign-in.
+[First admin](/self-hosted/install/first-admin) covers the wizard in detail and how teammates join.
 
 </Note>
 

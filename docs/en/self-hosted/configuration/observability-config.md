@@ -19,26 +19,25 @@ Tale does not ship a log shipper. The driver swap is the supported connector poi
 
 ## Metrics
 
-The Caddy proxy exposes up to four metrics paths gated by a single bearer token:
+The Caddy proxy exposes three metrics paths gated by a single bearer token:
 
-| Path                 | Source          | What's inside                                                                       |
-| -------------------- | --------------- | ----------------------------------------------------------------------------------- |
-| `/metrics/platform`  | `tale-platform` | HTTP latency, route counters, Node process metrics, response-time SLA target gauges |
-| `/metrics/convex`    | `tale-convex`   | 261 built-in Convex metrics, plus the RAG and crawl timings                         |
-| `/metrics/sla-rules` | `tale-platform` | Generated Prometheus recording + alerting rules for the response-time SLAs          |
-| `/metrics/backend`   | `tale-backend-api` | Process metrics, HTTP counters and latency by route class, queue depth per job state, in-flight chat generations, open hint streams, drain state, and the same SLA target gauges |
+| Path                 | Source          | What's inside                                                                                                                                                                   |
+| -------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/metrics/backend`   | `backend-api`   | Process metrics, HTTP counters and latency by route class, queue depth per job state, in-flight chat generations, open hint streams, drain state, and the SLA target gauges       |
+| `/metrics/platform`  | `tale-platform` | Node process metrics (CPU, memory, event-loop lag, GC) and the response-time SLA target gauges. The web tier serves static files, so it emits no HTTP request series             |
+| `/metrics/sla-rules` | `tale-platform` | Generated Prometheus recording + alerting rules for the response-time SLAs                                                                                                       |
 
-Knowledge work (RAG search, document ingestion, web crawling) runs inside the Convex backend now, so its timings ride the `/metrics/convex` series rather than a separate endpoint. Set `METRICS_BEARER_TOKEN` in `.env` to enable these endpoints; leave it unset to keep them returning 401 to every request. The `/metrics/sla-rules` path is a read-only YAML rules file you load into Prometheus, not a scrape target — the thresholds it carries are documented in [Operations](/self-hosted/operate/observability/operations). Anything other than the listed paths returns 401 too, so a misrouted scraper does not accidentally see the platform's internal health endpoints.
+`/metrics/backend` is the one that matters: it is the tier that serves every request, runs knowledge search, and drains the job queue. Set `METRICS_BEARER_TOKEN` in `.env` to enable these endpoints; leave it unset to keep them returning 401 to every request. The `/metrics/sla-rules` path is a read-only YAML rules file you load into Prometheus, not a scrape target — the thresholds it carries are documented in [Operations](/self-hosted/operate/observability/operations). Anything other than the listed paths returns 404 inside the gate and 401 outside it, so a misrouted scraper never accidentally sees another service's numbers under the wrong name.
 
-`/metrics/backend` appears only once a deployment has cut over to the Postgres backend (`BACKEND_UPSTREAM` set in `.env`). Before that the path answers 404 rather than quietly serving another service's numbers under the backend's name, so a scrape target you add early fails loudly instead of charting the wrong process.
+There is nothing to scrape on `backend-worker`: the worker role serves no HTTP. Its behaviour is visible on `/metrics/backend` instead, because the queue gauge reads the shared job table — `tale_backend_jobs{state="created"}` climbing and never draining is what a stalled worker looks like.
 
 A working Prometheus scrape stanza:
 
 ```yaml
 scrape_configs:
-  - job_name: tale-platform
+  - job_name: tale-backend
     scheme: https
-    metrics_path: /metrics/platform
+    metrics_path: /metrics/backend
     authorization:
       credentials: <METRICS_BEARER_TOKEN>
     static_configs:
@@ -61,7 +60,9 @@ The sample rate caps browser performance traces and applies only there — the b
 
 ## What does not ship yet
 
-OpenTelemetry traces are not built into the containers. The data is reachable indirectly — Convex action durations and HTTP route timings come through the Prometheus metrics — but there is no OTLP exporter on the box today. If you need full trace export, run an OpenTelemetry Collector alongside Tale and scrape the Prometheus endpoints from it.
+OpenTelemetry traces are not built into the containers. The data is reachable indirectly — request durations by route class come through the Prometheus metrics — but there is no OTLP exporter on the box today. If you need full trace export, run an OpenTelemetry Collector alongside Tale and scrape the Prometheus endpoints from it.
+
+Neither is there a request log. The backend records every request as a metric, not a line, so there is no per-request audit in `docker compose logs backend-api` — the proxy's access log is the closest thing, and the in-product audit log is what covers control-plane actions.
 
 ## Where this fits
 

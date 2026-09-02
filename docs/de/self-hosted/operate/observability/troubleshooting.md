@@ -26,24 +26,55 @@ Ist der Modus bereits `letsencrypt`, prüf die Proxy-Logs auf ACME-Fehlschläge 
 
 ## UI lädt, aber keine Daten erscheinen
 
-Die UI-Shell sind statische Assets, von `tale-platform` serviert; alles andere fliesst durch `tale-convex` über einen WebSocket. Wenn der WebSocket sich nicht verbinden kann, lädt die Shell und bleibt leer. Symptome: Spinner, die nie auflösen, „reconnecting"-Toasts, der Chat-Input, der nie eine Nachricht annimmt.
+Die UI-Shell sind statische Assets, von `tale-platform` serviert; jede Anfrage dahinter geht an die Backend-Schicht. Kann das Backend nicht antworten, lädt die Shell und bleibt leer. Symptome: Spinner, die nie auflösen, ein Offline-Banner, der Chat-Input, der nie eine Nachricht annimmt.
+
+Bestätige es mit einer Anfrage — die öffentliche Status-Seite probet genau diese Schicht und braucht kein Login:
 
 ```bash
-docker compose logs --tail=200 tale-convex
+curl -sS https://dein-host.example.com/status.json
+# → {"status":"outage","checkedAt":"...","components":[{"id":"backend","status":"outage"}]}
+docker compose logs --tail=200 backend-api
 ```
 
-Der Convex-Container startet wahrscheinlich neu (such nach `panic` in den Logs) oder ist vom Proxy unerreichbar. Starte mit `docker compose restart tale-convex` neu — Sessions sind serverseitig, und Clients reabonnieren beim Reconnect, also ist der Restart sicher.
+Das Backend startet wahrscheinlich neu (such nach `[backend] fatal startup error`) oder ist vom Proxy unerreichbar. Starte mit `docker compose restart backend-api` neu — Sessions liegen in Postgres, und der Browser lädt beim Reconnect neu, also ist der Restart sicher.
+
+## Die UI arbeitet, aktualisiert sich aber nicht mehr von selbst
+
+Daten erscheinen beim Reload und werden dann alt: Die Änderung einer anderen Person taucht nie auf, ein fertiger Run sagt weiter „läuft". Der Browser hält eine langlebige `GET /events`-Verbindung zu `backend-api`, die Invalidierungs-Hinweise trägt, und bricht sie ab, gibt es keinen Fehler zu sehen — die Seite erfährt einfach nicht mehr, dass sich etwas geändert hat.
+
+```bash
+curl -sS -H "Authorization: Bearer $METRICS_BEARER_TOKEN" \
+  https://dein-host.example.com/metrics/backend | grep hint_streams
+# tale_backend_hint_streams_open 0
+```
+
+Null offene Streams bei angemeldeten Usern heisst, die Bahn wird gekappt. Die übliche Ursache ist etwas zwischen Browser und Backend, das eine streamende Antwort puffert oder timeoutet — ein Firmen-Proxy, ein CDN oder ein zusätzlicher Reverse-Proxy vor Caddy. Tales eigener Proxy schaltet das Puffern auf diesem Pfad ab; was du davor stellst, muss dasselbe tun.
 
 ## Uploads stecken in „indexing"
 
-Die Dokument-Ingestion läuft im Convex-Backend und schreibt die extrahierten Chunks und Embeddings in die Datenbank des Wissens-Korpus. Ein langer „indexing"-Zustand bedeutet entweder, dass das Backend `tale-knowledge-db` nicht erreicht oder dass die Datei selbst nicht extrahiert werden konnte. Prüf zuerst die Convex-Logs und die Korpus-Datenbank:
+Die Dokument-Ingestion ist ein Hintergrund-Job. `backend-worker` nimmt ihn auf, extrahiert den Text, embeddet ihn und schreibt Chunks und Embeddings in die Datenbank des Wissens-Korpus. Ein langer „indexing"-Zustand hat deshalb drei Verdächtige, in dieser Reihenfolge: Es läuft kein Worker, der Worker erreicht die Korpus-Datenbank nicht, oder die Datei selbst konnte nicht extrahiert werden.
+
+Fang bei der Warteschlange an, denn ein gestoppter Worker sieht genau aus wie ein langsamer:
 
 ```bash
-docker compose logs --tail=200 tale-convex | grep -iE "knowledge|ingest|embed"
-docker compose ps tale-knowledge-db
+docker compose exec db psql -U tale -d tale_app \
+  -c "SELECT name, state, count(*) FROM pgboss.job WHERE name LIKE 'rag.%' GROUP BY 1, 2;"
+docker compose logs --tail=200 backend-worker | grep -iE "knowledge|ingest|embed|rag"
+docker compose ps knowledge-db
 ```
 
-Zeigen die Logs Verbindungsfehler zu `knowledge-db`, starte die Korpus-Datenbank neu (`docker compose restart tale-knowledge-db`); die Ingestion versucht es beim nächsten Durchlauf erneut, Uploads müssen also nicht erneut eingereicht werden. Ist die Datenbank healthy, aber ein bestimmter Upload steckt, ist die Datei selbst der Verdächtige — beschädigte PDFs und passwortgeschützte Dokumente landen in einem Fehlzustand und brauchen Löschung und Re-Upload.
+Ein Rückstand in `created` ohne `active`-Zeilen heisst, der Worker ist down — starte ihn, und er arbeitet den Rückstand von selbst ab. Zeigen die Logs Verbindungsfehler zu `knowledge-db`, starte die Korpus-Datenbank neu (`docker compose restart knowledge-db`); die Ingestion versucht es beim nächsten Durchlauf erneut, Uploads müssen also nicht erneut eingereicht werden. Ist die Warteschlange leer und die Datenbank healthy, aber ein Upload steckt, ist die Datei selbst der Verdächtige — beschädigte PDFs und passwortgeschützte Dokumente landen in einem Fehlzustand und brauchen Löschung und Re-Upload.
+
+## Uploads oder Downloads scheitern komplett
+
+Ein Upload, der nie startet, oder ein Dokument, das gelistet wird, beim Öffnen aber 5xx liefert, zeigt auf den Blob-Store, nicht auf die Datenbank. Jede Datei liegt in einem S3-kompatiblen Store, und der Browser überträgt sie direkt über eine präsignierte URL, die der Proxy weiterleitet.
+
+```bash
+docker compose ps object-store
+docker compose logs --tail=100 object-store
+```
+
+Ist der Store healthy, ist der nächste Verdächtige der Ursprung der präsignierten URL: Sie ist gegen die Adresse signiert, die der Browser benutzt — ein Deployment, dessen öffentliche URL sich geändert hat, ohne dass `OBJECT_STORE_PUBLIC_ENDPOINT` (oder `SITE_URL`) mitgezogen ist, signiert also URLs, die der Browser nicht erreicht. Eine Organisation mit eigenem Bucket ist ein separater Pfad — prüf, dass ihre CORS-Policy deinen Ursprung für `GET`, `PUT` und `HEAD` erlaubt, denn der Verbindungstest in der App läuft serverseitig und fängt das nicht.
 
 ## Chat-Antworten hören mitten im Stream auf
 
@@ -57,14 +88,14 @@ Ein `429` ist der häufige Fall. Entweder trifft das Budget der Org das Rate-Lim
 
 ## Speichern scheitert mit „saving failed"-Toast
 
-Der Convex-Container konnte nicht in Postgres schreiben. Entweder ist `tale-db` down oder seine Platte ist voll:
+Das Backend konnte nicht in Postgres schreiben. Entweder ist `tale-db` down oder seine Platte ist voll:
 
 ```bash
-docker compose ps tale-db
+docker compose ps db
 docker compose exec db df -h /var/lib/postgresql/data
 ```
 
-Eine Platte bei 100 % ist der Fehler, der die meisten überraschten Gesichter erzeugt. Schaff Platz, starte `tale-db` neu, und die gepufferten Writes flushen. Hat die Platte Platz, ist der Verdächtige Verbindungs-Pool-Erschöpfung oder ein Lock — starte `tale-convex` neu, um den Pool zu räumen.
+Eine Platte bei 100 % ist der Fehler, der die meisten überraschten Gesichter erzeugt. Schaff Platz und starte `db` neu. Beachte, was eine volle Platte hier kostet: Die Datenbank hält die Anwendungsdaten, die Sessions und die Job-Warteschlange, eine verweigerte Schreiboperation stoppt also auch die Hintergrundarbeit. Hat die Platte Platz, ist der Verdächtige Verbindungs-Pool-Erschöpfung oder ein Lock — starte `backend-api` neu, um den Pool zu räumen.
 
 ## „Run code"-Tool scheitert mit „egress denied"
 

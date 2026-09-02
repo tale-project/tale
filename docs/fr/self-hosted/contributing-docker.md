@@ -14,15 +14,14 @@ La stack est entièrement TypeScript — pas d'image Python. Chaque image a un D
 | Image                    | Chemin source                 | Base                         |
 | ------------------------ | ----------------------------- | ---------------------------- |
 | `tale-proxy`             | `services/proxy/`             | Caddy                        |
-| `tale-platform`          | `services/platform/`          | Bun + Debian slim            |
-| `tale-convex`            | `services/convex/`            | Convex local-backend         |
+| `tale-platform`          | `services/platform/`          | Debian slim + Bun + Node     |
 | `tale-db`                | `services/db/`                | ParadeDB (Postgres)          |
 | `tale-sandbox`           | `services/sandbox/`           | Bun + CLI Docker             |
 | `tale-sandbox-egress`    | `services/sandbox-egress/`    | Alpine + tinyproxy           |
 | `tale-sandbox-runtime`   | `services/sandbox-runtime/`   | Bun + Chromium + Playwright  |
 | `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | Debian + BuildKit + redsocks |
 
-Les deux conteneurs de base de données — `db` et `knowledge-db` — se construisent depuis la même image ParadeDB `tale-db` ; la différence est la base que chacun sert. La gateway LLM, `tale-sandbox-llm-gateway`, est une image amont pinnée (`maximhq/bifrost`), elle n'a donc pas de Dockerfile dans le repo. Les fichiers compose à la racine du repo (`compose.yml` pour développement, le compose de production généré par la CLI) les référencent via `ghcr.io/tale-project/tale/<image>:<tag>`. Un build local remplace le pull de registre par un bloc `build:` dans compose.
+Les deux conteneurs de base de données — `db` et `knowledge-db` — se construisent depuis la même image ParadeDB `tale-db` ; la différence est la base que chacun sert. La même image sert aussi les deux rôles backend : `backend-api` et `backend-worker` sont `tale-platform` démarrée avec un `TALE_ROLE` différent, c'est pourquoi ils ne peuvent jamais dériver en version par rapport à la couche web. Deux conteneurs n'ont pas de Dockerfile propre : le blob store est une image MinIO amont référencée directement depuis compose, et `tale-sandbox-llm-gateway` est un simple re-tag de la gateway amont pinnée `maximhq/bifrost`, qui ne change rien à l'exécution. Les fichiers compose à la racine du repo (`compose.yml` pour développement, le compose de production généré par la CLI) les référencent via `ghcr.io/tale-project/tale/<image>:<tag>`. Un build local remplace le pull de registre par un bloc `build:` dans compose.
 
 ## Construire localement
 
@@ -47,7 +46,7 @@ Les points d'extension supportés pour les forks sont au niveau du Dockerfile. L
 - **Image runtime sandbox** — `services/sandbox-runtime/Dockerfile` est l'environnement d'exécution pour **Exécuter du code**, le rendu web et la génération de documents ; il embarque déjà Chromium et Playwright. Un fork qui a besoin d'un paquet système supplémentaire ou d'un build de navigateur différent patche ici.
 - **Proxy d'egress sandbox** — `services/sandbox-egress/tinyproxy.conf.template` est la configuration proxy que l'entrypoint rend au démarrage : egress ouvert par défaut, ou un filtre d'hôtes en refus par défaut quand `SANDBOX_EGRESS_ALLOWLIST` est défini. Un fork qui a besoin d'un autre comportement proxy patche ici.
 
-Ce qui n'est pas une couture supportée : le code applicatif du backend convex, y compris l'extraction de documents et la logique RAG et crawler qui vit désormais en in-process (`services/platform/convex/`), et le code runtime du conteneur plateforme (`services/platform/app/`). Ces fichiers sont du code applicatif, pas de la configuration — ajouter un extracteur de format de document ou changer le comportement de récupération est un vrai fork et porte la taxe de montée de version.
+Ce qui n'est pas une couture supportée : le code applicatif du backend (`services/platform/backend/`), y compris l'extraction de documents et la logique RAG et crawler qui y tourne in-process, et le code runtime de la couche web (`services/platform/app/`). Ces fichiers sont du code applicatif, pas de la configuration — ajouter un extracteur de format de document ou changer le comportement de récupération est un vrai fork et porte la taxe de montée de version.
 
 ## Tagger et pousser vers ta propre registre
 

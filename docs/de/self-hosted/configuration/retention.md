@@ -41,7 +41,7 @@ Die vom Admin gewählten Aufbewahrungsfenster liegen in einer separaten Datei, `
 
 ## Der Retention-Sweep
 
-Ein geplanter Cron in `tale-convex` läuft die tatsächliche Löschung. Jede Kategorie wird unabhängig gesweept — ein langsamer Lauf einer blockiert die anderen nicht. Löschungen sind audited (jede Kategorie hat ihr eigenes `*.retention_deleted`-Event), und eine Entität in ihrem Gnaden-Fenster wiederherzustellen ist von **Papierkorb** möglich, bevor der finale Sweep läuft.
+Ein täglich geplanter Job auf `backend-worker` löscht tatsächlich, um 04:00 UTC. Jede Kategorie wird unabhängig gesweept — ein langsamer Lauf einer blockiert die anderen nicht, und ein gescheiterter Sweep wird von der Warteschlange erneut versucht statt bis morgen übersprungen. Löschungen sind audited (jede Kategorie hat ihr eigenes `*.retention_deleted`-Event), und eine Entität in ihrem Gnaden-Fenster wiederherzustellen ist von **Papierkorb** möglich, bevor der finale Sweep läuft.
 
 Audit-Log-Einträge unterliegen selbst der Retention, aber ihre Untergrenze wird pro Deployment durchgesetzt, nicht pro Org: Die strengste (kürzeste) Audit-Log-Retention über alle Orgs ist das, was tatsächlich läuft. Eine strengere Mandantin zieht alle enger — denk daran auf Multi-Tenant-Instanzen.
 

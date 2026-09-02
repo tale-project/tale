@@ -3,21 +3,31 @@ title: Backups and restore
 description: Volume snapshots via `tale backup`, the automatic pre-migration snapshot, retention, the off-host copy, and the `tale restore` drill.
 ---
 
-Tale's backup unit is the volume snapshot: a paused, checksummed tar of every data volume in the instance, written into a dedicated `backups` volume that lives next to the data it protects. The CLI takes one automatically before any deploy step that can migrate data, and `tale backup` takes one on demand. Recovery is `tale restore <snapshot-id>` plus a redeploy of the matching version — that pair is the answer to a failed upgrade, and the reason `tale rollback` can afford to refuse anything beyond a patch step.
+Tale's backup unit is the volume snapshot: a paused, checksummed tar of the database, the org config tree, and the proxy state, written into a dedicated `backups` volume that lives next to the data it protects. The CLI takes one automatically before any deploy step that can migrate data, and `tale backup` takes one on demand. Recovery is `tale restore <snapshot-id>` plus a redeploy of the matching version — that pair is the answer to a failed upgrade, and the reason `tale rollback` can afford to refuse anything beyond a patch step.
 
-The architecture context lives in [Container architecture](/self-hosted/operate/container-architecture); this page covers what a snapshot contains, when one is taken, how the copy gets off the host, and the restore walk.
+A snapshot is not the whole instance. Uploaded file blobs sit outside it, so the off-host job below is what makes a full rebuild possible — read that section even if you never take a manual snapshot.
+
+The architecture context lives in [Container architecture](/self-hosted/operate/container-architecture); this page covers what a snapshot contains, what it leaves to you, when one is taken, how the copy gets off the host, and the restore walk.
 
 ## What a snapshot contains
 
-| Volume                       | Holds                                           |
-| ---------------------------- | ----------------------------------------------- |
-| `db-data`                    | Postgres — agents, runs, the audit log          |
-| `convex-data`                | Org config, provider secrets, uploaded branding |
-| `rag-data`                   | The vector index built from your documents      |
-| `crawler-data`               | Crawled website knowledge                       |
-| `caddy-data`, `caddy-config` | TLS certificates and proxy state                |
+| Volume                       | Holds                                                                                          |
+| ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `db-data`                    | Postgres — the application database (chats, tasks, automation runs, the audit log) and, on a single-host `tale deploy` stack where both databases share one Postgres, the knowledge corpus |
+| `convex-data`                | The org config tree — agents, automations, connectors, providers, skills, governance policies, SSO connections, branding |
+| `caddy-data`, `caddy-config` | TLS certificates and proxy state                                                               |
 
-Each snapshot is a directory named like `20260611-142530-deploy` inside the project's `backups` volume: one `.tar.gz` per volume, a `.sha256` sidecar each, and a `manifest.json` written last. A directory without a manifest is an incomplete snapshot — it never shows up in listings and can never be restored. Two things live outside the volumes and need separate capture: the project workspace (the directory holding `tale.json`) and `.env`.
+`convex-data` is the config volume's historical name. It is kept deliberately so that retiring the Convex backend did not force every operator to migrate a volume for a rename; nothing Convex-related runs in it.
+
+Each snapshot is a directory named like `20260611-142530-deploy` inside the project's `backups` volume: one `.tar.gz` per volume, a `.sha256` sidecar each, and a `manifest.json` written last. A directory without a manifest is an incomplete snapshot — it never shows up in listings and can never be restored.
+
+<Warning>
+
+**Uploaded files are not in the snapshot.** Document blobs, chat attachments, audio, and generated media live in the blob store on the `object-store-data` volume, and `tale backup` does not capture it. A restore therefore brings back rows that reference blobs the store no longer has — the app renders the document list and fails on open. Capture `object-store-data` in the same job that copies the `backups` volume off the host, or point the deployment at an object store that carries its own backups.
+
+</Warning>
+
+Three more things live outside the snapshotted volumes and need separate capture: the blob store above, the project workspace (the directory holding `tale.json`), and `.env`.
 
 ## When snapshots are taken
 
@@ -36,19 +46,20 @@ Rotation keeps the newest five snapshots and everything from the last 14 days �
 
 ## Off-host copy
 
-The snapshots live on the same host as the data they protect — a dead disk takes both. Point your existing backup tooling (Restic, Borg, Velero, cloud-provider snapshots) at the `backups` volume, and capture the project workspace and `.env` in the same job. Tale does not ship an upload step — keeping the off-host copy under your existing backup contract is deliberate.
+The snapshots live on the same host as the data they protect — a dead disk takes both. Point your existing backup tooling (Restic, Borg, Velero, cloud-provider snapshots) at the `backups` volume **and** at `object-store-data`, and capture the project workspace and `.env` in the same job. Tale does not ship an upload step — keeping the off-host copy under your existing backup contract is deliberate.
 
 ```bash
-# crontab on the host — hourly Restic copy of the backups volume to S3
+# crontab on the host — hourly Restic copy of the snapshots and the blob store
 0 * * * * restic -r s3:s3.amazonaws.com/bucket/tale backup \
-  /var/lib/docker/volumes/<project-id>_backups/_data
+  /var/lib/docker/volumes/<project-id>_backups/_data \
+  /var/lib/docker/volumes/<project-id>_object-store-data/_data
 ```
 
-Find the volume's host path with `docker volume inspect <project-id>_backups`; the project id lives in `tale.json`.
+Find a volume's host path with `docker volume inspect <project-id>_backups`; the project id lives in `tale.json`.
 
 ## Restoring a snapshot
 
-`tale restore` without arguments lists what is available; with an id it verifies the checksums, wipes the data volumes, and extracts the snapshot. It refuses while any project container runs — pass `--stop` to stop them — and asks for confirmation before touching anything.
+`tale restore` without arguments lists what is available; with an id it verifies the checksums, wipes the volumes the snapshot covers, and extracts the snapshot. It refuses while any project container runs — pass `--stop` to stop them — and asks for confirmation before touching anything. It restores only the volumes listed in the table above; the blob store is yours to restore from the off-host copy, before you bring the stack back up.
 
 ```bash
 # See what's available
@@ -66,7 +77,7 @@ The redeploy of the matching version is part of the restore, not an optional ext
 
 ## Restore drill
 
-Run the drill quarterly on a non-production host. The drill is not "does a snapshot exist" — it is "can a fresh host be rebuilt from the off-host copy of the `backups` volume, the project workspace, and `.env` in under an hour." The failure modes the drill catches: an off-host job that never captured the workspace, and a stale `.env` that no longer matches the current binary's requirements.
+Run the drill quarterly on a non-production host. The drill is not "does a snapshot exist" — it is "can a fresh host be rebuilt from the off-host copy of the `backups` volume, the blob store, the project workspace, and `.env` in under an hour." Finish by opening a document that was uploaded before the snapshot: that is the one step that proves the blob store came back with the database, and it is the step a snapshot-only drill skips. The other failure modes the drill catches: an off-host job that never captured the workspace, and a stale `.env` that no longer matches the current binary's requirements.
 
 ## Where this fits
 

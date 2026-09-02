@@ -15,7 +15,7 @@ Les variables d'env qui pilotent les modes sont `SOPS_AGE_KEY` et `SOPS_AGE_KEY_
 | Fichier de clés | `SOPS_AGE_KEY_FILE=/path/to/keys`  | Requis pour la rotation. Une clé age par ligne, commentaires `#`. |
 | Clair à 0600    | Les deux non définis               | Disque chiffré au repos, ou outillage externe écrit les fichiers. |
 
-Le conteneur plateforme choisit le mode au boot. La forme inline est la plus simple ; la forme fichier est la seule qui supporte plusieurs lecteurs (ce qui rend la rotation possible sans downtime) ; la forme en clair saute SOPS entièrement et fait confiance au système de fichiers.
+Les conteneurs backend choisissent le mode au boot — ils possèdent chaque écriture dans le magasin de config et sont les seuls processus à le déchiffrer ; la couche web monte le même volume en lecture seule et ne touche jamais la clé age. La forme inline est la plus simple ; la forme fichier est la seule qui supporte plusieurs lecteurs (ce qui rend la rotation possible sans downtime) ; la forme en clair saute SOPS entièrement et fait confiance au système de fichiers.
 
 ## Mode chiffré au premier boot
 
@@ -30,7 +30,7 @@ cat providers/openai.secrets.json
 # }
 ```
 
-Le déchiffrement se passe in-process quand le conteneur plateforme lit le fichier. La clé age ne quitte jamais la mémoire du conteneur plateforme.
+Le déchiffrement se passe in-process quand un conteneur backend lit le fichier. La clé age ne quitte jamais la mémoire de ce conteneur.
 
 ## Faire tourner la clé age
 
@@ -43,10 +43,10 @@ age-keygen -o /etc/tale/age-keys.txt
 # 2. Ajoute la nouvelle clé comme deuxième ligne dans le fichier
 echo "AGE-SECRET-KEY-1NEW..." >> /etc/tale/age-keys.txt
 
-# 3. Pointe .env sur le fichier et redémarre le conteneur plateforme
+# 3. Pointe .env sur le fichier et redémarre les conteneurs backend
 sed -i 's|^SOPS_AGE_KEY=.*|# SOPS_AGE_KEY=|' .env
 sed -i 's|^# SOPS_AGE_KEY_FILE=.*|SOPS_AGE_KEY_FILE=/etc/tale/age-keys.txt|' .env
-docker compose restart tale-platform tale-convex
+docker compose restart backend-api backend-worker
 ```
 
 Maintenant l'ancienne et la nouvelle clé peuvent déchiffrer les fichiers existants. Re-sauvegarde la clé API de chaque fournisseur sous **Paramètres > Fournisseurs** — chaque sauvegarde produit du ciphertext lisible par les deux clés. Une fois que chaque fournisseur a été re-sauvegardé (la colonne **Dernière rotation** dans le tableau des fournisseurs te dit lesquels tiennent encore l'ancien ciphertext), retire l'ancienne clé du fichier :
@@ -54,10 +54,10 @@ Maintenant l'ancienne et la nouvelle clé peuvent déchiffrer les fichiers exist
 ```bash
 # 4. Drop la ligne de l'ancienne clé et redémarre à nouveau
 sed -i '/^AGE-SECRET-KEY-1OLD/d' /etc/tale/age-keys.txt
-docker compose restart tale-platform tale-convex
+docker compose restart backend-api backend-worker
 ```
 
-L'ordre est porteur : ne retire jamais l'ancienne clé avant que chaque fichier soit re-chiffré, sinon le conteneur plateforme échouera à lire les fichiers encore-anciens au prochain déchiffrement.
+L'ordre est porteur : ne retire jamais l'ancienne clé avant que chaque fichier soit re-chiffré, sinon le backend échouera à lire les fichiers encore-anciens au prochain déchiffrement.
 
 ## Basculer en clair
 

@@ -46,14 +46,14 @@ tale update --dry-run
 `tale deploy` does the actual rolling restart, and it always deploys the CLI's own version — which, thanks to alignment, is the version your workspace records. It sorts the services into three tiers:
 
 - **App tier** — `platform` — rolls on **every** deploy with zero downtime (blue-green: the new colour starts alongside the old, healthchecks pass, traffic flips, the old colour drains).
-- **Backend & compute** — `convex`, `sandbox`, `sandbox-egress` — roll on every deploy too, so they never version-skew from `platform`. Each is a single container that recreates **in place** when its image actually changed; the deploy first drains its in-flight work (chat generations for `convex`, agent runs for `sandbox`) so the brief restart doesn't cut a live request.
-- **Stop-gated tier** — `db`, `proxy` — left **running and untouched** by default (recreating Postgres or the proxy is a brief outage you don't want on a routine roll). Pass `--stop` to update them; the deploy warns and names them when it skips.
+- **Backend & compute** — `backend-api`, `backend-worker`, `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — roll on every deploy too, so they never version-skew from `platform`. The two backend services ship the *same image* as `platform` and share its wire contracts, which is why skew is not an option. Each recreates **in place** when its image actually changed; the deploy first drains its in-flight work (chat generations for the backend, agent runs for the sandbox) so the brief restart doesn't cut a live request.
+- **Stop-gated tier** — `db`, `object-store`, `proxy` — left **running and untouched** by default (recreating Postgres, the blob store, or the proxy is a brief outage you don't want on a routine roll). Pass `--stop` to update them; the deploy warns and names them when it skips.
 
 ```bash
-# After tale update, roll the containers to match (app tier + convex)
+# After tale update, roll the containers to match (app tier + backend + sandbox)
 tale deploy
 
-# Also update db/proxy (brief downtime while they recreate)
+# Also update db/object-store/proxy (brief downtime while they recreate)
 tale deploy --stop
 
 # Roll only specific services

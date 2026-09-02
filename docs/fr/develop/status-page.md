@@ -21,11 +21,11 @@ Le flux RSS porte chaque changement d'état — ouvert, mise à jour, résolu �
 
 | Service    | Ce qu'il couvre                                                                                 | Quand il passe au rouge                                            |
 | ---------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `platform` | L'application TanStack Start + Convex — agents, workflows, connectors, UI.                      | UI injoignable ; l'API renvoie 5xx ; l'auth est cassée.            |
+| `platform` | Le serveur d'UI TanStack Start et le backend Node derrière — agents, workflows, connectors, UI. | UI injoignable ; l'API renvoie 5xx ; l'auth est cassée.            |
 | `rag`      | Le service Python FastAPI de traitement de documents — indexation, récupération.                | Les téléversements de documents calent ; la récupération est vide. |
 | `crawler`  | Le service d'extraction web Crawl4AI — utilisé par l'ingestion de documents et le repli Tavily. | Les documents tirés du web échouent ; la recherche profonde cale.  |
 | `proxy`    | Le bord Caddy — terminaison TLS, routage HTTP.                                                  | Tout le trafic Tale Cloud est touché.                              |
-| `db`       | TimescaleDB — état durable pour la couche Convex et les métadonnées de la plateforme.           | Écritures refusées ; la ligne platform passe aussi au rouge.       |
+| `db`       | Postgres — l'état applicatif durable et la file de jobs.                                        | Écritures refusées ; la ligne platform passe aussi au rouge.       |
 
 Chaque ligne porte les 90 derniers jours d'uptime comme un sparkline. Un incident se lit comme une bande colorée sur la ligne ; cliquer la bande ouvre le chronogramme — première mise à jour, suites, résolution, post-mortem quand l'incident en exige un.
 
@@ -37,7 +37,9 @@ La page appartient à la rotation d'astreinte. Les mises à jour sont poussées 
 
 ## Auto-hébergé : ce qui change
 
-Les instances auto-hébergées n'apparaissent pas sur `status.tale.dev` — cette page couvre Tale Cloud. Chaque déploiement embarque sa propre page de statut à la place, servie par la plateforme et accessible sans connexion à `https://<ton-hôte>/status`. Elle rend côté serveur un résumé de santé — operational, degraded ou outage — à partir d'une sonde de liveness contre le backend Convex, si bien qu'un opérateur (ou un utilisateur qui vérifie si le souci ne vient que de lui) peut lire la disponibilité sans se connecter. La forme lisible par machine est `https://<ton-hôte>/status.json`, qui renvoie le même résultat en JSON qu'un moniteur d'uptime peut interroger.
+Les instances auto-hébergées n'apparaissent pas sur `status.tale.dev` — cette page couvre Tale Cloud. Chaque déploiement embarque sa propre page de statut à la place, servie par la plateforme et accessible sans connexion à `https://<ton-hôte>/status`. Elle rend côté serveur un résumé de santé — operational, degraded ou outage — à partir d'une sonde de liveness contre la route `/ping` de la couche backend, celle-là même que le healthcheck du conteneur `backend-api` utilise. Un opérateur (ou un utilisateur qui vérifie si le souci ne vient que de lui) lit donc la disponibilité sans se connecter. La forme lisible par machine est `https://<ton-hôte>/status.json`, qui renvoie le même résultat en JSON qu'un moniteur d'uptime peut interroger.
+
+La sonde ne rapporte qu'un composant, `backend`, parce que cette couche sert chaque requête de l'app : si elle répond, les données circulent. La liveness du conteneur de plateforme est implicite — sans elle, la page de statut n'aurait pas pu s'afficher. Les résultats sont en cache cinq secondes et chaque sonde expire au bout de deux, donc pointer un moniteur d'uptime sur `/status.json` à intervalle serré ne coûte presque rien au backend.
 
 Cette page rapporte la disponibilité du déploiement lui-même. Pour un signal d'exploitation plus fin — santé des conteneurs depuis `tale status`, métriques de requêtes depuis les journaux Caddy, et événements du plan de contrôle dans le journal d'audit du produit — la [page de dépannage observabilité](/fr/self-hosted/operate/observability/troubleshooting) associe les symptômes aux journaux.
 

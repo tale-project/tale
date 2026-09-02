@@ -66,11 +66,11 @@ TALE_PROVIDER_KEY_OPENAI_PROD=sk-...
 
 <Note>
 
-The gate is fail-closed: any name outside the reserved prefix is rejected, which is what stops a credential from naming an unrelated deployment secret such as `SOPS_AGE_KEY` or `BETTER_AUTH_SECRET` and having it sent as a bearer token to a provider endpoint. Names are capped at 40 characters, the limit of the platform-to-Convex environment sync — a longer name would silently never reach the backend runtime.
+The gate is fail-closed: any name outside the reserved prefix is rejected, which is what stops a credential from naming an unrelated deployment secret such as `SOPS_AGE_KEY` or `BETTER_AUTH_SECRET` and having it sent as a bearer token to a provider endpoint. Names are capped at 40 characters.
 
 </Note>
 
-Define the variable so that both the platform container and the Convex backend can read it. The platform syncs its environment to Convex at boot, so the in-process actions resolve the same value; a variable added or changed after boot needs a restart of the platform container before it is visible. Values are trimmed, which spares you the trailing newline a mounted secret file often carries and the `401` it produces.
+Define the variable where the backend containers read it — `.env`, or whatever your secret store injects into `backend-api` and `backend-worker`. Both roles resolve a credential, so both need the value: the worker runs the same provider calls for background work that the api runs for a live turn. A variable added or changed after boot needs `docker compose restart backend-api backend-worker` before it is visible. Values are trimmed, which spares you the trailing newline a mounted secret file often carries and the `401` it produces.
 
 ## Broker secrets from the environment
 

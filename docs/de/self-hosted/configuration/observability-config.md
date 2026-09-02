@@ -19,26 +19,25 @@ Tale bringt keinen Log-Shipper mit. Der Driver-Tausch ist der unterstützte Conn
 
 ## Metriken
 
-Der Caddy-Proxy exponiert bis zu vier Metric-Pfade, gegated von einem einzigen Bearer-Token:
+Der Caddy-Proxy exponiert drei Metric-Pfade, gegated von einem einzigen Bearer-Token:
 
-| Pfad                 | Quelle          | Was drinsteckt                                                                |
-| -------------------- | --------------- | ----------------------------------------------------------------------------- |
-| `/metrics/platform`  | `tale-platform` | HTTP-Latenz, Route-Counter, Node-Prozessmetriken, Antwortzeit-SLA-Ziel-Gauges |
-| `/metrics/convex`    | `tale-convex`   | 261 eingebaute Convex-Metriken, plus die RAG- und Crawl-Timings               |
-| `/metrics/sla-rules` | `tale-platform` | Generierte Prometheus-Recording- + Alerting-Rules für die Antwortzeit-SLAs    |
-| `/metrics/backend`   | `tale-backend-api` | Prozess-Metriken, HTTP-Counter und Latenz pro Routen-Klasse, Queue-Tiefe je Job-Status, laufende Chat-Generierungen, offene Hint-Streams, Drain-Zustand und dieselben SLA-Ziel-Gauges |
+| Pfad                 | Quelle          | Was drinsteckt                                                                                                                                                                        |
+| -------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/metrics/backend`   | `backend-api`   | Prozess-Metriken, HTTP-Counter und Latenz pro Routen-Klasse, Queue-Tiefe je Job-Status, laufende Chat-Generierungen, offene Hint-Streams, Drain-Zustand und die SLA-Ziel-Gauges        |
+| `/metrics/platform`  | `tale-platform` | Node-Prozessmetriken (CPU, Speicher, Event-Loop-Lag, GC) und die Antwortzeit-SLA-Ziel-Gauges. Die Web-Schicht liefert statische Dateien aus, sie emittiert also keine HTTP-Request-Reihe |
+| `/metrics/sla-rules` | `tale-platform` | Generierte Prometheus-Recording- + Alerting-Rules für die Antwortzeit-SLAs                                                                                                             |
 
-Wissens-Arbeit (RAG-Suche, Dokument-Ingestion, Web-Crawling) läuft jetzt im Convex-Backend, also reiten ihre Timings auf der `/metrics/convex`-Reihe statt auf einem separaten Endpoint. Setze `METRICS_BEARER_TOKEN` in `.env`, um diese Endpoints zu aktivieren; lass es unset, damit sie jeder Anfrage 401 zurückgeben. Der `/metrics/sla-rules`-Pfad ist eine schreibgeschützte YAML-Rules-Datei, die du in Prometheus lädst, kein Scrape-Target — die Schwellen darin sind in [Operations](/de/self-hosted/operate/observability/operations) dokumentiert. Alles ausser den gelisteten Pfaden gibt ebenfalls 401 zurück, damit ein fehlgerouteter Scraper die internen Health-Endpoints der Plattform nicht versehentlich sieht.
+`/metrics/backend` ist der Pfad, auf den es ankommt: Diese Schicht bedient jede Anfrage, fährt die Wissens-Suche und arbeitet die Job-Warteschlange ab. Setze `METRICS_BEARER_TOKEN` in `.env`, um diese Endpoints zu aktivieren; lass es unset, damit sie jeder Anfrage 401 zurückgeben. Der `/metrics/sla-rules`-Pfad ist eine schreibgeschützte YAML-Rules-Datei, die du in Prometheus lädst, kein Scrape-Target — die Schwellen darin sind in [Operations](/de/self-hosted/operate/observability/operations) dokumentiert. Alles ausser den gelisteten Pfaden gibt innerhalb der Schranke 404 und ausserhalb 401 zurück, ein fehlgerouteter Scraper sieht also nie die Zahlen eines anderen Dienstes unter dem falschen Namen.
 
-`/metrics/backend` gibt es erst, wenn ein Deployment auf das Postgres-Backend umgestellt ist (`BACKEND_UPSTREAM` in der `.env` gesetzt). Vorher antwortet der Pfad mit 404, statt still die Zahlen eines anderen Dienstes unter dem Namen des Backends auszuliefern — ein zu früh eingetragenes Scrape-Target scheitert also sichtbar, statt den falschen Prozess zu plotten.
+Auf `backend-worker` gibt es nichts zu scrapen: Die Worker-Rolle bedient kein HTTP. Ihr Verhalten ist stattdessen auf `/metrics/backend` sichtbar, denn das Queue-Gauge liest die gemeinsame Job-Tabelle — `tale_backend_jobs{state="created"}`, das steigt und nie abfliesst, ist genau das Bild eines stehenden Workers.
 
 Eine funktionierende Prometheus-Scrape-Stanza:
 
 ```yaml
 scrape_configs:
-  - job_name: tale-platform
+  - job_name: tale-backend
     scheme: https
-    metrics_path: /metrics/platform
+    metrics_path: /metrics/backend
     authorization:
       credentials: <METRICS_BEARER_TOKEN>
     static_configs:
@@ -61,7 +60,9 @@ Die Sample-Rate begrenzt Performance-Traces im Browser und gilt nur dort — das
 
 ## Was noch nicht mitkommt
 
-OpenTelemetry-Traces sind nicht in die Container eingebaut. Die Daten sind indirekt erreichbar — Convex-Action-Dauern und HTTP-Route-Timings kommen durch die Prometheus-Metriken — aber es gibt heute keinen OTLP-Exporter auf der Box. Brauchst du vollen Trace-Export, betreib einen OpenTelemetry Collector neben Tale und scrape die Prometheus-Endpoints aus ihm.
+OpenTelemetry-Traces sind nicht in die Container eingebaut. Die Daten sind indirekt erreichbar — Request-Dauern pro Routen-Klasse kommen durch die Prometheus-Metriken — aber es gibt heute keinen OTLP-Exporter auf der Box. Brauchst du vollen Trace-Export, betreib einen OpenTelemetry Collector neben Tale und scrape die Prometheus-Endpoints aus ihm.
+
+Ein Request-Log gibt es auch nicht. Das Backend erfasst jede Anfrage als Metrik, nicht als Zeile, in `docker compose logs backend-api` steht also kein Audit pro Anfrage — der Access-Log des Proxys kommt dem am nächsten, und für Control-Plane-Aktionen ist das Audit-Log im Produkt zuständig.
 
 ## Wo das hingehört
 

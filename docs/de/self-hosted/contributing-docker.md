@@ -14,15 +14,14 @@ Der Stack ist vollständig TypeScript — kein Python-Image. Jedes Image hat ein
 | Image                    | Quell-Pfad                    | Basis                        |
 | ------------------------ | ----------------------------- | ---------------------------- |
 | `tale-proxy`             | `services/proxy/`             | Caddy                        |
-| `tale-platform`          | `services/platform/`          | Bun + Debian slim            |
-| `tale-convex`            | `services/convex/`            | Convex local-backend         |
+| `tale-platform`          | `services/platform/`          | Debian slim + Bun + Node     |
 | `tale-db`                | `services/db/`                | ParadeDB (Postgres)          |
 | `tale-sandbox`           | `services/sandbox/`           | Bun + Docker-CLI             |
 | `tale-sandbox-egress`    | `services/sandbox-egress/`    | Alpine + tinyproxy           |
 | `tale-sandbox-runtime`   | `services/sandbox-runtime/`   | Bun + Chromium + Playwright  |
 | `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | Debian + BuildKit + redsocks |
 
-Beide Datenbank-Container — `db` und `knowledge-db` — bauen aus demselben `tale-db`-ParadeDB-Image; der Unterschied ist die Datenbank, die jeder bedient. Das LLM-Gateway `tale-sandbox-llm-gateway` ist ein gepinntes Upstream-Image (`maximhq/bifrost`), hat also kein Dockerfile im Repo. Die Compose-Dateien im Repo-Root (`compose.yml` für Development, die CLI-generierte Produktions-Compose) referenzieren diese über `ghcr.io/tale-project/tale/<image>:<tag>`. Ein lokaler Build ersetzt den Registry-Pull mit einem `build:`-Block in Compose.
+Beide Datenbank-Container — `db` und `knowledge-db` — bauen aus demselben `tale-db`-ParadeDB-Image; der Unterschied ist die Datenbank, die jeder bedient. Dasselbe Image bedient auch beide Backend-Rollen: `backend-api` und `backend-worker` sind `tale-platform`, gestartet mit einem anderen `TALE_ROLE` — deshalb können sie gegenüber der Web-Schicht nie in einen Versions-Skew laufen. Zwei Container haben kein eigenes Dockerfile: Der Blob-Store ist ein Upstream-MinIO-Image, das Compose direkt referenziert, und `tale-sandbox-llm-gateway` ist ein dünnes Re-Tag des gepinnten Upstream-Gateways `maximhq/bifrost`, das zur Laufzeit nichts ändert. Die Compose-Dateien im Repo-Root (`compose.yml` für Development, die CLI-generierte Produktions-Compose) referenzieren diese über `ghcr.io/tale-project/tale/<image>:<tag>`. Ein lokaler Build ersetzt den Registry-Pull mit einem `build:`-Block in Compose.
 
 ## Lokal bauen
 
@@ -47,7 +46,7 @@ Die unterstützten Erweiterungs-Punkte für Forks sind auf der Dockerfile-Ebene.
 - **Sandbox-Runtime-Image** — `services/sandbox-runtime/Dockerfile` ist die Ausführungsumgebung für **Code-ausführen**, Web-Render und Dokumentgenerierung; es trägt bereits Chromium und Playwright. Ein Fork, der ein zusätzliches System-Paket oder einen anderen Browser-Build braucht, patcht hier.
 - **Sandbox-Egress-Proxy** — `services/sandbox-egress/tinyproxy.conf.template` ist die Proxy-Konfiguration, die der Entrypoint beim Start rendert: standardmäßig offenes Egress, oder ein Default-Deny-Hostname-Filter, wenn `SANDBOX_EGRESS_ALLOWLIST` gesetzt ist. Ein Fork, der anderes Proxy-Verhalten braucht, patcht hier.
 
-Was keine unterstützte Naht ist: der Anwendungscode des Convex-Backends, inklusive der Dokument-Extraktion und der RAG- und Crawler-Logik, die jetzt im Prozess leben (`services/platform/convex/`), und der Runtime-Code des Plattform-Containers (`services/platform/app/`). Diese Dateien sind Anwendungscode, keine Konfiguration — einen Dokumentformat-Extraktor hinzuzufügen oder das Retrieval-Verhalten zu ändern ist ein echter Fork und trägt die Upgrade-Steuer.
+Was keine unterstützte Naht ist: der Anwendungscode des Backends (`services/platform/backend/`), inklusive der Dokument-Extraktion und der RAG- und Crawler-Logik, die dort im Prozess laufen, und der Runtime-Code der Web-Schicht (`services/platform/app/`). Diese Dateien sind Anwendungscode, keine Konfiguration — einen Dokumentformat-Extraktor hinzuzufügen oder das Retrieval-Verhalten zu ändern ist ein echter Fork und trägt die Upgrade-Steuer.
 
 ## Taggen und in eigene Registry pushen
 

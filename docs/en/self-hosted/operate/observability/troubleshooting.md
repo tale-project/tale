@@ -26,24 +26,55 @@ If the mode is already `letsencrypt`, check the proxy logs for ACME failures —
 
 ## UI loads but no data appears
 
-The UI shell is static assets served by `tale-platform`; everything else flows through `tale-convex` over a WebSocket. When the WebSocket cannot connect, the shell loads and stays empty. Symptoms: spinners that never resolve, "reconnecting" toasts, the chat input that never accepts a message.
+The UI shell is static assets served by `tale-platform`; every request behind it goes to the backend tier. When the backend cannot answer, the shell loads and stays empty. Symptoms: spinners that never resolve, an offline banner, the chat input that never accepts a message.
+
+Confirm it in one request — the public status page probes exactly this tier and needs no login:
 
 ```bash
-docker compose logs --tail=200 tale-convex
+curl -sS https://your-host.example.com/status.json
+# → {"status":"outage","checkedAt":"...","components":[{"id":"backend","status":"outage"}]}
+docker compose logs --tail=200 backend-api
 ```
 
-The convex container is probably restarting (look for `panic` in the logs) or unreachable from the proxy. Restart with `docker compose restart tale-convex` — sessions are server-side and clients re-subscribe on reconnect, so the restart is safe.
+The backend is probably restarting (look for `[backend] fatal startup error`) or unreachable from the proxy. Restart with `docker compose restart backend-api` — sessions live in Postgres and the browser refetches on reconnect, so the restart is safe.
+
+## The UI works but stops updating on its own
+
+Data appears when you reload and then goes stale: someone else's change never shows up, a finished run keeps saying "running". The browser holds one long-lived `GET /events` connection to `backend-api` that carries invalidation hints, and when it drops there is no error to see — the page simply stops being told anything changed.
+
+```bash
+curl -sS -H "Authorization: Bearer $METRICS_BEARER_TOKEN" \
+  https://your-host.example.com/metrics/backend | grep hint_streams
+# tale_backend_hint_streams_open 0
+```
+
+Zero open streams with users signed in means the lane is being cut. The usual cause is something between the browser and the backend buffering or timing out a streaming response — a corporate proxy, a CDN, or an added reverse proxy in front of Caddy. Tale's own proxy disables buffering on that path; anything you put in front of it must do the same.
 
 ## Uploads stuck in "indexing"
 
-Document ingestion runs inside the Convex backend and writes the extracted chunks and embeddings to the knowledge corpus database. A long "indexing" state means either the backend cannot reach `tale-knowledge-db` or the file itself failed to extract. Check the convex logs and the corpus database first:
+Document ingestion is a background job. `backend-worker` picks it up, extracts the text, embeds it, and writes the chunks and embeddings to the knowledge corpus database. A long "indexing" state therefore has three suspects, in this order: no worker is running, the worker cannot reach the corpus database, or the file itself failed to extract.
+
+Start with the queue, because a stopped worker looks exactly like a slow one:
 
 ```bash
-docker compose logs --tail=200 tale-convex | grep -iE "knowledge|ingest|embed"
-docker compose ps tale-knowledge-db
+docker compose exec db psql -U tale -d tale_app \
+  -c "SELECT name, state, count(*) FROM pgboss.job WHERE name LIKE 'rag.%' GROUP BY 1, 2;"
+docker compose logs --tail=200 backend-worker | grep -iE "knowledge|ingest|embed|rag"
+docker compose ps knowledge-db
 ```
 
-If the logs show connection errors to `knowledge-db`, restart the corpus database (`docker compose restart tale-knowledge-db`); ingestion retries on the next pass, so uploads do not have to be re-submitted. If the database is healthy but a specific upload is stuck, the file itself is the suspect — corrupt PDFs and password-protected documents land in a failure state and require deletion and re-upload.
+A backlog in `created` with no `active` rows means the worker is down — start it, and it drains the backlog on its own. If the logs show connection errors to `knowledge-db`, restart the corpus database (`docker compose restart knowledge-db`); ingestion retries on the next pass, so uploads do not have to be re-submitted. If the queue is empty and the database is healthy but one upload is stuck, the file itself is the suspect — corrupt PDFs and password-protected documents land in a failure state and require deletion and re-upload.
+
+## Uploads or downloads fail outright
+
+An upload that never starts, or a document that lists but 5xx's on open, points at the blob store rather than the database. Every file lives in an S3-compatible store, and the browser transfers it directly through a presigned URL the proxy forwards.
+
+```bash
+docker compose ps object-store
+docker compose logs --tail=100 object-store
+```
+
+If the store is healthy, the next suspect is the presigned URL's origin: it is signed against the address the browser uses, so a deployment whose public URL changed without `OBJECT_STORE_PUBLIC_ENDPOINT` (or `SITE_URL`) following it signs URLs the browser cannot reach. An organisation that brought its own bucket is a separate path — check its CORS policy allows your origin for `GET`, `PUT`, and `HEAD`, because the in-app connection test runs server-side and will not catch that.
 
 ## Chat replies stop mid-stream
 
@@ -57,14 +88,14 @@ A `429` is the common case. Either the org's budget is hitting the provider's ra
 
 ## Saving fails with "saving failed" toast
 
-The convex container could not write to Postgres. Either `tale-db` is down or its disk is full:
+The backend could not write to Postgres. Either `tale-db` is down or its disk is full:
 
 ```bash
-docker compose ps tale-db
+docker compose ps db
 docker compose exec db df -h /var/lib/postgresql/data
 ```
 
-A disk at 100 % is the failure that produces the most surprised faces. Free space, restart `tale-db`, and the queued writes flush. If the disk has room, the suspect is connection-pool exhaustion or a lock — restart `tale-convex` to clear the pool.
+A disk at 100 % is the failure that produces the most surprised faces. Free space and restart `db`. Note what a full disk costs here: the database holds the application data, the sessions, and the job queue, so a write refusal stops background work too. If the disk has room, the suspect is connection-pool exhaustion or a lock — restart `backend-api` to clear the pool.
 
 ## "Run code" tool errors with "egress denied"
 

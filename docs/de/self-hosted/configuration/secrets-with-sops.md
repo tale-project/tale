@@ -15,7 +15,7 @@ Die Env-Vars, die die Modi steuern, sind `SOPS_AGE_KEY` und `SOPS_AGE_KEY_FILE` 
 | Schlüssel-Datei      | `SOPS_AGE_KEY_FILE=/path/to/keys`  | Pflicht für Rotation. Ein age-Schlüssel pro Zeile, `#`-Kommentare.       |
 | Klartext bei 0600    | Beide unset                        | Platte at-rest verschlüsselt, oder externe Tooling schreibt die Dateien. |
 
-Der Plattform-Container wählt den Modus beim Boot. Die Inline-Form ist die einfachste; die Datei-Form ist die einzige, die mehrere Leser unterstützt (was Rotation ohne Downtime möglich macht); die Klartext-Form überspringt SOPS ganz und vertraut dem Dateisystem.
+Die Backend-Container wählen den Modus beim Boot — sie besitzen jeden Schreibzugriff auf den Config-Store und sind die einzigen Prozesse, die ihn entschlüsseln; die Web-Schicht mountet dasselbe Volume read-only und fasst den age-Schlüssel nie an. Die Inline-Form ist die einfachste; die Datei-Form ist die einzige, die mehrere Leser unterstützt (was Rotation ohne Downtime möglich macht); die Klartext-Form überspringt SOPS ganz und vertraut dem Dateisystem.
 
 ## Verschlüsselter Modus beim ersten Boot
 
@@ -30,7 +30,7 @@ cat providers/openai.secrets.json
 # }
 ```
 
-Entschlüsselung passiert in-process, wenn der Plattform-Container die Datei liest. Der age-Schlüssel verlässt den Speicher des Plattform-Containers nie.
+Entschlüsselung passiert in-process, wenn ein Backend-Container die Datei liest. Der age-Schlüssel verlässt den Speicher dieses Containers nie.
 
 ## Den age-Schlüssel rotieren
 
@@ -43,10 +43,10 @@ age-keygen -o /etc/tale/age-keys.txt
 # 2. Häng den neuen Schlüssel als zweite Zeile in der Datei an
 echo "AGE-SECRET-KEY-1NEW..." >> /etc/tale/age-keys.txt
 
-# 3. Richte .env auf die Datei und starte den Plattform-Container neu
+# 3. Richte .env auf die Datei und starte die Backend-Container neu
 sed -i 's|^SOPS_AGE_KEY=.*|# SOPS_AGE_KEY=|' .env
 sed -i 's|^# SOPS_AGE_KEY_FILE=.*|SOPS_AGE_KEY_FILE=/etc/tale/age-keys.txt|' .env
-docker compose restart tale-platform tale-convex
+docker compose restart backend-api backend-worker
 ```
 
 Jetzt können sowohl der alte als auch der neue Schlüssel bestehende Dateien entschlüsseln. Speichere den API-Schlüssel jedes Anbieters unter **Einstellungen > Anbieter** neu — jedes Speichern erzeugt Ciphertext, der von beiden Schlüsseln lesbar ist. Sobald jeder Anbieter neu gespeichert wurde (die Spalte **Zuletzt rotiert** in der Anbieter-Tabelle sagt dir, welche noch alten Ciphertext halten), entferne den alten Schlüssel aus der Datei:
@@ -54,10 +54,10 @@ Jetzt können sowohl der alte als auch der neue Schlüssel bestehende Dateien en
 ```bash
 # 4. Lass die alte Schlüssel-Zeile fallen und starte erneut neu
 sed -i '/^AGE-SECRET-KEY-1OLD/d' /etc/tale/age-keys.txt
-docker compose restart tale-platform tale-convex
+docker compose restart backend-api backend-worker
 ```
 
-Die Reihenfolge ist tragend: Entfern den alten Schlüssel nie, bevor jede Datei neu verschlüsselt ist, oder der Plattform-Container scheitert beim Lesen der noch-alten Dateien bei der nächsten Entschlüsselung.
+Die Reihenfolge ist tragend: Entfern den alten Schlüssel nie, bevor jede Datei neu verschlüsselt ist, oder das Backend scheitert beim Lesen der noch-alten Dateien bei der nächsten Entschlüsselung.
 
 ## Auf Klartext umsteigen
 

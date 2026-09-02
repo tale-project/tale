@@ -26,24 +26,55 @@ Si le mode est déjà `letsencrypt`, vérifie les logs du proxy pour les échecs
 
 ## L'UI charge mais aucune donnée n'apparaît
 
-Le shell UI sont des assets statiques servis par `tale-platform` ; tout le reste circule par `tale-convex` sur un WebSocket. Quand le WebSocket ne peut pas se connecter, le shell charge et reste vide. Symptômes : spinners qui ne se résolvent jamais, toasts « reconnecting », le champ de chat qui n'accepte jamais un message.
+Le shell UI, ce sont des assets statiques servis par `tale-platform` ; chaque requête derrière part vers la couche backend. Quand le backend ne peut pas répondre, le shell charge et reste vide. Symptômes : spinners qui ne se résolvent jamais, une bannière hors-ligne, le champ de chat qui n'accepte jamais un message.
+
+Confirme-le en une requête — la page de statut publique sonde exactement cette couche et ne demande aucune connexion :
 
 ```bash
-docker compose logs --tail=200 tale-convex
+curl -sS https://ton-hote.example.com/status.json
+# → {"status":"outage","checkedAt":"...","components":[{"id":"backend","status":"outage"}]}
+docker compose logs --tail=200 backend-api
 ```
 
-Le conteneur convex redémarre probablement (cherche `panic` dans les logs) ou est injoignable depuis le proxy. Redémarre avec `docker compose restart tale-convex` — les sessions sont côté serveur et les clients se réabonnent à la reconnexion, donc le redémarrage est sûr.
+Le backend redémarre probablement (cherche `[backend] fatal startup error`) ou est injoignable depuis le proxy. Redémarre avec `docker compose restart backend-api` — les sessions vivent dans Postgres et le navigateur recharge à la reconnexion, donc le redémarrage est sûr.
+
+## L'UI marche mais ne se met plus à jour toute seule
+
+Les données apparaissent au rechargement puis rancissent : le changement de quelqu'un d'autre ne remonte jamais, un run terminé continue d'afficher « en cours ». Le navigateur tient une connexion `GET /events` de longue durée vers `backend-api` qui porte des indices d'invalidation, et quand elle tombe il n'y a aucune erreur à voir — la page cesse simplement d'apprendre que quelque chose a changé.
+
+```bash
+curl -sS -H "Authorization: Bearer $METRICS_BEARER_TOKEN" \
+  https://ton-hote.example.com/metrics/backend | grep hint_streams
+# tale_backend_hint_streams_open 0
+```
+
+Zéro stream ouvert avec des utilisateurs connectés veut dire que la voie est coupée. La cause habituelle est quelque chose entre le navigateur et le backend qui met en tampon ou timeoute une réponse en streaming — un proxy d'entreprise, un CDN, ou un reverse proxy ajouté devant Caddy. Le proxy de Tale désactive le tampon sur ce chemin ; ce que tu mets devant doit faire pareil.
 
 ## Téléversements bloqués en « indexation »
 
-L'ingestion de documents tourne dans le backend Convex et écrit les fragments extraits et les embeddings dans la base du corpus de connaissances. Un long état « indexation » signifie soit que le backend ne peut pas joindre `tale-knowledge-db`, soit que le fichier lui-même n'a pas pu être extrait. Vérifie les logs convex et la base du corpus en premier :
+L'ingestion de documents est un job de fond. `backend-worker` le prend, extrait le texte, l'embeddie, et écrit les fragments et les embeddings dans la base du corpus de connaissances. Un long état « indexation » a donc trois suspects, dans cet ordre : aucun worker ne tourne, le worker ne joint pas la base du corpus, ou le fichier lui-même n'a pas pu être extrait.
+
+Commence par la file, parce qu'un worker arrêté ressemble exactement à un worker lent :
 
 ```bash
-docker compose logs --tail=200 tale-convex | grep -iE "knowledge|ingest|embed"
-docker compose ps tale-knowledge-db
+docker compose exec db psql -U tale -d tale_app \
+  -c "SELECT name, state, count(*) FROM pgboss.job WHERE name LIKE 'rag.%' GROUP BY 1, 2;"
+docker compose logs --tail=200 backend-worker | grep -iE "knowledge|ingest|embed|rag"
+docker compose ps knowledge-db
 ```
 
-Si les logs montrent des erreurs de connexion à `knowledge-db`, redémarre la base du corpus (`docker compose restart tale-knowledge-db`) ; l'ingestion retente à la passe suivante, donc les téléversements n'ont pas à être re-soumis. Si la base est saine mais qu'un téléversement spécifique est bloqué, le fichier lui-même est le suspect — les PDFs corrompus et les documents protégés par mot de passe atterrissent en état d'échec et exigent suppression + re-téléversement.
+Un arriéré en `created` sans aucune ligne `active` veut dire que le worker est down — démarre-le, et il vide l'arriéré tout seul. Si les logs montrent des erreurs de connexion à `knowledge-db`, redémarre la base du corpus (`docker compose restart knowledge-db`) ; l'ingestion retente à la passe suivante, donc les téléversements n'ont pas à être re-soumis. Si la file est vide et la base saine mais qu'un téléversement est bloqué, le fichier lui-même est le suspect — les PDFs corrompus et les documents protégés par mot de passe atterrissent en état d'échec et exigent suppression + re-téléversement.
+
+## Les téléversements ou téléchargements échouent d'emblée
+
+Un téléversement qui ne démarre jamais, ou un document qui se liste mais renvoie 5xx à l'ouverture, désigne le blob store plutôt que la base. Chaque fichier vit dans un store compatible S3, et le navigateur le transfère directement via une URL présignée que le proxy relaie.
+
+```bash
+docker compose ps object-store
+docker compose logs --tail=100 object-store
+```
+
+Si le store est sain, le suspect suivant est l'origine de l'URL présignée : elle est signée contre l'adresse que le navigateur utilise, donc un déploiement dont l'URL publique a changé sans que `OBJECT_STORE_PUBLIC_ENDPOINT` (ou `SITE_URL`) suive signe des URL que le navigateur ne peut pas joindre. Une organisation qui a apporté son propre bucket est un chemin distinct — vérifie que sa policy CORS autorise ton origine pour `GET`, `PUT` et `HEAD`, parce que le test de connexion dans l'app tourne côté serveur et ne l'attrapera pas.
 
 ## Les réponses chat s'arrêtent au milieu du stream
 
@@ -57,14 +88,14 @@ Un `429` est le cas commun. Soit le budget de l'org touche le rate limit du four
 
 ## La sauvegarde échoue avec un toast « saving failed »
 
-Le conteneur convex n'a pas pu écrire dans Postgres. Soit `tale-db` est down, soit son disque est plein :
+Le backend n'a pas pu écrire dans Postgres. Soit `tale-db` est down, soit son disque est plein :
 
 ```bash
-docker compose ps tale-db
+docker compose ps db
 docker compose exec db df -h /var/lib/postgresql/data
 ```
 
-Un disque à 100 % est l'échec qui produit le plus de visages surpris. Libère de l'espace, redémarre `tale-db`, et les écritures en file flushent. Si le disque a de l'espace, le suspect est l'épuisement du pool de connexions ou un lock — redémarre `tale-convex` pour vider le pool.
+Un disque à 100 % est l'échec qui produit le plus de visages surpris. Libère de l'espace et redémarre `db`. Note ce qu'un disque plein coûte ici : la base porte les données applicatives, les sessions et la file de jobs, donc un refus d'écriture arrête aussi le travail de fond. Si le disque a de l'espace, le suspect est l'épuisement du pool de connexions ou un lock — redémarre `backend-api` pour vider le pool.
 
 ## L'outil « Exécuter du code » échoue avec « egress denied »
 

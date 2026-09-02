@@ -66,11 +66,11 @@ TALE_PROVIDER_KEY_OPENAI_PROD=sk-...
 
 <Note>
 
-La barrière est fail-closed : tout nom hors du préfixe réservé est rejeté, ce qui empêche un identifiant de désigner un secret de déploiement étranger comme `SOPS_AGE_KEY` ou `BETTER_AUTH_SECRET` et de le voir partir en jeton Bearer vers l’endpoint d’un fournisseur. Les noms sont plafonnés à 40 caractères, la limite de la synchronisation d’environnement entre la plateforme et Convex — un nom plus long n’atteindrait jamais le runtime du backend.
+La barrière est fail-closed : tout nom hors du préfixe réservé est rejeté, ce qui empêche un identifiant de désigner un secret de déploiement étranger comme `SOPS_AGE_KEY` ou `BETTER_AUTH_SECRET` et de le voir partir en jeton Bearer vers l’endpoint d’un fournisseur. Les noms sont plafonnés à 40 caractères.
 
 </Note>
 
-Définis la variable de façon que le conteneur de la plateforme et le backend Convex puissent tous deux la lire. La plateforme synchronise son environnement vers Convex au boot, donc les actions qui y tournent résolvent la même valeur ; une variable ajoutée ou changée après le boot demande un redémarrage du conteneur plateforme avant d’être visible. Les valeurs sont nettoyées de leurs espaces, ce qui t’épargne le retour à la ligne que porte souvent un fichier de secret monté, et le `401` qui s’ensuit.
+Définis la variable là où les conteneurs backend la lisent — dans `.env`, ou via ce que ton coffre à secrets injecte dans `backend-api` et `backend-worker`. Les deux rôles résolvent des identifiants, donc les deux ont besoin de la valeur : le worker fait pour le travail de fond les mêmes appels fournisseur que l’api fait pour un tour en direct. Une variable ajoutée ou changée après le boot demande `docker compose restart backend-api backend-worker` avant d’être visible. Les valeurs sont nettoyées de leurs espaces, ce qui t’épargne le retour à la ligne que porte souvent un fichier de secret monté, et le `401` qui s’ensuit.
 
 ## Secrets de courtier depuis l’environnement
 

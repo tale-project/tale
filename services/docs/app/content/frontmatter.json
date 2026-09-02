@@ -774,7 +774,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Prometheus et Grafana",
-      "description": "Un stack Prometheus et Grafana en copier-coller qui scrape les deux endpoints de métriques de Tale, plus un tableau de bord de départ et une première règle d'alerte."
+      "description": "Un stack Prometheus et Grafana en copier-coller qui scrape les endpoints de métriques de Tale, plus un tableau de bord de départ et une première règle d'alerte."
     }
   },
   "fr:self-hosted/operate/container-architecture": {
@@ -846,7 +846,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Architecture auto-hébergée",
-      "description": "Huit conteneurs, un fichier compose, deux bases Postgres. Cette page donne le modèle mental pour savoir ce que fait chaque conteneur, où vivent les données sur le disque et quels secrets comptent au premier boot."
+      "description": "Onze conteneurs dans un fichier compose, dont deux bases Postgres et un blob store compatible S3. Cette page donne le modèle mental pour savoir ce que fait chaque conteneur, où vivent les données sur le disque et quels secrets comptent au premier boot."
     }
   },
   "fr:self-hosted/index": {
@@ -1951,7 +1951,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Prometheus and Grafana",
-      "description": "A copy-paste Prometheus and Grafana stack that scrapes Tale's two metrics endpoints, plus a starter dashboard and a first alert rule."
+      "description": "A copy-paste Prometheus and Grafana stack that scrapes Tale's metrics endpoints, plus a starter dashboard and a first alert rule."
     }
   },
   "en:self-hosted/operate/container-architecture": {
@@ -2023,7 +2023,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Self-hosted architecture",
-      "description": "Eight containers, one compose file, two Postgres databases. This page hands you the mental model for what each container does, where data lives on disk, and which secrets matter at first boot."
+      "description": "Eleven containers in one compose file, two of them Postgres databases and one an S3-compatible blob store. This page hands you the mental model for what each container does, where data lives on disk, and which secrets matter at first boot."
     }
   },
   "en:self-hosted/index": {
@@ -3128,7 +3128,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Prometheus und Grafana",
-      "description": "Ein Copy-paste-Stack aus Prometheus und Grafana, der Tales zwei Metrics-Endpoints scrapt — plus ein Starter-Dashboard und eine erste Alert-Regel."
+      "description": "Ein Copy-paste-Stack aus Prometheus und Grafana, der Tales Metrics-Endpoints scrapt — plus ein Starter-Dashboard und eine erste Alert-Regel."
     }
   },
   "de:self-hosted/operate/container-architecture": {
@@ -3200,7 +3200,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Selbst gehostete Architektur",
-      "description": "Acht Container, eine compose-Datei, zwei Postgres-Datenbanken. Diese Seite vermittelt das mentale Modell, was jeder Container tut, wo Daten auf dem Storage liegen und welche Secrets beim ersten Boot zählen."
+      "description": "Elf Container in einer compose-Datei, davon zwei Postgres-Datenbanken und ein S3-kompatibler Blob-Store. Diese Seite vermittelt das mentale Modell, was jeder Container tut, wo Daten auf dem Storage liegen und welche Secrets beim ersten Boot zählen."
     }
   },
   "de:self-hosted/index": {

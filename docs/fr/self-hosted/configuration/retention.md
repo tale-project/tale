@@ -41,7 +41,7 @@ Les fenêtres de rétention choisies par l'admin vivent dans un fichier distinct
 
 ## Le sweep de rétention
 
-Un cron planifié dans `tale-convex` fait la suppression réelle. Chaque catégorie est sweepée indépendamment — un run lent sur une ne bloque pas les autres. Les suppressions sont auditées (chaque catégorie a son propre événement `*.retention_deleted`), et restaurer une entité dans sa fenêtre de grâce est possible depuis **Corbeille** avant le sweep final.
+Un job planifié quotidien sur `backend-worker` fait la suppression réelle, à 04h00 UTC. Chaque catégorie est sweepée indépendamment — un run lent sur une ne bloque pas les autres, et un sweep qui échoue est réessayé par la file plutôt que sauté jusqu'au lendemain. Les suppressions sont auditées (chaque catégorie a son propre événement `*.retention_deleted`), et restaurer une entité dans sa fenêtre de grâce est possible depuis **Corbeille** avant le sweep final.
 
 Les entrées d'audit log sont elles-mêmes soumises à la rétention, mais leur plancher est imposé par déploiement, pas par org : la rétention d'audit log la plus stricte (la plus courte) à travers toutes les orgs est ce qui tourne effectivement. Un tenant plus strict tire tout le monde plus serré — garde ça en tête sur les instances multi-tenants.
 

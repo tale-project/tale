@@ -38,15 +38,19 @@ Die linkeste Datei ist die Basis; jede nachfolgende Datei merged ihre Schlüssel
 
 ## Services und ihre Rollen
 
-Der Basis-Graph fährt acht Container hoch:
+Der Basis-Graph fährt zehn Container hoch:
 
-- `tale-proxy` — Caddy. TLS, Reverse-Proxy, 301s.
-- `tale-platform` — die TanStack-Start-App. Die User-zugewandte UI und API.
-- `tale-convex` — das Convex-Backend. WebSocket, Queries, Mutationen, Actions — und die In-Process-RAG-Suche, Dokument-Ingestion, das Web-Crawling und die Dokumentgenerierung, die früher separate Services waren.
-- `tale-db` — operatives Postgres (ParadeDB). Der persistente Speicher des Convex-Backends.
+- `tale-proxy` — Caddy. TLS, Reverse-Proxy, 301s. Er veröffentlicht ausserdem den Bucket-Pfad des Blob-Stores, damit präsignierte URLs im Browser funktionieren.
+- `tale-platform` — die TanStack-Start-App. Die User-zugewandte UI, die statischen Assets und die öffentliche `/status`-Seite.
+- `backend-api` — das Anwendungs-Backend: ein Node-Prozess, der jede Tür unter `/api/` bedient, plus `/events`, `/dav` und die Maschinen-API. Die Wissens-Suche läuft in diesem Prozess.
+- `backend-worker` — dasselbe Image in der Worker-Rolle, das die pg-boss-Job-Warteschlange abarbeitet: Dokument-Ingestion und Embedding, Web-Crawling, Automation-Runs, Retention-Sweeps. Er bedient kein HTTP. Beide Backend-Services nehmen `--scale`, und deshalb hat keiner einen festen Container-Namen.
+- `tale-db` — operatives Postgres (ParadeDB). Die `tale_app`-Datenbank: Anwendungs-State, Sessions und die Job-Warteschlange.
+- `tale-object-store` — der Blob-Store (MinIO). Jedes hochgeladene Dokument, jeder Chat-Anhang, jede Audiodatei und jedes generierte Medium. Nur intern erreichbar.
 - `tale-knowledge-db` — Postgres des Wissens-Korpus (ParadeDB). Die `tale_knowledge`-Datenbank mit Dokument-Chunks, Embeddings und gecrawlten Seiten, auf Port 5433, damit sie nie mit `tale-db` auf 5432 kollidiert.
 - `tale-sandbox-llm-gateway` — das LLM-Gateway für Harness-Züge (gepinntes externes Image).
-- `tale-sandbox-egress` und `tale-sandbox` — die Sandbox-Ebene. Run-Code-Container hinter einem Egress-Proxy (standardmäßig offen; sperrbar mit `SANDBOX_EGRESS_ALLOWLIST`), zugleich die Headless-Browser-Laufzeit, die das Convex-Backend für Web-Render und Dokumentgenerierung aufruft.
+- `tale-sandbox-egress` und `tale-sandbox` — die Sandbox-Ebene. Run-Code-Container hinter einem Egress-Proxy (standardmäßig offen; sperrbar mit `SANDBOX_EGRESS_ALLOWLIST`), zugleich die Headless-Browser-Laufzeit, die das Backend für Web-Render und Dokumentgenerierung aufruft.
+
+Dazu kommt ein `bgutil-provider`-Sidecar für die YouTube-Ingestion; er ist best-effort, und der Stack funktioniert ohne ihn. Ein Single-Host-`tale deploy`-Stack lässt `tale-knowledge-db` weg und faltet den Korpus in `tale-db` unter dem Netzwerk-Alias `knowledge-db`.
 
 Der Stack ist jetzt vollständig TypeScript — es gibt keinen Python-Service im Graph. [Container-Architektur](/de/self-hosted/operate/container-architecture) vertieft, was was besitzt.
 
