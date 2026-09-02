@@ -65,3 +65,151 @@ describe('entraIdAdapter.getUserInfo — jobTitle normalisation (SSO serverError
     expect(info.jobTitle).toBeUndefined();
   });
 });
+
+/** Serves each page body in order; every extra call answers the last page. */
+function stubGraphPages(pages: Record<string, unknown>[]): {
+  calls: () => string[];
+} {
+  const requested: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string | URL) => {
+      requested.push(String(url));
+      const body = pages[Math.min(requested.length, pages.length) - 1];
+      return { ok: true, json: async () => body } as unknown as Response;
+    }),
+  );
+  return { calls: () => requested };
+}
+
+describe('entraIdAdapter.getGroups — Graph pagination (truncation stripped team memberships)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const group = (id: string): Record<string, unknown> => ({
+    '@odata.type': '#microsoft.graph.group',
+    id,
+    displayName: `Group ${id}`,
+  });
+
+  it('follows @odata.nextLink to exhaustion and returns the union of all pages', async () => {
+    const { calls } = stubGraphPages([
+      {
+        value: [
+          group('g1'),
+          { '@odata.type': '#microsoft.graph.directoryRole', id: 'r1' },
+        ],
+        '@odata.nextLink':
+          'https://graph.microsoft.com/v1.0/me/memberOf?$skiptoken=page2',
+      },
+      { value: [group('g2'), group('g3')] },
+    ]);
+
+    const groups = await entraIdAdapter.getGroups(fakeConfig, 'token');
+
+    // Union of both pages, non-group directory objects filtered out — a
+    // 100+-group user keeps every team instead of having page-2+ pruned.
+    expect(groups.map((g) => g.id)).toEqual(['g1', 'g2', 'g3']);
+    expect(calls()).toHaveLength(2);
+    expect(calls()[1]).toBe(
+      'https://graph.microsoft.com/v1.0/me/memberOf?$skiptoken=page2',
+    );
+  });
+
+  it('reads a single page when no nextLink is present', async () => {
+    const { calls } = stubGraphPages([{ value: [group('only')] }]);
+
+    const groups = await entraIdAdapter.getGroups(fakeConfig, 'token');
+
+    expect(groups.map((g) => g.id)).toEqual(['only']);
+    expect(calls()).toHaveLength(1);
+  });
+
+  it('throws instead of silently truncating when the page cap is exceeded', async () => {
+    // A feed that never ends: every response points at another page.
+    stubGraphPages([
+      {
+        value: [group('loop')],
+        '@odata.nextLink':
+          'https://graph.microsoft.com/v1.0/me/memberOf?$skiptoken=again',
+      },
+    ]);
+
+    // The callers treat a THROW as "groups unknown" and skip the team-sync
+    // prune — a silent partial list would strip memberships instead.
+    await expect(entraIdAdapter.getGroups(fakeConfig, 'token')).rejects.toThrow(
+      /pagination cap exceeded/,
+    );
+  });
+
+  it('refuses to follow a nextLink that leaves the Graph origin', async () => {
+    stubGraphPages([
+      {
+        value: [group('g1')],
+        '@odata.nextLink': 'https://evil.example.com/steal-token',
+      },
+    ]);
+
+    await expect(entraIdAdapter.getGroups(fakeConfig, 'token')).rejects.toThrow(
+      /refusing to follow/,
+    );
+  });
+
+  it('propagates a non-OK page as an error (callers skip the prune)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          ({
+            ok: false,
+            status: 502,
+            json: async () => ({}),
+          }) as unknown as Response,
+      ),
+    );
+
+    await expect(entraIdAdapter.getGroups(fakeConfig, 'token')).rejects.toThrow(
+      /Graph API error: 502/,
+    );
+  });
+});
+
+describe('entraIdAdapter.getAppRoles — Graph pagination', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('unions appRoleIds across pages', async () => {
+    stubGraphPages([
+      {
+        value: [{ appRoleId: 'role-1' }, { appRoleId: '' }],
+        '@odata.nextLink':
+          'https://graph.microsoft.com/v1.0/me/appRoleAssignments?$skiptoken=p2',
+      },
+      { value: [{ appRoleId: 'role-2' }] },
+    ]);
+
+    const roles = await entraIdAdapter.getAppRoles?.(fakeConfig, 'token');
+
+    expect(roles).toEqual(['role-1', 'role-2']);
+  });
+
+  it('degrades to no roles on a failed fetch (unchanged contract)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          ({
+            ok: false,
+            status: 403,
+            json: async () => ({}),
+          }) as unknown as Response,
+      ),
+    );
+
+    const roles = await entraIdAdapter.getAppRoles?.(fakeConfig, 'token');
+
+    expect(roles).toEqual([]);
+  });
+});
