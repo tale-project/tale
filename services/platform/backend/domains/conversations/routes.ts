@@ -71,6 +71,18 @@ const attachmentSchema = z.object({
 
 const statusSchema = z.enum(['open', 'closed', 'spam', 'archived']);
 
+/**
+ * The Inbox connector filter, read from whichever key the caller sent. The
+ * paginated list adapter serializes `connectorName` while the counts adapter
+ * serializes `connector`; accepting both keeps the two entry points on ONE
+ * server contract (canonical `connectorName`) so the list can no longer show
+ * every connector while the sidebar counts filter correctly.
+ */
+function connectorFilter<E extends OrgEnv>(c: Context<E>): string | undefined {
+  const value = c.req.query('connectorName') ?? c.req.query('connector');
+  return value !== undefined && value !== '' ? value : undefined;
+}
+
 export function createConversationRoutes(deps: {
   sql: Sql;
   auth: Auth;
@@ -106,8 +118,8 @@ export function createConversationRoutes(deps: {
       ...(c.req.query('channel') !== undefined
         ? { channel: c.req.query('channel') ?? '' }
         : {}),
-      ...(c.req.query('connector') !== undefined
-        ? { connectorName: c.req.query('connector') ?? '' }
+      ...(connectorFilter(c) !== undefined
+        ? { connectorName: connectorFilter(c) ?? '' }
         : {}),
       ...(c.req.query('contactId') !== undefined
         ? { contactId: c.req.query('contactId') ?? '' }
@@ -128,16 +140,17 @@ export function createConversationRoutes(deps: {
   });
 
   app.get('/counts', async (c) => {
+    const connector = connectorFilter(c);
     return c.json({
       byStatus: await countConversationsByStatus(
         deps.sql,
         c.get('orgId'),
-        c.req.query('connector') ?? undefined,
+        connector,
       ),
       unread: await countUnreadConversations(
         deps.sql,
         c.get('orgId'),
-        c.req.query('connector') ?? undefined,
+        connector,
       ),
     });
   });
