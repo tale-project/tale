@@ -6831,6 +6831,23 @@ async function checkSamlLogin(
     const loginLocation = loginRes.headers.get('location') ?? '';
     const loginUrl = loginLocation === '' ? null : new URL(loginLocation);
 
+    // The AuthnRequest ID inside the redirect (deflate+base64, Redirect
+    // binding) — building it must have stored the ID in the shared
+    // app.saml_request_ids store, or no instance could validate the answer.
+    const { inflateRawSync } = await import('node:zlib');
+    const samlRequestParam = loginUrl?.searchParams.get('SAMLRequest') ?? '';
+    const authnRequestId =
+      samlRequestParam === ''
+        ? ''
+        : (/ID="([^"]+)"/.exec(
+            inflateRawSync(Buffer.from(samlRequestParam, 'base64')).toString(
+              'utf8',
+            ),
+          )?.[1] ?? '');
+    const issuedRow = await sql<{ id: string }[]>`
+      SELECT id FROM app.saml_request_ids WHERE id = ${authnRequestId}
+    `;
+
     record(
       'SAML: SP metadata + AuthnRequest redirect',
       metadataRes.status === 200 &&
@@ -6852,6 +6869,7 @@ async function checkSamlLogin(
       groups: string[];
       notOnOrAfterMs: number;
       tamper?: boolean;
+      inResponseTo?: string;
     }): string => {
       const now = Date.now();
       // Group membership is ONE multi-valued attribute (the shape Entra,
@@ -6872,7 +6890,7 @@ async function checkSamlLogin(
         `<saml:Issuer>https://idp.saml.itest/entity</saml:Issuer>` +
         `<saml:Subject><saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">${opts.email}</saml:NameID>` +
         `<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">` +
-        `<saml:SubjectConfirmationData NotOnOrAfter="${iso(opts.notOnOrAfterMs)}" Recipient="${acsUrl}"></saml:SubjectConfirmationData>` +
+        `<saml:SubjectConfirmationData${opts.inResponseTo ? ` InResponseTo="${opts.inResponseTo}"` : ''} NotOnOrAfter="${iso(opts.notOnOrAfterMs)}" Recipient="${acsUrl}"></saml:SubjectConfirmationData>` +
         `</saml:SubjectConfirmation></saml:Subject>` +
         `<saml:Conditions NotBefore="${iso(now - 60_000)}" NotOnOrAfter="${iso(opts.notOnOrAfterMs)}">` +
         `<saml:AudienceRestriction><saml:Audience>${spEntityId}</saml:Audience></saml:AudienceRestriction>` +
@@ -6912,7 +6930,7 @@ async function checkSamlLogin(
           )
         : signed;
       return Buffer.from(
-        `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp${opts.id}" IssueInstant="${iso(now)}" Version="2.0" Destination="${acsUrl}">` +
+        `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp${opts.id}" IssueInstant="${iso(now)}" Version="2.0" Destination="${acsUrl}"${opts.inResponseTo ? ` InResponseTo="${opts.inResponseTo}"` : ''}>` +
           `<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"></samlp:StatusCode></samlp:Status>` +
           body +
           `</samlp:Response>`,
@@ -7037,6 +7055,50 @@ async function checkSamlLogin(
             row.metadata?.stage === 'callback',
         ),
       `tampered=${tamperedRes.status}/${(tamperedRes.headers.get('set-cookie') ?? '') === '' ? 'no-cookie' : 'COOKIE'}, impostorAccounts=${impostor.length}, expired=${expiredRes.status}, noBody=${noBodyRes.status}, auditRows=${auditsBefore[0]?.count}→${failures.length} (want +2)`,
+    );
+
+    // ---- InResponseTo one-time use -------------------------------------
+    // An SP-initiated response must answer the AuthnRequest this deployment
+    // issued (row present until consumed), the SAME captured body must not
+    // validate twice, and a request id the SP never issued is refused.
+    const spResponse = buildResponse({
+      id: '_itestsaml4',
+      email: 'saml.user@door.test',
+      groups: ['SamlOps'],
+      notOnOrAfterMs: Date.now() + 300_000,
+      inResponseTo: authnRequestId,
+    });
+    const spFirst = await postAssertion(spResponse);
+    const spFirstCookie =
+      (spFirst.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const consumedRow = await sql<{ id: string }[]>`
+      SELECT id FROM app.saml_request_ids WHERE id = ${authnRequestId}
+    `;
+    const spReplay = await postAssertion(spResponse);
+    const forged = await postAssertion(
+      buildResponse({
+        id: '_itestsaml5',
+        email: 'saml.user@door.test',
+        groups: ['SamlOps'],
+        notOnOrAfterMs: Date.now() + 300_000,
+        inResponseTo: '_never-issued',
+      }),
+    );
+    record(
+      'SAML: InResponseTo one-time use (replay + forged request refused)',
+      authnRequestId !== '' &&
+        issuedRow.length === 1 &&
+        spFirst.status === 302 &&
+        (spFirst.headers.get('location') ?? '').includes('/dashboard') &&
+        spFirstCookie.includes('better-auth.session_token=') &&
+        consumedRow.length === 0 &&
+        spReplay.status === 302 &&
+        (spReplay.headers.get('location') ?? '').includes('/log-in') &&
+        (spReplay.headers.get('set-cookie') ?? '') === '' &&
+        forged.status === 302 &&
+        (forged.headers.get('location') ?? '').includes('/log-in') &&
+        (forged.headers.get('set-cookie') ?? '') === '',
+      `issued=${authnRequestId !== ''}/row=${issuedRow.length} (want 1), first=${spFirst.status}→${(spFirst.headers.get('location') ?? '').includes('/dashboard') ? 'dashboard' : spFirst.headers.get('location')} cookie=${spFirstCookie !== ''}, consumed=${consumedRow.length === 0}, replay=${spReplay.status}→${(spReplay.headers.get('location') ?? '').includes('/log-in') ? 'log-in' : 'ERR'} noCookie=${(spReplay.headers.get('set-cookie') ?? '') === ''}, forged=${forged.status} noCookie=${(forged.headers.get('set-cookie') ?? '') === ''}`,
     );
   } finally {
     if (savedSiteUrl === undefined) delete process.env.SITE_URL;
