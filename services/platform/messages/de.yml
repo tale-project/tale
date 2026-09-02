@@ -3849,6 +3849,7 @@ governance:
       gdpr_erasure_cascade_attempts_exhausted: Kaskaden-Versuche erschöpft
       gdpr_erasure_extended: Frist verlängert
       gdpr_erasure_retried: Wiederholt
+      gdpr_erasure_rejected: Zurückgewiesen
       gdpr_erasure_cancelled: Abgebrochen
     categories:
       userMemories: Persönliche Memos
@@ -5239,8 +5240,7 @@ settings:
       clientSecretLabel: Client-Secret
       clientSecretKeep: Leer lassen, um das aktuelle Secret beizubehalten.
       tenantIdLabel: Verzeichnis-ID (Tenant)
-      tenantIdHint:
-        Nötig für Single-Tenant-Registrierungen bei Microsoft; bei
+      tenantIdHint: Nötig für Single-Tenant-Registrierungen bei Microsoft; bei
         Multi-Tenant-Apps leer lassen.
       redirectUrisLabel: Zu registrierende Redirect-URIs
       redirectUrisHint:

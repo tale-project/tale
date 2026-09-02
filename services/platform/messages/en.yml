@@ -3716,6 +3716,7 @@ governance:
       gdpr_erasure_cascade_attempts_exhausted: Cascade attempts exhausted
       gdpr_erasure_extended: Deadline extended
       gdpr_erasure_retried: Retried
+      gdpr_erasure_rejected: Rejected
       gdpr_erasure_cancelled: Cancelled
     categories:
       userMemories: Personal memories
@@ -5366,8 +5367,7 @@ settings:
         Required for single-tenant Microsoft app registrations; leave blank
         for multi-tenant ones.
       redirectUrisLabel: Redirect URIs to register
-      redirectUrisHint:
-        Add each of these to the vendor app registration before connecting.
+      redirectUrisHint: Add each of these to the vendor app registration before connecting.
       reuseSso: Use Entra ID SSO app
       reuseSsoTitle: Reuse the Entra ID SSO app registration
       reuseSsoBody:
