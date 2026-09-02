@@ -57,9 +57,11 @@ function MilkdownEditorInner({
 
   const editorPlaceholder = placeholder || tConversations('messagePlaceholder');
   const draftKeys = messageDraftKeys(user?.userId, messageId);
+  // Empty string — never `pendingMessage.content`. `clear()` resets to this
+  // initial value; tying it to the undo draft would put the draft back on clear.
   const [message, setMessage, clearMessage] = usePersistedState(
     draftKeys.body,
-    pendingMessage?.content || '',
+    '',
   );
   const [improveInstruction, setImproveInstruction, clearImproveInstruction] =
     usePersistedState(draftKeys.improveInstruction, '');
@@ -81,6 +83,10 @@ function MilkdownEditorInner({
   );
 
   const crepeRef = useRef<Crepe | null>(null);
+  // Seed from pending only when the pending payload changes — not when the
+  // body is cleared after send (that used to re-write the undo draft into
+  // localStorage right before remount).
+  const appliedPendingKeyRef = useRef<string | null>(null);
 
   useEditor(
     (root) => {
@@ -121,14 +127,21 @@ function MilkdownEditorInner({
     }
   }, [programmaticContent, isLoading]);
 
+  const pendingId = pendingMessage?.id;
+  const pendingContent = pendingMessage?.content ?? '';
+
   useEffect(() => {
-    const pending = pendingMessage?.content ?? '';
-    if (!message.trim() && pending.trim()) {
-      setMessage(pending);
-      setProgrammaticContent(pending);
-      setHasContent(true);
+    if (!pendingContent.trim()) {
+      appliedPendingKeyRef.current = null;
+      return;
     }
-  }, [pendingMessage, message, setMessage]);
+    const applyKey = `${pendingId ?? ''}:${pendingContent}`;
+    if (appliedPendingKeyRef.current === applyKey) return;
+    appliedPendingKeyRef.current = applyKey;
+    setMessage(pendingContent);
+    setProgrammaticContent(pendingContent);
+    setHasContent(true);
+  }, [pendingId, pendingContent, setMessage]);
 
   const handleOpenInstructionTextarea = useCallback(() => {
     setSavedEditorContent(message);
@@ -398,10 +411,14 @@ function MilkdownEditorInner({
 
 export function MessageEditor(props: MessageEditorProps) {
   const [editorKey, setEditorKey] = useState(0);
+  const { onPendingMessageConsumed } = props;
 
   const handleMessageSent = useCallback(() => {
+    // Clear the undo seed in the same synchronous turn as the remount so
+    // React batches them: the new editor mounts without `pendingMessage`.
+    onPendingMessageConsumed?.();
     setEditorKey((k) => k + 1);
-  }, []);
+  }, [onPendingMessageConsumed]);
 
   return (
     <MilkdownProvider key={editorKey}>
