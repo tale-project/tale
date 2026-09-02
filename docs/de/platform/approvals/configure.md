@@ -9,7 +9,7 @@ Das Modell, was eine Genehmigungskarte ist und wer sie entscheidet, steht auf [G
 
 ## Connector-Operationen
 
-Jede Connector deklariert ihre Operationen, und jede Operation trägt ihr eigenes Genehmigungs-Flag. Öffne **Einstellungen > Connectors**, klicke auf eine Connector, und ihre Operationsliste kennzeichnet die als **Genehmigung erforderlich** markierten — bei den mitgelieferten Konnektoren ist das die Schreibseite: Mail senden, Nachrichten posten, Issues erstellen. Lesezugriffe laufen ohne Karte; markierte Schreibzugriffe halten im Chat mit ihren exakten Parametern, bis jemand genehmigt.
+Jede Connector deklariert ihre Operationen, und jede Operation trägt ihr eigenes Genehmigungs-Flag — bei den mitgelieferten Konnektoren ist das die Schreibseite: Mail senden, Nachrichten posten, Issues erstellen. Lesezugriffe laufen ohne Karte; markierte Schreibzugriffe halten im Chat mit ihren exakten Parametern, bis jemand genehmigt.
 
 Das Flag ist keine separate Einstellung, die ein Admin umlegt. Jede Aktion, die ein Connector deklariert, trägt einen Effekt — `read` oder `write` —, und die Schreibseite ist das, was die Genehmigungsrichtlinie abfängt. Das hält beide ehrlich zueinander: Eine Aktion kann sich nicht klammheimlich von einem Lese- in einen Schreibzugriff verwandeln, ohne auch zu ändern, wofür sie fragen muss.
 
@@ -40,7 +40,7 @@ Eine Operation, die schon auf einer Karte wartet, behält ihre Karte auch dann, 
 
 ## MCP-Tools
 
-Das Manifest eines MCP-Servers markiert, welche seiner Tools ein Einverständnis brauchen. Öffne **Einstellungen > API > MCP**, klappe einen Server aus, und seine Liste **Erkannte Tools** kennzeichnet jedes markierte Tool mit **Genehmigung erforderlich** — diese fragen im Chat bei jedem Aufruf durch einen Agent. Das Flag stammt vom Autor des Servers; einen Server zu verbinden heißt, seinen Tool-Vertrag anzunehmen — lies die Liste also, bevor du einen aktivierst. [MCP-Server](/de/platform/connectors/mcp-servers) behandelt die Registrierung.
+Das Manifest eines MCP-Servers markiert, welche seiner Tools ein Einverständnis brauchen — diese fragen im Chat bei jedem Aufruf durch einen Agent. Das Flag stammt vom Autor des Servers; einen Server zu verbinden heißt, seinen Tool-Vertrag anzunehmen — lies seine Tool-Liste also, bevor du einen anbindest. [MCP-Server](/de/platform/connectors/mcp-servers) behandelt, wie Server deine Agents erreichen.
 
 ## Eingebaute Schreib-Tore
 
@@ -58,7 +58,7 @@ Der Hebel dafür ist nicht das Genehmigungs-Flag, sondern die Fähigkeit selbst:
 
 ## Prüfen, was fragen wird
 
-Bevor du einen Agent vor echte Systeme stellst, lies seine Fähigkeiten wie ein Genehmiger: die Operationsliste der Connector auf markierte Schreibzugriffe, die **Erkannte Tools** des MCP-Servers auf markierte Tools und den Tool-Tab des Agents darauf, ob er überhaupt Schreib-Tools hält. Das [Audit-Log](/de/platform/admin/governance/audit-logs) protokolliert anschließend jede Entscheidung, die dieses Setup produziert.
+Bevor du einen Agent vor echte Systeme stellst, lies seine Fähigkeiten wie ein Genehmiger: welche Schreib-Aktionen seine Connectoren deklarieren, welche Tools seine MCP-Server markieren, und ob der Agent überhaupt Schreib-Tools hält. Das [Audit-Log](/de/platform/admin/governance/audit-logs) protokolliert anschließend jede Entscheidung, die dieses Setup produziert.
 
 ## Wo das hingehört
 
