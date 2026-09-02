@@ -51,17 +51,24 @@ function envOfStage(stage: string): Map<string, string> {
   return vars;
 }
 
-function stages(): { runner: string; squash: string } {
+function stages(): {
+  builder: string;
+  dev: string;
+  runner: string;
+  squash: string;
+} {
   const source = readFileSync(DOCKERFILE, 'utf8');
   const parts = source.split(/^(?=FROM\s)/m);
+  const builder = parts.find((part) => /^FROM\s.*\sAS builder\b/.test(part));
+  const dev = parts.find((part) => /^FROM\s.*\sAS dev\b/.test(part));
   const runner = parts.find((part) => /^FROM\s.*\sAS runner\b/.test(part));
   const squash = parts.find((part) => /^FROM scratch\b/.test(part));
-  if (!runner || !squash) {
+  if (!builder || !dev || !runner || !squash) {
     throw new Error(
-      'runner/squash stages not found in services/platform/Dockerfile — update this guard alongside the Dockerfile',
+      'builder/dev/runner/squash stages not found in services/platform/Dockerfile — update this guard alongside the Dockerfile',
     );
   }
-  return { runner, squash };
+  return { builder, dev, runner, squash };
 }
 
 describe('Dockerfile squash-stage ENV parity', () => {
@@ -96,6 +103,19 @@ describe('Dockerfile squash-stage ENV parity', () => {
     );
     expect(envOfStage(squash).get('KNOWLEDGE_MIGRATIONS_DIR')).toBe(
       '/app/db/migrations/knowledge-db',
+    );
+  });
+
+  it('ships the DDL + pointer in the dev image too (workspace layout)', () => {
+    const { builder, dev } = stages();
+    // The dev stage inherits the builder's filesystem, where the tree sits
+    // at the workspace path — MIGRATION.md promises this copy alongside the
+    // runner's ("into the builder stage (so the dev image inherits it)").
+    expect(builder).toMatch(
+      /COPY[^\n]*services\/db\/migrations\/knowledge-db[^\n]*\.\/services\/db\/migrations\/knowledge-db/,
+    );
+    expect(envOfStage(dev).get('KNOWLEDGE_MIGRATIONS_DIR')).toBe(
+      '/app/services/db/migrations/knowledge-db',
     );
   });
 });
