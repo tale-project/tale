@@ -3864,6 +3864,596 @@ async function checkKnowledge(
   }
 }
 
+/**
+ * Corpus-purge consistency: deleted/replaced content leaves EVERYWHERE it
+ * lives (corpus rows, blobs) and the retrievable set follows lifecycle
+ * truth; purge failures are never reported as success.
+ *
+ *   1. Controlled-record replacement de-indexes the old ref (bytes stay as
+ *      the retained snapshot) — the superseded version stops answering RAG.
+ *   2. A knowledge-entry edit releases the rotated-away ref (corpus + blob)
+ *      instead of stranding an unpurgeable corpus document per edit.
+ *   3. A purge that cannot reach the corpus KEEPS the document (no false
+ *      "deleted" receipt); a retry after recovery heals everything.
+ *   4. Project cascade delete darkens its documents immediately (lifecycle
+ *      'expired' fails the retrievable filter) and the grace=0 retention
+ *      sweep hard-deletes them (row + corpus + blob).
+ *   5. A shared blob ref (the WebDAV COPY shape) survives its sibling's
+ *      purge — corpus row and bytes stay for the twin, and the twin keeps
+ *      answering through its own scope; the last holder's purge releases.
+ *   6. The corpus reconcile sweep de-indexes historically stranded refs.
+ *   7. Knowledge-entry mutations are role-gated (member is read-only).
+ */
+async function checkCorpusPurgeConsistency(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'corpus purge consistency (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const embedServer = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      res.setHeader('content-type', 'application/json');
+      res.end(fakeEmbeddingsPayload(body));
+    });
+  });
+  await new Promise<void>((resolve) => {
+    embedServer.listen(0, '127.0.0.1', resolve);
+  });
+  const embedAddress = embedServer.address();
+  const embedPort =
+    embedAddress !== null && typeof embedAddress === 'object'
+      ? embedAddress.port
+      : 0;
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const knowledgeDir = path.join(configRoot, orgSlug, 'knowledge');
+
+  try {
+    await mkdir(knowledgeDir, { recursive: true });
+    await writeFile(
+      path.join(knowledgeDir, 'embedding.json'),
+      JSON.stringify({
+        providerSlug: 'openai',
+        model: 'itest-embed',
+        dimensions: 8,
+        baseUrl: `http://127.0.0.1:${embedPort}/v1`,
+      }),
+    );
+    const { getKnowledgePoolForOrg } = await import('./core/knowledge/pool.ts');
+    const corpusPool = await getKnowledgePoolForOrg(orgSlug);
+    const { s3BlobSize } = await import('./core/lib/storage/blob_access.ts');
+
+    const send = (
+      method: 'POST' | 'DELETE',
+      route: string,
+      body?: unknown,
+    ): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method,
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    const corpusCount = async (ref: string): Promise<number> => {
+      const rows = await corpusPool<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM private_knowledge.documents
+        WHERE org_slug = ${orgSlug} AND file_id = ${ref}
+      `;
+      return Number(rows[0]?.count ?? '0');
+    };
+    const blobExists = async (ref: string): Promise<boolean> =>
+      (await s3BlobSize(orgSlug, ref)) !== null;
+    const fetchRaw = async (ref: string): Promise<string> =>
+      JSON.stringify(
+        await (
+          await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
+            fileId: ref,
+          })
+        ).json(),
+      );
+    /** Upload + bind + wait-indexed; returns ids or null on any failure. */
+    const uploadIndexedDoc = async (
+      fileName: string,
+      content: string,
+      projectId?: string,
+    ): Promise<{ documentId: string; ref: string; fileId: string } | null> => {
+      const handoff = z
+        .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+        .safeParse(
+          await (
+            await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+              contentType: 'text/plain',
+              size: content.length,
+            })
+          ).json(),
+        );
+      if (!handoff.success) return null;
+      await fetch(handoff.data.uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': 'text/plain' },
+        body: content,
+      });
+      const registered = z.object({ fileId: z.string() }).safeParse(
+        await (
+          await send('POST', `/api/app/files/register?orgId=${orgId}`, {
+            storageRef: handoff.data.storageRef,
+            fileName,
+            contentType: 'text/plain',
+          })
+        ).json(),
+      );
+      if (!registered.success) return null;
+      const bound = z.object({ documentId: z.string() }).safeParse(
+        await (
+          await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
+            fileId: registered.data.fileId,
+            fileName,
+            ...(projectId !== undefined ? { projectId } : {}),
+          })
+        ).json(),
+      );
+      if (!bound.success) return null;
+      const indexed = await waitFor(async () => {
+        const rows = await sql<{ status: string | null }[]>`
+          SELECT rag_status AS status FROM app.file_metadata
+          WHERE id = ${registered.data.fileId}
+        `;
+        return rows[0]?.status === 'completed';
+      }, 30_000);
+      if (!indexed) return null;
+      return {
+        documentId: bound.data.documentId,
+        ref: handoff.data.storageRef,
+        fileId: registered.data.fileId,
+      };
+    };
+
+    // --- 1. Replacement de-indexes the superseded version ------------------
+    const repl = await uploadIndexedDoc(
+      'purge-replace.txt',
+      'purge check alpha quicksilver original body',
+    );
+    if (repl === null) {
+      record('corpus purge: replacement de-index', false, 'seed doc failed');
+      return;
+    }
+    await send(
+      'POST',
+      `/api/app/documents/${repl.documentId}/record/mark-controlled?orgId=${orgId}`,
+      {},
+    );
+    const begin = z
+      .object({ intentId: z.string(), url: z.string().url() })
+      .safeParse(
+        await (
+          await send(
+            'POST',
+            `/api/app/documents/${repl.documentId}/replacement-upload/begin?orgId=${orgId}`,
+            {
+              expectedRecordState: 'draft',
+              expectedVersion: 1,
+              expectedFileId: repl.ref,
+              fileName: 'purge-replace.txt',
+              contentType: 'text/plain',
+            },
+          )
+        ).json(),
+      );
+    if (begin.success) {
+      await fetch(begin.data.url, {
+        method: 'PUT',
+        headers: { 'content-type': 'text/plain' },
+        body: 'purge check beta cinnabar replacement body',
+      });
+    }
+    const finalize = await send(
+      'POST',
+      `/api/app/documents/replacement-uploads/${begin.success ? begin.data.intentId : ''}/finalize?orgId=${orgId}`,
+      {},
+    );
+    const afterReplace = z
+      .object({ document: z.object({ fileId: z.string() }) })
+      .safeParse(
+        await (
+          await fetch(
+            `${base}/api/app/documents/${repl.documentId}?orgId=${orgId}`,
+            { headers: { cookie } },
+          )
+        ).json(),
+      );
+    const newRef = afterReplace.success
+      ? afterReplace.data.document.fileId
+      : '';
+    const oldDeindexed = await waitFor(
+      async () => (await corpusCount(repl.ref)) === 0,
+      30_000,
+    );
+    const newIndexed = await waitFor(
+      async () => (await corpusCount(newRef)) === 1,
+      30_000,
+    );
+    const oldFetchDark = !(await fetchRaw(repl.ref)).includes('quicksilver');
+    const oldBlobRetained = await blobExists(repl.ref);
+    record(
+      'corpus purge: replacement de-indexes the superseded version',
+      finalize.ok &&
+        newRef !== '' &&
+        newRef !== repl.ref &&
+        oldDeindexed &&
+        newIndexed &&
+        oldFetchDark &&
+        oldBlobRetained,
+      `finalize → ${finalize.status}, oldCorpusGone=${oldDeindexed}, newIndexed=${newIndexed}, oldFetchDark=${oldFetchDark}, snapshotBytesKept=${oldBlobRetained}`,
+    );
+
+    // --- 2. Knowledge-entry edit releases the rotated-away ref -------------
+    const entryCreated = z.object({ id: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/knowledge-entries?orgId=${orgId}`, {
+          topic: 'purge rotation topic',
+          content: 'entry version one verdigris facts',
+        })
+      ).json(),
+    );
+    const entryDocRows = await sql<{ documentId: string | null }[]>`
+      SELECT document_id AS "documentId" FROM app.knowledge_entries
+      WHERE id = ${entryCreated.success ? entryCreated.data.id : ''}
+    `;
+    const entryDocId = entryDocRows[0]?.documentId ?? '';
+    const entryFileRows = await sql<{ id: string; storageRef: string }[]>`
+      SELECT id, storage_ref AS "storageRef" FROM app.file_metadata
+      WHERE document_id = ${entryDocId}
+    `;
+    const entryRefV1 = entryFileRows[0]?.storageRef ?? '';
+    const entryIndexedV1 = await waitFor(
+      async () => (await corpusCount(entryRefV1)) === 1,
+      30_000,
+    );
+    const entryUpdated = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/knowledge-entries/${entryCreated.success ? entryCreated.data.id : ''}?orgId=${orgId}`,
+          {
+            topic: 'purge rotation topic',
+            content: 'entry version two zeppelin facts',
+          },
+        )
+      ).json(),
+    );
+    const entryRefV2Rows = await sql<{ storageRef: string }[]>`
+      SELECT storage_ref AS "storageRef" FROM app.file_metadata
+      WHERE document_id = ${entryDocId}
+    `;
+    const entryRefV2 = entryRefV2Rows[0]?.storageRef ?? '';
+    const v1Released = await waitFor(
+      async () =>
+        (await corpusCount(entryRefV1)) === 0 &&
+        !(await blobExists(entryRefV1)),
+      30_000,
+    );
+    const v2Indexed = await waitFor(
+      async () => (await corpusCount(entryRefV2)) === 1,
+      30_000,
+    );
+    record(
+      'corpus purge: knowledge-entry edit releases the old ref (corpus + blob)',
+      entryCreated.success &&
+        entryIndexedV1 &&
+        entryUpdated.success &&
+        entryRefV2 !== '' &&
+        entryRefV2 !== entryRefV1 &&
+        v1Released &&
+        v2Indexed,
+      `v1Indexed=${entryIndexedV1}, rotated=${entryRefV2 !== entryRefV1}, v1Released=${v1Released} (corpus row + blob gone), v2Indexed=${v2Indexed}`,
+    );
+
+    // --- 3. Purge failure is honest; retry heals ----------------------------
+    const honest = await uploadIndexedDoc(
+      'purge-honest.txt',
+      'purge check epsilon honesty body',
+    );
+    if (honest === null) {
+      record('corpus purge: failure honesty', false, 'seed doc failed');
+      return;
+    }
+    // Point the org's corpus at a dead endpoint — fail-closed by contract.
+    const badConnectionPath = path.join(knowledgeDir, 'connection.json');
+    await writeFile(
+      badConnectionPath,
+      JSON.stringify({
+        host: '127.0.0.1',
+        port: 9,
+        database: 'unreachable',
+        user: 'nobody',
+        sslmode: 'disable',
+      }),
+    );
+    const failedDelete = await send(
+      'POST',
+      `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
+      {},
+    );
+    const rowKeptRows = await sql<{ id: string }[]>`
+      SELECT id FROM app.documents WHERE id = ${honest.documentId}
+    `;
+    const corpusKept = (await corpusCount(honest.ref)) === 1;
+    const blobKept = await blobExists(honest.ref);
+    await rm(badConnectionPath, { force: true });
+    const retryDelete = await send(
+      'POST',
+      `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
+      {},
+    );
+    const rowGoneRows = await sql<{ id: string }[]>`
+      SELECT id FROM app.documents WHERE id = ${honest.documentId}
+    `;
+    const corpusGoneAfterRetry = (await corpusCount(honest.ref)) === 0;
+    const blobGoneAfterRetry = !(await blobExists(honest.ref));
+    record(
+      'corpus purge: failed purge keeps the row (honest), retry heals',
+      !failedDelete.ok &&
+        rowKeptRows.length === 1 &&
+        corpusKept &&
+        blobKept &&
+        retryDelete.ok &&
+        rowGoneRows.length === 0 &&
+        corpusGoneAfterRetry &&
+        blobGoneAfterRetry,
+      `brokenDelete → ${failedDelete.status} (want !ok), rowKept=${rowKeptRows.length === 1}, corpusKept=${corpusKept}, blobKept=${blobKept}; retry → ${retryDelete.status}, rowGone=${rowGoneRows.length === 0}, corpusGone=${corpusGoneAfterRetry}, blobGone=${blobGoneAfterRetry}`,
+    );
+
+    // --- 4. Project cascade: dark immediately, purged by the sweep ---------
+    const projectCreated = z.object({ projectId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/projects?orgId=${orgId}`, {
+          name: 'Purge Cascade Project',
+        })
+      ).json(),
+    );
+    const projectId = projectCreated.success
+      ? projectCreated.data.projectId
+      : '';
+    const projDoc = await uploadIndexedDoc(
+      'purge-cascade.txt',
+      'purge check theta cascade body',
+      projectId,
+    );
+    if (projDoc === null) {
+      record('corpus purge: project cascade', false, 'seed project doc failed');
+      return;
+    }
+    const cascade = await send(
+      'DELETE',
+      `/api/app/projects/${projectId}?orgId=${orgId}`,
+      { mode: 'cascade', confirmPhrase: 'Purge Cascade Project' },
+    );
+    const expiredRows = await sql<{ lifecycleStatus: string | null }[]>`
+      SELECT lifecycle_status AS "lifecycleStatus" FROM app.documents
+      WHERE id = ${projDoc.documentId}
+    `;
+    // Dark IMMEDIATELY: the corpus row still exists, but the retrievable
+    // filter refuses the expired lifecycle — no job in between.
+    const corpusStillThere = (await corpusCount(projDoc.ref)) === 1;
+    const darkImmediately = !(await fetchRaw(projDoc.ref)).includes('theta');
+    const { sweepOrgPhase2 } = await import('./domains/retention/service.ts');
+    const { loadActiveHolds } =
+      await import('./domains/legal_holds/service.ts');
+    const holds = await loadActiveHolds(sql, orgId);
+    const phase2 = await sweepOrgPhase2(
+      sql,
+      {
+        organizationId: orgId,
+        config: {
+          documentsEnabled: true,
+          documentsRetentionDays: 36_500,
+          deletionGraceDays: 0,
+        },
+      },
+      holds,
+    );
+    const cascadeRowGone =
+      (
+        await sql<{ id: string }[]>`
+          SELECT id FROM app.documents WHERE id = ${projDoc.documentId}
+        `
+      ).length === 0;
+    const cascadeCorpusGone = (await corpusCount(projDoc.ref)) === 0;
+    const cascadeBlobGone = !(await blobExists(projDoc.ref));
+    record(
+      'corpus purge: project cascade darkens now, grace=0 sweep hard-deletes',
+      cascade.ok &&
+        expiredRows[0]?.lifecycleStatus === 'expired' &&
+        corpusStillThere &&
+        darkImmediately &&
+        phase2.documents >= 1 &&
+        cascadeRowGone &&
+        cascadeCorpusGone &&
+        cascadeBlobGone,
+      `cascade → ${cascade.status}, lifecycle=${expiredRows[0]?.lifecycleStatus}, darkImmediately=${darkImmediately} (corpus row still present=${corpusStillThere}), sweepDocs=${phase2.documents}, rowGone=${cascadeRowGone}, corpusGone=${cascadeCorpusGone}, blobGone=${cascadeBlobGone}`,
+    );
+
+    // --- 5. A shared ref survives its sibling's purge (COPY twins) ---------
+    const twin = await uploadIndexedDoc(
+      'purge-twin.txt',
+      'purge check zeta twin body',
+    );
+    if (twin === null) {
+      record('corpus purge: shared-ref twins', false, 'seed doc failed');
+      return;
+    }
+    // The WebDAV COPY shape: a second document row, SAME file_ref, no file
+    // row of its own.
+    const twinRows = await sql<{ id: string }[]>`
+      INSERT INTO app.documents (
+        org_id, title, file_ref, mime_type, extension, source_provider,
+        created_by, created_at_ms, updated_at_ms
+      )
+      SELECT org_id, 'purge-twin copy.txt', file_ref, mime_type, extension,
+             'webdav', created_by, ${Date.now()}, ${Date.now()}
+      FROM app.documents WHERE id = ${twin.documentId}
+      RETURNING id
+    `;
+    const twinId = twinRows[0]?.id ?? '';
+    const deleteFirst = await send(
+      'POST',
+      `/api/app/documents/${twin.documentId}/delete?orgId=${orgId}`,
+      {},
+    );
+    const twinCorpusKept = (await corpusCount(twin.ref)) === 1;
+    const twinBlobKept = await blobExists(twin.ref);
+    const twinStillAnswers = (await fetchRaw(twin.ref)).includes('zeta');
+    const deleteSecond = await send(
+      'POST',
+      `/api/app/documents/${twinId}/delete?orgId=${orgId}`,
+      {},
+    );
+    const twinCorpusGone = (await corpusCount(twin.ref)) === 0;
+    const twinBlobGone = !(await blobExists(twin.ref));
+    record(
+      'corpus purge: shared blob ref survives the sibling, dies with the last holder',
+      deleteFirst.ok &&
+        twinCorpusKept &&
+        twinBlobKept &&
+        twinStillAnswers &&
+        deleteSecond.ok &&
+        twinCorpusGone &&
+        twinBlobGone,
+      `first delete → ${deleteFirst.status}, corpusKept=${twinCorpusKept}, blobKept=${twinBlobKept}, twinAnswers=${twinStillAnswers}; second delete → ${deleteSecond.status}, corpusGone=${twinCorpusGone}, blobGone=${twinBlobGone}`,
+    );
+
+    // --- 6. The reconcile sweep heals historical strands --------------------
+    const strand = await uploadIndexedDoc(
+      'purge-strand.txt',
+      'purge check eta strand body',
+    );
+    if (strand === null) {
+      record('corpus purge: reconcile sweep', false, 'seed doc failed');
+      return;
+    }
+    // Recreate the pre-fix wreckage: app rows vanish, corpus row + blob stay.
+    await sql`DELETE FROM app.file_metadata WHERE document_id = ${strand.documentId}`;
+    await sql`DELETE FROM app.documents WHERE id = ${strand.documentId}`;
+    const strandSeeded = (await corpusCount(strand.ref)) === 1;
+    // A missing release seam is a red result, not a harness crash.
+    let reconcileRan = false;
+    try {
+      const { runCorpusReconcile } =
+        await import('./domains/knowledge/release.ts');
+      await runCorpusReconcile(sql);
+      reconcileRan = true;
+    } catch (error) {
+      console.warn('[itest] corpus reconcile unavailable:', error);
+    }
+    const strandCorpusGone = (await corpusCount(strand.ref)) === 0;
+    const strandBlobGone = !(await blobExists(strand.ref));
+    record(
+      'corpus purge: reconcile sweep de-indexes stranded refs',
+      strandSeeded && reconcileRan && strandCorpusGone && strandBlobGone,
+      `seeded=${strandSeeded}, reconcileRan=${reconcileRan}, corpusGone=${strandCorpusGone}, blobGone=${strandBlobGone}`,
+    );
+
+    // --- 7. Knowledge-entry mutations are role-gated ------------------------
+    const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({
+        email: `purge-member-${orgSlug}@example.com`,
+        password: 'itest-password-1',
+        name: 'Purge Member',
+      }),
+    });
+    const memberCookie = cookieHeaderFrom(memberSignUp);
+    const memberBody = z
+      .object({ user: z.object({ id: z.string() }) })
+      .safeParse(await memberSignUp.json());
+    const memberId = memberBody.success ? memberBody.data.user.id : '';
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member',
+              ${new Date()})
+    `;
+    const memberSend = (route: string, body: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: memberCookie,
+          origin: base,
+        },
+        body: JSON.stringify(body),
+      });
+    const memberCreate = await memberSend(
+      `/api/app/knowledge-entries?orgId=${orgId}`,
+      { topic: 'member planted topic', content: 'member planted content' },
+    );
+    const memberUpdate = await memberSend(
+      `/api/app/knowledge-entries/${entryUpdated.success ? entryUpdated.data.id : ''}?orgId=${orgId}`,
+      { topic: 'purge rotation topic', content: 'member tampered content' },
+    );
+    const memberDelete = await fetch(
+      `${base}/api/app/knowledge-entries/${entryUpdated.success ? entryUpdated.data.id : ''}?orgId=${orgId}`,
+      {
+        method: 'DELETE',
+        headers: { cookie: memberCookie, origin: base },
+      },
+    );
+    const memberList = await fetch(
+      `${base}/api/app/knowledge-entries?orgId=${orgId}`,
+      { headers: { cookie: memberCookie } },
+    );
+    // The owner CAN delete — and it leaves the org's entry list the way this
+    // check found it (a later check asserts its own delete empties the list).
+    const ownerDelete = await fetch(
+      `${base}/api/app/knowledge-entries/${entryUpdated.success ? entryUpdated.data.id : ''}?orgId=${orgId}`,
+      { method: 'DELETE', headers: { cookie, origin: base } },
+    );
+    if (memberCreate.status === 201) {
+      // Only reachable when the role gate is broken: reap the planted entry
+      // so this scenario's red never bleeds into the later entries check.
+      const planted = z.object({ id: z.string() }).safeParse(
+        await memberCreate
+          .clone()
+          .json()
+          .catch(() => null),
+      );
+      if (planted.success) {
+        await fetch(
+          `${base}/api/app/knowledge-entries/${planted.data.id}?orgId=${orgId}`,
+          { method: 'DELETE', headers: { cookie, origin: base } },
+        );
+      }
+    }
+    record(
+      'knowledge entries: member role is read-only (app + REST seam gate)',
+      memberCreate.status === 403 &&
+        memberUpdate.status === 403 &&
+        memberDelete.status === 403 &&
+        memberList.ok &&
+        ownerDelete.ok,
+      `create → ${memberCreate.status}, update → ${memberUpdate.status}, delete → ${memberDelete.status} (want 403), list → ${memberList.status} (want 200), ownerDelete → ${ownerDelete.status} (want 200)`,
+    );
+  } finally {
+    await rm(path.join(knowledgeDir, 'connection.json'), { force: true });
+    await new Promise<void>((resolve) => {
+      embedServer.close(() => resolve());
+    });
+  }
+}
+
 /** OpenAI-shaped embeddings response for a raw request body — deterministic
  * 8-dim vectors from character statistics; base64 Float32 when asked (the
  * OpenAI SDK's default decode path). */
@@ -25903,6 +26493,12 @@ async function main(): Promise<void> {
     await checkSkills(baseUrl, authCtx);
     await checkProviderCredentials(sql, baseUrl, authCtx);
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkCorpusPurgeConsistency(
+      sql,
+      baseUrl,
+      authCtx,
+      `itest-${orgSuffix}`,
+    );
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTts(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkCloudImport(sql, baseUrl, authCtx);
