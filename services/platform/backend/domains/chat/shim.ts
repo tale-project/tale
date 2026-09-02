@@ -6,6 +6,7 @@ import { wordStartPatterns } from '../../lib/word-match.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { searchConversationsForChat } from '../conversations/search-chat.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
+import { listMailAttachments } from '../file_metadata/mail-attachments.ts';
 import {
   resolveFileReadAccess,
   viewerForUser,
@@ -25,6 +26,7 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
+import { listWebsites } from '../websites/service.ts';
 import { getThreadLineageIds, setThreadTitleIfAbsent } from './threads.ts';
 
 /**
@@ -38,10 +40,14 @@ import { getThreadLineageIds, setThreadTitleIfAbsent } from './threads.ts';
  *  - governance seams answered permissively (`checkModelAccessInternal`
  *    allows, `getContextCapInternal` un-caps, `recordConnectorUsage`
  *    no-ops) until the governance domain ports — the MIGRATION.md ledger
- *    carries each one;
- *  - honest empties for corpora 0.5 has no tables for yet (websites,
- *    video links) — an empty result is factually right against this
- *    database, and the tool layer already words empties for the model.
+ *    carries each one.
+ *
+ * No handler in this map is a placeholder empty any more. An empty stub for
+ * a corpus whose table DOES exist is not an honest empty: it is a leg that
+ * answers "there is nothing" over rows that are right there, and it hides
+ * because "no results" is a legitimate answer. `chat/shim.test.ts` gates the
+ * map's exhaustiveness; what it cannot gate is a handler that returns
+ * nothing on purpose, so a new one needs the table to be genuinely absent.
  *
  * Everything stays fail-loud for names NOT in this map — a new ctx call in
  * 0.4 surfaces as `[ctx-shim] un-shimmed …` naming the function.
@@ -128,6 +134,21 @@ async function resolveAccessScope(
   };
 }
 
+/**
+ * A crawl that is mid-teardown or broken is not part of the catalog — the 0.4
+ * reader skipped both statuses, so naming one to the model would offer a site
+ * nothing can be fetched from.
+ */
+const WEBSITE_HIDDEN_STATUSES = new Set(['deleting', 'error']);
+
+/**
+ * Registered domains read for one turn. The catalog is admin-registered
+ * domains — tens, not thousands — and both consumers cap far below this
+ * (`RAG_SEARCH_MAX_LIMIT` is 20), so the leg's own "more than shown" note
+ * stays truthful for any org this bound can cut.
+ */
+const WEBSITE_SUMMARY_CAP = 200;
+
 interface TaskLegRow {
   _id: string;
   title: string;
@@ -142,6 +163,18 @@ interface TaskLegRow {
 }
 
 const OPEN_EXCLUDED = ['done', 'cancelled'];
+
+/**
+ * The zero-hit listing fallback's page size — the 0.4 `LIST_CAP`.
+ *
+ * A question names something and matches nothing far more often than it names
+ * nothing at all: "are there any archived projects?" contains no project name,
+ * so the text match returns empty and the leg would answer `searched (no
+ * matches)` over a board that is full. Listing instead answers the question the
+ * words were describing, and the reply is stamped `listed: true` so the model
+ * is told these rows were browsed, not matched.
+ */
+const LIST_CAP = 15;
 
 async function searchTasks(
   sql: Sql,
@@ -168,32 +201,49 @@ async function searchTasks(
   const like = `%${term}%`;
   const words = wordStartPatterns(term);
   const status = args.status;
-  const rows = await sql<TaskLegRow[]>`
-    SELECT id AS "_id", title, description, status, priority,
-           assignee_type AS "assigneeType", assignee_id AS "assigneeId",
-           project_id AS "projectId", due_date_ms::float8 AS "dueDate",
-           archived_at_ms::float8 AS "archivedAt"
-    FROM app.tasks
-    WHERE org_id = ${args.organizationId}
-      AND project_id = ANY(${readable})
-      AND (${args.list === true || term === ''} OR title ILIKE ${like}
-           OR description ILIKE ${like}
-           OR (${words.length > 0}
-               AND (title ~* ANY(${words}) OR description ~* ANY(${words}))))
-      AND (${status === undefined}
-           OR (${status ?? ''} = 'open' AND NOT (status = ANY(${OPEN_EXCLUDED})))
-           OR status = ${status ?? ''})
-      AND (${args.excludeArchived !== true} OR archived_at_ms IS NULL)
-    ORDER BY updated_at_ms DESC
-    LIMIT ${bounds.limit + 1} OFFSET ${bounds.offset}
-  `;
-  const nullsStripped = rows.map((row) =>
-    Object.fromEntries(
-      Object.entries(row).filter(([, value]) => value !== null),
-    ),
-  );
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- null-stripping keeps the selected shape, minus absent optionals
-  return pageOf(nullsStripped as TaskLegRow[], bounds, args.list === true);
+  const walk = async (
+    listing: boolean,
+    page: { limit: number; offset: number },
+  ): Promise<TaskLegRow[]> => {
+    const rows = await sql<TaskLegRow[]>`
+      SELECT id AS "_id", title, description, status, priority,
+             assignee_type AS "assigneeType", assignee_id AS "assigneeId",
+             project_id AS "projectId", due_date_ms::float8 AS "dueDate",
+             archived_at_ms::float8 AS "archivedAt"
+      FROM app.tasks
+      WHERE org_id = ${args.organizationId}
+        AND project_id = ANY(${readable})
+        AND (${listing || term === ''} OR title ILIKE ${like}
+             OR description ILIKE ${like}
+             OR (${words.length > 0}
+                 AND (title ~* ANY(${words}) OR description ~* ANY(${words}))))
+        AND (${status === undefined}
+             OR (${status ?? ''} = 'open' AND NOT (status = ANY(${OPEN_EXCLUDED})))
+             OR status = ${status ?? ''})
+        AND (${args.excludeArchived !== true} OR archived_at_ms IS NULL)
+      ORDER BY updated_at_ms DESC
+      LIMIT ${page.limit + 1} OFFSET ${page.offset}
+    `;
+    const nullsStripped = rows.map((row) =>
+      Object.fromEntries(
+        Object.entries(row).filter(([, value]) => value !== null),
+      ),
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- null-stripping keeps the selected shape, minus absent optionals
+    return nullsStripped as TaskLegRow[];
+  };
+
+  const listing = args.list === true;
+  const found = await walk(listing, bounds);
+  if (listing || found.length > 0) return pageOf(found, bounds, listing);
+
+  // Nothing matched the words. Answer the question the words were describing.
+  const listBounds = { limit: LIST_CAP, offset: 0 };
+  return {
+    ...pageOf(await walk(true, listBounds), listBounds, true),
+    // The fallback page is fixed, not resumable — 0.4 returned no cursor.
+    continueCursor: '',
+  };
 }
 
 interface ProjectLegRow {
@@ -223,27 +273,44 @@ async function searchProjects(
   const term = args.term.trim();
   const like = `%${term}%`;
   const words = wordStartPatterns(term);
-  const rows = await sql<ProjectLegRow[]>`
-    SELECT id AS "_id", name, description, key,
-           open_task_count AS "openTaskCount",
-           done_task_count AS "doneTaskCount",
-           archived_at_ms::float8 AS "archivedAt"
-    FROM app.projects
-    WHERE org_id = ${args.organizationId} AND id = ANY(${args.projectIds})
-      AND (${args.list === true || term === ''} OR name ILIKE ${like}
-           OR description ILIKE ${like} OR key ILIKE ${like}
-           OR (${words.length > 0}
-               AND (name ~* ANY(${words}) OR description ~* ANY(${words}))))
-    ORDER BY updated_at_ms DESC
-    LIMIT ${bounds.limit + 1} OFFSET ${bounds.offset}
-  `;
-  const nullsStripped = rows.map((row) =>
-    Object.fromEntries(
-      Object.entries(row).filter(([, value]) => value !== null),
-    ),
-  );
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- null-stripping keeps the selected shape, minus absent optionals
-  return pageOf(nullsStripped as ProjectLegRow[], bounds, args.list === true);
+  const walk = async (
+    listing: boolean,
+    page: { limit: number; offset: number },
+  ): Promise<ProjectLegRow[]> => {
+    const rows = await sql<ProjectLegRow[]>`
+      SELECT id AS "_id", name, description, key,
+             open_task_count AS "openTaskCount",
+             done_task_count AS "doneTaskCount",
+             archived_at_ms::float8 AS "archivedAt"
+      FROM app.projects
+      WHERE org_id = ${args.organizationId} AND id = ANY(${args.projectIds})
+        AND (${listing || term === ''} OR name ILIKE ${like}
+             OR description ILIKE ${like} OR key ILIKE ${like}
+             OR (${words.length > 0}
+                 AND (name ~* ANY(${words}) OR description ~* ANY(${words}))))
+      ORDER BY updated_at_ms DESC
+      LIMIT ${page.limit + 1} OFFSET ${page.offset}
+    `;
+    const nullsStripped = rows.map((row) =>
+      Object.fromEntries(
+        Object.entries(row).filter(([, value]) => value !== null),
+      ),
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- null-stripping keeps the selected shape, minus absent optionals
+    return nullsStripped as ProjectLegRow[];
+  };
+
+  const listing = args.list === true;
+  const found = await walk(listing, bounds);
+  if (listing || found.length > 0) return pageOf(found, bounds, listing);
+
+  // Nothing matched the words — list the readable portfolio instead, exactly
+  // as the tasks leg does above.
+  const listBounds = { limit: LIST_CAP, offset: 0 };
+  return {
+    ...pageOf(await walk(true, listBounds), listBounds, true),
+    continueCursor: '',
+  };
 }
 
 /** All ctx handlers for one turn. `sql` outlives the turn (the pool). */
@@ -495,11 +562,21 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       return null;
     },
 
-    // Mail-ingest and video-link corpora have no 0.5 tables yet.
-    'file_metadata/internal_queries:listMailAttachmentsForChat': async () => ({
-      attachments: [],
-      truncated: false,
-    }),
+    // `list kind="mail-attachment"` — the ONLY listing surface an emailed
+    // attachment has. Scope is each attachment's conversation as it stands
+    // now, so the reader resolves the caller's own role and teams and runs
+    // the shared assignment predicate per row.
+    'file_metadata/internal_queries:listMailAttachmentsForChat': async (
+      raw,
+    ) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 tool leg passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        userId: string;
+        limit: number;
+      };
+      return listMailAttachments(sql, args);
+    },
     'file_metadata/internal_queries:lookupVideoLinkSources': async (raw) => {
       // Inline SQL (not the video_links service) — that service composes
       // ON TOP of this shim, so an import here would be a cycle.
@@ -929,8 +1006,29 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         cursor: args.paginationOpts.cursor,
       });
     },
-    // A corpus without a 0.5 table yet — an honest empty (see header).
-    'websites/internal_queries:listWebsiteSummaries': async () => [],
+    // The registered-domain catalog, behind BOTH the `website` search leg and
+    // `list kind="website"` — the listing the tool description points the
+    // model at when it refuses `kind="web-page"`.
+    'websites/internal_queries:listWebsiteSummaries': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 tool leg passes exactly this shape
+      const args = raw as { organizationId: string };
+      const listing = await listWebsites(sql, args.organizationId, {
+        limit: WEBSITE_SUMMARY_CAP,
+      });
+      return listing.page
+        .filter(
+          (site) =>
+            site.status === null || !WEBSITE_HIDDEN_STATUSES.has(site.status),
+        )
+        .map((site) =>
+          Object.assign(
+            { domain: site.domain },
+            site.title !== null ? { title: site.title } : {},
+            site.description !== null ? { description: site.description } : {},
+            site.pageCount !== null ? { pageCount: site.pageCount } : {},
+          ),
+        );
+    },
     'conversations/search_for_chat:searchConversationsForChat': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 tool leg passes exactly this shape
       const args = raw as Parameters<typeof searchConversationsForChat>[1];
