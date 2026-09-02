@@ -557,7 +557,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Clés API",
-      "description": "Identifiants à l’échelle de l’org qui permettent à du code externe d’appeler l’API REST de Tale au nom de l’organisation. Les Administrateurs et Développeurs les créent, rotent et révoquent sous Paramètres > Clés API."
+      "description": "Identifiants Bearer personnels qui permettent à du code externe d’appeler l’API REST de Tale. Les Administrateurs et Développeurs les créent, rotent et révoquent sous Paramètres > API > REST."
     }
   },
   "fr:platform/admin/governance/audit-logs": {
@@ -581,7 +581,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Conservation légale",
-      "description": "Le gel à double contrôle qui met en pause les balayages de rétention et les cascades d’effacement pour un utilisateur, un document, un thread ou l’organisation entière pendant un litige. Les Administrateurs et Propriétaires lisent ceci quand le conseil leur demande de préserver des preuves."
+      "description": "Le gel à double contrôle qui met en pause les balayages de rétention et les cascades d’effacement pour un utilisateur ou l’organisation entière pendant un litige. Les Administrateurs et Propriétaires lisent ceci quand le conseil leur demande de préserver des preuves."
     }
   },
   "fr:platform/admin/governance/trash": {
@@ -621,7 +621,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Demandes des personnes concernées",
-      "description": "Le workflow RGPD article 17 pour effacer les données d’une personne dans les chats, documents, exécutions de workflow et prompts. Les Administrateurs et Propriétaires lisent ceci quand un utilisateur dépose une demande ou quand une échéance SLA approche."
+      "description": "Le workflow RGPD article 17 pour effacer les données d’une personne dans les chats, documents, téléversements et préférences. Les Administrateurs et Propriétaires lisent ceci quand un utilisateur dépose une demande ou quand une échéance SLA approche."
     }
   },
   "fr:platform/admin/governance/feedback-analytics": {
@@ -629,7 +629,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Analyse des retours",
-      "description": "Pouces haut et bas agrégés sur les messages d'agent et notations de chat, ventilés par agent et par modèle. Les Administrateurs et Propriétaires lisent ceci quand une régression d'agent a besoin d'un chiffre derrière."
+      "description": "Pouces haut et bas agrégés sur les réponses d'assistant et verdicts d'arène, ventilés par assistant et par modèle. Les Administrateurs et Propriétaires lisent ceci quand une régression d'agent a besoin d'un chiffre derrière."
     }
   },
   "fr:platform/admin/governance/run-code-policy": {
@@ -669,7 +669,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Équipes",
-      "description": "Les équipes sont des groupes nommés de membres qui partagent l’accès aux agents, prompts, projets et connectors. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu’elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle."
+      "description": "Les équipes sont des groupes nommés de membres qui partagent l’accès aux documents, projets, skills et conversations. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu’elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle."
     }
   },
   "fr:platform/admin/two-factor-authentication": {
@@ -1734,7 +1734,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "API keys",
-      "description": "Org-wide credentials that let external code call Tale's REST API on behalf of the organisation. Admins and Developers create, rotate, and revoke them under Settings > API keys."
+      "description": "Personal bearer credentials that let external code call Tale's REST API. Admins and Developers create, rotate, and revoke them under Settings > API > REST."
     }
   },
   "en:platform/admin/governance/audit-logs": {
@@ -1758,7 +1758,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Legal hold",
-      "description": "The dual-controlled freeze that pauses retention sweeps and erasure cascades for a specific user, document, thread, or the whole organisation during litigation. Admins and Owners read this when counsel asks them to preserve evidence."
+      "description": "The dual-controlled freeze that pauses retention sweeps and erasure cascades for a specific user or the whole organisation during litigation. Admins and Owners read this when counsel asks them to preserve evidence."
     }
   },
   "en:platform/admin/governance/trash": {
@@ -1798,7 +1798,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Data subject requests",
-      "description": "The GDPR Article 17 workflow for erasing a person's data across chats, documents, workflow runs, and prompts. Admins and Owners read this when a user files a request or when an SLA deadline is closing in."
+      "description": "The GDPR Article 17 workflow for erasing a person's data across chats, documents, uploads, and preferences. Admins and Owners read this when a user files a request or when an SLA deadline is closing in."
     }
   },
   "en:platform/admin/governance/feedback-analytics": {
@@ -1806,7 +1806,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Feedback analytics",
-      "description": "Aggregated thumbs-up and thumbs-down on agent messages plus chat ratings, broken down per agent and per model. Admins and Owners read this when an agent regression needs a number behind it."
+      "description": "Aggregated thumbs-up and thumbs-down on assistant replies plus arena verdicts, broken down per assistant and per model. Admins and Owners read this when an agent regression needs a number behind it."
     }
   },
   "en:platform/admin/governance/run-code-policy": {
@@ -1846,7 +1846,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Teams",
-      "description": "Teams are named groups of members that share access to agents, prompts, projects, and connectors. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer."
+      "description": "Teams are named groups of members that share access to documents, projects, skills, and conversations. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer."
     }
   },
   "en:platform/admin/two-factor-authentication": {
@@ -2911,7 +2911,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "API-Schlüssel",
-      "description": "Organisationsweite Anmeldedaten, mit denen externer Code Tales REST-API im Namen der Organisation aufruft. Admins und Entwickler erstellen, rotieren und widerrufen sie unter Einstellungen > API-Schlüssel."
+      "description": "Persönliche Bearer-Anmeldedaten, mit denen externer Code Tales REST-API aufruft. Admins und Entwickler erstellen, rotieren und widerrufen sie unter Einstellungen > API > REST."
     }
   },
   "de:platform/admin/governance/audit-logs": {
@@ -2935,7 +2935,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Legal Hold",
-      "description": "Das vier-Augen-kontrollierte Einfrieren, das Aufbewahrungs-Sweeps und Löschungs-Kaskaden für einen bestimmten Benutzer, ein Dokument, einen Thread oder die gesamte Organisation während eines Rechtsstreits pausiert. Admins und Inhaber lesen das, wenn der Rechtsbeistand bittet, Beweise zu sichern."
+      "description": "Das vier-Augen-kontrollierte Einfrieren, das Aufbewahrungs-Sweeps und Löschungs-Kaskaden für einen bestimmten Benutzer oder die gesamte Organisation während eines Rechtsstreits pausiert. Admins und Inhaber lesen das, wenn der Rechtsbeistand bittet, Beweise zu sichern."
     }
   },
   "de:platform/admin/governance/trash": {
@@ -2975,7 +2975,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Anfragen betroffener Personen",
-      "description": "Der Workflow nach DSGVO Artikel 17 zur Löschung der Daten einer Person über Chats, Dokumente, Workflow-Läufe und Prompts hinweg. Admins und Inhaber lesen das, wenn ein Benutzer eine Anfrage stellt oder wenn eine SLA-Frist näher rückt."
+      "description": "Der Workflow nach DSGVO Artikel 17 zur Löschung der Daten einer Person über Chats, Dokumente, Uploads und Einstellungen hinweg. Admins und Inhaber lesen das, wenn ein Benutzer eine Anfrage stellt oder wenn eine SLA-Frist näher rückt."
     }
   },
   "de:platform/admin/governance/feedback-analytics": {
@@ -2983,7 +2983,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Feedback-Analyse",
-      "description": "Aggregierte Daumen-hoch- und Daumen-runter-Bewertungen auf Agent-Nachrichten plus Chat-Bewertungen, aufgeschlüsselt pro Agent und pro Modell. Admins und Inhaber lesen das, wenn eine Agent-Regression eine Zahl dahinter braucht."
+      "description": "Aggregierte Daumen-hoch- und Daumen-runter-Bewertungen auf Assistenten-Antworten plus Arena-Urteile, aufgeschlüsselt pro Assistent und pro Modell. Admins und Inhaber lesen das, wenn eine Agent-Regression eine Zahl dahinter braucht."
     }
   },
   "de:platform/admin/governance/run-code-policy": {
@@ -3023,7 +3023,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Teams",
-      "description": "Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Connectors teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene."
+      "description": "Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Dokumente, Projekte, Skills und Konversationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene."
     }
   },
   "de:platform/admin/two-factor-authentication": {
