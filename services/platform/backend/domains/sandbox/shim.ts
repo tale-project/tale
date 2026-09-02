@@ -1,11 +1,14 @@
 import type { Sql } from 'postgres';
 
+import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { resolveAgentSecretsEnv } from '../agent_secrets/service.ts';
 import { automationAskShimHandlers } from '../automations/ask-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
+import { findCredentialForRef } from '../connector_credentials/service.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import { addTaskComment } from '../tasks/comments.ts';
+import { getCurrentUser } from '../users/service.ts';
 import { workspaceWriteShimHandlers } from './workspace-write-shim.ts';
 
 /**
@@ -182,6 +185,82 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         names: string[];
       };
       return resolveAgentSecretsEnv(sql, args);
+    },
+
+    // The turn-equipment CONNECTOR BROKER's three seams
+    // (`node_only/sandbox/session_credentials.ts`): the full credential row
+    // it decrypts, the Tier-2 fetch audit, and the session owner's git
+    // author identity. Un-shimmed, the broker's best-effort catches degrade
+    // every work-lane turn to "no credentials" silently — a granted github
+    // connector must inject GITHUB_TOKEN here, not warn into the job log.
+    'connector_credentials/queries:resolveCredentialRefInternal': async (
+      raw,
+    ) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the credential resolver passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        connectorSlug: string;
+        credentialRef?: string;
+      };
+      const row = await findCredentialForRef(sql, args);
+      if (row === null) return null;
+      // The 0.4 row shape the reused resolver reads — nullable columns are
+      // ABSENT fields there, never nulls.
+      return {
+        _id: row.id,
+        organizationId: row.organizationId,
+        connectorSlug: row.connectorSlug,
+        authMethod: row.authMethod,
+        name: row.name,
+        encryptedData: row.encryptedData,
+        ...(row.endpointUrl !== null ? { endpointUrl: row.endpointUrl } : {}),
+        ...(row.config !== null ? { config: row.config } : {}),
+        status: row.status,
+        ...(row.statusDetail !== null
+          ? { statusDetail: row.statusDetail }
+          : {}),
+      };
+    },
+
+    'sandbox/session_mutations:recordCredentialAccess': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the credential broker passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        slug: string;
+        kind: 'bootstrap' | 'git';
+      };
+      await sql`
+        INSERT INTO app.sandbox_credential_access (
+          org_id, session_id, slug, kind, fetched_at_ms
+        ) VALUES (
+          ${args.organizationId}, ${args.sessionId}, ${args.slug},
+          ${args.kind}, ${Date.now()}
+        )
+      `;
+      return null;
+    },
+
+    'sandbox/session_queries:getSessionOwnerIdentity': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the credential broker passes exactly this shape
+      const args = raw as { sessionId: string };
+      const rows = await sql<{ createdBy: string }[]>`
+        SELECT created_by AS "createdBy" FROM app.sandbox_sessions
+        WHERE session_id = ${args.sessionId}
+          AND status IN ${sql([...SANDBOX_SESSION_LIVE_STATUSES])}
+        ORDER BY created_at_ms DESC
+        LIMIT 1
+      `;
+      const createdBy = rows[0]?.createdBy;
+      if (createdBy === undefined) return null;
+      // A synthetic owner (`system:automation`) matches no user row and
+      // resolves to null — the broker then injects no git author identity.
+      const user = await getCurrentUser(sql, createdBy);
+      if (user === null) return null;
+      const email = (user.email ?? '').trim();
+      const name = (user.name ?? '').trim() || email;
+      if (name === '' || email === '') return null;
+      return { name, email };
     },
 
     ...base,

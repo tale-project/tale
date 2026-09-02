@@ -20183,6 +20183,124 @@ async function checkAgentSecrets(
 }
 
 /**
+ * The turn-equipment CONNECTOR BROKER, end to end on the real work-lane
+ * chain: a stored github credential + a granted `github` connector must
+ * resolve — through the automation shim map, the reused credential resolver,
+ * and the Tier-2 broker — into the exec env (GITHUB_TOKEN/GH_TOKEN, the git
+ * credential helper, the session owner's git identity) plus one audit row.
+ * The resolvers deliberately swallow failures into warnings (a credential
+ * gap downgrades a turn), so only an env-level assertion proves the chain —
+ * this is exactly the lane that shipped as "the agent says it has no github
+ * credentials" while every half was green.
+ */
+async function checkTurnEquipmentBroker(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const token = 'ghp_itest_broker_token_123';
+  const sessionId = 'itest-broker-session';
+  const createdRes = await fetch(
+    `${base}/api/app/connector-credentials?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        connectorSlug: 'github',
+        authMethod: 'bearer',
+        name: 'itest github',
+        secret: { token },
+      }),
+    },
+  );
+  const created = z
+    .object({ credentialId: z.string() })
+    .safeParse(await createdRes.json());
+  // A live session row owned by the itest USER: the broker resolves the git
+  // author identity off `created_by`, so the env must carry helper + name +
+  // email. (A workflow run's synthetic `system:automation` owner resolves to
+  // null identity — covered by the resolver's own contract, not re-proven
+  // here.)
+  const now = Date.now();
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${sessionId}, 'active', 'workflow_run', 'itest-broker-run',
+      ${userId}, ${now}, ${now + 3_600_000}
+    )
+  `;
+  const { automationShimHandlers } =
+    await import('./domains/automations/shim.ts');
+  const { createCtxShim } = await import('./lib/ctx-shim.ts');
+  const { resolveTurnEquipmentEnv } =
+    await import('./core/node_only/sandbox/turn_equipment.ts');
+  const shim = createCtxShim(automationShimHandlers(sql));
+  const env = await resolveTurnEquipmentEnv(
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the work-lane jobs run the resolver on exactly this shim
+    shim as unknown as Parameters<typeof resolveTurnEquipmentEnv>[0],
+    {
+      organizationId: orgId,
+      sessionId,
+      connectors: ['github'],
+      secrets: [],
+    },
+  );
+  const gitConfigPairs = Object.entries(env)
+    .filter(([key]) => key.startsWith('GIT_CONFIG_KEY_'))
+    .map(([key, value]) => [value, env[key.replace('KEY', 'VALUE')]]);
+  const helperPair = gitConfigPairs.find(
+    ([key]) => key === 'credential.helper',
+  );
+  const audit = await sql<{ slug: string; kind: string }[]>`
+    SELECT slug, kind FROM app.sandbox_credential_access
+    WHERE session_id = ${sessionId}
+  `;
+  record(
+    'turn-equipment broker: github grant resolves env + git identity + audit',
+    created.success &&
+      env.GITHUB_TOKEN === token &&
+      env.GH_TOKEN === token &&
+      env.GIT_CONFIG_COUNT === '3' &&
+      helperPair?.[1] === '/usr/local/bin/tale-git-credential' &&
+      gitConfigPairs.some(([key]) => key === 'user.name') &&
+      gitConfigPairs.some(([key]) => key === 'user.email') &&
+      audit.length === 1 &&
+      audit[0]?.slug === 'github' &&
+      audit[0]?.kind === 'git',
+    `created=${created.success}, GITHUB_TOKEN=${env.GITHUB_TOKEN === token}, GH_TOKEN=${env.GH_TOKEN === token}, gitConfig=${env.GIT_CONFIG_COUNT ?? 'unset'} (want 3), helper=${helperPair?.[1] ?? 'missing'}, audit=${audit.map((row) => `${row.slug}:${row.kind}`).join(',') || 'none'}`,
+  );
+
+  // An UNGRANTED turn does no credential work and injects nothing.
+  const emptyEnv = await resolveTurnEquipmentEnv(
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the work-lane jobs run the resolver on exactly this shim
+    shim as unknown as Parameters<typeof resolveTurnEquipmentEnv>[0],
+    { organizationId: orgId, sessionId, connectors: [], secrets: [] },
+  );
+  record(
+    'turn-equipment broker: no grants → empty env',
+    Object.keys(emptyEnv).length === 0,
+    `env keys=${Object.keys(emptyEnv).join(',') || 'none'}`,
+  );
+
+  // Leave no connected github credential behind — later checks read the
+  // org's connected-connector set.
+  if (created.success) {
+    await fetch(
+      `${base}/api/app/connector-credentials/${created.data.credentialId}?orgId=${orgId}`,
+      { method: 'DELETE', headers: { cookie, origin: base } },
+    );
+  }
+  await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ${sessionId}`;
+  await sql`
+    DELETE FROM app.sandbox_credential_access
+    WHERE session_id = ${sessionId}
+  `;
+}
+
+/**
  * Knowledge entries: topic-keyed markdown facts with the supersede chain —
  * create (dup refused), update (chain + SAME backing file re-indexed, so
  * the corpus replaces in place), agent listing through the chat shim,
@@ -25799,6 +25917,7 @@ async function main(): Promise<void> {
     await checkChatThreadSurface(sql, baseUrl, authCtx);
     await checkBrandingAndTeams(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAgentSecrets(sql, baseUrl, authCtx);
+    await checkTurnEquipmentBroker(sql, baseUrl, authCtx);
     await checkKnowledgeEntries(sql, baseUrl, authCtx);
     await checkCollabEmitters(sql, baseUrl, authCtx);
     await checkChangelogAndAccounts(sql, baseUrl, authCtx);

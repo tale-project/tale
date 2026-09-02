@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { sandboxToolShimHandlers } from './shim.ts';
 
 /**
@@ -52,10 +53,12 @@ function resolveImport(fromFile: string, specifier: string): string | null {
 
 /** Every `internal.a.b.c` the entry points can reach, as shim names
  * (`a/b:c`), mapped to the modules that name them. */
-function reachableHandlerNames(): Map<string, Set<string>> {
+function reachableHandlerNames(
+  entryPoints: readonly string[] = ENTRY_POINTS,
+): Map<string, Set<string>> {
   const names = new Map<string, Set<string>>();
   const visited = new Set<string>();
-  const queue = ENTRY_POINTS.map((entry) => path.join(BACKEND, entry));
+  const queue = entryPoints.map((entry) => path.join(BACKEND, entry));
   while (queue.length > 0) {
     const file = queue.pop();
     if (file === undefined || visited.has(file)) continue;
@@ -104,6 +107,43 @@ describe('sandboxToolShimHandlers', () => {
         'tasks/internal_queries:listTasksForAgent',
         'documents/internal_actions:storeRawContent',
         'file_metadata/internal_mutations:linkDocumentToFile',
+      ]),
+    );
+  });
+});
+
+describe('agentTurnShimHandlers', () => {
+  // The SECOND dispatch surface the maps must answer: both work-lane hosts
+  // (task `agent_run_host`, automation `agent_host`) resolve a turn's
+  // equipment env — agent secrets plus the Tier-2 connector broker — on the
+  // ctx shim built from this map. The resolvers swallow a broker failure
+  // into a console.warn by design (a credential gap downgrades a turn, never
+  // kills it), which is exactly how an un-shimmed name here ships as "the
+  // agent says it has no github credentials" instead of an error.
+  const handlers = agentTurnShimHandlers({} as never);
+
+  it('answers every internal function the turn-equipment resolvers reach', () => {
+    const missing = [
+      ...reachableHandlerNames(['core/node_only/sandbox/turn_equipment.ts']),
+    ]
+      .filter(([name]) => handlers[name] === undefined)
+      .map(
+        ([name, callers]) => `${name} (called from ${[...callers].join(', ')})`,
+      );
+    expect(missing).toEqual([]);
+  });
+
+  it('reaches the broker seams, not just the secrets lane', () => {
+    // A guard on the guard, as above.
+    const reachable = reachableHandlerNames([
+      'core/node_only/sandbox/turn_equipment.ts',
+    ]);
+    expect([...reachable.keys()]).toEqual(
+      expect.arrayContaining([
+        'agent_secrets/actions:resolveAgentSecretsEnv',
+        'connector_credentials/queries:resolveCredentialRefInternal',
+        'sandbox/session_mutations:recordCredentialAccess',
+        'sandbox/session_queries:getSessionOwnerIdentity',
       ]),
     );
   });
