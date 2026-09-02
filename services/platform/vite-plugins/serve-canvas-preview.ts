@@ -16,7 +16,32 @@ import {
 // In dev, Vite is in front of the SPA — Hono is not in the request path.
 // Without this middleware, `POST /canvas-preview` falls through to Vite's
 // SPA fallback (404, then index.html for GETs). This serves the same
-// response Hono serves in production.
+// response Hono serves in production — including the session gate: the
+// render escapes the SPA's strict CSP, so it must never answer an
+// anonymous caller (see the prod route in server.ts).
+
+/** The backend the dev server asks for session verdicts — same default as
+ * vite.config.ts's proxy target and server.ts's backendBaseUrl(). */
+function backendBaseUrl(): string {
+  const configured = (process.env.TALE_BACKEND_URL ?? '').replace(/\/+$/, '');
+  return configured === '' ? 'http://127.0.0.1:3005' : configured;
+}
+
+async function hasValidSession(
+  cookieHeader: string | undefined,
+): Promise<boolean> {
+  if (!cookieHeader) return false;
+  try {
+    const res = await fetch(`${backendBaseUrl()}/api/sse/auth`, {
+      headers: { cookie: cookieHeader },
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('canvas-preview: backend session check failed', err);
+    return false;
+  }
+}
+
 export function serveCanvasPreview(): Plugin {
   // Read once at plugin init — restart vite to pick up changes, matching
   // how the rest of the dev server treats env. The same parsing rule as
@@ -104,23 +129,43 @@ export function serveCanvasPreview(): Plugin {
         next();
         return;
       }
-      const chunks: Buffer[] = [];
-      req.on('data', (chunk: Buffer) => chunks.push(chunk));
-      req.on('end', () => {
-        const raw = Buffer.concat(chunks).toString('utf8');
-        const userHtml = parseHtmlField(raw);
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('Content-Security-Policy', csp);
-        // nosemgrep: javascript.express.security.x-frame-options-misconfiguration.x-frame-options-misconfiguration -- header value is the hardcoded constant 'SAMEORIGIN', never derived from request input (the taint rule fires only because req body is read in the same handler)
-        res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-        res.setHeader('Cache-Control', 'no-store');
-        res.end(wrapCanvasPreviewHtml(userHtml));
-      });
-      req.on('error', (err) => {
-        console.warn('canvas-preview body read error', err);
-        res.statusCode = 400;
-        res.end();
-      });
+      // Session gate first (mirrors the prod route): the response escapes
+      // the SPA's strict CSP, so an anonymous caller gets a 401, never an
+      // echo of their HTML.
+      hasValidSession(req.headers.cookie)
+        .then((authorized) => {
+          if (!authorized) {
+            res.statusCode = 401;
+            res.setHeader('Cache-Control', 'no-store');
+            res.setHeader('Vary', 'Cookie');
+            res.setHeader('WWW-Authenticate', 'Cookie');
+            res.end('Unauthenticated');
+            return;
+          }
+          const chunks: Buffer[] = [];
+          req.on('data', (chunk: Buffer) => chunks.push(chunk));
+          req.on('end', () => {
+            const raw = Buffer.concat(chunks).toString('utf8');
+            const userHtml = parseHtmlField(raw);
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Content-Security-Policy', csp);
+            // nosemgrep: javascript.express.security.x-frame-options-misconfiguration.x-frame-options-misconfiguration -- header value is the hardcoded constant 'SAMEORIGIN', never derived from request input (the taint rule fires only because req body is read in the same handler)
+            res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+            res.setHeader('Cache-Control', 'no-store');
+            res.setHeader('Vary', 'Cookie');
+            res.end(wrapCanvasPreviewHtml(userHtml));
+          });
+          req.on('error', (err) => {
+            console.warn('canvas-preview body read error', err);
+            res.statusCode = 400;
+            res.end();
+          });
+        })
+        .catch((err: unknown) => {
+          console.warn('canvas-preview session gate failed', err);
+          res.statusCode = 502;
+          res.end();
+        });
     });
   };
 

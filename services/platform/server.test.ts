@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import * as vm from 'node:vm';
 
 import { afterEach, describe, expect, test, vi } from 'vitest';
@@ -268,16 +272,97 @@ describe('security headers', () => {
 });
 
 describe('POST /canvas-preview', () => {
-  test('echoes the form-posted html with permissive CSP and no nonce', async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // The route validates the session cookie against the backend oracle
+  // (`/api/sse/auth`, the same door /events/file uses) before rendering.
+  function mockSessionOracleOk() {
+    return vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ userId: 'u1', orgSlugs: ['acme'] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+  }
+
+  function previewRequest(body: string): Request {
+    return new Request('http://localhost/canvas-preview', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        cookie: 'better-auth.session_token=valid',
+      },
+      body,
+    });
+  }
+
+  // Regression: this route used to render for ANY caller — an attacker could
+  // form-POST a victim's browser here top-level and have arbitrary HTML
+  // echoed on the app origin under a script-permissive CSP (reflected XSS).
+  test('rejects an unauthenticated POST without calling the oracle', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const app = createApp(baseEnv);
     const res = await app.fetch(
       new Request('http://localhost/canvas-preview', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'html=' + encodeURIComponent('<h1>hi</h1><script>1+1</script>'),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'html=' + encodeURIComponent('<script>steal()</script>'),
       }),
+    );
+    expect(res.status).toBe(401);
+    expect(res.headers.get('www-authenticate')).toBe('Cookie');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    // The echoed HTML must not appear anywhere in the refusal.
+    expect(await res.text()).not.toContain('steal()');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('rejects a POST whose session the oracle refuses', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response('Unauthenticated', { status: 401 }),
+    );
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      previewRequest('html=' + encodeURIComponent('<h1>hi</h1>')),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  // Regression: the response CSP now carries a `sandbox` directive (without
+  // `allow-same-origin`), so even for an authenticated victim a top-level
+  // navigation renders as an inert opaque-origin document — the same flags
+  // the in-app iframe embed already imposes, so the legit preview is
+  // unchanged.
+  test('response CSP sandboxes the document without allow-same-origin', async () => {
+    mockSessionOracleOk();
+    const app = createApp(baseEnv);
+    const res = await app.fetch(previewRequest('html=x'));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain('sandbox allow-scripts allow-modals');
+    expect(csp).not.toContain('allow-same-origin');
+  });
+
+  // A GET to the same path is NOT the preview render — it falls through to
+  // the SPA shell and must keep the standard strict headers (the exemption
+  // from `secureHeaders` is scoped to the POST).
+  test('GET /canvas-preview keeps the strict SPA security headers', async () => {
+    const app = createApp(baseEnv);
+    const res = await app.fetch(new Request('http://localhost/canvas-preview'));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).not.toContain("'unsafe-eval'");
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+  });
+
+  test('echoes the form-posted html with permissive CSP and no nonce', async () => {
+    mockSessionOracleOk();
+    const app = createApp(baseEnv);
+    const res = await app.fetch(
+      previewRequest(
+        'html=' + encodeURIComponent('<h1>hi</h1><script>1+1</script>'),
+      ),
     );
     expect(res.status).toBe(200);
     const csp = res.headers.get('content-security-policy') ?? '';
@@ -302,16 +387,9 @@ describe('POST /canvas-preview', () => {
   });
 
   test('returns an empty document body when the html field is missing', async () => {
+    mockSessionOracleOk();
     const app = createApp(baseEnv);
-    const res = await app.fetch(
-      new Request('http://localhost/canvas-preview', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: '',
-      }),
-    );
+    const res = await app.fetch(previewRequest(''));
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toContain('<!doctype html>');
@@ -325,14 +403,9 @@ describe('POST /canvas-preview', () => {
   // demo might legitimately need (script/style/font/img/connect).
 
   async function getCanvasCsp(env: typeof baseEnv): Promise<string> {
+    mockSessionOracleOk();
     const app = createApp(env);
-    const res = await app.fetch(
-      new Request('http://localhost/canvas-preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: '',
-      }),
-    );
+    const res = await app.fetch(previewRequest(''));
     return res.headers.get('content-security-policy') ?? '';
   }
 
@@ -419,15 +492,25 @@ describe('canvas-preview storage shim', () => {
   }
 
   test('shim sentinel appears in the canvas-preview response body', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ userId: 'u1', orgSlugs: ['acme'] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
     const app = createApp(baseEnv);
     const res = await app.fetch(
       new Request('http://localhost/canvas-preview', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          cookie: 'better-auth.session_token=valid',
+        },
         body: '',
       }),
     );
     const text = await res.text();
+    fetchSpy.mockRestore();
     // Stable substring — small enough not to churn on minor tweaks, specific
     // enough to fail loudly if the shim ever stops being injected.
     expect(text).toContain(
@@ -508,6 +591,75 @@ describe('canvas-preview storage shim', () => {
     expect(() => {
       localStorage.setItem('again', fourMiB);
     }).not.toThrow();
+  });
+});
+
+describe('GET /branding/images', () => {
+  // Branding images are org-admin-uploaded bytes (SVG included). Navigating
+  // to one directly must never yield a scriptable same-origin document —
+  // the response carries a bare `sandbox` CSP + nosniff instead of the SPA
+  // policy (whose `script-src 'self'` would still let a hostile SVG load
+  // same-origin scripts into an app-origin document).
+  test('the branding-images path serves the sandbox CSP, not the SPA policy', async () => {
+    const app = createApp(baseEnv);
+    // No TALE_CONFIG_DIR in the test env → 404; the security headers come
+    // from the path-scoped middleware and must be present regardless.
+    const res = await app.fetch(
+      new Request('http://localhost/branding/images/acme/logo.svg'),
+    );
+    const csp = res.headers.get('content-security-policy') ?? '';
+    expect(csp).toBe('sandbox');
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('x-frame-options')).toBe('DENY');
+  });
+
+  test('serves an uploaded SVG sandboxed with its allowlisted content type', async () => {
+    const configDir = await mkdtemp(join(tmpdir(), 'tale-branding-test-'));
+    try {
+      const imagesDir = join(configDir, 'acme', 'branding', 'images');
+      await mkdir(imagesDir, { recursive: true });
+      await writeFile(
+        join(imagesDir, 'logo.svg'),
+        '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(document.domain)</script></svg>',
+      );
+      // The vitest server project runs under Node; shim the two BunFile
+      // members the branding handler uses (`exists`, body streaming) with a
+      // Blob so the real serve path executes.
+      vi.stubGlobal('Bun', {
+        file: (path: string) => {
+          let bytes: Uint8Array | null = null;
+          try {
+            bytes = readFileSync(path);
+          } catch {
+            bytes = null;
+          }
+          const blob = new Blob(bytes === null ? [] : [bytes]);
+          return Object.assign(blob, {
+            exists: () => Promise.resolve(bytes !== null),
+          });
+        },
+      });
+      // The branding root is read from the process env at module load, so
+      // serve through a fresh module instance seeing the stubbed dir.
+      vi.stubEnv('TALE_CONFIG_DIR', configDir);
+      vi.resetModules();
+      const freshServer = await import('./server');
+      const app = freshServer.createApp(baseEnv);
+      const res = await app.fetch(
+        new Request('http://localhost/branding/images/acme/logo.svg'),
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('image/svg+xml');
+      // The document is fully sandboxed: opaque origin, no script execution
+      // on navigation; <img>/<link rel=icon> embeds are unaffected.
+      expect(res.headers.get('content-security-policy')).toBe('sandbox');
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+      vi.resetModules();
+      await rm(configDir, { recursive: true, force: true });
+    }
   });
 });
 
