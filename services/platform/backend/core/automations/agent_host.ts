@@ -161,7 +161,7 @@ export interface AutomationAgentHost {
   cancel(args: { sessionId: string; execId: string }): Promise<void>;
 }
 
-const DEFAULT_HARNESS = 'claude-code';
+export const DEFAULT_HARNESS = 'claude-code';
 
 /** An `automationHumanAsks` row as the host consumes it — the internal reads
  * return it untyped (`v.any()`), so every consumer narrows through here. */
