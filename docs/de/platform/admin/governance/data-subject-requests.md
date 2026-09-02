@@ -1,9 +1,9 @@
 ---
 title: Anfragen betroffener Personen
-description: Der Workflow nach DSGVO Artikel 17 zur Löschung der Daten einer Person über Chats, Dokumente, Workflow-Läufe und Prompts hinweg. Admins und Inhaber lesen das, wenn ein Benutzer eine Anfrage stellt oder wenn eine SLA-Frist näher rückt.
+description: Der Workflow nach DSGVO Artikel 17 zur Löschung der Daten einer Person über Chats, Dokumente, Uploads und Einstellungen hinweg. Admins und Inhaber lesen das, wenn ein Benutzer eine Anfrage stellt oder wenn eine SLA-Frist näher rückt.
 ---
 
-Anfragen betroffener Personen ist der Workflow, den Tale für die Einhaltung von DSGVO Artikel 17 (Recht auf Löschung) und das entsprechende CCPA-Recht nach kalifornischem Recht ausliefert. Jede Anfrage wird zu einem Beleg: er nennt die betroffene Person, den Begründungs-Code, die SLA-Frist und die Kaskade von Zeilen, die das System über Threads, Dokumente, Workflow-Ausführungen und persönliche Prompt-Vorlagen hinweg gelöscht hat. Admins und Inhaber lesen diese Seite, wenn eine Person eine Anfrage stellt, wenn eine Frist näher rückt, oder wenn ein Audit den Beleg einer vergangenen Löschung verlangt.
+Anfragen betroffener Personen ist der Workflow, den Tale für die Einhaltung von DSGVO Artikel 17 (Recht auf Löschung) und das entsprechende CCPA-Recht nach kalifornischem Recht ausliefert. Jede Anfrage wird zu einem Beleg: er nennt die betroffene Person, den Begründungs-Code, die SLA-Frist und die Kaskade von Zeilen, die das System über Threads, Dokumente, Uploads und die übrigen Zeilen hinweg gelöscht hat, die die Person identifizieren. Admins und Inhaber lesen diese Seite, wenn eine Person eine Anfrage stellt, wenn eine Frist näher rückt, oder wenn ein Audit den Beleg einer vergangenen Löschung verlangt.
 
 <Frame caption="Governance > Anfragen betroffener Personen — die DSAR-Governance-Richtlinie (Cooling-off-Fenster, Vier-Augen-Freigabe, Tageslimit) über der Liste der Anfrage-Belege mit Anfrage einreichen.">
 
@@ -13,7 +13,7 @@ Anfragen betroffener Personen ist der Workflow, den Tale für die Einhaltung von
 
 ## Eine durchgespielte Einreichung
 
-Um eine Anfrage einzureichen, öffne **Einstellungen > Richtlinien > Anfragen betroffener Personen** und klick auf **Anfrage einreichen**. Wähle die betroffene Person, wähle einen Begründungs-Code (Einwilligung widerrufen, nicht mehr erforderlich, unrechtmäßige Verarbeitung, rechtliche Verpflichtung, Widerspruch, minderjährige Person oder Vertragsende) und füge eine Freitext-Begründung hinzu. Die Anfrage tritt in ein Cooling-off-Fenster ein, bevor die Kaskade läuft — jeder Admin kann während des Fensters abbrechen. Nach Ablauf des Fensters löscht die Kaskade die Threads, Dokumente, Workflow-Ausführungen, RAG-Embeddings und persönlichen Prompts der Person, und der Beleg dokumentiert die Zähler für jede Kategorie.
+Um eine Anfrage einzureichen, öffne **Einstellungen > Richtlinien > Anfragen betroffener Personen** und klick auf **Anfrage einreichen**. Wähle die betroffene Person, wähle einen Begründungs-Code (Einwilligung widerrufen, nicht mehr erforderlich, unrechtmäßige Verarbeitung, rechtliche Verpflichtung, Widerspruch, minderjährige Person oder Vertragsende) und füge eine Freitext-Begründung hinzu. Die Anfrage tritt in ein Cooling-off-Fenster ein, bevor die Kaskade läuft — jeder Admin kann während des Fensters abbrechen. Nach Ablauf des Fensters löscht die Kaskade die Threads und Dokumente der Person (der Wissensdatenbank-Eintrag eines Dokuments geht mit), ihre Uploads, Einstellungen, Benachrichtigungen, Feedback-, Memory- und Nutzungszeilen und schwärzt ihre Kennungen im Audit-Pfad — der Beleg dokumentiert einen Zähler pro Durchlauf.
 
 ## Status-Lebenszyklus
 
@@ -23,8 +23,8 @@ Um eine Anfrage einzureichen, öffne **Einstellungen > Richtlinien > Anfragen be
 | Wartet auf Freigabe | Vier-Augen     | Ein zweiter Admin muss freigeben, bevor die Kaskade läuft.                                         |
 | Läuft               | mid-cascade    | Die Kaskade läuft; Teilzähler aktualisieren sich, sobald jede Kategorie fertig ist.                |
 | Abgeschlossen       | terminal       | Jede Kategorie ist ohne Fehler gelöscht.                                                           |
-| Teilweise           | terminal       | Einige Zeilen wurden übersprungen — meist hat ein Legal Hold sie blockiert.                        |
-| Fehlgeschlagen      | terminal       | Die Kaskade traf auf einen Fehler; der Beleg benennt die fehlgeschlagene Kategorie.                |
+| Teilweise           | terminal       | Ein oder mehrere Kaskade-Durchläufe schlugen fehl — der Fehler im Beleg benennt sie.               |
+| Fehlgeschlagen      | terminal       | Die Kaskade starb mitten im Lauf — fataler Fehler oder Watchdog-Timeout; Wiederholen reicht sie neu ein. |
 | Blockiert           | terminal       | Ein aktiver Legal Hold blockiert jeden Kaskade-Schritt.                                            |
 | Abgebrochen         | terminal       | Ein Admin hat vor Ablauf des Cooling-off-Fensters abgebrochen.                                     |
 
@@ -38,7 +38,7 @@ Daten einer betroffenen Person werden _nicht_ gelöscht, solange sie auf Legal H
 
 ## Die Kaskade-Kategorien
 
-Der Beleg schlüsselt die gelöschten Zeilen nach Kategorie auf — Threads, Dokumente, Workflow-Ausführungen, Prompt-Vorlagen, aus dem Vektorspeicher entfernte RAG-Dokumente. Lies das Drawer für Zähler und die Audit-Zeitleiste; das Audit-Log im selben Governance-Bereich trägt die volle Ereigniskette (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_cancelled`).
+Der Beleg schlüsselt die gelöschten Zeilen nach Durchlauf auf — Threads, Dokumente, Uploads, Einstellungen, Benachrichtigungen, Abonnements, Feedback, Memories, Nutzungs-Ledger und die Schwärzung im Audit-Pfad. Lies das Drawer für Zähler und die Audit-Zeitleiste; das Audit-Log im selben Governance-Bereich trägt die volle Ereigniskette (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_cancelled`).
 
 ## Wo das hingehört
 

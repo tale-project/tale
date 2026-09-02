@@ -7,24 +7,22 @@ Analyse d'utilisation est le dashboard qui agrège chaque appel AI facturable da
 
 ## Un drill-down mis en pratique
 
-Ouvre **Paramètres > Gouvernance > Utilisation**. La vue par défaut sont les 30 derniers jours, org-wide, avec les trois compteurs phares — tokens totaux, coût total en USD, requêtes totales. Bascule la ventilation sur **Par utilisateur** pour trouver les plus gros consommateurs, **Par modèle** pour comparer un primaire coûteux à un repli moins cher, ou **Par agent** pour trouver l'agent qui porte la charge. Chaque ligne renvoie à une série temporelle par ligne ; l'axe du graphique suit la période choisie.
+Ouvre **Paramètres > Métriques > Utilisation**. La vue par défaut sont les 30 derniers jours, org-wide, avec les compteurs phares — requêtes, tokens, coût et utilisateurs actifs — au-dessus de la tendance d'utilisation. Lis **Utilisation par utilisateur** pour trouver les plus gros consommateurs, **Principaux modèles** pour comparer un primaire coûteux à un repli moins cher, ou **Principaux assistants** pour trouver l'assistant qui porte la charge. Le sélecteur de période (7, 30 ou 90 jours) pilote toutes les sections à la fois.
 
 ## Les dimensions
 
-- **Utilisateur** — chaque membre qui a déclenché un appel facturable. Associe au filtre équipe ou rôle pour cadrer la vue.
-- **Équipe** — agrégé par membre d'équipe ; utile quand les budgets sont cadrés par équipe.
-- **Rôle** — Propriétaire, Administrateur, Développeur, Éditeur, Membre.
-- **Modèle** — chaque modèle qui a produit une réponse, groupé par fournisseur.
-- **Agent** — chaque agent nommé (le classement trie par volume de tokens, coût ou nombre de requêtes).
-- **Temps** — tendance quotidienne pour les fenêtres courtes, hebdomadaire pour les fenêtres plus longues.
+- **Utilisateur** — chaque membre qui a déclenché un appel facturable, avec ses tokens, son coût et ses requêtes.
+- **Modèle** — chaque modèle qui a produit une réponse ; les modèles vocaux gardent leur propre classement.
+- **Assistant** — chaque assistant avec de l'utilisation attribuée.
+- **Temps** — la courbe de tendance suit la fenêtre choisie : 7, 30 ou 90 jours.
 
 ## Le modèle de coût
 
 Le coût est une estimation. Chaque requête atterrit dans le registre d'utilisation avec les tokens d'entrée, les tokens de sortie, le prix publié du modèle par million de tokens et la durée wall-clock. Le dashboard multiplie tokens par prix ; les appels de génération d'images atterrissent avec un coût par image que le fournisseur renvoie. La ligne du registre est la source de vérité, et le [journal d'audit](/fr/platform/admin/governance/audit-logs) porte l'acteur et l'horodatage de la ligne pour le recoupement.
 
-## Superpositions de budget
+## Budgets et utilisation
 
-Quand [politiques et limites](/fr/platform/admin/governance/policies-and-limits) a un budget pour un scope, le graphique d'utilisation superpose le plafond comme une ligne horizontale. Survoler un point affiche le pourcentage du plafond consommé et la projection de fin de mois basée sur la tendance courante. Franchir le seuil d'avertissement colore la série en ambre ; franchir le plafond la colore en rouge et fait apparaître les événements budget-dépassé comme marqueurs sur l'axe temps.
+Les budgets vivent dans [politiques et limites](/fr/platform/admin/governance/policies-and-limits) ; ce dashboard est l'endroit où tu retraces ce qui les a portés. Quand un avertissement de budget ou un avis budget-dépassé se déclenche dans le chat, les tableaux par utilisateur et par modèle répondent ici à la question suivante — qui a dépensé, sur quel modèle, sur quels jours.
 
 ## Rétention des lignes d'utilisation
 

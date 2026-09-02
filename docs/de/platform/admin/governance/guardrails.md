@@ -13,7 +13,7 @@ Guardrails ist die Oberfläche, auf der du die drei Filterebenen konfigurierst, 
 
 ## Eine durchgespielte Schichtung
 
-Um die Ebenen zu konfigurieren, öffne **Einstellungen > Richtlinien > Guardrails**. Die Übersicht zeigt drei Status-Karten, eine pro Ebene — Inhaltssicherheit, PII-Erkennung, Moderation. Jede Karte verlinkt auf ihre eigene Konfigurationsseite, auf der du wählst, ob die Ebene auf Eingaben, Ausgaben oder beidem läuft und was sie bei einem Treffer tut (Nachricht blockieren, Treffer maskieren oder markieren und durchlassen). Die Tabelle der letzten Ereignisse unten in der Übersicht zeigt die letzten 50 Erkennungen, Blockaden und Anbieter-Fehler mit ihrer Ebene, ihrer Richtung und ihrer Treffer-Kategorie.
+Um die Ebenen zu konfigurieren, öffne **Einstellungen > Richtlinien > Guardrails**. Die Übersicht zeigt drei Status-Karten, eine pro Ebene — Inhaltssicherheit, PII-Erkennung, Moderation — und der Editor jeder Ebene sitzt weiter unten auf derselben Seite; dort wählst du, ob die Ebene auf Eingaben, Ausgaben oder beidem läuft und was sie bei einem Treffer tut. Auch die verpflichtenden Custom-Anweisungen der Organisation leben hier — sie binden jeden Agent und gehören darum zu den Inhalts-Kontrollen. Die Tabelle der letzten Ereignisse unter der Übersicht zeigt die letzten 50 Erkennungen, Blockaden und Anbieter-Fehler mit ihrer Ebene, ihrer Richtung und ihrer Treffer-Kategorie.
 
 ## Inhaltssicherheit
 
@@ -23,7 +23,7 @@ Die Wortlisten und Muster dieser Ebene verlassen das Deployment nie. Getroffener
 
 ## PII-Erkennung
 
-PII-Erkennung bringt Muster für E-Mails, Telefonnummern, Behörden-IDs, Zahlungsnummern und eine lange Liste regionaler Formate mit. Füge eigene Muster hinzu, wenn dein Regulierer ein Format benennt, das die eingebauten verfehlen. Wähle einen Modus — Blockieren, Maskieren mit einem Platzhalter, oder Markieren — und eine Anwendungsrichtung. Maskieren ist die typische Wahl für die Ausgabefilterung, wenn das Modell Zugriff auf Datensätze mit PII bekommen hat, die es nicht zurückspielen soll.
+PII-Erkennung bringt Muster für E-Mails, Telefonnummern, Behörden-IDs, Zahlungsnummern und eine lange Liste regionaler Formate mit. Füge eigene Muster hinzu, wenn dein Regulierer ein Format benennt, das die eingebauten verfehlen. Wähle einen Modus — Blockieren, Maskieren mit einem Platzhalter, oder Tokenisieren, das PII auf dem Hinweg gegen indizierte Token tauscht und sie in der Antwort des Modells wiederherstellt. Maskieren ist die typische Wahl, wenn das Modell Zugriff auf Datensätze mit PII bekommen hat, die es nicht zurückspielen soll.
 
 ## Moderationsanbieter
 
@@ -33,7 +33,7 @@ Der Anbieter sitzt auf dem Egress-Netzwerkpfad. Ausfälle sind pro Richtung konf
 
 ## Letzte Ereignisse
 
-Jede Erkennung, Blockade und jeder Anbieter-Fehler landet 30 Tage lang in der Tabelle der letzten Ereignisse. Filtere nach Ebene oder nach Art; klick auf eine Zeile, um die getroffenen Kategorien, den Akteur, die Nachrichten-ID und den Zeitstempel zu sehen. Getroffener Roh-Text wird nie gespeichert — die Ereignisse sind eine Tuning-Oberfläche, kein Inhalts-Archiv.
+Jede Erkennung, Blockade und jeder Anbieter-Fehler landet in der Tabelle der letzten Ereignisse — standardmäßig 90 Tage aufbewahrt, einstellbar auf der Seite zur Aufbewahrungsrichtlinie. Filtere nach Ebene oder nach Art; jede Zeile trägt die getroffenen Kategorien, den Akteur und den Zeitstempel. Getroffener Roh-Text wird nie gespeichert — die Ereignisse sind eine Tuning-Oberfläche, kein Inhalts-Archiv.
 
 ## Wo das hingehört
 

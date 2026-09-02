@@ -1,31 +1,31 @@
 ---
 title: Feedback analytics
-description: Aggregated thumbs-up and thumbs-down on agent messages plus chat ratings, broken down per agent and per model. Admins and Owners read this when an agent regression needs a number behind it.
+description: Aggregated thumbs-up and thumbs-down on assistant replies plus arena verdicts, broken down per assistant and per model. Admins and Owners read this when an agent regression needs a number behind it.
 ---
 
-Feedback analytics is the dashboard that turns the per-message thumbs and the per-chat ratings into trend lines. Members leave the feedback inline in chat; this page aggregates it by agent, by model, and over time so the regression in last week's voice change is visible as a number, not a hunch. Admins and Owners read this page when a model swap looks like a downgrade, when one agent is underperforming the others, or when leadership wants the rough quality posture of every agent in the org.
+Feedback analytics is the dashboard that turns the per-message thumbs and the arena verdicts into trend lines. Members leave the feedback inline in chat; this page aggregates it by assistant, by model, and over time so the regression in last week's voice change is visible as a number, not a hunch. Admins and Owners read this page when a model swap looks like a downgrade, when one assistant is underperforming the others, or when leadership wants the rough quality posture of every assistant in the org.
 
 ## A worked drill-down
 
-Open **Settings > Governance > Feedback** and the default view is the org-wide ratio across the last 30 days. Switch the breakdown to **By agent** to see the ratio per agent — sort by feedback volume to find the agents members are actually using, then click into one to see its model history alongside the same ratio over time. The split-by-model view is the same data sliced on the model that produced each rated reply.
+Open **Settings > Metrics > Feedback** and the default view is the org-wide sentiment across the last 7 days — widen the period when the window is quiet. **Top Assistants by feedback** shows the helpful ratio per assistant with its volume, so the assistants members actually use stand out; filter to one and the sentiment trend and recent comments narrow with it. **Top Models by feedback** is the same data sliced on the model that produced each rated reply.
 
 ## The two signals
 
-**Thumbs feedback** is the per-message signal — a thumb up or thumb down on any agent reply. The thumb carries an optional free-text comment; the comment is per row and never aggregated into the ratio. Members can leave both, edit either, or withdraw entirely; the timeline reflects the latest state.
+**Thumbs feedback** is the per-message signal — a thumb up or thumb down on any assistant reply. The thumb carries an optional free-text comment; the comment is per row and never aggregated into the ratio. Members can change their thumb or withdraw it entirely; the numbers reflect the latest state.
 
-**Chat ratings** is the per-conversation signal — the one-to-five star rating that surfaces at the end of a conversation. Ratings carry an optional comment too. Chat ratings are coarser than thumbs and useful for tracking the agent-level vibe over many turns where individual thumbs would be noisy.
+**Arena verdicts** is the per-comparison signal — when a member runs two models side by side in [arena mode](/platform/chat/arena-mode), the verdict lands here. The summary counts decisive votes, ties, and both-bad calls; **Top model matchups** keeps the per-pair head-to-head score, because an "A wins" only means something against the model it beat.
 
 ## Breakdowns
 
 The dashboard slices by three dimensions:
 
-- **Agent** — every agent in the org gets its own row with ratio, volume, and trend.
-- **Model** — every model that produced a rated reply contributes; useful when you compare a primary against its fallback.
-- **Time** — the trend is daily for the last 30 days and weekly for longer windows.
+- **Assistant** — every assistant with rated replies gets its own row with helpful and not-helpful counts and the resulting sentiment.
+- **Model** — every model that produced a rated reply contributes; arena pairs stay head-to-head in the matchups table.
+- **Time** — the sentiment-over-time chart follows the selected window, from a day to 90 days. Past 50,000 entries in a window the page shows partial results and asks you to narrow.
 
 ## Free-text comments
 
-Comments are surfaced under the aggregated numbers as a list. Sort by recency or by sentiment; click through to the conversation in context to see what the rated reply was responding to. Comments are subject to the same retention policy as the conversations they belong to; if a thread is purged or trashed, its comments go with it.
+Comments are surfaced in the **Recent feedback** list under the aggregated numbers. Filter with **Comments only** to hide bare thumbs, and by type to separate chat thumbs from arena verdicts. Comments are subject to the same retention policy as the conversations they belong to; if a thread is purged or trashed, its comments go with it.
 
 ## Where this fits
 
