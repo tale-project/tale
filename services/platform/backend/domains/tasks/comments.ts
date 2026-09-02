@@ -3,6 +3,10 @@ import { z } from 'zod';
 
 import { parseTaskSubjectContract } from '../../../lib/shared/schemas/task_contract.ts';
 import { TASK_AUDIT_ACTIONS } from '../../core/tasks/audit_actions.ts';
+import {
+  addedMentions,
+  type ResolvedMention,
+} from '../../core/tasks/mentions.ts';
 import type { CommentEventComment } from '../../core/tasks/types.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -147,6 +151,7 @@ export async function addTaskComment(
     auth,
     task,
     mentions,
+    authorType: author.actorType,
   });
   // A comment that @-mentions one of the project's agent INSTANCES puts it
   // to work: steering its RUNNING turn, or — when the task is idle —
@@ -345,12 +350,22 @@ export async function listTaskComments(
 async function loadCommentMeta(
   tx: TransactionSql | Sql,
   messageId: string,
-): Promise<{ taskId: string; authorType: string; authorId: string }> {
+): Promise<{
+  taskId: string;
+  authorType: string;
+  authorId: string;
+  mentions: ResolvedMention[] | null;
+}> {
   const rows = await tx<
-    { taskId: string; authorType: string; authorId: string }[]
+    {
+      taskId: string;
+      authorType: string;
+      authorId: string;
+      mentions: ResolvedMention[] | null;
+    }[]
   >`
     SELECT task_id AS "taskId", author_type AS "authorType",
-           author_id AS "authorId"
+           author_id AS "authorId", mentions
     FROM app.task_discussion_message_meta WHERE message_id = ${messageId}
   `;
   const meta = rows[0];
@@ -375,6 +390,23 @@ function assertCommentOwnerOrAdmin(
   }
 }
 
+/**
+ * Edit one comment's body — and RE-RESOLVE what it names.
+ *
+ * An edit is a second chance to mention someone: adding `@handle` to a
+ * comment has to reach them, and the stored mention set has to stay the
+ * truth of who the comment names (it is what the feed renders and what the
+ * next edit diffs against). Only the NEWLY added mentions fan out —
+ * rewording prose around an existing `@handle` must not re-notify, and
+ * re-notifying the whole set on every edit is exactly what the 0.4
+ * `addedMentions` diff existed to prevent.
+ *
+ * The fan-out is the MENTION half of {@link addTaskComment} only: the bell
+ * and auto-subscribe for the newly named, no subscriber re-alert (this is
+ * not a fresh comment), and `comment.mentioned` rather than
+ * `comment.created`. Editing never starts an engine — the automation
+ * trigger and the agent dispatch belong to a posted comment.
+ */
 export async function editTaskComment(
   tx: TransactionSql,
   auth: ProjectAuthContext,
@@ -389,12 +421,47 @@ export async function editTaskComment(
   if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
     throw new TaskError('TASK_COMMENT_INVALID', 'Invalid comment body');
   }
+  const resolved = await resolveSurfaceMentions(tx, {
+    organizationId: auth.organizationId,
+    body,
+    projectId: task.projectId,
+  });
+  const mentions = resolved.mentions;
+  const added = addedMentions(meta.mentions ?? [], mentions);
   await updateMessageText(tx, args.messageId, body);
   await tx`
     UPDATE app.task_discussion_message_meta
-    SET edited_at_ms = ${Date.now()}
+    SET edited_at_ms = ${Date.now()},
+        mentions = ${mentions.length > 0 ? tx.json(toJson(mentions)) : null}
     WHERE message_id = ${args.messageId}
   `;
+  if (added.length > 0) {
+    await notifyTaskComment(tx, {
+      task,
+      commentId: args.messageId,
+      mentions: added,
+      actorType: 'user',
+      actorId: auth.userId,
+      notifySubscribers: false,
+    });
+    const comment: CommentEventComment = {
+      body,
+      projectId: task.projectId,
+      taskId: meta.taskId,
+      mentions: added,
+    };
+    await emitEvent(tx, {
+      organizationId: auth.organizationId,
+      eventType: 'comment.mentioned',
+      eventData: {
+        comment,
+        taskId: meta.taskId,
+        mentions: added,
+        actorType: 'user',
+        actorId: auth.userId,
+      },
+    });
+  }
   await createAuditLog(tx, {
     organizationId: auth.organizationId,
     actorId: auth.userId,
@@ -405,7 +472,7 @@ export async function editTaskComment(
     resourceType: 'task_comment',
     resourceId: args.messageId,
     resourceName: task.title,
-    metadata: { taskId: meta.taskId },
+    metadata: { taskId: meta.taskId, addedMentionCount: added.length },
     status: 'success',
   });
   await emitHintInTx(tx, {
@@ -683,6 +750,13 @@ async function dispatchMentionedProjectAgent(
  * run keeps it; `startWorkflowForTask`'s own duplicate guard backstops the
  * pre-check.
  *
+ * Only a HUMAN's comment starts anything — the same rule the agent lane's
+ * dispatcher keeps. An agent- or workflow-authored comment naming the owning
+ * automation would restart the very engine that wrote it, and each iteration
+ * is a metered agent turn; `startWorkflowForTask`'s one-live-run-per-task
+ * guard blocks a concurrent second start, not a sequential loop, so the
+ * author type is the only thing standing between a comment and that loop.
+ *
  * Returns whether a start was scheduled, so the caller can skip the steer
  * lane for the same comment.
  */
@@ -692,8 +766,10 @@ async function maybeTriggerOwningAutomation(
     auth: ProjectAuthContext;
     task: TaskRow;
     mentions: { type: string; id: string }[];
+    authorType: string;
   },
 ): Promise<boolean> {
+  if (args.authorType !== 'user') return false;
   const mentioned = args.mentions.find(
     (mention) => mention.type === 'automation',
   );
