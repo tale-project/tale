@@ -314,6 +314,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         // card that reads "waiting on review". Attributed to the comment's
         // author — the kick is their gesture, delivered late.
         await handTaskToInProgressForKick(tx, {
+          organizationId: args.organizationId,
           taskId: args.taskId,
           userId: args.authorId,
         });

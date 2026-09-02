@@ -96,8 +96,7 @@ function pgTaskStore(sql: Sql): WorkflowTaskStore {
   return {
     async get({ organizationId, taskId }) {
       try {
-        const task = await loadTaskOrThrow(sql, taskId);
-        if (task.organizationId !== organizationId) return null;
+        const task = await loadTaskOrThrow(sql, taskId, organizationId);
         return {
           taskId: task.id,
           title: task.title,
