@@ -1739,8 +1739,8 @@ conversations:
     subject: Betreff
     subjectPlaceholder: Worum geht es?
     assignLabel: Zuständig
-    assignPlaceholder: Mitglied auswählen
-    assignSearch: Mitglieder suchen
+    assignPlaceholder: Person oder Team wählen
+    assignSearch: Personen und Teams suchen
     assignYou: Du
     bodyPlaceholder: Schreib deine Nachricht…
     fillRequired: Wähle einen Kontakt, ein Postfach und einen Betreff, um zu senden.

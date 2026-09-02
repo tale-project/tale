@@ -1692,8 +1692,8 @@ conversations:
     subject: Subject
     subjectPlaceholder: What's this about?
     assignLabel: Assign to
-    assignPlaceholder: Choose a member
-    assignSearch: Search members
+    assignPlaceholder: Choose a person or team
+    assignSearch: Search people and teams
     assignYou: You
     bodyPlaceholder: Write your message…
     fillRequired: Choose a contact, an inbox, and a subject to send.

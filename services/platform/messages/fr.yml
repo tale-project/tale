@@ -1753,8 +1753,8 @@ conversations:
     subject: Objet
     subjectPlaceholder: De quoi s'agit-il ?
     assignLabel: Responsable
-    assignPlaceholder: Choisir un membre
-    assignSearch: Rechercher des membres
+    assignPlaceholder: Choisir une personne ou une équipe
+    assignSearch: Rechercher des personnes et des équipes
     assignYou: Toi
     bodyPlaceholder: Écris ton message…
     fillRequired: Choisis un contact, une boîte et un objet pour envoyer.
