@@ -627,9 +627,11 @@ describe('GET /branding/images', () => {
       // Blob so the real serve path executes.
       vi.stubGlobal('Bun', {
         file: (path: string) => {
-          let bytes: Uint8Array | null = null;
+          let bytes: Uint8Array<ArrayBuffer> | null = null;
           try {
-            bytes = readFileSync(path);
+            // Copy into a fresh Uint8Array so the backing store is a plain
+            // ArrayBuffer (Buffer's ArrayBufferLike is not a valid BlobPart).
+            bytes = new Uint8Array(readFileSync(path));
           } catch {
             bytes = null;
           }
