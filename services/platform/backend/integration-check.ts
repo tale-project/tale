@@ -7100,6 +7100,60 @@ async function checkSamlLogin(
         (forged.headers.get('set-cookie') ?? '') === '',
       `issued=${authnRequestId !== ''}/row=${issuedRow.length} (want 1), first=${spFirst.status}→${(spFirst.headers.get('location') ?? '').includes('/dashboard') ? 'dashboard' : spFirst.headers.get('location')} cookie=${spFirstCookie !== ''}, consumed=${consumedRow.length === 0}, replay=${spReplay.status}→${(spReplay.headers.get('location') ?? '').includes('/log-in') ? 'log-in' : 'ERR'} noCookie=${(spReplay.headers.get('set-cookie') ?? '') === ''}, forged=${forged.status} noCookie=${(forged.headers.get('set-cookie') ?? '') === ''}`,
     );
+
+    // ---- org binding ----------------------------------------------------
+    // A user who EXISTS on the deployment but has no membership in this org
+    // must be refused: org admins self-serve the IdP, so honouring a global
+    // email match would let this connection mint a session as any user
+    // (cross-org takeover). Refusal is actionable, audited, writes nothing.
+    const outsiderOrg = await sql<{ id: string }[]>`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (gen_random_uuid(), 'Outsider Org',
+              ${`outsider-org-${Date.now()}`}, ${new Date()})
+      RETURNING "id"
+    `;
+    const outsiderUser = await sql<{ id: string }[]>`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified",
+                          "createdAt", "updatedAt")
+      VALUES (gen_random_uuid(), 'outsider@door.test', 'Outsider', true,
+              ${new Date()}, ${new Date()})
+      RETURNING "id"
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${outsiderOrg[0]?.id ?? ''},
+              ${outsiderUser[0]?.id ?? ''}, 'member', ${new Date()})
+    `;
+    const crossOrg = await postAssertion(
+      buildResponse({
+        id: '_itestsaml6',
+        email: 'outsider@door.test',
+        groups: ['Everyone'],
+        notOnOrAfterMs: Date.now() + 300_000,
+      }),
+    );
+    const crossOrgLocation = crossOrg.headers.get('location') ?? '';
+    const joined = await sql<{ id: string }[]>`
+      SELECT "id" FROM "member"
+      WHERE "organizationId" = ${orgId}
+        AND "userId" = ${outsiderUser[0]?.id ?? ''}
+    `;
+    const refusalAudit = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sso_login_failed'
+        AND error_message = 'sso.errors.notOrgMember'
+    `;
+    record(
+      'SAML: an existing user outside the org is refused (no auto-join)',
+      crossOrg.status === 302 &&
+        crossOrgLocation.includes('/log-in') &&
+        crossOrgLocation.includes('notOrgMember') &&
+        (crossOrg.headers.get('set-cookie') ?? '') === '' &&
+        joined.length === 0 &&
+        (refusalAudit[0]?.count ?? 0) >= 1,
+      `refused=${crossOrg.status}→${crossOrgLocation.includes('/log-in') ? 'log-in' : crossOrgLocation} key=${crossOrgLocation.includes('notOrgMember')} noCookie=${(crossOrg.headers.get('set-cookie') ?? '') === ''}, joined=${joined.length} (want 0), audited=${refusalAudit[0]?.count}`,
+    );
   } finally {
     if (savedSiteUrl === undefined) delete process.env.SITE_URL;
     else process.env.SITE_URL = savedSiteUrl;

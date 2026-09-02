@@ -475,6 +475,10 @@ auth:
       userNotAssigned:
         Dein Konto ist dieser Anwendung nicht zugewiesen. Wende dich an
         deine Administration, um Zugriff anzufordern.
+      notOrgMember:
+        Dein Konto ist kein Mitglied dieser Organisation. Bitte die
+        Administration dieser Organisation, dich einzuladen, und melde dich
+        danach erneut an.
       silentAuthFailed: Stille Anmeldung fehlgeschlagen. Melde dich stattdessen manuell an.
       refreshTokenExpired: Deine Sitzung ist abgelaufen. Melde dich erneut an.
       consentRequired: Ein Administrator muss die Zustimmung erteilen, bevor du dich anmelden kannst.

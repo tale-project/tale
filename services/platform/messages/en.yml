@@ -451,6 +451,9 @@ auth:
       userNotAssigned:
         Your account is not assigned to this application. Contact your
         administrator to request access.
+      notOrgMember:
+        Your account is not a member of this organization. Ask an admin of
+        this organization to invite you, then sign in again.
       silentAuthFailed: Silent sign-in failed. Sign in manually instead.
       refreshTokenExpired: Your session expired. Sign in again.
       consentRequired: An admin needs to grant consent before you can sign in.
