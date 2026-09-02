@@ -3,7 +3,7 @@ title: Base de connaissances
 description: La base de connaissances est la bibliothèque partagée de l’organisation — documents, petits faits, sites web explorés et fiches typées — sur laquelle les agents ancrent leurs réponses. Cet aperçu nomme les onglets et pointe vers les pages par domaine.
 ---
 
-La base de connaissances est l’espace où vivent les données de l’organisation pour que les agents puissent les lire et les citer. Les éditeurs la constituent une fois ; les agents y puisent au moment de répondre — c’est ce qui permet à un agent Tale de répondre avec ta réalité plutôt qu’avec les données d’entraînement du modèle. L’espace s’ouvre sur six onglets : **Documents**, **Entrées de connaissances**, **Sites web**, **Produits**, **Contacts** et **Fournisseurs**.
+La base de connaissances est l’espace où vivent les données de l’organisation pour que les agents puissent les lire et les citer. Les éditeurs la constituent une fois ; les agents y puisent au moment de répondre — c’est ce qui permet à un agent Tale de répondre avec ta réalité plutôt qu’avec les données d’entraînement du modèle. L’espace s’ouvre sur cinq onglets : **Documents**, **Entrées de connaissances**, **Sites web**, **Produits** et **Contacts**.
 
 Tu préfères regarder d’abord ? L’épisode 3 parcourt toute la bibliothèque en trois minutes — indexation, entrées, fiches, crawler et périmètres, sous-titres compris.
 
@@ -19,7 +19,7 @@ Tu préfères regarder d’abord ? L’épisode 3 parcourt toute la bibliothèqu
 
 ## Les deux formes
 
-Tout ce que contient l’espace prend l’une de deux formes. Le **contenu indexé** — les fichiers de Documents, les faits des Entrées de connaissances, les pages qu’une exploration de site web ramène — passe par le pipeline d’indexation (extraction, découpage, embeddings, stockage) pour que les agents récupèrent les passages pertinents et les citent. Les **fiches typées** — Produits, Contacts, Fournisseurs — sont des lignes à champs nommés que les agents lisent comme des données, pas comme de la prose : des valeurs exactes, sans approximation de récupération.
+Tout ce que contient l’espace prend l’une de deux formes. Le **contenu indexé** — les fichiers de Documents, les faits des Entrées de connaissances, les pages qu’une exploration de site web ramène — passe par le pipeline d’indexation (extraction, découpage, embeddings, stockage) pour que les agents récupèrent les passages pertinents et les citent. Les **fiches typées** — Produits et Contacts (l’annuaire de correspondants qui couvre à la fois clients et fournisseurs) — sont des lignes à champs nommés que les agents lisent comme des données, pas comme de la prose : des valeurs exactes, sans approximation de récupération.
 
 La forme que tu choisis décide de la façon dont un agent peut exploiter le contenu — c’est pourquoi [Données structurées](/fr/platform/knowledge/structured-data) est une page de décision, pas seulement une référence.
 
@@ -57,7 +57,7 @@ Transformer un site public en connaissances — domaine, intervalle d’analyse 
 
 <Card title="Données structurées" icon="table" href="/fr/platform/knowledge/structured-data">
 
-Contacts, Produits, Fournisseurs, Sites web — quand une fiche typée bat un document.
+Contacts, Produits, Sites web — quand une fiche typée bat un document.
 
 </Card>
 

@@ -701,7 +701,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Données structurées",
-      "description": "La base de connaissances de Tale embarque quatre entités structurées intégrées — Contacts, Produits, Fournisseurs, Sites web — à côté des Documents. Cette page te donne le modèle mental pour choisir une fiche typée plutôt qu’un document."
+      "description": "La base de connaissances de Tale embarque trois entités structurées intégrées — Contacts, Produits, Sites web — à côté des Documents. Cette page te donne le modèle mental pour choisir une fiche typée plutôt qu’un document."
     }
   },
   "fr:platform/knowledge/overview": {
@@ -1878,7 +1878,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Structured data",
-      "description": "Tale's knowledge base ships four built-in structured entities — Contacts, Products, Vendors, Websites — alongside Documents. This page hands you the mental model for when to pick a typed record over a document."
+      "description": "Tale's knowledge base ships three built-in structured entities — Contacts, Products, Websites — alongside Documents. This page hands you the mental model for when to pick a typed record over a document."
     }
   },
   "en:platform/knowledge/overview": {
@@ -3055,7 +3055,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Strukturierte Daten",
-      "description": "Tales Wissensdatenbank bringt vier eingebaute strukturierte Entitäten mit — Kontakte, Produkte, Lieferanten, Websites — neben den Dokumenten. Diese Seite gibt dir das mentale Modell dafür, wann ein typisierter Datensatz ein Dokument schlägt."
+      "description": "Tales Wissensdatenbank bringt drei eingebaute strukturierte Entitäten mit — Kontakte, Produkte, Websites — neben den Dokumenten. Diese Seite gibt dir das mentale Modell dafür, wann ein typisierter Datensatz ein Dokument schlägt."
     }
   },
   "de:platform/knowledge/overview": {
