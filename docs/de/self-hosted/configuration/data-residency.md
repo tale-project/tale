@@ -23,7 +23,7 @@ Drei Speicher, jeder unabhängig und optional. Eine fehlende Einstellung bedeute
 
 - **Wissensdatenbank** — der Wissens-Korpus: Dokumentmetadaten, der extrahierte Chunk-Text, Embeddings, der BM25-Index, der semantische Cache und die gecrawlten Webseiten. Sie kommt als mitgelieferter `knowledge-db`-Container (`tale_knowledge`, mit den Schemata `private_knowledge` und `public_web`) und ist der Speicher, um den sich die meisten Residenz-Anforderungen drehen, weil er deinen Dokumentinhalt hält. Richte ihn auf dein eigenes verwaltetes Postgres aus, um den Korpus auf Infrastruktur zu halten, die dein Team betreibt.
 - **Dateispeicher** — wo hochgeladene Dateien (die ursprünglichen Blobs) liegen. Standardmäßig liegen sie im mitgelieferten Objektspeicher des Stacks (Dienst `object-store`, auf einem eigenen Volume); du kannst sie auf einen externen S3-kompatiblen Bucket ausrichten.
-- **Anwendungsdatenbank** (erweitert) — die operative Convex-Datenbank (der mitgelieferte `db`-Container). Das Convex-Backend leitet den Namen dieser Datenbank aus `INSTANCE_NAME` (`tale_platform`) ab und verbindet sich nur über Host:Port, daher muss das externe Postgres eine Datenbank mit genau dem Namen `tale_platform` enthalten. Ihr TLS-Modus wird vom Convex-Treiber vorgegeben und ist nicht konfigurierbar.
+- **Anwendungsdatenbank** (erweitert) — der operative Speicher hinter Agents, Runs und dem Audit-Log (der mitgelieferte `db`-Container, die `tale_app`-Datenbank). Ihn zu verlagern zeigt die `DATABASE_URL` des Backends auf dein eigenes Postgres; der Datenbankname ist standardmäßig `tale_app` (überschreib ihn mit `APP_DB_NAME`), das externe Postgres muss also eine Datenbank dieses Namens enthalten.
 
 > Hinweis: Die Wissensdatenbank und die Anwendungsdatenbank sind zwei separate Postgres-Instanzen — die eine zu verschieben rührt die andere nicht an. Die Wissensdatenbank zu verlagern verschiebt den extrahierten Text und die Embeddings; die ursprünglich hochgeladenen Dateien wandern erst mit, wenn du auch den **Dateispeicher** auf S3 ausrichtest.
 
@@ -64,7 +64,7 @@ Die Verbindung liegt neben der Wissens-Verbindung im Konfigurationsverzeichnis d
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` — Region, optionaler Endpoint (für MinIO/R2), Path-Style-Flag, Bucket und ein optionales Key-Präfix.
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.secrets.json` — das Schlüsselpaar, SOPS-verschlüsselt, sobald ein SOPS-Age-Schlüssel konfiguriert ist (siehe [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops)).
 
-Anders als der deployment-weite S3-Schalter oben ist dieser Weg **nicht** nur für Neuinstallationen: Sobald die Konfiguration existiert, landen neue Uploads im Bucket der Org, während zuvor gespeicherte Dateien lesbar bleiben, wo sie sind — gemischte Referenzen werden unterstützt, du kannst also jederzeit umschalten. Früher gespeicherte Dateien bleiben im Convex-Speicher, bis du sie mit dem Blob-Backfill unten verlagerst. Entfernst du die Konfiguration, landen neue Uploads wieder im Deployment-Default; bereits in den Bucket geschriebene Dateien bleiben dort, Tale kann sie aber erst wieder lesen, wenn die Verbindung erneut eingerichtet ist. Ein Neustart ist in keine Richtung nötig.
+Anders als der deployment-weite S3-Schalter oben ist dieser Weg **nicht** nur für Neuinstallationen: Sobald die Konfiguration existiert, landen neue Uploads im Bucket der Org, während zuvor gespeicherte Dateien lesbar bleiben, wo sie sind — gemischte Referenzen werden unterstützt, du kannst also jederzeit umschalten. Früher gespeicherte Dateien bleiben im Object-Store des Deployments, bis du sie mit dem Blob-Backfill unten verlagerst. Entfernst du die Konfiguration, landen neue Uploads wieder im Deployment-Default; bereits in den Bucket geschriebene Dateien bleiben dort, Tale kann sie aber erst wieder lesen, wenn die Verbindung erneut eingerichtet ist. Ein Neustart ist in keine Richtung nötig.
 
 Org-Admins verwalten auch diese Verbindung in denselben Organisations-Abschnitten von **Einstellungen > Datenresidenz**; der dortige Verbindungstest führt einen echten Hochladen-Lesen-Löschen-Durchlauf gegen den Bucket aus, bevor du dich festlegst. Wie bei der Wissens-Verbindung bleiben die JSON-Dateien die Quelle der Wahrheit.
 
@@ -72,27 +72,17 @@ Org-Admins verwalten auch diese Verbindung in denselben Organisations-Abschnitte
 
 ### Vorhandene Dateien in den Bucket verschieben
 
-Den Bucket zu verbinden leitet nur **neue** Uploads um; die Blobs, die vor der Verbindung geschrieben wurden, bleiben in Convex' `_storage` und funktionieren weiter über die gemischten Referenzen oben. Um auch diese Historie auf deine eigene Infrastruktur zu holen — der eigentliche Sinn der Datenresidenz — führe den **Blob-Backfill** aus: Er kopiert jeden vorhandenen Blob in den Bucket der Org, prüft, dass er Byte für Byte identisch zurückkommt, schreibt jede referenzierende Zeile um und löscht die Convex-Kopie.
+Den Bucket zu verbinden leitet nur **neue** Uploads um; die Blobs, die vor der Verbindung geschrieben wurden, bleiben im Standard-Object-Store des Deployments und funktionieren weiter über die gemischten Referenzen oben. Um auch diese Historie auf deine eigene Infrastruktur zu holen — der eigentliche Sinn der Datenresidenz — führe den **Blob-Backfill** aus: Er kopiert jeden vorhandenen Blob in den Bucket der Org, prüft, dass er Byte für Byte identisch zurückkommt, schreibt jede referenzierende Zeile um und löscht die Quell-Kopie.
 
 Ein Org-Admin startet ihn in der UI: Ist die Bucket-Verbindung gespeichert, zeigt der Objektspeicher-Abschnitt von **Einstellungen > Datenresidenz** die Schaltfläche **Bestehende Dateien verschieben** — bestätige, und der Umzug läuft im Hintergrund, während Uploads weiter funktionieren; eine Statuszeile im selben Abschnitt meldet Fortschritt und Ausgang des letzten Laufs.
 
-Ein Operator mit Convex-CLI-Zugriff kann dieselbe Engine stattdessen aus einer Shell starten und die ID der Organisation übergeben. Mach zuerst einen Probelauf, um zu sehen, was verschoben würde, dann den echten Lauf:
-
-```bash
-# Probelauf — zählt und sampelt, was verschoben würde, schreibt nichts:
-bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>","dryRun":true}'
-
-# Der echte Lauf — lass dryRun weg, sobald die Zahlen stimmen:
-bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>"}'
-```
-
-Der Backfill ist **idempotent** und **org-gebunden**: Er verschiebt nur die Blobs dieser Organisation, überspringt alles, was schon im Bucket liegt, und lässt jede Convex-Quelle stehen, bis ihre Kopie verifiziert ist — ein erneuter Lauf nach einer Unterbrechung setzt also sicher fort. Ein echter Lauf braucht die zuvor konfigurierte Bucket-Verbindung; ein Probelauf nicht. Das ist bewusst **keine** versionierte Framework-Migration — er läuft auf Abruf, pro Organisation, wenn du die Historie eines Mandanten verlagern willst, nicht an einer Release-Grenze.
+Der Backfill ist **idempotent** und **org-gebunden**: Er verschiebt nur die Blobs dieser Organisation, überspringt alles, was schon im Bucket liegt, und lässt jede Quelle stehen, bis ihre Kopie verifiziert ist — ein erneuter Lauf nach einer Unterbrechung setzt also sicher fort. Er braucht die zuvor konfigurierte Bucket-Verbindung. Das ist bewusst **keine** versionierte Framework-Migration — er läuft auf Abruf, pro Organisation, wenn du die Historie eines Mandanten verlagern willst, nicht an einer Release-Grenze.
 
 ## Dateispeicher auf S3
 
-Externer Dateispeicher ist alles-oder-nichts über die Speicher-Use-Cases von Convex hinweg, also gibst du **fünf Buckets** an — files, exports, snapshot-imports, modules und search — plus Region und Anmeldedaten. Für S3-kompatible Dienste (MinIO, Cloudflare R2) setzt du den Endpunkt und aktivierst die Path-Style-Adressierung.
+Externer Dateispeicher nutzt einen einzigen S3-kompatiblen Bucket — Bucket-Name, Region, Anmeldedaten und (für MinIO oder Cloudflare R2) einen Endpunkt mit aktivierter Path-Style-Adressierung. Diese entsprechen den `OBJECT_STORE_*`-Variablen in der [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference).
 
-> **Nur Greenfield.** Den Dateispeicher von lokal auf S3 umzustellen migriert die bereits auf dem lokalen Volume liegenden Blobs **nicht** — Convex sucht sie im Bucket und findet sie nicht. Setze S3 bei der ersten Installation, oder kopiere den vorhandenen lokalen Speicher vorab in den Bucket, bevor du umstellst.
+> **Nur Greenfield.** Den deployment-weiten Dateispeicher vom mitgelieferten Store auf einen externen Bucket umzustellen migriert die bereits auf dem lokalen Volume liegenden Blobs **nicht** — das Backend sucht sie im Bucket und findet sie nicht. Setze S3 bei der ersten Installation, oder kopiere den vorhandenen lokalen Speicher vorab in den Bucket, bevor du umstellst.
 
 ## Wie die Konfiguration abgelegt wird
 
@@ -101,7 +91,7 @@ Speichern schreibt zwei Dateien im Konfigurations-Root (nicht unter einem Org-Ve
 - `deployment.json` — die nicht geheime Konfiguration (Hosts, Ports, Buckets, Modi).
 - `deployment.secrets.json` — die Datenbank-Passwörter und S3-Schlüssel, SOPS-verschlüsselt (siehe [Secrets mit SOPS](/de/self-hosted/configuration/secrets-with-sops)).
 
-Beim Boot liest der `convex`-Entrypoint diese und leitet seine Verbindungen ab, bevor er startet. Wissens-Ingestion und Retrieval laufen im Convex-Backend, also ist es der einzige Container, der die Verbindung zur Wissensdatenbank öffnet — es gibt keinen separaten Retrieval-Dienst zu konfigurieren. Der Vertrag ist **fail-closed**: ein vorhandenes, aber unparsbares `deployment.json`, ein nicht entschlüsselbares Secret oder eine Konfiguration ohne Pflichtfelder **bricht den Start ab**, statt still auf die mitgelieferte Datenbank zurückzufallen — regulierte Daten fehlzuleiten ist schlimmer, als nicht zu starten. Eine fehlende Datei ist der normale Default-Pfad.
+Beim Boot liest das Backend diese und leitet seine Verbindungen ab, bevor es startet. Wissens-Ingestion und Retrieval laufen im Backend-Worker, also ist das Backend das, was die Verbindung zur Wissensdatenbank öffnet — es gibt keinen separaten Retrieval-Dienst zu konfigurieren. Der Vertrag ist **fail-closed**: ein vorhandenes, aber unparsbares `deployment.json`, ein nicht entschlüsselbares Secret oder eine Konfiguration ohne Pflichtfelder **bricht den Start ab**, statt still auf die mitgelieferte Datenbank zurückzufallen — regulierte Daten fehlzuleiten ist schlimmer, als nicht zu starten. Eine fehlende Datei ist der normale Default-Pfad.
 
 ## Eine Änderung anwenden: Neustart
 
