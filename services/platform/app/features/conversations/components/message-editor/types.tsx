@@ -26,6 +26,14 @@ export interface MessageEditorProps {
   conversationId?: string;
   onConversationResolved?: () => void;
   pendingMessage?: Pick<ConversationMessage, 'id' | 'content'>;
+  /**
+   * Fired on a successful send, before the editor remounts. Callers that seed
+   * via `pendingMessage` (undo-send restore) must clear that seed here so the
+   * remount does not re-initialize from a still-present draft — send runs
+   * inside `startTransition`, so clearing the seed at send-start can lag the
+   * remount.
+   */
+  onPendingMessageConsumed?: () => void;
   hasMessageHistory?: boolean;
   organizationId: string;
 }

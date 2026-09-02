@@ -188,6 +188,49 @@ describe('MessageEditor', () => {
     expect(renderCount).toBe(initialCount);
   });
 
+  it('notifies onPendingMessageConsumed before remount on successful send', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const onPendingMessageConsumed = vi.fn();
+
+    render(
+      <MessageEditor
+        onSave={onSave}
+        organizationId="org_test"
+        pendingMessage={{ id: 'msg_1', content: 'restored draft' }}
+        onPendingMessageConsumed={onPendingMessageConsumed}
+      />,
+    );
+
+    const countBefore = renderCount;
+
+    await act(async () => {
+      capturedOnSend?.();
+    });
+
+    expect(onPendingMessageConsumed).toHaveBeenCalledTimes(1);
+    expect(renderCount).toBeGreaterThan(countBefore);
+  });
+
+  it('does not consume pendingMessage when send fails', async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error('Send failed'));
+    const onPendingMessageConsumed = vi.fn();
+
+    render(
+      <MessageEditor
+        onSave={onSave}
+        organizationId="org_test"
+        pendingMessage={{ id: 'msg_1', content: 'restored draft' }}
+        onPendingMessageConsumed={onPendingMessageConsumed}
+      />,
+    );
+
+    await act(async () => {
+      capturedOnSend?.();
+    });
+
+    expect(onPendingMessageConsumed).not.toHaveBeenCalled();
+  });
+
   describe('accessibility', () => {
     it('passes axe audit', async () => {
       const { container } = render(<MessageEditor organizationId="org_test" />);
