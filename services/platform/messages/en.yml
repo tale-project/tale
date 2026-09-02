@@ -1115,6 +1115,9 @@ chat:
       privateIpResolved: This link points to a private/internal address
       inFlightCap: Too many videos processing — wait for one to finish
       budgetExceeded: Usage limit reached — contact your administrator
+      notFound: Video link not found — it may have been removed
+      notUploader: Only the person who added this video can change it
+      notRetryable: Can't retry right now — the video may already be processing again
     actions:
       removeLink: Remove
       retry: Try again
@@ -5366,8 +5369,7 @@ settings:
         Required for single-tenant Microsoft app registrations; leave blank
         for multi-tenant ones.
       redirectUrisLabel: Redirect URIs to register
-      redirectUrisHint:
-        Add each of these to the vendor app registration before connecting.
+      redirectUrisHint: Add each of these to the vendor app registration before connecting.
       reuseSso: Use Entra ID SSO app
       reuseSsoTitle: Reuse the Entra ID SSO app registration
       reuseSsoBody:

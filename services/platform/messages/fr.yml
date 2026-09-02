@@ -1160,6 +1160,9 @@ chat:
       privateIpResolved: Ce lien pointe vers une adresse privée/interne
       inFlightCap: Trop de vidéos en cours de traitement — attends qu'une se termine
       budgetExceeded: Limite d'usage atteinte — contacte ton administrateur
+      notFound: Lien vidéo introuvable — il a peut-être été supprimé
+      notUploader: Seule la personne qui a ajouté cette vidéo peut la modifier
+      notRetryable: Nouvelle tentative impossible pour le moment — la vidéo est peut-être déjà en cours de traitement
     actions:
       removeLink: Retirer
       retry: Réessayer
