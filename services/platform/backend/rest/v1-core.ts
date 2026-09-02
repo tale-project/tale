@@ -638,6 +638,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const id = await createKnowledgeEntry(deps.sql, {
         organizationId: c.get('organizationId'),
         userId: c.get('userId'),
+        role: c.get('role'),
         topic: body.data.topic,
         content: body.data.content,
         source: 'manual',
@@ -675,6 +676,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const id = await updateKnowledgeEntry(deps.sql, {
         organizationId: c.get('organizationId'),
         userId: c.get('userId'),
+        role: c.get('role'),
         entryId: c.req.param('id'),
         topic: body.data.topic,
         content: body.data.content,
@@ -695,6 +697,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       await deleteKnowledgeEntry(deps.sql, {
         organizationId: c.get('organizationId'),
         entryId: c.req.param('id'),
+        role: c.get('role'),
       });
       return c.body(null, 204);
     } catch (error) {
