@@ -13,6 +13,7 @@ import {
   initErrorReporting,
   reportError,
 } from './error-reporting.ts';
+import { closeServerGracefully } from './http-shutdown.ts';
 import { createBoss, ensureQueues } from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
@@ -132,9 +133,12 @@ async function main(): Promise<void> {
     shuttingDown = true;
     console.log(`[backend] ${signal} received — shutting down`);
     if (server) {
-      await new Promise<void>((resolve) => {
-        server.close(() => resolve());
-      });
+      // Ends the never-ending /events SSE streams first and force-closes
+      // stragglers on a deadline — a bare server.close() waits for every
+      // open connection, so one connected browser used to park shutdown
+      // here until the orchestrator's SIGKILL, never reaching the graceful
+      // boss.stop below and killing in-flight jobs mid-write.
+      await closeServerGracefully(server);
     }
     // Graceful: in-flight jobs finish before the instance stops.
     await boss.stop({ graceful: true });
