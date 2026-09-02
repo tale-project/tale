@@ -391,6 +391,7 @@ interface Phase2Stats {
   documents: number;
   chatHistory: number;
   contacts: number;
+  externalConversations: number;
   agentRuns: number;
   automationRuns: number;
   auditLogs: number;
@@ -714,6 +715,122 @@ async function sweepContacts(
   return processed + removed.length;
 }
 
+/**
+ * The `externalConversations` category — the Inbox's own payload, and the
+ * heaviest correspondent-PII surface retention governs:
+ * `app.conversation_messages.content` is NOT NULL text holding the inbound
+ * and outbound email BODIES, plus a `metadata` jsonb of envelope detail.
+ *
+ * Ages by `last_message_at_ms` (the 0.4 `lastMessageAt` window, served by
+ * `conversations_org_last_message`). A conversation that never received a
+ * message has no activity timestamp to age against and is intentionally NOT
+ * a candidate — the 0.4 index range said the same, and `NULL < cutoff` is
+ * already false in SQL, so the rule costs nothing to keep.
+ *
+ * Message rows ride the parent's `ON DELETE CASCADE` (migration 0036).
+ * Stored mail attachments do NOT: `app.file_metadata.conversation_id`
+ * (migration 0037) is a plain column with no FK, and the mail lane stamps
+ * `source` with the CONNECTOR slug, so `sweepTempFiles` — which only takes
+ * `source` 'user'/'agent' — never reaches them. Without the cascade below,
+ * deleting the email body would leave its attachment bytes live forever
+ * behind a dangling pointer, which is the opposite of the promise the
+ * window makes. A file promoted into a Document is left alone: the
+ * `documents` category owns that lifecycle, the same `document_id IS NULL`
+ * guard `sweepTempFiles` uses.
+ */
+async function sweepExternalConversations(
+  sql: Sql,
+  org: OrgPolicy,
+  holds: ActiveHolds,
+): Promise<number> {
+  if (org.config.externalConversationsEnabled !== true) return 0;
+  const days = org.config.externalConversationsRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return 0;
+  if (holds.orgHeld) return 0;
+  const cutoff = Date.now() - days * DAY_MS;
+  const graceDays = org.config.deletionGraceDays ?? 0;
+  let processed = 0;
+  if (graceDays > 0) {
+    const flipped = await sql<{ id: string }[]>`
+      UPDATE app.conversations SET
+        lifecycle_status = 'expired', status_changed_at_ms = ${Date.now()}
+      WHERE id IN (
+        SELECT id FROM app.conversations
+        WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
+          AND last_message_at_ms < ${cutoff}
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING id
+    `;
+    processed += flipped.length;
+  }
+  const doomed =
+    graceDays > 0
+      ? await sql<{ id: string }[]>`
+          SELECT id FROM app.conversations
+          WHERE org_id = ${org.organizationId}
+            AND lifecycle_status IN ('trashed', 'expired')
+            AND status_changed_at_ms < ${Date.now() - graceDays * DAY_MS}
+          LIMIT ${BATCH_LIMIT}
+        `
+      : await sql<{ id: string }[]>`
+          SELECT id FROM app.conversations
+          WHERE org_id = ${org.organizationId}
+            AND (lifecycle_status IN ('trashed', 'expired')
+                 OR (lifecycle_status IS NULL
+                     AND last_message_at_ms < ${cutoff}))
+          LIMIT ${BATCH_LIMIT}
+        `;
+  if (doomed.length === 0) return processed;
+  const doomedIds = doomed.map((row) => row.id);
+  const attachments = await sql<
+    { id: string; storageRef: string; conversationId: string }[]
+  >`
+    SELECT id, storage_ref AS "storageRef",
+           conversation_id AS "conversationId"
+    FROM app.file_metadata
+    WHERE org_id = ${org.organizationId}
+      AND conversation_id IN ${sql(doomedIds)}
+      AND document_id IS NULL
+  `;
+  const stranded = new Set<string>();
+  if (attachments.length > 0) {
+    const orgSlug = await resolveOrgSlug(sql, org.organizationId);
+    for (const file of attachments) {
+      if (orgSlug !== null) {
+        // The same refcounted release `sweepTempFiles` uses: an indexed
+        // attachment's corpus rows die with it, a blob another holder still
+        // references survives, and a failed delete KEEPS the row so the next
+        // sweep retries rather than leaking the bytes forever.
+        const outcome = await releaseRefs(sql, {
+          organizationId: org.organizationId,
+          orgSlug,
+          refs: [file.storageRef],
+          excludeFileMetadataId: file.id,
+        });
+        if (outcome.failures.length > 0) {
+          console.warn(
+            `[retention] conversation-attachment release failed for ${file.id} — keeping the row and its conversation for the next sweep:`,
+            outcome.failures,
+          );
+          stranded.add(file.conversationId);
+          continue;
+        }
+      }
+      await sql`DELETE FROM app.file_metadata WHERE id = ${file.id}`;
+    }
+  }
+  // A conversation whose attachment could not be released stays too: deleting
+  // the parent would orphan the file row behind a dangling pointer, which is
+  // the failure this cascade exists to prevent.
+  const deletable = doomedIds.filter((id) => !stranded.has(id));
+  if (deletable.length === 0) return processed;
+  const removed = await sql<{ id: string }[]>`
+    DELETE FROM app.conversations WHERE id IN ${sql(deletable)} RETURNING id
+  `;
+  return processed + removed.length;
+}
+
 async function sweepAgentRuns(
   sql: Sql,
   org: OrgPolicy,
@@ -884,6 +1001,7 @@ export async function sweepOrgPhase2(
     documents: 0,
     chatHistory: 0,
     contacts: 0,
+    externalConversations: 0,
     agentRuns: 0,
     automationRuns: 0,
     auditLogs: 0,
@@ -893,6 +1011,11 @@ export async function sweepOrgPhase2(
   stats.documents = await sweepDocuments(sql, org, holds);
   stats.chatHistory = await sweepChatHistory(sql, org, holds);
   stats.contacts = await sweepContacts(sql, org, holds);
+  stats.externalConversations = await sweepExternalConversations(
+    sql,
+    org,
+    holds,
+  );
   stats.agentRuns = await sweepAgentRuns(sql, org, holds);
   stats.automationRuns = await sweepAutomationRuns(sql, org);
   stats.auditLogs = await sweepAuditLogs(sql, org, holds);

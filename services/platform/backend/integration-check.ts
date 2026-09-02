@@ -26070,6 +26070,8 @@ async function checkRetention(
       'messageFeedbackRetentionDays: 7',
       'notificationsEnabled: true',
       'notificationsRetentionDays: 7',
+      'externalConversationsEnabled: true',
+      'externalConversationsRetentionDays: 7',
       'deletionGraceDays: 0',
     ].join('\n'),
   );
@@ -26206,6 +26208,52 @@ async function checkRetention(
     ) RETURNING id
   `;
 
+  // externalConversations: three conversations aged by `last_message_at_ms`.
+  // The ancient one carries an email BODY and a stored mail attachment and
+  // must go; the fresh one stays; the never-messaged one has no activity
+  // timestamp to age against and must survive regardless of its age.
+  await sql`
+    INSERT INTO app.conversations (
+      org_id, subject, status, channel, direction, connector_name,
+      last_message_at_ms, created_at_ms
+    ) VALUES
+      (${orgId}, 'rt-conv-ancient', 'open', 'email', 'inbound', 'imap_smtp',
+       ${ancient}, ${ancient}),
+      (${orgId}, 'rt-conv-fresh', 'open', 'email', 'inbound', 'imap_smtp',
+       ${now}, ${now}),
+      (${orgId}, 'rt-conv-silent', 'open', 'email', 'inbound', 'imap_smtp',
+       NULL, ${ancient})
+  `;
+  const convRows = await sql<{ id: string; subject: string }[]>`
+    SELECT id, subject FROM app.conversations
+    WHERE org_id = ${orgId} AND subject LIKE 'rt-conv-%'
+  `;
+  const convId = (subject: string): string =>
+    convRows.find((row) => row.subject === subject)?.id ?? '';
+  const ancientConv = convId('rt-conv-ancient');
+  await sql`
+    INSERT INTO app.conversation_messages (
+      org_id, conversation_id, channel, direction, delivery_state, content,
+      sent_at_ms, created_at_ms
+    ) VALUES
+      (${orgId}, ${ancientConv}, 'email', 'inbound', 'delivered',
+       'ancient email body', ${ancient}, ${ancient}),
+      (${orgId}, ${convId('rt-conv-fresh')}, 'email', 'inbound', 'delivered',
+       'fresh email body', ${now}, ${now})
+  `;
+  // The mail attachment binding (migration 0037): `source` is the CONNECTOR
+  // slug, so no temp-file sweep can ever collect this row — the
+  // conversation sweep owns it or nothing does.
+  const convAttachment = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, source,
+      uploaded_by, conversation_id, mail_received_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, 's3:itest/conv-attachment', 'invoice.pdf', 'application/pdf',
+      9, 'imap_smtp', ${userId}, ${ancientConv}, ${ancient}, ${ancient}
+    ) RETURNING id
+  `;
+
   const { runRetentionCleanup } =
     await import('./domains/retention/service.ts');
   // An org hold freezes the whole run.
@@ -26222,6 +26270,10 @@ async function checkRetention(
   const frozen = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.message_feedback
     WHERE org_id = ${orgId} AND message_id = 'rt-old'
+  `;
+  const frozenConv = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.conversations
+    WHERE id = ${ancientConv}
   `;
   await sql`
     UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
@@ -26299,6 +26351,182 @@ async function checkRetention(
       automationRunsLeft.map((row) => row.name).join(',') ===
         'rt-wf-running,rt-wf-waiting',
     `doc=${docGone[0]?.count} thread=${threadGone[0]?.count} msgs=${msgGone[0]?.count} run=${runGone[0]?.count} audit=${auditGone[0]?.count} temp=${tempGone[0]?.count} (all want 0), automationRuns=${automationRunsLeft.map((row) => row.name).join(',')} (want rt-wf-running,rt-wf-waiting)`,
+  );
+
+  const convLeft = await sql<{ subject: string }[]>`
+    SELECT subject FROM app.conversations
+    WHERE org_id = ${orgId} AND subject LIKE 'rt-conv-%'
+    ORDER BY subject
+  `;
+  const convBodiesLeft = await sql<{ content: string }[]>`
+    SELECT content FROM app.conversation_messages
+    WHERE org_id = ${orgId} AND conversation_id = ${ancientConv}
+  `;
+  const convAttachmentGone = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.file_metadata
+    WHERE id = ${convAttachment[0]?.id ?? ''}
+  `;
+  record(
+    'retention: external conversations age by last message, org hold freezes',
+    // The org hold froze the ancient conversation on the first run.
+    frozenConv[0]?.count === '1' &&
+      // Past the window the conversation goes; the fresh one and the
+      // never-messaged one (no activity timestamp to age against) stay.
+      convLeft.map((row) => row.subject).join(',') ===
+        'rt-conv-fresh,rt-conv-silent' &&
+      // The email BODIES ride the parent's ON DELETE CASCADE...
+      convBodiesLeft.length === 0 &&
+      // ...and the stored mail attachment, which no temp-file sweep can
+      // reach, goes with them instead of outliving the mail forever.
+      convAttachmentGone[0]?.count === '0',
+    `frozenConv=${frozenConv[0]?.count} (want 1), left=${convLeft.map((row) => row.subject).join(',')} (want rt-conv-fresh,rt-conv-silent), bodies=${convBodiesLeft.length} attachment=${convAttachmentGone[0]?.count} (both want 0)`,
+  );
+
+  // With a deletion grace configured the conversation sweep is TWO-PASS
+  // (the 0.4 model): pass one marks the aged row `expired` and starts the
+  // grace clock, and only a row whose grace has since elapsed is deleted.
+  await writeFile(
+    path.join(governanceDir, 'retention-policy.yml'),
+    [
+      'documentsEnabled: true',
+      'documentsRetentionDays: 7',
+      'externalConversationsEnabled: true',
+      'externalConversationsRetentionDays: 7',
+      'deletionGraceDays: 30',
+    ].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+  const graceConv = await sql<{ id: string }[]>`
+    INSERT INTO app.conversations (
+      org_id, subject, status, channel, direction, connector_name,
+      last_message_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, 'rt-conv-grace', 'open', 'email', 'inbound', 'imap_smtp',
+      ${ancient}, ${ancient}
+    ) RETURNING id
+  `;
+  const graceConvId = graceConv[0]?.id ?? '';
+  await runRetentionCleanup(sql);
+  const graceFirstPass = await sql<{ lifecycleStatus: string | null }[]>`
+    SELECT lifecycle_status AS "lifecycleStatus" FROM app.conversations
+    WHERE id = ${graceConvId}
+  `;
+  // Backdate the stamp pass one just wrote so the grace has elapsed.
+  await sql`
+    UPDATE app.conversations
+    SET status_changed_at_ms = ${now - 60 * 24 * 3_600_000}
+    WHERE id = ${graceConvId}
+  `;
+  await runRetentionCleanup(sql);
+  const graceSecondPass = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.conversations
+    WHERE id = ${graceConvId}
+  `;
+  record(
+    'retention: external conversations honour the two-pass deletion grace',
+    // Pass one marks, and must NOT delete inside the grace window.
+    graceFirstPass[0]?.lifecycleStatus === 'expired' &&
+      // Pass two removes it once the grace has elapsed.
+      graceSecondPass[0]?.count === '0',
+    `firstPass=${graceFirstPass.length === 0 ? 'ROW GONE' : (graceFirstPass[0]?.lifecycleStatus ?? 'unmarked')} (want expired), secondPass=${graceSecondPass[0]?.count} (want 0)`,
+  );
+
+  // Restore the policy this check set up. The grace variant above writes
+  // `deletionGraceDays: 30`, and a later governance check asserts on the
+  // summary of its own policy change — inheriting a grace it never set made
+  // that summary list a reduction it did not expect. Test isolation, not a
+  // product rule.
+  await writeFile(
+    path.join(governanceDir, 'retention-policy.yml'),
+    [
+      'documentsEnabled: true',
+      'documentsRetentionDays: 7',
+      'chatHistoryEnabled: true',
+      'chatHistoryRetentionDays: 7',
+      'agentRunsEnabled: true',
+      'agentRunsRetentionDays: 7',
+      'workflowLogEnabled: true',
+      'workflowLogRetentionDays: 7',
+      'auditLogEnabled: true',
+      'auditLogRetentionDays: 365',
+      'userTempEnabled: true',
+      'userTempRetentionHours: 1',
+      'usageLedgerEnabled: true',
+      // Below the 30-day floor — the clamp must raise it.
+      'usageLedgerRetentionDays: 1',
+      'messageFeedbackEnabled: true',
+      'messageFeedbackRetentionDays: 7',
+      'notificationsEnabled: true',
+      'notificationsRetentionDays: 7',
+      'externalConversationsEnabled: true',
+      'externalConversationsRetentionDays: 7',
+      'deletionGraceDays: 0',
+    ].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+
+  // Sign-in throttling state is global (no org scope) and swept by the
+  // maintenance job, not the per-org cleanup: one 30-day window for
+  // attempts, block counters AND 2FA attempts.
+  const ttlOld = now - 45 * 24 * 3_600_000;
+  await sql`
+    INSERT INTO app.login_attempts (email, consecutive_failures,
+                                    last_failure_at)
+    VALUES ('rt-ttl-old@example.com', 3, ${ttlOld}),
+           ('rt-ttl-new@example.com', 3, ${now})
+    ON CONFLICT (email) DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.login_block_counters (email, window_start, lockout_count,
+                                          ip_limit_count, last_ip, updated_at)
+    VALUES ('rt-ttl-old@example.com', ${ttlOld}, 1, 0, '203.0.113.9',
+            ${ttlOld}),
+           ('rt-ttl-new@example.com', ${now}, 1, 0, '203.0.113.9', ${now})
+    ON CONFLICT (email, window_start) DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.two_factor_attempts (user_id, consecutive_failures,
+                                         last_failure_at_ms)
+    VALUES ('rt-ttl-old-user', 3, ${ttlOld}),
+           ('rt-ttl-new-user', 3, ${now})
+    ON CONFLICT (user_id) DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.two_factor_grace (user_id, grace_until_ms)
+    VALUES ('rt-ttl-old-user', ${ttlOld})
+    ON CONFLICT (user_id) DO NOTHING
+  `;
+  const ttlHandler = createTaskList({ sql })['maintenance.login_attempts_ttl'];
+  if (ttlHandler !== undefined) await ttlHandler({});
+  const attemptsLeft = await sql<{ email: string }[]>`
+    SELECT email FROM app.login_attempts WHERE email LIKE 'rt-ttl-%'
+  `;
+  const countersLeft = await sql<{ email: string }[]>`
+    SELECT email FROM app.login_block_counters WHERE email LIKE 'rt-ttl-%'
+  `;
+  const twoFactorLeft = await sql<{ userId: string }[]>`
+    SELECT user_id AS "userId" FROM app.two_factor_attempts
+    WHERE user_id LIKE 'rt-ttl-%'
+  `;
+  const graceLeft = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.two_factor_grace
+    WHERE user_id = 'rt-ttl-old-user'
+  `;
+  record(
+    'retention: sign-in throttling TTL is one 30-day window, grace kept',
+    attemptsLeft.map((row) => row.email).join(',') ===
+      'rt-ttl-new@example.com' &&
+      // The counters carry `email` + `last_ip`: same window as the attempts
+      // they summarise, never longer.
+      countersLeft.map((row) => row.email).join(',') ===
+        'rt-ttl-new@example.com' &&
+      // Parity for 2FA attempts — cleared on success only, so a user who
+      // failed and never came back left a permanently stuck row.
+      twoFactorLeft.map((row) => row.userId).join(',') === 'rt-ttl-new-user' &&
+      // `two_factor_grace` is NOT age-swept: an absent row mints a FRESH
+      // grace window, so ageing it out would reward staying away.
+      graceLeft[0]?.count === '1',
+    `attempts=${attemptsLeft.map((row) => row.email).join(',')} counters=${countersLeft.map((row) => row.email).join(',')} (both want rt-ttl-new@example.com), twoFactor=${twoFactorLeft.map((row) => row.userId).join(',')} (want rt-ttl-new-user), grace=${graceLeft[0]?.count} (want 1)`,
   );
 }
 

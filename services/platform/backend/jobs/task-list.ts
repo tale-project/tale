@@ -239,18 +239,46 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       console.log(`[maintenance] rate_limit_gc removed ${deleted.count} rows`);
     },
     'maintenance.login_attempts_ttl': async () => {
-      const attemptsCutoff = Date.now() - 30 * 24 * 3_600_000;
-      const countersCutoff = Date.now() - 90 * 24 * 3_600_000;
+      // ONE window for every table this job touches — the 0.4
+      // `cleanupLoginAttemptsGlobal` contract. `login_attempts` and
+      // `login_block_counters` are both keyed by `email`, and the counters
+      // additionally keep `last_ip`, so a longer counter window would hold
+      // identifying data longer than the attempts it summarises. Nothing
+      // needs it there: `listBlockCounters` reads the most recent 200 rows
+      // by `updated_at` with no time window, and the lockout itself lives
+      // on `login_attempts.locked_until`, never on a counter bucket, so a
+      // shorter counter window releases no lockout early. The durable
+      // forensic record is `app.audit_logs`, under its own retention.
+      const cutoff = Date.now() - 30 * 24 * 3_600_000;
       const attempts = await deps.sql`
         DELETE FROM app.login_attempts
-        WHERE last_failure_at < ${attemptsCutoff}
+        WHERE last_failure_at < ${cutoff}
       `;
       const counters = await deps.sql`
         DELETE FROM app.login_block_counters
-        WHERE window_start < ${countersCutoff}
+        WHERE window_start < ${cutoff}
+      `;
+      // Parity for `two_factor_attempts`: a failed TOTP is a failed password
+      // in brute-force terms, but the table is only cleared on SUCCESS (and
+      // on member removal) — a user who failed 2FA and never came back left
+      // a permanently stuck row.
+      //
+      // `app.two_factor_grace` in the same migration is deliberately NOT
+      // swept. Its `grace_until_ms` is the enforcement anchor written once
+      // by `setGraceUntilIfAbsent` on first sign-in under an enforced
+      // policy, and an ABSENT row reads as "no anchor yet" —
+      // `evaluateTwoFactorEnforcement` then mints a fresh
+      // `now + gracePeriodDays`. Ageing those rows out would hand a user who
+      // already burned their grace a brand-new window just for staying away,
+      // which is a security regression, not data minimisation. The row also
+      // carries no PII beyond `user_id`, and member removal already deletes
+      // it (`domains/members/service.ts`).
+      const twoFactor = await deps.sql`
+        DELETE FROM app.two_factor_attempts
+        WHERE last_failure_at_ms < ${cutoff}
       `;
       console.log(
-        `[maintenance] login_attempts_ttl removed ${attempts.count} attempts, ${counters.count} counters`,
+        `[maintenance] login_attempts_ttl removed ${attempts.count} attempts, ${counters.count} counters, ${twoFactor.count} 2fa attempts`,
       );
     },
     'rag.index_file': async (payload) => {
