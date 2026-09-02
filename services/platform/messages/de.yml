@@ -1799,7 +1799,6 @@ conversations:
     assignee: Zuständig
     assign: Zuweisen
     assignedTo: 'Zuständig: {name}'
-    noMembers: Keine Mitglieder gefunden
     unassign: Zuweisung aufheben
     assignError: Zuständigkeit konnte nicht aktualisiert werden
     inboxSource: 'Postfach: {inbox}'

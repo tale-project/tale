@@ -1742,7 +1742,6 @@ conversations:
     assignee: Assignee
     assign: Assign
     assignedTo: Assigned to {name}
-    noMembers: No members found
     unassign: Unassign
     assignError: Couldn't update the assignee
     inboxSource: 'Inbox: {inbox}'
