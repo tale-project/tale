@@ -1811,7 +1811,6 @@ conversations:
     assignee: Responsable
     assign: Assigner
     assignedTo: Attribué à {name}
-    noMembers: Aucun membre trouvé
     unassign: Retirer l'attribution
     assignError: Impossible de mettre à jour le responsable
     inboxSource: 'Boîte de réception : {inbox}'
