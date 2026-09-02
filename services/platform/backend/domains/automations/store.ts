@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import { parseCron, wallClockIn } from '../../core/automations/cron.ts';
 import {
   hashWebhookToken,
   mintWebhookToken,
@@ -492,6 +493,54 @@ export interface TriggerInput {
   rotateToken?: boolean;
 }
 
+/**
+ * The single validation door for a trigger's shape. Both entry points — the
+ * HTTP door (`routes.ts`) and the engine door (`dispatch-store.ts`) — reach
+ * `setTrigger`, so validating here is what makes them CONVERGE: a schedule
+ * whose cron cannot parse (or whose timezone is not a real IANA zone) is
+ * refused at SAVE with an actionable error, instead of saving green and
+ * silently never firing (the scanner only `console.warn`s a bad cron). Throws
+ * an {@link AutomationError} the surfaces map to a 400 the author sees.
+ */
+export function assertTriggerValid(trigger: TriggerInput): void {
+  if (trigger.kind === 'schedule') {
+    const cron = trigger.cron?.trim() ?? '';
+    if (cron === '') {
+      throw new AutomationError(
+        'AUTOMATION_TRIGGER_INVALID',
+        'A schedule trigger needs a cron expression (e.g. "0 9 * * 1" for 09:00 every Monday).',
+      );
+    }
+    try {
+      parseCron(cron);
+    } catch (error) {
+      throw new AutomationError(
+        'AUTOMATION_TRIGGER_INVALID',
+        `That cron expression will never fire: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    const timezone = trigger.timezone?.trim();
+    if (timezone !== undefined && timezone !== '') {
+      try {
+        // The same resolver the scanner uses — an unknown zone throws here
+        // rather than silently firing at the wrong hour later.
+        wallClockIn(Date.now(), timezone);
+      } catch {
+        throw new AutomationError(
+          'AUTOMATION_TRIGGER_INVALID',
+          `"${timezone}" is not a valid IANA time zone (e.g. "Europe/Zurich" or "UTC").`,
+        );
+      }
+    }
+  }
+  if (trigger.kind === 'event' && (trigger.event?.trim() ?? '') === '') {
+    throw new AutomationError(
+      'AUTOMATION_TRIGGER_INVALID',
+      'An event trigger needs an event name.',
+    );
+  }
+}
+
 /** One trigger per name; a webhook mints its token here and returns the
  * plaintext exactly once. Re-binding keeps the previous token unless asked
  * to rotate. */
@@ -504,6 +553,7 @@ export async function setTrigger(
     actor: string;
   },
 ): Promise<{ token?: string }> {
+  assertTriggerValid(args.trigger);
   const now = Date.now();
   return sql.begin(async (tx) => {
     const existing = await tx<
@@ -647,6 +697,49 @@ async function runRow(
   return rows[0] ?? null;
 }
 
+/**
+ * A run's state changed — nudge the SSE hint bridge so open run views refetch
+ * without a manual reload. The frontend keys every run query under the
+ * `automation_run` entity (`app/lib/backend/automations.ts`), so this one hint
+ * invalidates the run detail, the run list, and the pending-ask card. Emitted
+ * INSIDE the state-change transaction, exactly like every other domain's
+ * entity hint — so a started run visibly progresses and its terminal status
+ * and ask cards appear promptly.
+ */
+export async function emitRunHint(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  runId: string,
+): Promise<void> {
+  await emitHintInTx(tx, {
+    orgId: organizationId,
+    entity: 'automation_run',
+    entityId: runId,
+  });
+}
+
+/**
+ * Free the run's sandbox sessions — the per-execution AGENT sessions a run's
+ * agent/script nodes hold. Called on EVERY terminal door (finish AND cancel),
+ * so a run that ends any way releases the org slot capacity it held instead of
+ * leaving agents working until a late settle or the turn deadline. Pinned
+ * sessions are left alone (a human is using them).
+ */
+async function stopRunSandboxSessions(
+  tx: TransactionSql | Sql,
+  organizationId: string,
+  runId: string,
+): Promise<void> {
+  await tx`
+    UPDATE app.sandbox_sessions SET status = 'stopped'
+    WHERE org_id = ${organizationId}
+      AND owner_type = 'workflow_run'
+      AND (owner_id = ${runId} OR owner_id LIKE ${runId + ':%'})
+      AND status IN ('creating', 'active', 'degraded')
+      AND pinned = false
+  `;
+}
+
 export async function getRun(
   sql: Sql,
   organizationId: string,
@@ -727,12 +820,32 @@ export async function beginRunInTx(
     if (version === undefined) return null;
     const row = await versionRow(tx, args.organizationId, args.name, version);
     if (!row) return null;
+    // The caller's project wins; otherwise the sole bound project keeps
+    // trigger and manual runs attributed as the single-surface model did.
+    const bindings = await bindingProjectIds(
+      tx,
+      args.organizationId,
+      args.name,
+    );
     if (args.projectId !== undefined) {
-      const bindings = await bindingProjectIds(
-        tx,
-        args.organizationId,
-        args.name,
-      );
+      // ALWAYS validate a caller-supplied project — the webhook door
+      // (`?projectId=`) and /start pass it straight through, so it must exist
+      // in THIS organization before it lands on the run (never a phantom or
+      // another org's id). The dispatch-store door validated existence; this
+      // is the same gate for the doors that did not.
+      const owned = await tx<{ id: string }[]>`
+        SELECT id FROM app.projects
+        WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
+        LIMIT 1
+      `;
+      if (owned.length === 0) {
+        throw new AutomationError(
+          'AUTOMATION_PROJECT_UNKNOWN',
+          'The project does not exist in this organization.',
+          404,
+        );
+      }
+      // A project-bound automation may only run FOR one of its projects.
       if (bindings.length > 0 && !bindings.includes(args.projectId)) {
         throw new AutomationError(
           'AUTOMATION_PROJECT_FORBIDDEN',
@@ -741,13 +854,6 @@ export async function beginRunInTx(
         );
       }
     }
-    // The caller's project wins; otherwise the sole bound project keeps
-    // trigger and manual runs attributed as the single-surface model did.
-    const bindings = await bindingProjectIds(
-      tx,
-      args.organizationId,
-      args.name,
-    );
     const projectId =
       args.projectId ?? (bindings.length === 1 ? bindings[0] : undefined);
     const now = Date.now();
@@ -767,6 +873,7 @@ export async function beginRunInTx(
     const runId = inserted[0]?.id;
     if (!runId) throw new Error('run insert failed');
     await enqueueStep(tx, args.organizationId, runId, 0);
+    await emitRunHint(tx, args.organizationId, runId);
     return { runId, version };
   }
 }
@@ -776,14 +883,41 @@ export async function cancelRun(
   organizationId: string,
   runId: string,
 ): Promise<{ cancelled: boolean }> {
-  const rows = await sql<{ id: string }[]>`
-    UPDATE app.automation_runs SET
-      status = 'cancelled', finished_at_ms = ${Date.now()}, wake_at_ms = NULL
-    WHERE id = ${runId} AND org_id = ${organizationId}
-      AND status IN ('queued', 'running', 'waiting')
-    RETURNING id
-  `;
-  return { cancelled: rows.length > 0 };
+  return sql.begin(async (tx) => {
+    const now = Date.now();
+    const rows = await tx<
+      { name: string; version: number; mode: string; startedBy: string }[]
+    >`
+      UPDATE app.automation_runs SET
+        status = 'cancelled', finished_at_ms = ${now}, wake_at_ms = NULL
+      WHERE id = ${runId} AND org_id = ${organizationId}
+        AND status IN ('queued', 'running', 'waiting')
+      RETURNING name, version, mode, started_by AS "startedBy"
+    `;
+    const row = rows[0];
+    if (!row) return { cancelled: false };
+    // cancelRun is a TERMINAL door — it honors the same contract finishRun
+    // does: the provenance audit row (live runs) that must never be missing,
+    // and freeing the run's sandbox sessions so cancelled agents stop holding
+    // org slot capacity until a late settle or the turn deadline.
+    if (row.mode === 'live') {
+      await createAuditLog(tx, {
+        organizationId,
+        actorId: row.startedBy,
+        actorType: 'system',
+        action: 'automation.run.cancelled',
+        category: 'ai',
+        resourceType: 'automation_run',
+        resourceId: runId,
+        resourceName: `${row.name}@${row.version}`,
+        status: 'failure',
+        metadata: {},
+      });
+    }
+    await stopRunSandboxSessions(tx, organizationId, runId);
+    await emitRunHint(tx, organizationId, runId);
+    return { cancelled: true };
+  });
 }
 
 // ----------------------------------------------- the stepper's run contract
@@ -794,24 +928,31 @@ export async function claimRun(
   runId: string,
 ): Promise<{ claimed: boolean; status: string; epoch: number }> {
   return sql.begin(async (tx) => {
+    const now = Date.now();
+    // ATOMIC claim: the epoch bump reads and writes the SAME row under the
+    // UPDATE's row lock, so two concurrent claims (a liveness re-poke racing
+    // the live chain, a pg-boss retry) serialize and get DISTINCT epochs —
+    // the later one wins and the earlier walker's writes read back 'stale' at
+    // the epoch fence. The old read-then-write under READ COMMITTED was a
+    // lost update: both read N, both wrote N+1, and both passed the fence,
+    // double-stepping one run.
+    const claimed = await tx<{ claimEpoch: number }[]>`
+      UPDATE app.automation_runs SET
+        status = 'running', claim_epoch = claim_epoch + 1, claimed_at_ms = ${now},
+        wake_at_ms = ${now + RUN_CLAIM_PROMISE_MS}
+      WHERE id = ${runId} AND org_id = ${organizationId}
+        AND status IN ('queued', 'running', 'waiting')
+      RETURNING claim_epoch AS "claimEpoch"
+    `;
+    if (claimed[0]) {
+      await emitRunHint(tx, organizationId, runId);
+      return { claimed: true, status: 'running', epoch: claimed[0].claimEpoch };
+    }
+    // Not claimable — report WHY (terminal vs missing) so the stepper's turn
+    // exits with the same status it always did.
     const row = await runRow(tx, organizationId, runId);
     if (!row) return { claimed: false, status: 'missing', epoch: 0 };
-    if (
-      row.status !== 'queued' &&
-      row.status !== 'running' &&
-      row.status !== 'waiting'
-    ) {
-      return { claimed: false, status: row.status, epoch: row.claimEpoch };
-    }
-    const epoch = row.claimEpoch + 1;
-    const now = Date.now();
-    await tx`
-      UPDATE app.automation_runs SET
-        status = 'running', claim_epoch = ${epoch}, claimed_at_ms = ${now},
-        wake_at_ms = ${now + RUN_CLAIM_PROMISE_MS}
-      WHERE id = ${runId}
-    `;
-    return { claimed: true, status: 'running', epoch };
+    return { claimed: false, status: row.status, epoch: row.claimEpoch };
   });
 }
 
@@ -901,6 +1042,7 @@ export async function recordProgress(
         wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
       WHERE id = ${args.runId}
     `;
+    await emitRunHint(tx, args.organizationId, args.runId);
     return { status: row.status };
   });
 }
@@ -952,6 +1094,7 @@ export async function suspendRun(
       seq,
       pollMs: args.resumeInMs,
     });
+    await emitRunHint(tx, args.organizationId, args.runId);
     return { suspended: true };
   });
 }
@@ -1094,15 +1237,10 @@ export async function finishRun(
         },
       });
     }
-    // The run's sandbox sessions are per-execution — free their slots now.
-    await tx`
-      UPDATE app.sandbox_sessions SET status = 'stopped'
-      WHERE org_id = ${args.organizationId}
-        AND owner_type = 'workflow_run'
-        AND (owner_id = ${args.runId} OR owner_id LIKE ${args.runId + ':%'})
-        AND status IN ('creating', 'active', 'degraded')
-        AND pinned = false
-    `;
+    // The run's sandbox sessions are per-execution — free their slots now
+    // (the terminal contract, shared with cancelRun).
+    await stopRunSandboxSessions(tx, args.organizationId, args.runId);
+    await emitRunHint(tx, args.organizationId, args.runId);
     return { status: args.status };
   });
 }
@@ -1164,6 +1302,25 @@ export async function deleteAutomationCascade(
   args: { organizationId: string; name: string; actor: string },
 ): Promise<void> {
   await sql.begin(async (tx) => {
+    // The active-run guard the core store documents (and this wired path had
+    // dropped): deleting mid-run would remove the versions the stepper needs
+    // to load, stranding the run non-terminal forever — the liveness sweep
+    // re-claims it every ~3min and its sandbox session is never freed. Refuse
+    // while any run is live; cancel it (which now stops sessions + audits) or
+    // let it finish first.
+    const active = await tx<{ status: string }[]>`
+      SELECT status FROM app.automation_runs
+      WHERE org_id = ${args.organizationId} AND name = ${args.name}
+        AND status IN ('queued', 'running', 'waiting')
+      LIMIT 1
+    `;
+    if (active[0]) {
+      throw new AutomationError(
+        'AUTOMATION_HAS_ACTIVE_RUNS',
+        `A run of "${args.name}" is still ${active[0].status} — cancel it (or let it finish) before deleting the automation.`,
+        409,
+      );
+    }
     await tx`
       DELETE FROM app.automations
       WHERE org_id = ${args.organizationId} AND name = ${args.name}

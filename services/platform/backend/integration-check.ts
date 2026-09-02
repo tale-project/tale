@@ -4894,7 +4894,17 @@ async function checkAutomations(
       );
     }, 15_000);
 
-    // Delete → tombstone; saving again clears it.
+    // Delete → tombstone; saving again clears it. The active-run guard now
+    // refuses deletion while a run is live, so drain the trigger/event-fired
+    // runs to terminal first (its trigger is 'event' now — no new fires).
+    await waitFor(async () => {
+      const rows = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM app.automation_runs
+        WHERE org_id = ${orgId} AND name = 'ops/greet'
+          AND status IN ('queued', 'running', 'waiting')
+      `;
+      return rows[0]?.count === '0';
+    }, 30_000);
     await fetch(`${base}/api/app/automations/ops/greet?orgId=${orgId}`, {
       method: 'DELETE',
       headers: { cookie, origin: base },
@@ -4946,6 +4956,320 @@ async function checkAutomations(
       llmServer.close(() => resolve());
     });
   }
+}
+
+/**
+ * The RUN lifecycle contract — the seven dead-ends and surprises this fix
+ * class closes: a started run visibly progresses (an `automation_run` hint on
+ * every state change), a bad schedule fails LOUDLY at save, deleting mid-run
+ * is refused, two steppers never share a claim epoch, a live agent op is
+ * adopted rather than re-kicked, cancel honors the terminal contract (audit +
+ * sandbox-session stop), and a caller-supplied project id is validated before
+ * it lands on a run. Runs a transform-only automation so nothing external is
+ * needed and every settle is deterministic.
+ */
+async function checkAutomationRunLifecycle(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const del = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'DELETE',
+      headers: { cookie, origin: base },
+    });
+
+  const store = await import('./domains/automations/store.ts');
+  const shimMod = await import('./domains/automations/shim.ts');
+  const naming = await import('./core/sandbox/session_naming.ts');
+
+  // A transform-only automation: settles to success in the node VM with no
+  // provider or sandbox.
+  const document = {
+    version: 1,
+    name: 'ops/lifecycle',
+    nodes: [
+      {
+        id: 'echo',
+        type: 'transform',
+        input: { who: '{{ input.who }}' },
+        code: 'return { ok: input.who }',
+      },
+    ],
+    output: '{{ nodes.echo.output.ok }}',
+  };
+  await post(`/api/app/automations/ops/lifecycle/save?orgId=${orgId}`, {
+    document,
+  });
+  await post(`/api/app/automations/ops/lifecycle/deploy?orgId=${orgId}`, {
+    version: 1,
+  });
+
+  // ---- #2: invalid cron / timezone are REFUSED at save (both doors converge
+  // on the store's assertTriggerValid) — no more save-green-never-fire.
+  const badCron = await post(
+    `/api/app/automations/ops/lifecycle/trigger?orgId=${orgId}`,
+    { kind: 'schedule', cron: 'not a cron' },
+  );
+  const noCron = await post(
+    `/api/app/automations/ops/lifecycle/trigger?orgId=${orgId}`,
+    { kind: 'schedule' },
+  );
+  const badTz = await post(
+    `/api/app/automations/ops/lifecycle/trigger?orgId=${orgId}`,
+    { kind: 'schedule', cron: '0 9 * * *', timezone: 'Mars/Olympus' },
+  );
+  const goodCron = await post(
+    `/api/app/automations/ops/lifecycle/trigger?orgId=${orgId}`,
+    { kind: 'schedule', cron: '*/5 * * * *', timezone: 'UTC' },
+  );
+  record(
+    'automation schedule with invalid cron/timezone is refused at save',
+    badCron.status === 400 &&
+      noCron.status === 400 &&
+      badTz.status === 400 &&
+      goodCron.status === 200,
+    `badCron=${badCron.status}, noCron=${noCron.status}, badTz=${badTz.status}, goodCron=${goodCron.status} (want 400/400/400/200)`,
+  );
+
+  // ---- #1: a live run emits automation_run hints so open run views refetch.
+  const startRes = await post(
+    `/api/app/automations/ops/lifecycle/start?orgId=${orgId}`,
+    { input: { who: 'hints' }, mode: 'live' },
+  );
+  const startBody = z
+    .object({ runId: z.string() })
+    .safeParse(await startRes.json());
+  const hintRunId = startBody.success ? startBody.data.runId : '';
+  await waitFor(async () => {
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.automation_runs WHERE id = ${hintRunId}
+    `;
+    return ['success', 'failed', 'cancelled'].includes(rows[0]?.status ?? '');
+  }, 30_000);
+  const hintRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND entity = 'automation_run'
+      AND entity_id = ${hintRunId}
+  `;
+  record(
+    'automation run emits automation_run hints on state changes',
+    Number(hintRows[0]?.count ?? '0') >= 2,
+    `automation_run hints for run=${Number(hintRows[0]?.count ?? '0')} (want >=2: begin/claim/finish)`,
+  );
+
+  // ---- #7: a caller-supplied projectId is validated (exists in org) before
+  // it lands on the run — the /start and webhook doors both.
+  const phantomStart = await post(
+    `/api/app/automations/ops/lifecycle/start?orgId=${orgId}`,
+    { input: {}, mode: 'live', projectId: 'phantom-project-does-not-exist' },
+  );
+  const hookSet = await post(
+    `/api/app/automations/ops/lifecycle/trigger?orgId=${orgId}`,
+    { kind: 'webhook' },
+  );
+  const hookToken = z
+    .object({ token: z.string() })
+    .safeParse(await hookSet.json());
+  const hookBadProject = await fetch(
+    `${base}/api/automations/webhook/${hookToken.success ? hookToken.data.token : 'x'}?projectId=phantom-project`,
+    { method: 'POST', body: '{}' },
+  );
+  const hookNoProject = await fetch(
+    `${base}/api/automations/webhook/${hookToken.success ? hookToken.data.token : 'x'}`,
+    { method: 'POST', body: '{}' },
+  );
+  record(
+    'automation run refuses a foreign/nonexistent projectId at every door',
+    phantomStart.status === 404 &&
+      hookBadProject.status === 400 &&
+      hookNoProject.status === 202,
+    `/start=${phantomStart.status} (want 404), webhook-bad=${hookBadProject.status} (want 400), webhook-none=${hookNoProject.status} (want 202)`,
+  );
+
+  // ---- #4: concurrent claims of one run get DISTINCT epochs (atomic claim,
+  // no lost update). Insert a still run (no wake, no step job) so only these
+  // claims touch it.
+  const claimRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, input, checkpoints,
+      wake_at_ms, claim_epoch, started_at_ms
+    ) VALUES (
+      ${orgId}, 'ops/lifecycle', 1, 'queued', 'mock', 'itest:claim',
+      ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
+      ${null}, 0, ${Date.now()}
+    ) RETURNING id
+  `;
+  const claimRunId = claimRun[0]?.id ?? '';
+  const claims = await Promise.all(
+    Array.from({ length: 12 }, () => store.claimRun(sql, orgId, claimRunId)),
+  );
+  const wonEpochs = claims
+    .filter((c) => c.claimed)
+    .map((c) => c.epoch)
+    .sort((a, b) => a - b);
+  const distinctEpochs = new Set(wonEpochs).size === wonEpochs.length;
+  await sql`
+    UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL
+    WHERE id = ${claimRunId}
+  `;
+  record(
+    'concurrent automation claimRun yields distinct epochs (no lost update)',
+    wonEpochs.length >= 2 && distinctEpochs && (wonEpochs[0] ?? 0) >= 1,
+    `won=${wonEpochs.length}, distinct=${distinctEpochs}, epochs=[${wonEpochs.join(',')}]`,
+  );
+
+  // ---- #5: the live-op query identifies an in-flight agent turn (adopt, not
+  // re-kick) and returns null once it settles.
+  const opRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, input, checkpoints,
+      wake_at_ms, claim_epoch, started_at_ms
+    ) VALUES (
+      ${orgId}, 'ops/lifecycle', 1, 'running', 'live', 'itest:liveop',
+      ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
+      ${null}, 1, ${Date.now()}
+    ) RETURNING id
+  `;
+  const opRunId = opRun[0]?.id ?? '';
+  const opSessionId = naming.sessionIdForWorkflowExecution(opRunId);
+  await sql`
+    INSERT INTO app.sandbox_session_ops (
+      org_id, session_id, exec_id, kind, status, model_ref, deadline_ms,
+      heartbeat_at_ms, started_at_ms
+    ) VALUES (
+      ${orgId}, ${opSessionId}, 'exec-live-1', 'workflow-agent', 'running',
+      'anthropic/claude-sonnet-4-20250514', ${Date.now() + 600_000},
+      ${Date.now()}, ${Date.now()}
+    )
+  `;
+  const handlers = shimMod.automationShimHandlers(sql);
+  const opHandler = handlers['automations/queries:loadLiveAgentOpForRun'];
+  const liveOp = opHandler
+    ? await opHandler({ organizationId: orgId, runId: opRunId })
+    : null;
+  const liveOpView = z
+    .object({
+      execId: z.string(),
+      sessionId: z.string(),
+      deadlineAt: z.number(),
+      providerSlug: z.string(),
+      gatewayModel: z.string(),
+    })
+    .safeParse(liveOp);
+  await sql`
+    UPDATE app.sandbox_session_ops SET status = 'completed'
+    WHERE org_id = ${orgId} AND session_id = ${opSessionId}
+      AND exec_id = 'exec-live-1'
+  `;
+  const settledOp = opHandler
+    ? await opHandler({ organizationId: orgId, runId: opRunId })
+    : 'no-handler';
+  await sql`DELETE FROM app.automation_runs WHERE id = ${opRunId}`;
+  record(
+    'live-op query adopts an in-flight agent turn and clears once settled',
+    liveOpView.success &&
+      liveOpView.data.execId === 'exec-live-1' &&
+      liveOpView.data.providerSlug === 'anthropic' &&
+      liveOpView.data.gatewayModel === 'claude-sonnet-4-20250514' &&
+      settledOp === null,
+    `running→${liveOpView.success ? `${liveOpView.data.providerSlug}/${liveOpView.data.gatewayModel}` : 'ERR'}, settled→${settledOp === null ? 'null' : JSON.stringify(settledOp)}`,
+  );
+
+  // ---- #6: cancelRun honors the terminal contract — audit row + session stop.
+  const cancelRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, input, checkpoints,
+      wake_at_ms, claim_epoch, started_at_ms
+    ) VALUES (
+      ${orgId}, 'ops/lifecycle', 1, 'running', 'live', 'itest:cancel',
+      ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
+      ${null}, 1, ${Date.now()}
+    ) RETURNING id
+  `;
+  const cancelRunId = cancelRun[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      pinned, created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${`sess-${cancelRunId}`}, 'active', 'workflow_run',
+      ${cancelRunId}, 'itest', false, ${Date.now()}, ${Date.now() + 3_600_000}
+    )
+  `;
+  const cancelled = await store.cancelRun(sql, orgId, cancelRunId);
+  const cancelAudit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'automation.run.cancelled'
+      AND resource_id = ${cancelRunId}
+  `;
+  const cancelSession = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE org_id = ${orgId} AND owner_id = ${cancelRunId}
+  `;
+  record(
+    'cancelRun writes the terminal audit row and stops the run sandbox sessions',
+    cancelled.cancelled &&
+      Number(cancelAudit[0]?.count ?? '0') === 1 &&
+      cancelSession[0]?.status === 'stopped',
+    `cancelled=${cancelled.cancelled}, audit=${cancelAudit[0]?.count} (want 1), session=${cancelSession[0]?.status} (want stopped)`,
+  );
+
+  // ---- #3: deleting an automation with a LIVE run is refused; deletable once
+  // the run is terminal.
+  await post(`/api/app/automations/ops/delguard/save?orgId=${orgId}`, {
+    document: { ...document, name: 'ops/delguard' },
+  });
+  await post(`/api/app/automations/ops/delguard/deploy?orgId=${orgId}`, {
+    version: 1,
+  });
+  const liveForDelete = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, input, checkpoints,
+      wake_at_ms, claim_epoch, started_at_ms
+    ) VALUES (
+      ${orgId}, 'ops/delguard', 1, 'running', 'live', 'itest:delguard',
+      ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
+      ${null}, 1, ${Date.now()}
+    ) RETURNING id
+  `;
+  const delRunId = liveForDelete[0]?.id ?? '';
+  const deleteBlocked = await del(
+    `/api/app/automations/ops/delguard?orgId=${orgId}`,
+  );
+  const stillThere = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automations
+    WHERE org_id = ${orgId} AND name = 'ops/delguard'
+  `;
+  await sql`
+    UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL
+    WHERE id = ${delRunId}
+  `;
+  const deleteOk = await del(
+    `/api/app/automations/ops/delguard?orgId=${orgId}`,
+  );
+  record(
+    'deleting an automation mid-run is refused, then allowed once terminal',
+    deleteBlocked.status === 409 &&
+      Number(stillThere[0]?.count ?? '0') >= 1 &&
+      deleteOk.status === 200,
+    `mid-run delete=${deleteBlocked.status} (want 409), survived=${stillThere[0]?.count}, after-terminal=${deleteOk.status} (want 200)`,
+  );
+
+  // Clean up the lifecycle automation's remaining live runs before delete.
+  await sql`
+    UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL
+    WHERE org_id = ${orgId} AND name = 'ops/lifecycle'
+      AND status IN ('queued', 'running', 'waiting')
+  `;
+  await del(`/api/app/automations/ops/lifecycle?orgId=${orgId}`);
 }
 
 /**
@@ -25938,6 +26262,7 @@ async function main(): Promise<void> {
       `itest-${orgSuffix}`,
     );
     await checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkAutomationRunLifecycle(sql, baseUrl, authCtx);
     await checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkBuilderSession(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkRestDoor(sql, baseUrl, authCtx);
