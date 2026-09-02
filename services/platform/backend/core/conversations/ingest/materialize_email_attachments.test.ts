@@ -55,6 +55,9 @@ describe('materializeEmailAttachments', () => {
 
     expect(storeOrgBlob).toHaveBeenCalledOnce();
     expect(saveFileMetadata).toHaveBeenCalledOnce();
+    // Only a durable storageId is stored — no URL. The servable download link
+    // is presigned from the storageId at read time (a URL baked in here pointed
+    // at the retired proxy path that now 404s).
     expect(emails).toEqual([
       {
         messageId: '<cv@x>',
@@ -66,7 +69,6 @@ describe('materializeEmailAttachments', () => {
             contentType: 'application/pdf',
             size: 3,
             storageId: 'storage-att-1',
-            url: expect.stringContaining('CV.pdf'),
           },
         ],
       },

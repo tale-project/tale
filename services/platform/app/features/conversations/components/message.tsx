@@ -2,8 +2,8 @@
 
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Clock, AlertCircle, Paperclip, Download, Loader2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Clock, AlertCircle, Paperclip, Download } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { EmailPreview } from '@/app/components/ui/data-display/email-preview';
 import { Image } from '@/app/components/ui/data-display/image';
@@ -61,7 +61,6 @@ interface MessageProps {
   onRetrySend?: (messageId: string) => void;
   /** Remove a failed outbound message that never delivered. */
   onDiscard?: (messageId: string) => void;
-  onDownloadAttachments?: (messageId: string) => void;
 }
 
 function getDeliveryIcon(status: string) {
@@ -150,19 +149,16 @@ interface AttachmentCardProps {
     storageId?: string;
     url?: string;
   };
-  isDownloading?: boolean;
-  onDownload?: () => void;
 }
 
-function AttachmentCard({
-  attachment,
-  isDownloading,
-  onDownload,
-}: AttachmentCardProps) {
+function AttachmentCard({ attachment }: AttachmentCardProps) {
   const { t } = useT('conversations');
 
   const icon = getFileIcon(attachment.contentType, attachment.filename);
-  const hasUrl = !!attachment.url;
+  // A download is offered ONLY when the message carries a real, servable URL
+  // (materialized at sync and presigned at read time). A chip whose bytes were
+  // never captured shows metadata alone — no affordance that would 404.
+  const downloadUrl = attachment.url;
 
   return (
     <Row gap={2} className="bg-background rounded-lg border p-2">
@@ -178,31 +174,17 @@ function AttachmentCard({
           {middleEllipsis(attachment.filename, 28)}
         </Text>
         <Text variant="caption" className="text-[10px]">
-          {isDownloading
-            ? t('attachment.downloading')
-            : formatFileSize(attachment.size)}
+          {formatFileSize(attachment.size)}
         </Text>
       </div>
-      {isDownloading ? (
-        <Row
-          gap={0}
-          justify="center"
-          className="text-muted-foreground size-6 shrink-0"
-        >
-          <Loader2 className="size-3.5 animate-spin" />
-        </Row>
-      ) : hasUrl || onDownload ? (
+      {downloadUrl ? (
         <button
           type="button"
           onClick={() => {
-            if (attachment.url) {
-              const a = document.createElement('a');
-              a.href = attachment.url;
-              a.download = attachment.filename;
-              a.click();
-            } else {
-              onDownload?.();
-            }
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = attachment.filename;
+            a.click();
           }}
           className="text-muted-foreground hover:text-foreground flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-gray-100"
           aria-label={`${t('attachment.download')} ${attachment.filename}`}
@@ -219,7 +201,6 @@ export function Message({
   onUndoSend,
   onRetrySend,
   onDiscard,
-  onDownloadAttachments,
 }: MessageProps) {
   const { formatDate } = useFormatDate();
   const { t } = useT('conversations');
@@ -231,60 +212,8 @@ export function Message({
       ? message.scheduledSendAt
       : undefined,
   );
-  const [downloadingMessageId, setDownloadingMessageId] = useState<
-    string | null
-  >(null);
 
-  // Track which attachment filenames had no URL when download was triggered
-  const pendingDownloadFiles = useRef(new Set<string>());
-
-  const handleDownload = useCallback(
-    (messageId: string) => {
-      if (!onDownloadAttachments || downloadingMessageId) return;
-      // Record filenames that don't have URLs yet
-      pendingDownloadFiles.current.clear();
-      for (const att of message.attachments ?? []) {
-        if (!att.url) {
-          pendingDownloadFiles.current.add(att.filename);
-        }
-      }
-      setDownloadingMessageId(messageId);
-      onDownloadAttachments(messageId);
-    },
-    [onDownloadAttachments, downloadingMessageId, message.attachments],
-  );
-
-  // When URLs appear on previously-pending attachments, auto-trigger browser download
-  useEffect(() => {
-    if (!downloadingMessageId || pendingDownloadFiles.current.size === 0)
-      return;
-
-    const readyAttachments = (message.attachments ?? []).filter(
-      (att: Attachment) =>
-        att.url && pendingDownloadFiles.current.has(att.filename),
-    );
-
-    if (readyAttachments.length === 0) return;
-
-    // All pending files now have URLs — trigger downloads and clear state
-    for (const att of readyAttachments) {
-      pendingDownloadFiles.current.delete(att.filename);
-      if (att.url) {
-        const a = document.createElement('a');
-        a.href = att.url;
-        a.download = att.filename;
-        a.click();
-      }
-    }
-
-    if (pendingDownloadFiles.current.size === 0) {
-      setDownloadingMessageId(null);
-    }
-  }, [downloadingMessageId, message.attachments]);
-
-  const isDownloading = downloadingMessageId === message.id;
-
-  // Build CID→URL map for inline images that have been downloaded
+  // Build CID→URL map for inline images that have a servable URL.
   const cidMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const att of message.attachments ?? []) {
@@ -311,7 +240,7 @@ export function Message({
   //
   // An unreferenced attachment stays visible even with a cid, and an inline
   // image with no url yet stays visible as a fallback so it can still be
-  // downloaded by hand if the auto-download fails.
+  // opened when a servable url is present.
   const displayAttachments = useMemo(
     () =>
       (message.attachments ?? []).filter(
@@ -324,28 +253,6 @@ export function Message({
       ),
     [message.attachments, referencedCids],
   );
-
-  // Auto-trigger download for inline images that don't have URLs yet.
-  // This handles two cases:
-  // 1. Attachments with contentId metadata but no URL (new syncs)
-  // 2. HTML with cid: refs but attachments lack contentId (legacy syncs) —
-  //    downloading populates contentId from the connector's return data
-  const inlineDownloadTriggered = useRef(false);
-  useEffect(() => {
-    if (inlineDownloadTriggered.current || !onDownloadAttachments) return;
-    const attachments = message.attachments ?? [];
-    const hasUnresolvedInline = attachments.some(
-      (att: Attachment) => att.contentId && !att.url,
-    );
-    const hasCidInHtml =
-      !hasUnresolvedInline &&
-      /src=["']cid:/i.test(message.content) &&
-      attachments.some((att: Attachment) => !att.url && !att.contentId);
-    if (hasUnresolvedInline || hasCidInHtml) {
-      inlineDownloadTriggered.current = true;
-      onDownloadAttachments(message.id);
-    }
-  }, [message.attachments, message.content, message.id, onDownloadAttachments]);
 
   return (
     <Stack gap={0}>
@@ -409,16 +316,7 @@ export function Message({
                 </Row>
                 <Stack gap={1}>
                   {displayAttachments.map((att: Attachment) => (
-                    <AttachmentCard
-                      key={att.id}
-                      attachment={att}
-                      isDownloading={isDownloading && !att.url}
-                      onDownload={
-                        !att.url && onDownloadAttachments
-                          ? () => handleDownload(message.id)
-                          : undefined
-                      }
-                    />
+                    <AttachmentCard key={att.id} attachment={att} />
                   ))}
                 </Stack>
               </div>

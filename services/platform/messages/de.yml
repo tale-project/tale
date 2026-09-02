@@ -1831,11 +1831,9 @@ conversations:
     send: Nachricht senden
   attachment:
     download: Herunterladen
-    downloading: Lade herunter...
     attachments: '{count, plural, one {# Anhang} other {# Anhänge}}'
   panel:
     uploadFailed: Anhänge konnten nicht hochgeladen werden. Versuch es erneut.
-    downloadFailed: Anhänge konnten nicht heruntergeladen werden. Versuch es erneut.
     noSelected: Keine Konversation ausgewählt
     selectToView: Wähle eine Konversation, um Details anzuzeigen
     notFound: Konversation nicht gefunden
@@ -5239,8 +5237,7 @@ settings:
       clientSecretLabel: Client-Secret
       clientSecretKeep: Leer lassen, um das aktuelle Secret beizubehalten.
       tenantIdLabel: Verzeichnis-ID (Tenant)
-      tenantIdHint:
-        Nötig für Single-Tenant-Registrierungen bei Microsoft; bei
+      tenantIdHint: Nötig für Single-Tenant-Registrierungen bei Microsoft; bei
         Multi-Tenant-Apps leer lassen.
       redirectUrisLabel: Zu registrierende Redirect-URIs
       redirectUrisHint:

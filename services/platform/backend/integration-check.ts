@@ -10882,6 +10882,82 @@ async function checkConversations(
     `row=${projectedRow === undefined ? 'MISSING' : `${projectedRow.title}/${projectedRow.messages.length}msg/${projectedRow.contact.email}`}, detail=${projectedDetail.success ? `${projectedDetail.data.item.messages.length}msg` : 'ERR'}`,
   );
 
+  // ── The Inbox connector filter (the paginated list adapter sends
+  // `connectorName`; the route must honour it, not silently list every mailbox).
+  const filterItems = async (q: string): Promise<string[]> => {
+    const body = z
+      .object({ items: z.array(z.object({ id: z.string() }).loose()) })
+      .loose()
+      .safeParse(
+        await (
+          await fetch(
+            `${base}/api/app/conversations?orgId=${orgId}&limit=50${q}`,
+            { headers: { cookie } },
+          )
+        ).json(),
+      );
+    return body.success ? body.data.items.map((item) => item.id) : [];
+  };
+  const matchedFilter = await filterItems('&connectorName=imap-smtp');
+  const wrongFilter = await filterItems('&connectorName=gmail');
+
+  // ── A bytesless attachment (Gmail/Outlook chips the connector never fetched)
+  // must offer NO download affordance — the detail projection presigns a URL
+  // only from a stored storageId, so a metadata-only chip carries none.
+  await sql`
+    INSERT INTO app.conversation_messages (
+      org_id, conversation_id, channel, direction, external_message_id,
+      delivery_state, connector_name, content, delivered_at_ms, metadata,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, ${conversationId}, 'email', 'inbound', '<att-check@inbox.test>',
+      'delivered', 'imap-smtp', 'See attached', ${Date.now()},
+      ${sql.json({
+        sender: 'customer@inbox.test',
+        isCustomer: true,
+        attachments: [
+          {
+            id: 'att-nobytes',
+            filename: 'nobytes.jpg',
+            contentType: 'image/jpeg',
+            size: 0,
+          },
+        ],
+      })}, ${Date.now()}
+    )
+  `;
+  const attDetail = z
+    .object({
+      item: z
+        .object({
+          messages: z.array(
+            z
+              .object({
+                attachments: z
+                  .array(z.object({ id: z.string() }).loose())
+                  .optional(),
+              })
+              .loose(),
+          ),
+        })
+        .loose(),
+    })
+    .loose()
+    .safeParse(await (await api(`/${conversationId}`)).json());
+  const bytelessChip = attDetail.success
+    ? attDetail.data.item.messages
+        .flatMap((message) => message.attachments ?? [])
+        .find((attachment) => attachment.id === 'att-nobytes')
+    : undefined;
+  record(
+    'conversations: connectorName filters the Inbox, and a bytesless attachment offers no download',
+    matchedFilter.includes(conversationId) &&
+      !wrongFilter.includes(conversationId) &&
+      bytelessChip !== undefined &&
+      !('url' in bytelessChip),
+    `imapFilter=${matchedFilter.includes(conversationId)} gmailExcluded=${!wrongFilter.includes(conversationId)} bytelessChipNoUrl=${bytelessChip !== undefined && !('url' in bytelessChip)}`,
+  );
+
   const closed = z
     .object({ successCount: z.number(), failedCount: z.number() })
     .loose()
