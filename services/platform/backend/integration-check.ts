@@ -7727,6 +7727,246 @@ async function checkTurnReattach(
 }
 
 /**
+ * The queued-start recovery (job-liveness): a run stranded at `queued`
+ * because its start job was lost re-kicks under a rotated exec id; one whose
+ * agent was deleted fails with a real reason; a fresh queued run and a
+ * capacity-parked one are both left for their own lanes.
+ */
+async function checkQueuedRunRecovery(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Queued recovery project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const taskRows = await sql<{ id: string }[]>`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, created_by, created_by_type,
+      created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Queued recovery task', 'in_progress', 'a0',
+      ${userId}, 'user', ${now}, ${now}
+    ) RETURNING id
+  `;
+  const taskId = taskRows[0]?.id ?? '';
+  const agentRows = await sql<{ id: string }[]>`
+    INSERT INTO app.project_agents (
+      org_id, project_id, name, harness, model, created_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'Queued recovery agent', 'claude-code',
+      'itest-model', ${userId}, ${now}, ${now}
+    ) RETURNING id
+  `;
+  const agentId = agentRows[0]?.id ?? '';
+
+  const mkQueuedRun = async (
+    execId: string,
+    opts: { agentId: string; updatedAt: number; parked?: boolean },
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.project_agent_runs (
+        org_id, task_id, project_id, agent_id, session_id, exec_id, harness,
+        model, trigger, started_by, status, waiting_for_capacity_at_ms,
+        started_at_ms, deadline_at_ms, updated_at_ms
+      ) VALUES (
+        ${orgId}, ${taskId}, ${projectId}, ${opts.agentId},
+        ${`pa-${opts.agentId}`}, ${execId}, 'claude-code', 'itest-model',
+        'manual', ${userId}, 'queued',
+        ${opts.parked === true ? now : null},
+        ${now - 600_000}, ${now + 3_600_000}, ${opts.updatedAt}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+
+  // Stale + agent present → re-kick; stale + agent gone → fail; fresh and
+  // capacity-parked → untouched.
+  const stranded = await mkQueuedRun('exec-stranded', {
+    agentId,
+    updatedAt: now - 600_000,
+  });
+  const orphaned = await mkQueuedRun('exec-orphaned', {
+    agentId: 'agent-was-deleted',
+    updatedAt: now - 600_000,
+  });
+  const fresh = await mkQueuedRun('exec-fresh', { agentId, updatedAt: now });
+  const parked = await mkQueuedRun('exec-parked', {
+    agentId,
+    updatedAt: now - 600_000,
+    parked: true,
+  });
+
+  const { recoverStuckQueuedTaskAgentRuns } =
+    await import('./domains/tasks/reattach.ts');
+  const result = await recoverStuckQueuedTaskAgentRuns(sql, {
+    staleMs: 60_000,
+  });
+
+  const readRun = async (
+    id: string,
+  ): Promise<{ status: string; execId: string } | undefined> =>
+    (
+      await sql<{ status: string; execId: string }[]>`
+        SELECT status, exec_id AS "execId" FROM app.project_agent_runs
+        WHERE id = ${id}
+      `
+    )[0];
+  const strandedRow = await readRun(stranded);
+  const orphanedRow = await readRun(orphaned);
+  const freshRow = await readRun(fresh);
+  const parkedRow = await readRun(parked);
+  const turnJobs = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'task.agent_turn' AND data ->> 'runId' = ${stranded}
+  `;
+
+  record(
+    'queued recovery: stranded re-kicked (rotated exec), orphan failed, fresh/parked untouched',
+    result.requeued === 1 &&
+      result.failed === 1 &&
+      strandedRow?.status === 'queued' &&
+      strandedRow.execId !== 'exec-stranded' &&
+      turnJobs[0]?.count === '1' &&
+      orphanedRow?.status === 'failed' &&
+      freshRow?.status === 'queued' &&
+      freshRow.execId === 'exec-fresh' &&
+      parkedRow?.status === 'queued' &&
+      parkedRow.execId === 'exec-parked',
+    `requeued=${result.requeued}/1 failed=${result.failed}/1 stranded=${strandedRow?.status}/${strandedRow?.execId !== 'exec-stranded' ? 'rotated' : 'same'} turnJob=${turnJobs[0]?.count} orphan=${orphanedRow?.status} fresh=${freshRow?.execId} parked=${parkedRow?.execId}`,
+  );
+
+  // Leave nothing the live worker could act on.
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled'
+    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+  `;
+}
+
+/**
+ * The steer-miss mention fallback (job-liveness): a comment steer that finds
+ * its run already settled kicks a fresh mention run through the real shim,
+ * which binds organizationId into SQL. Driving the host over a genuinely
+ * settled run proves the fallback no longer throws UNDEFINED_VALUE and a fresh
+ * run actually lands (the kick was silently lost before).
+ */
+async function checkSteerFallbackRecovery(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const now = Date.now();
+  const projectId =
+    (
+      await sql<{ id: string }[]>`
+        INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                                  updated_at_ms)
+        VALUES (${orgId}, 'Steer fallback project', ${userId}, ${now}, ${now})
+        RETURNING id
+      `
+    )[0]?.id ?? '';
+  const agentId =
+    (
+      await sql<{ id: string }[]>`
+        INSERT INTO app.project_agents (
+          org_id, project_id, name, harness, model, created_by, created_at_ms,
+          updated_at_ms
+        ) VALUES (
+          ${orgId}, ${projectId}, 'Steer fallback agent', 'claude-code',
+          'itest-model', ${userId}, ${now}, ${now}
+        ) RETURNING id
+      `
+    )[0]?.id ?? '';
+  const taskId =
+    (
+      await sql<{ id: string }[]>`
+        INSERT INTO app.tasks (
+          org_id, project_id, title, status, rank, created_by, created_by_type,
+          assignee_type, assignee_id, created_at_ms, updated_at_ms
+        ) VALUES (
+          ${orgId}, ${projectId}, 'Steer fallback task', 'in_progress', 'a0',
+          ${userId}, 'user', 'agent', ${agentId}, ${now}, ${now}
+        ) RETURNING id
+      `
+    )[0]?.id ?? '';
+  // A genuinely settled run — the exact state the fallback exists for.
+  const settledRunId =
+    (
+      await sql<{ id: string }[]>`
+        INSERT INTO app.project_agent_runs (
+          org_id, task_id, project_id, agent_id, session_id, exec_id, harness,
+          model, trigger, started_by, status, started_at_ms, deadline_at_ms,
+          settled_at_ms, updated_at_ms
+        ) VALUES (
+          ${orgId}, ${taskId}, ${projectId}, ${agentId}, ${`pa-${agentId}`},
+          'exec-settled', 'claude-code', 'itest-model', 'manual', ${userId},
+          'settled', ${now - 600_000}, ${now + 3_600_000}, ${now - 60_000},
+          ${now - 60_000}
+        ) RETURNING id
+      `
+    )[0]?.id ?? '';
+
+  const { steerTaskAgentTurnImpl } =
+    await import('./core/tasks/agent_run_host.ts');
+  const { agentTurnShimHandlers, taskAgentShimScheduler } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const { createCtxShim } = await import('./lib/ctx-shim.ts');
+  const shim = createCtxShim(agentTurnShimHandlers(sql), {
+    scheduler: taskAgentShimScheduler(sql),
+  });
+  let threw = '';
+  try {
+    await steerTaskAgentTurnImpl(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused host over the shim, as task-list.ts wires it
+      shim as unknown as Parameters<typeof steerTaskAgentTurnImpl>[0],
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the job payload shape (branded ids are plain strings on the wire)
+      {
+        organizationId: orgId,
+        runId: settledRunId,
+        taskId,
+        agentId,
+        execId: 'exec-settled',
+        sessionId: `pa-${agentId}`,
+        harness: 'claude-code',
+        deadlineAt: now + 3_600_000,
+        model: 'itest-model',
+        skills: [],
+        connectors: [],
+        tools: [],
+        secrets: [],
+        feedback: 'please recheck the total',
+        author: 'Dana',
+        authorId: userId,
+        attempt: 0,
+      } as unknown as Parameters<typeof steerTaskAgentTurnImpl>[1],
+    );
+  } catch (error) {
+    threw = error instanceof Error ? error.message : String(error);
+  }
+  const mentionRuns = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.project_agent_runs
+    WHERE task_id = ${taskId} AND trigger = 'mention'
+  `;
+
+  record(
+    'steer fallback: settled-run mention kick lands (organizationId reaches the shim)',
+    threw === '' && mentionRuns[0]?.count === '1',
+    `threw="${threw}" mentionRuns=${mentionRuns[0]?.count} (want 1)`,
+  );
+
+  await sql`
+    UPDATE app.project_agent_runs SET status = 'cancelled'
+    WHERE task_id = ${taskId} AND status IN ('queued', 'running')
+  `;
+}
+
+/**
  * The workflow twin of the task-agent re-attach: automation runs parked on
  * an agent turn whose drive chain died are resurrected from the run CURSOR
  * (the drive keys live in `checkpoints.cursor.agent`, not on columns).
@@ -18435,6 +18675,122 @@ async function checkLoginThrottleAndAuditChain(
 }
 
 /**
+ * The answered-ask resume waker (job-liveness): a run still parked on the
+ * asking exec whose ask is already answered had its `automation.ask_resume`
+ * lost to a restart. The waker re-enqueues it. A run whose cursor has moved
+ * off the asking exec (resume applied), a still-pending ask, and a freshly
+ * answered ask (resume merely in flight) are all left alone.
+ */
+async function checkAnsweredAskRecovery(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { toJson } = await import('./db/sql.ts');
+  const now = Date.now();
+  const cursor = (node: string, execId: string): unknown => ({
+    nodes: {},
+    cursor: { node, agent: { execId, input: {}, harness: 'claude-code' } },
+    executions: {},
+  });
+  const mkRun = async (node: string, execId: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, checkpoints,
+        started_at_ms
+      ) VALUES (
+        ${orgId}, ${`itest/ask-recovery-${node}`}, 1, 'waiting', 'live',
+        'itest:ask-recovery', ${sql.json(toJson(cursor(node, execId)))}, ${now}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const mkAsk = async (
+    runId: string,
+    node: string,
+    execId: string,
+    status: 'pending' | 'answered',
+    answeredAt: number | null,
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.automation_human_asks (
+        org_id, run_id, node_id, session_id, exec_id, question, status,
+        expires_at_ms, answer, answered_by, answered_at_ms, created_at_ms
+      ) VALUES (
+        ${orgId}, ${runId}, ${node}, 'wf-ask-recovery', ${execId},
+        'Recovery question?', ${status}, ${now + 7 * 24 * 3_600_000},
+        ${status === 'answered' ? 'yes' : null},
+        ${status === 'answered' ? 'itest:answerer' : null},
+        ${answeredAt}, ${now - 3_600_000}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+
+  // Lost resume: cursor still on the asking exec, ask answered long ago.
+  const lostRun = await mkRun('ask_lost', 'exec-lost-ask');
+  const lostAsk = await mkAsk(
+    lostRun,
+    'ask_lost',
+    'exec-lost-ask',
+    'answered',
+    now - 600_000,
+  );
+  // Resume already applied: cursor moved to a fresh exec.
+  const movedRun = await mkRun('ask_moved', 'exec-new');
+  const movedAsk = await mkAsk(
+    movedRun,
+    'ask_moved',
+    'exec-old-ask',
+    'answered',
+    now - 600_000,
+  );
+  // Still pending: nothing to resume.
+  const pendingRun = await mkRun('ask_pending', 'exec-pending-ask');
+  const pendingAsk = await mkAsk(
+    pendingRun,
+    'ask_pending',
+    'exec-pending-ask',
+    'pending',
+    null,
+  );
+  // Freshly answered: a healthy resume is still in flight — spare it.
+  const freshRun = await mkRun('ask_fresh', 'exec-fresh-ask');
+  const freshAsk = await mkAsk(
+    freshRun,
+    'ask_fresh',
+    'exec-fresh-ask',
+    'answered',
+    now,
+  );
+
+  const { recoverAnsweredAskResumes } =
+    await import('./domains/automations/reattach.ts');
+  const result = await recoverAnsweredAskResumes(sql, { staleMs: 60_000 });
+  const resumeJobs = await sql<{ askId: string }[]>`
+    SELECT data ->> 'askId' AS "askId" FROM pgboss.job
+    WHERE name = 'automation.ask_resume'
+  `;
+  const enqueued = new Set(resumeJobs.map((job) => job.askId));
+
+  record(
+    'answered-ask recovery: lost resume re-enqueued, moved/pending/fresh spared',
+    result.examined === 1 &&
+      result.requeued === 1 &&
+      enqueued.has(lostAsk) &&
+      !enqueued.has(movedAsk) &&
+      !enqueued.has(pendingAsk) &&
+      !enqueued.has(freshAsk),
+    `examined=${result.examined}/1 requeued=${result.requeued}/1 lost=${enqueued.has(lostAsk)} moved=${!enqueued.has(movedAsk)} pending=${!enqueued.has(pendingAsk)} fresh=${!enqueued.has(freshAsk)}`,
+  );
+
+  await sql`
+    UPDATE app.automation_runs SET status = 'cancelled'
+    WHERE org_id = ${orgId} AND started_by = 'itest:ask-recovery'
+  `;
+}
+
+/**
  * The human-ask ANSWER surface: the pending-ask read skips expired rows, an
  * expired ask refuses the answer, a live one records it and enqueues the
  * resume job in the same transaction, a second answer is refused, and the
@@ -25535,6 +25891,284 @@ async function checkReviewArc(
 }
 
 /**
+ * Outbound-send crash recovery (job-liveness): a reply stranded 'queued' by a
+ * lost/expired send job is failed with a reason (and a hint), which lights up
+ * the retry surface — proven by `retrySendMessage` re-queueing it; a fresh
+ * queued send is left alone.
+ */
+async function checkStuckSendRecovery(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const { toJson } = await import('./db/sql.ts');
+  const now = Date.now();
+  const stale = now - 30 * 60_000;
+  const conv =
+    (
+      await sql<{ id: string }[]>`
+        INSERT INTO app.conversations (
+          org_id, subject, status, channel, direction, connector_name,
+          created_at_ms, last_message_at_ms
+        ) VALUES (
+          ${orgId}, 'Send recovery', 'open', 'email', 'inbound', 'imap-smtp',
+          ${now}, ${now}
+        ) RETURNING id
+      `
+    )[0]?.id ?? '';
+  const meta = {
+    to: ['c@example.com'],
+    connectorName: 'imap-smtp',
+    subject: 'Re: Send recovery',
+    sendContentType: 'Text',
+  };
+  const mkMsg = async (changedAt: number): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.conversation_messages (
+        org_id, conversation_id, connector_name, channel, direction,
+        delivery_state, content, sent_at_ms, delivered_at_ms, metadata,
+        created_at_ms, status_changed_at_ms
+      ) VALUES (
+        ${orgId}, ${conv}, 'imap-smtp', 'email', 'outbound', 'queued',
+        'reply body', ${changedAt}, ${changedAt}, ${sql.json(toJson(meta))},
+        ${changedAt}, ${changedAt}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const staleMsg = await mkMsg(stale);
+  const freshMsg = await mkMsg(now);
+
+  const { recoverStuckConversationSends, retrySendMessage } =
+    await import('./domains/conversations/send.ts');
+  const swept = await recoverStuckConversationSends(sql, { staleMs: 60_000 });
+  const readMsg = async (
+    id: string,
+  ): Promise<{ state: string; metadata: Record<string, unknown> | null }> => {
+    const row = (
+      await sql<{ state: string; metadata: Record<string, unknown> | null }[]>`
+        SELECT delivery_state AS state, metadata
+        FROM app.conversation_messages WHERE id = ${id}
+      `
+    )[0];
+    return row ?? { state: 'gone', metadata: null };
+  };
+  const staleRow = await readMsg(staleMsg);
+  const freshRow = await readMsg(freshMsg);
+
+  // The failed row now accepts a retry (the dead-end is truly exited).
+  let retried = false;
+  let retryError = '';
+  try {
+    await retrySendMessage(sql, {
+      organizationId: orgId,
+      messageId: staleMsg,
+      actor: { userId },
+    });
+    retried = true;
+  } catch (error) {
+    retryError = error instanceof Error ? error.message : String(error);
+  }
+  const afterRetry = await readMsg(staleMsg);
+  const staleCode =
+    typeof staleRow.metadata?.errorCode === 'string'
+      ? staleRow.metadata.errorCode
+      : '';
+
+  record(
+    'outbound-send recovery: stale queued failed with reason, retry re-opens, fresh spared',
+    swept.failed === 1 &&
+      staleRow.state === 'failed' &&
+      staleCode === 'send_interrupted' &&
+      freshRow.state === 'queued' &&
+      retried &&
+      retryError === '' &&
+      afterRetry.state === 'queued',
+    `swept=${swept.failed}/1 stale=${staleRow.state} code=${staleCode} fresh=${freshRow.state} retried=${retried} err="${retryError}" afterRetry=${afterRetry.state}`,
+  );
+
+  await sql`DELETE FROM app.conversation_messages WHERE conversation_id = ${conv}`;
+  await sql`DELETE FROM app.conversations WHERE id = ${conv}`;
+}
+
+/**
+ * Deferred-send crash recovery (job-liveness): a WAITING send whose poll
+ * chain severed is re-polled (its first poll reschedules because a gate
+ * attachment is still indexing, so no turn runs); a CLAIMED send wedged by a
+ * crash is cleared; a fresh waiting send and a fresh claimed send are spared.
+ */
+async function checkDeferredSendRecovery(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const { toJson } = await import('./db/sql.ts');
+  const now = Date.now();
+  const stale = now - 30 * 60_000;
+  const thread =
+    (
+      await sql<{ id: string }[]>`
+        INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                                 updated_at_ms)
+        VALUES (${orgId}, ${userId}, 'Deferred recovery', 'chat', ${now}, ${now})
+        RETURNING id
+      `
+    )[0]?.id ?? '';
+  // A still-indexing attachment so a re-polled turn reschedules, never runs.
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      rag_status, rag_queued_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, 'defer-gate.pdf', 'application/pdf', 10, 's3:defer-gate-1',
+      ${userId}, 'running', ${now}, ${now}
+    )
+  `;
+  const gate = [
+    {
+      fileId: 's3:defer-gate-1',
+      fileName: 'defer-gate.pdf',
+      fileType: 'application/pdf',
+      fileSize: 10,
+    },
+  ];
+  const mkDeferred = async (
+    status: 'waiting' | 'claimed',
+    waitingSince: number,
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.deferred_sends (
+        org_id, user_id, thread_id, user_text, attachments, status,
+        created_at_ms, waiting_since_ms
+      ) VALUES (
+        ${orgId}, ${userId}, ${thread}, 'hello',
+        ${sql.json(toJson(gate))}, ${status}, ${now}, ${waitingSince}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const staleWaiting = await mkDeferred('waiting', stale);
+  const freshWaiting = await mkDeferred('waiting', now);
+  const staleClaimed = await mkDeferred('claimed', stale);
+  const freshClaimed = await mkDeferred('claimed', now);
+
+  const { recoverStuckDeferredSends } =
+    await import('./domains/chat/deferred-sends.ts');
+  const result = await recoverStuckDeferredSends(sql, {
+    waitingStaleMs: 60_000,
+    claimedStaleMs: 60_000,
+  });
+
+  const pollJobs = await sql<{ id: string }[]>`
+    SELECT data ->> 'deferredSendId' AS "id" FROM pgboss.job
+    WHERE name = 'chat.deferred_send_poll'
+  `;
+  const polled = new Set(pollJobs.map((job) => job.id));
+  const statusOf = async (id: string): Promise<string> =>
+    (
+      await sql<{ status: string }[]>`
+        SELECT status FROM app.deferred_sends WHERE id = ${id}
+      `
+    )[0]?.status ?? 'gone';
+
+  record(
+    'deferred-send recovery: severed waiting re-polled, wedged claimed cleared, fresh spared',
+    result.repolled === 1 &&
+      result.cleared === 1 &&
+      polled.has(staleWaiting) &&
+      !polled.has(freshWaiting) &&
+      (await statusOf(staleClaimed)) === 'gone' &&
+      (await statusOf(freshClaimed)) === 'claimed',
+    `repolled=${result.repolled}/1 cleared=${result.cleared}/1 staleWaitingPolled=${polled.has(staleWaiting)} freshWaitingPolled=${polled.has(freshWaiting)} staleClaimed=${await statusOf(staleClaimed)} freshClaimed=${await statusOf(freshClaimed)}`,
+  );
+
+  // Delete my rows so any worker pickup of the re-poll finds them 'gone'.
+  await sql`DELETE FROM app.deferred_sends WHERE thread_id = ${thread}`;
+  await sql`DELETE FROM app.threads WHERE id = ${thread}`;
+  await sql`
+    DELETE FROM app.file_metadata
+    WHERE org_id = ${orgId} AND storage_ref = 's3:defer-gate-1'
+  `;
+}
+
+/**
+ * Blob-backfill crash recovery (job-liveness): a `running` backfill whose
+ * process died is failed with a reason, which unblocks the
+ * `object_storage_backfill_one_running` partial unique index so the org can
+ * re-run; a fresh running backfill is left alone.
+ */
+async function checkBackfillRecovery(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const { orgId, userId } = ctx;
+  const slugRows = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId} LIMIT 1
+  `;
+  const orgSlug = slugRows[0]?.slug ?? '';
+  const now = Date.now();
+  const staleRows = await sql<{ id: string }[]>`
+    INSERT INTO app.object_storage_backfill_runs (
+      org_id, org_slug, dry_run, status, phase, triggered_by,
+      started_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${orgSlug}, true, 'running', 'documents', ${userId},
+      ${now - 3_600_000}, ${now - 3_600_000}
+    ) RETURNING id
+  `;
+  const staleId = staleRows[0]?.id ?? '';
+
+  const { createBackfillRun, recoverStuckBackfills } =
+    await import('./domains/object_storage/service.ts');
+  const swept = await recoverStuckBackfills(sql, { staleMs: 60_000 });
+  const staleRow = (
+    await sql<{ status: string; lastError: string | null }[]>`
+      SELECT status, last_error AS "lastError"
+      FROM app.object_storage_backfill_runs WHERE id = ${staleId}
+    `
+  )[0];
+
+  // The one-running index must now admit a fresh run.
+  let createdId = '';
+  let createError = '';
+  try {
+    createdId = await createBackfillRun(sql, {
+      organizationId: orgId,
+      orgSlug,
+      dryRun: true,
+      triggeredBy: userId,
+    });
+  } catch (error) {
+    createError = error instanceof Error ? error.message : String(error);
+  }
+
+  // The fresh run is not stale — the sweep must leave it running.
+  const swept2 = await recoverStuckBackfills(sql, { staleMs: 60_000 });
+  const freshRow = (
+    await sql<{ status: string }[]>`
+      SELECT status FROM app.object_storage_backfill_runs WHERE id = ${createdId}
+    `
+  )[0];
+
+  record(
+    'backfill recovery: stale run failed with reason, re-run unblocked, fresh left running',
+    swept.failed === 1 &&
+      staleRow?.status === 'failed' &&
+      (staleRow.lastError ?? '').includes('watchdog') &&
+      createdId !== '' &&
+      createError === '' &&
+      swept2.failed === 0 &&
+      freshRow?.status === 'running',
+    `swept=${swept.failed}/1 stale=${staleRow?.status} reason=${(staleRow?.lastError ?? '').includes('watchdog')} created=${createdId !== ''} err="${createError}" swept2=${swept2.failed}/0 fresh=${freshRow?.status}`,
+  );
+
+  await sql`
+    UPDATE app.object_storage_backfill_runs SET status = 'failed'
+    WHERE org_id = ${orgId} AND status = 'running'
+  `;
+}
+
+/**
  * The watchdog sweeps on hand-stranded rows — the handler bodies invoked
  * directly (the scheduled lane is just a cron row over the same functions;
  * assertions are on ROW STATE so a cron firing mid-check changes nothing):
@@ -25961,6 +26595,8 @@ async function main(): Promise<void> {
     await checkManualKickMovesCard(sql, authCtx);
     await checkSandboxBlobDoor(sql, baseUrl, authCtx);
     await checkTurnReattach(sql, authCtx);
+    await checkQueuedRunRecovery(sql, authCtx);
+    await checkSteerFallbackRecovery(sql, authCtx);
     await checkWorkflowTurnReattach(sql, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
@@ -25996,11 +26632,15 @@ async function main(): Promise<void> {
     await checkTaskAgentTurnDrive(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationAgentNode(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAskAnswer(sql, baseUrl, authCtx);
+    await checkAnsweredAskRecovery(sql, authCtx);
     await checkAutoRetryAndKickPlan(sql, baseUrl, authCtx);
     await checkReviewArc(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkSandboxSessions(sql, authCtx);
     await checkAutomationRunToolLane(sql, baseUrl, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
+    await checkStuckSendRecovery(sql, authCtx);
+    await checkDeferredSendRecovery(sql, authCtx);
+    await checkBackfillRecovery(sql, authCtx);
     await checkWatchdogs(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
