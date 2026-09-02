@@ -535,6 +535,12 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** Resolve an `inbox` template in `locale`, falling back to English. */
+function resolveInboxTemplate(locale: string, key: string): string | undefined {
+  const loc: NotificationLocale = isSupportedLocale(locale) ? locale : 'en';
+  return INBOX_I18N[loc][key] ?? INBOX_I18N.en[key];
+}
+
 /**
  * Render an `inbox` namespace string for outbound email. Interpolated values are
  * left as-is (proper nouns / task titles); the template's punctuation is preserved.
@@ -544,8 +550,7 @@ export function renderInboxMessage(
   key: string,
   params?: Record<string, unknown>,
 ): string {
-  const loc: NotificationLocale = isSupportedLocale(locale) ? locale : 'en';
-  const template = INBOX_I18N[loc][key] ?? INBOX_I18N.en[key];
+  const template = resolveInboxTemplate(locale, key);
   if (template === undefined) {
     console.warn(`[notification_messages] no inbox string for key "${key}"`);
     return key;
@@ -573,11 +578,17 @@ export function renderActionableEmailContent(
   }
   text += `\n\n${footer}`;
 
-  const bodyHtml = interpolateTemplate(
-    renderInboxMessage(locale, args.bodyKey, args.params),
-    args.params,
-    escapeHtml,
-  );
+  // Params enter HTML exactly ONCE, escaped at that single entry point: the
+  // template is interpolated one time with the `escapeHtml` transform. The
+  // previous shape re-interpolated the ALREADY-interpolated body — the escape
+  // pass saw no placeholders left, so external text (task titles, user names,
+  // conversation subjects) landed raw in the email HTML, and a hostile param
+  // containing a literal `{title}` was even substituted a second time.
+  const bodyTemplate = resolveInboxTemplate(locale, args.bodyKey);
+  const bodyHtml =
+    bodyTemplate === undefined
+      ? escapeHtml(args.bodyKey)
+      : interpolateTemplate(bodyTemplate, args.params, escapeHtml);
   const ctaHtml = escapeHtml(cta);
   const footerHtml = escapeHtml(footer);
   const linkHtml = args.deepLink ? escapeHtml(args.deepLink) : null;
