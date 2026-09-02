@@ -40,6 +40,7 @@ import {
   type ControlledRecord,
 } from './records.ts';
 import {
+  assertDocumentsWriteRole,
   assertDocumentVisible,
   DocumentError,
   loadDocumentOrThrow,
@@ -144,13 +145,15 @@ async function requireIntentForPrincipal(
   return intent;
 }
 
-/** The write standard shared with records.ts (project canEdit), plus the
- * controlled + active gates every replacement step re-checks. */
+/** The write standard shared with records.ts (org write matrix + project
+ * canEdit), plus the controlled + active gates every replacement step
+ * re-checks. */
 async function requireReplacementDocument(
   db: Sql | TransactionSql,
   auth: ProjectAuthContext,
   documentId: string,
 ): Promise<{ doc: DocumentRow; record: ControlledRecord }> {
+  assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(db, documentId);
   await assertDocumentVisible(db, auth, doc);
   if (doc.projectId !== null) {
