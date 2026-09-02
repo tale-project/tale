@@ -206,17 +206,17 @@ async function fetchAllGraphPages(
         `Graph pagination cap exceeded fetching ${resource} (more than ${GRAPH_MAX_PAGES} pages)`,
       );
     }
-    const response = await fetch(url, {
+    const response: Response = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!response.ok) {
       throw new Error(`Graph API error: ${response.status}`);
     }
-    const data = await response.json();
-    if (Array.isArray(data.value)) {
+    const data: unknown = await response.json();
+    if (isRecord(data) && Array.isArray(data.value)) {
       values.push(...data.value);
     }
-    const nextLink = data['@odata.nextLink'];
+    const nextLink = isRecord(data) ? data['@odata.nextLink'] : undefined;
     url =
       typeof nextLink === 'string' && nextLink !== '' ? nextLink : undefined;
     // The bearer token goes wherever we follow — only ever back to Graph.

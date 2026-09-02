@@ -152,7 +152,7 @@ describe('GET /api/trusted-headers/authenticate — the proxy hand-off door', ()
     return { app: createTrustedHeadersRoutes({ sql }), queries };
   }
 
-  function request(
+  async function request(
     app: ReturnType<typeof createTrustedHeadersRoutes>,
     headers: Record<string, string>,
   ): Promise<Response> {

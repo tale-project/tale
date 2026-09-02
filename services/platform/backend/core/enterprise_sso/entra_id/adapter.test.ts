@@ -1,11 +1,34 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { SsoProviderConfig } from '../types';
+import type { SsoGroup, SsoProviderConfig } from '../types';
 import { entraIdAdapter } from './adapter';
 
 // `getUserInfo` ignores the config (reads the signed-in user from Graph `/me`),
 // so a bare cast is enough to exercise the response mapping.
 const fakeConfig = {} as unknown as SsoProviderConfig;
+
+// Optional on the adapter interface; Entra always ships both.
+function getGroups(
+  config: SsoProviderConfig,
+  token: string,
+): Promise<SsoGroup[]> {
+  const result = entraIdAdapter.getGroups?.(config, token);
+  if (result === undefined) {
+    throw new Error('the Entra adapter must expose getGroups');
+  }
+  return result;
+}
+
+function getAppRoles(
+  config: SsoProviderConfig,
+  token: string,
+): Promise<string[]> {
+  const result = entraIdAdapter.getAppRoles?.(config, token);
+  if (result === undefined) {
+    throw new Error('the Entra adapter must expose getAppRoles');
+  }
+  return result;
+}
 
 function stubGraphMe(data: Record<string, unknown>): void {
   vi.stubGlobal(
@@ -106,7 +129,7 @@ describe('entraIdAdapter.getGroups — Graph pagination (truncation stripped tea
       { value: [group('g2'), group('g3')] },
     ]);
 
-    const groups = await entraIdAdapter.getGroups(fakeConfig, 'token');
+    const groups = await getGroups(fakeConfig, 'token');
 
     // Union of both pages, non-group directory objects filtered out — a
     // 100+-group user keeps every team instead of having page-2+ pruned.
@@ -120,7 +143,7 @@ describe('entraIdAdapter.getGroups — Graph pagination (truncation stripped tea
   it('reads a single page when no nextLink is present', async () => {
     const { calls } = stubGraphPages([{ value: [group('only')] }]);
 
-    const groups = await entraIdAdapter.getGroups(fakeConfig, 'token');
+    const groups = await getGroups(fakeConfig, 'token');
 
     expect(groups.map((g) => g.id)).toEqual(['only']);
     expect(calls()).toHaveLength(1);
@@ -138,7 +161,7 @@ describe('entraIdAdapter.getGroups — Graph pagination (truncation stripped tea
 
     // The callers treat a THROW as "groups unknown" and skip the team-sync
     // prune — a silent partial list would strip memberships instead.
-    await expect(entraIdAdapter.getGroups(fakeConfig, 'token')).rejects.toThrow(
+    await expect(getGroups(fakeConfig, 'token')).rejects.toThrow(
       /pagination cap exceeded/,
     );
   });
@@ -151,7 +174,7 @@ describe('entraIdAdapter.getGroups — Graph pagination (truncation stripped tea
       },
     ]);
 
-    await expect(entraIdAdapter.getGroups(fakeConfig, 'token')).rejects.toThrow(
+    await expect(getGroups(fakeConfig, 'token')).rejects.toThrow(
       /refusing to follow/,
     );
   });
@@ -169,7 +192,7 @@ describe('entraIdAdapter.getGroups — Graph pagination (truncation stripped tea
       ),
     );
 
-    await expect(entraIdAdapter.getGroups(fakeConfig, 'token')).rejects.toThrow(
+    await expect(getGroups(fakeConfig, 'token')).rejects.toThrow(
       /Graph API error: 502/,
     );
   });
@@ -190,7 +213,7 @@ describe('entraIdAdapter.getAppRoles — Graph pagination', () => {
       { value: [{ appRoleId: 'role-2' }] },
     ]);
 
-    const roles = await entraIdAdapter.getAppRoles?.(fakeConfig, 'token');
+    const roles = await getAppRoles(fakeConfig, 'token');
 
     expect(roles).toEqual(['role-1', 'role-2']);
   });
@@ -208,7 +231,7 @@ describe('entraIdAdapter.getAppRoles — Graph pagination', () => {
       ),
     );
 
-    const roles = await entraIdAdapter.getAppRoles?.(fakeConfig, 'token');
+    const roles = await getAppRoles(fakeConfig, 'token');
 
     expect(roles).toEqual([]);
   });
