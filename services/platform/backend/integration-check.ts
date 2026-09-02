@@ -14230,12 +14230,50 @@ async function checkRunProvenance(
     SELECT count(*)::text AS count FROM app.automation_runs
     WHERE org_id = ${orgId} AND name = ${automationName}
   `;
+  // An AGENT- or WORKFLOW-authored comment naming the OWNER starts nothing.
+  // Otherwise the automation restarts the engine that wrote the comment and
+  // every iteration is a metered agent turn; `startWorkflowForTask`'s
+  // one-live-run guard blocks a concurrent second start, not a sequential
+  // loop. 0.4 kept the trigger on the USER comment path alone.
+  const startJobsBeforeAgent = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'task.start_workflow'
+  `;
+  await sql.begin((tx) =>
+    addComment(tx, commentAuth, {
+      taskId: ownedTaskId,
+      body: `@${automationName} continuing my own work`,
+      author: { actorType: 'agent', actorId: 'workflow' },
+    }),
+  );
+  const startJobsAfterAgent = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'task.start_workflow'
+  `;
+  const runsAfterAgentAuthor = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = ${automationName}
+  `;
   // @-ing the OWNER starts its task workflow.
   await sql.begin((tx) =>
     addComment(tx, commentAuth, {
       taskId: ownedTaskId,
       body: `@${automationName} please pick this up`,
     }),
+  );
+  // The same seam, the human lane: the start job IS enqueued. Read before
+  // the poll below so the count cannot be confused with a worker's doing.
+  const startJobsAfterUser = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'task.start_workflow'
+  `;
+  record(
+    'automations: an agent-authored @owner comment never starts the workflow',
+    startJobsAfterAgent[0]?.count === startJobsBeforeAgent[0]?.count &&
+      runsAfterAgentAuthor[0]?.count === runsBefore[0]?.count &&
+      Number(startJobsAfterUser[0]?.count ?? '0') ===
+        Number(startJobsBeforeAgent[0]?.count ?? '0') + 1,
+    `agentAuthored: startJobs=${startJobsAfterAgent[0]?.count} (unchanged from ${startJobsBeforeAgent[0]?.count}), runs=${runsAfterAgentAuthor[0]?.count} (want ${runsBefore[0]?.count}); humanAuthored: startJobs=${startJobsAfterUser[0]?.count} (want ${Number(startJobsBeforeAgent[0]?.count ?? '0') + 1})`,
   );
   // The start is ENQUEUED (the comment commits first); give the worker a
   // moment, then assert the run itself.
@@ -15712,7 +15750,10 @@ async function checkCollabMentions(
   `;
   const taskId = taskRows[0]?.id ?? '';
   const commented = z
-    .object({ unresolvedMentionTokens: z.array(z.string()) })
+    .object({
+      messageId: z.string(),
+      unresolvedMentionTokens: z.array(z.string()),
+    })
     .loose()
     .safeParse(
       await (
@@ -15737,6 +15778,54 @@ async function checkCollabMentions(
       Number(bell[0]?.count ?? '0') >= 1 &&
       Number(subscription[0]?.count ?? '0') >= 1,
     `unresolved=${commented.success ? commented.data.unresolvedMentionTokens.join(',') : 'ERR'}, mentionBells=${bell[0]?.count}, autoSubscribed=${subscription[0]?.count}`,
+  );
+
+  // ---- editing a comment RE-RESOLVES its mentions -----------------------
+  // An edit is a second chance to name someone: the newly added mention has
+  // to reach them and the stored set has to catch up, while a mention that
+  // was already there must NOT fire again — mention rows never coalesce, so
+  // a re-notification would show up as a second bell.
+  const editedMessageId = commented.success ? commented.data.messageId : '';
+  const editStatus = (
+    await api(`/api/app/tasks/comments/${editedMessageId}`, {
+      body: {
+        body: '@mention-teammate-1 can you review? cc @mention-outsider-1',
+      },
+    })
+  ).status;
+  const teammateBellsAfterEdit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${teammate} AND type = 'mention'
+  `;
+  const outsiderBellsAfterEdit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${outsider} AND type = 'mention'
+      AND resource_id = ${editedMessageId}
+  `;
+  const editedMeta = await sql<
+    {
+      mentions: { type: string; id: string }[] | null;
+      editedAt: number | null;
+    }[]
+  >`
+    SELECT mentions, edited_at_ms::float8 AS "editedAt"
+    FROM app.task_discussion_message_meta
+    WHERE message_id = ${editedMessageId}
+  `;
+  const storedMentionKeys = (editedMeta[0]?.mentions ?? []).map(
+    (mention) => `${mention.type}:${mention.id}`,
+  );
+  record(
+    'mentions: editing a comment notifies the ADDED mention only',
+    editStatus === 200 &&
+      Number(outsiderBellsAfterEdit[0]?.count ?? '0') === 1 &&
+      // The teammate was already named before the edit — no second bell.
+      teammateBellsAfterEdit[0]?.count === bell[0]?.count &&
+      // The stored set is the FULL truth of who the comment now names.
+      storedMentionKeys.includes(`user:${teammate}`) &&
+      storedMentionKeys.includes(`user:${outsider}`) &&
+      editedMeta[0]?.editedAt !== null,
+    `edit=${editStatus}, addedBell=${outsiderBellsAfterEdit[0]?.count} (want 1), alreadyMentionedBells=${teammateBellsAfterEdit[0]?.count} (unchanged from ${bell[0]?.count}), stored=${storedMentionKeys.join(',') || 'none'}, editedAt=${editedMeta[0]?.editedAt !== null}`,
   );
 
   // ---- attention summary ------------------------------------------------

@@ -181,8 +181,9 @@ describe('addedMentions', () => {
     expect(addedMentions([], next)).toEqual(next);
   });
 
-  // Comment edits reuse the same helper as description edits
-  // (`editTaskDiscussionMessage` → `addedMentions` → `comment.mentioned`).
+  // The comment-edit wire: `editTaskComment` re-resolves the body, diffs it
+  // through this helper, and fans out `comment.mentioned` for the added ones
+  // alone (`domains/tasks/comments.ts`).
   it('flags an @agent added when editing a comment that had none', () => {
     const previous = extractMentions('already fixed', directory);
     const next = extractMentions(
