@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NativeConnectorContext } from '../dispatcher';
 import {
   discoverSentMailbox,
+  fetchSummaries,
   imapSmtpNatives,
   mailboxConfigFromCredential,
   mailAttachmentsFromParsed,
@@ -880,5 +881,51 @@ describe('mailbox selection', () => {
     expect(
       discoverSentMailbox([{ path: 'Drafts', flags: new Set() }]),
     ).toBeNull();
+  });
+});
+
+/** A minimal ImapFlow-shaped client for exercising fetchSummaries directly:
+ * SEARCH answers UIDs ascending; FETCH yields one envelope per UID (the
+ * cursored path passes an explicit UID array). */
+function stubImapClient(uidToSentAt: Record<number, number>) {
+  const allUids = Object.keys(uidToSentAt)
+    .map(Number)
+    .sort((a, b) => a - b);
+  async function* fetch(range: number[] | string) {
+    const wanted = Array.isArray(range) ? range : allUids;
+    for (const uid of wanted) {
+      const at = uidToSentAt[uid] ?? 0;
+      yield {
+        uid,
+        envelope: { date: new Date(at) },
+        internalDate: new Date(at),
+      };
+    }
+  }
+  return {
+    mailbox: { exists: allUids.length },
+    search: () => Promise.resolve(allUids),
+    fetch,
+  } as unknown as Parameters<typeof fetchSummaries>[0];
+}
+
+describe('fetchSummaries drain order', () => {
+  it('takes the OLDEST window after a cursor, so a backlog drains forward', async () => {
+    const client = stubImapClient({
+      1: 1000,
+      2: 2000,
+      3: 3000,
+      4: 4000,
+      5: 5000,
+    });
+    const summaries = await fetchSummaries(client, {
+      mailbox: { kind: 'inbox' },
+      since: 500,
+      limit: 2,
+    });
+    // The two OLDEST after the cursor — never the newest tail (4, 5), which
+    // would strand everything older than it behind the advancing watermark.
+    expect(summaries.map((s) => s.uid)).toEqual(['1', '2']);
+    expect(summaries.map((s) => s.sentAt)).toEqual([1000, 2000]);
   });
 });

@@ -1227,7 +1227,7 @@ async function resolveMailboxPath(
  * bodies in memory for nothing. `SEARCH SINCE` is date-granular, so the
  * millisecond cursor is applied again here.
  */
-async function fetchSummaries(
+export async function fetchSummaries(
   client: ImapClientLike,
   query: MailboxQuery,
 ): Promise<readonly MailMessageSummary[]> {
@@ -1238,7 +1238,13 @@ async function fetchSummaries(
       { since: new Date(query.since) },
       { uid: true },
     );
-    const uids = (found === false ? [] : found).slice(-query.limit);
+    // Oldest first: a cursored pass DRAINS forward, so it takes the OLDEST
+    // window after the cursor (SEARCH returns UIDs ascending ≈ arrival order).
+    // The watermark then advances over this window and the next pass continues.
+    // Taking the newest window instead would re-read the tail every pass and
+    // strand everything older than it behind the advancing cursor — the loss
+    // this drains against.
+    const uids = (found === false ? [] : found).slice(0, query.limit);
     if (uids.length === 0) return [];
     for await (const message of client.fetch(
       uids,
@@ -1264,10 +1270,14 @@ async function fetchSummaries(
   }
 
   const cursor = query.since;
-  return summaries
+  const ordered = summaries
     .filter((message) => cursor === undefined || message.sentAt >= cursor)
-    .sort((a, b) => a.sentAt - b.sentAt)
-    .slice(-query.limit);
+    .sort((a, b) => a.sentAt - b.sentAt);
+  // A cursored pass keeps the OLDEST window (drain forward from the watermark);
+  // the initial no-cursor pass keeps the newest tail.
+  return cursor === undefined
+    ? ordered.slice(-query.limit)
+    : ordered.slice(0, query.limit);
 }
 
 async function fetchMessageBody(
