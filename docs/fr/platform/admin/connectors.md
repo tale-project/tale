@@ -17,7 +17,7 @@ Deux avertissements apparaissent ici, et ils ne disent pas la même chose. _Aucu
 
 ## Ajouter des identifiants
 
-**Ajouter des identifiants** ouvre le catalogue livré. Les connecteurs pour lesquels tu détiens déjà un identifiant viennent en premier, sous **Utilisés** ; tout le reste suit en dessous, par ordre alphabétique, chacun avec ses catégories et le nombre d’actions qu’il expose. La recherche réduit la liste ; un choix mène à l’étape de configuration, et **Retour au catalogue** en ressort.
+**Ajouter des identifiants** ouvre le catalogue livré. Les connecteurs pour lesquels tu détiens déjà un identifiant viennent en premier, sous **Configuré** ; tout le reste suit en dessous, chacun avec ses catégories et le nombre d’actions qu’il expose. La recherche réduit la liste ; un choix mène à l’étape de configuration, et **Retour** en ressort.
 
 La configuration demande d’abord un **Nom**, et le texte d’aide du champ dit pourquoi il compte : le nom sous lequel une action choisit ces identifiants. Prends quelque chose qu’un auteur d’automatisations reconnaîtra des mois plus tard, comme `Boîte de support` ou `Boutique UE`.
 
@@ -53,7 +53,7 @@ Aucun secret à saisir, donc l’étape de configuration se réduit au passage d
 
 </Tabs>
 
-Ajouter un second identifiant à un connecteur qui en a déjà un, c’est le même parcours une seconde fois — le connecteur apparaît simplement sous **Utilisés** dans le catalogue. Il n’y a aucune limite à contourner ni rien à déconnecter avant.
+Ajouter un second identifiant à un connecteur qui en a déjà un, c’est le même parcours une seconde fois — le connecteur apparaît simplement sous **Configuré** dans le catalogue. Il n’y a aucune limite à contourner ni rien à déconnecter avant.
 
 <Note>
 
@@ -71,7 +71,7 @@ Un connecteur avec plusieurs identifiants et aucun par défaut est une configura
 
 Changer une clé est une modification de l’identifiant, pas une opération à part. Ouvre la ligne et choisis **Remplacer la clé API**, **Remplacer le jeton** ou **Remplacer le nom d’utilisateur et le mot de passe**, selon la méthode. Le secret stocké n’est jamais réaffiché, et en saisir un nouveau le remplace partout où cet identifiant est utilisé — chaque nœud d’automatisation et chaque action de chat qui pointe dessus reprend le nouveau secret sans qu’on y touche.
 
-L’identifiant garde son nom, son drapeau par défaut et son URL d’instance à travers un remplacement, rien n’a donc besoin d’être repointé en aval. **Modifier le nom et l’instance** couvre l’autre sens : renommer une ligne, ou la déplacer vers une autre instance.
+L’identifiant garde son nom, son drapeau par défaut et son URL d’instance à travers un remplacement, rien n’a donc besoin d’être repointé en aval. **Modifier les identifiants** couvre l’autre sens : renommer une ligne, ou la déplacer vers une autre instance.
 
 ## Désactiver et supprimer
 
@@ -106,5 +106,3 @@ Les deux surfaces laissent un agent aller au-delà de Tale, et la différence ti
 ## Où cela s’inscrit
 
 Gérer les identifiants, c’est désormais toute l’administration des connectors, puisque plus rien ne s’installe : ajouter les comptes, les nommer correctement, garder un identifiant par défaut par connecteur, et reconnecter les lignes OAuth qui expirent. [Connectors](/fr/platform/connectors/overview) est le catalogue auquel ces identifiants s’attachent, [Outils d’agent](/fr/platform/agents/tools) montre comment les actions qui en découlent arrivent dans la trousse d’un agent, et [Configurer les approbations](/fr/platform/approvals/configure) est l’endroit où les actions en écriture attendent qu’une personne les libère.
-</content>
-</invoke>

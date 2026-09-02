@@ -25,7 +25,7 @@ Es gibt kein Feld für „App-Name" oder „Text-Logo". Die Wortmarke im Sidebar
 
 ## Die Assets
 
-**Logo** ist ein Bild — PNG, SVG oder JPG. Die Plattform rendert es in Sidebar-Höhe; ziel auf transparenten Hintergrund und eine Wortmarke, die bei etwa 32 Pixel Höhe lesbar ist. Das Logo ist ein einzelner Upload für beide Themes — wähl eine Marke, die auf hellem wie dunklem Hintergrund lesbar ist. Ohne Logo fällt die Chrome auf den Namen deiner Organisation als Text-Wortmarke zurück.
+**Logo** ist ein Bild — PNG, SVG, JPG, WebP oder ICO. Die Plattform rendert es in Sidebar-Höhe; ziel auf transparenten Hintergrund und eine Wortmarke, die bei etwa 32 Pixel Höhe lesbar ist. Das Logo ist ein einzelner Upload für beide Themes — wähl eine Marke, die auf hellem wie dunklem Hintergrund lesbar ist. Ohne Logo fällt die Chrome auf den Namen deiner Organisation als Text-Wortmarke zurück.
 
 **Favicon** ist das Tab-Icon. Lade eine helle und eine dunkle Variante hoch, damit das Icon lesbar bleibt, egal welches Theme das Betriebssystem gewählt hat — oder lass es leer, und Tale leitet eines aus deinem Logo ab, sobald du es hochlädst, sodass ein einziger Upload sowohl die Sidebar als auch den Browser-Tab überzieht. Ein explizit gesetztes Favicon gewinnt immer gegen das automatisch abgeleitete.
 

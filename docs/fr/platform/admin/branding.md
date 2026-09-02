@@ -25,7 +25,7 @@ Il n’y a pas de champ « nom d’app » ni « logo texte ». La marque de mot 
 
 ## Les assets
 
-**Logo** est une image — PNG, SVG ou JPG. La plateforme la rend à la hauteur de la barre latérale ; vise un fond transparent et une marque de mot lisible à environ 32 pixels de haut. Le logo est un téléversement unique utilisé sur les deux thèmes — choisis une marque lisible sur fond clair comme sombre. Sans logo, le chrome retombe sur le nom de ton organisation comme marque de mot textuelle.
+**Logo** est une image — PNG, SVG, JPG, WebP ou ICO. La plateforme la rend à la hauteur de la barre latérale ; vise un fond transparent et une marque de mot lisible à environ 32 pixels de haut. Le logo est un téléversement unique utilisé sur les deux thèmes — choisis une marque lisible sur fond clair comme sombre. Sans logo, le chrome retombe sur le nom de ton organisation comme marque de mot textuelle.
 
 **Favicon** est l’icône d’onglet. Téléverse une variante claire et une variante sombre pour que l’icône reste lisible quel que soit le thème choisi par le système d’exploitation — ou laisse-le vide, et Tale en dérive un de ton logo dès que tu le téléverses, si bien qu’un seul téléversement habille à la fois la barre latérale et l’onglet du navigateur. Un favicon explicite l’emporte toujours sur celui dérivé automatiquement.
 

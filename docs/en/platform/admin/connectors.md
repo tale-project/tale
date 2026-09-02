@@ -17,7 +17,7 @@ Two warnings appear here, and they mean different things. _No default credential
 
 ## Adding a credential
 
-**Add credential** opens the shipped catalog. Connectors you already hold a credential for come first, under **In use**; everything else follows below it, alphabetically, each with its category tags and how many actions it exposes. Search narrows the list; picking one moves you to the setup step, and **Back to the catalog** returns.
+**Add credential** opens the shipped catalog. Connectors you already hold a credential for come first, under **Configured**; everything else follows below it, each with its category tags and how many actions it exposes. Search narrows the list; picking one moves you to the setup step, and **Back** returns.
 
 Setup asks for a **Name** first, and the field's help text is the reason it matters: the name an action uses to pick this credential. Choose something an automation author will recognise months later, such as `Support inbox` or `EU store`.
 
@@ -53,7 +53,7 @@ No secret to type, so the setup step is the hand-off alone: **Connect** takes yo
 
 </Tabs>
 
-Adding a second credential to a connector that already has one is the same flow again — it simply appears under **In use** in the catalog. There is no limit to work around and nothing to disconnect first.
+Adding a second credential to a connector that already has one is the same flow again — it simply appears under **Configured** in the catalog. There is no limit to work around and nothing to disconnect first.
 
 <Note>
 
@@ -71,7 +71,7 @@ A connector with several credentials and no default is a working configuration w
 
 Rotating a key is an edit on the credential, not a separate operation. Open the row and choose **Replace API key**, **Replace token**, or **Replace username & password**, depending on the method. The stored secret is never shown back to you, and entering a new one replaces it everywhere that credential is used — every automation node and every chat action pointed at that row picks up the new secret without being touched.
 
-The credential keeps its name, its default flag, and its instance URL through a replacement, so nothing downstream has to be repointed. **Edit name & instance** covers the other direction: renaming a row, or moving it to a different instance origin.
+The credential keeps its name, its default flag, and its instance URL through a replacement, so nothing downstream has to be repointed. **Edit credential** covers the other direction: renaming a row, or moving it to a different instance origin.
 
 ## Disabling and deleting
 
@@ -106,5 +106,3 @@ Both surfaces let an agent reach past Tale, and the difference is who owns the b
 ## Where this fits
 
 Credential management is the whole of connector administration now that nothing is installed: add the accounts, name them well, keep one default per connector, and reconnect the OAuth rows that lapse. [Connectors](/platform/connectors/overview) is the catalog those credentials attach to, [Agent tools](/platform/agents/tools) shows how the resulting actions arrive in an agent's toolbelt, and [Configure approvals](/platform/approvals/configure) is where the write actions are held for a person to release.
-</content>
-</invoke>

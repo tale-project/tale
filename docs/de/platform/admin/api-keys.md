@@ -1,13 +1,13 @@
 ---
 title: API-Schlüssel
-description: Organisationsweite Anmeldedaten, mit denen externer Code Tales REST-API im Namen der Organisation aufruft. Admins und Entwickler erstellen, rotieren und widerrufen sie unter Einstellungen > API-Schlüssel.
+description: Persönliche Bearer-Anmeldedaten, mit denen externer Code Tales REST-API aufruft. Admins und Entwickler erstellen, rotieren und widerrufen sie unter Einstellungen > API > REST.
 ---
 
-API-Schlüssel sind die organisationsweiten Anmeldedaten, die Tale ausstellt, damit externer Code seine REST-API ohne Person in der Schleife aufrufen kann. Ein Schlüssel authentifiziert den Aufrufer als die Organisation, begrenzt durch die Rolle, die du beim Anlegen wählst. Admins und Entwickler verwalten Schlüssel; andere Rollen sehen die Seite nicht. Das ist die Referenz dafür, was ein Schlüssel ist, wie du einen erstellst, wie du ihn begrenzt und wie du ihn außer Dienst stellst, ohne etwas zu zerbrechen, das von ihm abhängt.
+API-Schlüssel sind die Anmeldedaten, die Tale ausstellt, damit externer Code seine REST-API ohne Person in der Schleife aufrufen kann. Ein Schlüssel authentifiziert den Aufrufer als die Person, die ihn angelegt hat, und trägt deren Rolle in der Organisation. Admins und Entwickler verwalten Schlüssel; andere Rollen sehen die Seite nicht. Das ist die Referenz dafür, was ein Schlüssel ist, wie du einen erstellst, wie er begrenzt ist und wie du ihn außer Dienst stellst, ohne etwas zu zerbrechen, das von ihm abhängt.
 
-Die hier gelisteten Schlüssel sind etwas anderes als die Per-Benutzer-Session-Tokens, die Tale beim Anmelden ausstellt. Die sind kurzlebig und an eine Person gebunden; API-Schlüssel sind langlebig und an die Organisation gebunden. Greif zu einem API-Schlüssel, wenn du ein Skript, einen Cron-Job, einen internen Dienst oder eine Drittanbieter-Connector an Tale anschließt; greif zur In-Produkt-Oberfläche, wenn eine Person an der Tastatur sitzt.
+Die hier gelisteten Schlüssel sind etwas anderes als die Per-Benutzer-Session-Tokens, die Tale beim Anmelden ausstellt. Die sind kurzlebig und an einen Browser gebunden; API-Schlüssel sind langlebig und für unbeaufsichtigte Aufrufer gedacht. Greif zu einem API-Schlüssel, wenn du ein Skript, einen Cron-Job, einen internen Dienst oder eine Drittanbieter-Connector an Tale anschließt; greif zur In-Produkt-Oberfläche, wenn eine Person an der Tastatur sitzt.
 
-<Frame caption="Einstellungen > API-Schlüssel — wo Schlüssel erstellt, rotiert und widerrufen werden.">
+<Frame caption="Einstellungen > API > REST — wo Schlüssel erstellt, rotiert und widerrufen werden.">
 
 ![Die REST-API-Schlüssel-Einstellungsseite listet zwei Schlüssel, jeder nur mit seinem Präfix, dem Datum unter Hinzugefügt und der Markierung Nie verwendet, neben der Schaltfläche API-Schlüssel erstellen.](/images/get-started/settings-api-keys.webp)
 
@@ -15,15 +15,15 @@ Die hier gelisteten Schlüssel sind etwas anderes als die Per-Benutzer-Session-T
 
 ## Einen Schlüssel erstellen
 
-Öffne **Einstellungen > API-Schlüssel** und klick auf **API-Schlüssel erstellen**. Gib dem Schlüssel einen Namen, der sagt, wer oder was ihn nutzt (`Billing-Sync`, `Slack-Relay`, `ops-cron`), wähl die Rolle, die er tragen soll, und wähl das Ablaufdatum. Tale zeigt das Geheimnis genau einmal bei der Erstellung — kopier es in deinen Passwort-Manager oder dein Deployment-System, bevor du den Dialog schließt. Danach ist nur noch das Präfix des Schlüssels in der Tabelle sichtbar.
+Öffne **Einstellungen > API > REST** und klick auf **API-Schlüssel erstellen**. Gib dem Schlüssel einen Namen, der sagt, wer oder was ihn nutzt (`Billing-Sync`, `Slack-Relay`, `ops-cron`), und wähl das Ablaufdatum — 7, 30 oder 90 Tage, ein Jahr oder nie; Standard sind 30 Tage. Tale zeigt das Geheimnis genau einmal bei der Erstellung — kopier es in deinen Passwort-Manager oder dein Deployment-System, bevor du den Dialog schließt. Danach zeigt die Tabelle nur noch ein maskiertes Fragment davon.
 
-Die Rolle, die du wählst, begrenzt alles, was der Schlüssel tun kann. Ein Schlüssel mit Entwickler-Rolle kann jede Ressource lesen und in die meisten schreiben; ein Schlüssel mit Mitglied-Rolle kann die Wissensdatenbank lesen und Chats starten, aber nichts konfigurieren. Nimm die kleinste Rolle, die den Job erledigt — Schlüssel sind genau so gefährlich wie die Rolle, die sie tragen.
+Der Schlüssel handelt als du: Jede Anfrage, die er macht, trägt deine Rolle in der Organisation. Ein Schlüssel, den ein Entwickler angelegt hat, kann jede Ressource lesen und in die meisten schreiben; einen Schlüssel mit mehr Macht als sein Ersteller gibt es nicht. Weil Schlüssel genau so gefährlich sind wie die Rolle dahinter, lass den am wenigsten privilegierten Account, der den Job erledigt, den Schlüssel anlegen.
 
 ## Was die Tabelle zeigt
 
-Die API-Schlüssel-Tabelle listet jeden Schlüssel mit Name, Präfix, Rolle, Ersteller, Zeitstempel der letzten Nutzung und Ablauf. Das Präfix sind die ersten acht Zeichen des Geheimnisses — genug, um den Schlüssel in Logs zu identifizieren, ohne ihn offenzulegen. Der Zeitstempel der letzten Nutzung aktualisiert sich bei jeder erfolgreichen Anfrage, die der Schlüssel macht; ein Schlüssel, der wochenlang ungenutzt war, ist meist sicher auszumustern.
+Die Tabelle listet die Schlüssel, die du angelegt hast — Schlüssel von Teamkolleginnen und -kollegen sind hier nicht sichtbar — jeden mit Name, einem maskierten Fragment des Geheimnisses (die ersten und letzten paar Zeichen), dem Datum unter Hinzugefügt und dem Zeitstempel der letzten Nutzung. Das Fragment reicht, um eine Zeile dem Schlüssel zuzuordnen, den du in der Hand hast, ohne ihn offenzulegen. Der Zeitstempel der letzten Nutzung aktualisiert sich bei jeder erfolgreichen Anfrage, die der Schlüssel macht; ein Schlüssel, der wochenlang ungenutzt war, ist meist sicher auszumustern.
 
-Die Filterzeile lässt dich nach Rolle, Ersteller und Ablaufzeitraum einengen. Die Standardsortierung ist „zuletzt erstellt zuerst"; die sekundäre Sortierung ist „zuletzt genutzt".
+Eine Such- oder Filterzeile gibt es nicht — eine Organisation hält eine Handvoll Schlüssel, und ein bewusstes Namensschema hält die Tabelle überschaubar.
 
 ## Einen Schlüssel rotieren
 
@@ -31,13 +31,11 @@ Zum Rotieren erstellst du zuerst den neuen Schlüssel, deployst ihn auf das Syst
 
 ## Einen Schlüssel widerrufen
 
-Klick auf die Zeile, dann auf **Widerrufen**. Ein widerrufener Schlüssel authentifiziert sofort nicht mehr — jede laufende Anfrage wird abgeschlossen, aber die nächste schlägt mit `401` fehl. Widerrufene Schlüssel bleiben für den Audit-Pfad in der Tabelle; die Zeile markiert sie als widerrufen und zeigt, wer wann widerrufen hat. Es gibt kein Undo für einen Widerruf; wenn du den falschen widerrufen hast, lege einen neuen an.
+Öffne das Zeilenmenü des Schlüssels und klick auf **Schlüssel widerrufen**, dann bestätige. Ein widerrufener Schlüssel authentifiziert sofort nicht mehr — jede laufende Anfrage wird abgeschlossen, aber die nächste schlägt mit `401` fehl — und die Zeile verschwindet aus der Tabelle. Es gibt kein Undo für einen Widerruf; wenn du den falschen widerrufen hast, lege einen neuen an.
 
 ## Bereiche und Grenzen
 
-Jeder Schlüssel trägt die Berechtigungen seiner Rolle zum Zeitpunkt jeder Anfrage, nicht zum Zeitpunkt der Erstellung. Wenn du die Berechtigungen einer Rolle über eine Governance-Richtlinie änderst, erbt jeder Schlüssel mit dieser Rolle die Änderung bei der nächsten Anfrage. Die Rate-Limits der Organisation gelten pro Schlüssel, nicht pro Organisation; ein lauter Schlüssel drosselt keinen ruhigen.
-
-Ein Schlüssel kann bei der Erstellung weiter durch eine IP-Allowlist eingeschränkt werden. Die Allowlist nimmt eine kommagetrennte Liste von CIDR-Blöcken; Anfragen außerhalb der Liste schlagen mit `403` fehl. Greif zur IP-Allowlist, wenn das aufrufende System einen stabilen Egress hat und du Tiefenverteidigung willst.
+Jeder Schlüssel trägt die Berechtigungen der Rolle seines Erstellers zum Zeitpunkt jeder Anfrage, nicht zum Zeitpunkt der Erstellung. Ändert sich die Rolle der Person — oder wird ihre Mitgliedschaft deaktiviert —, erbt jeder Schlüssel, den sie angelegt hat, die Änderung bei der nächsten Anfrage. Anfragen über die REST-API sind pro aufrufender Adresse rate-limitiert, und eine [Governance-Budgetregel](/de/platform/admin/governance/policies-and-limits) kann deckeln, was ein einzelner Schlüssel für Modelle ausgibt.
 
 ## Wo das hingehört
 
