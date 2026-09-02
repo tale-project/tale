@@ -18,13 +18,13 @@ curl -sS "https://your-host.example.com/api/v1/automations" \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
-Une réponse réussie est une page : `{ "page": [ { "name": "billing/dunning", "latest": 3, "deployedVersion": 2 } ], "isDone": true, "continueCursor": null }`. Chaque endpoint de liste répond avec cette même enveloppe — renvoie `continueCursor` en `?cursor=` pour la page suivante, et borne la taille avec `?limit=`. La seule exception est l'accès machine sous Projets : ses listes répondent plus léger — sa section montre les formes.
+Une réponse réussie est une liste nommée : `{ "automations": [ { "name": "billing/dunning", "latestVersion": 3, "deployedVersion": 2 } ] }`. La forme des listes varie selon la famille : la plupart répondent avec un tableau nommé comme celui-ci, tandis que les ressources de connaissances et de chat — contacts, produits, documents, entrées de connaissances, threads, sites web — répondent avec une enveloppe `{ "page": [...], "isDone": ..., "continueCursor": ... }`. Là où une enveloppe pagine, renvoie `continueCursor` en `?cursor=` et borne la page avec `?limit=` : les documents, entrées de connaissances, threads et sites web paginent ainsi ; les contacts et produits renvoient bien un `continueCursor` mais n'honorent pas encore `?cursor=`, si bien que seule leur première page est atteignable. L'accès machine sous Projets voyage encore plus léger — sa section montre ces formes.
 
 ## Authentification
 
 Les clés API se créent dans le produit par toute personne avec les permissions Admin ou Développeur — [Clés API](/fr/platform/admin/api-keys) décrit le panneau. Une clé s'affiche une seule fois à la création, jamais ensuite ; elle appartient à la personne qui l'a créée — chaque appel agit comme cette personne.
 
-Passe la clé en bearer token : `Authorization: Bearer <key>`. L'organisation se résout à chaque requête depuis les appartenances de l'utilisateur de la clé — une clé atteint exactement les organisations dont son utilisateur est membre, rien d'autre. Un header `X-Organization-Slug` explicite gagne toujours et est vérifié contre l'appartenance : un slug dont l'utilisateur n'est pas membre est refusé. Sans le header, un utilisateur d'une seule organisation atterrit dans celle-là ; un utilisateur de plusieurs suit l'organisation active en dernier dans le dashboard — sauf sur les routes Projets et Tâches, qui ne devinent jamais : là, une clé multi-organisations doit envoyer le header, et une requête sans lui répond **400**. Ce que la clé _peut faire_ suit le rôle de son détenteur : lire et lancer en mock demandent l'appartenance ; démarrer du travail live et modifier ce qui est déployé demande la capacité développeur. Les sections ci-dessous le précisent là où ça compte.
+Passe la clé en bearer token : `Authorization: Bearer <key>`. L'organisation se résout à chaque requête depuis les appartenances de l'utilisateur de la clé — une clé atteint exactement les organisations dont son utilisateur est membre, rien d'autre. Un header `X-Organization-Slug` explicite gagne toujours et est vérifié contre l'appartenance : un slug dont l'utilisateur n'est pas membre est refusé. Sans le header, un utilisateur d'une seule organisation atterrit dans celle-là. Un utilisateur de plusieurs suit l'organisation active en dernier dans le dashboard seulement en lecture — toute écriture (`POST`/`PATCH`/`PUT`/`DELETE`) et tout appel sur les routes Projets et Tâches doivent nommer l'organisation, et une requête multi-organisations sans le header répond **400**. Ce que la clé _peut faire_ suit le rôle de son détenteur : lire et lancer en mock demandent l'appartenance ; démarrer du travail live et modifier ce qui est déployé demande la capacité développeur. Les sections ci-dessous le précisent là où ça compte.
 
 ## Groupes d'endpoints
 
@@ -156,21 +156,21 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uplo
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d '{ "contentType": "application/pdf" }'
-# → 200 { "uploadId": "...", "url": "https://...", "method": "POST", "expiresAt": 1774... }
+# → 200 { "uploadId": "...", "url": "https://...", "method": "PUT", "s3Ref": "...", "expiresAt": 1774... }
 ```
 
-`method` nomme la voie de stockage que tu as reçue. `POST` vise le stockage de la plateforme : envoie les octets à `url` avec cette méthode, et la réponse porte `{"storageId": "..."}` — c'est ton `fileId`. `PUT` est une URL présignée pour le bucket propre de l'organisation : envoie les octets, puis lie la `s3Ref` du handoff comme `fileId`. Dans les deux cas, la liaison termine le chargement :
+Chaque blob est stocké dans le stockage objet, donc `url` est toujours un `PUT` présigné : envoie les octets là avec cette méthode, puis lie la `s3Ref` du handoff comme `fileId`. La liaison termine le chargement :
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/files" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
-  -d '{ "uploadId": "<uploadId>", "fileId": "<storageId ou s3Ref>", "folderId": "<folderId>", "fileName": "ledger-2026-q1.pdf" }'
+  -d '{ "uploadId": "<uploadId>", "fileId": "<s3Ref>", "folderId": "<folderId>", "fileName": "ledger-2026-q1.pdf" }'
 # → 201 { "file": { "id": "...", "fileName": "ledger-2026-q1.pdf", "folderId": "<folderId>", "projectId": "<projectId>" } }
 ```
 
-Le `uploadId` sert une seule fois et expire après 60 minutes — un worker qui a crashé en plein chargement demande un handoff frais au lieu de rejouer l'ancien. La politique de chargement s'applique à la liaison : un blob trop gros répond **413**, un type hors de la liste autorisée **415**.
+Le `uploadId` sert une seule fois et expire après 30 minutes — un worker qui a crashé en plein chargement demande un handoff frais au lieu de rejouer l'ancien. La politique de chargement s'applique à la liaison : un blob trop gros ou un type hors de la liste autorisée est refusé avec **400** et un code de raison.
 
 Les fichiers qui passent par cet accès sont du matériel de travail du projet, pas des connaissances de l'organisation : ils sautent l'indexation des connaissances par défaut (`skipRagIndexing` vaut `true` par défaut à la liaison ; envoie `false` pour les indexer), et ils n'apparaissent jamais sous `/api/v1/documents` — cette famille reste la surface de la base de connaissances.
 
@@ -211,7 +211,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
 # → 201 { "task": { "id": "<taskId>", "created": true } }
 ```
 
-`description`, `labels` et `externalUrl` sont optionnels. Envoie `automationSlug` quand la tâche appartient à une automatisation : elle devient l'assignee, et c'est là-dessus que s'appuie le panneau de travail du dialogue de tâche — le bouton Start, la progression de l'exécution et les questions qu'une exécution pose à l'opérateur (un re-pick ultérieur comble une attribution manquante, mais n'écrase jamais un assignee). `runWorkflowSlug` planifie dans le même appel un workflow déployé sur une tâche fraîchement créée — la réponse porte alors `executionId: null` (planifié, pas encore d'identité d'exécution) ; pour un id d'exécution à suivre, démarre explicitement :
+`description`, `labels` et `externalUrl` sont optionnels. Envoie `automationSlug` quand la tâche appartient à une automatisation : elle devient l'assignee, et c'est là-dessus que s'appuie le panneau de travail du dialogue de tâche — le bouton Start, la progression de l'exécution et les questions qu'une exécution pose à l'opérateur (un re-pick ultérieur comble une attribution manquante, mais n'écrase jamais un assignee). `runWorkflowSlug` démarre dans le même appel un workflow déployé sur une tâche fraîchement créée — l'exécution démarre en ligne, donc la réponse porte son `executionId` (l'id d'exécution à suivre), ou `executionId: null` quand le slug ne nomme aucune automatisation déployée. Démarre plutôt explicitement quand tu veux nommer le workflow dans un appel séparé :
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \
@@ -240,7 +240,7 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
 ```
 
-Et récupère les résultats. Ce que l'automatisation a rapporté se trouve dans la discussion de la tâche ; ce qu'elle a déposé arrive comme fichiers dans le dossier du trimestre — les deux se lisent par le même accès. L'endpoint de contenu streame directement un blob stocké dans Convex ; sur une organisation avec son propre stockage objet, il répond **302** vers une URL présignée de courte durée, donc suis les redirections :
+Et récupère les résultats. Ce que l'automatisation a rapporté se trouve dans la discussion de la tâche ; ce qu'elle a déposé arrive comme fichiers dans le dossier du trimestre — les deux se lisent par le même accès. L'endpoint de contenu répond **302** vers une URL présignée de courte durée pour le blob stocké, donc suis les redirections :
 
 ```bash
 curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \
@@ -265,13 +265,12 @@ Chaque réponse non-2xx porte une enveloppe plate :
 
 Branche sur le statut HTTP ; le message est pour les humains :
 
-- **400** — requête mal formée : champ requis manquant, mauvais type, corps illisible — ou une clé multi-organisations sans `X-Organization-Slug` sur les routes Projets et Tâches.
+- **400** — requête mal formée : champ requis manquant, mauvais type, corps illisible — ou une clé multi-organisations qui n'a pas nommé son organisation (requis à chaque écriture et sur toutes les routes Projets et Tâches).
 - **401** — clé API absente ou invalide.
 - **403** — la clé est valide mais le rôle de son détenteur n'a pas la capacité (exécutions live, écriture de déclencheurs, annulation).
 - **404** — la ressource n'existe pas dans ton organisation, appartient au thread de quelqu'un d'autre — ou est un projet ou une tâche que l'utilisateur de la clé ne peut pas voir : impossible à distinguer, à dessein, d'une ressource qui n'existe pas.
 - **409** — l'état refuse l'action : pas de version déployée, un sujet, un e-mail ou un `externalItemId` en double (unique par organisation — la même chaîne dans une autre organisation passe), un tour déjà en cours.
-- **413** — le corps est trop gros (le déclencheur webhook plafonne à 256 Ko), ou un fichier chargé dépasse le plafond de taille.
-- **415** — le type d'un fichier chargé sort de la liste autorisée.
+- **413** — le corps est trop gros ; seul le déclencheur webhook le renvoie, à sa limite de 256 Ko. Un fichier chargé qui dépasse la politique de taille ou de type est refusé à la liaison avec **400** et un code de raison à la place.
 - **429** — limite de débit atteinte, avec `Retry-After` en secondes entières ; voir [Limites de débit](/fr/develop/rate-limits).
 - **500** — erreur interne.
 

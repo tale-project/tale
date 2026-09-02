@@ -18,13 +18,13 @@ curl -sS "https://your-host.example.com/api/v1/automations" \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
-A successful response is a page: `{ "page": [ { "name": "billing/dunning", "latest": 3, "deployedVersion": 2 } ], "isDone": true, "continueCursor": null }`. Every list endpoint answers this same envelope — pass `continueCursor` back as `?cursor=` to fetch the next page, and cap page size with `?limit=`. The one exception is the Projects machine door, whose listings travel lighter; its section shows the shapes.
+A successful response is a named list: `{ "automations": [ { "name": "billing/dunning", "latestVersion": 3, "deployedVersion": 2 } ] }`. List shapes vary by family: most answer a named array like this one, while the knowledge and chat resources — contacts, products, documents, knowledge entries, threads, websites — answer a `{ "page": [...], "isDone": ..., "continueCursor": ... }` page envelope. Where a page envelope paginates, pass `continueCursor` back as `?cursor=` and cap the page with `?limit=`: documents, knowledge entries, threads, and websites page this way; contacts and products emit a `continueCursor` but do not yet honor `?cursor=`, so only their first page is reachable. The Projects machine door travels lighter still — its section shows those shapes.
 
 ## Authentication
 
 API keys are minted in the product by anyone with Admin or Developer permissions — [API keys](/platform/admin/api-keys) covers the panel. A key is shown once at creation and never again; it belongs to the user who minted it, and every call it makes acts as that user.
 
-Pass the key as a bearer token: `Authorization: Bearer <key>`. The organization is resolved per request from the key user's memberships — a key reaches exactly the organizations its user belongs to, nothing else. An explicit `X-Organization-Slug` header always wins and is membership-checked: a slug the user is not a member of is refused. Without the header, a single-org user lands in their one organization, and a multi-org user follows the organization last active in the dashboard — except on the Projects and Tasks routes, which never guess: there a multi-org key must send the header, and a request without it answers **400**. What the key may _do_ follows the key holder's role: reads and mock runs need membership, while starting live work and editing what is deployed needs the developer capability. Where that matters, the endpoint notes below say so.
+Pass the key as a bearer token: `Authorization: Bearer <key>`. The organization is resolved per request from the key user's memberships — a key reaches exactly the organizations its user belongs to, nothing else. An explicit `X-Organization-Slug` header always wins and is membership-checked: a slug the user is not a member of is refused. Without the header, a single-org user lands in their one organization. A multi-org user follows the organization last active in the dashboard only on reads — any write (`POST`/`PATCH`/`PUT`/`DELETE`), and every call on the Projects and Tasks routes, must name the organization, and a multi-org request without it answers **400**. What the key may _do_ follows the key holder's role: reads and mock runs need membership, while starting live work and editing what is deployed needs the developer capability. Where that matters, the endpoint notes below say so.
 
 ## Endpoint groups
 
@@ -156,21 +156,21 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uplo
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d '{ "contentType": "application/pdf" }'
-# → 200 { "uploadId": "...", "url": "https://...", "method": "POST", "expiresAt": 1774... }
+# → 200 { "uploadId": "...", "url": "https://...", "method": "PUT", "s3Ref": "...", "expiresAt": 1774... }
 ```
 
-`method` names the storage lane you got. `POST` targets platform storage: send the bytes to `url` with that method and the response answers `{"storageId": "..."}` — that is your `fileId`. `PUT` is a presigned URL for the organization's own bucket: send the bytes, then bind the handoff's `s3Ref` as `fileId`. Either way, the bind completes the upload:
+Every blob is object-store-backed, so `url` is always a presigned `PUT`: send the bytes there with that method, then bind the handoff's `s3Ref` back as `fileId`. The bind completes the upload:
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/files" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
-  -d '{ "uploadId": "<uploadId>", "fileId": "<storageId or s3Ref>", "folderId": "<folderId>", "fileName": "ledger-2026-q1.pdf" }'
+  -d '{ "uploadId": "<uploadId>", "fileId": "<s3Ref>", "folderId": "<folderId>", "fileName": "ledger-2026-q1.pdf" }'
 # → 201 { "file": { "id": "...", "fileName": "ledger-2026-q1.pdf", "folderId": "<folderId>", "projectId": "<projectId>" } }
 ```
 
-The `uploadId` is single-use and expires after 60 minutes — a worker that crashed mid-upload mints a fresh handoff instead of retrying the old one. Upload policy applies at the bind: an oversized blob answers **413**, a type outside the allowlist **415**.
+The `uploadId` is single-use and expires after 30 minutes — a worker that crashed mid-upload mints a fresh handoff instead of retrying the old one. Upload policy applies at the bind: an oversized blob or a type outside the allowlist is refused with **400** and a reason code.
 
 Files that enter through this door are project working material, not organization knowledge: they skip knowledge indexing by default (`skipRagIndexing` defaults to `true` on the bind; pass `false` to opt in), and they never appear under `/api/v1/documents` — that family stays the knowledge hub's surface.
 
@@ -211,7 +211,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
 # → 201 { "task": { "id": "<taskId>", "created": true } }
 ```
 
-`description`, `labels`, and `externalUrl` are optional. Send `automationSlug` when the task belongs to an automation: it becomes the assignee, and the task modal's work panel — the Start button, run progress, and the operator questions a run asks — keys on that ownership (a later re-pick fills a missing attribution, but never overwrites an assignee). `runWorkflowSlug` schedules a deployed workflow on a newly created task in the same call — the response then carries `executionId: null` (scheduled, no run identity yet); for a pollable run id, start explicitly:
+`description`, `labels`, and `externalUrl` are optional. Send `automationSlug` when the task belongs to an automation: it becomes the assignee, and the task modal's work panel — the Start button, run progress, and the operator questions a run asks — keys on that ownership (a later re-pick fills a missing attribution, but never overwrites an assignee). `runWorkflowSlug` starts a deployed workflow on a newly created task in the same call — the run starts inline, so the response carries its `executionId` (the run id to poll), or `executionId: null` when the slug names no deployed automation. Start explicitly instead when you want to name the workflow in a separate call:
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \
@@ -240,7 +240,7 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
 ```
 
-And fetch the results. What the automation reported lands in the task's discussion; what it filed lands as files in the quarter's folder — both readable through the door. The content endpoint streams a Convex-stored blob directly and answers a **302** to a short-lived presigned URL on an organization with its own object storage, so follow redirects:
+And fetch the results. What the automation reported lands in the task's discussion; what it filed lands as files in the quarter's folder — both readable through the door. The content endpoint answers a **302** to a short-lived presigned URL for the stored blob, so follow redirects:
 
 ```bash
 curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \
@@ -265,13 +265,12 @@ Every non-2xx response carries one flat envelope:
 
 Branch on the HTTP status; the message is for humans:
 
-- **400** — malformed request: a missing required field, a wrong type, an unparseable body — or a multi-org key without `X-Organization-Slug` on the project and task routes.
+- **400** — malformed request: a missing required field, a wrong type, an unparseable body — or a multi-org key that did not name its organization (required on every write, and on all project and task routes).
 - **401** — missing or invalid API key.
 - **403** — the key is valid but its holder's role lacks the capability (live runs, trigger writes, cancels).
 - **404** — the resource does not exist in your organization, belongs to someone else's thread, or is a project or task the key's user cannot see — deliberately indistinguishable from one that does not exist.
 - **409** — the state refuses the action: no deployed version, a duplicate topic, email, or `externalItemId` (unique per organization — the same string in another organization is fine), a turn already running.
-- **413** — the body is too large (the webhook trigger caps at 256 KB), or an uploaded file exceeds the size cap.
-- **415** — an uploaded file's type is outside the allowlist.
+- **413** — the body is too large; only the webhook trigger returns it, at its 256 KB cap. An uploaded file that breaks the size or type policy is refused at the bind with **400** and a reason code instead.
 - **429** — rate limit exceeded; the response carries `Retry-After` in whole seconds — see [Rate limits](/develop/rate-limits).
 - **500** — internal error.
 
