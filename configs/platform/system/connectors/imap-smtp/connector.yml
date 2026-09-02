@@ -148,6 +148,11 @@ actions:
       required: [to, subject]
       properties:
         to: { type: string, description: 'Recipient email address.' }
+        cc:
+          {
+            type: string,
+            description: 'Carbon-copy recipients as one address-list line (a@x, b@y).',
+          }
         subject: { type: string, description: 'Message subject.' }
         text: { type: string, description: 'Plain-text body.' }
         html: { type: string, description: 'HTML body (optional).' }
@@ -156,6 +161,21 @@ actions:
             type: string,
             description: 'Message-ID this replies to (threading).',
           }
+        references:
+          type: array
+          items: { type: string }
+          description: 'Thread Message-ID chain (root … parent) for the References header.'
+        attachments:
+          type: array
+          description: 'Files to attach; each streamed from its presigned URL.'
+          items:
+            type: object
+            required: [name, url]
+            properties:
+              name: { type: string }
+              contentType: { type: string }
+              size: { type: number }
+              url: { type: string }
         notificationSender:
           {
             type: boolean,

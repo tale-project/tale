@@ -852,23 +852,23 @@ export async function runSendMessageJob(
   }
   try {
     const { connector, action } = sendConnectorAction(payload.connectorName);
-    // The imap-smtp send input never carries attachments (0.4 parity); for
-    // the API-mail connectors, presign a GET per attachment at send time.
-    const attachmentPayloads =
-      connector === 'imap-smtp' || !payload.attachments?.length
-        ? []
-        : await Promise.all(
-            payload.attachments.map(async (att) => ({
-              name: att.fileName,
-              contentType: att.contentType,
-              size: att.size,
-              url: await getFileUrl(
-                sql,
-                { organizationId: payload.organizationId },
-                att.storageRef,
-              ),
-            })),
-          );
+    // Presign a GET per attachment at send time — for EVERY mail connector,
+    // imap-smtp included: its native now streams each part from the URL, so a
+    // reply carries the files the sender attached instead of dropping them.
+    const attachmentPayloads = !payload.attachments?.length
+      ? []
+      : await Promise.all(
+          payload.attachments.map(async (att) => ({
+            name: att.fileName,
+            contentType: att.contentType,
+            size: att.size,
+            url: await getFileUrl(
+              sql,
+              { organizationId: payload.organizationId },
+              att.storageRef,
+            ),
+          })),
+        );
     const input = buildSendInput({
       connectorName: payload.connectorName,
       to: payload.to,

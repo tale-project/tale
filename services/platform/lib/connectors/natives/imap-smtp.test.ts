@@ -515,6 +515,56 @@ describe('send', () => {
     });
   });
 
+  it('carries cc, the References chain, and attachments', async () => {
+    const transport = stubTransport();
+    await natives(transport)['imap-smtp.send'](
+      {
+        to: 'person@example.com',
+        cc: 'watcher@example.com, boss@example.com',
+        subject: 'Re: Hello',
+        html: '<p>Hi.</p>',
+        inReplyTo: '<parent@example.com>',
+        references: ['<root@example.com>', '<parent@example.com>'],
+        attachments: [
+          {
+            name: 'invoice.pdf',
+            contentType: 'application/pdf',
+            size: 1024,
+            url: 'https://blob.example.test/invoice.pdf?sig=abc',
+          },
+        ],
+      },
+      context(),
+    );
+
+    expect(transport.log.sent[0]).toMatchObject({
+      cc: 'watcher@example.com, boss@example.com',
+      references: ['<root@example.com>', '<parent@example.com>'],
+      attachments: [
+        {
+          filename: 'invoice.pdf',
+          contentType: 'application/pdf',
+          url: 'https://blob.example.test/invoice.pdf?sig=abc',
+        },
+      ],
+    });
+  });
+
+  it('refuses a line break injected through cc before opening a connection', async () => {
+    const transport = stubTransport();
+    await expect(
+      natives(transport)['imap-smtp.send'](
+        {
+          to: 'person@example.com',
+          cc: 'ok@example.com\nbcc: victim@example.com',
+          subject: 'Hi',
+        },
+        context(),
+      ),
+    ).rejects.toMatchObject({ code: 'INPUT_INVALID' });
+    expect(transport.log.smtpOpened).toBe(0);
+  });
+
   it('closes the connection when the send succeeds', async () => {
     const transport = stubTransport();
     await natives(transport)['imap-smtp.send'](
