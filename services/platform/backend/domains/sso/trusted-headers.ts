@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 import { sessionExpiryMs } from '../../../lib/shared/session-idle.ts';
 import { sanitizeInternalRedirect } from '../../../lib/shared/utils/safe-redirect.ts';
 import { resolveTeams } from '../../core/betterAuth/trusted_headers/resolve_team_names.ts';
+import { publicOrigin } from '../../core/enterprise_sso/login/public_origin.ts';
 import { signCookieValue } from '../../core/enterprise_sso/sign_cookie_value.ts';
 import { parseTeamsHeader } from '../../core/trusted_headers_auth/authenticate_handler.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -311,7 +312,10 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
 
   app.get('/authenticate', async (c) => {
     const url = new URL(c.req.url);
-    const frontendOrigin = url.origin;
+    // Public origin, not the internal request origin — this door lives
+    // behind a reverse-proxy chain by definition, and the origin decides the
+    // __Secure-/Secure cookie shape Better Auth will read back.
+    const frontendOrigin = publicOrigin(c.req.url);
     const basePath = process.env.BASE_PATH || '';
     const redirectTo = sanitizeInternalRedirect(
       url.searchParams.get('redirect'),
