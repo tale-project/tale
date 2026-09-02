@@ -2,7 +2,6 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { authorizeRls } from '../../auth/access.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -40,10 +39,21 @@ const listQuerySchema = z.object({
 });
 
 /**
- * /api/app/audit-logs — the compliance read surface. Row access follows the
- * role matrix (`authorizeRls`: every active role reads, `disabled` cannot —
- * the middleware already rejects disabled members). Export/integrity-verify
- * surfaces land with the governance tooling (ledger).
+ * /api/app/audit-logs — the compliance read surface.
+ *
+ * EVERY door here is admin/owner-only (`isAdminRole`), which is the 0.4 gate
+ * (#1505: `assertAuditLogReadAccess` on the list/detail/summary queries, the
+ * same `isAdmin` check on integrity verify/status, and the admin-only export
+ * action). The log enumerates who did what to whom across the whole org and
+ * carries the GDPR erasure trail — naming data subjects and the lawful
+ * grounds for erasing them — so a non-admin member reading it leaks other
+ * people's activity. The role matrix in `auth/access.ts` says the same thing
+ * a second time (`auditLogs` read = admin/owner), and the frontend hides the
+ * page from non-admins (`lib/permissions/ability.ts`); this is the door.
+ *
+ * The role comes from `c.get('orgMember')`, which `requireOrgMember` resolves
+ * from the SESSION when trusted-headers mode is on — the `member` row is a
+ * proxy-fed placeholder there, so a raw table read would misjudge the caller.
  */
 export function createAuditLogRoutes(deps: {
   sql: Sql;
@@ -53,8 +63,8 @@ export function createAuditLogRoutes(deps: {
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
 
   app.get('/', async (c: Context<OrgEnv>) => {
-    if (!authorizeRls(c.get('orgMember').role, 'auditLogs', 'read')) {
-      return c.json({ error: 'forbidden' }, 403);
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'FORBIDDEN' }, 403);
     }
     const query = listQuerySchema.safeParse({
       category: c.req.query('category'),
@@ -104,8 +114,8 @@ export function createAuditLogRoutes(deps: {
   });
 
   app.get('/errors', async (c: Context<OrgEnv>) => {
-    if (!authorizeRls(c.get('orgMember').role, 'auditLogs', 'read')) {
-      return c.json({ error: 'forbidden' }, 403);
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'FORBIDDEN' }, 403);
     }
     const limitParam = Number(c.req.query('limit') ?? '50');
     const cursorTs = Number(c.req.query('cursorTs') ?? Number.NaN);
@@ -128,8 +138,8 @@ export function createAuditLogRoutes(deps: {
   });
 
   app.get('/summary', async (c: Context<OrgEnv>) => {
-    if (!authorizeRls(c.get('orgMember').role, 'auditLogs', 'read')) {
-      return c.json({ error: 'forbidden' }, 403);
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'FORBIDDEN' }, 403);
     }
     const periodParam = Number(c.req.query('periodDays') ?? '7');
     return c.json(
@@ -142,8 +152,8 @@ export function createAuditLogRoutes(deps: {
   });
 
   app.get('/integrity/status', async (c: Context<OrgEnv>) => {
-    if (!authorizeRls(c.get('orgMember').role, 'auditLogs', 'read')) {
-      return c.json({ error: 'forbidden' }, 403);
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'FORBIDDEN' }, 403);
     }
     return c.json({
       status: await getIntegrityStatus(deps.sql, c.get('orgId')),
@@ -153,8 +163,8 @@ export function createAuditLogRoutes(deps: {
   /** On-demand chain walk (admin click; a READ that works, so POST-free
    * would fit — but the walk is expensive, so it stays explicit). */
   app.post('/integrity/verify', async (c: Context<OrgEnv>) => {
-    if (!authorizeRls(c.get('orgMember').role, 'auditLogs', 'read')) {
-      return c.json({ error: 'forbidden' }, 403);
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'FORBIDDEN' }, 403);
     }
     const body = z
       .object({
@@ -172,7 +182,7 @@ export function createAuditLogRoutes(deps: {
    * (the 0.4 `requestExport` {storageId, fileName, url} contract). */
   app.post('/export', async (c: Context<OrgEnv>) => {
     if (!isAdminRole(c.get('orgMember').role)) {
-      return c.json({ error: 'forbidden' }, 403);
+      return c.json({ error: 'FORBIDDEN' }, 403);
     }
     const body = z
       .object({
@@ -223,8 +233,8 @@ export function createAuditLogRoutes(deps: {
 
   /** One row (deep link / detail dialog). LAST: fixed paths win above. */
   app.get('/:logId', async (c) => {
-    if (!authorizeRls(c.get('orgMember').role, 'auditLogs', 'read')) {
-      return c.json({ error: 'forbidden' }, 403);
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json({ error: 'FORBIDDEN' }, 403);
     }
     const log = await getAuditLogById(
       deps.sql,

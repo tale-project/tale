@@ -31,13 +31,38 @@ import {
   projectConversationForView,
   type ConversationViewer,
   updateConversation,
+  viewerCanWrite,
 } from './service.ts';
 
 /**
- * /api/app/conversations — the shared Inbox surface. Reads are
- * assignment-scoped through the reused predicate (an unassigned row is
- * admin-triage only); assignment writes are admin-gated in the service.
+ * /api/app/conversations — the shared Inbox surface.
+ *
+ * Access has two independent halves, both ported from 0.4:
+ *  - WHO CAN SEE a thread — assignment privacy, per row, through the reused
+ *    `conversationAssignmentAllows` predicate (an unassigned row is
+ *    admin-triage only). Applied by `loadVisibleConversation`.
+ *  - WHO MAY CHANGE one — an editor-or-above role (`viewerCanWrite`, the 0.4
+ *    `conversations`/`conversationMessages` RLS write rule). A read-only
+ *    `member` may read the threads assigned to them but must not reply, send
+ *    outbound mail under the org's name, change status, bulk-act, or delete.
+ *  Assignment itself is stricter than both: admin-only, gated in the service.
+ *
+ * Roles come from `c.get('orgMember')` — the membership `requireOrgMember`
+ * resolves, which prefers the SESSION-carried role in trusted-headers
+ * deployments (there the `member` row is only a proxy-fed placeholder).
  */
+
+/** The write-role refusal, shaped like the service's own `ConversationError`
+ * envelope so every conversation 403 reads the same on the wire. */
+function forbidWrite<E extends OrgEnv>(c: Context<E>): Response {
+  return c.json(
+    {
+      error: 'FORBIDDEN',
+      message: 'Only editors and above can change conversations',
+    },
+    403,
+  );
+}
 
 function handleError<E extends OrgEnv>(
   c: Context<E>,
@@ -168,6 +193,7 @@ export function createConversationRoutes(deps: {
   });
 
   app.patch('/:id', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
       .object({
         contactId: z.string().max(64).optional(),
@@ -191,6 +217,7 @@ export function createConversationRoutes(deps: {
   });
 
   app.post('/:id/read', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
       await deps.sql.begin((tx) =>
@@ -205,6 +232,7 @@ export function createConversationRoutes(deps: {
   /** Append a message (an internal note or a manually logged reply — the
    * connector SEND lane is its own increment). */
   app.post('/:id/messages', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
       .object({
         content: z.string().min(1).max(200_000),
@@ -279,6 +307,7 @@ export function createConversationRoutes(deps: {
 
   /** One reply body to many conversations (cap 50, partial failure). */
   app.post('/bulk/reply', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
       .object({
         conversationIds: z.array(z.string().max(64)).min(1).max(200),
@@ -316,6 +345,7 @@ export function createConversationRoutes(deps: {
 
   /** Send a reply through the conversation's connector (undo window). */
   app.post('/:id/reply', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
       .object({
         content: z.string().min(1).max(200_000),
@@ -346,6 +376,7 @@ export function createConversationRoutes(deps: {
 
   /** Start a new outbound email conversation with a contact. */
   app.post('/compose', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const body = z
       .object({
         contactId: z.string().min(1).max(64),
@@ -386,6 +417,7 @@ export function createConversationRoutes(deps: {
 
   /** Cancel a still-queued send; hands the composer draft back. */
   app.post('/messages/:messageId/undo', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
       const result = await undoSendMessage(deps.sql, {
         organizationId: c.get('orgId'),
@@ -440,6 +472,7 @@ export function createConversationRoutes(deps: {
 
   /** Re-attempt a failed send immediately (no undo window). */
   app.post('/messages/:messageId/retry', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
       await retrySendMessage(deps.sql, {
         organizationId: c.get('orgId'),
@@ -454,6 +487,7 @@ export function createConversationRoutes(deps: {
 
   /** Remove a failed outbound bubble — the email never left. */
   app.post('/messages/:messageId/discard', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
       await discardOutboundMessage(deps.sql, {
         organizationId: c.get('orgId'),
@@ -467,6 +501,7 @@ export function createConversationRoutes(deps: {
   });
 
   app.post('/bulk/:verb', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     const verb = z
       .enum(['close', 'reopen', 'spam', 'archive', 'unarchive'])
       .safeParse(c.req.param('verb'));
@@ -500,6 +535,7 @@ export function createConversationRoutes(deps: {
   });
 
   app.delete('/:id', async (c) => {
+    if (!viewerCanWrite(c.get('orgMember').role)) return forbidWrite(c);
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
       await deleteConversation(deps.sql, c.get('orgId'), c.req.param('id'));

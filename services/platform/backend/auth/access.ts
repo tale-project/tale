@@ -77,7 +77,14 @@ const admin = ac.newRole({
   ...uniformGrants(['read', 'write']),
 });
 
-const developer = ac.newRole(uniformGrants(['read', 'write']));
+const developer = ac.newRole({
+  ...uniformGrants(['read', 'write']),
+  // Audit-log READS are admin/owner-only (#1505) — the log records every
+  // member's actions (and the GDPR erasure trail), so a non-admin reading it
+  // leaks other people's activity. WRITE stays so a developer's own actions
+  // can still append their audit rows.
+  auditLogs: ['write'],
+});
 
 // Editor: writes content-shaped resources; connector/provider/sync/workflow
 // surfaces are read-only; no settings access (frontend menu restricted).
@@ -89,11 +96,16 @@ const editor = ac.newRole({
   wfDefinitions: ['read'],
   wfExecutions: ['read'],
   governancePolicies: ['read'],
+  // Admin/owner-only reads (#1505) — see the developer row above.
+  auditLogs: ['write'],
 });
 
 const member = ac.newRole({
   ...uniformGrants(['read']),
   messageFeedback: ['read', 'write'],
+  // Admin/owner-only reads (#1505); a member's own audit rows are appended by
+  // the server, never by a client-authorized write.
+  auditLogs: [],
 });
 
 const disabled = ac.newRole(uniformGrants([]));

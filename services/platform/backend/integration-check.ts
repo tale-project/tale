@@ -10934,6 +10934,158 @@ async function checkConversations(
       remnants[0]?.count === '0',
     `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, del=${deleted.status} remnants=${remnants[0]?.count}`,
   );
+
+  // --- Write gate: editor-or-above, assignment privacy held constant ----
+  // 0.4 ran every conversation mutation through `mutationWithRLS`, whose
+  // `conversations`/`conversationMessages` rules demanded WRITE — ALL for
+  // owner/admin/developer/editor, READ_ONLY for `member`. The probe thread is
+  // ASSIGNED to the probing user, so assignment privacy passes on every call
+  // and the ONLY thing that can refuse is the role.
+  const gateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `conv-gate-${orgId.slice(0, 8)}@door.test`,
+      password: 'itest-password-1',
+      name: 'Inbox Gate Probe',
+    }),
+  });
+  const gateCookie = cookieHeaderFrom(gateSignUp);
+  const gateUser = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await gateSignUp.json());
+  const gateUserId = gateUser.success ? gateUser.data.user.id : '';
+  const gateMemberId = `m-conv-gate-${gateUserId}`;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${gateMemberId}, ${orgId}, ${gateUserId}, 'member', ${new Date()})
+  `;
+  const gated = await sql.begin(async (tx) => {
+    const id = await createConversation(tx, {
+      organizationId: orgId,
+      contactId,
+      assigneeUserId: gateUserId,
+      subject: 'Write gate probe',
+      channel: 'email',
+      direction: 'inbound',
+      connectorName: 'imap-smtp',
+    });
+    await addMessageToConversation(tx, {
+      conversationId: id,
+      organizationId: orgId,
+      sender: 'customer@inbox.test',
+      content: 'Can a read-only member answer this?',
+      isCustomer: true,
+      connectorName: 'imap-smtp',
+    });
+    return id;
+  });
+  const gateMessages = await sql<{ id: string }[]>`
+    SELECT id FROM app.conversation_messages
+    WHERE conversation_id = ${gated} LIMIT 1
+  `;
+  const gateMessageId = gateMessages[0]?.id ?? '';
+  const asGate = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/conversations${route}?orgId=${orgId}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: {
+        'content-type': 'application/json',
+        cookie: gateCookie,
+        origin: base,
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+  const writeDoors = async (): Promise<number[]> =>
+    (
+      await Promise.all([
+        asGate(`/${gated}`, { method: 'PATCH', body: { status: 'closed' } }),
+        asGate(`/${gated}/read`, { body: {} }),
+        asGate(`/${gated}/messages`, { body: { content: 'a note' } }),
+        asGate(`/${gated}/reply`, { body: { content: 'an outbound reply' } }),
+        asGate('/compose', {
+          body: {
+            contactId,
+            connectorName: 'imap-smtp',
+            subject: 'Unauthorized outbound',
+            content: 'This must never leave the building.',
+          },
+        }),
+        asGate('/bulk/reply', {
+          body: { conversationIds: [gated], content: 'bulk reply' },
+        }),
+        asGate('/bulk/close', { body: { conversationIds: [gated] } }),
+        asGate(`/messages/${gateMessageId}/undo`, { body: {} }),
+        asGate(`/messages/${gateMessageId}/retry`, { body: {} }),
+        asGate(`/messages/${gateMessageId}/discard`, { body: {} }),
+        asGate(`/${gated}`, { method: 'DELETE' }),
+      ])
+    ).map((res) => res.status);
+  const memberDoors = await writeDoors();
+  // Refused means REFUSED: the thread is untouched and nothing was appended.
+  const afterMember = await sql<{ status: string | null; msgs: string }[]>`
+    SELECT c.status,
+           (SELECT count(*)::text FROM app.conversation_messages m
+             WHERE m.conversation_id = c.id) AS msgs
+    FROM app.conversations c WHERE c.id = ${gated}
+  `;
+  // Reads are NOT gated — a member still opens the thread assigned to them.
+  const memberRead = await asGate(`/${gated}`);
+
+  // The same doors as `editor` now go THROUGH the gate. The send doors are
+  // probed with an invalid body so the proof is "the gate opened, the schema
+  // refused" (400) — no real outbound mail, no state to clean up after.
+  await sql`UPDATE "member" SET "role" = 'editor' WHERE "id" = ${gateMemberId}`;
+  const editorNote = await asGate(`/${gated}/messages`, {
+    body: { content: 'an editor may answer' },
+  });
+  const editorPatch = await asGate(`/${gated}`, {
+    method: 'PATCH',
+    body: { status: 'closed' },
+  });
+  const editorRead = await asGate(`/${gated}/read`, { body: {} });
+  const editorBulk = await asGate('/bulk/close', {
+    body: { conversationIds: [gated] },
+  });
+  const afterEditor = await sql<{ status: string | null; msgs: string }[]>`
+    SELECT c.status,
+           (SELECT count(*)::text FROM app.conversation_messages m
+             WHERE m.conversation_id = c.id) AS msgs
+    FROM app.conversations c WHERE c.id = ${gated}
+  `;
+  const editorPastGate = (
+    await Promise.all([
+      asGate(`/${gated}/reply`, { body: {} }),
+      asGate('/compose', { body: {} }),
+      asGate('/bulk/reply', { body: {} }),
+      asGate(`/messages/${gateMessageId}/undo`, { body: {} }),
+      asGate(`/messages/${gateMessageId}/retry`, { body: {} }),
+      asGate(`/messages/${gateMessageId}/discard`, { body: {} }),
+    ])
+  ).map((res) => res.status);
+  const editorDelete = await asGate(`/${gated}`, { method: 'DELETE' });
+
+  await sql`DELETE FROM app.conversations WHERE id = ${gated}`;
+  await sql`DELETE FROM "member" WHERE "id" = ${gateMemberId}`;
+  record(
+    'conversations: writes need editor-or-above, reads do not',
+    memberDoors.every((status) => status === 403) &&
+      afterMember[0]?.status === 'open' &&
+      afterMember[0]?.msgs === '1' &&
+      memberRead.status === 200 &&
+      editorNote.status === 201 &&
+      editorPatch.status === 200 &&
+      editorRead.status === 200 &&
+      editorBulk.status === 200 &&
+      afterEditor[0]?.status === 'closed' &&
+      afterEditor[0]?.msgs === '2' &&
+      editorPastGate.every((status) => status !== 403) &&
+      editorDelete.status === 204,
+    `member=${memberDoors.join(',')} (want all 403) untouched=${afterMember[0]?.status}/${afterMember[0]?.msgs}msg read=${memberRead.status} (want 200), editor note=${editorNote.status} patch=${editorPatch.status} read=${editorRead.status} bulk=${editorBulk.status} → ${afterEditor[0]?.status}/${afterEditor[0]?.msgs}msg, pastGate=${editorPastGate.join(',')} (want none 403), del=${editorDelete.status}`,
+  );
 }
 
 /**
@@ -22561,6 +22713,94 @@ async function checkAuditSurface(
     exported.success && exported.data.fileName.endsWith('.csv') && csvOk,
     `export=${exported.success ? exported.data.fileName : 'ERR'}, csv=${csvOk}`,
   );
+
+  // --- Read gate: admin/owner only, on EVERY door (#1505) ---------------
+  // The log enumerates who did what to whom and carries the GDPR erasure
+  // trail, so 0.4 gated every public audit query on `isAdmin`. One seeded
+  // user walks the doors at three roles: the same cookie, the `member` row
+  // rewritten between passes (that is where `requireOrgMember` reads from).
+  const gateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `audit-gate-${orgId.slice(0, 8)}@door.test`,
+      password: 'itest-password-1',
+      name: 'Audit Gate Probe',
+    }),
+  });
+  const gateCookie = cookieHeaderFrom(gateSignUp);
+  const gateUser = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await gateSignUp.json());
+  const gateUserId = gateUser.success ? gateUser.data.user.id : '';
+  const gateMemberId = `m-audit-gate-${gateUserId}`;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${gateMemberId}, ${orgId}, ${gateUserId}, 'member', ${new Date()})
+  `;
+  const asRole = async (role: string): Promise<number[]> => {
+    await sql`
+      UPDATE "member" SET "role" = ${role} WHERE "id" = ${gateMemberId}
+    `;
+    const doors: Promise<Response>[] = [
+      fetch(`${base}/api/app/audit-logs?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      fetch(`${base}/api/app/audit-logs/errors?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      fetch(`${base}/api/app/audit-logs/summary?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      fetch(`${base}/api/app/audit-logs/integrity/status?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      fetch(`${base}/api/app/audit-logs/block-counters?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      // The by-id detail door: a real row, so a leak would be a real leak.
+      fetch(`${base}/api/app/audit-logs/${anyId}?orgId=${orgId}`, {
+        headers: { cookie: gateCookie },
+      }),
+      fetch(`${base}/api/app/audit-logs/integrity/verify?orgId=${orgId}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: gateCookie,
+          origin: base,
+        },
+        body: JSON.stringify({ maxEntries: 10 }),
+      }),
+      fetch(`${base}/api/app/audit-logs/export?orgId=${orgId}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: gateCookie,
+          origin: base,
+        },
+        body: JSON.stringify({ format: 'json' }),
+      }),
+    ];
+    return (await Promise.all(doors)).map((res) => res.status);
+  };
+  // `member` and `developer` are both refused — 0.4's matrix gave developer
+  // auditLogs WRITE only. `admin` passes every door (the export needs the
+  // object store, so "not 403" is the gate assertion there).
+  const asMember = await asRole('member');
+  const asDeveloper = await asRole('developer');
+  const asAdmin = await asRole('admin');
+  // The detail door must refuse with 403, never leak "no such row" as a 404.
+  const detailRefused = asMember[5] === 403 && asDeveloper[5] === 403;
+  await sql`DELETE FROM "member" WHERE "id" = ${gateMemberId}`;
+  record(
+    'audit surface: every read door is admin/owner-only (#1505)',
+    asMember.every((status) => status === 403) &&
+      asDeveloper.every((status) => status === 403) &&
+      detailRefused &&
+      asAdmin.every((status) => status !== 403),
+    `member=${asMember.join(',')} developer=${asDeveloper.join(',')} (want all 403), admin=${asAdmin.join(',')} (want none 403)`,
+  );
 }
 
 /**
@@ -24940,6 +25180,105 @@ async function checkTwoFactor(
       (verifyWhileLocked.status === 429 || verifyWhileLocked.status === 400) &&
       stateAfter[0]?.count === '0',
     `blocked=${blockedRes.status}/${blockedBody.success ? blockedBody.data.enrollRequired : 'ERR'} (want true), grace=${graceBody.success ? graceBody.data.enrollRequired !== true : 'ERR'}, anchored=${anchor1.length === 1 && anchor2[0]?.graceUntil === anchor1[0]?.graceUntil}, status=${wireStatus.success ? wireStatus.data.decision : 'ERR'}, locked=${lockedUntil !== null}, verify=${verifyWhileLocked.status}, cleared=${stateAfter[0]?.count}`,
+  );
+
+  // --- Lifecycle audit: enable / regenerate / disable, and the passkey trio
+  // 0.4 audited every SUCCESSFUL second-factor lifecycle event (#1508); the
+  // port kept only the failure half, so an attacker who registered their own
+  // passkey and turned TOTP off left no trace at all. Action names are 0.4's
+  // verbatim — a rename would break any saved query grouping on them.
+  const authPost = (route: string, body: unknown): Promise<Response> =>
+    fetch(`${base}/api/auth${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify(body),
+    });
+  const lifecycleActions = async (): Promise<string[]> => {
+    const rows = await sql<{ action: string }[]>`
+      SELECT action FROM app.audit_logs
+      WHERE org_id = ${ctx.orgId} AND resource_type = 'twoFactorAuth'
+        AND resource_id = ${userId}
+      ORDER BY ts ASC
+    `;
+    return rows.map((row) => row.action);
+  };
+  const before2fa = await lifecycleActions();
+  const enableRes = await authPost('/two-factor/enable', {
+    password: 'itest-password-1',
+  });
+  const afterEnable = await lifecycleActions();
+  const regenRes = await authPost('/two-factor/generate-backup-codes', {
+    password: 'itest-password-1',
+  });
+  const afterRegen = await lifecycleActions();
+  const disableRes = await authPost('/two-factor/disable', {
+    password: 'itest-password-1',
+  });
+  const afterDisable = await lifecycleActions();
+  // Backup-code regeneration audits as a `2fa_enrolled` carrying the 0.4
+  // `backupCodesRegenerated` stamp. The endpoint needs a COMPLETED TOTP
+  // enrolment (a verified code), which a script cannot produce — so the
+  // assertion covers whichever way it answers: a 200 must leave the stamped
+  // row, and a refusal must leave NOTHING (the hook audits success only).
+  const regenRow = await sql<
+    { category: string; status: string; regenerated: boolean | null }[]
+  >`
+    SELECT category, status,
+           (metadata->>'backupCodesRegenerated')::boolean AS regenerated
+    FROM app.audit_logs
+    WHERE org_id = ${ctx.orgId} AND resource_id = ${userId}
+      AND action = '2fa_enrolled' AND metadata ? 'backupCodesRegenerated'
+    ORDER BY ts DESC LIMIT 1
+  `;
+  const regenConsistent =
+    regenRes.status === 200
+      ? regenRow.length === 1 &&
+        regenRow[0]?.regenerated === true &&
+        afterRegen.join(',') === '2fa_enrolled,2fa_enrolled'
+      : regenRow.length === 0 && afterRegen.join(',') === afterEnable.join(',');
+  // WebAuthn cannot be driven from a script, so the passkey trio is proven at
+  // the writer: the action names land as rows with the security shape.
+  const { recordTwoFactorLifecycleEvent } =
+    await import('./domains/two_factor/service.ts');
+  for (const action of [
+    'passkey_added',
+    'passkey_sign_in',
+    'passkey_removed',
+  ] as const) {
+    await recordTwoFactorLifecycleEvent(sql, {
+      userId,
+      action,
+      actorEmail: email,
+      ip: '203.0.113.9',
+      userAgent: 'itest-passkey/1.0',
+    });
+  }
+  const afterPasskeys = await lifecycleActions();
+  // Every lifecycle row carries the 0.4 security shape, not just the name.
+  const shapes = await sql<{ category: string; status: string }[]>`
+    SELECT DISTINCT category, status FROM app.audit_logs
+    WHERE org_id = ${ctx.orgId} AND resource_type = 'twoFactorAuth'
+      AND resource_id = ${userId}
+  `;
+  // Leave 2FA OFF: later lanes sign this account in with password alone.
+  const enrolled = await sql<{ enabled: boolean | null }[]>`
+    SELECT "twoFactorEnabled" AS enabled FROM "user" WHERE "id" = ${userId}
+  `;
+  record(
+    'two-factor: successful lifecycle events audit (#1508 action names)',
+    before2fa.length === 0 &&
+      enableRes.status === 200 &&
+      afterEnable.join(',') === '2fa_enrolled' &&
+      regenConsistent &&
+      disableRes.status === 200 &&
+      afterDisable.join(',') === `${afterRegen.join(',')},2fa_disabled` &&
+      afterPasskeys.join(',') ===
+        `${afterDisable.join(',')},passkey_added,passkey_sign_in,passkey_removed` &&
+      shapes.length === 1 &&
+      shapes[0]?.category === 'security' &&
+      shapes[0]?.status === 'success' &&
+      enrolled[0]?.enabled !== true,
+    `before=${before2fa.length}, enable=${enableRes.status} regen=${regenRes.status} (stamped=${regenRow.length}) disable=${disableRes.status}, trail=${afterPasskeys.join(',')}, shape=${shapes.map((s) => `${s.category}/${s.status}`).join('|')}, enabledLeftOn=${enrolled[0]?.enabled}`,
   );
 }
 
