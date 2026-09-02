@@ -764,6 +764,17 @@ async function bindReplacement(
   if (shouldIndex) {
     await addJobInTx(tx, 'rag.index_file', { fileId: fileMetadataId });
   }
+  if (previousFileRef !== null && previousFileRef !== intent.finalRef) {
+    // The corpus is keyed by blob ref, so the replaced version's rows must
+    // go dark now that the ref is history — otherwise the superseded
+    // content keeps answering RAG queries as if current. Bytes stay (the
+    // retained snapshot in `history_files` holds them); the durable job
+    // keeps network I/O out of this transaction and retries on failure.
+    await addJobInTx(tx, 'knowledge.release_refs', {
+      organizationId: intent.organizationId,
+      refs: [previousFileRef],
+    });
+  }
   await createAuditLog(tx, {
     organizationId: auth.organizationId,
     actorId: intent.actorUserId,
