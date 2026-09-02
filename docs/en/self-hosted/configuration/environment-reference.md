@@ -125,6 +125,8 @@ Optional toggles for features not enabled by default. Each flag turns one featur
 | Name                            | Default | Description                                                                                                                     |
 | ------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `TRUSTED_HEADERS_ENABLED`       | `false` | Enables the trusted-headers auth mode (identity supplied by the reverse proxy).                                                 |
+| `TRUSTED_HEADERS_INTERNAL_SECRET` | unset | Shared secret the authenticating proxy must send with every trusted-headers request. Required when the mode is enabled — the endpoint refuses to run without it. |
+| `TRUSTED_SECRET_HEADER`         | `Remote-Internal-Secret` | Name of the request header carrying the internal secret.                                                                       |
 | `FILE_EVENTS_ENABLED`           | `false` | Enables file-watching events for the OneDrive-sync connector.                                                                   |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Comma-separated email allowlist of operators allowed to edit deployment data residency. Empty/unset = read-only for all admins. |
 

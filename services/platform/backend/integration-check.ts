@@ -7460,17 +7460,20 @@ async function checkScim(
  */
 async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
   process.env.TRUSTED_HEADERS_ENABLED = 'true';
+  process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'itest-trusted-door';
   try {
     const authWith = async (
       role: string,
       cookie?: string,
-    ): Promise<{ cookie: string; status: number }> => {
+      secret: string | null = 'itest-trusted-door',
+    ): Promise<{ cookie: string; status: number; body: string }> => {
       const res = await fetch(`${base}/api/trusted-headers/authenticate`, {
         headers: {
           'Remote-Email': 'proxy.user@door.test',
           'Remote-Name': 'Proxy User',
           'Remote-Role': role,
           'Remote-Teams': 't-fin:Finance, t-ops:Operations',
+          ...(secret !== null ? { 'Remote-Internal-Secret': secret } : {}),
           ...(cookie !== undefined ? { cookie } : {}),
         },
       });
@@ -7478,6 +7481,7 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
       return {
         cookie: setCookie.split(';')[0] ?? '',
         status: res.status,
+        body: await res.text(),
       };
     };
 
@@ -7489,6 +7493,18 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
       const text = await res.text();
       process.env.TRUSTED_HEADERS_ENABLED = 'true';
       return text.includes('not enabled');
+    })();
+
+    // The spoofing guard: the identity headers alone are forgeable, so the
+    // door opens only for the proxy-injected internal secret — a missing or
+    // wrong one mints NOTHING, and an unset env secret refuses the mode.
+    const noSecret = await authWith('member', undefined, null);
+    const wrongSecret = await authWith('member', undefined, 'not-the-secret');
+    const unconfigured = await (async () => {
+      delete process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
+      const res = await authWith('member');
+      process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'itest-trusted-door';
+      return res;
     })();
 
     const first = await authWith('member');
@@ -7544,6 +7560,12 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
     record(
       'trusted-headers auth (proxy hand-off + session role override)',
       disabledProbe &&
+        noSecret.cookie === '' &&
+        noSecret.body.includes('Missing required header') &&
+        wrongSecret.cookie === '' &&
+        wrongSecret.body.includes('Failed to complete login') &&
+        unconfigured.cookie === '' &&
+        unconfigured.body.includes('Server configuration error') &&
         first.status === 200 &&
         first.cookie.includes('better-auth.session_token=') &&
         session1.success &&
@@ -7555,10 +7577,11 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
         allowed.status === 200 &&
         sessionsAfter.length === 1 &&
         sessionsAfter[0]?.trustedRole === 'admin',
-      `disabledGate=${disabledProbe}, auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${(rows[0]?.trustedTeams ?? '').includes('Finance')}, member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
+      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${(rows[0]?.trustedTeams ?? '').includes('Finance')}, member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
     );
   } finally {
     delete process.env.TRUSTED_HEADERS_ENABLED;
+    delete process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
   }
 }
 

@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 
@@ -29,6 +31,12 @@ export interface TrustedHeadersAuthResult {
   trustedHeadersChanged: boolean;
 }
 
+function secretsMatch(supplied: string, required: string): boolean {
+  const a = Buffer.from(supplied);
+  const b = Buffer.from(required);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export async function trustedHeadersAuthenticate(
   sql: Sql,
   args: {
@@ -36,14 +44,28 @@ export async function trustedHeadersAuthenticate(
     name: string;
     role: string;
     teams: { id: string; name: string }[] | null;
+    /**
+     * The CALLER-SUPPLIED internal secret (the request header the trusted
+     * proxy chain injects), compared against
+     * `TRUSTED_HEADERS_INTERNAL_SECRET`. It used to be read FROM that env var
+     * at the call site, so the guard compared the secret against itself and
+     * could never fail — anyone reaching the endpoint minted a session as
+     * whoever `Remote-Email` named. Fail closed: no env secret, no door.
+     */
+    secret: string | undefined;
     existingSessionToken?: string;
     ipAddress?: string;
     userAgent?: string;
-    secret?: string;
   },
 ): Promise<TrustedHeadersAuthResult> {
   const requiredSecret = process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
-  if (requiredSecret && args.secret !== requiredSecret) {
+  if (!requiredSecret) {
+    throw new Error(
+      'TRUSTED_HEADERS_INTERNAL_SECRET is not configured — trusted-headers ' +
+        'authentication refuses to run without it',
+    );
+  }
+  if (args.secret === undefined || !secretsMatch(args.secret, requiredSecret)) {
     throw new Error(
       'Invalid internal secret for trusted headers authentication',
     );
@@ -328,6 +350,31 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
       );
     }
 
+    // The internal secret is what separates "came through the authenticating
+    // proxy" from "reached the endpoint directly" — the identity headers
+    // alone are forgeable by anyone who can speak to the backend. Enabled
+    // without a secret is a misconfiguration, not a weaker mode.
+    if (!process.env.TRUSTED_HEADERS_INTERNAL_SECRET) {
+      console.error(
+        '[Trusted Headers] TRUSTED_HEADERS_ENABLED is true but ' +
+          'TRUSTED_HEADERS_INTERNAL_SECRET is not set. Set the secret and ' +
+          'configure the authenticating proxy to send it in the ' +
+          `"${headerName('TRUSTED_SECRET_HEADER', 'Remote-Internal-Secret')}" header.`,
+      );
+      return c.html(errorPage(basePath, 'Server configuration error'));
+    }
+
+    const secretHeader = headerName(
+      'TRUSTED_SECRET_HEADER',
+      'Remote-Internal-Secret',
+    );
+    const suppliedSecret = c.req.header(secretHeader);
+    if (suppliedSecret === undefined) {
+      return c.html(
+        errorPage(basePath, `Missing required header: ${secretHeader}`),
+      );
+    }
+
     const emailHeader = headerName('TRUSTED_EMAIL_HEADER', 'Remote-Email');
     const email = c.req.header(emailHeader);
     if (!email) {
@@ -373,12 +420,10 @@ export function createTrustedHeadersRoutes(deps: { sql: Sql }): Hono {
         name,
         role,
         teams,
+        secret: suppliedSecret,
         ...(existingSessionToken !== undefined ? { existingSessionToken } : {}),
         ...(ip !== undefined ? { ipAddress: ip } : {}),
         ...(userAgent !== undefined ? { userAgent } : {}),
-        ...(process.env.TRUSTED_HEADERS_INTERNAL_SECRET !== undefined
-          ? { secret: process.env.TRUSTED_HEADERS_INTERNAL_SECRET }
-          : {}),
       });
 
       const signedToken = await signCookieValue(result.sessionToken, secret);
