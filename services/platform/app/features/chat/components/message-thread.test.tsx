@@ -97,7 +97,7 @@ describe('MessageThread', () => {
   it('names an attachment part', () => {
     render(<MessageThread messages={toSettledItems(CONVERSATION)} />);
 
-    expect(screen.getByText('Attachment: report.pdf')).toBeInTheDocument();
+    expect(screen.getByText('report.pdf')).toBeInTheDocument();
   });
 
   it('marks an undecided approval as pending and a decided one by its decision', () => {

@@ -1346,7 +1346,6 @@ chat:
     waitingInput: En attente de ta réponse
     waitingOn: En attente de {detail}
   parts:
-    attachment: 'Pièce jointe : {name}'
     toolCall: '{tool} appelé'
     toolResult: Résultat de {tool}
     toolResultFailed: Échec
@@ -4320,6 +4319,9 @@ metadata:
   apiDocs:
     title: Documentation API
     description: Explore l'API Tale avec la documentation interactive.
+  convexDashboard:
+    title: Convex Dashboard
+    description: Gère le backend Convex.
   knowledge:
     title: Connaissances
     description: Gère ta base de connaissances pour les agents IA.

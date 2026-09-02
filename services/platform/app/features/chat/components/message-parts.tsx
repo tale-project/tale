@@ -16,14 +16,11 @@ import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import {
-  MessageCircleQuestion,
-  Paperclip,
-  ShieldQuestion,
-  Wrench,
-} from 'lucide-react';
+import { MessageCircleQuestion, ShieldQuestion, Wrench } from 'lucide-react';
 import { useState, type ComponentType, type ReactNode } from 'react';
 
+import { AttachmentFileChip } from '@/app/features/shared/files/attachment-file-chip';
+import { formatFileSize } from '@/app/features/shared/files/file-displays';
 import { useFileUrls } from '@/app/features/shared/files/use-file-url';
 import { ImagePreviewDialog } from '@/app/features/shared/markdown/image-preview-dialog';
 import { MarkdownContent } from '@/app/features/shared/markdown/markdown-renderer';
@@ -177,13 +174,15 @@ export function MessageParts({
                     }
                     if (typeof url !== 'string' || url.length === 0) {
                       return (
-                        <PartRow
+                        <AttachmentFileChip
                           key={`image:${imagePart.fileId}:${imageIndex}`}
-                          icon={Paperclip}
-                          label={t('parts.attachment', {
-                            name: imagePart.name,
-                          })}
-                          detail={imagePart.mediaType}
+                          fileName={imagePart.name}
+                          contentType={imagePart.mediaType}
+                          detail={
+                            imagePart.sizeBytes !== undefined
+                              ? formatFileSize(imagePart.sizeBytes)
+                              : undefined
+                          }
                         />
                       );
                     }
@@ -212,11 +211,15 @@ export function MessageParts({
               );
             }
             return (
-              <PartRow
+              <AttachmentFileChip
                 key={`attachment:${part.name}:${index}`}
-                icon={Paperclip}
-                label={t('parts.attachment', { name: part.name })}
-                detail={part.mediaType}
+                fileName={part.name}
+                contentType={part.mediaType}
+                detail={
+                  part.sizeBytes !== undefined
+                    ? formatFileSize(part.sizeBytes)
+                    : undefined
+                }
               />
             );
           }
