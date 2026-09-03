@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { toJson } from '../../db/sql.ts';
 import {
   listActiveCredentials,
+  patchCredentialConfigInternal,
   patchMailSyncWatermarks,
   resolveConnectorCredential,
 } from '../connector_credentials/service.ts';
@@ -588,6 +589,12 @@ export function conversationShimHandlers(
         }),
       );
     },
+    /**
+     * Two callers, two patches: the watermark advance names the since-fields,
+     * the IMAP fromAddress heal names `config`. Each lands only when named —
+     * `config` used to fall through `.loose()` and was silently DROPPED, so
+     * the heal logged "mirrored" every pass and never wrote.
+     */
     'connector_credentials/mutations:patchCredentialInternal': async (
       raw: unknown,
     ) => {
@@ -596,22 +603,38 @@ export function conversationShimHandlers(
           credentialId: z.string(),
           mailSyncInboundSince: z.number().optional(),
           mailSyncOutboundSince: z.number().optional(),
+          config: z
+            .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+            .optional(),
         })
         .loose()
         .parse(raw);
-      await patchMailSyncWatermarks(
-        sql,
-        args.organizationId,
-        args.credentialId,
-        {
-          ...(args.mailSyncInboundSince !== undefined
-            ? { inboundSince: args.mailSyncInboundSince }
-            : {}),
-          ...(args.mailSyncOutboundSince !== undefined
-            ? { outboundSince: args.mailSyncOutboundSince }
-            : {}),
-        },
-      );
+      if (args.config !== undefined) {
+        await patchCredentialConfigInternal(
+          sql,
+          args.organizationId,
+          args.credentialId,
+          args.config,
+        );
+      }
+      if (
+        args.mailSyncInboundSince !== undefined ||
+        args.mailSyncOutboundSince !== undefined
+      ) {
+        await patchMailSyncWatermarks(
+          sql,
+          args.organizationId,
+          args.credentialId,
+          {
+            ...(args.mailSyncInboundSince !== undefined
+              ? { inboundSince: args.mailSyncInboundSince }
+              : {}),
+            ...(args.mailSyncOutboundSince !== undefined
+              ? { outboundSince: args.mailSyncOutboundSince }
+              : {}),
+          },
+        );
+      }
       return null;
     },
 

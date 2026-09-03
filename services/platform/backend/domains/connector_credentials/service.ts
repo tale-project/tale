@@ -885,3 +885,24 @@ export async function patchMailSyncWatermarks(
     WHERE id = ${credentialId} AND org_id = ${organizationId}
   `;
 }
+
+/**
+ * The mailbox sync's config heal (the IMAP `fromAddress` mirror): the caller
+ * derived the whole config from the row's own resolved config plus a login
+ * address it validated, so it is written as given — a system seam, not the
+ * user door, hence no per-field normalization — scoped to the org like the
+ * watermark patch.
+ */
+export async function patchCredentialConfigInternal(
+  sql: Sql,
+  organizationId: string,
+  credentialId: string,
+  config: Record<string, string | number | boolean>,
+): Promise<void> {
+  await sql`
+    UPDATE app.connector_credentials SET
+      config = ${sql.json(toJson(config))},
+      updated_at_ms = ${Date.now()}
+    WHERE id = ${credentialId} AND org_id = ${organizationId}
+  `;
+}

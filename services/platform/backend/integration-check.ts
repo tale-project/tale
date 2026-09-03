@@ -15112,6 +15112,76 @@ async function checkUndatedMailIngest(
 }
 
 /**
+ * A heal that says it healed must have written. An IMAP credential whose
+ * public `config.fromAddress` mirror is missing (a pre-mirror row, or a config
+ * edit that dropped the hidden field) is healed by the mailbox sync from the
+ * login username — through the same `patchCredentialInternal` shim the
+ * watermark advance uses, which used to drop `config` on the floor while the
+ * sync logged "mirrored" every pass. Real credential, real decrypt, real row.
+ */
+async function checkImapFromAddressHeal(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { runConnectorAction } =
+    await import('./domains/connectors/service.ts');
+  const defaults = await sql<{ id: string }[]>`
+    SELECT id FROM app.connector_credentials
+    WHERE org_id = ${orgId} AND connector_slug = 'imap-smtp'
+      AND is_default = true AND status = 'active'
+    LIMIT 1
+  `;
+  const credentialId = defaults[0]?.id ?? '';
+  // Drift the row: drop the mirror the create door wrote.
+  await sql`
+    UPDATE app.connector_credentials
+    SET config = coalesce(config, '{}'::jsonb) - 'fromAddress'
+    WHERE id = ${credentialId}
+  `;
+  const fromBefore = await sql<{ fromAddress: string | null }[]>`
+    SELECT config->>'fromAddress' AS "fromAddress"
+    FROM app.connector_credentials WHERE id = ${credentialId}
+  `;
+
+  // An empty mailbox: the pass has nothing to ingest, only the heal to run.
+  setMailTransportForTesting({
+    openImap: async () => ({
+      listMessages: async () => [],
+      getMessage: async () => null,
+      close: async () => {},
+    }),
+    openSmtp: async () => {
+      throw new Error('the heal check sends nothing');
+    },
+  });
+  try {
+    const synced = await runConnectorAction(sql, {
+      organizationId: orgId,
+      connector: 'conversation',
+      action: 'sync_mailbox',
+      input: { connectorSlug: 'imap-smtp', includeSent: false },
+      mode: 'live',
+      caller: { kind: 'system', reason: 'itest fromAddress heal' },
+    });
+    const fromAfter = await sql<{ fromAddress: string | null }[]>`
+      SELECT config->>'fromAddress' AS "fromAddress"
+      FROM app.connector_credentials WHERE id = ${credentialId}
+    `;
+    record(
+      'imap fromAddress heal persists through the credential shim',
+      credentialId !== '' &&
+        fromBefore[0]?.fromAddress === null &&
+        synced.status === 'ok' &&
+        fromAfter[0]?.fromAddress === 'inbox@door.test',
+      `credential=${credentialId !== ''} stripped=${fromBefore[0]?.fromAddress ?? 'null'} sync=${synced.status} healed=${fromAfter[0]?.fromAddress ?? 'null'} (want inbox@door.test)`,
+    );
+  } finally {
+    setMailTransportForTesting(DEFAULT_MAIL_FAKE);
+  }
+}
+
+/**
  * The outbound send surface over the connector door: a reply queues a row
  * and schedules the send one (shortened) undo window out; the worker's job
  * re-checks the row, delivers through the fake SMTP, and stamps the
@@ -31919,6 +31989,7 @@ async function main(): Promise<void> {
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
     await checkUndatedMailIngest(sql, authCtx);
+    await checkImapFromAddressHeal(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);
     await checkNotificationEmailSink(sql, authCtx);
     await checkChatConversationSearchLeg(sql, authCtx);
