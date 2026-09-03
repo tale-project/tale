@@ -16,6 +16,33 @@ export function emailEpochMs(date: unknown): number | null {
 }
 
 /**
+ * The instant stamps one message writer carries for an email — `sentAt`, plus
+ * `deliveredAt` for a delivered message — or NEITHER when the message carries
+ * no readable date. Absent, never NaN: the ingest shim validates stamps as
+ * numbers, so a NaN stamp rejects the write and one undated message wedges the
+ * whole mailbox pass behind it (the watermark never advances past it). Without
+ * a stamp the row falls back to its own creation time in the display order.
+ */
+export function emailStamps(
+  date: unknown,
+  delivered: boolean,
+): { sentAt?: number; deliveredAt?: number } {
+  const ms = emailEpochMs(date);
+  if (ms === null) return {};
+  return delivered ? { sentAt: ms, deliveredAt: ms } : { sentAt: ms };
+}
+
+/** Oldest-first order for an ingest batch (the root that anchors threading
+ * lands first). An undated email sorts first rather than poisoning the
+ * comparator with NaN. */
+export function byEmailDateAscending(
+  a: { date?: unknown },
+  b: { date?: unknown },
+): number {
+  return (emailEpochMs(a.date) ?? 0) - (emailEpochMs(b.date) ?? 0);
+}
+
+/**
  * The newest instant among a set of emails — the tip the sync watermark may
  * advance to. `null` when none of them carry a readable date.
  */

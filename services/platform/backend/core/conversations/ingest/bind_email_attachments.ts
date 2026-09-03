@@ -38,6 +38,7 @@ import { isRecord } from '../../../../lib/utils/type-utils';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import type { Id } from '../../lib/rows';
+import { emailEpochMs } from './email_epoch';
 import type { EmailType } from './types';
 
 /** One ingested email and the conversation it landed on. */
@@ -80,8 +81,7 @@ export async function bindEmailAttachments(
     // The mail's own date, so importing old mail sorts by when it was sent.
     // An unparseable or absent date leaves the stamp to the mutation, which
     // falls back to the row's creation time.
-    const parsed = email.date === undefined ? NaN : Date.parse(email.date);
-    const receivedAt = Number.isFinite(parsed) ? parsed : undefined;
+    const receivedAt = emailEpochMs(email.date) ?? undefined;
     for (const storageId of storedRefs(email)) {
       try {
         const outcome = await ctx.runMutation(

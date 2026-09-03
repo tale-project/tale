@@ -13,7 +13,7 @@ import { buildInitialMessage } from './build_initial_message';
 import { checkConversationExists } from './check_conversation_exists';
 import { checkMessageExists } from './check_message_exists';
 import { MAX_EMAILS_PER_BATCH, NO_SUBJECT } from './constants';
-import { tipOfEmails } from './email_epoch';
+import { byEmailDateAscending, tipOfEmails } from './email_epoch';
 import { findOrCreateContactFromEmail } from './find_or_create_contact_from_email';
 import { normalizeEmails } from './normalize_email';
 import { normalizeExternalMessageId } from './normalize_external_message_id';
@@ -104,9 +104,7 @@ export async function createConversationFromEmail(
     };
   }
 
-  emailsArray.sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-  );
+  emailsArray.sort(byEmailDateAscending);
 
   if (emailsArray.length > MAX_EMAILS_PER_BATCH) {
     debugLog(

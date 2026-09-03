@@ -3,11 +3,13 @@ import { internal } from '../../lib/handler_names';
 import type { Id } from '../../lib/rows';
 import { attachmentsForMetadata } from './attachments_for_metadata';
 import { buildEmailMetadata } from './build_email_metadata';
+import { emailStamps } from './email_epoch';
 import { normalizeExternalMessageId } from './normalize_external_message_id';
 import type { EmailType } from './types';
 
 /**
- * Add a message to an existing conversation
+ * Add a message to an existing conversation. The instant stamps ride
+ * {@link emailStamps}: absent, never NaN, for a message with no readable date.
  */
 export async function addMessageToConversation(
   ctx: ActionCtx,
@@ -18,7 +20,6 @@ export async function addMessageToConversation(
   status: 'delivered' | 'sent',
   connectorName?: string,
 ) {
-  const emailTimestamp = new Date(email.date).getTime();
   const attachments = attachmentsForMetadata(email.attachments);
 
   await ctx.runMutation(
@@ -32,8 +33,7 @@ export async function addMessageToConversation(
       status,
       externalMessageId: normalizeExternalMessageId(email.messageId),
       metadata: buildEmailMetadata(email),
-      sentAt: emailTimestamp,
-      deliveredAt: status === 'delivered' ? emailTimestamp : undefined,
+      ...emailStamps(email.date, status === 'delivered'),
       ...(attachments?.length ? { attachments } : {}),
       ...(connectorName ? { connectorName } : {}),
     },

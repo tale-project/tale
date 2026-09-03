@@ -14933,6 +14933,115 @@ async function checkMailboxSyncLane(
 }
 
 /**
+ * Mail without a readable Date must still land. Gmail hands back `internalDate`
+ * (epoch ms as a STRING) when a message carries no Date header, and a malformed
+ * message may carry no readable instant at all. The writers used to stamp
+ * `new Date(...)` → NaN, the shim's number validator rejected the write, and
+ * the whole pass — and its watermark — wedged on that one message forever.
+ * Driven through the REAL shim (the same handlers the sync native runs on).
+ */
+async function checkUndatedMailIngest(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { conversationShimHandlers } =
+    await import('./domains/conversations/shim.ts');
+  const { createCtxShim } = await import('./lib/ctx-shim.ts');
+  const { createConversationFromEmail } =
+    await import('./core/conversations/ingest/create_conversation_from_email.ts');
+  const handlers = conversationShimHandlers(sql, () => {
+    throw new Error('the undated-mail check dispatches no connector calls');
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 module on the real shim
+  const shim = createCtxShim(handlers) as unknown as Parameters<
+    typeof createConversationFromEmail
+  >[0];
+
+  const internalDate = Date.now() - 600_000;
+  const gmailRaw = (
+    id: string,
+    headers: Record<string, string>,
+    internalDateMs?: number,
+  ) => ({
+    id,
+    threadId: `t-${id}`,
+    labelIds: ['INBOX'],
+    ...(internalDateMs !== undefined
+      ? { internalDate: String(internalDateMs) }
+      : {}),
+    payload: {
+      mimeType: 'text/plain',
+      headers: Object.entries(headers).map(([name, value]) => ({
+        name,
+        value,
+      })),
+      body: { data: Buffer.from(`body of ${id}`).toString('base64url') },
+    },
+  });
+  const outcome = await createConversationFromEmail(shim, {
+    organizationId: orgId,
+    connectorName: 'gmail',
+    emails: [
+      gmailRaw(
+        'g-dated',
+        {
+          From: 'Dated Sender <dated@ext.test>',
+          To: 'inbox@door.test',
+          Subject: 'Dated',
+          Date: new Date(internalDate - 60_000).toUTCString(),
+          'Message-ID': '<g-dated@ext.test>',
+        },
+        internalDate - 60_000,
+      ),
+      gmailRaw(
+        'g-nodate',
+        {
+          From: 'No Date <nodate@ext.test>',
+          To: 'inbox@door.test',
+          Subject: 'No Date header',
+          'Message-ID': '<g-nodate@ext.test>',
+        },
+        internalDate,
+      ),
+      gmailRaw('g-nothing', {
+        From: 'Nothing <nothing@ext.test>',
+        To: 'inbox@door.test',
+        Subject: 'No readable instant at all',
+        'Message-ID': '<g-nothing@ext.test>',
+      }),
+    ],
+  });
+  const rows = await sql<
+    {
+      externalMessageId: string | null;
+      sentAt: number | null;
+      deliveryState: string;
+    }[]
+  >`
+    SELECT external_message_id AS "externalMessageId",
+           sent_at_ms::float8 AS "sentAt", delivery_state AS "deliveryState"
+    FROM app.conversation_messages
+    WHERE org_id = ${orgId}
+      AND external_message_id IN ('g-dated@ext.test', 'g-nodate@ext.test',
+                                  'g-nothing@ext.test')
+  `;
+  const byId = new Map(rows.map((row) => [row.externalMessageId, row]));
+  const noDate = byId.get('g-nodate@ext.test');
+  const nothing = byId.get('g-nothing@ext.test');
+  record(
+    'mail ingest: a message without a readable Date lands instead of wedging the pass',
+    outcome.processedCount === 3 &&
+      rows.length === 3 &&
+      noDate?.sentAt === internalDate &&
+      nothing?.sentAt === null &&
+      nothing.deliveryState === 'delivered' &&
+      outcome.ingestedTip === internalDate,
+    `processed=${outcome.processedCount} (want 3) rows=${rows.length} internalDateStamped=${noDate?.sentAt === internalDate} undatedStamp=${nothing?.sentAt ?? 'null'} (want null) state=${nothing?.deliveryState} tip=${outcome.ingestedTip === internalDate}`,
+  );
+}
+
+/**
  * The outbound send surface over the connector door: a reply queues a row
  * and schedules the send one (shortened) undo window out; the worker's job
  * re-checks the row, delivers through the fake SMTP, and stamps the
@@ -31667,6 +31776,7 @@ async function main(): Promise<void> {
     await checkWorkflowTurnReattach(sql, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
+    await checkUndatedMailIngest(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);
     await checkNotificationEmailSink(sql, authCtx);
     await checkChatConversationSearchLeg(sql, authCtx);
