@@ -878,12 +878,20 @@ export async function beginRunInTx(
   }
 }
 
-export async function cancelRun(
-  sql: Sql,
+/**
+ * The transactional body of {@link cancelRun} — for callers already INSIDE a
+ * transaction (the task cancel door flips the task's status in the same
+ * serializable tx, so a refused flip rolls the run cancel back with it). A
+ * transaction-scoped postgres.js handle carries no `begin` at runtime (only
+ * the root instance does), so passing a tx into the wrapper below would
+ * throw — this is the seam those callers use.
+ */
+export async function cancelRunInTx(
+  tx: TransactionSql,
   organizationId: string,
   runId: string,
 ): Promise<{ cancelled: boolean }> {
-  return sql.begin(async (tx) => {
+  {
     const now = Date.now();
     const rows = await tx<
       { name: string; version: number; mode: string; startedBy: string }[]
@@ -917,7 +925,15 @@ export async function cancelRun(
     await stopRunSandboxSessions(tx, organizationId, runId);
     await emitRunHint(tx, organizationId, runId);
     return { cancelled: true };
-  });
+  }
+}
+
+export async function cancelRun(
+  sql: Sql,
+  organizationId: string,
+  runId: string,
+): Promise<{ cancelled: boolean }> {
+  return sql.begin((tx) => cancelRunInTx(tx, organizationId, runId));
 }
 
 // ----------------------------------------------- the stepper's run contract
