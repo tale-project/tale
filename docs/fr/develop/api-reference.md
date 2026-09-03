@@ -159,7 +159,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uplo
 # → 200 { "uploadId": "...", "url": "https://...", "method": "PUT", "s3Ref": "...", "expiresAt": 1774... }
 ```
 
-Chaque blob est stocké dans le stockage objet, donc `url` est toujours un `PUT` présigné : envoie les octets là avec cette méthode, puis lie la `s3Ref` du handoff comme `fileId`. La liaison termine le chargement :
+Chaque blob est stocké dans le stockage objet, donc `url` est toujours un `PUT` présigné : envoie les octets là avec cette méthode, avec un en-tête `Content-Type` strictement identique au `contentType` déclaré au moment du mint — le type déclaré est signé dans l'URL, le bucket refuse donc un PUT qui en porte un autre (sans `contentType` au mint, le PUT n'impose aucun en-tête) — puis lie la `s3Ref` du handoff comme `fileId`. La liaison termine le chargement :
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/files" \

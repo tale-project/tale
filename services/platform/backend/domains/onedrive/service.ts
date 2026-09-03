@@ -12,7 +12,6 @@ import {
 import { extractExtension } from '../../core/documents/extract_extension.ts';
 import { extractTenantId } from '../../core/enterprise_sso/entra_id/constants.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
-import { deleteKnowledgeDocument } from '../../core/legacy/knowledge_delete.ts';
 import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
 import type { FileItem } from '../../core/onedrive/list_folder_contents.ts';
@@ -888,21 +887,20 @@ export function createSyncImportDeps(
         WHERE id = ${documentId}
       `;
 
-      // The replaced blob's corpus chunks are keyed by the OLD ref — purge
-      // them best-effort (the 0.4 `reindexDocumentInRag` old-entry purge);
-      // the new blob indexes via the schedule dep below.
+      // The replaced blob's corpus chunks are keyed by the OLD ref — release
+      // them through the shared refcounted seam (the 0.4
+      // `reindexDocumentInRag` old-entry purge, made durable: a swallowed
+      // failure used to strand the stale rows forever). The ref sits in
+      // `history_files` now, so the job de-indexes the corpus and keeps the
+      // bytes; the new blob indexes via the schedule dep below.
       if (blobReplaced && doc.fileRef !== null) {
-        const orgSlug = await resolveOrgSlug(sql, organizationId);
-        if (orgSlug) {
-          try {
-            await deleteKnowledgeDocument({ orgSlug, fileId: doc.fileRef });
-          } catch (error) {
-            console.warn(
-              `[${adapter.sourceProvider}] corpus purge failed for replaced blob ${doc.fileRef}:`,
-              error instanceof Error ? error.message : error,
-            );
-          }
-        }
+        const oldRef = doc.fileRef;
+        await sql.begin(async (tx) => {
+          await addJobInTx(tx, 'knowledge.release_refs', {
+            organizationId,
+            refs: [oldRef],
+          });
+        });
       }
     },
     getOrCreateFolderPath: async (orgId, pathSegments, createdBy, teamId) =>

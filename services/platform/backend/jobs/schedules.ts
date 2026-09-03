@@ -27,6 +27,12 @@ const SCHEDULES: CronSchedule[] = [
   // The agent-lane and sandbox backstops (each its own entry so a throw in
   // one sweep can never disable another — the 0.4 isolation rationale).
   { name: 'governance.retention_cleanup', cron: '0 4 * * *' },
+  // Corpus↔app reconcile: de-index refs nothing references any more — the
+  // backstop for release jobs that exhausted retries, and the lazy backfill
+  // that drains historically stranded rows (replaced versions, rotated
+  // knowledge entries) on existing deployments. After retention, so rows it
+  // just purged reconcile the same night.
+  { name: 'knowledge.reconcile_corpus', cron: '45 4 * * *' },
   { name: 'audit.integrity_check', cron: '30 4 * * *' },
   { name: 'governance.effect_hold_releases', cron: '15 4 * * *' },
   { name: 'watchdog.task_agents', cron: '*/2 * * * *' },

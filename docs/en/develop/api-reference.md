@@ -159,7 +159,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uplo
 # → 200 { "uploadId": "...", "url": "https://...", "method": "PUT", "s3Ref": "...", "expiresAt": 1774... }
 ```
 
-Every blob is object-store-backed, so `url` is always a presigned `PUT`: send the bytes there with that method, then bind the handoff's `s3Ref` back as `fileId`. The bind completes the upload:
+Every blob is object-store-backed, so `url` is always a presigned `PUT`: send the bytes there with that method, with a `Content-Type` header exactly matching the `contentType` you declared when minting — the declared type is signed into the URL, so the bucket refuses a PUT that carries a different one (omit `contentType` at mint and the PUT has no header requirement) — then bind the handoff's `s3Ref` back as `fileId`. The bind completes the upload:
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/files" \

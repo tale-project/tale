@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
+import { authorizeRls } from '../../auth/access.ts';
 import { validateTopicAndContent } from '../../core/knowledge_entries/helpers.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -20,24 +21,50 @@ import { resolveOrgSlug } from '../../lib/org-config.ts';
  * scoping/deletion ride the document pipeline.
  *
  * One deliberate 0.5 simplification: versions RE-MATERIALIZE under the SAME
- * file row (the blob key rotates; the file id — the corpus key — stays), so
- * the corpus `ON CONFLICT (org_slug, file_id)` replace IS the supersede and
- * no stale chunks linger. 0.4 minted a new blob per version and kept
- * `historyFiles` on the document; the 0.5 chain keeps every version's full
- * content on its entry row instead — same audit/undo surface, no blob
- * bookkeeping. Deletion soft-deletes the chain and trashes the backing
- * document — the retrievability filter already excludes trashed documents,
- * so the corpus rows go dark immediately (lazy cleanup posture).
+ * file row and document — but the corpus is keyed by the BLOB REF that row
+ * carries (`indexUploadedFile` passes `storage_ref` as the corpus
+ * `file_id`), so rotating the ref moves the entry to a NEW corpus key. The
+ * rotate branch therefore enqueues `knowledge.release_refs` for the
+ * previous ref in the same transaction: the shared release seam de-indexes
+ * its corpus rows and deletes its blob (nothing else references an entry's
+ * blobs — no `historyFiles`; the version chain keeps every version's full
+ * content on its entry row instead, same audit/undo surface). Deletion
+ * soft-deletes the chain and trashes the backing document — the
+ * retrievability filter excludes trashed documents, so the corpus rows go
+ * dark immediately, and the retention purge releases them physically (lazy
+ * cleanup posture).
+ *
+ * Mutations are role-gated at this seam (`authorizeRls(role, 'knowledge',
+ * 'write')`): entries materialize `app.documents` rows and feed the org's
+ * RAG corpus, so a read-only member must not be able to plant or edit them
+ * through the app or REST lanes.
  */
 
 export class KnowledgeEntryError extends Error {
   readonly code: string;
-  readonly status: 400 | 404 | 409;
-  constructor(code: string, message: string, status: 400 | 404 | 409 = 400) {
+  readonly status: 400 | 403 | 404 | 409;
+  constructor(
+    code: string,
+    message: string,
+    status: 400 | 403 | 404 | 409 = 400,
+  ) {
     super(message);
     this.name = 'KnowledgeEntryError';
     this.code = code;
     this.status = status;
+  }
+}
+
+/** The write gate every mutation lane (app routes, REST) funnels through:
+ * entries materialize documents rows and feed the RAG corpus, so the
+ * `knowledge` write grant (editor and up) is required. */
+function assertCanWriteEntries(role: string | undefined): void {
+  if (!authorizeRls(role, 'knowledge', 'write')) {
+    throw new KnowledgeEntryError(
+      'KNOWLEDGE_ENTRY_FORBIDDEN',
+      'Your role cannot modify knowledge entries',
+      403,
+    );
   }
 }
 
@@ -145,7 +172,17 @@ async function attachEntryDocument(
   const now = Date.now();
 
   if (args.existingDocumentId !== null) {
-    // Same document, same FILE row (the corpus key): rotate the blob ref.
+    // Same document, same FILE row — but the corpus is keyed by the blob
+    // REF, so this rotation re-materializes the entry under a new corpus
+    // key. Capture the outgoing ref first: the release job below de-indexes
+    // its corpus rows and deletes its blob (nothing else references it),
+    // instead of stranding one unpurgeable corpus document per edit.
+    const previous = await tx<{ storageRef: string }[]>`
+      SELECT storage_ref AS "storageRef" FROM app.file_metadata
+      WHERE document_id = ${args.existingDocumentId}
+      LIMIT 1
+    `;
+    const previousRef = previous[0]?.storageRef ?? null;
     await tx`
       UPDATE app.documents SET
         title = ${fileName}, file_ref = ${storageRef},
@@ -165,6 +202,12 @@ async function attachEntryDocument(
     const fileId = files[0]?.id;
     if (fileId !== undefined) {
       await addJobInTx(tx, 'rag.index_file', { fileId });
+    }
+    if (previousRef !== null && previousRef !== storageRef) {
+      await addJobInTx(tx, 'knowledge.release_refs', {
+        organizationId: args.organizationId,
+        refs: [previousRef],
+      });
     }
     await tx`
       UPDATE app.knowledge_entries SET
@@ -214,6 +257,7 @@ export async function createKnowledgeEntry(
   args: {
     organizationId: string;
     userId: string;
+    role: string;
     topic: string;
     content: string;
     source?: 'chat' | 'manual';
@@ -221,6 +265,7 @@ export async function createKnowledgeEntry(
     sourceMessageId?: string;
   },
 ): Promise<string> {
+  assertCanWriteEntries(args.role);
   const { topic, topicKey, content } = validate(args.topic, args.content);
   const precheck = await findActiveByTopicKey(
     sql,
@@ -278,11 +323,13 @@ export async function updateKnowledgeEntry(
   args: {
     organizationId: string;
     userId: string;
+    role: string;
     entryId: string;
     topic: string;
     content: string;
   },
 ): Promise<string> {
+  assertCanWriteEntries(args.role);
   const { topic, topicKey, content } = validate(args.topic, args.content);
   const blob = await storeEntryBlob(sql, args.organizationId, content);
   return sql.begin(async (tx) => {
@@ -352,8 +399,9 @@ export async function updateKnowledgeEntry(
  * retrievability filter excludes trashed documents, so RAG goes dark now. */
 export async function deleteKnowledgeEntry(
   sql: Sql,
-  args: { organizationId: string; entryId: string },
+  args: { organizationId: string; entryId: string; role: string },
 ): Promise<void> {
+  assertCanWriteEntries(args.role);
   await sql.begin(async (tx) => {
     const rows = await tx<{ topicKey: string; documentId: string | null }[]>`
       SELECT topic_key AS "topicKey", document_id AS "documentId"

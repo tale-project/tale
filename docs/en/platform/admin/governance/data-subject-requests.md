@@ -17,16 +17,16 @@ To file a request, open **Settings > Governance > Data subject requests** and cl
 
 ## Status lifecycle
 
-| Name              | Default       | Description                                                                               |
-| ----------------- | ------------- | ----------------------------------------------------------------------------------------- |
-| Pending           | initial state | The request is filed and waiting for the cooling-off window or the second admin approval. |
-| Awaiting approval | dual-control  | A second Admin must approve before the cascade runs.                                      |
-| Running           | mid-cascade   | The cascade is in flight; partial counters update as each category completes.             |
-| Completed         | terminal      | Every category erased without error.                                                      |
-| Partial           | terminal      | One or more cascade passes failed — the receipt's error names them.                       |
-| Failed            | terminal      | The cascade died mid-run — a fatal error or a watchdog timeout; retry files it again.     |
-| Blocked           | terminal      | An active legal hold blocks every cascade step.                                           |
-| Cancelled         | terminal      | An Admin cancelled before the cooling-off window elapsed.                                 |
+| Name              | Default       | Description                                                                                                                          |
+| ----------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Pending           | initial state | The request is filed and waiting for the cooling-off window or the second admin approval.                                            |
+| Awaiting approval | dual-control  | A second Admin must approve before the cascade runs — or reject, which cancels the request.                                          |
+| Running           | mid-cascade   | The cascade is in flight; partial counters update as each category completes.                                                        |
+| Completed         | terminal      | Every category erased without error.                                                                                                 |
+| Partial           | terminal      | Some rows were skipped (a legal hold blocked them) or a cascade pass failed — the receipt's error names the failed passes.           |
+| Failed            | terminal      | The cascade died mid-run — a fatal error (Retry re-arms it) or a watchdog timeout (file a new request).                              |
+| Blocked           | terminal      | An active legal hold blocks every cascade step.                                                                                      |
+| Cancelled         | terminal      | An Admin cancelled before the cascade ran, or a second Admin rejected the dual approval. A new request can be filed for the subject. |
 
 ## SLA tracking
 
@@ -38,7 +38,7 @@ A subject's data is _not_ erased while it is on legal hold. Rows under hold show
 
 ## The cascade categories
 
-The receipt breaks the erased rows down by pass — threads, documents, uploads, preferences, notifications, subscriptions, feedback, memories, usage ledger, and the audit-trail scrub. Read the drawer to see counts and the audit timeline; the audit log on the same Governance area carries the full event chain (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_cancelled`).
+The receipt breaks the erased rows down by pass — threads, documents, uploads, preferences, notifications, subscriptions, feedback, memories, usage ledger, and the audit-trail scrub. Read the drawer to see counts and the audit timeline; the audit log on the same Governance area carries the full event chain (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_rejected`, `gdpr_erasure_cancelled`).
 
 ## Where this fits
 

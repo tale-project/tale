@@ -17,16 +17,16 @@ Pour déposer une demande, ouvre **Paramètres > Gouvernance > Demandes des pers
 
 ## Cycle de vie du statut
 
-| Nom                      | Par défaut      | Description                                                                                             |
-| ------------------------ | --------------- | ------------------------------------------------------------------------------------------------------- |
-| En attente               | état initial    | La demande est déposée et attend la fenêtre d’attente ou la seconde approbation administrateur.         |
-| En attente d’approbation | double contrôle | Un second Administrateur doit approuver avant que la cascade ne s’exécute.                              |
-| En cours                 | mid-cascade     | La cascade est en cours ; les compteurs partiels se mettent à jour à mesure que chaque catégorie finit. |
-| Terminée                 | terminal        | Chaque catégorie effacée sans erreur.                                                                   |
-| Partielle                | terminal        | Une ou plusieurs passes de la cascade ont échoué — l’erreur du reçu les nomme.                          |
-| Échouée                  | terminal        | La cascade est morte en plein vol — erreur fatale ou timeout du watchdog ; réessayer la redépose.       |
-| Bloquée                  | terminal        | Une conservation légale active bloque chaque étape de cascade.                                          |
-| Annulée                  | terminal        | Un Administrateur a annulé avant que la fenêtre d’attente n’expire.                                     |
+| Nom                      | Par défaut      | Description                                                                                                                                                                      |
+| ------------------------ | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| En attente               | état initial    | La demande est déposée et attend la fenêtre d’attente ou la seconde approbation administrateur.                                                                                  |
+| En attente d’approbation | double contrôle | Un second Administrateur doit approuver avant que la cascade ne s’exécute — ou rejeter, ce qui annule la demande.                                                                |
+| En cours                 | mid-cascade     | La cascade est en cours ; les compteurs partiels se mettent à jour à mesure que chaque catégorie finit.                                                                          |
+| Terminée                 | terminal        | Chaque catégorie effacée sans erreur.                                                                                                                                            |
+| Partielle                | terminal        | Certaines lignes ont été ignorées (une conservation légale les a bloquées) ou une passe de la cascade a échoué — l’erreur du reçu nomme les passes en échec.                     |
+| Échouée                  | terminal        | La cascade est morte en plein vol — sur une erreur fatale, Réessayer la relance ; après un timeout du watchdog, dépose une nouvelle demande.                                     |
+| Bloquée                  | terminal        | Une conservation légale active bloque chaque étape de cascade.                                                                                                                   |
+| Annulée                  | terminal        | Un Administrateur a annulé avant l’exécution de la cascade, ou un second Administrateur a rejeté la double approbation. Une nouvelle demande peut être déposée pour la personne. |
 
 ## Suivi du SLA
 
@@ -38,7 +38,7 @@ Les données d’une personne ne sont _pas_ effacées tant qu’elles sont sous 
 
 ## Les catégories de cascade
 
-Le reçu ventile les lignes effacées par passe — threads, documents, téléversements, préférences, notifications, abonnements, feedbacks, mémoires, registre d’usage et le caviardage de la piste d’audit. Lis le drawer pour voir les compteurs et la timeline d’audit ; le journal d’audit dans la même zone Gouvernance porte la chaîne d’événements complète (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_cancelled`).
+Le reçu ventile les lignes effacées par passe — threads, documents, téléversements, préférences, notifications, abonnements, feedbacks, mémoires, registre d’usage et le caviardage de la piste d’audit. Lis le drawer pour voir les compteurs et la timeline d’audit ; le journal d’audit dans la même zone Gouvernance porte la chaîne d’événements complète (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_rejected`, `gdpr_erasure_cancelled`).
 
 ## Où cela s’inscrit
 

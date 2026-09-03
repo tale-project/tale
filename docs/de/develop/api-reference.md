@@ -159,7 +159,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uplo
 # → 200 { "uploadId": "...", "url": "https://...", "method": "PUT", "s3Ref": "...", "expiresAt": 1774... }
 ```
 
-Jeder Blob liegt im Objektspeicher, daher ist `url` immer ein vorsignierter `PUT`: sende die Bytes mit dieser Methode dorthin und binde dann die `s3Ref` aus dem Handoff als `fileId`. Das Binden schließt den Upload ab:
+Jeder Blob liegt im Objektspeicher, daher ist `url` immer ein vorsignierter `PUT`: sende die Bytes mit dieser Methode dorthin, mit einem `Content-Type`-Header, der exakt dem beim Minten deklarierten `contentType` entspricht — der deklarierte Typ ist in die URL signiert, ein abweichender Header wird vom Bucket abgelehnt (ohne `contentType` beim Minten stellt der PUT keine Header-Anforderung) — und binde dann die `s3Ref` aus dem Handoff als `fileId`. Das Binden schließt den Upload ab:
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/files" \

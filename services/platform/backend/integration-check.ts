@@ -1770,6 +1770,356 @@ async function checkTasks(
 }
 
 /**
+ * The tenant-isolation net over the tasks surface (the tasks-org-scoping
+ * class): a task id from another organization answers like one that does
+ * not exist — reads, writes, deletes, run verbs, collab subscriptions —
+ * even when the caller is an OWNER of their own org (the admin bypass in
+ * the role matrix was the hole). Read-only members must not start or
+ * cancel runs, deciding a review takes task-edit access, and the
+ * external-ref intake neither duplicates a task under concurrency (the
+ * 0059 unique index + ON CONFLICT reconcile) nor reaches across orgs.
+ */
+async function checkTasksOrgIsolation(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const now = Date.now();
+  const api = (
+    route: string,
+    init: {
+      method?: string;
+      body?: unknown;
+      cookie?: string;
+      org?: string;
+    } = {},
+  ): Promise<Response> =>
+    fetch(`${base}${route}?orgId=${init.org ?? orgId}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: {
+        'content-type': 'application/json',
+        cookie: init.cookie ?? cookie,
+        origin: base,
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+
+  // The victim org's project + task (org-wide: readable to every role).
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Isolation project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const created = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await api('/api/app/tasks', {
+        body: { projectId, title: 'Isolation task', status: 'todo' },
+      })
+    ).json(),
+  );
+  const taskId = created.success ? created.data.taskId : '';
+
+  // An ATTACKER user owning a SECOND org — the exact shape of the hole:
+  // org-blind guards ran checkProjectAccess with the attacker's own OWNER
+  // role, whose admin bypass granted every project in the deployment. A
+  // dedicated user (never the suite's main one) keeps the main user
+  // single-org — REST sections later in the suite resolve their API key's
+  // org implicitly, and a second membership would poison them.
+  const attackerSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `itest-iso-attacker-${now}@example.com`,
+      password: 'itest-password-1',
+      name: 'Iso Attacker',
+    }),
+  });
+  const attackerCookie = cookieHeaderFrom(attackerSignUp);
+  const attackerParsed = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await attackerSignUp.json());
+  const attackerId = attackerParsed.success ? attackerParsed.data.user.id : '';
+  const rivalCreate = await fetch(`${base}/api/auth/organization/create`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      cookie: attackerCookie,
+      origin: base,
+    },
+    body: JSON.stringify({
+      name: `Isolation Rival ${now}`,
+      slug: `itest-iso-rival-${now}`,
+    }),
+  });
+  const rivalBody = z
+    .object({ id: z.string().optional() })
+    .safeParse(await rivalCreate.json());
+  const rivalOrgId = rivalBody.success ? (rivalBody.data.id ?? '') : '';
+  /** The attacker's own session, aimed at their own org (the request is
+   * WELL-FORMED — only the task id belongs to the victim). */
+  const rival = { cookie: attackerCookie, org: rivalOrgId };
+
+  // Creating the task auto-subscribed its creator: the invariant is that
+  // the cross-org attempts below ADD nothing, not that the count is zero.
+  const subsBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.task_subscriptions
+    WHERE task_id = ${taskId}
+  `;
+  const crossRead = await api(`/api/app/tasks/${taskId}`, { ...rival });
+  const crossWrite = await api(`/api/app/tasks/${taskId}/status`, {
+    ...rival,
+    body: { status: 'done' },
+  });
+  const crossSubGet = await api(
+    `/api/app/collab/tasks/${taskId}/subscription`,
+    { ...rival },
+  );
+  const crossSubSet = await api(
+    `/api/app/collab/tasks/${taskId}/subscription`,
+    { ...rival, body: { subscribed: true } },
+  );
+  const garbageSub = await api(
+    '/api/app/collab/tasks/no-such-task/subscription',
+    { body: { subscribed: true } },
+  );
+  const crossDelete = await api(`/api/app/tasks/${taskId}`, {
+    ...rival,
+    method: 'DELETE',
+  });
+  const survivor = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${taskId}
+  `;
+  const subsAfter = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.task_subscriptions
+    WHERE task_id = ${taskId}
+  `;
+  record(
+    'tasks: a foreign org owner cannot read, mutate, delete, or follow a task',
+    rivalOrgId.length > 0 &&
+      crossRead.status === 404 &&
+      crossWrite.status === 404 &&
+      crossSubGet.status === 404 &&
+      crossSubSet.status === 404 &&
+      garbageSub.status === 404 &&
+      crossDelete.status === 404 &&
+      survivor[0]?.status === 'todo' &&
+      subsAfter[0]?.count === subsBefore[0]?.count,
+    `read=${crossRead.status}, write=${crossWrite.status}, sub=${crossSubGet.status}/${crossSubSet.status}, garbage-sub=${garbageSub.status}, delete=${crossDelete.status} (want 404s), task=${survivor[0]?.status ?? 'GONE'} (want todo), subs=${subsBefore[0]?.count}→${subsAfter[0]?.count} (want unchanged)`,
+  );
+
+  // A live automation run on the victim task: the rival's cancel answers
+  // 404 and the run keeps running (on the old org-blind guards the task
+  // flipped to cancelled cross-org).
+  await sql`
+    INSERT INTO app.automation_runs (
+      org_id, project_id, name, version, status, mode, started_by, input,
+      started_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'itest-iso-run', 1, 'running', 'live',
+      ${userId}, ${sql.json({ task: { id: taskId } })}, ${now}
+    )
+  `;
+  const crossCancel = await api(`/api/app/tasks/${taskId}/workflow/cancel`, {
+    ...rival,
+    method: 'POST',
+  });
+  const runAfterCross = await sql<{ status: string }[]>`
+    SELECT status FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = 'itest-iso-run'
+  `;
+  const taskAfterCross = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${taskId}
+  `;
+  record(
+    'tasks: a foreign org owner cannot cancel the live run behind a task',
+    crossCancel.status === 404 &&
+      runAfterCross[0]?.status === 'running' &&
+      taskAfterCross[0]?.status === 'todo',
+    `cancel=${crossCancel.status} (want 404), run=${runAfterCross[0]?.status} (want running), task=${taskAfterCross[0]?.status} (want todo)`,
+  );
+
+  // A read-only MEMBER of the victim org (the harness member idiom): reads
+  // pass, but starting or cancelling a run is an EDIT and refuses BEFORE
+  // any side effect — the run must still be running afterwards.
+  const viewerSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `itest-iso-viewer-${now}@example.com`,
+      password: 'itest-password-1',
+      name: 'Iso Viewer',
+    }),
+  });
+  const viewerCookie = cookieHeaderFrom(viewerSignUp);
+  const viewerParsed = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await viewerSignUp.json());
+  const viewerId = viewerParsed.success ? viewerParsed.data.user.id : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${`m-iso-${viewerId}`}, ${orgId}, ${viewerId}, 'member',
+            ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  const viewerRead = await api(`/api/app/tasks/${taskId}`, {
+    cookie: viewerCookie,
+  });
+  const viewerStart = await api(`/api/app/tasks/${taskId}/workflow/start`, {
+    cookie: viewerCookie,
+    body: { workflowSlug: 'no-such-automation' },
+  });
+  const viewerCancel = await api(`/api/app/tasks/${taskId}/workflow/cancel`, {
+    cookie: viewerCookie,
+    method: 'POST',
+  });
+  const runAfterViewer = await sql<{ status: string }[]>`
+    SELECT status FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = 'itest-iso-run'
+  `;
+  record(
+    'tasks: a read-only member reads the task but cannot start/cancel runs',
+    viewerRead.status === 200 &&
+      viewerStart.status === 403 &&
+      viewerCancel.status === 403 &&
+      runAfterViewer[0]?.status === 'running',
+    `read=${viewerRead.status} (want 200), start=${viewerStart.status}/cancel=${viewerCancel.status} (want 403), run=${runAfterViewer[0]?.status} (want running)`,
+  );
+  await sql`
+    UPDATE app.automation_runs SET status = 'failed'
+    WHERE org_id = ${orgId} AND name = 'itest-iso-run'
+  `;
+
+  // Deciding a review is deciding the task: a read-only member's respond
+  // refuses on the project write gate and the gate stays pending.
+  const approvalRows = await sql<{ id: string }[]>`
+    INSERT INTO app.approvals (
+      org_id, status, resource_type, resource_id, priority, metadata,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'pending', 'task_review', ${taskId}, 'medium',
+      ${sql.json({ taskId })}, ${now}
+    ) RETURNING id
+  `;
+  const approvalId = approvalRows[0]?.id ?? '';
+  const { respondToTaskReview } = await import('./domains/tasks/reviews.ts');
+  const respondOutcome = await respondToTaskReview(sql, {
+    auth: {
+      organizationId: orgId,
+      userId: viewerId,
+      role: 'member',
+      teamIds: [],
+    },
+    approvalId,
+    decision: 'approve',
+  }).then(
+    () => 'approved',
+    (error: unknown) =>
+      error instanceof Error && 'code' in error
+        ? String(error.code)
+        : 'other-error',
+  );
+  const approvalAfter = await sql<{ status: string }[]>`
+    SELECT status FROM app.approvals WHERE id = ${approvalId}
+  `;
+  record(
+    'tasks: responding to a review requires task-edit access',
+    respondOutcome === 'RBAC_FORBIDDEN' &&
+      approvalAfter[0]?.status === 'pending',
+    `respond → ${respondOutcome} (want RBAC_FORBIDDEN), approval=${approvalAfter[0]?.status} (want pending)`,
+  );
+
+  // The external-ref intake under concurrency: two simultaneous intakes of
+  // the same item land exactly ONE task (unique index + reconcile lane) and
+  // a later replay reconciles instead of creating.
+  const { upsertTaskByExternalRef } =
+    await import('./domains/tasks/external-ref.ts');
+  const upsertArgs = {
+    organizationId: orgId,
+    actorId: userId,
+    projectId,
+    externalSystem: 'itest-iso',
+    externalId: 'ISO-RACE-1',
+    title: 'Raced intake',
+    creatorType: 'user' as const,
+    dedupeScope: 'project' as const,
+  };
+  const [first, second] = await Promise.all([
+    transactSerializable(sql, (tx) => upsertTaskByExternalRef(tx, upsertArgs)),
+    transactSerializable(sql, (tx) => upsertTaskByExternalRef(tx, upsertArgs)),
+  ]);
+  const replay = await transactSerializable(sql, (tx) =>
+    upsertTaskByExternalRef(tx, upsertArgs),
+  );
+  const raceRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.tasks
+    WHERE org_id = ${orgId} AND project_id = ${projectId}
+      AND external_system = 'itest-iso' AND external_id = 'ISO-RACE-1'
+  `;
+  record(
+    'tasks: concurrent external-ref intakes land exactly one task',
+    raceRows.length === 1 &&
+      first.taskId !== null &&
+      first.taskId === second.taskId &&
+      [first.created, second.created].filter(Boolean).length === 1 &&
+      !replay.created &&
+      replay.taskId === raceRows[0]?.id,
+    `rows=${raceRows.length} (want 1), created=[${String(first.created)},${String(second.created)}] (want exactly one true), replay=${String(replay.created)} (want false)`,
+  );
+
+  // The intake seam refuses a foreign project outright: dedupe and create
+  // are both org-scoped, so an org-level agent naming a foreign project id
+  // can neither update nor create on the foreign board.
+  const rivalProject = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${rivalOrgId}, 'Rival project', ${attackerId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const rivalProjectId = rivalProject[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, number, external_system,
+      external_id, created_by, created_by_type, created_at_ms, updated_at_ms,
+      status_changed_at_ms
+    ) VALUES (
+      ${rivalOrgId}, ${rivalProjectId}, 'Rival task', 'todo', 'a0', 1,
+      'itest-iso', 'ISO-XORG-1', ${attackerId}, 'user', ${now}, ${now}, ${now}
+    )
+  `;
+  const crossUpsert = await transactSerializable(sql, (tx) =>
+    upsertTaskByExternalRef(tx, {
+      organizationId: orgId,
+      actorId: userId,
+      projectId: rivalProjectId,
+      externalSystem: 'itest-iso',
+      externalId: 'ISO-XORG-1',
+      title: 'Hijacked title',
+      dedupeScope: 'project',
+    }),
+  ).then(
+    (result) => `ok:${String(result.created)}`,
+    (error: unknown) =>
+      error instanceof Error && 'code' in error
+        ? String(error.code)
+        : 'other-error',
+  );
+  const rivalAfter = await sql<{ title: string }[]>`
+    SELECT title FROM app.tasks
+    WHERE org_id = ${rivalOrgId} AND external_id = 'ISO-XORG-1'
+  `;
+  record(
+    'tasks: external-ref upsert never resolves or creates across orgs',
+    crossUpsert === 'PROJECT_NOT_FOUND' &&
+      rivalAfter[0]?.title === 'Rival task',
+    `upsert → ${crossUpsert} (want PROJECT_NOT_FOUND), rival title=${rivalAfter[0]?.title ?? 'GONE'} (want untouched)`,
+  );
+}
+
+/**
  * Files vertical against a REAL S3-compatible store (MinIO): seed the
  * deployment-default connection into the config tree, create the bucket,
  * then run handoff → presigned PUT → register (HEAD-verified) → presigned
@@ -3007,6 +3357,502 @@ async function checkDocuments(
 }
 
 /**
+ * The document write-guard class: the org-role write matrix on every
+ * mutating documents door (app + REST v1), the controlled-record content
+ * freeze at the service seam, REST delete protection derived from the
+ * session predicate (retained approved history included), agent upsert
+ * freeze + content-hash coherence, and hub team assignability. Runs LATE in
+ * the sequence — it adds a member-role user and a team to the org, which
+ * earlier sections' exact-count assertions must not see.
+ */
+async function checkDocumentWriteGuards(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'document write guards (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — document write-guard lanes not exercised',
+    );
+    return;
+  }
+  const { cookie, orgId, userId } = ctx;
+  const sendAs = (
+    asCookie: string,
+    method: 'GET' | 'POST' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        cookie: asCookie,
+        origin: base,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  // A blob-backed hub document (upload bind lane), as the owner — the only
+  // controllable source this section can mint over HTTP.
+  const uploadDoc = async (fileName: string): Promise<string> => {
+    const handoff = z
+      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+      .safeParse(
+        await (
+          await sendAs(
+            cookie,
+            'POST',
+            `/api/app/files/upload-handoff?orgId=${orgId}`,
+            { contentType: 'text/plain', size: 10 },
+          )
+        ).json(),
+      );
+    if (!handoff.success) return '';
+    await fetch(handoff.data.uploadUrl, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: 'guard body',
+    });
+    const registered = z.object({ fileId: z.string() }).safeParse(
+      await (
+        await sendAs(cookie, 'POST', `/api/app/files/register?orgId=${orgId}`, {
+          storageRef: handoff.data.storageRef,
+          fileName,
+          contentType: 'text/plain',
+        })
+      ).json(),
+    );
+    const created = z.object({ documentId: z.string() }).safeParse(
+      await (
+        await sendAs(
+          cookie,
+          'POST',
+          `/api/app/documents/from-upload?orgId=${orgId}`,
+          {
+            fileId: registered.success ? registered.data.fileId : '',
+            fileName,
+          },
+        )
+      ).json(),
+    );
+    return created.success ? created.data.documentId : '';
+  };
+
+  // ---- fixtures: a member-role user (session + API key), an owner key.
+  const suffix = Date.now().toString(36);
+  const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `doc-guards-member-${suffix}@example.com`,
+      password: 'itest-password-1',
+      name: 'Doc Guards Member',
+    }),
+  });
+  const memberCookie = cookieHeaderFrom(memberSignUp);
+  const memberBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await memberSignUp.json());
+  const memberId = memberBody.success ? memberBody.data.user.id : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member', ${new Date()})
+  `;
+  const mintKey = async (asCookie: string, name: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: asCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const memberKey = await mintKey(memberCookie, 'itest-doc-guards-member');
+  const ownerKey = await mintKey(cookie, 'itest-doc-guards-owner');
+  const v1 = (
+    key: string,
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}/api/v1${route}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const codeIn = async (response: Response): Promise<string> => {
+    const parsed = z
+      .looseObject({
+        error: z.string().optional(),
+        code: z.string().optional(),
+      })
+      .safeParse(await response.json().catch(() => null));
+    return parsed.success ? (parsed.data.code ?? parsed.data.error ?? '') : '';
+  };
+
+  const docA = await uploadDoc('guards-a.txt');
+  const guardsFolder = z.object({ folderId: z.string() }).safeParse(
+    await (
+      await sendAs(cookie, 'POST', `/api/app/folders?orgId=${orgId}`, {
+        name: `Guards ${suffix}`,
+      })
+    ).json(),
+  );
+  const guardsFolderId = guardsFolder.success ? guardsFolder.data.folderId : '';
+
+  // ---- (1) org-role write matrix — the app door refuses a member ----------
+  const appDoc = `/api/app/documents/${docA}`;
+  const renameDoc = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}?orgId=${orgId}`,
+    {
+      title: 'member-renamed',
+    },
+  );
+  const trash = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}/trash?orgId=${orgId}`,
+  );
+  const hardDelete = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}/delete?orgId=${orgId}`,
+  );
+  const blobBind = await sendAs(
+    memberCookie,
+    'POST',
+    `/api/app/documents/from-blob-upload?orgId=${orgId}`,
+    { storageRef: 's3:junk', fileName: 'member.txt' },
+  );
+  const markByMember = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}/record/mark-controlled?orgId=${orgId}`,
+  );
+  const replaceBegin = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}/replacement-upload/begin?orgId=${orgId}`,
+    {
+      expectedRecordState: 'draft',
+      expectedVersion: 1,
+      expectedFileId: 'file-x',
+      fileName: 'member.txt',
+    },
+  );
+  const retryRag = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}/retry-rag?orgId=${orgId}`,
+  );
+  const cascade = await sendAs(
+    memberCookie,
+    'DELETE',
+    `/api/app/folders/${guardsFolderId}?orgId=${orgId}`,
+  );
+  const memberList = z
+    .object({ documents: z.array(z.object({ id: z.string() })) })
+    .safeParse(
+      await (
+        await sendAs(memberCookie, 'GET', `/api/app/documents?orgId=${orgId}`)
+      ).json(),
+    );
+  const appRefused = [
+    renameDoc,
+    trash,
+    hardDelete,
+    blobBind,
+    markByMember,
+    replaceBegin,
+    retryRag,
+    cascade,
+  ];
+  const renameCode = await codeIn(renameDoc);
+  record(
+    'documents write matrix: app door refuses read-only member',
+    appRefused.every((response) => response.status === 403) &&
+      renameCode === 'RBAC_FORBIDDEN' &&
+      memberList.success &&
+      memberList.data.documents.some((doc) => doc.id === docA),
+    `rename/trash/delete/blob-bind/mark/replace-begin/retry/cascade → ${appRefused.map((r) => r.status).join('/')} (want all 403), code=${renameCode}, memberRead=${memberList.success ? memberList.data.documents.length : 'ERR'} doc(s)`,
+  );
+
+  // ---- (1) org-role write matrix — the REST v1 door refuses a member ------
+  const restPost = await v1(memberKey, 'POST', '/documents', {
+    title: 'member-rest.txt',
+  });
+  const restPatch = await v1(memberKey, 'PATCH', `/documents/${docA}`, {
+    title: 'member-rest-renamed',
+  });
+  const restDelete = await v1(memberKey, 'DELETE', `/documents/${docA}`);
+  const restRetry = await v1(
+    memberKey,
+    'POST',
+    `/documents/${docA}/retry-indexing`,
+  );
+  const restList = await v1(memberKey, 'GET', '/documents');
+  const restPostCode = await codeIn(restPost);
+  record(
+    'documents write matrix: REST v1 door refuses read-only member',
+    restPost.status === 403 &&
+      restPatch.status === 403 &&
+      restDelete.status === 403 &&
+      restRetry.status === 403 &&
+      restPostCode === 'RBAC_FORBIDDEN' &&
+      restList.status === 200,
+    `POST/PATCH/DELETE/retry → ${restPost.status}/${restPatch.status}/${restDelete.status}/${restRetry.status} (want 403), code=${restPostCode}, GET → ${restList.status} (want 200)`,
+  );
+
+  // ---- (3) content freeze at the service seam (REST PATCH) ----------------
+  const docB = await uploadDoc('guards-b.txt');
+  const markB = await sendAs(
+    cookie,
+    'POST',
+    `/api/app/documents/${docB}/record/mark-controlled?orgId=${orgId}`,
+  );
+  const patchDraftContent = await v1(ownerKey, 'PATCH', `/documents/${docB}`, {
+    content: 'rewritten draft bytes',
+  });
+  const patchDraftTitle = await v1(ownerKey, 'PATCH', `/documents/${docB}`, {
+    title: 'guards-b-renamed.txt',
+  });
+  // Eligibility mirrors the respond gate: a read-only member never appears
+  // as a designation candidate (a designee who could not respond would
+  // strand the review).
+  const eligibleIds = z
+    .object({ userIds: z.array(z.string()) })
+    .safeParse(
+      await (
+        await sendAs(
+          cookie,
+          'GET',
+          `/api/app/documents/${docB}/record/eligible-reviewer-ids?orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  const submitB = z
+    .object({ approvalId: z.string() })
+    .safeParse(
+      await (
+        await sendAs(
+          cookie,
+          'POST',
+          `/api/app/documents/${docB}/record/submit?orgId=${orgId}`,
+          { reviewerUserId: userId },
+        )
+      ).json(),
+    );
+  const patchFrozenContent = await v1(ownerKey, 'PATCH', `/documents/${docB}`, {
+    content: 'rewritten in-review bytes',
+  });
+  const patchFrozenMime = await v1(ownerKey, 'PATCH', `/documents/${docB}`, {
+    mimeType: 'application/x-sneaky',
+  });
+  const draftContentCode = await codeIn(patchDraftContent);
+  const frozenContentCode = await codeIn(patchFrozenContent);
+  record(
+    'controlled-record content freeze on updateDocument (REST PATCH)',
+    markB.status === 200 &&
+      patchDraftContent.status === 400 &&
+      draftContentCode === 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED' &&
+      patchDraftTitle.status === 204 &&
+      eligibleIds.success &&
+      eligibleIds.data.userIds.includes(userId) &&
+      !eligibleIds.data.userIds.includes(memberId) &&
+      submitB.success &&
+      patchFrozenContent.status === 400 &&
+      frozenContentCode === 'DOCUMENT_RECORD_FROZEN' &&
+      patchFrozenMime.status === 400,
+    `mark → ${markB.status}, draftContent → ${patchDraftContent.status}/${draftContentCode} (want 400/REPLACEMENT_REQUIRED), rename → ${patchDraftTitle.status} (want 204), eligible=${eligibleIds.success ? `${eligibleIds.data.userIds.includes(userId) ? 'owner' : 'NO-OWNER'}${eligibleIds.data.userIds.includes(memberId) ? '+MEMBER' : ''}` : 'ERR'} (want owner only), inReviewContent → ${patchFrozenContent.status}/${frozenContentCode} (want 400/FROZEN), mime → ${patchFrozenMime.status} (want 400)`,
+  );
+
+  // ---- (4) REST DELETE uses the session protection predicate --------------
+  const approveB = await sendAs(
+    cookie,
+    'POST',
+    `/api/app/documents/records/reviews/${submitB.success ? submitB.data.approvalId : ''}/respond?orgId=${orgId}`,
+    { decision: 'approve' },
+  );
+  const deleteApproved = await v1(ownerKey, 'DELETE', `/documents/${docB}`);
+  const revisionB = await sendAs(
+    cookie,
+    'POST',
+    `/api/app/documents/${docB}/record/open-revision?orgId=${orgId}`,
+  );
+  // The hole this locks: a draft OPENED AFTER approval still retains the
+  // approved history — REST delete must refuse it exactly like the session
+  // paths, not re-derive "draft is deletable" from the state alone.
+  const deleteRetained = await v1(ownerKey, 'DELETE', `/documents/${docB}`);
+  const retainedRow = await sql<{ id: string }[]>`
+    SELECT id FROM app.documents WHERE id = ${docB} LIMIT 1
+  `;
+  const docC = await uploadDoc('guards-c.txt');
+  const deleteUncontrolled = await v1(ownerKey, 'DELETE', `/documents/${docC}`);
+  const auditRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'document.deleted'
+      AND resource_id = ${docC}
+  `;
+  record(
+    'REST DELETE inherits record protection (retained history) + audit',
+    approveB.status === 200 &&
+      deleteApproved.status === 409 &&
+      (await codeIn(deleteApproved)) === 'DOCUMENT_RECORD_PROTECTED' &&
+      revisionB.status === 200 &&
+      deleteRetained.status === 409 &&
+      retainedRow.length === 1 &&
+      deleteUncontrolled.status === 204 &&
+      auditRows[0]?.count === '1',
+    `approve → ${approveB.status}, deleteApproved → ${deleteApproved.status} (want 409), revision → ${revisionB.status}, deleteRetained → ${deleteRetained.status} (want 409), rowKept=${retainedRow.length === 1}, uncontrolled → ${deleteUncontrolled.status} (want 204), auditRows=${auditRows[0]?.count ?? '0'} (want 1)`,
+  );
+
+  // ---- (2) agent upsert: freeze + content-hash coherence ------------------
+  const { createHash } = await import('node:crypto');
+  const { storeAgentTextBlob, upsertAgentDocument } =
+    await import('./domains/documents/agent-write.ts');
+  const { DocumentError } = await import('./domains/documents/service.ts');
+  const sha = (content: string): string =>
+    createHash('sha256').update(content).digest('hex');
+  const agentKey = `itest:doc-guards:${suffix}`;
+  const agentWrite = async (
+    content: string,
+  ): Promise<{ documentId: string; action: string; fileRef: string }> => {
+    const blob = await storeAgentTextBlob(sql, {
+      organizationId: orgId,
+      fileName: 'agent-report.md',
+      content,
+      contentType: 'text/markdown',
+      uploadedBy: userId,
+    });
+    const upserted = await upsertAgentDocument(sql, {
+      organizationId: orgId,
+      externalItemId: agentKey,
+      title: 'agent-report.md',
+      fileRef: blob.storageRef,
+      mimeType: 'text/markdown',
+      createdBy: userId,
+      auditActorId: userId,
+    });
+    return { ...upserted, fileRef: blob.storageRef };
+  };
+  const hashOf = async (documentId: string): Promise<string | null> => {
+    const rows = await sql<{ contentHash: string | null }[]>`
+      SELECT content_hash AS "contentHash" FROM app.documents
+      WHERE id = ${documentId} LIMIT 1
+    `;
+    return rows[0]?.contentHash ?? null;
+  };
+  const first = await agentWrite('agent v1 body');
+  const hashAfterCreate = await hashOf(first.documentId);
+  const second = await agentWrite('agent v2 body');
+  const hashAfterUpdate = await hashOf(second.documentId);
+  const markAgent = await sendAs(
+    cookie,
+    'POST',
+    `/api/app/documents/${first.documentId}/record/mark-controlled?orgId=${orgId}`,
+  );
+  let refusedCode = '';
+  try {
+    await agentWrite('agent v3 body — must not land');
+  } catch (error) {
+    refusedCode = error instanceof DocumentError ? error.code : String(error);
+  }
+  const fileRefRows = await sql<{ fileRef: string | null }[]>`
+    SELECT file_ref AS "fileRef" FROM app.documents
+    WHERE id = ${first.documentId} LIMIT 1
+  `;
+  record(
+    'agent upsert: content-hash coherence + controlled-record freeze',
+    first.action === 'created' &&
+      hashAfterCreate === sha('agent v1 body') &&
+      second.action === 'updated' &&
+      second.documentId === first.documentId &&
+      hashAfterUpdate === sha('agent v2 body') &&
+      markAgent.status === 200 &&
+      refusedCode === 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED' &&
+      fileRefRows[0]?.fileRef === second.fileRef,
+    `create=${first.action}/${hashAfterCreate === sha('agent v1 body') ? 'hash-ok' : `hash=${hashAfterCreate ?? 'null'}`}, update=${second.action}/${hashAfterUpdate === sha('agent v2 body') ? 'hash-ok' : `hash=${hashAfterUpdate ?? 'null'}`}, mark → ${markAgent.status}, rerun=${refusedCode || 'ALLOWED'} (want DOCUMENT_RECORD_REPLACEMENT_REQUIRED), fileRefKept=${fileRefRows[0]?.fileRef === second.fileRef}`,
+  );
+
+  // ---- (5) hub team assignment must stay visible to the caller ------------
+  const bogusRest = await v1(ownerKey, 'POST', '/documents', {
+    title: 'team-scoped.txt',
+    teamId: 'team_bogus',
+  });
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (gen_random_uuid(), ${`Doc Guards ${suffix}`}, ${orgId},
+            ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const teamId = teamRows[0]?.id ?? '';
+  const foreignRest = await v1(ownerKey, 'POST', '/documents', {
+    title: 'team-scoped.txt',
+    teamId,
+  });
+  const bogusApp = await sendAs(cookie, 'POST', `${appDoc}?orgId=${orgId}`, {
+    teamId: 'team_bogus',
+  });
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (gen_random_uuid(), ${teamId}, ${userId}, ${new Date()})
+  `;
+  const memberOfTeam = z.object({ id: z.string() }).safeParse(
+    await (
+      await v1(ownerKey, 'POST', '/documents', {
+        title: 'team-scoped.txt',
+        teamId,
+      })
+    ).json(),
+  );
+  const teamStamp = memberOfTeam.success
+    ? await sql<{ teamId: string | null; teamTags: string[] }[]>`
+        SELECT team_id AS "teamId", team_tags AS "teamTags"
+        FROM app.documents WHERE id = ${memberOfTeam.data.id} LIMIT 1
+      `
+    : [];
+  const patchTeam = await sendAs(cookie, 'POST', `${appDoc}?orgId=${orgId}`, {
+    teamId,
+  });
+  const clearTeam = await sendAs(cookie, 'POST', `${appDoc}?orgId=${orgId}`, {
+    teamId: null,
+  });
+  const bogusRestCode = await codeIn(bogusRest);
+  const bogusAppCode = await codeIn(bogusApp);
+  record(
+    'hub teamId is validated on create + patch (never file into the void)',
+    bogusRest.status === 403 &&
+      bogusRestCode === 'TEAM_ACCESS_DENIED' &&
+      foreignRest.status === 403 &&
+      bogusApp.status === 403 &&
+      bogusAppCode === 'TEAM_ACCESS_DENIED' &&
+      memberOfTeam.success &&
+      teamStamp[0]?.teamId === teamId &&
+      (teamStamp[0]?.teamTags ?? []).join(',') === teamId &&
+      patchTeam.status === 200 &&
+      clearTeam.status === 200,
+    `bogusRest → ${bogusRest.status}/${bogusRestCode} (want 403/TEAM_ACCESS_DENIED), foreignTeam → ${foreignRest.status} (want 403), bogusApp → ${bogusApp.status}/${bogusAppCode}, joined+create → ${memberOfTeam.success ? 'ok' : 'ERR'}, stamp=${teamStamp[0]?.teamId === teamId ? 'ok' : 'MISS'}, patch → ${patchTeam.status}, clear → ${clearTeam.status}`,
+  );
+}
+
+/**
  * Small-domain smoke: contacts CRUD + find-or-create shape, message
  * feedback upsert/toggle/stats, support case lifecycle.
  */
@@ -3858,6 +4704,596 @@ async function checkKnowledge(
       `indexed=${bigIndexed}, corpus=${corpusDoc?.status ?? 'MISSING'}, chunks=${corpusDoc?.stored ?? '0'}/${corpusDoc?.total ?? 0} (want equal, > 64)`,
     );
   } finally {
+    await new Promise<void>((resolve) => {
+      embedServer.close(() => resolve());
+    });
+  }
+}
+
+/**
+ * Corpus-purge consistency: deleted/replaced content leaves EVERYWHERE it
+ * lives (corpus rows, blobs) and the retrievable set follows lifecycle
+ * truth; purge failures are never reported as success.
+ *
+ *   1. Controlled-record replacement de-indexes the old ref (bytes stay as
+ *      the retained snapshot) — the superseded version stops answering RAG.
+ *   2. A knowledge-entry edit releases the rotated-away ref (corpus + blob)
+ *      instead of stranding an unpurgeable corpus document per edit.
+ *   3. A purge that cannot reach the corpus KEEPS the document (no false
+ *      "deleted" receipt); a retry after recovery heals everything.
+ *   4. Project cascade delete darkens its documents immediately (lifecycle
+ *      'expired' fails the retrievable filter) and the grace=0 retention
+ *      sweep hard-deletes them (row + corpus + blob).
+ *   5. A shared blob ref (the WebDAV COPY shape) survives its sibling's
+ *      purge — corpus row and bytes stay for the twin, and the twin keeps
+ *      answering through its own scope; the last holder's purge releases.
+ *   6. The corpus reconcile sweep de-indexes historically stranded refs.
+ *   7. Knowledge-entry mutations are role-gated (member is read-only).
+ */
+async function checkCorpusPurgeConsistency(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+  orgSlug: string,
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'corpus purge consistency (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — RAG lanes not exercised in this run',
+    );
+    return;
+  }
+  const { cookie, orgId } = ctx;
+  const { createServer } = await import('node:http');
+  const embedServer = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: unknown) => {
+      body += String(chunk);
+    });
+    req.on('end', () => {
+      res.setHeader('content-type', 'application/json');
+      res.end(fakeEmbeddingsPayload(body));
+    });
+  });
+  await new Promise<void>((resolve) => {
+    embedServer.listen(0, '127.0.0.1', resolve);
+  });
+  const embedAddress = embedServer.address();
+  const embedPort =
+    embedAddress !== null && typeof embedAddress === 'object'
+      ? embedAddress.port
+      : 0;
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const knowledgeDir = path.join(configRoot, orgSlug, 'knowledge');
+
+  try {
+    await mkdir(knowledgeDir, { recursive: true });
+    await writeFile(
+      path.join(knowledgeDir, 'embedding.json'),
+      JSON.stringify({
+        providerSlug: 'openai',
+        model: 'itest-embed',
+        dimensions: 8,
+        baseUrl: `http://127.0.0.1:${embedPort}/v1`,
+      }),
+    );
+    const { getKnowledgePoolForOrg } = await import('./core/knowledge/pool.ts');
+    const corpusPool = await getKnowledgePoolForOrg(orgSlug);
+    const { s3BlobSize } = await import('./core/lib/storage/blob_access.ts');
+
+    const send = (
+      method: 'POST' | 'DELETE',
+      route: string,
+      body?: unknown,
+    ): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method,
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    const corpusCount = async (ref: string): Promise<number> => {
+      const rows = await corpusPool<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM private_knowledge.documents
+        WHERE org_slug = ${orgSlug} AND file_id = ${ref}
+      `;
+      return Number(rows[0]?.count ?? '0');
+    };
+    const blobExists = async (ref: string): Promise<boolean> =>
+      (await s3BlobSize(orgSlug, ref)) !== null;
+    const fetchRaw = async (ref: string): Promise<string> =>
+      JSON.stringify(
+        await (
+          await send('POST', `/api/app/knowledge/fetch?orgId=${orgId}`, {
+            fileId: ref,
+          })
+        ).json(),
+      );
+    /** Upload + bind + wait-indexed; returns ids or null on any failure. */
+    const uploadIndexedDoc = async (
+      fileName: string,
+      content: string,
+      projectId?: string,
+    ): Promise<{ documentId: string; ref: string; fileId: string } | null> => {
+      const handoff = z
+        .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+        .safeParse(
+          await (
+            await send('POST', `/api/app/files/upload-handoff?orgId=${orgId}`, {
+              contentType: 'text/plain',
+              size: content.length,
+            })
+          ).json(),
+        );
+      if (!handoff.success) return null;
+      await fetch(handoff.data.uploadUrl, {
+        method: 'PUT',
+        headers: { 'content-type': 'text/plain' },
+        body: content,
+      });
+      const registered = z.object({ fileId: z.string() }).safeParse(
+        await (
+          await send('POST', `/api/app/files/register?orgId=${orgId}`, {
+            storageRef: handoff.data.storageRef,
+            fileName,
+            contentType: 'text/plain',
+          })
+        ).json(),
+      );
+      if (!registered.success) return null;
+      const bound = z.object({ documentId: z.string() }).safeParse(
+        await (
+          await send('POST', `/api/app/documents/from-upload?orgId=${orgId}`, {
+            fileId: registered.data.fileId,
+            fileName,
+            ...(projectId !== undefined ? { projectId } : {}),
+          })
+        ).json(),
+      );
+      if (!bound.success) return null;
+      const indexed = await waitFor(async () => {
+        const rows = await sql<{ status: string | null }[]>`
+          SELECT rag_status AS status FROM app.file_metadata
+          WHERE id = ${registered.data.fileId}
+        `;
+        return rows[0]?.status === 'completed';
+      }, 30_000);
+      if (!indexed) return null;
+      return {
+        documentId: bound.data.documentId,
+        ref: handoff.data.storageRef,
+        fileId: registered.data.fileId,
+      };
+    };
+
+    // --- 1. Replacement de-indexes the superseded version ------------------
+    const repl = await uploadIndexedDoc(
+      'purge-replace.txt',
+      'purge check alpha quicksilver original body',
+    );
+    if (repl === null) {
+      record('corpus purge: replacement de-index', false, 'seed doc failed');
+      return;
+    }
+    await send(
+      'POST',
+      `/api/app/documents/${repl.documentId}/record/mark-controlled?orgId=${orgId}`,
+      {},
+    );
+    const begin = z
+      .object({ intentId: z.string(), url: z.string().url() })
+      .safeParse(
+        await (
+          await send(
+            'POST',
+            `/api/app/documents/${repl.documentId}/replacement-upload/begin?orgId=${orgId}`,
+            {
+              expectedRecordState: 'draft',
+              expectedVersion: 1,
+              expectedFileId: repl.ref,
+              fileName: 'purge-replace.txt',
+              contentType: 'text/plain',
+            },
+          )
+        ).json(),
+      );
+    if (begin.success) {
+      await fetch(begin.data.url, {
+        method: 'PUT',
+        headers: { 'content-type': 'text/plain' },
+        body: 'purge check beta cinnabar replacement body',
+      });
+    }
+    const finalize = await send(
+      'POST',
+      `/api/app/documents/replacement-uploads/${begin.success ? begin.data.intentId : ''}/finalize?orgId=${orgId}`,
+      {},
+    );
+    const afterReplace = z
+      .object({ document: z.object({ fileId: z.string() }) })
+      .safeParse(
+        await (
+          await fetch(
+            `${base}/api/app/documents/${repl.documentId}?orgId=${orgId}`,
+            { headers: { cookie } },
+          )
+        ).json(),
+      );
+    const newRef = afterReplace.success
+      ? afterReplace.data.document.fileId
+      : '';
+    const oldDeindexed = await waitFor(
+      async () => (await corpusCount(repl.ref)) === 0,
+      30_000,
+    );
+    const newIndexed = await waitFor(
+      async () => (await corpusCount(newRef)) === 1,
+      30_000,
+    );
+    const oldFetchDark = !(await fetchRaw(repl.ref)).includes('quicksilver');
+    const oldBlobRetained = await blobExists(repl.ref);
+    record(
+      'corpus purge: replacement de-indexes the superseded version',
+      finalize.ok &&
+        newRef !== '' &&
+        newRef !== repl.ref &&
+        oldDeindexed &&
+        newIndexed &&
+        oldFetchDark &&
+        oldBlobRetained,
+      `finalize → ${finalize.status}, oldCorpusGone=${oldDeindexed}, newIndexed=${newIndexed}, oldFetchDark=${oldFetchDark}, snapshotBytesKept=${oldBlobRetained}`,
+    );
+
+    // --- 2. Knowledge-entry edit releases the rotated-away ref -------------
+    const entryCreated = z.object({ id: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/knowledge-entries?orgId=${orgId}`, {
+          topic: 'purge rotation topic',
+          content: 'entry version one verdigris facts',
+        })
+      ).json(),
+    );
+    const entryDocRows = await sql<{ documentId: string | null }[]>`
+      SELECT document_id AS "documentId" FROM app.knowledge_entries
+      WHERE id = ${entryCreated.success ? entryCreated.data.id : ''}
+    `;
+    const entryDocId = entryDocRows[0]?.documentId ?? '';
+    const entryFileRows = await sql<{ id: string; storageRef: string }[]>`
+      SELECT id, storage_ref AS "storageRef" FROM app.file_metadata
+      WHERE document_id = ${entryDocId}
+    `;
+    const entryRefV1 = entryFileRows[0]?.storageRef ?? '';
+    const entryIndexedV1 = await waitFor(
+      async () => (await corpusCount(entryRefV1)) === 1,
+      30_000,
+    );
+    const entryUpdated = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/knowledge-entries/${entryCreated.success ? entryCreated.data.id : ''}?orgId=${orgId}`,
+          {
+            topic: 'purge rotation topic',
+            content: 'entry version two zeppelin facts',
+          },
+        )
+      ).json(),
+    );
+    const entryRefV2Rows = await sql<{ storageRef: string }[]>`
+      SELECT storage_ref AS "storageRef" FROM app.file_metadata
+      WHERE document_id = ${entryDocId}
+    `;
+    const entryRefV2 = entryRefV2Rows[0]?.storageRef ?? '';
+    const v1Released = await waitFor(
+      async () =>
+        (await corpusCount(entryRefV1)) === 0 &&
+        !(await blobExists(entryRefV1)),
+      30_000,
+    );
+    const v2Indexed = await waitFor(
+      async () => (await corpusCount(entryRefV2)) === 1,
+      30_000,
+    );
+    record(
+      'corpus purge: knowledge-entry edit releases the old ref (corpus + blob)',
+      entryCreated.success &&
+        entryIndexedV1 &&
+        entryUpdated.success &&
+        entryRefV2 !== '' &&
+        entryRefV2 !== entryRefV1 &&
+        v1Released &&
+        v2Indexed,
+      `v1Indexed=${entryIndexedV1}, rotated=${entryRefV2 !== entryRefV1}, v1Released=${v1Released} (corpus row + blob gone), v2Indexed=${v2Indexed}`,
+    );
+
+    // --- 3. Purge failure is honest; retry heals ----------------------------
+    const honest = await uploadIndexedDoc(
+      'purge-honest.txt',
+      'purge check epsilon honesty body',
+    );
+    if (honest === null) {
+      record('corpus purge: failure honesty', false, 'seed doc failed');
+      return;
+    }
+    // Point the org's corpus at a dead endpoint — fail-closed by contract.
+    const badConnectionPath = path.join(knowledgeDir, 'connection.json');
+    await writeFile(
+      badConnectionPath,
+      JSON.stringify({
+        host: '127.0.0.1',
+        port: 9,
+        database: 'unreachable',
+        user: 'nobody',
+        sslmode: 'disable',
+      }),
+    );
+    const failedDelete = await send(
+      'POST',
+      `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
+      {},
+    );
+    const rowKeptRows = await sql<{ id: string }[]>`
+      SELECT id FROM app.documents WHERE id = ${honest.documentId}
+    `;
+    const corpusKept = (await corpusCount(honest.ref)) === 1;
+    const blobKept = await blobExists(honest.ref);
+    await rm(badConnectionPath, { force: true });
+    const retryDelete = await send(
+      'POST',
+      `/api/app/documents/${honest.documentId}/delete?orgId=${orgId}`,
+      {},
+    );
+    const rowGoneRows = await sql<{ id: string }[]>`
+      SELECT id FROM app.documents WHERE id = ${honest.documentId}
+    `;
+    const corpusGoneAfterRetry = (await corpusCount(honest.ref)) === 0;
+    const blobGoneAfterRetry = !(await blobExists(honest.ref));
+    record(
+      'corpus purge: failed purge keeps the row (honest), retry heals',
+      !failedDelete.ok &&
+        rowKeptRows.length === 1 &&
+        corpusKept &&
+        blobKept &&
+        retryDelete.ok &&
+        rowGoneRows.length === 0 &&
+        corpusGoneAfterRetry &&
+        blobGoneAfterRetry,
+      `brokenDelete → ${failedDelete.status} (want !ok), rowKept=${rowKeptRows.length === 1}, corpusKept=${corpusKept}, blobKept=${blobKept}; retry → ${retryDelete.status}, rowGone=${rowGoneRows.length === 0}, corpusGone=${corpusGoneAfterRetry}, blobGone=${blobGoneAfterRetry}`,
+    );
+
+    // --- 4. Project cascade: dark immediately, purged by the sweep ---------
+    const projectCreated = z.object({ projectId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/projects?orgId=${orgId}`, {
+          name: 'Purge Cascade Project',
+        })
+      ).json(),
+    );
+    const projectId = projectCreated.success
+      ? projectCreated.data.projectId
+      : '';
+    const projDoc = await uploadIndexedDoc(
+      'purge-cascade.txt',
+      'purge check theta cascade body',
+      projectId,
+    );
+    if (projDoc === null) {
+      record('corpus purge: project cascade', false, 'seed project doc failed');
+      return;
+    }
+    const cascade = await send(
+      'DELETE',
+      `/api/app/projects/${projectId}?orgId=${orgId}`,
+      { mode: 'cascade', confirmPhrase: 'Purge Cascade Project' },
+    );
+    const expiredRows = await sql<{ lifecycleStatus: string | null }[]>`
+      SELECT lifecycle_status AS "lifecycleStatus" FROM app.documents
+      WHERE id = ${projDoc.documentId}
+    `;
+    // Dark IMMEDIATELY: the corpus row still exists, but the retrievable
+    // filter refuses the expired lifecycle — no job in between.
+    const corpusStillThere = (await corpusCount(projDoc.ref)) === 1;
+    const darkImmediately = !(await fetchRaw(projDoc.ref)).includes('theta');
+    const { sweepOrgPhase2 } = await import('./domains/retention/service.ts');
+    const { loadActiveHolds } =
+      await import('./domains/legal_holds/service.ts');
+    const holds = await loadActiveHolds(sql, orgId);
+    const phase2 = await sweepOrgPhase2(
+      sql,
+      {
+        organizationId: orgId,
+        config: {
+          documentsEnabled: true,
+          documentsRetentionDays: 36_500,
+          deletionGraceDays: 0,
+        },
+      },
+      holds,
+    );
+    const cascadeRowGone =
+      (
+        await sql<{ id: string }[]>`
+          SELECT id FROM app.documents WHERE id = ${projDoc.documentId}
+        `
+      ).length === 0;
+    const cascadeCorpusGone = (await corpusCount(projDoc.ref)) === 0;
+    const cascadeBlobGone = !(await blobExists(projDoc.ref));
+    record(
+      'corpus purge: project cascade darkens now, grace=0 sweep hard-deletes',
+      cascade.ok &&
+        expiredRows[0]?.lifecycleStatus === 'expired' &&
+        corpusStillThere &&
+        darkImmediately &&
+        phase2.documents >= 1 &&
+        cascadeRowGone &&
+        cascadeCorpusGone &&
+        cascadeBlobGone,
+      `cascade → ${cascade.status}, lifecycle=${expiredRows[0]?.lifecycleStatus}, darkImmediately=${darkImmediately} (corpus row still present=${corpusStillThere}), sweepDocs=${phase2.documents}, rowGone=${cascadeRowGone}, corpusGone=${cascadeCorpusGone}, blobGone=${cascadeBlobGone}`,
+    );
+
+    // --- 5. A shared ref survives its sibling's purge (COPY twins) ---------
+    const twin = await uploadIndexedDoc(
+      'purge-twin.txt',
+      'purge check zeta twin body',
+    );
+    if (twin === null) {
+      record('corpus purge: shared-ref twins', false, 'seed doc failed');
+      return;
+    }
+    // The WebDAV COPY shape: a second document row, SAME file_ref, no file
+    // row of its own.
+    const twinRows = await sql<{ id: string }[]>`
+      INSERT INTO app.documents (
+        org_id, title, file_ref, mime_type, extension, source_provider,
+        created_by, created_at_ms, updated_at_ms
+      )
+      SELECT org_id, 'purge-twin copy.txt', file_ref, mime_type, extension,
+             'webdav', created_by, ${Date.now()}, ${Date.now()}
+      FROM app.documents WHERE id = ${twin.documentId}
+      RETURNING id
+    `;
+    const twinId = twinRows[0]?.id ?? '';
+    const deleteFirst = await send(
+      'POST',
+      `/api/app/documents/${twin.documentId}/delete?orgId=${orgId}`,
+      {},
+    );
+    const twinCorpusKept = (await corpusCount(twin.ref)) === 1;
+    const twinBlobKept = await blobExists(twin.ref);
+    const twinStillAnswers = (await fetchRaw(twin.ref)).includes('zeta');
+    const deleteSecond = await send(
+      'POST',
+      `/api/app/documents/${twinId}/delete?orgId=${orgId}`,
+      {},
+    );
+    const twinCorpusGone = (await corpusCount(twin.ref)) === 0;
+    const twinBlobGone = !(await blobExists(twin.ref));
+    record(
+      'corpus purge: shared blob ref survives the sibling, dies with the last holder',
+      deleteFirst.ok &&
+        twinCorpusKept &&
+        twinBlobKept &&
+        twinStillAnswers &&
+        deleteSecond.ok &&
+        twinCorpusGone &&
+        twinBlobGone,
+      `first delete → ${deleteFirst.status}, corpusKept=${twinCorpusKept}, blobKept=${twinBlobKept}, twinAnswers=${twinStillAnswers}; second delete → ${deleteSecond.status}, corpusGone=${twinCorpusGone}, blobGone=${twinBlobGone}`,
+    );
+
+    // --- 6. The reconcile sweep heals historical strands --------------------
+    const strand = await uploadIndexedDoc(
+      'purge-strand.txt',
+      'purge check eta strand body',
+    );
+    if (strand === null) {
+      record('corpus purge: reconcile sweep', false, 'seed doc failed');
+      return;
+    }
+    // Recreate the pre-fix wreckage: app rows vanish, corpus row + blob stay.
+    await sql`DELETE FROM app.file_metadata WHERE document_id = ${strand.documentId}`;
+    await sql`DELETE FROM app.documents WHERE id = ${strand.documentId}`;
+    const strandSeeded = (await corpusCount(strand.ref)) === 1;
+    // A missing release seam is a red result, not a harness crash.
+    let reconcileRan = false;
+    try {
+      const { runCorpusReconcile } =
+        await import('./domains/knowledge/release.ts');
+      await runCorpusReconcile(sql);
+      reconcileRan = true;
+    } catch (error) {
+      console.warn('[itest] corpus reconcile unavailable:', error);
+    }
+    const strandCorpusGone = (await corpusCount(strand.ref)) === 0;
+    const strandBlobGone = !(await blobExists(strand.ref));
+    record(
+      'corpus purge: reconcile sweep de-indexes stranded refs',
+      strandSeeded && reconcileRan && strandCorpusGone && strandBlobGone,
+      `seeded=${strandSeeded}, reconcileRan=${reconcileRan}, corpusGone=${strandCorpusGone}, blobGone=${strandBlobGone}`,
+    );
+
+    // --- 7. Knowledge-entry mutations are role-gated ------------------------
+    const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({
+        email: `purge-member-${orgSlug}@example.com`,
+        password: 'itest-password-1',
+        name: 'Purge Member',
+      }),
+    });
+    const memberCookie = cookieHeaderFrom(memberSignUp);
+    const memberBody = z
+      .object({ user: z.object({ id: z.string() }) })
+      .safeParse(await memberSignUp.json());
+    const memberId = memberBody.success ? memberBody.data.user.id : '';
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member',
+              ${new Date()})
+    `;
+    const memberSend = (route: string, body: unknown): Promise<Response> =>
+      fetch(`${base}${route}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: memberCookie,
+          origin: base,
+        },
+        body: JSON.stringify(body),
+      });
+    const memberCreate = await memberSend(
+      `/api/app/knowledge-entries?orgId=${orgId}`,
+      { topic: 'member planted topic', content: 'member planted content' },
+    );
+    const memberUpdate = await memberSend(
+      `/api/app/knowledge-entries/${entryUpdated.success ? entryUpdated.data.id : ''}?orgId=${orgId}`,
+      { topic: 'purge rotation topic', content: 'member tampered content' },
+    );
+    const memberDelete = await fetch(
+      `${base}/api/app/knowledge-entries/${entryUpdated.success ? entryUpdated.data.id : ''}?orgId=${orgId}`,
+      {
+        method: 'DELETE',
+        headers: { cookie: memberCookie, origin: base },
+      },
+    );
+    const memberList = await fetch(
+      `${base}/api/app/knowledge-entries?orgId=${orgId}`,
+      { headers: { cookie: memberCookie } },
+    );
+    // The owner CAN delete — and it leaves the org's entry list the way this
+    // check found it (a later check asserts its own delete empties the list).
+    const ownerDelete = await fetch(
+      `${base}/api/app/knowledge-entries/${entryUpdated.success ? entryUpdated.data.id : ''}?orgId=${orgId}`,
+      { method: 'DELETE', headers: { cookie, origin: base } },
+    );
+    if (memberCreate.status === 201) {
+      // Only reachable when the role gate is broken: reap the planted entry
+      // so this scenario's red never bleeds into the later entries check.
+      const planted = z.object({ id: z.string() }).safeParse(
+        await memberCreate
+          .clone()
+          .json()
+          .catch(() => null),
+      );
+      if (planted.success) {
+        await fetch(
+          `${base}/api/app/knowledge-entries/${planted.data.id}?orgId=${orgId}`,
+          { method: 'DELETE', headers: { cookie, origin: base } },
+        );
+      }
+    }
+    record(
+      'knowledge entries: member role is read-only (app + REST seam gate)',
+      memberCreate.status === 403 &&
+        memberUpdate.status === 403 &&
+        memberDelete.status === 403 &&
+        memberList.ok &&
+        ownerDelete.ok,
+      `create → ${memberCreate.status}, update → ${memberUpdate.status}, delete → ${memberDelete.status} (want 403), list → ${memberList.status} (want 200), ownerDelete → ${ownerDelete.status} (want 200)`,
+    );
+  } finally {
+    await rm(path.join(knowledgeDir, 'connection.json'), { force: true });
     await new Promise<void>((resolve) => {
       embedServer.close(() => resolve());
     });
@@ -6831,6 +8267,23 @@ async function checkSamlLogin(
     const loginLocation = loginRes.headers.get('location') ?? '';
     const loginUrl = loginLocation === '' ? null : new URL(loginLocation);
 
+    // The AuthnRequest ID inside the redirect (deflate+base64, Redirect
+    // binding) — building it must have stored the ID in the shared
+    // app.saml_request_ids store, or no instance could validate the answer.
+    const { inflateRawSync } = await import('node:zlib');
+    const samlRequestParam = loginUrl?.searchParams.get('SAMLRequest') ?? '';
+    const authnRequestId =
+      samlRequestParam === ''
+        ? ''
+        : (/ID="([^"]+)"/.exec(
+            inflateRawSync(Buffer.from(samlRequestParam, 'base64')).toString(
+              'utf8',
+            ),
+          )?.[1] ?? '');
+    const issuedRow = await sql<{ id: string }[]>`
+      SELECT id FROM app.saml_request_ids WHERE id = ${authnRequestId}
+    `;
+
     record(
       'SAML: SP metadata + AuthnRequest redirect',
       metadataRes.status === 200 &&
@@ -6852,6 +8305,7 @@ async function checkSamlLogin(
       groups: string[];
       notOnOrAfterMs: number;
       tamper?: boolean;
+      inResponseTo?: string;
     }): string => {
       const now = Date.now();
       // Group membership is ONE multi-valued attribute (the shape Entra,
@@ -6872,7 +8326,7 @@ async function checkSamlLogin(
         `<saml:Issuer>https://idp.saml.itest/entity</saml:Issuer>` +
         `<saml:Subject><saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">${opts.email}</saml:NameID>` +
         `<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">` +
-        `<saml:SubjectConfirmationData NotOnOrAfter="${iso(opts.notOnOrAfterMs)}" Recipient="${acsUrl}"></saml:SubjectConfirmationData>` +
+        `<saml:SubjectConfirmationData${opts.inResponseTo ? ` InResponseTo="${opts.inResponseTo}"` : ''} NotOnOrAfter="${iso(opts.notOnOrAfterMs)}" Recipient="${acsUrl}"></saml:SubjectConfirmationData>` +
         `</saml:SubjectConfirmation></saml:Subject>` +
         `<saml:Conditions NotBefore="${iso(now - 60_000)}" NotOnOrAfter="${iso(opts.notOnOrAfterMs)}">` +
         `<saml:AudienceRestriction><saml:Audience>${spEntityId}</saml:Audience></saml:AudienceRestriction>` +
@@ -6912,7 +8366,7 @@ async function checkSamlLogin(
           )
         : signed;
       return Buffer.from(
-        `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp${opts.id}" IssueInstant="${iso(now)}" Version="2.0" Destination="${acsUrl}">` +
+        `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp${opts.id}" IssueInstant="${iso(now)}" Version="2.0" Destination="${acsUrl}"${opts.inResponseTo ? ` InResponseTo="${opts.inResponseTo}"` : ''}>` +
           `<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"></samlp:StatusCode></samlp:Status>` +
           body +
           `</samlp:Response>`,
@@ -7037,6 +8491,104 @@ async function checkSamlLogin(
             row.metadata?.stage === 'callback',
         ),
       `tampered=${tamperedRes.status}/${(tamperedRes.headers.get('set-cookie') ?? '') === '' ? 'no-cookie' : 'COOKIE'}, impostorAccounts=${impostor.length}, expired=${expiredRes.status}, noBody=${noBodyRes.status}, auditRows=${auditsBefore[0]?.count}→${failures.length} (want +2)`,
+    );
+
+    // ---- InResponseTo one-time use -------------------------------------
+    // An SP-initiated response must answer the AuthnRequest this deployment
+    // issued (row present until consumed), the SAME captured body must not
+    // validate twice, and a request id the SP never issued is refused.
+    const spResponse = buildResponse({
+      id: '_itestsaml4',
+      email: 'saml.user@door.test',
+      groups: ['SamlOps'],
+      notOnOrAfterMs: Date.now() + 300_000,
+      inResponseTo: authnRequestId,
+    });
+    const spFirst = await postAssertion(spResponse);
+    const spFirstCookie =
+      (spFirst.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const consumedRow = await sql<{ id: string }[]>`
+      SELECT id FROM app.saml_request_ids WHERE id = ${authnRequestId}
+    `;
+    const spReplay = await postAssertion(spResponse);
+    const forged = await postAssertion(
+      buildResponse({
+        id: '_itestsaml5',
+        email: 'saml.user@door.test',
+        groups: ['SamlOps'],
+        notOnOrAfterMs: Date.now() + 300_000,
+        inResponseTo: '_never-issued',
+      }),
+    );
+    record(
+      'SAML: InResponseTo one-time use (replay + forged request refused)',
+      authnRequestId !== '' &&
+        issuedRow.length === 1 &&
+        spFirst.status === 302 &&
+        (spFirst.headers.get('location') ?? '').includes('/dashboard') &&
+        spFirstCookie.includes('better-auth.session_token=') &&
+        consumedRow.length === 0 &&
+        spReplay.status === 302 &&
+        (spReplay.headers.get('location') ?? '').includes('/log-in') &&
+        (spReplay.headers.get('set-cookie') ?? '') === '' &&
+        forged.status === 302 &&
+        (forged.headers.get('location') ?? '').includes('/log-in') &&
+        (forged.headers.get('set-cookie') ?? '') === '',
+      `issued=${authnRequestId !== ''}/row=${issuedRow.length} (want 1), first=${spFirst.status}→${(spFirst.headers.get('location') ?? '').includes('/dashboard') ? 'dashboard' : spFirst.headers.get('location')} cookie=${spFirstCookie !== ''}, consumed=${consumedRow.length === 0}, replay=${spReplay.status}→${(spReplay.headers.get('location') ?? '').includes('/log-in') ? 'log-in' : 'ERR'} noCookie=${(spReplay.headers.get('set-cookie') ?? '') === ''}, forged=${forged.status} noCookie=${(forged.headers.get('set-cookie') ?? '') === ''}`,
+    );
+
+    // ---- org binding ----------------------------------------------------
+    // A user who EXISTS on the deployment but has no membership in this org
+    // must be refused: org admins self-serve the IdP, so honouring a global
+    // email match would let this connection mint a session as any user
+    // (cross-org takeover). Refusal is actionable, audited, writes nothing.
+    const outsiderOrg = await sql<{ id: string }[]>`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (gen_random_uuid(), 'Outsider Org',
+              ${`outsider-org-${Date.now()}`}, ${new Date()})
+      RETURNING "id"
+    `;
+    const outsiderUser = await sql<{ id: string }[]>`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified",
+                          "createdAt", "updatedAt")
+      VALUES (gen_random_uuid(), 'outsider@door.test', 'Outsider', true,
+              ${new Date()}, ${new Date()})
+      RETURNING "id"
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${outsiderOrg[0]?.id ?? ''},
+              ${outsiderUser[0]?.id ?? ''}, 'member', ${new Date()})
+    `;
+    const crossOrg = await postAssertion(
+      buildResponse({
+        id: '_itestsaml6',
+        email: 'outsider@door.test',
+        groups: ['Everyone'],
+        notOnOrAfterMs: Date.now() + 300_000,
+      }),
+    );
+    const crossOrgLocation = crossOrg.headers.get('location') ?? '';
+    const joined = await sql<{ id: string }[]>`
+      SELECT "id" FROM "member"
+      WHERE "organizationId" = ${orgId}
+        AND "userId" = ${outsiderUser[0]?.id ?? ''}
+    `;
+    const refusalAudit = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sso_login_failed'
+        AND error_message = 'sso.errors.notOrgMember'
+    `;
+    record(
+      'SAML: an existing user outside the org is refused (no auto-join)',
+      crossOrg.status === 302 &&
+        crossOrgLocation.includes('/log-in') &&
+        crossOrgLocation.includes('notOrgMember') &&
+        (crossOrg.headers.get('set-cookie') ?? '') === '' &&
+        joined.length === 0 &&
+        (refusalAudit[0]?.count ?? 0) >= 1,
+      `refused=${crossOrg.status}→${crossOrgLocation.includes('/log-in') ? 'log-in' : crossOrgLocation} key=${crossOrgLocation.includes('notOrgMember')} noCookie=${(crossOrg.headers.get('set-cookie') ?? '') === ''}, joined=${joined.length} (want 0), audited=${refusalAudit[0]?.count}`,
     );
   } finally {
     if (savedSiteUrl === undefined) delete process.env.SITE_URL;
@@ -7460,17 +9012,20 @@ async function checkScim(
  */
 async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
   process.env.TRUSTED_HEADERS_ENABLED = 'true';
+  process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'itest-trusted-door';
   try {
     const authWith = async (
       role: string,
       cookie?: string,
-    ): Promise<{ cookie: string; status: number }> => {
+      secret: string | null = 'itest-trusted-door',
+    ): Promise<{ cookie: string; status: number; body: string }> => {
       const res = await fetch(`${base}/api/trusted-headers/authenticate`, {
         headers: {
           'Remote-Email': 'proxy.user@door.test',
           'Remote-Name': 'Proxy User',
           'Remote-Role': role,
           'Remote-Teams': 't-fin:Finance, t-ops:Operations',
+          ...(secret !== null ? { 'Remote-Internal-Secret': secret } : {}),
           ...(cookie !== undefined ? { cookie } : {}),
         },
       });
@@ -7478,6 +9033,7 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
       return {
         cookie: setCookie.split(';')[0] ?? '',
         status: res.status,
+        body: await res.text(),
       };
     };
 
@@ -7489,6 +9045,18 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
       const text = await res.text();
       process.env.TRUSTED_HEADERS_ENABLED = 'true';
       return text.includes('not enabled');
+    })();
+
+    // The spoofing guard: the identity headers alone are forgeable, so the
+    // door opens only for the proxy-injected internal secret — a missing or
+    // wrong one mints NOTHING, and an unset env secret refuses the mode.
+    const noSecret = await authWith('member', undefined, null);
+    const wrongSecret = await authWith('member', undefined, 'not-the-secret');
+    const unconfigured = await (async () => {
+      delete process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
+      const res = await authWith('member');
+      process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'itest-trusted-door';
+      return res;
     })();
 
     const first = await authWith('member');
@@ -7544,6 +9112,12 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
     record(
       'trusted-headers auth (proxy hand-off + session role override)',
       disabledProbe &&
+        noSecret.cookie === '' &&
+        noSecret.body.includes('Missing required header') &&
+        wrongSecret.cookie === '' &&
+        wrongSecret.body.includes('Failed to complete login') &&
+        unconfigured.cookie === '' &&
+        unconfigured.body.includes('Server configuration error') &&
         first.status === 200 &&
         first.cookie.includes('better-auth.session_token=') &&
         session1.success &&
@@ -7555,10 +9129,11 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
         allowed.status === 200 &&
         sessionsAfter.length === 1 &&
         sessionsAfter[0]?.trustedRole === 'admin',
-      `disabledGate=${disabledProbe}, auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${(rows[0]?.trustedTeams ?? '').includes('Finance')}, member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
+      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${(rows[0]?.trustedTeams ?? '').includes('Finance')}, member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
     );
   } finally {
     delete process.env.TRUSTED_HEADERS_ENABLED;
+    delete process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
   }
 }
 
@@ -9759,6 +11334,253 @@ async function checkRecoverySweeps(
       videoRow[0]?.code === 'whisperFailed',
     `failed=${transcriptions.failed} cascaded=${transcriptions.cascaded}, stuck=${stuckRow?.status}, freshUntouched=${freshRow?.status === 'running'}, video=${videoRow[0]?.status}/${videoRow[0]?.code}`,
   );
+
+  // ---- transcriptions: a claim-less stale 'queued' row (crash between
+  //      pickup and claim, or a lost enqueue — files.transcribe has
+  //      retryLimit 0) fails and cascades exactly like a dead run --------
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      transcription_status, created_at_ms
+    ) VALUES
+      (${orgId}, 'stuck-q.mp3', 'audio/mpeg', 10, 's3:stuck-q-1',
+       ${userId}, 'queued', ${stale}),
+      (${orgId}, 'fresh-q.mp3', 'audio/mpeg', 10, 's3:fresh-q-1',
+       ${userId}, 'queued', ${now})
+  `;
+  await sql`
+    INSERT INTO app.video_link_jobs (
+      org_id, source_url, source_url_hash, source_platform, pasted_token,
+      status, status_changed_at_ms, storage_ref, uploaded_by, created_at_ms
+    ) VALUES (
+      ${orgId}, 'https://example.test/q', 'hash-stuck-q', 'youtube',
+      'https://example.test/q', 'transcribing_handoff', ${stale},
+      's3:stuck-q-1', ${userId}, ${stale}
+    )
+  `;
+  const queuedSweep = await recoverStuckTranscriptions(sql);
+  const queuedRows = await sql<{ fileName: string; status: string | null }[]>`
+    SELECT file_name AS "fileName", transcription_status AS status
+    FROM app.file_metadata WHERE org_id = ${orgId}
+      AND file_name IN ('stuck-q.mp3', 'fresh-q.mp3')
+  `;
+  const stuckQ = queuedRows.find((row) => row.fileName === 'stuck-q.mp3');
+  const freshQ = queuedRows.find((row) => row.fileName === 'fresh-q.mp3');
+  const queuedVideo = await sql<{ status: string; code: string | null }[]>`
+    SELECT status, error_reason_code AS code FROM app.video_link_jobs
+    WHERE source_url_hash = 'hash-stuck-q'
+  `;
+  record(
+    'watchdog: a never-claimed stale queued transcription fails and cascades',
+    queuedSweep.failed >= 1 &&
+      stuckQ?.status === 'failed' &&
+      freshQ?.status === 'queued' &&
+      queuedVideo[0]?.status === 'failed' &&
+      queuedVideo[0]?.code === 'whisperFailed',
+    `failed=${queuedSweep.failed} (want >=1) stuckQueued=${stuckQ?.status} (want failed), freshUntouched=${freshQ?.status === 'queued'}, video=${queuedVideo[0]?.status}/${queuedVideo[0]?.code}`,
+  );
+
+  // ---- video reconcile: a parked handoff row over a SETTLED file row
+  //      mirrors its terminal state (any age — this is the deployed-debt
+  //      backfill), and an orphan handoff row (file row gone) fails after
+  //      the stale window while a fresh orphan gets grace -----------------
+  const parkedDoneFile = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      transcript, transcription_status, created_at_ms
+    ) VALUES (
+      ${orgId}, 'parked-done.mp3', 'audio/mpeg', 10, 's3:parked-done-1',
+      ${userId}, 'Settled transcript.', 'completed', ${stale}
+    )
+    RETURNING id
+  `;
+  await sql`
+    INSERT INTO app.video_link_jobs (
+      org_id, source_url, source_url_hash, source_platform, pasted_token,
+      status, status_changed_at_ms, storage_ref, file_metadata_id,
+      uploaded_by, created_at_ms
+    ) VALUES
+      (${orgId}, 'https://example.test/p1', 'hash-parked-done', 'youtube',
+       'p1', 'transcribing_handoff', ${now}, 's3:parked-done-1',
+       ${parkedDoneFile[0]?.id ?? ''}, ${userId}, ${stale}),
+      (${orgId}, 'https://example.test/o1', 'hash-orphan-stale', 'youtube',
+       'o1', 'transcribing_handoff', ${stale}, 's3:orphan-stale-1',
+       'fm_gone_stale', ${userId}, ${stale}),
+      (${orgId}, 'https://example.test/o2', 'hash-orphan-fresh', 'youtube',
+       'o2', 'transcribing_handoff', ${now}, 's3:orphan-fresh-1',
+       'fm_gone_fresh', ${userId}, ${now})
+  `;
+  const videoService = await import('./domains/video_links/service.ts');
+  await videoService.runVideoLinkWatchdog(sql);
+  const reconciled = await sql<
+    { hash: string; status: string; code: string | null }[]
+  >`
+    SELECT source_url_hash AS hash, status, error_reason_code AS code
+    FROM app.video_link_jobs
+    WHERE source_url_hash IN
+      ('hash-parked-done', 'hash-orphan-stale', 'hash-orphan-fresh')
+  `;
+  const byHash = new Map(reconciled.map((row) => [row.hash, row]));
+  record(
+    'watchdog: video reconcile settles parked handoff rows and orphans',
+    byHash.get('hash-parked-done')?.status === 'completed' &&
+      byHash.get('hash-orphan-stale')?.status === 'failed' &&
+      byHash.get('hash-orphan-stale')?.code === 'whisperFailed' &&
+      byHash.get('hash-orphan-fresh')?.status === 'transcribing_handoff',
+    `parkedDone=${byHash.get('hash-parked-done')?.status} (want completed), orphanStale=${byHash.get('hash-orphan-stale')?.status}/${byHash.get('hash-orphan-stale')?.code} (want failed/whisperFailed), orphanFreshGrace=${byHash.get('hash-orphan-fresh')?.status}`,
+  );
+
+  // ---- claim seam: winning the lease IS the 'running' transition --------
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      transcription_status, created_at_ms
+    ) VALUES
+      (${orgId}, 'claim.mp3', 'audio/mpeg', 10, 's3:claim-1', ${userId},
+       'queued', ${now}),
+      (${orgId}, 'claim-skip.mp3', 'audio/mpeg', 10, 's3:claim-skip-1',
+       ${userId}, 'skipped', ${now})
+  `;
+  const transcriptionModule = await import('./domains/files/transcription.ts');
+  // Optional-typed so the pre-fix tree (no such export) records a failure
+  // instead of crashing the suite.
+  const acquireTranscriptionLease = (
+    transcriptionModule as {
+      acquireTranscriptionLease?: (
+        db: Sql,
+        args: { storageRef: string; runId: string; leaseMs: number },
+      ) => Promise<string | null>;
+    }
+  ).acquireTranscriptionLease;
+  if (!acquireTranscriptionLease) {
+    record(
+      'watchdog: the transcription lease claim stamps running + started_at',
+      false,
+      'acquireTranscriptionLease is not exported — nothing ever writes running/started_at, the crash watchdog is dead code',
+    );
+  } else {
+    const won = await acquireTranscriptionLease(sql, {
+      storageRef: 's3:claim-1',
+      runId: 'run-A',
+      leaseMs: 60_000,
+    });
+    const claimRows = await sql<
+      {
+        status: string | null;
+        startedAt: number | null;
+        runId: string | null;
+      }[]
+    >`
+      SELECT transcription_status AS status,
+             transcription_started_at_ms::float8 AS "startedAt",
+             transcription_run_id AS "runId"
+      FROM app.file_metadata WHERE storage_ref = 's3:claim-1'
+    `;
+    const lost = await acquireTranscriptionLease(sql, {
+      storageRef: 's3:claim-1',
+      runId: 'run-B',
+      leaseMs: 60_000,
+    });
+    const refused = await acquireTranscriptionLease(sql, {
+      storageRef: 's3:claim-skip-1',
+      runId: 'run-C',
+      leaseMs: 60_000,
+    });
+    const skipClaimRows = await sql<{ status: string | null }[]>`
+      SELECT transcription_status AS status FROM app.file_metadata
+      WHERE storage_ref = 's3:claim-skip-1'
+    `;
+    record(
+      'watchdog: the transcription lease claim stamps running + started_at',
+      won === 'run-A' &&
+        claimRows[0]?.status === 'running' &&
+        claimRows[0]?.startedAt !== null &&
+        claimRows[0]?.runId === 'run-A' &&
+        lost === 'run-A' &&
+        refused !== 'run-C' &&
+        skipClaimRows[0]?.status === 'skipped',
+      `won=${won}/run-A row=${claimRows[0]?.status}(startedAt=${claimRows[0]?.startedAt !== null}) holderKept=${lost === 'run-A'} skippedRefused=${refused !== 'run-C'}→${skipClaimRows[0]?.status}`,
+    );
+  }
+
+  // ---- skip propagation: a user skip on the file lane cascades onto the
+  //      waiting video job ------------------------------------------------
+  const skipFile = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      transcription_status, created_at_ms
+    ) VALUES (
+      ${orgId}, 'skip-audio.mp3', 'audio/mpeg', 10, 's3:skip-audio-1',
+      ${userId}, 'queued', ${now}
+    )
+    RETURNING id
+  `;
+  await sql`
+    INSERT INTO app.video_link_jobs (
+      org_id, source_url, source_url_hash, source_platform, pasted_token,
+      status, status_changed_at_ms, storage_ref, file_metadata_id,
+      uploaded_by, created_at_ms
+    ) VALUES (
+      ${orgId}, 'https://example.test/s1', 'hash-skip-1', 'youtube', 's1',
+      'transcribing_handoff', ${now}, 's3:skip-audio-1',
+      ${skipFile[0]?.id ?? ''}, ${userId}, ${now}
+    )
+  `;
+  const { skipTranscription } =
+    await import('./domains/files/transcription.ts');
+  await skipTranscription(sql, orgId, 's3:skip-audio-1');
+  const skipVideo = await sql<{ status: string }[]>`
+    SELECT status FROM app.video_link_jobs
+    WHERE source_url_hash = 'hash-skip-1'
+  `;
+  record(
+    'watchdog: skipping a file transcription cascades onto its video job',
+    skipVideo[0]?.status === 'skipped',
+    `video=${skipVideo[0]?.status} (want skipped)`,
+  );
+
+  // ---- dismissal keeps a settled transcript: cancelling a whisper chip
+  //      whose transcription already COMPLETED must not clobber the file
+  //      row to 'skipped' (the cleanup would then delete the org's donor
+  //      transcript). Blob cleanup runs, so this needs the S3 lane. ------
+  if (process.env.ITEST_S3_ENDPOINT) {
+    const donorKeepFile = await sql<{ id: string }[]>`
+      INSERT INTO app.file_metadata (
+        org_id, file_name, content_type, size, storage_ref, uploaded_by,
+        transcript, transcription_status, created_at_ms
+      ) VALUES (
+        ${orgId}, 'donor-keep.mp3', 'audio/mpeg', 10, 's3:donor-keep-1',
+        ${userId}, 'Donor transcript to keep.', 'completed', ${now}
+      )
+      RETURNING id
+    `;
+    const donorKeepJob = await sql<{ id: string }[]>`
+      INSERT INTO app.video_link_jobs (
+        org_id, source_url, source_url_hash, source_platform, pasted_token,
+        status, status_changed_at_ms, storage_ref, file_metadata_id,
+        uploaded_by, created_at_ms
+      ) VALUES (
+        ${orgId}, 'https://example.test/d1', 'hash-donor-keep', 'youtube',
+        'd1', 'transcribing_handoff', ${now}, 's3:donor-keep-1',
+        ${donorKeepFile[0]?.id ?? ''}, ${userId}, ${now}
+      )
+      RETURNING id
+    `;
+    await videoService.cancelVideoLink(sql, {
+      organizationId: orgId,
+      userId,
+      jobId: donorKeepJob[0]?.id ?? '',
+    });
+    const donorKeptRows = await sql<{ status: string | null }[]>`
+      SELECT transcription_status AS status FROM app.file_metadata
+      WHERE id = ${donorKeepFile[0]?.id ?? ''}
+    `;
+    record(
+      'watchdog: dismissing a Ready whisper chip keeps the settled donor',
+      donorKeptRows[0]?.status === 'completed',
+      `fileRow=${donorKeptRows[0]?.status ?? 'DELETED'} (want completed — dismissal must not skip-clobber a settled transcript)`,
+    );
+  }
 
   // ---- RAG: adopt / fail / leave-alone against the corpus ---------------
   await sql`
@@ -15456,6 +17278,11 @@ async function checkVideoLinks(
   // Fake whisper for the audio branch (the transcription check's fake has
   // closed; re-point the default openai credential at this one).
   let whisperCalls = 0;
+  // One-shot failure valve: the whisper-failure regression arc arms it, the
+  // next /audio/transcriptions call burns it (HTTP 400 → the classifier's
+  // permanent branch, so the engine terminalizes without its delayed
+  // self-retries stalling the drain).
+  let whisperFailNext = false;
   const whisperServer = createServer((req, res) => {
     req.on('data', () => undefined);
     req.on('end', () => {
@@ -15465,6 +17292,17 @@ async function checkVideoLinks(
         return;
       }
       whisperCalls += 1;
+      if (whisperFailNext) {
+        whisperFailNext = false;
+        res.statusCode = 400;
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            error: { message: 'Invalid file format (itest forced failure)' },
+          }),
+        );
+        return;
+      }
       res.setHeader('content-type', 'application/json');
       res.end(
         JSON.stringify({
@@ -15509,6 +17347,7 @@ vid=""
 case "$url" in
   *v=capt1*) vid="capt1";;
   *v=whis1*) vid="whis1";;
+  *v=whis2*) vid="whis2";;
   *v=gone1*) vid="gone1";;
 esac
 if [[ "$*" == *" -J "* || "\${args[0]}" == "-J" || "$*" == *"-J --"* ]]; then
@@ -15518,6 +17357,9 @@ if [[ "$*" == *" -J "* || "\${args[0]}" == "-J" || "$*" == *"-J --"* ]]; then
       exit 0;;
     whis1)
       echo '{"id":"whis1","title":"Whisper itest video","duration":42,"subtitles":{},"automatic_captions":{}}'
+      exit 0;;
+    whis2)
+      echo '{"id":"whis2","title":"Whisper retry itest video","duration":21,"subtitles":{},"automatic_captions":{}}'
       exit 0;;
     gone1)
       echo "ERROR: [youtube] gone1: Video unavailable" >&2
@@ -15780,9 +17622,16 @@ exit 1
     const whisJob = await jobRow(whisJobId);
     const whisFile = whisJob?.storageRef
       ? await sql<
-          { transcriptionStatus: string | null; transcript: string | null }[]
+          {
+            transcriptionStatus: string | null;
+            transcript: string | null;
+            startedAt: number | null;
+            runId: string | null;
+          }[]
         >`
-          SELECT transcription_status AS "transcriptionStatus", transcript
+          SELECT transcription_status AS "transcriptionStatus", transcript,
+                 transcription_started_at_ms::float8 AS "startedAt",
+                 transcription_run_id AS "runId"
           FROM app.file_metadata
           WHERE org_id = ${orgId} AND storage_ref = ${whisJob.storageRef}
           LIMIT 1
@@ -15865,10 +17714,17 @@ exit 1
     `;
     record(
       'video links: whisper path + failure/retry/cancel + cap + watchdog',
-      whisJob?.status === 'transcribing_handoff' &&
+      // The job row itself must land terminal when the transcription lane
+      // settles — the parked 'transcribing_handoff' forever was the bug
+      // (it held an org ingest slot for every whisper video ever finished).
+      whisJob?.status === 'completed' &&
         whisJob.transcriptSource === 'whisper' &&
         whisFile[0]?.transcriptionStatus === 'completed' &&
         (whisFile[0].transcript ?? '').includes('Whisper transcript') &&
+        // The engine stamps running + started_at at claim time (the crash
+        // watchdog's predicate) and the lease is released on settle.
+        whisFile[0].startedAt !== null &&
+        whisFile[0].runId === null &&
         whisperCalls >= 1 &&
         whisChip.success &&
         whisChip.data.jobs.some(
@@ -15884,8 +17740,114 @@ exit 1
         capped.status === 429 &&
         staleAfter?.status === 'failed' &&
         staleAfter.errorReasonCode === 'transient',
-      `whisper: job=${whisJob?.status}/${whisJob?.transcriptSource} file=${whisFile[0]?.transcriptionStatus} calls=${whisperCalls} chip=${whisChip.success ? whisChip.data.jobs.find((j) => j.jobId === whisJobId)?.displayStatus : 'ERR'}; gone=${goneJob?.status}/${goneJob?.errorReasonCode} retry=${retry.status}→${goneAfterRetry?.status}(attempts=${goneAfterRetry?.attempts}) cancel=${cancel.status}→${goneAfterCancel?.status}; cap=${capped.status}/429 watchdog=${staleAfter?.status}/${staleAfter?.errorReasonCode}`,
+      `whisper: job=${whisJob?.status}/${whisJob?.transcriptSource} file=${whisFile[0]?.transcriptionStatus} startedAt=${whisFile[0]?.startedAt !== null} lease=${whisFile[0]?.runId === null} calls=${whisperCalls} chip=${whisChip.success ? whisChip.data.jobs.find((j) => j.jobId === whisJobId)?.displayStatus : 'ERR'}; gone=${goneJob?.status}/${goneJob?.errorReasonCode} retry=${retry.status}→${goneAfterRetry?.status}(attempts=${goneAfterRetry?.attempts}) cancel=${cancel.status}→${goneAfterCancel?.status}; cap=${capped.status}/429 watchdog=${staleAfter?.status}/${staleAfter?.errorReasonCode}`,
     );
+
+    // 4. REGRESSION (transcription lifecycle): a whisper FAILURE must land
+    //    the job row itself terminal ('failed'/whisperFailed via the
+    //    settle cascade), and the Retry door must accept it — the pre-fix
+    //    shape kept the row 'transcribing_handoff' so every retry 409'd.
+    const whis2Url = 'https://www.youtube.com/watch?v=whis2';
+    whisperFailNext = true;
+    const whis2Ingest = z.object({ jobId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/video-links/ingest?orgId=${orgId}`, {
+          url: whis2Url,
+          pastedToken: whis2Url,
+          threadId,
+        })
+      ).json(),
+    );
+    const whis2JobId = whis2Ingest.success ? whis2Ingest.data.jobId : '';
+    await drainVideoJobs();
+    await muteRagJobs();
+    const whis2Failed = await jobRow(whis2JobId);
+    const retryDoor = await send(
+      `/api/app/video-links/${whis2JobId}/retry?orgId=${orgId}`,
+      {},
+    );
+    await drainVideoJobs();
+    await muteRagJobs();
+    const whis2After = await jobRow(whis2JobId);
+    record(
+      'video links: whisper failure lands terminal and Retry actually retries',
+      whis2Ingest.success &&
+        whis2Failed?.status === 'failed' &&
+        whis2Failed.errorReasonCode === 'whisperFailed' &&
+        retryDoor.status === 200 &&
+        whis2After?.status === 'completed' &&
+        (whis2After.attempts ?? 0) === 1,
+      `failedRow=${whis2Failed?.status}/${whis2Failed?.errorReasonCode} (want failed/whisperFailed), retryDoor=${retryDoor.status} (want 200; the un-retryable dead-end 409s), afterRetry=${whis2After?.status} attempts=${whis2After?.attempts}`,
+    );
+
+    // 5. REGRESSION (slot cap): parked-but-settled handoff rows (the debt
+    //    shape existing deployments carry) are reconciled terminal by the
+    //    video watchdog, giving the org its ingest slots back.
+    const parkedIds: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const parkedFile = await sql<{ id: string }[]>`
+        INSERT INTO app.file_metadata (
+          org_id, file_name, content_type, size, storage_ref, source,
+          uploaded_by, transcript, transcription_status, skip_rag_indexing,
+          created_at_ms
+        ) VALUES (
+          ${orgId}, ${`parked-${i}.mp3`}, 'audio/mpeg', 10,
+          ${`s3:parked-audio-${i}`}, 'video_link', ${userId},
+          'Parked whisper transcript.', 'completed', true, ${Date.now()}
+        )
+        RETURNING id
+      `;
+      const parkedJob = await sql<{ id: string }[]>`
+        INSERT INTO app.video_link_jobs (
+          org_id, thread_id, uploaded_by, source_url, source_url_hash,
+          source_platform, pasted_token, status, status_changed_at_ms,
+          storage_ref, file_metadata_id, attempts, lifecycle_status,
+          created_at_ms
+        ) VALUES (
+          ${orgId}, ${threadId}, ${userId},
+          ${`https://www.youtube.com/watch?v=park${i}`}, ${`parkhash${i}`},
+          'youtube', 'park', 'transcribing_handoff', ${Date.now()},
+          ${`s3:parked-audio-${i}`}, ${parkedFile[0]?.id ?? ''}, 0, 'active',
+          ${Date.now()}
+        )
+        RETURNING id
+      `;
+      const id = parkedJob[0]?.id;
+      if (id) parkedIds.push(id);
+    }
+    await video.runVideoLinkWatchdog(sql);
+    const parkedAfter = await sql<{ status: string }[]>`
+      SELECT status FROM app.video_link_jobs WHERE id = ANY(${parkedIds})
+    `;
+    const freed = await send(`/api/app/video-links/ingest?orgId=${orgId}`, {
+      url: 'https://www.youtube.com/watch?v=freedX1',
+      pastedToken: 'freedX1',
+      threadId,
+    });
+    await drainVideoJobs();
+    record(
+      'video links: reconcile settles parked whisper rows and frees the cap',
+      parkedIds.length === 3 &&
+        parkedAfter.length === 3 &&
+        parkedAfter.every((row) => row.status === 'completed') &&
+        freed.status === 200,
+      `parked=${parkedAfter.map((row) => row.status).join(',')} (want completed×3), nextIngest=${freed.status} (want 200; the parked-forever cap 429s)`,
+    );
+    const freedJson = z
+      .object({ jobId: z.string() })
+      .safeParse(await freed.json().catch(() => null));
+    await sql`
+      DELETE FROM app.file_metadata
+      WHERE org_id = ${orgId} AND storage_ref LIKE 's3:parked-audio-%'
+    `;
+    await sql`
+      DELETE FROM app.video_link_jobs WHERE id = ANY(${parkedIds})
+    `;
+    if (freedJson.success) {
+      await sql`
+        DELETE FROM app.video_link_jobs WHERE id = ${freedJson.data.jobId}
+      `;
+    }
   } finally {
     whisperServer.close();
     if (savedBinDir === undefined) {
@@ -21187,6 +23149,27 @@ async function checkErasure(
                               created_at_ms)
     VALUES (${orgId}, ${subject}, 'subject fact', 'approved', ${now})
   `;
+  // A chat upload with a REAL MinIO object behind it: the uploads pass must
+  // delete the blob, not just the ledger row — an erased receipt with the
+  // subject's bytes still in the bucket is a false statement to the DPO.
+  const objectStore = await import('./lib/object-store.ts');
+  const { encodeS3Ref: encodeUploadRef } =
+    await import('./core/lib/storage/blob_ref.ts');
+  const uploadStore = await objectStore.resolveObjectStore(orgSlug);
+  const uploadKey = objectStore.buildObjectKey(uploadStore, orgSlug);
+  await objectStore.s3PutObject(
+    uploadStore,
+    uploadKey,
+    new TextEncoder().encode('subject upload bytes'),
+    'text/plain',
+  );
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, uploaded_by,
+      created_at_ms
+    ) VALUES (${orgId}, ${encodeUploadRef(uploadKey)}, 'subject-upload.txt',
+              'text/plain', 20, ${subject}, ${now})
+  `;
 
   const selfRefused = await post(`/api/app/erasure?orgId=${orgId}`, {
     targetUserId: userId,
@@ -21234,6 +23217,25 @@ async function checkErasure(
     WHERE org_id = ${orgId} AND resource_type = 'user'
       AND resource_id = ${subject} AND pii_scrubbed = true
   `;
+  const uploadRowsLeft = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.file_metadata
+    WHERE org_id = ${orgId} AND uploaded_by = ${subject}
+  `;
+  const uploadBlobAfter = await objectStore.s3HeadObject(
+    uploadStore,
+    uploadKey,
+  );
+  const receiptCounts = await sql<{ counts: Record<string, number> | null }[]>`
+    SELECT counts FROM app.gdpr_erasure_requests WHERE id = ${requestId}
+  `;
+  record(
+    'erasure: the uploads pass deletes the blob behind the ledger row',
+    receiptStatus === 'done' &&
+      uploadRowsLeft[0]?.count === '0' &&
+      uploadBlobAfter === null &&
+      receiptCounts[0]?.counts?.uploads === 1,
+    `receipt=${receiptStatus} (want done), rowsLeft=${uploadRowsLeft[0]?.count} (want 0), blobHead=${uploadBlobAfter === null ? '404' : 'present'} (want 404), counts.uploads=${receiptCounts[0]?.counts?.uploads} (want 1)`,
+  );
 
   // Cancel lane: a fresh subject inside a real cooling window.
   await writeFile(
@@ -21334,6 +23336,206 @@ async function checkErasure(
       threeStatus === 'done',
     `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), retried=${threeStatus}`,
   );
+
+  // ---- the documented 'child' reason code files -------------------------
+  // The picker, the i18n labels, and the docs all offer 'child'
+  // (Art 17(1)(f)); the service once validated against a divergent local
+  // list carrying 'child_consent', so the documented ground dead-ended.
+  const subjectFour = await seedMember('four');
+  const childRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: subjectFour,
+    reason: 'Child subject probe',
+    reasonCode: 'child',
+  });
+  const childFiled = z
+    .object({ requestId: z.string() })
+    .loose()
+    .safeParse(await childRes.json().catch(() => ({})));
+  record(
+    "erasure: the documented 'child' reason code files",
+    childRes.status === 201 && childFiled.success,
+    `status=${childRes.status} (want 201), requestId=${childFiled.success ? 'minted' : 'ERR'}`,
+  );
+
+  // ---- the whole erasure router is admin-gated --------------------------
+  // Receipts name subjects, filers, and lawful grounds; the docs put every
+  // lifecycle action with Admins. A plain member must bounce off every
+  // door — list, file, cancel, retry, detail, extend — with the localized
+  // 'forbidden' code, not reach the service at all.
+  const erasureMemberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: 'itest-erasure-member@example.com',
+      password: 'itest-password-1',
+      name: 'Erasure Member',
+    }),
+  });
+  const erasureMemberCookie = cookieHeaderFrom(erasureMemberSignUp);
+  const erasureMemberBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await erasureMemberSignUp.json());
+  const erasureMemberId = erasureMemberBody.success
+    ? erasureMemberBody.data.user.id
+    : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${erasureMemberId}, 'member',
+            ${new Date()})
+  `;
+  const memberSend = (
+    method: 'GET' | 'POST',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        cookie: erasureMemberCookie,
+        origin: base,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const someReceiptId = filedTwo.success ? filedTwo.data.requestId : 'x';
+  const memberProbes = [
+    await memberSend('GET', `/api/app/erasure?orgId=${orgId}`),
+    await memberSend('POST', `/api/app/erasure?orgId=${orgId}`, {
+      targetUserId: subject,
+      reason: 'member probe',
+      reasonCode: 'objection',
+    }),
+    await memberSend(
+      'POST',
+      `/api/app/erasure/${someReceiptId}/cancel?orgId=${orgId}`,
+      { reason: 'member cancel probe' },
+    ),
+    await memberSend(
+      'POST',
+      `/api/app/erasure/${someReceiptId}/retry?orgId=${orgId}`,
+    ),
+    await memberSend('GET', `/api/app/erasure/${someReceiptId}?orgId=${orgId}`),
+    await memberSend(
+      'POST',
+      `/api/app/erasure/${someReceiptId}/extend?orgId=${orgId}`,
+      { extraDays: 10, extensionReason: 'member extend probe' },
+    ),
+  ];
+  const memberBodies = await Promise.all(
+    memberProbes.map(async (res) =>
+      z
+        .object({ error: z.string() })
+        .loose()
+        .safeParse(await res.json().catch(() => ({}))),
+    ),
+  );
+  record(
+    'erasure: every lifecycle door refuses a plain member (403 forbidden)',
+    memberProbes.every((res) => res.status === 403) &&
+      memberBodies.every(
+        (body) => body.success && body.data.error === 'forbidden',
+      ),
+    `statuses=${memberProbes.map((res) => res.status).join(',')} (want all 403), codes=${memberBodies.map((body) => (body.success ? body.data.error : 'ERR')).join(',')} (want all forbidden)`,
+  );
+
+  // ---- a failed blob delete keeps the receipt honest --------------------
+  // An org-BYO connection.json WITHOUT its secrets sidecar makes store
+  // resolution throw (fail closed), standing in for an unreachable bucket:
+  // the uploads pass must FAIL the receipt ('partial') and keep the ledger
+  // row, never report erased while the bytes may live on. Removing the
+  // broken config and retrying finishes the job for real.
+  const subjectFive = await seedMember('five');
+  const fiveKey = objectStore.buildObjectKey(uploadStore, orgSlug);
+  await objectStore.s3PutObject(
+    uploadStore,
+    fiveKey,
+    new TextEncoder().encode('subject five bytes'),
+    'text/plain',
+  );
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, uploaded_by,
+      created_at_ms
+    ) VALUES (${orgId}, ${encodeUploadRef(fiveKey)}, 'five-upload.txt',
+              'text/plain', 18, ${subjectFive}, ${Date.now()})
+  `;
+  const fiveReceipt = await sql<{ id: string }[]>`
+    INSERT INTO app.gdpr_erasure_requests (
+      org_id, target_user_id, reason, reason_code, requested_by,
+      requested_at_ms, sla_deadline_at_ms, status, effective_at_ms,
+      threads_targeted
+    ) VALUES (
+      ${orgId}, ${subjectFive}, 'honest failure probe', 'objection',
+      ${userId}, ${Date.now()}, ${Date.now() + 30 * 86_400_000}, 'pending',
+      ${Date.now()}, ARRAY[]::text[]
+    ) RETURNING id
+  `;
+  const fiveId = fiveReceipt[0]?.id ?? '';
+  const orgStorageDir = path.join(configRoot, orgSlug, 'object-storage');
+  await mkdir(orgStorageDir, { recursive: true });
+  const brokenConnectionPath = path.join(orgStorageDir, 'connection.json');
+  await writeFile(
+    brokenConnectionPath,
+    await readFile(
+      path.join(configRoot, 'default', 'object-storage', 'connection.json'),
+      'utf8',
+    ),
+  );
+  objectStore.clearObjectStoreCache();
+  orgConfig.clearOrgConfigCaches();
+  const erasureService = await import('./domains/erasure/service.ts');
+  await erasureService.processErasure(sql, fiveId);
+  const fiveAfterFail = await sql<{ status: string; error: string | null }[]>`
+    SELECT status, error FROM app.gdpr_erasure_requests WHERE id = ${fiveId}
+  `;
+  const fiveRowSurvives = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.file_metadata
+    WHERE org_id = ${orgId} AND uploaded_by = ${subjectFive}
+  `;
+  const fiveBlobSurvives = await objectStore.s3HeadObject(uploadStore, fiveKey);
+  // Heal the store and retry through the route — the receipt must finish
+  // for real this time, blob included.
+  await rm(brokenConnectionPath, { force: true });
+  objectStore.clearObjectStoreCache();
+  orgConfig.clearOrgConfigCaches();
+  await post(`/api/app/erasure/${fiveId}/retry?orgId=${orgId}`);
+  let fiveStatus = '';
+  for (let i = 0; i < 50; i++) {
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.gdpr_erasure_requests WHERE id = ${fiveId}
+    `;
+    fiveStatus = rows[0]?.status ?? '';
+    if (fiveStatus === 'done') break;
+    await sleep(300);
+  }
+  const fiveRowAfterRetry = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.file_metadata
+    WHERE org_id = ${orgId} AND uploaded_by = ${subjectFive}
+  `;
+  const fiveBlobAfterRetry = await objectStore.s3HeadObject(
+    uploadStore,
+    fiveKey,
+  );
+  record(
+    'erasure: a failed blob delete lands partial + row kept, retry finishes',
+    fiveAfterFail[0]?.status === 'partial' &&
+      (fiveAfterFail[0]?.error ?? '').includes('uploads') &&
+      fiveRowSurvives[0]?.count === '1' &&
+      fiveBlobSurvives !== null &&
+      fiveStatus === 'done' &&
+      fiveRowAfterRetry[0]?.count === '0' &&
+      fiveBlobAfterRetry === null,
+    `afterFail=${fiveAfterFail[0]?.status}/${fiveAfterFail[0]?.error ?? ''} (want partial/failed passes: uploads), row=${fiveRowSurvives[0]?.count} (want 1), blob=${fiveBlobSurvives === null ? '404' : 'present'} (want present), retry=${fiveStatus} (want done), rowAfter=${fiveRowAfterRetry[0]?.count} (want 0), blobAfter=${fiveBlobAfterRetry === null ? '404' : 'present'} (want 404)`,
+  );
+
+  // This section spent 4 of the admin's 5/day DSAR filings; the limiter is
+  // per (key, subject), so clearing its rows hands downstream sections the
+  // full budget their probes assume.
+  await sql`
+    DELETE FROM app.rate_limits
+    WHERE name = 'governance:dsar_request' AND key LIKE ${`org:${orgId}:%`}
+  `;
 }
 
 /**
@@ -24644,6 +26846,66 @@ async function checkGovernanceEnforcement(
     SELECT status FROM app.approvals WHERE id = ${approvalId}
   `;
 
+  // A plain MEMBER can decide neither direction of an erasure approval —
+  // dual control means two admins, so the generic decide door kind-gates
+  // erasure rows on the session-resolved role.
+  const dsarMemberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: 'itest-dsar-member@example.com',
+      password: 'itest-password-1',
+      name: 'DSAR Member',
+    }),
+  });
+  const dsarMemberCookie = cookieHeaderFrom(dsarMemberSignUp);
+  const dsarMemberBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await dsarMemberSignUp.json());
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId},
+            ${dsarMemberBody.success ? dsarMemberBody.data.user.id : ''},
+            'member', ${new Date()})
+  `;
+  const memberDecide = async (
+    status: 'executing' | 'rejected',
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/approvals/${approvalId}/decide?orgId=${orgId}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: dsarMemberCookie,
+        origin: base,
+      },
+      body: JSON.stringify({ status }),
+    });
+  const memberApprove = await memberDecide('executing');
+  const memberReject = await memberDecide('rejected');
+  const memberApproveBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await memberApprove.json().catch(() => ({})));
+  const memberRejectBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await memberReject.json().catch(() => ({})));
+  const stillPendingAfterMember = await sql<{ status: string }[]>`
+    SELECT status FROM app.approvals WHERE id = ${approvalId}
+  `;
+  record(
+    'governance: a plain member can decide an erasure approval in neither direction',
+    memberApprove.status === 403 &&
+      memberApproveBody.success &&
+      memberApproveBody.data.error === 'FORBIDDEN' &&
+      memberReject.status === 403 &&
+      memberRejectBody.success &&
+      memberRejectBody.data.error === 'FORBIDDEN' &&
+      stillPendingAfterMember[0]?.status === 'pending',
+    `approve=${memberApprove.status}/${memberApproveBody.success ? memberApproveBody.data.error : 'ERR'} (want 403/FORBIDDEN), reject=${memberReject.status}/${memberRejectBody.success ? memberRejectBody.data.error : 'ERR'} (want 403/FORBIDDEN), row=${stillPendingAfterMember[0]?.status} (want pending)`,
+  );
+
   // A SECOND admin approves: cooling-off starts and the processor is queued.
   const otherAdmin = 'dual-approver-one';
   await sql`
@@ -24670,7 +26932,11 @@ async function checkGovernanceEnforcement(
       organizationId: orgId,
       approvalId,
       status: 'executing',
-      actor: { userId: otherAdmin, email: `${otherAdmin}@example.com` },
+      actor: {
+        userId: otherAdmin,
+        role: 'admin',
+        email: `${otherAdmin}@example.com`,
+      },
     });
     secondApproveOk = true;
   } catch (error) {
@@ -24703,6 +26969,136 @@ async function checkGovernanceEnforcement(
       jobsAfter[0]?.count === '1',
     `filed=${filed.success}(${filedRes.status}:${JSON.stringify(filedBody).slice(0, 120)}), parked=${parked[0]?.status}/${parked[0]?.effectiveAt === null}, approvalRow=${approvalRows.length}, jobsBefore=${jobsBefore[0]?.count}, bell=${bell[0]?.count}, selfApprove=${selfApprove.status}/${selfApproveBody.success ? selfApproveBody.data.error : 'ERR'}, rolledBack=${stillPending[0]?.status}, second=${secondApproveOk}, scheduled=${scheduled[0]?.effectiveAt !== null}, jobsAfter=${jobsAfter[0]?.count}`,
   );
+
+  // ---- a REJECTED dual approval settles the receipt, not the subject ----
+  // Rejecting used to update only the approvals row: the receipt sat
+  // 'pending' with effective_at_ms NULL forever, and the live-unique index
+  // blocked ever re-filing the subject. Now the rejection lands the
+  // receipt as 'cancelled' (audited as gdpr_erasure_rejected) and the
+  // subject is immediately re-filable.
+  const subjectTwoId = 'dual-subject-two';
+  await sql`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES (${subjectTwoId}, 'Dual Subject Two',
+            ${`${subjectTwoId}@example.com`}, true, ${new Date()},
+            ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${`m-${subjectTwoId}`}, ${orgId}, ${subjectTwoId}, 'member',
+            ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  const filedTwoRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: subjectTwoId,
+    reason: 'reject arc probe',
+    reasonCode: 'consent_withdrawn',
+  });
+  const filedTwoBody = z
+    .object({ requestId: z.string() })
+    .loose()
+    .safeParse(await filedTwoRes.json().catch(() => ({})));
+  const requestTwoId = filedTwoBody.success ? filedTwoBody.data.requestId : '';
+  const approvalTwoRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.approvals
+    WHERE org_id = ${orgId} AND resource_type = 'erasure'
+      AND resource_id = ${requestTwoId}
+  `;
+  let rejectOk = false;
+  try {
+    await approvals.decideApproval(sql, {
+      organizationId: orgId,
+      approvalId: approvalTwoRows[0]?.id ?? '',
+      status: 'rejected',
+      comments: 'wrong subject picked',
+      actor: {
+        userId: otherAdmin,
+        role: 'admin',
+        email: `${otherAdmin}@example.com`,
+      },
+    });
+    rejectOk = true;
+  } catch (error) {
+    console.error('[itest] second-admin rejection failed', error);
+  }
+  const rejectedReceipt = await sql<
+    {
+      status: string;
+      cancelledBy: string | null;
+      cancellationReason: string | null;
+      finishedAt: number | null;
+    }[]
+  >`
+    SELECT status, cancelled_by AS "cancelledBy",
+           cancellation_reason AS "cancellationReason",
+           finished_at_ms::float8 AS "finishedAt"
+    FROM app.gdpr_erasure_requests WHERE id = ${requestTwoId}
+  `;
+  const rejectedAudit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'gdpr_erasure_rejected'
+      AND resource_id = ${subjectTwoId}
+  `;
+  const rejectedJobs = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'governance.process_erasure'
+      AND data->>'requestId' = ${requestTwoId}
+  `;
+  // The subject is re-filable NOW — the live-unique index no longer holds
+  // a pending row for them.
+  const refiledRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: subjectTwoId,
+    reason: 'fresh request after rejection',
+    reasonCode: 'consent_withdrawn',
+  });
+  const refiledBody = z
+    .object({ requestId: z.string() })
+    .loose()
+    .safeParse(await refiledRes.json().catch(() => ({})));
+  record(
+    'governance: DSAR rejection lands the receipt cancelled + re-filable',
+    rejectOk &&
+      rejectedReceipt[0]?.status === 'cancelled' &&
+      rejectedReceipt[0]?.cancelledBy === otherAdmin &&
+      (rejectedReceipt[0]?.cancellationReason ?? '').startsWith(
+        'Dual approval rejected',
+      ) &&
+      rejectedReceipt[0]?.finishedAt !== null &&
+      Number(rejectedAudit[0]?.count ?? '0') >= 1 &&
+      rejectedJobs[0]?.count === '0' &&
+      refiledRes.status === 201 &&
+      refiledBody.success,
+    `reject=${rejectOk}, receipt=${rejectedReceipt[0]?.status}/${rejectedReceipt[0]?.cancelledBy}/${(rejectedReceipt[0]?.cancellationReason ?? '').slice(0, 40)} (want cancelled/${otherAdmin}/Dual approval rejected…), audit=${rejectedAudit[0]?.count} (want ≥1), jobs=${rejectedJobs[0]?.count} (want 0), refile=${refiledRes.status}/${refiledBody.success} (want 201/true)`,
+  );
+
+  // ---- cancelling while parked awaiting approval also un-wedges ---------
+  // The refiled request above is parked (effective_at_ms NULL). Cancelling
+  // in that state used to throw the lying 'cannotCancelAfterCooldown';
+  // now it cancels the receipt AND settles the parked approvals row.
+  const refiledId = refiledBody.success ? refiledBody.data.requestId : '';
+  const cancelParkedRes = await post(
+    `/api/app/erasure/${refiledId}/cancel?orgId=${orgId}`,
+    { reason: 'withdrawn while awaiting approval' },
+  );
+  const cancelParkedReceipt = await sql<{ status: string }[]>`
+    SELECT status FROM app.gdpr_erasure_requests WHERE id = ${refiledId}
+  `;
+  const cancelParkedApproval = await sql<{ status: string }[]>`
+    SELECT status FROM app.approvals
+    WHERE org_id = ${orgId} AND resource_type = 'erasure'
+      AND resource_id = ${refiledId}
+  `;
+  record(
+    'governance: cancelling a parked dual-approval request settles both rows',
+    cancelParkedRes.status === 200 &&
+      cancelParkedReceipt[0]?.status === 'cancelled' &&
+      cancelParkedApproval[0]?.status === 'rejected',
+    `cancel=${cancelParkedRes.status} (want 200), receipt=${cancelParkedReceipt[0]?.status} (want cancelled), approval=${cancelParkedApproval[0]?.status} (want rejected)`,
+  );
+
   await writeFile(
     path.join(governanceDir, 'dsar-governance.yml'),
     'coolingOffHours: 0\n',
@@ -25896,6 +28292,7 @@ async function main(): Promise<void> {
     );
     await checkProjects(baseUrl, authCtx);
     await checkTasks(baseUrl, authCtx);
+    await checkTasksOrgIsolation(sql, baseUrl, authCtx);
     await checkFiles(baseUrl, authCtx);
     await checkDocuments(sql, baseUrl, authCtx);
     await checkSmallDomains(baseUrl, authCtx);
@@ -25903,6 +28300,12 @@ async function main(): Promise<void> {
     await checkSkills(baseUrl, authCtx);
     await checkProviderCredentials(sql, baseUrl, authCtx);
     await checkKnowledge(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkCorpusPurgeConsistency(
+      sql,
+      baseUrl,
+      authCtx,
+      `itest-${orgSuffix}`,
+    );
     await checkChat(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkTts(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkCloudImport(sql, baseUrl, authCtx);
@@ -26002,6 +28405,7 @@ async function main(): Promise<void> {
     await checkAutomationRunToolLane(sql, baseUrl, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkWatchdogs(sql, baseUrl, authCtx);
+    await checkDocumentWriteGuards(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,

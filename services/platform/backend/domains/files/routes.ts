@@ -368,6 +368,33 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return c.json({ urls });
   });
 
+  /**
+   * Link-shaped blob serve: 302 to a fresh presigned GET. This is the STABLE
+   * URL stored on ingested email attachments (`buildBlobServeUrl`) — a
+   * presigned URL minted at ingest would expire, and the 0.4 `/http_api/
+   * storage` door it used to point at retired with the Convex runtime.
+   * Session + org gated like every other lane here (the browser opens it
+   * same-origin, so cookies ride along); `requireOrgScopedKey` inside
+   * `getFileUrl` refuses a ref outside the caller's org. Declared before the
+   * `/:fileId` routes so `serve` never parses as a file id.
+   */
+  app.get('/serve', async (c) => {
+    const ref = c.req.query('ref');
+    if (!ref) return c.json({ error: 'ref is required' }, 400);
+    const filename = c.req.query('filename');
+    try {
+      const url = await getFileUrl(
+        deps.sql,
+        { organizationId: c.get('orgId') },
+        ref,
+        filename !== undefined && filename !== '' ? { filename } : {},
+      );
+      return c.redirect(url, 302);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.get('/:fileId', async (c) => {
     try {
       const meta = await getFileMetadataByIdOrRef(

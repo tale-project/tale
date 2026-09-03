@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { streamSSE } from 'hono/streaming';
+import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
 import type { Sql } from 'postgres';
 
 import {
@@ -15,6 +15,32 @@ import { latestOutboxId, readHintsAfter } from './outbox.ts';
 const POLL_INTERVAL_MS = 300;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const ERROR_BACKOFF_MS = 1_000;
+
+/**
+ * Every live `/events` stream of this process. An SSE response never ends on
+ * its own — the loop below exits only on client abort — while
+ * `server.close()` waits for every open connection: without a proactive end,
+ * graceful shutdown hangs until the orchestrator SIGKILLs the process (10s
+ * default compose grace), killing in-flight jobs mid-write. Shutdown calls
+ * {@link endAllEventStreams}; clients reconnect against the next pod and
+ * resume via `Last-Event-ID`.
+ */
+const liveStreams = new Set<SSEStreamingApi>();
+
+/**
+ * Proactively end every live `/events` stream (shutdown path). `abort()`
+ * cancels the response readable — the connection goes idle immediately, so
+ * `server.close()` can complete — and flips `stream.aborted`, which the poll
+ * loop reads as its exit condition. Returns how many streams were ended.
+ */
+export function endAllEventStreams(): number {
+  const ended = liveStreams.size;
+  for (const stream of liveStreams) {
+    stream.abort();
+  }
+  liveStreams.clear();
+  return ended;
+}
 
 /**
  * GET /events — the Tier-2 invalidation-hint stream.
@@ -48,6 +74,7 @@ export function createEventsHandler(sql: Sql) {
 
     return streamSSE(c, async (stream) => {
       hintStreamOpened();
+      liveStreams.add(stream);
       let cursor =
         resumeFrom !== null && /^\d+$/.test(resumeFrom)
           ? resumeFrom
@@ -92,6 +119,7 @@ export function createEventsHandler(sql: Sql) {
           await stream.sleep(POLL_INTERVAL_MS);
         }
       } finally {
+        liveStreams.delete(stream);
         // Paired with the open above — an aborted stream decrements too, or
         // the gauge climbs forever on client churn.
         hintStreamClosed();

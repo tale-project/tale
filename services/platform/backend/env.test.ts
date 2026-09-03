@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { describe, expect, it } from 'vitest';
 
 import { loadEnv } from './env.ts';
@@ -38,5 +40,47 @@ describe('loadEnv', () => {
     expect(() =>
       loadEnv({ DATABASE_URL: 'postgres://x', ROLE: 'ui' }),
     ).toThrow();
+  });
+
+  /**
+   * The container entrypoint's api/worker branch execs node BEFORE the web
+   * lane's shell derivation runs, so the backend must derive the WebDAV
+   * app-password HMAC key itself at boot — otherwise split-role deployments
+   * silently lose WebDAV, app-password minting, hostcall signing, and
+   * sandbox stage tokens, while the docs promise automatic derivation.
+   */
+  describe('WebDAV HMAC key derivation', () => {
+    const secret = 'a'.repeat(64);
+    const derived = createHash('sha256')
+      .update(`${secret}:webdav-hmac:v1`)
+      .digest('hex');
+
+    it('derives the key from INSTANCE_SECRET onto the boot env', () => {
+      const source: NodeJS.ProcessEnv = {
+        DATABASE_URL: 'postgres://x',
+        INSTANCE_SECRET: secret,
+      };
+      loadEnv(source);
+      // Byte-identical to docker-entrypoint.sh's web-lane derivation:
+      //   printf '%s' "${INSTANCE_SECRET}:webdav-hmac:v1" | sha256sum
+      expect(source.WEBDAV_APP_PASSWORD_HMAC_KEY).toBe(derived);
+    });
+
+    it('never overrides an explicitly set key (operator rotation)', () => {
+      const explicit = 'f'.repeat(64);
+      const source: NodeJS.ProcessEnv = {
+        DATABASE_URL: 'postgres://x',
+        INSTANCE_SECRET: secret,
+        WEBDAV_APP_PASSWORD_HMAC_KEY: explicit,
+      };
+      loadEnv(source);
+      expect(source.WEBDAV_APP_PASSWORD_HMAC_KEY).toBe(explicit);
+    });
+
+    it('leaves the key unset without INSTANCE_SECRET (minimal dev)', () => {
+      const source: NodeJS.ProcessEnv = { DATABASE_URL: 'postgres://x' };
+      loadEnv(source);
+      expect(source.WEBDAV_APP_PASSWORD_HMAC_KEY).toBeUndefined();
+    });
   });
 });

@@ -87,6 +87,11 @@ export interface TaskPayloads {
   'maintenance.login_attempts_ttl': Record<string, never>;
   /** Index one uploaded file into the org's RAG corpus. */
   'rag.index_file': { fileId: string };
+  /** Release rotated-away blob refs: de-index dead corpus rows, delete
+   * unreferenced bytes (enqueued transactionally by every ref rotation). */
+  'knowledge.release_refs': { organizationId: string; refs: string[] };
+  /** Daily corpus↔app reconcile: de-index refs nothing references (cron). */
+  'knowledge.reconcile_corpus': Record<string, never>;
   /** One stepper turn of an automation run (claim-fenced, idempotent). */
   'automation.step': { organizationId: string; runId: string };
   /** One hop of a parked run's poll chain (chainSeq-fenced). */
@@ -337,6 +342,16 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'task.start_workflow': { retryLimit: 3, retryDelay: 5, expireInSeconds: 300 },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
+  // Releases are idempotent (liveness re-checked at run time; corpus and
+  // blob deletes are no-ops on missing targets) — retry generously, and let
+  // the daily corpus reconcile catch anything that exhausts the ladder.
+  'knowledge.release_refs': {
+    retryLimit: 8,
+    retryDelay: 10,
+    retryBackoff: true,
+    expireInSeconds: 600,
+  },
+  'knowledge.reconcile_corpus': { retryLimit: 1, expireInSeconds: 3600 },
   'rag.index_file': {
     retryLimit: 5,
     retryDelay: 5,

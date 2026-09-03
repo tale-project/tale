@@ -129,6 +129,80 @@ describe('renderActionableEmailContent', () => {
     expect(content.text).toContain('notifications enabled in Tale');
     expect(content.html).toContain('href="https://app.example.com');
   });
+
+  // Regression: the html lane used to re-interpolate the ALREADY-interpolated
+  // body, so the escape transform saw no placeholders and external text (task
+  // titles, user names, conversation subjects) landed raw in HTML email.
+  it('HTML-escapes hostile params in the html lane', () => {
+    const content = renderActionableEmailContent('en', {
+      titleKey: 'taskAssigned',
+      bodyKey: 'taskAssignedByBody',
+      params: {
+        actor: '<script>alert(1)</script>',
+        title: 'a "quoted" & <b>bold</b> title',
+      },
+      deepLink: null,
+    });
+    expect(content.html).toContain(
+      '&lt;script&gt;alert(1)&lt;/script&gt; assigned you to',
+    );
+    expect(content.html).toContain(
+      'a &quot;quoted&quot; &amp; &lt;b&gt;bold&lt;/b&gt; title',
+    );
+    expect(content.html).not.toContain('<script>');
+    expect(content.html).not.toContain('<b>');
+  });
+
+  it('escapes params exactly once (pre-entitied input is not left as markup)', () => {
+    const content = renderActionableEmailContent('en', {
+      titleKey: 'taskAssigned',
+      bodyKey: 'taskAssignedByBody',
+      params: { actor: 'A&B', title: '&amp;<i>' },
+      deepLink: null,
+    });
+    // The literal string `&amp;<i>` renders as itself in the mail client,
+    // never as an entity/tag — i.e. it is escaped to `&amp;amp;&lt;i&gt;`.
+    expect(content.html).toContain('A&amp;B assigned you to');
+    expect(content.html).toContain('&amp;amp;&lt;i&gt;');
+  });
+
+  it('keeps the plain-text lane and subject unescaped', () => {
+    const content = renderActionableEmailContent('en', {
+      titleKey: 'taskAssigned',
+      bodyKey: 'taskAssignedByBody',
+      params: { actor: '<script>alert(1)</script>', title: 'T & Co' },
+      deepLink: null,
+    });
+    // Plain text is not an HTML context; entities there would show literally.
+    expect(content.text).toContain(
+      '<script>alert(1)</script> assigned you to "T & Co".',
+    );
+    expect(content.subject).toBe('Task assigned to you');
+  });
+
+  // The old double pass ALSO re-interpolated placeholder-shaped param values:
+  // a hostile `{title}` param was substituted again on the second pass.
+  it('does not re-interpolate placeholder-shaped param values', () => {
+    const content = renderActionableEmailContent('en', {
+      titleKey: 'taskAssigned',
+      bodyKey: 'taskAssignedByBody',
+      params: { actor: '{title}', title: 'Real title' },
+      deepLink: null,
+    });
+    expect(content.html).toContain('{title} assigned you to');
+    expect(content.text).toContain('{title} assigned you to');
+  });
+
+  it('falls back to the escaped key in the html lane for an unknown body key', () => {
+    const content = renderActionableEmailContent('en', {
+      titleKey: 'taskAssigned',
+      bodyKey: 'no-such-key <x>',
+      params: {},
+      deepLink: null,
+    });
+    expect(content.html).toContain('no-such-key &lt;x&gt;');
+    expect(content.text).toContain('no-such-key <x>');
+  });
 });
 
 describe('escapeSlackText', () => {
