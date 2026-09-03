@@ -19,7 +19,7 @@ Pour plafonner la dépense mensuelle d’un Éditeur, ouvre **Paramètres > Gouv
 
 **Budgets** sont des plafonds de tokens, coût et requêtes par scope et période. Les scopes sont org, rôle, équipe, utilisateur ou clé API. Chaque règle porte un plafond de tokens, un plafond de coût en USD, un plafond de requêtes optionnel et un seuil d’avertissement exprimé en pourcentage du plafond. Une règle sur clé API vise une seule clé émise (choisis **Clé API** comme scope, puis la clé depuis **Paramètres > API**) et ne plafonne que le trafic authentifié avec cette clé — l’API REST — pour que tu mesures une connector précise sans toucher à l’usage in-app. La génération d’images est mesurée par coût et nombre de requêtes, pas par tokens — une requête d’image ne rapporte aucun token, alors plafonne les dépenses d’images avec le plafond de coût ou de requêtes, pas celui de tokens.
 
-**Contrôles de fonctionnalité** activent la recherche web, l’exécution de code et l’upload de fichiers par scope, et plafonnent les tokens de contexte max pour les réponses AI. Une fonctionnalité coupée pour un scope cache la bascule dans le chat et refuse la requête côté serveur.
+**Contrôles de fonctionnalité** plafonnent les tokens de contexte max pour les réponses AI par scope. Les interrupteurs de recherche web, d’exécution de code et d’upload de fichiers sont stockés avec la politique mais pas appliqués dans cette version — un interrupteur coupé ne change rien dans le chat.
 
 **Politique d'upload** régit les extensions de fichiers, types MIME et tailles qu’un membre peut joindre. Elle plafonne aussi le volume total par utilisateur — utile quand le stockage est mesuré. Désactive la politique pour un défaut permissif ; active-la pour appliquer les listes.
 

@@ -33,6 +33,6 @@ Nach der Anmeldung listet die Sidebar die für den Nutzer verfügbaren Agenten. 
 
 ## Wo das eingesetzt wird
 
-Das Add-in ist der leichteste Weg zu „Tale dort, wo deine Mitglieder ohnehin arbeiten" — kein Portal-Wechsel, kein Copy-Paste. Die Sidebar ist eine dünne Hülle um dieselben Agenten, die du in [Agent erstellen](/de/platform/agents/create) veröffentlichst; Änderungen an Instruktionen, Wissen oder Tools eines Agenten landen mit der nächsten Anfrage in der Sidebar.
+Das Add-in ist der leichteste Weg zu „Tale dort, wo deine Mitglieder ohnehin arbeiten" — kein Portal-Wechsel, kein Copy-Paste. Die Sidebar ist eine dünne Hülle um denselben Chat, den du in Tale nutzt — siehe [Chat](/de/platform/chat/overview); Agents arbeiten in dieser Version Board-Aufgaben ab, statt im Chat zu antworten, es gibt also nichts, was du in die Sidebar veröffentlichen müsstest.
 
-Für die breitere Connector-Story — Slack, Gmail, eigene MCP-Server — siehe [Connectors-Überblick](/de/platform/connectors/overview). Betreibst du eine selbst gehostete Instanz und ist die Manifest-URL aus Microsoft 365 nicht erreichbar, deckt die Seite [Linux-Server](/de/self-hosted/install/linux-server) die Voraussetzung „öffentliches HTTPS" ab.
+Für die breitere Connector-Story — Slack, Gmail und die übrigen mitgelieferten Connectors — siehe [Connectors-Überblick](/de/platform/connectors/overview). Betreibst du eine selbst gehostete Instanz und ist die Manifest-URL aus Microsoft 365 nicht erreichbar, deckt die Seite [Linux-Server](/de/self-hosted/install/linux-server) die Voraussetzung „öffentliches HTTPS" ab.

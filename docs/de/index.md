@@ -32,7 +32,7 @@ Dein erster Chat, dein erstes Dokument, dein erstes Projekt — der erste Tag al
 
 <Card title="Ich baue Agents" icon="bot" href="/de/get-started/editors">
 
-Veröffentliche einen minimalen Agent und sieh ihm beim Antworten zu — der erste Tag als Redakteur.
+Leg einen Projekt-Agent an und sieh ihm zu, wie er eine Board-Aufgabe abarbeitet — der erste Tag als Redakteur.
 
 </Card>
 

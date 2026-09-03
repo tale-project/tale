@@ -14,7 +14,7 @@ Der Abschnitt ist nach Bereich und innerhalb eines Bereichs nach Feature geglied
 
 <Card title="Chat" icon="message-circle" href="/de/platform/chat/overview">
 
-Der alltägliche Einstieg — Konversationen, Agents im Chat, Anhänge, Arena-Modus, Sprachmodus, der Canvas-Bereich, Teilen.
+Der alltägliche Einstieg — Konversationen, der Assistent, Anhänge, Arena-Modus, Sprachmodus, der Canvas-Bereich, Teilen.
 
 </Card>
 

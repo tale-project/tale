@@ -33,6 +33,6 @@ Une fois connecté, la sidebar liste les agents disponibles pour cet utilisateur
 
 ## Où ça s'utilise
 
-Le complément est le chemin le plus léger vers « Tale là où tes membres travaillent déjà » — pas de changement de portail, pas de copier-coller. La sidebar est une fine enveloppe autour des mêmes agents que tu publies dans [Créer un agent](/fr/platform/agents/create) ; les changements d'instructions, de connaissances ou d'outils d'un agent atterrissent dans la sidebar à la requête suivante.
+Le complément est le chemin le plus léger vers « Tale là où tes membres travaillent déjà » — pas de changement de portail, pas de copier-coller. La sidebar est une fine enveloppe autour du même chat que tu utilises dans Tale — voir [Chat](/fr/platform/chat/overview) ; dans cette version, les agents travaillent des tâches du tableau plutôt que de répondre dans le chat, il n'y a donc rien à publier dans la sidebar.
 
-Pour la grande histoire de connector — Slack, Gmail, serveurs MCP personnalisés — voir [Aperçu des connectors](/fr/platform/connectors/overview). Si tu exploites une instance auto-hébergée et que l'URL du manifeste n'est pas joignable depuis Microsoft 365, la page [Linux serveur](/fr/self-hosted/install/linux-server) couvre le prérequis HTTPS public.
+Pour la grande histoire de connector — Slack, Gmail et les autres connectors livrés — voir [Aperçu des connectors](/fr/platform/connectors/overview). Si tu exploites une instance auto-hébergée et que l'URL du manifeste n'est pas joignable depuis Microsoft 365, la page [Linux serveur](/fr/self-hosted/install/linux-server) couvre le prérequis HTTPS public.

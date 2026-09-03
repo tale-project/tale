@@ -14,7 +14,7 @@ The section is organised by area, then by feature within an area. Most readers d
 
 <Card title="Chat" icon="message-circle" href="/platform/chat/overview">
 
-The everyday entry point — threads, agents in chat, attachments, arena mode, voice mode, the Canvas pane, sharing.
+The everyday entry point — threads, the assistant, attachments, arena mode, voice mode, the Canvas pane, sharing.
 
 </Card>
 

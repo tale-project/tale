@@ -19,7 +19,7 @@ To cap an Editor's monthly spend, open **Settings > Governance > Policies & Limi
 
 **Budgets** are token, cost, and request caps per scope and period. Scopes are org, role, team, user, or API key. Each rule carries a token cap, a cost cap in USD, an optional request cap, and a warning threshold expressed as a percentage of the cap. An API-key rule targets one issued key (pick **API key** as the scope, then the key from **Settings > API**) and caps only the traffic authenticated with that key — the REST API — so you can meter a single connector without touching in-app usage. Image generation is metered by cost and request count, not tokens — an image request reports no tokens, so cap image spend with the cost or request limit, not the token limit.
 
-**Feature controls** toggle web search, code execution, and file upload per scope, and cap the max context tokens for AI replies. A feature off for a scope hides the toggle in chat and refuses the request server-side.
+**Feature controls** cap the max context tokens for AI replies per scope. The web search, code execution, and file upload switches are stored with the policy but not enforced in this version — a switch turned off changes nothing in chat.
 
 **Upload policy** gates the file extensions, MIME types, and sizes a member can attach. It also caps the total volume per user — useful when storage is metered. Toggle the policy off for a permissive default; toggle it on to enforce the lists.
 

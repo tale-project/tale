@@ -33,7 +33,7 @@ Pick the role on the form before you submit; promoting or changing it later is a
 
 **Admin** governs the organisation: members, providers, branding, governance policies, connectors, the audit log. Admins do everything Editor does and everything Developer does, plus the configuration surface. They cannot transfer ownership.
 
-**Developer** builds: agents, workflows, connectors, API keys, MCP servers. Developers can read every resource and write to most of them, including governance policies (read-only). Reach for Developer when someone needs the API plane and the connector tooling.
+**Developer** builds: agents, workflows, connectors, API keys. Developers can read every resource and write to most of them, including governance policies (read-only). Reach for Developer when someone needs the API plane and the connector tooling.
 
 **Editor** curates and operates: agents, the knowledge base (documents, contacts, products, vendors, websites), the conversation inbox, approvals, the skill library. Editors can read workflows but not modify them; they can read connectors but not configure them. Reach for Editor when someone runs the day-to-day product work without touching the API or connector plane.
 

@@ -33,7 +33,7 @@ Choisis le rôle dans le formulaire avant de valider ; le promouvoir ou le cha
 
 **Admin** gouverne l’organisation : membres, fournisseurs, branding, politiques de gouvernance, connectors, le journal d’audit. Les Administrateurs font tout ce que fait Éditeur et tout ce que fait Développeur, plus la surface de configuration. Ils ne peuvent pas transférer la propriété.
 
-**Développeur** construit : agents, automatisations, connectors, clés API, serveurs MCP. Les Développeurs peuvent lire chaque ressource et écrire dans la plupart, y compris les politiques de gouvernance (lecture seule). Va vers Développeur quand quelqu’un a besoin du plan API et de l’outillage d’connector.
+**Développeur** construit : agents, automatisations, connectors, clés API. Les Développeurs peuvent lire chaque ressource et écrire dans la plupart, y compris les politiques de gouvernance (lecture seule). Va vers Développeur quand quelqu’un a besoin du plan API et de l’outillage d’connector.
 
 **Éditeur** organise et opère : agents, base de connaissances (documents, contacts, produits, fournisseurs, sites web), boîte de réception des conversations, approbations, bibliothèque de skills. Les Éditeurs peuvent lire les workflows mais pas les modifier ; ils peuvent lire les connectors mais pas les configurer. Va vers Éditeur quand quelqu’un fait le travail produit quotidien sans toucher au plan API ou connectors.
 

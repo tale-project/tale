@@ -14,7 +14,7 @@ La section est organisée par domaine, puis par fonctionnalité au sein d’un d
 
 <Card title="Chat" icon="message-circle" href="/fr/platform/chat/overview">
 
-Le point d’entrée quotidien — conversations, agents dans le chat, pièces jointes, mode arène, mode vocal, le volet canevas, partage.
+Le point d’entrée quotidien — conversations, l’assistant, pièces jointes, mode arène, mode vocal, le volet canevas, partage.
 
 </Card>
 

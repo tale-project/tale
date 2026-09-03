@@ -19,7 +19,7 @@ Um die monatlichen Ausgaben eines Redakteurs zu deckeln, öffne **Einstellungen 
 
 **Budgets** sind Token-, Kosten- und Anfragen-Limits pro Bereich und Periode. Bereiche sind Organisation, Rolle, Team, Benutzer oder API-Schlüssel. Jede Regel trägt ein Token-Limit, ein Kosten-Limit in USD, ein optionales Anfragen-Limit und eine Warnschwelle als Prozentwert des Limits. Eine API-Schlüssel-Regel zielt auf einen einzelnen ausgestellten Schlüssel (wähle **API-Schlüssel** als Bereich, dann den Schlüssel aus **Einstellungen > API**) und deckelt nur den mit diesem Schlüssel authentifizierten Traffic — die REST-API — sodass du eine einzelne Connector messen kannst, ohne die In-App-Nutzung zu berühren. Bildgenerierung wird nach Kosten und Anzahl Anfragen gemessen, nicht nach Tokens — eine Bild-Anfrage meldet keine Tokens, also deckle Bild-Ausgaben mit dem Kosten- oder Anfragen-Limit, nicht mit dem Token-Limit.
 
-**Feature-Kontrollen** schalten Web-Suche, Code-Ausführung und Datei-Upload pro Bereich um und deckeln die maximalen Kontext-Tokens für AI-Antworten. Ein Feature, das für einen Bereich aus ist, blendet die Schaltfläche im Chat aus und lehnt die Anfrage serverseitig ab.
+**Feature-Kontrollen** deckeln die maximalen Kontext-Tokens für AI-Antworten pro Bereich. Die Schalter für Web-Suche, Code-Ausführung und Datei-Upload werden mit der Richtlinie gespeichert, aber in dieser Version nicht durchgesetzt — ein ausgeschalteter Schalter ändert im Chat nichts.
 
 **Upload-Richtlinie** regelt Dateierweiterungen, MIME-Typen und Größen, die ein Mitglied anhängen darf. Sie deckelt zudem das Gesamtvolumen pro Benutzer — nützlich, wenn Speicher gemessen wird. Schalte die Richtlinie aus für einen permissiven Default; schalte sie ein, um die Listen durchzusetzen.
 

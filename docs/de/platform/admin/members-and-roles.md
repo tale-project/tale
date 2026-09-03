@@ -33,7 +33,7 @@ Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder z
 
 **Admin** regelt die Organisation: Mitglieder, Anbieter, Branding, Governance-Richtlinien, Connectors, das Audit-Log. Admins tun alles, was Redakteur und Entwickler tun, plus die Konfigurationsoberfläche. Sie können das Eigentum nicht übertragen.
 
-**Entwickler** baut: Agents, Workflows, Connectors, API-Keys, MCP-Server. Entwickler können jede Ressource lesen und in die meisten schreiben, inklusive Governance-Richtlinien (nur lesen). Greif zu Entwickler, wenn jemand die API-Ebene und das Connector-Tooling braucht.
+**Entwickler** baut: Agents, Workflows, Connectors, API-Keys. Entwickler können jede Ressource lesen und in die meisten schreiben, inklusive Governance-Richtlinien (nur lesen). Greif zu Entwickler, wenn jemand die API-Ebene und das Connector-Tooling braucht.
 
 **Redakteur** kuratiert und betreibt: Agents, die Wissensdatenbank (Dokumente, Kontakte, Produkte, Lieferanten, Websites), den Konversations-Posteingang, Genehmigungen, die Skill-Bibliothek. Redakteure können Workflows lesen, aber nicht ändern; sie können Connectors lesen, aber nicht konfigurieren. Greif zu Redakteur, wenn jemand die tägliche Produktarbeit erledigt, ohne die API- oder Connectorsebene zu berühren.
 

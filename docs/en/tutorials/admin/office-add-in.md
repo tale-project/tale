@@ -33,6 +33,6 @@ After sign-in the sidebar lists the user's available agents. Picking one and cli
 
 ## Where this fits
 
-The add-in is the lightest path to "Tale where your members already work" — no portal switch, no copy-paste. The sidebar is a thin shell around the same agents you publish in [Create an agent](/platform/agents/create); changes to the agent's instructions, knowledge, or tools land in the sidebar on the next request.
+The add-in is the lightest path to "Tale where your members already work" — no portal switch, no copy-paste. The sidebar is a thin shell around the same chat you use in Tale — see [Chat](/platform/chat/overview); agents in this version work board tasks rather than answering in chat, so there is nothing to publish into the sidebar.
 
-For the broader connector story — Slack, Gmail, custom MCP servers — see [Connectors overview](/platform/connectors/overview). If you operate a self-hosted instance and the manifest URL is unreachable from Microsoft 365, the [Linux server](/self-hosted/install/linux-server) page covers the public-HTTPS prerequisite.
+For the broader connector story — Slack, Gmail, and the other shipped connectors — see [Connectors overview](/platform/connectors/overview). If you operate a self-hosted instance and the manifest URL is unreachable from Microsoft 365, the [Linux server](/self-hosted/install/linux-server) page covers the public-HTTPS prerequisite.
