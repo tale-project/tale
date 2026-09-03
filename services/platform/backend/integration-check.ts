@@ -16124,6 +16124,101 @@ async function checkChatConversationSearchLeg(
 }
 
 /**
+ * The chat entity legs match a QUESTION, not only a typed name. Each leg
+ * receives the user's whole message as its search term, so a phrase-only
+ * compare finds nothing for anything phrased as a question. The word clause
+ * runs alongside the phrase clause, so a typed fragment keeps working, and a
+ * word must match at the START of a word so an OR over tokens is not noise.
+ */
+async function checkChatEntityWordSearch(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const now = Date.now();
+  // A fixture org of its own: two later checks count this org's tasks, and a
+  // third picks an arbitrary one, so seeding a task into the real org would
+  // move their numbers. The legs are org-scoped SQL, so a synthetic id is a
+  // complete world for them.
+  const org = `${ctx.orgId}-word-search-fixture`;
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${org}, 'Word Search Fixture', ${ctx.userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.tasks (org_id, project_id, title, description, status,
+                           rank, created_by, created_by_type, created_at_ms,
+                           updated_at_ms)
+    VALUES (${org}, ${projectId}, 'Set up Facebook ad account',
+            'for the recruitment campaign', 'todo', 'n', ${ctx.userId},
+            'user', ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.products (org_id, name, category, description,
+                              created_at_ms, updated_at_ms)
+    VALUES (${org}, 'Red Running Shoes', 'footwear', 'Lightweight trainers',
+            ${now}, ${now})
+  `;
+
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const handlers = chatShimHandlers(sql);
+  const pageShape = z.object({ page: z.array(z.unknown()) }).loose();
+  const rows = async (name: string, args: unknown): Promise<number> => {
+    const parsed = pageShape.safeParse(await handlers[name]?.(args));
+    return parsed.success ? parsed.data.page.length : -1;
+  };
+
+  const productQuestion = await rows(
+    'products/internal_queries:queryProducts',
+    { organizationId: org, searchTerm: 'do we have red running shoes' },
+  );
+  const productTyped = await rows('products/internal_queries:queryProducts', {
+    organizationId: org,
+    searchTerm: 'Red Running',
+  });
+  const productUnrelated = await rows(
+    'products/internal_queries:queryProducts',
+    { organizationId: org, searchTerm: 'do we have blue hats' },
+  );
+  const productStopwords = await rows(
+    'products/internal_queries:queryProducts',
+    { organizationId: org, searchTerm: 'what do we have?' },
+  );
+  const taskQuestion = await rows('tasks/search_for_chat:searchTasksForChat', {
+    organizationId: org,
+    projectIds: [projectId],
+    term: 'recruitment ads Facebook ad account project tasks',
+  });
+  // 'ebook' alone would hit the phrase clause through 'Facebook'. Inside a
+  // question the phrase cannot match, which isolates the word clause: a
+  // mid-word fragment must not be enough on its own.
+  const taskMidWord = await rows('tasks/search_for_chat:searchTasksForChat', {
+    organizationId: org,
+    projectIds: [projectId],
+    term: 'do we have any ebook tasks',
+  });
+  const taskRealWord = await rows('tasks/search_for_chat:searchTasksForChat', {
+    organizationId: org,
+    projectIds: [projectId],
+    term: 'do we have any facebook tasks',
+  });
+
+  record(
+    'chat entity legs match a question, not only a typed name',
+    productQuestion === 1 &&
+      productTyped === 1 &&
+      productUnrelated === 0 &&
+      productStopwords === 0 &&
+      taskQuestion === 1 &&
+      taskMidWord === 0 &&
+      taskRealWord === 1,
+    `product: question=${productQuestion} typed=${productTyped} unrelated=${productUnrelated} stopwords=${productStopwords} (want 1/1/0/0), task: question=${taskQuestion} midWord=${taskMidWord} realWord=${taskRealWord} (want 1/0/1)`,
+  );
+}
+
+/**
  * Address→assignee routing at inbound ingest: the org's
  * `conversation_routing` governance file maps the address the customer
  * wrote to onto a team queue or a person; an unknown address and a stale
@@ -32801,6 +32896,7 @@ async function main(): Promise<void> {
     await checkOutboundSendLane(sql, baseUrl, authCtx);
     await checkNotificationEmailSink(sql, authCtx);
     await checkChatConversationSearchLeg(sql, authCtx);
+    await checkChatEntityWordSearch(sql, authCtx);
     await checkAddressRouting(sql, authCtx, `itest-${orgSuffix}`);
     await checkControlDrain(sql, baseUrl, authCtx);
     await checkProvisioning(sql);
