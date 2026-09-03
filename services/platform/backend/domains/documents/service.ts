@@ -670,12 +670,19 @@ export async function setDocumentTrashed(
 // Project attach/detach (the projects-domain gap, closed here)
 // ---------------------------------------------------------------------------
 
-/** Attach a hub document to a project (requires teamless doc + edit access). */
+/**
+ * Attach a hub document to a project (requires teamless doc + edit access).
+ * Answers the blob ref so the caller can re-stamp the corpus scope AFTER the
+ * transaction commits (`syncRagDocumentScope` talks to the knowledge pool):
+ * a project file is retrievable only inside its project, so a hub document's
+ * org-wide corpus rows must follow it in — the same re-stamp a team change
+ * gets.
+ */
 export async function attachDocumentToProject(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: { documentId: string; projectId: string },
-): Promise<void> {
+): Promise<{ fileRef: string | null }> {
   assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(tx, args.documentId);
   await assertDocumentVisible(tx, auth, doc);
@@ -719,14 +726,20 @@ export async function attachDocumentToProject(
     metadata: { documentId: args.documentId },
     status: 'success',
   });
+  return { fileRef: doc.fileRef };
 }
 
-/** Detach back to the org-wide library (explicit destination, audited). */
+/**
+ * Detach back to the org-wide library (explicit destination, audited). Like
+ * attach, answers the blob ref for the post-commit corpus re-stamp: the
+ * detached document is org-wide again, so its corpus rows must stop carrying
+ * the old project's scope or it silently vanishes from hub retrieval.
+ */
 export async function detachDocumentFromProject(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   documentId: string,
-): Promise<void> {
+): Promise<{ fileRef: string | null }> {
   assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(tx, documentId);
   await assertDocumentVisible(tx, auth, doc);
@@ -763,6 +776,7 @@ export async function detachDocumentFromProject(
     metadata: { documentId, destination: 'org-library' },
     status: 'success',
   });
+  return { fileRef: doc.fileRef };
 }
 
 // ---------------------------------------------------------------------------

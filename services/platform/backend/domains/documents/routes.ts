@@ -143,6 +143,21 @@ export function createDocumentRoutes(deps: {
       c.get('sessionBundle').user.email,
     );
 
+  /**
+   * Re-stamp a document's corpus rows with its CURRENT scope (team / project)
+   * after a scope-changing write committed — team change, project attach,
+   * project detach. Runs outside the transaction (it talks to the org's
+   * knowledge pool) and is best-effort by contract: a failure is logged
+   * inside, never surfaced as a failed write.
+   */
+  const resyncCorpusScope = async (
+    organizationId: string,
+    documentId: string,
+  ): Promise<void> => {
+    const doc = await loadDocumentOrThrow(deps.sql, documentId);
+    await syncRagDocumentScope(deps.sql, organizationId, doc);
+  };
+
   app.get('/', async (c) => {
     try {
       const auth = await authCtx(c);
@@ -491,10 +506,9 @@ export function createDocumentRoutes(deps: {
         updateDocument(tx, auth, { documentId, ...body.data }),
       );
       // A team change is a corpus SCOPE change — re-stamp retrieval filters
-      // without re-embedding. Best-effort by contract (logged inside).
+      // without re-embedding.
       if (result.teamScopeChanged && result.fileRef !== null) {
-        const doc = await loadDocumentOrThrow(deps.sql, documentId);
-        await syncRagDocumentScope(deps.sql, auth.organizationId, doc);
+        await resyncCorpusScope(auth.organizationId, documentId);
       }
       return c.json({ ok: true });
     } catch (error) {
@@ -677,12 +691,20 @@ export function createDocumentRoutes(deps: {
     }
     try {
       const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
+      const documentId = c.req.param('documentId');
+      const attached = await transactSerializable(deps.sql, (tx) =>
         attachDocumentToProject(tx, auth, {
-          documentId: c.req.param('documentId'),
+          documentId,
           projectId: body.data.projectId,
         }),
       );
+      // Moving into a project is a corpus SCOPE change like a team change:
+      // the hub document's org-wide rows must become project-scoped or the
+      // file keeps answering org-wide retrieval from inside a restricted
+      // project.
+      if (attached.fileRef !== null) {
+        await resyncCorpusScope(auth.organizationId, documentId);
+      }
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
@@ -692,9 +714,15 @@ export function createDocumentRoutes(deps: {
   app.post('/:documentId/detach-from-project', async (c) => {
     try {
       const auth = await authCtx(c);
-      await transactSerializable(deps.sql, (tx) =>
-        detachDocumentFromProject(tx, auth, c.req.param('documentId')),
+      const documentId = c.req.param('documentId');
+      const detached = await transactSerializable(deps.sql, (tx) =>
+        detachDocumentFromProject(tx, auth, documentId),
       );
+      // Back to the org-wide library: drop the old project's scope from the
+      // corpus rows, or the document silently vanishes from hub retrieval.
+      if (detached.fileRef !== null) {
+        await resyncCorpusScope(auth.organizationId, documentId);
+      }
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);

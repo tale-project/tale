@@ -5955,6 +5955,68 @@ async function checkCorpusPurgeConsistency(
       `finalize → ${finalize.status}, oldCorpusGone=${oldDeindexed}, newIndexed=${newIndexed}, oldFetchDark=${oldFetchDark}, snapshotBytesKept=${oldBlobRetained}`,
     );
 
+    // --- 1b. Project attach/detach re-stamps the corpus scope --------------
+    // A hub document's corpus rows carry no project; attaching it to a
+    // project must stamp that project (or the file keeps answering org-wide
+    // retrieval from inside a restricted project), and detaching must clear
+    // it (or the file silently vanishes from hub retrieval).
+    const scoped = await uploadIndexedDoc(
+      'purge-scope.txt',
+      'purge check gamma peridot scope body',
+    );
+    const scopeProject = z.object({ projectId: z.string() }).safeParse(
+      await (
+        await send('POST', `/api/app/projects?orgId=${orgId}`, {
+          name: 'Corpus scope project',
+        })
+      ).json(),
+    );
+    const scopeProjectId = scopeProject.success
+      ? scopeProject.data.projectId
+      : '';
+    const corpusProjectOf = async (
+      ref: string,
+    ): Promise<string | null | undefined> => {
+      const rows = await corpusPool<{ projectId: string | null }[]>`
+        SELECT project_id AS "projectId" FROM private_knowledge.documents
+        WHERE org_slug = ${orgSlug} AND file_id = ${ref}
+        LIMIT 1
+      `;
+      return rows[0]?.projectId;
+    };
+    const scopeBefore =
+      scoped === null ? undefined : await corpusProjectOf(scoped.ref);
+    const attachScoped =
+      scoped === null
+        ? null
+        : await send(
+            'POST',
+            `/api/app/documents/${scoped.documentId}/attach-to-project?orgId=${orgId}`,
+            { projectId: scopeProjectId },
+          );
+    const scopeAttached =
+      scoped === null ? undefined : await corpusProjectOf(scoped.ref);
+    const detachScoped =
+      scoped === null
+        ? null
+        : await send(
+            'POST',
+            `/api/app/documents/${scoped.documentId}/detach-from-project?orgId=${orgId}`,
+          );
+    const scopeDetached =
+      scoped === null ? undefined : await corpusProjectOf(scoped.ref);
+    record(
+      'corpus scope: project attach/detach re-stamps retrieval scope',
+      scoped !== null &&
+        scopeProjectId !== '' &&
+        scopeBefore === null &&
+        attachScoped?.ok === true &&
+        scopeAttached === scopeProjectId &&
+        detachScoped?.ok === true &&
+        scopeDetached === null,
+      `seed=${scoped !== null}, before=${String(scopeBefore)} (want null), attach → ${attachScoped?.status ?? 'skipped'}, stamped=${scopeAttached === scopeProjectId ? 'project' : String(scopeAttached)} (want project), detach → ${detachScoped?.status ?? 'skipped'}, cleared=${String(scopeDetached)} (want null)`,
+    );
+
     // --- 2. Knowledge-entry edit releases the rotated-away ref -------------
     const entryCreated = z.object({ id: z.string() }).safeParse(
       await (
