@@ -4,7 +4,7 @@ import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { writeCoalescedNotification } from '../collab/service.ts';
+import { emitBellHint, writeCoalescedNotification } from '../collab/service.ts';
 import {
   loadProjectOrThrow,
   type ProjectAuthContext,
@@ -416,11 +416,9 @@ async function dismissDocumentReviewRequestNotifications(
     RETURNING id
   `;
   if (updated.length > 0) {
-    await emitHintInTx(tx, {
-      orgId: args.organizationId,
+    await emitBellHint(tx, {
+      organizationId: args.organizationId,
       userId: args.reviewerUserId,
-      entity: 'user_notification',
-      entityId: null,
     });
   }
 }

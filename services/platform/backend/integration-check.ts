@@ -50,7 +50,7 @@ import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
-import { emitHintInTx } from './realtime/outbox.ts';
+import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
 
 const noopPayloadSchema = z.object({
   seq: z.number().optional(),
@@ -491,7 +491,7 @@ async function checkNotifications(
   const hintOk = await waitFor(
     () =>
       stream.events.some(
-        (e) => e.event === 'hint' && e.data.includes('notification'),
+        (e) => e.event === 'hint' && e.data.includes('"entity":"notification"'),
       ),
     5_000,
   );
@@ -20568,6 +20568,131 @@ async function checkCollabEmitters(
 }
 
 /**
+ * The personal bell's WIRE: a bell row lands as a hint named exactly what the
+ * web app keys the bell on (`notification` — `NOTIFICATION_HINT_ENTITY`),
+ * delivered to the recipient's stream only (never to another member's), and
+ * the recipient's own mark-all-read hints them too, so other tabs drop the
+ * badge. Before this contract was pinned the writer said `user_notification`
+ * and the bell never lit up live.
+ */
+async function checkBellHintWire(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (
+    route: string,
+    body: unknown,
+    asCookie: string = cookie,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: asCookie,
+        origin: base,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  // The recipient: a teammate with a session of their own.
+  const mateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `bell-wire-${Date.now()}@example.com`,
+      password: 'itest-password-1',
+      name: 'Bell Recipient',
+    }),
+  });
+  const mateCookie = cookieHeaderFrom(mateSignUp);
+  const mateBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await mateSignUp.json());
+  const mateId = mateBody.success ? mateBody.data.user.id : '';
+  const joined = await post(`/api/app/members?orgId=${orgId}`, {
+    userId: mateId,
+    role: 'member',
+  });
+
+  const ownerStream = connectSse(`${base}/events?orgId=${orgId}`, { cookie });
+  const mateStream = connectSse(`${base}/events?orgId=${orgId}`, {
+    cookie: mateCookie,
+  });
+  await sleep(500); // both tails established
+  const startId = await latestOutboxId(sql);
+
+  const { writeCoalescedNotification } =
+    await import('./domains/collab/service.ts');
+  await sql.begin((tx) =>
+    writeCoalescedNotification(tx, {
+      userId: mateId,
+      organizationId: orgId,
+      type: 'task_status_changed',
+      titleKey: 'taskStatusChanged',
+      bodyKey: 'taskStatusChangedBody',
+      params: { title: 'Bell wire', from: 'todo', to: 'in_progress' },
+      resourceType: 'task',
+      resourceId: 'itest-bell-wire',
+      taskId: 'itest-bell-wire',
+      actorType: 'user',
+      actorId: userId,
+    }),
+  );
+  const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
+  const isBellHint = (e: SseEvent): boolean =>
+    e.event === 'hint' && e.data === bellHint;
+  const mateGotIt = await waitFor(
+    () => mateStream.events.some(isBellHint),
+    5_000,
+  );
+  await sleep(700); // two poll cycles — the owner's stream had every chance
+  const ownerSpared = !ownerStream.events.some(isBellHint);
+  const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
+    SELECT user_id AS "userId", entity FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND id > ${startId}::bigint
+      AND entity IN ('notification', 'user_notification')
+  `;
+  const narrowed =
+    outboxRows.length === 1 &&
+    outboxRows[0]?.entity === 'notification' &&
+    outboxRows[0].userId === mateId;
+
+  // The recipient reads everything → their own streams are told as well.
+  const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
+  const markAll = await post(
+    `/api/app/collab/notifications/read-all?orgId=${orgId}`,
+    undefined,
+    mateCookie,
+  );
+  const mateToldOfRead = await waitFor(
+    () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
+    5_000,
+  );
+  ownerStream.abort();
+  mateStream.abort();
+  await ownerStream.done;
+  await mateStream.done;
+  const row = await sql<{ read: boolean }[]>`
+    SELECT read FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${mateId}
+      AND resource_id = 'itest-bell-wire'
+  `;
+  record(
+    'personal bell hint wire: app entity, recipient-only, read-all hints',
+    joined.ok &&
+      mateGotIt &&
+      ownerSpared &&
+      narrowed &&
+      markAll.ok &&
+      mateToldOfRead &&
+      (row[0]?.read ?? false),
+    `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
+  );
+}
+
+/**
  * The small tail: the accounts probe (which auth backings the user has),
  * the changelog orchestration on an injected fetcher (paging honors `from`,
  * page-2 failures degrade to a partial), and the route's auth gate.
@@ -25920,6 +26045,7 @@ async function main(): Promise<void> {
     await checkTurnEquipmentBroker(sql, baseUrl, authCtx);
     await checkKnowledgeEntries(sql, baseUrl, authCtx);
     await checkCollabEmitters(sql, baseUrl, authCtx);
+    await checkBellHintWire(sql, baseUrl, authCtx);
     await checkChangelogAndAccounts(sql, baseUrl, authCtx);
     await checkLegalHolds(sql, baseUrl, authCtx);
     await checkRetention(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

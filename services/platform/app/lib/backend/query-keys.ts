@@ -5,7 +5,10 @@
  * and the hint stream invalidates by the `['backend', orgId, entity]`
  * prefix — so the ONE contract binding reads to invalidation is this
  * module. The entity names are the outbox's (`backend/realtime/outbox.ts`
- * writers): singular nouns like `task`, `notification`, `document`.
+ * writers): singular nouns like `task`, `notification`, `document`. A name
+ * both ends must agree on is declared once in `lib/shared/hint-entities.ts`
+ * and imported by the writer AND the query key — a mismatch is silence, not
+ * an error.
  */
 
 export type BackendQueryKey = readonly [
