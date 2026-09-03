@@ -1,8 +1,13 @@
+import { transactSerializable } from '@tale/shared/db/serializable';
 import { symmetricDecrypt } from 'better-auth/crypto';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { DEFAULT_TWO_FACTOR_POLICY } from '../../../lib/shared/schemas/governance.ts';
 import { mergeStrictestTwoFactorPolicy } from '../../core/governance/helpers.ts';
+import {
+  splitEmailForAudit,
+  splitIpForAudit,
+} from '../../core/lib/helpers/pii_hash.ts';
 import {
   computeLockedUntil,
   DEFAULT_LOGIN_POLICY,
@@ -123,6 +128,75 @@ export async function recordTwoFactorSuccess(
   userId: string,
 ): Promise<void> {
   await sql`DELETE FROM app.two_factor_attempts WHERE user_id = ${userId}`;
+}
+
+/**
+ * The second-factor lifecycle events. Action names are the 0.4 ones verbatim
+ * (`two_factor/internal_mutations.ts` → `logEnrollmentEvent`) — a rename
+ * would silently break any saved audit query or export that groups on them.
+ */
+export type TwoFactorLifecycleAction =
+  | '2fa_enrolled'
+  | '2fa_disabled'
+  | 'passkey_added'
+  | 'passkey_removed'
+  | 'passkey_sign_in';
+
+/**
+ * Audit a SUCCESSFUL 2FA / passkey lifecycle event (#1508 in 0.4). These are
+ * the account-takeover-relevant ones: an attacker who adds a passkey and
+ * disables TOTP must not be able to do it without leaving a trail. The
+ * failure side is `recordTwoFactorFailure` above — on 0.5 that was the only
+ * half that survived the port, because the 0.4 hook file carrying these
+ * calls was deleted with the Convex tree.
+ *
+ * Org-scoped like every other security event: one row per org the user
+ * belongs to, PII split into plaintext + peppered hash by the reused
+ * helpers, all inside ONE serializable transaction so a user in several orgs
+ * gets all their rows or none.
+ */
+export async function recordTwoFactorLifecycleEvent(
+  sql: Sql,
+  args: {
+    userId: string;
+    action: TwoFactorLifecycleAction;
+    actorEmail?: string;
+    ip?: string;
+    userAgent?: string;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<void> {
+  const emailParts =
+    args.actorEmail !== undefined
+      ? await splitEmailForAudit(args.actorEmail)
+      : {};
+  const ipParts = args.ip !== undefined ? await splitIpForAudit(args.ip) : {};
+  await transactSerializable(sql, async (tx) => {
+    for (const organizationId of await userOrgIds(tx, args.userId)) {
+      await createAuditLog(tx, {
+        organizationId,
+        actorId: args.userId,
+        ...(emailParts.plaintext !== undefined
+          ? { actorEmail: emailParts.plaintext }
+          : {}),
+        ...(emailParts.hash !== undefined
+          ? { actorEmailHash: emailParts.hash }
+          : {}),
+        actorType: 'user',
+        action: args.action,
+        category: 'security',
+        resourceType: 'twoFactorAuth',
+        resourceId: args.userId,
+        ...(ipParts.plaintext !== undefined
+          ? { ipAddress: ipParts.plaintext }
+          : {}),
+        ...(ipParts.hash !== undefined ? { actorIpHash: ipParts.hash } : {}),
+        ...(args.userAgent !== undefined ? { userAgent: args.userAgent } : {}),
+        status: 'success',
+        ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
+      });
+    }
+  });
 }
 
 export interface TwoFactorEnforcement {
