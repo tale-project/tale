@@ -30967,7 +30967,7 @@ async function checkTwoFactor(
   orgSlug: string,
   email: string,
 ): Promise<void> {
-  const { cookie, userId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const configRoot = process.env.TALE_CONFIG_DIR ?? '';
   const governanceDir = path.join(configRoot, orgSlug, 'governance');
   await mkdir(governanceDir, { recursive: true });
@@ -31006,6 +31006,142 @@ async function checkTwoFactor(
     'two-factor: blocked session denied on org routes, enrolment reachable',
     blockedOrgRoute.status === 403 && enrolmentReachable.status === 200,
     `org-route=${blockedOrgRoute.status} (want 403), enrol-status=${enrolmentReachable.status} (want 200)`,
+  );
+
+  // --- Lifecycle audit: enable / regenerate / disable, and the passkey trio
+  // 0.4 audited every SUCCESSFUL second-factor lifecycle event (#1508); the
+  // port kept only the failure half, so an attacker who registered their own
+  // passkey and turned TOTP off left no trace at all. Action names are 0.4's
+  // verbatim — a rename would break any saved query grouping on them.
+  // A DEDICATED user, not the harness's own. This block enables 2FA,
+  // regenerates backup codes, disables it, and registers and removes a
+  // passkey — so running it on the shared session leaves that user's
+  // second-factor state changed and invalidates their session. Five later
+  // checks failed that way before this was split out: the 2FA grace check,
+  // and four chat checks that need a live session.
+  const lifecycleSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `itest-2fa-lifecycle-${Date.now()}@example.com`,
+      password: 'itest-password-1',
+      name: 'Lifecycle',
+    }),
+  });
+  const lifecycleCookie = cookieHeaderFrom(lifecycleSignUp);
+  const lifecycleUser = z
+    .object({ user: z.object({ id: z.string() }) })
+    .loose()
+    .safeParse(await lifecycleSignUp.json());
+  const lifecycleUserId = lifecycleUser.success
+    ? lifecycleUser.data.user.id
+    : '';
+  // Audit rows are org-scoped, so the lifecycle user needs a membership or
+  // their events have no org to land under and the trail reads empty.
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${`m-2fa-${lifecycleUserId}`}, ${orgId}, ${lifecycleUserId},
+            'member', ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  const authPost = (route: string, body: unknown): Promise<Response> =>
+    fetch(`${base}/api/auth${route}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: lifecycleCookie,
+        origin: base,
+      },
+      body: JSON.stringify(body),
+    });
+  const lifecycleActions = async (): Promise<string[]> => {
+    const rows = await sql<{ action: string }[]>`
+      SELECT action FROM app.audit_logs
+      WHERE org_id = ${ctx.orgId} AND resource_type = 'twoFactorAuth'
+        AND resource_id = ${lifecycleUserId}
+      ORDER BY ts ASC
+    `;
+    return rows.map((row) => row.action);
+  };
+  const before2fa = await lifecycleActions();
+  const enableRes = await authPost('/two-factor/enable', {
+    password: 'itest-password-1',
+  });
+  const afterEnable = await lifecycleActions();
+  const regenRes = await authPost('/two-factor/generate-backup-codes', {
+    password: 'itest-password-1',
+  });
+  const afterRegen = await lifecycleActions();
+  const disableRes = await authPost('/two-factor/disable', {
+    password: 'itest-password-1',
+  });
+  const afterDisable = await lifecycleActions();
+  // Backup-code regeneration audits as a `2fa_enrolled` carrying the 0.4
+  // `backupCodesRegenerated` stamp. The endpoint needs a COMPLETED TOTP
+  // enrolment (a verified code), which a script cannot produce — so the
+  // assertion covers whichever way it answers: a 200 must leave the stamped
+  // row, and a refusal must leave NOTHING (the hook audits success only).
+  const regenRow = await sql<
+    { category: string; status: string; regenerated: boolean | null }[]
+  >`
+    SELECT category, status,
+           (metadata->>'backupCodesRegenerated')::boolean AS regenerated
+    FROM app.audit_logs
+    WHERE org_id = ${ctx.orgId} AND resource_id = ${lifecycleUserId}
+      AND action = '2fa_enrolled' AND metadata ? 'backupCodesRegenerated'
+    ORDER BY ts DESC LIMIT 1
+  `;
+  const regenConsistent =
+    regenRes.status === 200
+      ? regenRow.length === 1 &&
+        regenRow[0]?.regenerated === true &&
+        afterRegen.join(',') === '2fa_enrolled,2fa_enrolled'
+      : regenRow.length === 0 && afterRegen.join(',') === afterEnable.join(',');
+  // WebAuthn cannot be driven from a script, so the passkey trio is proven at
+  // the writer: the action names land as rows with the security shape.
+  const { recordTwoFactorLifecycleEvent } =
+    await import('./domains/two_factor/service.ts');
+  for (const action of [
+    'passkey_added',
+    'passkey_sign_in',
+    'passkey_removed',
+  ] as const) {
+    await recordTwoFactorLifecycleEvent(sql, {
+      userId: lifecycleUserId,
+      action,
+      actorEmail: email,
+      ip: '203.0.113.9',
+      userAgent: 'itest-passkey/1.0',
+    });
+  }
+  const afterPasskeys = await lifecycleActions();
+  // Every lifecycle row carries the 0.4 security shape, not just the name.
+  const shapes = await sql<{ category: string; status: string }[]>`
+    SELECT DISTINCT category, status FROM app.audit_logs
+    WHERE org_id = ${ctx.orgId} AND resource_type = 'twoFactorAuth'
+      AND resource_id = ${lifecycleUserId}
+  `;
+  // Leave 2FA OFF: later lanes sign this account in with password alone.
+  const enrolled = await sql<{ enabled: boolean | null }[]>`
+    SELECT "twoFactorEnabled" AS enabled FROM "user"
+    WHERE "id" = ${lifecycleUserId}
+  `;
+  record(
+    'two-factor: successful lifecycle events audit (#1508 action names)',
+    before2fa.length === 0 &&
+      enableRes.status === 200 &&
+      afterEnable.join(',') === '2fa_enrolled' &&
+      regenConsistent &&
+      disableRes.status === 200 &&
+      afterDisable.join(',') === `${afterRegen.join(',')},2fa_disabled` &&
+      afterPasskeys.join(',') ===
+        `${afterDisable.join(',')},passkey_added,passkey_sign_in,passkey_removed` &&
+      shapes.length === 1 &&
+      shapes[0]?.category === 'security' &&
+      shapes[0]?.status === 'success' &&
+      enrolled[0]?.enabled !== true,
+    `before=${before2fa.length}, enable=${enableRes.status} regen=${regenRes.status} (stamped=${regenRow.length}) disable=${disableRes.status}, trail=${afterPasskeys.join(',')}, shape=${shapes.map((s) => `${s.category}/${s.status}`).join('|')}, enabledLeftOn=${enrolled[0]?.enabled}`,
   );
 
   await writeFile(
