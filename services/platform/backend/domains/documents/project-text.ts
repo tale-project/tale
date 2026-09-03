@@ -8,7 +8,11 @@ import { resolveObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
 import { getOrCreateProjectFolder } from '../folders/service.ts';
-import type { ProjectAuthContext } from '../projects/service.ts';
+import {
+  assertReadable,
+  loadProjectOrThrow,
+  type ProjectAuthContext,
+} from '../projects/service.ts';
 import { DocumentError } from './service.ts';
 
 /**
@@ -205,7 +209,11 @@ export async function ensureProjectTextDocument(
  * Read the folder's flat-YAML file back into `{key: value}`. Absence in any
  * of its forms — no folder, no file, no blob — is an EMPTY MAP, never an
  * error: a form that cannot find its file falls back to its declared
- * defaults, which is exactly what a first-run panel must do.
+ * defaults, which is exactly what a first-run panel must do. Access is not
+ * absence: the caller needs READ access to the project (the write half runs
+ * the project's edit gate through `getOrCreateProjectFolder`), or any org
+ * member could read another team's settings by guessing the well-known
+ * folder and file names.
  */
 export async function readProjectTextValues(
   sql: Sql,
@@ -213,6 +221,7 @@ export async function readProjectTextValues(
   args: { projectId: string; folderName: string; fileName: string },
 ): Promise<Record<string, string>> {
   const fileName = validateFileName(args.fileName);
+  assertReadable(await loadProjectOrThrow(sql, args.projectId), auth);
   const rows = await sql<{ fileRef: string | null }[]>`
     SELECT d.file_ref AS "fileRef"
     FROM app.documents d

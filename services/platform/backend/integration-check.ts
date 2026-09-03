@@ -3691,6 +3691,79 @@ async function checkDocuments(
     `resubmitFresh=${resubmit.success && submit.success ? resubmit.data.approvalId !== submit.data.approvalId : 'ERR'}, approve=${approve.success ? 'ok' : 'ERR'}, badge=${approvedItem.success ? `${approvedItem.data.document.record.state}/${approvedItem.data.document.record.hasApprovedVersions}` : 'ERR'}, deleteApproved → ${deleteApproved.status} (want 400), revision=${revision.success ? revision.data.version : 'ERR'}, deleteRetained → ${deleteRetained.status} (want 400)`,
   );
 
+  // --- The settings panel's text file: access is not absence ---------------
+  // The read half needs project READ access like the project listing does.
+  // The folder and file names are well known (validation-policy.yaml), so
+  // without the gate any org member could read another team's settings. The
+  // editor outside the team reads the org-wide project (positive control)
+  // but is refused on a team-restricted one; an unknown project is not found,
+  // never an empty map.
+  const textTeam = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (gen_random_uuid(), 'Settings owners', ${orgId}, ${new Date()},
+            ${new Date()})
+    RETURNING "id"
+  `;
+  const textTeamId = textTeam[0]?.id ?? '';
+  const restrictedProject = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/projects?orgId=${orgId}`, {
+        name: 'Restricted settings project',
+        teamId: textTeamId,
+      })
+    ).json(),
+  );
+  const restrictedProjectId = restrictedProject.success
+    ? restrictedProject.data.projectId
+    : '';
+  const textFile = { folderName: 'Setup', fileName: 'validation-policy.yaml' };
+  await send('POST', `/api/app/documents/project-text?orgId=${orgId}`, {
+    projectId: restrictedProjectId,
+    ...textFile,
+    yaml: { secret: 'team-only' },
+  });
+  const strangerOrgWide = await sendAs(
+    reviewerCookie,
+    'POST',
+    `/api/app/documents/project-text/read?orgId=${orgId}`,
+    { projectId, ...textFile },
+  );
+  const strangerRestricted = await sendAs(
+    reviewerCookie,
+    'POST',
+    `/api/app/documents/project-text/read?orgId=${orgId}`,
+    { projectId: restrictedProjectId, ...textFile },
+  );
+  const strangerCode = await errorCodeOf(strangerRestricted);
+  const ownerRestricted = z
+    .object({ values: z.record(z.string(), z.string()) })
+    .safeParse(
+      await (
+        await send(
+          'POST',
+          `/api/app/documents/project-text/read?orgId=${orgId}`,
+          { projectId: restrictedProjectId, ...textFile },
+        )
+      ).json(),
+    );
+  const unknownProject = await send(
+    'POST',
+    `/api/app/documents/project-text/read?orgId=${orgId}`,
+    { projectId: randomUUID(), ...textFile },
+  );
+  record(
+    'project text read requires project access (no guessing another team’s settings)',
+    restrictedProject.success &&
+      strangerOrgWide.status === 200 &&
+      strangerRestricted.status === 403 &&
+      strangerCode === 'PROJECT_FORBIDDEN' &&
+      ownerRestricted.success &&
+      ownerRestricted.data.values.secret === 'team-only' &&
+      unknownProject.status === 404,
+    `orgWide → ${strangerOrgWide.status} (want 200), restricted → ${strangerRestricted.status}/${strangerCode} (want 403/PROJECT_FORBIDDEN), owner=${ownerRestricted.success ? JSON.stringify(ownerRestricted.data.values) : 'ERR'}, unknown → ${unknownProject.status} (want 404)`,
+  );
+
   // --- Replacement uploads (inc 86) ----------------------------------------
 
   const recordItemNow = z
