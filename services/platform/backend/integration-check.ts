@@ -4055,6 +4055,10 @@ async function checkChat(
               object: 'model',
               context_length: 32_768,
               max_output_tokens: 512,
+              // Dollars per token, the listing dialect the normalizer reads
+              // (→ 100 / 200 cents per million): the price every turn's
+              // ledger row must be booked at.
+              pricing: { prompt: '0.000001', completion: '0.000002' },
             },
           ],
         }),
@@ -5875,6 +5879,9 @@ async function checkGovernance(
     'governance enforcement (model access + caps + usage buckets)',
     chatBucket !== undefined &&
       chatBucket.totalTokens > 0 &&
+      // Booked at the catalog price, not 0: the usage dashboard and the cost
+      // budgets read this column.
+      chatBucket.costEstimateCents > 0 &&
       Number(connectorBuckets[0]?.count ?? '0') >= 1 &&
       refused.success &&
       refused.data.status === 'refused' &&
@@ -5882,7 +5889,7 @@ async function checkGovernance(
       cap === 9000 &&
       autoRefsOk &&
       reopened.allowed,
-    `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'}, connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), autoRefs=${autoPick.accessibleModelRefs.join(',')} (want vendor/itest-model), reopened=${reopened.allowed}`,
+    `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'} cost=${chatBucket?.costEstimateCents ?? 'MISSING'} (want > 0), connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), autoRefs=${autoPick.accessibleModelRefs.join(',')} (want vendor/itest-model), reopened=${reopened.allowed}`,
   );
 
   // Budget scope alignment over the live 0.5 enforcer (the composer's Send
