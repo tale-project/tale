@@ -3,21 +3,19 @@ title: Backups und Restore
 description: Volume-Snapshots über `tale backup`, der automatische Pre-Migrations-Snapshot, Retention, die Off-Host-Kopie und der `tale restore`-Drill.
 ---
 
-Tales Backup-Einheit ist der Volume-Snapshot: ein pausiertes, checksummengesichertes Tar jedes Daten-Volumes der Instanz, geschrieben in ein dediziertes `backups`-Volume, das neben den Daten lebt, die es schützt. Das CLI nimmt automatisch einen vor jedem Deploy-Schritt, der Daten migrieren kann, und `tale backup` nimmt einen auf Zuruf. Recovery ist `tale restore <snapshot-id>` plus ein Redeploy der passenden Version — dieses Paar ist die Antwort auf ein gescheitertes Upgrade und der Grund, warum `tale rollback` sich alles jenseits eines Patch-Schritts verweigern kann.
+Tales Backup-Einheit ist der Volume-Snapshot: ein pausiertes, checksummengesichertes Tar der Kern-Daten-Volumes der Instanz, geschrieben in ein dediziertes `backups`-Volume, das neben den Daten lebt, die es schützt. Das CLI nimmt automatisch einen vor jedem Deploy-Schritt, der Daten migrieren kann, und `tale backup` nimmt einen auf Zuruf. Recovery ist `tale restore <snapshot-id>` plus ein Redeploy der passenden Version — dieses Paar ist die Antwort auf ein gescheitertes Upgrade und der Grund, warum `tale rollback` sich alles jenseits eines Patch-Schritts verweigern kann.
 
 Der Architektur-Kontext lebt in [Container-Architektur](/de/self-hosted/operate/container-architecture); diese Seite deckt ab, was ein Snapshot enthält, wann einer genommen wird, wie die Kopie vom Host runterkommt und den Restore-Walk.
 
 ## Was ein Snapshot enthält
 
-| Volume                       | Enthält                                              |
-| ---------------------------- | ---------------------------------------------------- |
-| `db-data`                    | Postgres — Agents, Runs, das Audit-Log               |
-| `convex-data`                | Org-Config, Anbieter-Secrets, hochgeladenes Branding |
-| `rag-data`                   | Der Vektor-Index aus deinen Dokumenten               |
-| `crawler-data`               | Gecrawltes Website-Wissen                            |
-| `caddy-data`, `caddy-config` | TLS-Zertifikate und Proxy-State                      |
+| Volume                       | Enthält                                                                                                                                |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `db-data`                    | Postgres — der Anwendungsspeicher (Agents, Runs, das Audit-Log) und der Wissens-Korpus (Dokument-Chunks, Embeddings, gecrawlte Seiten) |
+| `convex-data`                | Org-Config, Anbieter-Secrets, hochgeladenes Branding                                                                                   |
+| `caddy-data`, `caddy-config` | TLS-Zertifikate und Proxy-State                                                                                                        |
 
-Jeder Snapshot ist ein Verzeichnis mit einem Namen wie `20260611-142530-deploy` im `backups`-Volume des Projekts: ein `.tar.gz` pro Volume, je ein `.sha256`-Sidecar und ein zuletzt geschriebenes `manifest.json`. Ein Verzeichnis ohne Manifest ist ein unvollständiger Snapshot — er taucht nie in Listings auf und lässt sich nie wiederherstellen. Zwei Dinge leben außerhalb der Volumes und brauchen separate Erfassung: der Projekt-Workspace (das Verzeichnis mit `tale.json`) und `.env`.
+Jeder Snapshot ist ein Verzeichnis mit einem Namen wie `20260611-142530-deploy` im `backups`-Volume des Projekts: ein `.tar.gz` pro Volume, je ein `.sha256`-Sidecar und ein zuletzt geschriebenes `manifest.json`. Ein Verzeichnis ohne Manifest ist ein unvollständiger Snapshot — er taucht nie in Listings auf und lässt sich nie wiederherstellen. Der Snapshot lässt `object-store-data` bewusst aus — den Blob-Store mit hochgeladenen Dateien und generierten Medien —, sodass diese Blobs ihre eigene Off-Host-Erfassung brauchen, neben den zwei Dingen, die ganz außerhalb der Volumes leben: dem Projekt-Workspace (das Verzeichnis mit `tale.json`) und `.env`.
 
 ## Wann Snapshots genommen werden
 

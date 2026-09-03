@@ -15,11 +15,11 @@ La transcription tourne une fois par message parlé. Ce que l’agent reçoit, c
 
 ## Du texte à la parole
 
-Faire lire une réponse à voix haute est un choix que tu poses dans la zone de saisie, pour le tour que tu t’apprêtes à envoyer. Active la sortie vocale et la réponse qui revient part vers un modèle de synthèse et se joue à mesure qu’elle arrive ; laisse-la éteinte et la réponse atterrit en texte comme n’importe quelle autre. La lecture peut être coupée avant la fin, et la dernière réponse peut être rejouée sans reposer la question.
+Faire lire une réponse à voix haute est un interrupteur dans la zone de saisie qui règle la sortie vocale pour le chat où tu te trouves. Active la sortie vocale et la réponse qui revient part vers un modèle de synthèse et se joue à mesure qu’elle arrive ; laisse-la éteinte et la réponse atterrit en texte comme n’importe quelle autre. La lecture peut être coupée avant la fin, et la dernière réponse peut être rejouée sans reposer la question.
 
 <Note>
 
-La sortie vocale est un contrôle de la zone de saisie, pas une préférence enregistrée. Aucune voix n’est épinglée à un agent et aucune valeur par défaut à l’échelle de l’organisation ne décide pour toi — la portée du choix est le tour que tu envoies, ce qui évite qu’une session mains libres te suive jusque dans un bureau partagé.
+La sortie vocale résout une cascade, pas un simple interrupteur par tour : une politique à l’échelle de l’organisation peut la couper entièrement — ce qui masque le contrôle — et en dessous se trouvent ton défaut enregistré et le remplacement propre à chaque chat. La régler dans un chat écrit le remplacement de ce chat ; la régler sur un nouveau chat fixe le défaut utilisateur dont tes chats suivants héritent. Aucune voix n’est épinglée à un agent.
 
 </Note>
 

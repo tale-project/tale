@@ -21,11 +21,11 @@ Der RSS-Feed trägt jeden Status-Wechsel — offen, Update, gelöst — für jed
 
 | Service    | Was er abdeckt                                                                          | Wann er rot wird                                            |
 | ---------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `platform` | Die TanStack-Start-+-Convex-Anwendung — Agents, Workflows, Connectors, UI.              | UI nicht erreichbar; API gibt 5xx; Auth defekt.             |
+| `platform` | Die TanStack-Start-+-Hono-Anwendung — Agents, Workflows, Connectors, UI.              | UI nicht erreichbar; API gibt 5xx; Auth defekt.             |
 | `rag`      | Der Python-FastAPI-Dokumentdienst — Indexierung, Retrieval.                             | Dokument-Uploads stocken; Retrieval ist leer.               |
 | `crawler`  | Der Crawl4AI-Web-Extraktionsdienst — verwendet von Document-Ingest und Tavily-Fallback. | Web-gezogene Dokumente scheitern; Deep Research stockt.     |
 | `proxy`    | Der Caddy-Edge — TLS-Terminierung, HTTP-Routing.                                        | Gesamter Tale-Cloud-Verkehr betroffen.                      |
-| `db`       | TimescaleDB — dauerhafter Zustand für die Convex-Schicht und Plattform-Metadaten.       | Schreiben abgelehnt; die platform-Zeile wird ebenfalls rot. |
+| `db`       | Postgres — dauerhafter Zustand der Plattform und ihrer Metadaten.       | Schreiben abgelehnt; die platform-Zeile wird ebenfalls rot. |
 
 Jede Zeile trägt die letzten 90 Tage Uptime als Sparkline. Ein Incident liest sich als farbiges Band auf der Zeile; ein Klick aufs Band öffnet den Verlauf — erstes Update, Folge-Updates, Auflösung, Post-Mortem, wenn eines ansteht.
 
@@ -37,7 +37,7 @@ Die Seite gehört der Bereitschafts-Rotation. Updates werden vom Engineer gescho
 
 ## Self-hosted: was sich ändert
 
-Selbst gehostete Instanzen erscheinen nicht auf `status.tale.dev` — die Seite deckt Tale Cloud ab. Jedes Deployment bringt stattdessen seine eigene Status-Page mit, von der Plattform ausgeliefert und ohne Anmeldung erreichbar unter `https://<dein-host>/status`. Sie rendert serverseitig eine Gesundheits-Zusammenfassung — operational, degraded oder outage — aus einem Liveness-Probe gegen das Convex-Backend, sodass ein Betreiber (oder ein Endnutzer, der prüft, ob es nur bei ihm hakt) die Verfügbarkeit ohne Login lesen kann. Die maschinenlesbare Form ist `https://<dein-host>/status.json`, die dasselbe Ergebnis als JSON zurückgibt, das ein Uptime-Monitor pollen kann.
+Selbst gehostete Instanzen erscheinen nicht auf `status.tale.dev` — die Seite deckt Tale Cloud ab. Jedes Deployment bringt stattdessen seine eigene Status-Page mit, von der Plattform ausgeliefert und ohne Anmeldung erreichbar unter `https://<dein-host>/status`. Sie rendert serverseitig eine Gesundheits-Zusammenfassung — operational, degraded oder outage — aus einem Liveness-Probe gegen das Backend, sodass ein Betreiber (oder ein Endnutzer, der prüft, ob es nur bei ihm hakt) die Verfügbarkeit ohne Login lesen kann. Die maschinenlesbare Form ist `https://<dein-host>/status.json`, die dasselbe Ergebnis als JSON zurückgibt, das ein Uptime-Monitor pollen kann.
 
 Diese Seite meldet die Verfügbarkeit des Deployments selbst. Für tieferes Betriebssignal — Container-Gesundheit von `tale status`, Anfrage-Metriken aus den Caddy-Logs und Control-Plane-Events im In-Product-Audit-Log — bildet die [Observability-Troubleshooting-Seite](/de/self-hosted/operate/observability/troubleshooting) Symptome auf Logs ab.
 

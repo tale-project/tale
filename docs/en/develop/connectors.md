@@ -109,5 +109,3 @@ An MCP server is registered under **Settings > API > MCP**, and every tool it ex
 ## Where this fits
 
 A connector is a declared contract — hosts, authentication, and a typed action list — that ships with the platform and is fed by credentials the organisation owns. Read [Connectors](/platform/connectors/overview) for what is in the catalog, [Connector credentials](/platform/admin/connectors) for how those credentials are managed day to day, and [MCP servers](/platform/connectors/mcp-servers) when the bridge you need has to be your own code.
-</content>
-</invoke>

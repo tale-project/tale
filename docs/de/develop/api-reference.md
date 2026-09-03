@@ -18,13 +18,13 @@ curl -sS "https://your-host.example.com/api/v1/automations" \
   -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
-Eine erfolgreiche Antwort ist eine Seite: `{ "page": [ { "name": "billing/dunning", "latest": 3, "deployedVersion": 2 } ], "isDone": true, "continueCursor": null }`. Jeder Listen-Endpoint antwortet mit genau diesem Umschlag — gib `continueCursor` als `?cursor=` zurück, um die nächste Seite zu holen, und begrenze die Seitengröße mit `?limit=`. Die eine Ausnahme ist der Maschinenzugang unter Projekte: seine Listen antworten leichter — sein Abschnitt zeigt die Formen.
+Eine erfolgreiche Antwort ist eine benannte Liste: `{ "automations": [ { "name": "billing/dunning", "latestVersion": 3, "deployedVersion": 2 } ] }`. Die Listenform hängt von der Familie ab: die meisten antworten mit einem benannten Array wie diesem, während die Wissens- und Chat-Ressourcen — Kontakte, Produkte, Dokumente, Wissenseinträge, Threads, Websites — mit einem `{ "page": [...], "isDone": ..., "continueCursor": ... }`-Umschlag antworten. Wo ein Umschlag paginiert, gib `continueCursor` als `?cursor=` zurück und begrenze die Seite mit `?limit=`: Dokumente, Wissenseinträge, Threads und Websites paginieren so; Kontakte und Produkte liefern zwar einen `continueCursor`, honorieren `?cursor=` aber noch nicht, sodass nur ihre erste Seite erreichbar ist. Der Maschinenzugang unter Projekte reist noch leichter — sein Abschnitt zeigt jene Formen.
 
 ## Authentifizierung
 
 API-Schlüssel erzeugt jeder mit Admin- oder Entwickler-Berechtigungen im Produkt — [API-Schlüssel](/de/platform/admin/api-keys) beschreibt das Panel. Ein Schlüssel wird bei der Erstellung genau einmal gezeigt und nie wieder; er gehört dem Benutzer, der ihn erzeugt hat — jeder Aufruf handelt als dieser Benutzer.
 
-Übergib den Schlüssel als Bearer-Token: `Authorization: Bearer <key>`. Die Organisation wird pro Anfrage aus den Mitgliedschaften des Schlüssel-Benutzers aufgelöst — ein Schlüssel erreicht genau die Organisationen, denen sein Benutzer angehört, sonst keine. Ein expliziter `X-Organization-Slug`-Header gewinnt immer und wird auf Mitgliedschaft geprüft: ein Slug, dessen Organisation der Benutzer nicht angehört, wird abgewiesen. Ohne Header landet ein Benutzer mit einer Organisation in dieser einen; ein Benutzer mit mehreren folgt der zuletzt im Dashboard aktiven Organisation — außer auf den Projekt- und Aufgaben-Routen, die nie raten: dort muss ein Multi-Org-Schlüssel den Header senden, und eine Anfrage ohne ihn antwortet **400**. Was der Schlüssel _tun darf_, folgt der Rolle seines Besitzers: Lesen und Mock-Läufe brauchen Mitgliedschaft; Live-Arbeit starten und Deploytes verändern braucht die Entwickler-Fähigkeit. Wo das zählt, sagen es die Abschnitte unten.
+Übergib den Schlüssel als Bearer-Token: `Authorization: Bearer <key>`. Die Organisation wird pro Anfrage aus den Mitgliedschaften des Schlüssel-Benutzers aufgelöst — ein Schlüssel erreicht genau die Organisationen, denen sein Benutzer angehört, sonst keine. Ein expliziter `X-Organization-Slug`-Header gewinnt immer und wird auf Mitgliedschaft geprüft: ein Slug, dessen Organisation der Benutzer nicht angehört, wird abgewiesen. Ohne Header landet ein Benutzer mit einer Organisation in dieser einen. Ein Benutzer mit mehreren folgt der zuletzt im Dashboard aktiven Organisation nur beim Lesen — jedes Schreiben (`POST`/`PATCH`/`PUT`/`DELETE`) und jeder Aufruf auf den Projekt- und Aufgaben-Routen muss die Organisation benennen, und eine Multi-Org-Anfrage ohne den Header antwortet **400**. Was der Schlüssel _tun darf_, folgt der Rolle seines Besitzers: Lesen und Mock-Läufe brauchen Mitgliedschaft; Live-Arbeit starten und Deploytes verändern braucht die Entwickler-Fähigkeit. Wo das zählt, sagen es die Abschnitte unten.
 
 ## Endpoint-Gruppen
 
@@ -156,21 +156,21 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uplo
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
   -d '{ "contentType": "application/pdf" }'
-# → 200 { "uploadId": "...", "url": "https://...", "method": "POST", "expiresAt": 1774... }
+# → 200 { "uploadId": "...", "url": "https://...", "method": "PUT", "s3Ref": "...", "expiresAt": 1774... }
 ```
 
-`method` benennt die Storage-Spur, die du bekommen hast. `POST` zielt auf den Plattform-Speicher: sende die Bytes mit dieser Methode an `url`, und die Antwort trägt `{"storageId": "..."}` — das ist deine `fileId`. `PUT` ist eine vorsignierte URL für den eigenen Bucket der Organisation: sende die Bytes mit einem `Content-Type`-Header, der exakt dem beim Minten deklarierten `contentType` entspricht — der deklarierte Typ ist in die URL signiert, ein abweichender Header wird vom Bucket abgelehnt (ohne `contentType` beim Minten stellt der PUT keine Header-Anforderung) — und binde dann die `s3Ref` aus dem Handoff als `fileId`. So oder so schließt das Binden den Upload ab:
+Jeder Blob liegt im Objektspeicher, daher ist `url` immer ein vorsignierter `PUT`: sende die Bytes mit dieser Methode dorthin, mit einem `Content-Type`-Header, der exakt dem beim Minten deklarierten `contentType` entspricht — der deklarierte Typ ist in die URL signiert, ein abweichender Header wird vom Bucket abgelehnt (ohne `contentType` beim Minten stellt der PUT keine Header-Anforderung) — und binde dann die `s3Ref` aus dem Handoff als `fileId`. Das Binden schließt den Upload ab:
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/files" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>" \
   -H "Content-Type: application/json" \
-  -d '{ "uploadId": "<uploadId>", "fileId": "<storageId oder s3Ref>", "folderId": "<folderId>", "fileName": "ledger-2026-q1.pdf" }'
+  -d '{ "uploadId": "<uploadId>", "fileId": "<s3Ref>", "folderId": "<folderId>", "fileName": "ledger-2026-q1.pdf" }'
 # → 201 { "file": { "id": "...", "fileName": "ledger-2026-q1.pdf", "folderId": "<folderId>", "projectId": "<projectId>" } }
 ```
 
-Die `uploadId` ist einmalig verwendbar und läuft nach 60 Minuten ab — ein Worker, der mitten im Upload abgestürzt ist, holt einen frischen Handoff, statt den alten zu wiederholen. Beim Binden gilt die Upload-Policy: ein zu großer Blob antwortet **413**, ein Typ außerhalb der erlaubten Liste **415**.
+Die `uploadId` ist einmalig verwendbar und läuft nach 30 Minuten ab — ein Worker, der mitten im Upload abgestürzt ist, holt einen frischen Handoff, statt den alten zu wiederholen. Beim Binden gilt die Upload-Policy: ein zu großer Blob oder ein Typ außerhalb der erlaubten Liste wird mit **400** und einem Reason-Code abgewiesen.
 
 Dateien durch diesen Zugang sind Arbeitsmaterial des Projekts, kein Organisationswissen: sie werden standardmäßig nicht für die Wissenssuche indexiert (`skipRagIndexing` ist beim Binden standardmäßig `true`; sende `false`, um sie aufzunehmen), und sie tauchen nie unter `/api/v1/documents` auf — diese Familie bleibt die Oberfläche der Wissensdatenbank.
 
@@ -211,7 +211,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
 # → 201 { "task": { "id": "<taskId>", "created": true } }
 ```
 
-`description`, `labels` und `externalUrl` sind optional. Schick `automationSlug` mit, wenn die Aufgabe einer Automatisierung gehört: sie wird zum Assignee, und daran hängt das Arbeits-Panel des Aufgaben-Dialogs — der Start-Button, der Lauf-Fortschritt und die Fragen, die ein Lauf an den Operator stellt (ein späterer Re-Pick füllt eine fehlende Zuordnung nach, überschreibt aber nie einen Assignee). `runWorkflowSlug` plant im selben Aufruf einen deployten Workflow auf einer frisch angelegten Aufgabe ein — die Antwort trägt dann `executionId: null` (eingeplant, noch keine Lauf-Identität); für eine pollbare Lauf-ID starte explizit:
+`description`, `labels` und `externalUrl` sind optional. Schick `automationSlug` mit, wenn die Aufgabe einer Automatisierung gehört: sie wird zum Assignee, und daran hängt das Arbeits-Panel des Aufgaben-Dialogs — der Start-Button, der Lauf-Fortschritt und die Fragen, die ein Lauf an den Operator stellt (ein späterer Re-Pick füllt eine fehlende Zuordnung nach, überschreibt aber nie einen Assignee). `runWorkflowSlug` startet im selben Aufruf einen deployten Workflow auf einer frisch angelegten Aufgabe — der Lauf startet inline, sodass die Antwort seine `executionId` trägt (die zu pollende Lauf-ID), oder `executionId: null`, wenn der Slug keine deployte Automatisierung benennt. Starte stattdessen explizit, wenn du den Workflow in einem eigenen Aufruf benennen willst:
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \
@@ -240,7 +240,7 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
 ```
 
-Und hol die Ergebnisse. Was die Automatisierung zurückgemeldet hat, steht in der Diskussion der Aufgabe; was sie abgelegt hat, liegt als Dateien im Quartalsordner — beides liest du durch denselben Zugang. Der Content-Endpoint streamt einen Convex-Blob direkt; bei einer Organisation mit eigenem Objektspeicher antwortet er mit **302** auf eine kurzlebige präsignierte URL, folge also Redirects:
+Und hol die Ergebnisse. Was die Automatisierung zurückgemeldet hat, steht in der Diskussion der Aufgabe; was sie abgelegt hat, liegt als Dateien im Quartalsordner — beides liest du durch denselben Zugang. Der Content-Endpoint antwortet mit **302** auf eine kurzlebige präsignierte URL für den gespeicherten Blob, folge also Redirects:
 
 ```bash
 curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \
@@ -265,13 +265,12 @@ Jede Nicht-2xx-Antwort trägt einen flachen Umschlag:
 
 Verzweige auf den HTTP-Status; die Meldung ist für Menschen:
 
-- **400** — fehlerhafte Anfrage: fehlendes Pflichtfeld, falscher Typ, nicht parsebarer Body — oder ein Multi-Org-Schlüssel ohne `X-Organization-Slug` auf den Projekt- und Aufgaben-Routen.
+- **400** — fehlerhafte Anfrage: fehlendes Pflichtfeld, falscher Typ, nicht parsebarer Body — oder ein Multi-Org-Schlüssel, der seine Organisation nicht benannt hat (erforderlich bei jedem Schreiben und auf allen Projekt- und Aufgaben-Routen).
 - **401** — fehlender oder ungültiger API-Schlüssel.
 - **403** — der Schlüssel ist gültig, aber der Rolle seines Besitzers fehlt die Fähigkeit (Live-Läufe, Trigger-Schreiben, Abbrechen).
 - **404** — die Ressource existiert nicht in deiner Organisation, gehört zum Thread eines anderen — oder ist ein Projekt oder eine Aufgabe, die der Benutzer des Schlüssels nicht sehen darf: mit Absicht nicht von einer unterscheidbar, die es gar nicht gibt.
 - **409** — der Zustand verweigert die Aktion: keine deployte Version, ein doppeltes Thema, eine doppelte E-Mail oder `externalItemId` (eindeutig pro Organisation — derselbe String in einer anderen Organisation ist in Ordnung), ein bereits laufender Turn.
-- **413** — der Body ist zu groß (der Webhook-Trigger deckelt bei 256 KB), oder eine hochgeladene Datei überschreitet die Größengrenze.
-- **415** — der Typ einer hochgeladenen Datei liegt außerhalb der erlaubten Liste.
+- **413** — der Body ist zu groß; nur der Webhook-Trigger gibt ihn zurück, bei seiner 256-KB-Grenze. Eine hochgeladene Datei, die die Größen- oder Typ-Policy verletzt, wird beim Binden stattdessen mit **400** und einem Reason-Code abgewiesen.
 - **429** — Rate-Limit erreicht; die Antwort trägt `Retry-After` in ganzen Sekunden — siehe [Rate-Limits](/de/develop/rate-limits).
 - **500** — interner Fehler.
 

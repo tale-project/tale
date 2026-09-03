@@ -4,7 +4,7 @@ The sandbox LLM gateway ([maximhq/bifrost](https://github.com/maximhq/bifrost) c
 
 ## Overview
 
-Raw provider API keys live ONLY here and in the platform. The sandbox holds a session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at session destroy. The platform is the source of truth for providers/models; it provisions the gateway via the management API on session create (`convex/node_only/sandbox/llm_gateway_admin.ts`).
+Raw provider API keys live ONLY here and in the platform. The sandbox holds a session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at session destroy. The platform is the source of truth for providers/models; it provisions the gateway via the management API on session create (`services/platform/backend/core/node_only/sandbox/llm_gateway_admin.ts`).
 
 Dual-homed onto two Docker networks:
 

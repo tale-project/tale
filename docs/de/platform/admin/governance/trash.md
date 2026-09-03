@@ -25,11 +25,10 @@ Der Papierkorb hält Zeilen aus vielen Kategorien. Der Kategoriefilter wechselt 
 - Prompt-Vorlagen
 - Nachrichten-Feedback
 - Kontakte
-- Lieferanten
 - Externe Konversationen
 - Nachrichten-Metadaten
-- Workflow-Läufe
-- Workflow-Trigger-Logs
+- Automatisierungsläufe
+- Automatisierungs-Trigger-Logs
 - Nutzungsbuch
 - Audit-Logs
 - Chat-Filter-Ereignisse
@@ -39,7 +38,7 @@ Jede Kategorie respektiert ihr eigenes Aufbewahrungsfenster und ihr eigenes Kula
 
 ## Interaktion mit Legal Hold
 
-Zeilen unter Legal Hold erscheinen nicht im Papierkorb — der Hold heftet sie außer Reichweite jedes Aufbewahrungs-Schritts. Wenn du versuchst, eine gehaltene Zeile aus ihrer Quellliste zu löschen, lehnt Tale mit der Nachricht **Löschen ist durch einen aktiven Legal Hold gesperrt** ab. Den Hold aufheben lässt die Aufbewahrung die Zeile durch das Papierkorb-Fenster laufen, wie andere Kategorien fließen.
+Zeilen unter Legal Hold erscheinen nicht im Papierkorb — der Hold heftet sie außer Reichweite jedes Aufbewahrungs-Schritts. Wenn du versuchst, eine gehaltene Zeile aus ihrer Quellliste zu löschen, lehnt Tale mit einem Legal-Hold-Fehler ab, der den Hold benennt. Den Hold aufheben lässt die Aufbewahrung die Zeile durch das Papierkorb-Fenster laufen, wie andere Kategorien fließen.
 
 ## Das Kulanzfenster
 

@@ -1,9 +1,9 @@
 ---
 title: Data subject requests
-description: The GDPR Article 17 workflow for erasing a person's data across chats, documents, workflow runs, and prompts. Admins and Owners read this when a user files a request or when an SLA deadline is closing in.
+description: The GDPR Article 17 workflow for erasing a person's data across chats, documents, uploads, and preferences. Admins and Owners read this when a user files a request or when an SLA deadline is closing in.
 ---
 
-Data subject requests is the workflow Tale ships for honouring GDPR Article 17 (right to erasure) and the equivalent CCPA right under California law. Each request becomes a receipt: it names the subject, the reason code, the SLA deadline, and the cascade of rows the system erased across threads, documents, workflow executions, and personal prompt templates. Admins and Owners read this page when a subject files a request, when a deadline is closing in, or when an audit asks for the receipt of a past erasure.
+Data subject requests is the workflow Tale ships for honouring GDPR Article 17 (right to erasure) and the equivalent CCPA right under California law. Each request becomes a receipt: it names the subject, the reason code, the SLA deadline, and the cascade of rows the system erased across threads, documents, uploads, and the other rows that identify the subject. Admins and Owners read this page when a subject files a request, when a deadline is closing in, or when an audit asks for the receipt of a past erasure.
 
 <Frame caption="Governance > Data subject requests — the DSAR governance policy (cooling-off window, dual approval, daily limit) above the request receipts list with File request.">
 
@@ -13,7 +13,7 @@ Data subject requests is the workflow Tale ships for honouring GDPR Article 17 (
 
 ## A worked filing
 
-To file a request, open **Settings > Governance > Data subject requests** and click **File request**. Pick the subject, choose a reason code (consent withdrawn, no longer necessary, unlawful processing, legal obligation, objection, child subject, or contract termination), and add a free-text narrative. The request enters a cooling-off window before the cascade runs — any Admin can cancel during the window. After the window elapses, the cascade erases the subject's threads, documents, workflow executions, RAG embeddings, and personal prompts, and the receipt records counts for each category.
+To file a request, open **Settings > Governance > Data subject requests** and click **File request**. Pick the subject, choose a reason code (consent withdrawn, no longer necessary, unlawful processing, legal obligation, objection, child subject, or contract termination), and add a free-text narrative. The request enters a cooling-off window before the cascade runs — any Admin can cancel during the window. After the window elapses, the cascade erases the subject's threads and documents (a document's knowledge-base entry goes with it), their uploads, preferences, notifications, feedback, memories, and usage rows, and scrubs their identifiers from the audit trail — the receipt records a count per pass.
 
 ## Status lifecycle
 
@@ -23,8 +23,8 @@ To file a request, open **Settings > Governance > Data subject requests** and cl
 | Awaiting approval | dual-control  | A second Admin must approve before the cascade runs — or reject, which cancels the request.                                          |
 | Running           | mid-cascade   | The cascade is in flight; partial counters update as each category completes.                                                        |
 | Completed         | terminal      | Every category erased without error.                                                                                                 |
-| Partial           | terminal      | Some rows were skipped — usually a legal hold blocked them.                                                                          |
-| Failed            | terminal      | The cascade hit an error; the receipt names the failed category.                                                                     |
+| Partial           | terminal      | Some rows were skipped (a legal hold blocked them) or a cascade pass failed — the receipt's error names the failed passes.           |
+| Failed            | terminal      | The cascade died mid-run — a fatal error (Retry re-arms it) or a watchdog timeout (file a new request).                              |
 | Blocked           | terminal      | An active legal hold blocks every cascade step.                                                                                      |
 | Cancelled         | terminal      | An Admin cancelled before the cascade ran, or a second Admin rejected the dual approval. A new request can be filed for the subject. |
 
@@ -38,7 +38,7 @@ A subject's data is _not_ erased while it is on legal hold. Rows under hold show
 
 ## The cascade categories
 
-The receipt breaks the erased rows down by category — threads, documents, workflow executions, prompt templates, RAG documents removed from the vector store. Read the drawer to see counts and the audit timeline; the audit log on the same Governance area carries the full event chain (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_rejected`, `gdpr_erasure_cancelled`).
+The receipt breaks the erased rows down by pass — threads, documents, uploads, preferences, notifications, subscriptions, feedback, memories, usage ledger, and the audit-trail scrub. Read the drawer to see counts and the audit timeline; the audit log on the same Governance area carries the full event chain (`gdpr_erasure_requested`, `gdpr_erasure_executed`, `gdpr_erasure_extended`, `gdpr_erasure_rejected`, `gdpr_erasure_cancelled`).
 
 ## Where this fits
 

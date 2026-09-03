@@ -9,7 +9,7 @@ Die Konfigurations-Referenzseite listet die Endpoints und die einzelne Scrape-St
 
 ## Bevor du startest
 
-Setz `METRICS_BEARER_TOKEN` in deiner `.env` und starte den Proxy neu — ohne ihn geben die zwei Endpoints auf jede Anfrage 401 zurück, und Prometheus zeigt jedes Target als down. Die Endpoints, und was jeder trägt, sind die Tabelle in [Observability-Konfiguration](/de/self-hosted/configuration/observability-config#metrics): `/metrics/platform` und `/metrics/convex` (Letzterer trägt jetzt die In-Process-RAG- und Crawl-Timings), beide von `tale-proxy` über denselben Hostnamen wie die App ausgeliefert.
+Setz `METRICS_BEARER_TOKEN` in deiner `.env` und starte den Proxy neu — ohne ihn geben die zwei Endpoints auf jede Anfrage 401 zurück, und Prometheus zeigt jedes Target als down. Die Endpoints, und was jeder trägt, sind die Tabelle in [Observability-Konfiguration](/de/self-hosted/configuration/observability-config#metrics): `/metrics/platform` und `/metrics/backend` (Letzterer trägt jetzt die In-Process-RAG- und Crawl-Timings), beide von `tale-proxy` über denselben Hostnamen wie die App ausgeliefert.
 
 ## Prometheus und Grafana zu deinem Stack hinzufügen
 
@@ -58,9 +58,9 @@ scrape_configs:
     authorization: { credentials: '${METRICS_BEARER_TOKEN}' }
     static_configs:
       - targets: ['tale.example.com']
-  - job_name: tale-convex
+  - job_name: tale-backend
     scheme: https
-    metrics_path: /metrics/convex
+    metrics_path: /metrics/backend
     authorization: { credentials: '${METRICS_BEARER_TOKEN}' }
     static_configs:
       - targets: ['tale.example.com']
@@ -77,9 +77,9 @@ Richte Grafana zuerst auf Prometheus — füg eine Prometheus-Datenquelle unter 
 | Targets up      | `up{job=~"tale-.*"}`                                 | `1` pro gesundem Endpoint, `0` wenn das Scraping fehlschlägt |
 | Platform-Memory | `process_resident_memory_bytes{job="tale-platform"}` | Resident-Memory des platform-Containers                      |
 | Event-Loop-Lag  | `nodejs_eventloop_lag_seconds{job="tale-platform"}`  | Springt, wenn die Plattform gesättigt ist                    |
-| Convex up       | `up{job="tale-convex"}`                              | Backend-Erreichbarkeit — `0` ist ein Page                    |
+| Backend up      | `up{job="tale-backend"}`                             | Backend-Erreichbarkeit — `0` ist ein Page                    |
 
-Der platform-Endpoint trägt Nodes Default-Prozessmetriken (CPU, Memory, Event-Loop-Lag, GC), darum zielen die konkreten Queries oben auf ihn. Der Convex-Endpoint exponiert seine eigene reichere Reihe, inklusive der In-Process-RAG- und Crawl-Timings — öffne ihn einmal (`curl -H "Authorization: Bearer $TOKEN" https://tale.example.com/metrics/convex`), um die exakten Metriknamen deiner Version zu lesen, und füg dann Panels für den Wissens-Ingestion-Durchsatz und die Provider-Fehlerrate aus Operations hinzu.
+Der platform-Endpoint trägt Nodes Default-Prozessmetriken (CPU, Memory, Event-Loop-Lag, GC), darum zielen die konkreten Queries oben auf ihn. Der Backend-Endpoint exponiert seine eigene reichere Reihe, inklusive der In-Process-RAG- und Crawl-Timings — öffne ihn einmal (`curl -H "Authorization: Bearer $TOKEN" https://tale.example.com/metrics/backend`), um die exakten Metriknamen deiner Version zu lesen, und füg dann Panels für den Wissens-Ingestion-Durchsatz und die Provider-Fehlerrate aus Operations hinzu.
 
 ## Eine erste Alert-Regel
 

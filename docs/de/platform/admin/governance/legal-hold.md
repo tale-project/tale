@@ -1,9 +1,9 @@
 ---
 title: Legal Hold
-description: Das vier-Augen-kontrollierte Einfrieren, das Aufbewahrungs-Sweeps und Löschungs-Kaskaden für einen bestimmten Benutzer, ein Dokument, einen Thread oder die gesamte Organisation während eines Rechtsstreits pausiert. Admins und Inhaber lesen das, wenn der Rechtsbeistand bittet, Beweise zu sichern.
+description: Das vier-Augen-kontrollierte Einfrieren, das Aufbewahrungs-Sweeps und Löschungs-Kaskaden für einen bestimmten Benutzer oder die gesamte Organisation während eines Rechtsstreits pausiert. Admins und Inhaber lesen das, wenn der Rechtsbeistand bittet, Beweise zu sichern.
 ---
 
-Legal Hold ist der Mechanismus, den Tale für die Beweissicherung unter Rechtshalt ausliefert. Ein Hold heftet ein Ziel — einen Benutzer, ein Dokument, einen Thread, eine Workflow-Ausführung oder die gesamte Organisation — außer Reichweite des Aufbewahrungs-Sweeps und der Löschungs-Kaskade für betroffene Personen. Admins und Inhaber lesen diese Seite, wenn der Rechtsbeistand bittet, die Daten einer Custodian-Person zu sichern, wenn ein Freigabeantrag die Vier-Augen-Freigabe braucht, oder wenn ein Audit abgleicht, welche Holds zu einem gegebenen Datum in Kraft waren.
+Legal Hold ist der Mechanismus, den Tale für die Beweissicherung unter Rechtshalt ausliefert. Ein Hold heftet ein Ziel — einen Benutzer als Custodian oder die gesamte Organisation — außer Reichweite des Aufbewahrungs-Sweeps und der Löschungs-Kaskade für betroffene Personen. Admins und Inhaber lesen diese Seite, wenn der Rechtsbeistand bittet, die Daten einer Custodian-Person zu sichern, wenn ein Freigabeantrag die Vier-Augen-Freigabe braucht, oder wenn ein Audit abgleicht, welche Holds zu einem gegebenen Datum in Kraft waren.
 
 <Frame caption="Governance > Legal Hold — die Tabelle der aktiven Holds mit der Aktion Legal Hold setzen über der vier-Augen-kontrollierten Warteschlange der Freigabeanträge.">
 
@@ -13,7 +13,7 @@ Legal Hold ist der Mechanismus, den Tale für die Beweissicherung unter Rechtsha
 
 ## Eine durchgespielte Platzierung
 
-Um einen Hold auf einen Benutzer zu setzen, öffne **Einstellungen > Richtlinien > Legal Hold** und klick auf **Legal Hold setzen**. Wähle den Zieltyp — Benutzer, Thread, Dokument, Ausführung oder Organisation — wähle das konkrete Ziel, füge einen Grund hinzu und verknüpfe den Hold mit einem Fall, falls einer offen ist. Der Hold wirkt sofort; Aufbewahrungs-Sweeps überspringen die Zeilen des Ziels, die Löschungs-Kaskade meldet sie als **Durch Legal Hold übersprungen**, und die Zielzeile trägt das Badge **Unter Legal Hold** in jeder Liste, in der sie erscheint.
+Um einen Hold auf einen Benutzer zu setzen, öffne **Einstellungen > Richtlinien > Legal Hold** und klick auf **Legal Hold setzen**. Wähle den Zieltyp — Benutzer als Custodian oder die gesamte Organisation — wähle die Person, wo eine nötig ist, füge einen Grund hinzu und verknüpfe den Hold mit einem Fall, falls einer offen ist. Der Hold wirkt sofort: Aufbewahrungs-Sweeps überspringen die Zeilen des Ziels, ein Löschantrag gegen das Ziel wird verweigert, und das Löschen gehaltener Inhalte wird an der Quelle abgewiesen.
 
 ## Die vier Bereiche
 
@@ -27,7 +27,7 @@ Um einen Hold auf einen Benutzer zu setzen, öffne **Einstellungen > Richtlinien
 
 ## Hold-und-Kaskade-Interaktion
 
-Ein Hold blockiert jeden Aufbewahrungs-Lauf und jeden Löschungs-Schritt für das Ziel. Die Papierkorb-Seite zeigt den Banner **Löschen ist durch einen aktiven Legal Hold gesperrt**, wenn ein Admin versucht, eine Zeile unter Hold zu entfernen. Eine Anfrage einer betroffenen Person, deren Subjekt von einem Hold abgedeckt ist, landet im Status **Blockiert**, bis der Hold freigegeben ist; teilweise Abdeckung (manche Threads unter Hold, manche nicht) landet in **Teilweise** mit Per-Kategorie-Zählern im Beleg.
+Ein Hold blockiert jeden Aufbewahrungs-Lauf und jeden Löschungs-Schritt für das Ziel, und Löschen wird an der Quelle abgewiesen — die Threads oder Dokumente einer gehaltenen Person in den Papierkorb zu legen scheitert mit einem Legal-Hold-Fehler, und ein Ordner-Löschen verweigert, solange er eine gehaltene Datei enthält. Eine Anfrage einer betroffenen Person, deren Subjekt von einem Hold abgedeckt ist, landet im Status **Blockiert**, bis der Hold freigegeben ist; der Beleg dokumentiert die Blockade.
 
 ## Vier-Augen-Kontrolle
 

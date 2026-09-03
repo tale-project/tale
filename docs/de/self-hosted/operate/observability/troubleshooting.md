@@ -26,24 +26,24 @@ Ist der Modus bereits `letsencrypt`, prüf die Proxy-Logs auf ACME-Fehlschläge 
 
 ## UI lädt, aber keine Daten erscheinen
 
-Die UI-Shell sind statische Assets, von `tale-platform` serviert; alles andere fliesst durch `tale-convex` über einen WebSocket. Wenn der WebSocket sich nicht verbinden kann, lädt die Shell und bleibt leer. Symptome: Spinner, die nie auflösen, „reconnecting"-Toasts, der Chat-Input, der nie eine Nachricht annimmt.
+Die UI-Shell sind statische Assets, von `tale-platform` serviert; alles andere fliesst durch `tale-backend-api` — die App-API über HTTP und der Live-Update-SSE-Stream auf `/events`. Wenn das Backend nicht erreichbar ist, lädt die Shell und bleibt leer. Symptome: Spinner, die nie auflösen, „reconnecting"-Toasts, der Chat-Input, der nie eine Nachricht annimmt.
 
 ```bash
-docker compose logs --tail=200 tale-convex
+docker compose logs --tail=200 backend-api
 ```
 
-Der Convex-Container startet wahrscheinlich neu (such nach `panic` in den Logs) oder ist vom Proxy unerreichbar. Starte mit `docker compose restart tale-convex` neu — Sessions sind serverseitig, und Clients reabonnieren beim Reconnect, also ist der Restart sicher.
+Der backend-api-Container startet wahrscheinlich neu (such nach einem Crash in den Logs) oder ist vom Proxy unerreichbar. Starte mit `docker compose restart backend-api` neu — Sessions sind serverseitig, und Clients verbinden den SSE-Stream neu, also ist der Restart sicher.
 
 ## Uploads stecken in „indexing"
 
-Die Dokument-Ingestion läuft im Convex-Backend und schreibt die extrahierten Chunks und Embeddings in die Datenbank des Wissens-Korpus. Ein langer „indexing"-Zustand bedeutet entweder, dass das Backend `tale-knowledge-db` nicht erreicht oder dass die Datei selbst nicht extrahiert werden konnte. Prüf zuerst die Convex-Logs und die Korpus-Datenbank:
+Die Dokument-Ingestion läuft im Backend-Worker und schreibt die extrahierten Chunks und Embeddings in die Datenbank des Wissens-Korpus. Ein langer „indexing"-Zustand bedeutet entweder, dass der Worker die Korpus-Datenbank nicht erreicht oder dass die Datei selbst nicht extrahiert werden konnte. Prüf zuerst die Worker-Logs und die Korpus-Datenbank:
 
 ```bash
-docker compose logs --tail=200 tale-convex | grep -iE "knowledge|ingest|embed"
-docker compose ps tale-knowledge-db
+docker compose logs --tail=200 backend-worker | grep -iE "knowledge|ingest|embed"
+docker compose ps db
 ```
 
-Zeigen die Logs Verbindungsfehler zu `knowledge-db`, starte die Korpus-Datenbank neu (`docker compose restart tale-knowledge-db`); die Ingestion versucht es beim nächsten Durchlauf erneut, Uploads müssen also nicht erneut eingereicht werden. Ist die Datenbank healthy, aber ein bestimmter Upload steckt, ist die Datei selbst der Verdächtige — beschädigte PDFs und passwortgeschützte Dokumente landen in einem Fehlzustand und brauchen Löschung und Re-Upload.
+Zeigen die Logs Verbindungsfehler zur Korpus-Datenbank (`knowledge-db` im Netz, auf einem Single-Host-Deploy in `db` gefaltet), starte sie neu (`docker compose restart db`); die Ingestion versucht es beim nächsten Durchlauf erneut, Uploads müssen also nicht erneut eingereicht werden. Ist die Datenbank healthy, aber ein bestimmter Upload steckt, ist die Datei selbst der Verdächtige — beschädigte PDFs und passwortgeschützte Dokumente landen in einem Fehlzustand und brauchen Löschung und Re-Upload.
 
 ## Chat-Antworten hören mitten im Stream auf
 
@@ -57,14 +57,14 @@ Ein `429` ist der häufige Fall. Entweder trifft das Budget der Org das Rate-Lim
 
 ## Speichern scheitert mit „saving failed"-Toast
 
-Der Convex-Container konnte nicht in Postgres schreiben. Entweder ist `tale-db` down oder seine Platte ist voll:
+Das Backend konnte nicht in Postgres schreiben. Entweder ist `tale-db` down oder seine Platte ist voll:
 
 ```bash
 docker compose ps tale-db
 docker compose exec db df -h /var/lib/postgresql/data
 ```
 
-Eine Platte bei 100 % ist der Fehler, der die meisten überraschten Gesichter erzeugt. Schaff Platz, starte `tale-db` neu, und die gepufferten Writes flushen. Hat die Platte Platz, ist der Verdächtige Verbindungs-Pool-Erschöpfung oder ein Lock — starte `tale-convex` neu, um den Pool zu räumen.
+Eine Platte bei 100 % ist der Fehler, der die meisten überraschten Gesichter erzeugt. Schaff Platz, starte `tale-db` neu, und die gepufferten Writes flushen. Hat die Platte Platz, ist der Verdächtige Verbindungs-Pool-Erschöpfung oder ein Lock — starte `backend-api` neu, um den Pool zu räumen.
 
 ## „Run code"-Tool scheitert mit „egress denied"
 

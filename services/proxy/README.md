@@ -4,7 +4,7 @@
 
 ## Overview
 
-Routes traffic to the platform and Convex using the `platform` DNS alias for blue-green failover. TLS mode and base path are templated into the `Caddyfile` at startup by `docker-entrypoint.sh`.
+Routes traffic to the platform (SPA + static) and the 0.5 Postgres backend, using the `platform` DNS alias for blue-green failover. TLS mode and base path are templated into the `Caddyfile` at startup by `docker-entrypoint.sh`.
 
 ## Interface
 
@@ -16,29 +16,28 @@ Ports:
 
 Routes (defined in `Caddyfile`):
 
-- `platform:3000` — the SPA + REST/health endpoints (catch-all)
-- `convex:3210` — WebSocket sync (`/ws_api/*`, `/api/*/sync`), admin API, actions, storage
-- `convex:3211` — Convex HTTP actions and `/api/*` site proxy
-- `convex:6791` — Convex Dashboard at `/convex-dashboard`
-- `platform:3000`, `convex` — `/metrics/*` (token-gated); `/metrics/backend` joins them once `BACKEND_UPSTREAM` is set, and 404s before that
+- `platform:3000` — the SPA + static assets (catch-all), `/api/health`, `/screencast/*` (live browser WS), and `/dav/*` while WebDAV stays on the platform handler
+- `backend-api:3005` (`$BACKEND_UPSTREAM`) — the 0.5 backend: `/api/*` and the injected lanes (see below)
+- `docs:3002` — the docs site (optional; only the dev/docs compose chain ships it, so passive health-checking only)
+- `/metrics/*` (token-gated) → `platform:3000` (`/metrics/platform`, `/metrics/sla-rules`); `/metrics/backend` joins once `BACKEND_UPSTREAM` is set, and 404s before that
 
 `maintenance.html` is served on backend 5xx.
 
-### Postgres backend cutover
+### The 0.5 backend surface
 
-When `BACKEND_UPSTREAM` is set (e.g. `backend-api:3005`, the `backend`
-compose profile), the entrypoint templates a block of `handle` directives
-ahead of the Convex ones so the migrated surface — `/api/auth/*`,
-`/api/app/*`, `/events`, `/api/tools/*`, `/api/automations/webhook/*`,
+`BACKEND_UPSTREAM` (default `backend-api:3005`) is where the 0.5 backend
+lanes go. The entrypoint templates a block of `handle` directives ahead of
+the catch-all so the backend surface — `/api/auth/*`, `/api/app/*`,
+`/events`, `/api/tools/*`, `/api/connectors/*`, `/api/automations/webhook/*`,
 `/api/v1/*`, `/api/control/*`, SSO/SCIM/trusted-headers (both their native
-and `/http_api/...` aliases), `/api/cloud-import/oauth2/*` and `/dav/*` —
-reaches the Postgres backend. Everything not named there keeps flowing to
-Convex, and unsetting the variable puts the whole stack back on the 0.4
-lanes.
+and `/http_api/...` aliases), `/api/cloud-import/oauth2/*`, the blob-store
+bucket path and `/dav/*` — reaches it; anything else under `/api/*` falls to
+the backend too, while `/api/health` and the SPA stay on `platform:3000`. The
+Convex fallbacks that once lived here are gone with the runtime.
 
 ## Configuration
 
-- `BACKEND_UPSTREAM` — `host:port` of the 0.5 Postgres backend (unset = all lanes to Convex)
+- `BACKEND_UPSTREAM` — `host:port` of the 0.5 Postgres backend (default `backend-api:3005`)
 - `TLS_MODE` — `selfsigned` (default, Caddy internal CA) or `letsencrypt`
 - `TLS_EMAIL` — Let's Encrypt notifications (recommended when using `letsencrypt`)
 - `SITE_ORIGIN` — e.g. `https://localhost`

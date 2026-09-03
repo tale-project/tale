@@ -32,7 +32,7 @@ curl -sS https://your-host.example.com/api/v1/agents \
 
 <Check>
 
-A JSON array of agents — including the built-in Assistant — proves the key, the header, and the route. A `401` means the token header is malformed or the key was revoked.
+A JSON object with an `agents` array — including the built-in Assistant — proves the key, the header, and the route. A `401` means the token header is malformed or the key was revoked.
 
 </Check>
 

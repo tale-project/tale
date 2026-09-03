@@ -25,7 +25,7 @@ The six roles and the resource-level matrix that says who can read, write, confi
 
 <Card title="Teams" icon="users-round" href="/platform/admin/teams">
 
-Group members into teams that share agents, skills, and connectors.
+Group members into teams that share documents, projects, skills, and conversations.
 
 </Card>
 
@@ -55,13 +55,13 @@ Wire sign-in to your identity provider with SAML or OIDC.
 
 <Card title="API keys" icon="key" href="/platform/admin/api-keys">
 
-Mint and scope the keys external code uses to reach Tale's REST API.
+Mint the keys external code uses to reach Tale's REST API.
 
 </Card>
 
 <Card title="Branding" icon="palette" href="/platform/admin/branding">
 
-The name, logo, and colors the rest of the org sees.
+The logo, favicon, and accent colour the rest of the org sees.
 
 </Card>
 

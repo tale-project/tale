@@ -33,7 +33,7 @@ curl -sS "$TALE_BASE_URL/api/v1/automations" \
   -H "Authorization: Bearer $TALE_API_KEY" | jq
 ```
 
-Un 200 avec un corps `{ "page": [...], "isDone": true, ... }` confirme l'aller-retour — chaque endpoint de liste répond cette même enveloppe paginée. Un 401 dit que la clé est fausse ; tout le reste dit que l'instance est injoignable ou le chemin mal tapé.
+Un 200 avec un corps `{ "automations": [...] }` confirme l'aller-retour. Un 401 dit que la clé est fausse ; tout le reste dit que l'instance est injoignable ou le chemin mal tapé.
 
 ## Étape 3 — Interroger un modèle et lire la réponse
 
@@ -67,7 +67,8 @@ while True:
 messages = requests.get(
     f"{base}/api/v1/threads/{thread['id']}/messages", headers=auth
 ).json()["page"]
-print(messages[-1]["content"])
+reply = messages[-1]
+print("".join(p["text"] for p in reply["parts"] if p.get("type") == "text"))
 ```
 
 `{"status": "idle"}` signifie que le tour est fini — y compris un tour raté, qui atterrit comme message d'assistant portant l'erreur au lieu de disparaître. L'envoi répond **202** aussitôt ; la réponse n'existe qu'une fois la boucle sortie de `queued`/`streaming`.
@@ -89,6 +90,6 @@ Une exécution live demande ton rôle Développeur ; avec `{"mode": "mock"}` tu
 
 ## Où ça se place
 
-Un script est le chemin quand le plan de données est du JSON, pas un écran — jobs cron, vérifications CI, portails internes. La clé API porte ton rôle, chaque endpoint de liste répond la même enveloppe paginée, et tout ce qui démarre du vrai travail répond 202 et te donne quelque chose à suivre.
+Un script est le chemin quand le plan de données est du JSON, pas un écran — jobs cron, vérifications CI, portails internes. La clé API porte ton rôle, et tout ce qui démarre du vrai travail répond 202 et te donne quelque chose à suivre.
 
 Pour les déclencheurs entrants — un système tiers poste dans une automatisation Tale — voir [Déclencher une automatisation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook). Pour un client piloté par modèle plutôt qu'un script, l'[endpoint MCP](/fr/develop/mcp-endpoint) expose la même plateforme en outils. Pour l'inventaire complet et le modèle d'erreur, la [référence API](/fr/develop/api-reference) est la seule source de vérité.

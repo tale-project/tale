@@ -41,7 +41,7 @@ The admin-chosen retention windows live in a separate file, `retention-policy.js
 
 ## The retention sweep
 
-A scheduled cron inside `tale-convex` runs the actual deletion. Each category is swept independently — a slow run on one does not block the others. Deletions are audited (every category has its own `*.retention_deleted` event), and restoring an entity inside its grace window is possible from **Trash** before the final sweep.
+A scheduled job inside `tale-backend-worker` runs the actual deletion. Each category is swept independently — a slow run on one does not block the others. Deletions are audited (every category has its own `*.retention_deleted` event), and restoring an entity inside its grace window is possible from **Trash** before the final sweep.
 
 Audit log entries are themselves subject to retention, but their floor is enforced per-deployment, not per-org: the strictest (shortest) audit-log retention across all orgs is what actually runs. A stricter tenant pulls everyone tighter — keep this in mind on multi-tenant instances.
 

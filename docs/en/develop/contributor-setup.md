@@ -52,7 +52,7 @@ Until the orchestrator prints its `READY` banner, the app refusing connections o
 
 The dev orchestrator generates everything it needs, so a local `.env.example` copy is optional for local development — the insecure defaults (`INSTANCE_SECRET`, `BETTER_AUTH_SECRET`, the WebDAV HMAC key) are filled in at boot and printed as warnings. Set real values in `services/platform/.env.local` only when you need production-shaped behaviour or want to override a default.
 
-Already have the containers running, or want to iterate on frontend code alone? `bun run dev:fast` (`TALE_DEV_SKIP_DOCKER=1`) skips the docker bring-up and goes straight to the backend and Vite.
+Already have the containers running, or want to iterate on frontend code alone? `TALE_DEV_SKIP_DOCKER=1 bun run dev` skips the docker bring-up and goes straight to the backend and Vite.
 
 ## A ready-to-use dev login
 
@@ -84,7 +84,7 @@ This destroys the local databases — every organization, conversation, and uplo
 `bun run dev` runs the backend on your host, which is the right thing for most work. To point Vite at a backend running somewhere else — a container, or a colleague's stack — set `TALE_BACKEND_URL`:
 
 ```bash
-TALE_BACKEND_URL=http://localhost:3105 bun run dev:fast
+TALE_BACKEND_URL=http://localhost:3105 TALE_DEV_SKIP_DOCKER=1 bun run dev
 ```
 
 Vite proxies every backend lane there, and the orchestrator waits on that URL instead of spawning its own child.

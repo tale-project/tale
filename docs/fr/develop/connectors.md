@@ -109,5 +109,3 @@ Un serveur MCP s’enregistre sous **Paramètres > API > MCP**, et chaque outil 
 ## Où cela s’inscrit
 
 Un connecteur est un contrat déclaré — hôtes, authentification et une liste d’actions typées — livré avec la plateforme et alimenté par des identifiants qui appartiennent à l’organisation. Lis [Connectors](/fr/platform/connectors/overview) pour ce que contient le catalogue, [Identifiants d’connector](/fr/platform/admin/connectors) pour la gestion quotidienne de ces identifiants, et [Serveurs MCP](/fr/platform/connectors/mcp-servers) quand le pont dont tu as besoin doit être ton propre code.
-</content>
-</invoke>
