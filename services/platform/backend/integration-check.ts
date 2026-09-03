@@ -15719,11 +15719,20 @@ async function checkChatConversationSearchLeg(
     term: 'shipped',
     limit: 10,
   });
-  // Contact-name match (a conversation is findable by who it is with).
+  // Contact-name match (a conversation is findable by who it is with) — the
+  // contact leg prefilters in SQL now, so this drives the ILIKE path.
   const byContact = await searchConversationsForChat(sql, {
     organizationId: orgId,
     userId,
     term: 'Carla',
+    limit: 10,
+  });
+  // A LIKE metacharacter in the question matches itself, not any character:
+  // 'carla_' must NOT reach carla@ext.test through an unescaped `_`.
+  const byUnderscore = await searchConversationsForChat(sql, {
+    organizationId: orgId,
+    userId,
+    term: 'carla_',
     limit: 10,
   });
   // Listing skips the text match but keeps the privacy predicate.
@@ -15775,6 +15784,7 @@ async function checkChatConversationSearchLeg(
       subjects.has('Quote 7') &&
       byBody.conversations.some((row) => row.subject === 'Send me a quote') &&
       byContact.conversations.length >= 2 &&
+      byUnderscore.conversations.length === 0 &&
       listedAdmin.conversations.length >= 3 &&
       memberQuote.conversations.length === 1 &&
       memberQuote.conversations[0]?.subject === 'Quote 7' &&
@@ -15783,7 +15793,7 @@ async function checkChatConversationSearchLeg(
         (row) => row.assigneeUserId === memberId,
       ) &&
       stranger.conversations.length === 0,
-    `subject=${[...subjects].sort().join('|')} body=${byBody.conversations.map((r) => r.subject).join('|')} contact=${byContact.conversations.length} adminList=${listedAdmin.conversations.length}, memberQuote=${memberQuote.conversations.map((r) => r.subject).join('|')} (want only Quote 7) memberList=${memberList.conversations.length}/ownOnly=${memberList.conversations.every((row) => row.assigneeUserId === memberId)}, stranger=${stranger.conversations.length} (want 0)`,
+    `subject=${[...subjects].sort().join('|')} body=${byBody.conversations.map((r) => r.subject).join('|')} contact=${byContact.conversations.length} underscoreEscaped=${byUnderscore.conversations.length === 0} adminList=${listedAdmin.conversations.length}, memberQuote=${memberQuote.conversations.map((r) => r.subject).join('|')} (want only Quote 7) memberList=${memberList.conversations.length}/ownOnly=${memberList.conversations.every((row) => row.assigneeUserId === memberId)}, stranger=${stranger.conversations.length} (want 0)`,
   );
 }
 
