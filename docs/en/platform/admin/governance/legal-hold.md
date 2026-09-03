@@ -27,7 +27,7 @@ To place a hold on a user, open **Settings > Governance > Legal hold** and click
 
 ## Hold-and-cascade interaction
 
-A hold blocks every retention pass and every erasure step for the target, and deletion is refused at the source — trashing a held user's threads or documents fails with a legal-hold error, and a folder delete refuses while it contains a held file. A data subject request whose subject is covered by a hold lands in the **Blocked** status until the hold is released; the receipt records the block.
+A hold blocks every retention pass and every erasure step for the target, and deletion is refused at the source — trashing a held user's threads or documents fails with a legal-hold error, and a folder delete refuses while it contains a held file. It also blocks deleting the organization itself: while any hold — org-wide or on a member — is active, **Delete organization** is refused and the organization stays exactly as it was. A data subject request whose subject is covered by a hold lands in the **Blocked** status until the hold is released; the receipt records the block.
 
 ## Dual-control
 

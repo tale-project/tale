@@ -27,7 +27,7 @@ Pour placer un hold sur un utilisateur, ouvre **Paramètres > Gouvernance > Cons
 
 ## Interaction hold-et-cascade
 
-Un hold bloque chaque passage de rétention et chaque étape d’effacement pour la cible, et la suppression est refusée à la source — mettre à la corbeille les threads ou documents d’une personne retenue échoue avec une erreur de conservation légale, et supprimer un dossier refuse tant qu’il contient un fichier retenu. Une demande de personne concernée dont le sujet est couvert par un hold atterrit en statut **Bloquée** jusqu’à ce que le hold soit levé ; le reçu enregistre le blocage.
+Un hold bloque chaque passage de rétention et chaque étape d’effacement pour la cible, et la suppression est refusée à la source — mettre à la corbeille les threads ou documents d’une personne retenue échoue avec une erreur de conservation légale, et supprimer un dossier refuse tant qu’il contient un fichier retenu. Il bloque aussi la suppression de l’organisation elle-même : tant qu’un hold est actif — sur toute l’organisation ou sur un membre —, **Supprimer l'organisation** est refusé et l’organisation reste exactement telle qu’elle était. Une demande de personne concernée dont le sujet est couvert par un hold atterrit en statut **Bloquée** jusqu’à ce que le hold soit levé ; le reçu enregistre le blocage.
 
 ## Double contrôle
 

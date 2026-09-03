@@ -281,6 +281,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           'TALE_CONFIG_DIR is unset — cannot clean up the org config subtree',
         );
       }
+      // The job is enqueued inside the deletion transaction, so normally
+      // the org is gone by the time it runs. Re-check anyway: a live
+      // organization's config tree is never removed by a queued job
+      // (a stale row from an older release, or the slug re-taken by a new
+      // org whose own scaffold owns the directory now).
+      const owners = await deps.sql<{ id: string }[]>`
+        SELECT "id" FROM "organization" WHERE "slug" = ${input.orgSlug}
+        LIMIT 1
+      `;
+      if (owners.length > 0) {
+        console.error(
+          `[org.cleanup_files] refusing: organization ${owners[0]?.id} still owns slug "${input.orgSlug}"`,
+        );
+        return;
+      }
       // Guarded two-phase rename-then-delete (slug validation, traversal +
       // symlink defenses) — reused from the 0.4 module unchanged.
       await removeOrgSubtree(configRoot, input.orgSlug);

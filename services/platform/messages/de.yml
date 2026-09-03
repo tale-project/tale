@@ -5056,6 +5056,7 @@ settings:
     deleteLoading: Lösche…
     deleteSuccess: Organisation gelöscht
     deleteFailed: Organisation konnte nicht gelöscht werden
+    deleteBlockedByLegalHold: Ein aktiver Legal Hold bewahrt die Daten dieser Organisation. Gib alle Holds unter Richtlinien > Legal Hold frei und versuch es dann erneut.
     editMember: Mitglied bearbeiten
     removeMember: Mitglied entfernen
     memberUpdated: Mitglied aktualisiert

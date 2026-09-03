@@ -5188,6 +5188,7 @@ settings:
     deleteLoading: Deleting…
     deleteSuccess: Organization deleted
     deleteFailed: Failed to delete organization
+    deleteBlockedByLegalHold: An active legal hold is preserving this organization's data. Release every hold under Governance > Legal hold, then try again.
     editMember: Edit member
     removeMember: Remove member
     memberUpdated: Member updated

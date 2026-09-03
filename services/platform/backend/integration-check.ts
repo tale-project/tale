@@ -17,12 +17,14 @@
  * Better Auth tables, and app tables, and writes test rows.
  */
 
+import { randomUUID } from 'node:crypto';
 import {
   mkdir,
   mkdtemp,
   readFile,
   rename,
   rm,
+  stat,
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -30358,6 +30360,413 @@ async function checkWatchdogs(
   );
 }
 
+/**
+ * Organization lifecycle — deletion is ONE server transaction behind the
+ * legal-hold gate: a hold (org-wide or on any member), a non-owner, Better
+ * Auth's own delete door and an aborted transaction all leave the
+ * organization exactly as it was; a committed delete removes the rows,
+ * writes the audit row, cascades the per-user state and the config tree,
+ * while a shared user keeps their account and their other organization; a
+ * queued cleanup never touches a live organization's tree; and the slug is
+ * immutable once set (blobs, config and corpus are keyed by it). Runs on
+ * its own user + organizations so the shared fixture stays untouched.
+ */
+async function checkOrganizationLifecycle(
+  sql: Sql,
+  base: string,
+  orgSuffix: string,
+): Promise<void> {
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const jsonHeaders = { 'content-type': 'application/json', origin: base };
+  const signUp = async (
+    email: string,
+  ): Promise<{ cookie: string; userId: string }> => {
+    const response = await fetch(`${base}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        email,
+        password: 'itest-password-1',
+        name: 'Life',
+      }),
+    });
+    const body = z
+      .object({ user: z.object({ id: z.string() }) })
+      .safeParse(await response.json());
+    return {
+      cookie: cookieHeaderFrom(response),
+      userId: body.success ? body.data.user.id : '',
+    };
+  };
+  const createOrg = async (
+    cookie: string,
+    name: string,
+    slug: string,
+  ): Promise<string> => {
+    const response = await fetch(`${base}/api/auth/organization/create`, {
+      method: 'POST',
+      headers: { ...jsonHeaders, cookie },
+      body: JSON.stringify({ name, slug }),
+    });
+    const body = z.object({ id: z.string() }).safeParse(await response.json());
+    return body.success ? body.data.id : '';
+  };
+  const post = (
+    cookie: string,
+    route: string,
+    body: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { ...jsonHeaders, cookie },
+      body: JSON.stringify(body),
+    });
+  const exists = async (dir: string): Promise<boolean> =>
+    (await stat(dir).catch(() => null)) !== null;
+  const errorBody = z.object({
+    error: z.string().optional(),
+    code: z.string().optional(),
+    message: z.string().optional(),
+  });
+  const readError = async (
+    response: Response,
+  ): Promise<z.infer<typeof errorBody>> => {
+    const parsed = errorBody.safeParse(await response.json().catch(() => ({})));
+    return parsed.success ? parsed.data : {};
+  };
+
+  // Fixture: the owner holds A and B; a plain member sits in A; both orgs
+  // carry per-user preferences and a config-tree marker (what the cleanup
+  // must remove and a rename would orphan); A also has a team (Better
+  // Auth's own delete strands teams). The owner's last-active pointer aims
+  // at A.
+  const owner = await signUp(`itest-life-${orgSuffix}@example.com`);
+  const plain = await signUp(`itest-life-m-${orgSuffix}@example.com`);
+  const slugA = `itest-life-a-${orgSuffix}`;
+  const slugB = `itest-life-b-${orgSuffix}`;
+  const orgA = await createOrg(owner.cookie, 'Life A', slugA);
+  const orgB = await createOrg(owner.cookie, 'Life B', slugB);
+  const dirA = path.join(configRoot, slugA);
+  const dirB = path.join(configRoot, slugB);
+  for (const dir of [dirA, dirB]) {
+    await mkdir(path.join(dir, 'governance'), { recursive: true });
+    await writeFile(path.join(dir, 'governance', 'marker.json'), '{}');
+  }
+  await sql`
+    INSERT INTO app.user_preferences (user_id, org_id, updated_at)
+    VALUES (${owner.userId}, ${orgA}, ${Date.now()}),
+           (${owner.userId}, ${orgB}, ${Date.now()})
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${orgA}, ${plain.userId}, 'member', now())
+  `;
+  const teamId = randomUUID();
+  await sql`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt")
+    VALUES (${teamId}, 'Life team', ${orgA}, now())
+  `;
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (${randomUUID()}, ${teamId}, ${owner.userId}, now())
+  `;
+  await sql`
+    UPDATE "user" SET "lastActiveOrganizationId" = ${orgA}
+    WHERE "id" = ${owner.userId}
+  `;
+
+  interface LifecycleSnapshot {
+    org: number;
+    members: number;
+    prefs: number;
+    teams: number;
+    audit: number;
+    jobs: number;
+    dir: boolean;
+  }
+  const count = async (query: Promise<{ count: string }[]>): Promise<number> =>
+    Number((await query)[0]?.count ?? '0');
+  const snapshot = async (): Promise<LifecycleSnapshot> => ({
+    org: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM "organization" WHERE "id" = ${orgA}
+    `),
+    members: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM "member"
+      WHERE "organizationId" = ${orgA}
+    `),
+    prefs: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.user_preferences
+      WHERE org_id = ${orgA}
+    `),
+    teams: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM "team"
+      WHERE "organizationId" = ${orgA}
+    `),
+    audit: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.audit_logs
+      WHERE org_id = ${orgA} AND action = 'organization_deleted'
+    `),
+    jobs: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'org.cleanup_files' AND data->>'orgSlug' = ${slugA}
+    `),
+    dir: await exists(dirA),
+  });
+  const intact = (s: LifecycleSnapshot): boolean =>
+    s.org === 1 &&
+    s.members === 2 &&
+    s.prefs === 1 &&
+    s.teams === 1 &&
+    s.audit === 0 &&
+    s.jobs === 0 &&
+    s.dir;
+  const describe = (s: LifecycleSnapshot): string =>
+    `org=${s.org} members=${s.members} prefs=${s.prefs} teams=${s.teams} audit=${s.audit} jobs=${s.jobs} dir=${s.dir}`;
+  const placeHold = async (
+    targetType: 'org' | 'userMembership',
+    targetId: string,
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.legal_holds (
+        org_id, target_type, target_id, target_label, reason, placed_by,
+        placed_at_ms
+      ) VALUES (
+        ${orgA}, ${targetType}, ${targetId}, 'life', 'itest preservation',
+        ${owner.userId}, ${Date.now()}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const releaseHold = async (id: string): Promise<void> => {
+    await sql`
+      UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
+      WHERE id = ${id}
+    `;
+  };
+
+  const baseline = await snapshot();
+  record(
+    'org lifecycle fixture in place',
+    orgA !== '' && orgB !== '' && intact(baseline) && (await exists(dirB)),
+    `orgA=${orgA || 'MISSING'} orgB=${orgB || 'MISSING'} ${describe(baseline)}`,
+  );
+
+  // A custodian hold on any member blocks the whole-org deletion.
+  const custodianHold = await placeHold('userMembership', owner.userId);
+  const refusedCustodian = await post(
+    owner.cookie,
+    `/api/app/organizations/${orgA}/delete`,
+    {},
+  );
+  const refusedCustodianBody = await readError(refusedCustodian);
+  const afterCustodian = await snapshot();
+  record(
+    'org deletion refused under a custodian hold leaves the org intact',
+    refusedCustodian.status === 409 &&
+      refusedCustodianBody.error === 'LEGAL_HOLD_ACTIVE' &&
+      intact(afterCustodian),
+    `status=${refusedCustodian.status} code=${refusedCustodianBody.error ?? ''} ${describe(afterCustodian)}`,
+  );
+  await releaseHold(custodianHold);
+
+  // So does an org-wide hold.
+  const orgHold = await placeHold('org', orgA);
+  const refusedOrg = await post(
+    owner.cookie,
+    `/api/app/organizations/${orgA}/delete`,
+    {},
+  );
+  const refusedOrgBody = await readError(refusedOrg);
+  const afterOrgHold = await snapshot();
+  record(
+    'org deletion refused under an org-wide hold leaves the org intact',
+    refusedOrg.status === 409 &&
+      refusedOrgBody.error === 'LEGAL_HOLD_ACTIVE' &&
+      /legal hold/i.test(refusedOrgBody.message ?? '') &&
+      intact(afterOrgHold),
+    `status=${refusedOrg.status} code=${refusedOrgBody.error ?? ''} ${describe(afterOrgHold)}`,
+  );
+  await releaseHold(orgHold);
+
+  // The slug is the tenant key of blobs, config and corpus: immutable once
+  // set, while re-sending it beside a name change still lands.
+  const renamed = await post(owner.cookie, '/api/auth/organization/update', {
+    organizationId: orgA,
+    data: { slug: `${slugA}-moved` },
+  });
+  const renamedBody = await readError(renamed);
+  const afterRename = await sql<{ slug: string | null; name: string }[]>`
+    SELECT "slug", "name" FROM "organization" WHERE "id" = ${orgA}
+  `;
+  record(
+    'org slug rename is refused and the config tree stays addressable',
+    renamed.status === 400 &&
+      /cannot be changed/.test(renamedBody.message ?? '') &&
+      afterRename[0]?.slug === slugA &&
+      (await exists(dirA)),
+    `status=${renamed.status} message=${renamedBody.message ?? ''} slug=${afterRename[0]?.slug ?? 'MISSING'}`,
+  );
+  const sameSlug = await post(owner.cookie, '/api/auth/organization/update', {
+    organizationId: orgA,
+    data: { name: 'Life A renamed', slug: slugA },
+  });
+  const afterSameSlug = await sql<{ slug: string | null; name: string }[]>`
+    SELECT "slug", "name" FROM "organization" WHERE "id" = ${orgA}
+  `;
+  record(
+    'org update with the unchanged slug still lands',
+    sameSlug.ok &&
+      afterSameSlug[0]?.name === 'Life A renamed' &&
+      afterSameSlug[0].slug === slugA,
+    `status=${sameSlug.status} name=${afterSameSlug[0]?.name ?? ''} slug=${afterSameSlug[0]?.slug ?? 'MISSING'}`,
+  );
+
+  // Better Auth's own delete would bypass every guard above — it is closed.
+  const pluginDelete = await post(
+    owner.cookie,
+    '/api/auth/organization/delete',
+    { organizationId: orgA },
+  );
+  const pluginBody = await readError(pluginDelete);
+  const afterPlugin = await snapshot();
+  record(
+    "better-auth's organization/delete door is closed",
+    pluginDelete.status === 404 && intact(afterPlugin),
+    `status=${pluginDelete.status} code=${pluginBody.code ?? pluginBody.error ?? ''} ${describe(afterPlugin)}`,
+  );
+
+  // Owner-only.
+  const memberDelete = await post(
+    plain.cookie,
+    `/api/app/organizations/${orgA}/delete`,
+    {},
+  );
+  const afterMember = await snapshot();
+  record(
+    'a non-owner cannot delete the organization',
+    memberDelete.status === 403 && intact(afterMember),
+    `status=${memberDelete.status} ${describe(afterMember)}`,
+  );
+
+  // The teardown is one transaction: abort it after the whole cascade ran
+  // and nothing — rows, audit, cleanup job — survives.
+  const orgService = await import('./domains/organizations/service.ts');
+  let aborted = false;
+  try {
+    await sql.begin(async (tx) => {
+      await orgService.deleteOrganization(tx, { userId: owner.userId }, orgA);
+      throw new Error('itest-abort');
+    });
+  } catch (error) {
+    aborted = error instanceof Error && error.message === 'itest-abort';
+  }
+  const afterAbort = await snapshot();
+  record(
+    'an aborted teardown transaction leaves the organization intact',
+    aborted && intact(afterAbort),
+    `aborted=${aborted} ${describe(afterAbort)}`,
+  );
+
+  // A queued cleanup for a slug a live organization still owns must not
+  // touch its tree (a stale job, or the slug re-taken by a new org).
+  await sql.begin((tx) =>
+    addJobInTx(
+      tx,
+      'org.cleanup_files',
+      { orgSlug: slugB },
+      { singletonKey: `org-cleanup:${slugB}` },
+    ),
+  );
+  const staleCleanupSettled = await waitFor(async () => {
+    const rows = await sql<{ state: string }[]>`
+      SELECT state FROM pgboss.job
+      WHERE name = 'org.cleanup_files' AND data->>'orgSlug' = ${slugB}
+      ORDER BY created_on DESC LIMIT 1
+    `;
+    return rows[0]?.state === 'completed' || rows[0]?.state === 'failed';
+  }, 15_000);
+  record(
+    'a queued cleanup refuses a slug a live organization still owns',
+    staleCleanupSettled && (await exists(dirB)),
+    `settled=${staleCleanupSettled} dirB=${await exists(dirB)}`,
+  );
+
+  // The committed delete: rows, audit, cascade, pointers, config tree.
+  const deleted = await post(
+    owner.cookie,
+    `/api/app/organizations/${orgA}/delete`,
+    {},
+  );
+  const deletedBody = z
+    .object({ orgSlug: z.string() })
+    .safeParse(await deleted.json().catch(() => ({})));
+  const afterDelete = await snapshot();
+  const treeGone = await waitFor(async () => !(await exists(dirA)), 15_000);
+  const auditRows = await sql<
+    { metadata: unknown; actorRole: string | null }[]
+  >`
+    SELECT metadata, actor_role AS "actorRole" FROM app.audit_logs
+    WHERE org_id = ${orgA} AND action = 'organization_deleted' LIMIT 1
+  `;
+  const teamMembersLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "teamMember" WHERE "teamId" = ${teamId}
+  `);
+  const sessionsPointing = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "session"
+    WHERE "activeOrganizationId" = ${orgA}
+  `);
+  record(
+    'org delete commits as one teardown: rows, audit, cascade, config tree',
+    deleted.ok &&
+      deletedBody.success &&
+      deletedBody.data.orgSlug === slugA &&
+      afterDelete.org === 0 &&
+      afterDelete.members === 0 &&
+      afterDelete.prefs === 0 &&
+      afterDelete.teams === 0 &&
+      teamMembersLeft === 0 &&
+      afterDelete.audit === 1 &&
+      auditRows[0]?.actorRole === 'owner' &&
+      JSON.stringify(auditRows[0]?.metadata ?? {}).includes(slugA) &&
+      afterDelete.jobs >= 1 &&
+      sessionsPointing === 0 &&
+      treeGone,
+    `status=${deleted.status} ${describe(afterDelete)} teamMembers=${teamMembersLeft} sessions=${sessionsPointing} actorRole=${auditRows[0]?.actorRole ?? ''} treeGone=${treeGone}`,
+  );
+
+  // Tenant isolation + shared users: B and both accounts are untouched.
+  const survivors = await sql<
+    {
+      users: string;
+      membershipB: string;
+      prefsB: string;
+      lastActive: string | null;
+    }[]
+  >`
+    SELECT
+      (SELECT count(*)::text FROM "user"
+        WHERE "id" IN (${owner.userId}, ${plain.userId})) AS users,
+      (SELECT count(*)::text FROM "member"
+        WHERE "organizationId" = ${orgB} AND "userId" = ${owner.userId})
+        AS "membershipB",
+      (SELECT count(*)::text FROM app.user_preferences
+        WHERE org_id = ${orgB}) AS "prefsB",
+      (SELECT "lastActiveOrganizationId" FROM "user"
+        WHERE "id" = ${owner.userId}) AS "lastActive"
+  `;
+  const survivor = survivors[0];
+  const dirBKept = await exists(dirB);
+  record(
+    'a shared user keeps their account and their other organization',
+    survivor?.users === '2' &&
+      survivor.membershipB === '1' &&
+      survivor.prefsB === '1' &&
+      survivor.lastActive === null &&
+      dirBKept,
+    `users=${survivor?.users ?? ''} membershipB=${survivor?.membershipB ?? ''} prefsB=${survivor?.prefsB ?? ''} lastActive=${survivor?.lastActive ?? 'null'} dirB=${dirBKept}`,
+  );
+}
+
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -30632,6 +31041,7 @@ async function main(): Promise<void> {
     );
     await checkDevSeed(sql, auth);
     await checkWebTierOracles(sql, baseUrl, authCtx);
+    await checkOrganizationLifecycle(sql, baseUrl, orgSuffix);
   } finally {
     await boss.stop({ graceful: false });
     await new Promise<void>((resolve) => {

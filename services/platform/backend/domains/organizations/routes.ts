@@ -8,22 +8,23 @@ import {
   requireOrganizationMember,
 } from '../../auth/membership.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 import {
+  deleteOrganization,
   getOrganization,
   hasAnyOrganization,
   listUserOrganizations,
   OrganizationError,
-  prepareOrganizationDeletion,
   recordOrgSwitch,
 } from './service.ts';
 
 /**
  * /api/app/organizations — app-side org semantics. Better Auth's org plugin
- * owns create/update/delete/invitations on /api/auth/organization/*; these
- * routes carry the reads and doors around them. Org scope comes from the
- * path param and is membership-checked per handler (`requireOrgMember`'s
- * query-param convention doesn't fit the /:id shape).
+ * owns create/update/invitations on /api/auth/organization/*; these routes
+ * carry the reads and doors around them, and the deletion door itself. Org
+ * scope comes from the path param and is membership-checked per handler
+ * (`requireOrgMember`'s query-param convention doesn't fit the /:id shape).
  */
 export function createOrganizationRoutes(deps: {
   sql: Sql;
@@ -123,12 +124,16 @@ export function createOrganizationRoutes(deps: {
     return c.json({ ok: true });
   });
 
-  app.post('/:id/prepare-deletion', async (c) => {
+  // The ONE deletion door (Better Auth's `/organization/delete` is disabled):
+  // guards, audit, cascade, Better Auth rows and the cleanup job commit as
+  // one serializable transaction — a refusal or a failure leaves the
+  // organization exactly as it was.
+  app.post('/:id/delete', async (c) => {
     const organizationId = c.req.param('id');
     const session = c.get('sessionBundle');
     try {
       const result = await transactSerializable(deps.sql, (tx) =>
-        prepareOrganizationDeletion(
+        deleteOrganization(
           tx,
           { userId: session.user.id, email: session.user.email },
           organizationId,
@@ -137,10 +142,19 @@ export function createOrganizationRoutes(deps: {
       return c.json(result);
     } catch (error) {
       if (error instanceof OrganizationError) {
-        return c.json({ error: error.code }, error.status);
+        return c.json(
+          { error: error.code, message: error.message },
+          error.status,
+        );
+      }
+      if (error instanceof LegalHoldError) {
+        return c.json(
+          { error: error.code, message: error.message },
+          error.status,
+        );
       }
       if (error instanceof MembershipError) {
-        return c.json({ error: error.code }, 403);
+        return c.json({ error: error.code, message: error.message }, 403);
       }
       throw error;
     }
