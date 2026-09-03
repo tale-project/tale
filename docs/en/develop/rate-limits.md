@@ -3,7 +3,7 @@ title: Rate limits
 description: REST and MCP rate limits — the buckets, the 429 response and its Retry-After, and how to retry without making things worse.
 ---
 
-The API is rate-limited per client IP with token buckets — before authentication, so the budget holds even against unauthenticated hammering: bursts pass, sustained hammering answers **429**. A worker fleet behind one NAT egress arrives as one IP and shares one budget. The budgets are sized so a normal connector never sees them — when a previously healthy client starts hitting 429, the answer is almost always a missing backoff or a hot loop, not missing capacity.
+The API is rate-limited with token buckets keyed on the key holder — the user your API key acts as — so a budget always belongs to an identifiable caller and no network header can mint a fresh one: bursts pass, sustained hammering answers **429**. Every key a user mints draws from that user's budget; a worker fleet that needs a budget of its own gets a machine user of its own. A key that fails to authenticate is throttled per source IP instead (20 requests a minute, burst 40), so strangers never draw from a key holder's budget, and a request without a key costs nothing at all. The budgets are sized so a normal connector never sees them — when a previously healthy client starts hitting 429, the answer is almost always a missing backoff or a hot loop, not missing capacity.
 
 Read this when you are wiring a client that calls the API on a schedule or under load.
 
@@ -31,4 +31,4 @@ Sleep at least `Retry-After` before the next attempt. There are no remaining-bud
 
 ## Where this fits
 
-The [API reference](/develop/api-reference) names the 429 in the error model and points here. If your workload genuinely needs more than the budgets allow, batch on your side — `POST /api/v1/contacts/bulk` exists for exactly that — or spread the schedule; the buckets are per IP, so splitting traffic across keys changes nothing — a fleet shares its NAT egress's budget.
+The [API reference](/develop/api-reference) names the 429 in the error model and points here. If your workload genuinely needs more than the budgets allow, batch on your side — `POST /api/v1/contacts/bulk` exists for exactly that — or spread the schedule; the buckets are per key holder, so splitting traffic across keys minted by the same user changes nothing — an integration that genuinely needs its own budget gets its own machine user.
