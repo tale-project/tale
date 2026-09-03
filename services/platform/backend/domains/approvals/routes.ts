@@ -17,7 +17,9 @@ import {
 /**
  * /api/app/approvals — the approvals inbox. Reads and the generic decision
  * are org-member operations (the 0.4 posture); review-gate rows refuse
- * toward their dedicated respond doors.
+ * toward their dedicated respond doors, and erasure rows additionally
+ * demand an org-admin decider (the dual-control half of the GDPR
+ * contract) — the service checks the session-resolved role per KIND.
  */
 
 function handleError<E extends OrgEnv>(
@@ -105,6 +107,7 @@ export function createApprovalRoutes(deps: {
           : {}),
         actor: {
           userId: c.get('sessionBundle').user.id,
+          role: c.get('orgMember').role,
           email: c.get('sessionBundle').user.email,
         },
       });

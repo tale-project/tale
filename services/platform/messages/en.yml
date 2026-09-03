@@ -3720,6 +3720,7 @@ governance:
       gdpr_erasure_cascade_attempts_exhausted: Cascade attempts exhausted
       gdpr_erasure_extended: Deadline extended
       gdpr_erasure_retried: Retried
+      gdpr_erasure_rejected: Rejected
       gdpr_erasure_cancelled: Cancelled
     categories:
       userMemories: Personal memories

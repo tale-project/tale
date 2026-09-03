@@ -3854,6 +3854,7 @@ governance:
       gdpr_erasure_cascade_attempts_exhausted: Kaskaden-Versuche erschöpft
       gdpr_erasure_extended: Frist verlängert
       gdpr_erasure_retried: Wiederholt
+      gdpr_erasure_rejected: Zurückgewiesen
       gdpr_erasure_cancelled: Abgebrochen
     categories:
       userMemories: Persönliche Memos

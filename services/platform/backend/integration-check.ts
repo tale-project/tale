@@ -22063,6 +22063,27 @@ async function checkErasure(
                               created_at_ms)
     VALUES (${orgId}, ${subject}, 'subject fact', 'approved', ${now})
   `;
+  // A chat upload with a REAL MinIO object behind it: the uploads pass must
+  // delete the blob, not just the ledger row — an erased receipt with the
+  // subject's bytes still in the bucket is a false statement to the DPO.
+  const objectStore = await import('./lib/object-store.ts');
+  const { encodeS3Ref: encodeUploadRef } =
+    await import('./core/lib/storage/blob_ref.ts');
+  const uploadStore = await objectStore.resolveObjectStore(orgSlug);
+  const uploadKey = objectStore.buildObjectKey(uploadStore, orgSlug);
+  await objectStore.s3PutObject(
+    uploadStore,
+    uploadKey,
+    new TextEncoder().encode('subject upload bytes'),
+    'text/plain',
+  );
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, uploaded_by,
+      created_at_ms
+    ) VALUES (${orgId}, ${encodeUploadRef(uploadKey)}, 'subject-upload.txt',
+              'text/plain', 20, ${subject}, ${now})
+  `;
 
   const selfRefused = await post(`/api/app/erasure?orgId=${orgId}`, {
     targetUserId: userId,
@@ -22110,6 +22131,25 @@ async function checkErasure(
     WHERE org_id = ${orgId} AND resource_type = 'user'
       AND resource_id = ${subject} AND pii_scrubbed = true
   `;
+  const uploadRowsLeft = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.file_metadata
+    WHERE org_id = ${orgId} AND uploaded_by = ${subject}
+  `;
+  const uploadBlobAfter = await objectStore.s3HeadObject(
+    uploadStore,
+    uploadKey,
+  );
+  const receiptCounts = await sql<{ counts: Record<string, number> | null }[]>`
+    SELECT counts FROM app.gdpr_erasure_requests WHERE id = ${requestId}
+  `;
+  record(
+    'erasure: the uploads pass deletes the blob behind the ledger row',
+    receiptStatus === 'done' &&
+      uploadRowsLeft[0]?.count === '0' &&
+      uploadBlobAfter === null &&
+      receiptCounts[0]?.counts?.uploads === 1,
+    `receipt=${receiptStatus} (want done), rowsLeft=${uploadRowsLeft[0]?.count} (want 0), blobHead=${uploadBlobAfter === null ? '404' : 'present'} (want 404), counts.uploads=${receiptCounts[0]?.counts?.uploads} (want 1)`,
+  );
 
   // Cancel lane: a fresh subject inside a real cooling window.
   await writeFile(
@@ -22210,6 +22250,206 @@ async function checkErasure(
       threeStatus === 'done',
     `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), retried=${threeStatus}`,
   );
+
+  // ---- the documented 'child' reason code files -------------------------
+  // The picker, the i18n labels, and the docs all offer 'child'
+  // (Art 17(1)(f)); the service once validated against a divergent local
+  // list carrying 'child_consent', so the documented ground dead-ended.
+  const subjectFour = await seedMember('four');
+  const childRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: subjectFour,
+    reason: 'Child subject probe',
+    reasonCode: 'child',
+  });
+  const childFiled = z
+    .object({ requestId: z.string() })
+    .loose()
+    .safeParse(await childRes.json().catch(() => ({})));
+  record(
+    "erasure: the documented 'child' reason code files",
+    childRes.status === 201 && childFiled.success,
+    `status=${childRes.status} (want 201), requestId=${childFiled.success ? 'minted' : 'ERR'}`,
+  );
+
+  // ---- the whole erasure router is admin-gated --------------------------
+  // Receipts name subjects, filers, and lawful grounds; the docs put every
+  // lifecycle action with Admins. A plain member must bounce off every
+  // door — list, file, cancel, retry, detail, extend — with the localized
+  // 'forbidden' code, not reach the service at all.
+  const erasureMemberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: 'itest-erasure-member@example.com',
+      password: 'itest-password-1',
+      name: 'Erasure Member',
+    }),
+  });
+  const erasureMemberCookie = cookieHeaderFrom(erasureMemberSignUp);
+  const erasureMemberBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await erasureMemberSignUp.json());
+  const erasureMemberId = erasureMemberBody.success
+    ? erasureMemberBody.data.user.id
+    : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${erasureMemberId}, 'member',
+            ${new Date()})
+  `;
+  const memberSend = (
+    method: 'GET' | 'POST',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        cookie: erasureMemberCookie,
+        origin: base,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const someReceiptId = filedTwo.success ? filedTwo.data.requestId : 'x';
+  const memberProbes = [
+    await memberSend('GET', `/api/app/erasure?orgId=${orgId}`),
+    await memberSend('POST', `/api/app/erasure?orgId=${orgId}`, {
+      targetUserId: subject,
+      reason: 'member probe',
+      reasonCode: 'objection',
+    }),
+    await memberSend(
+      'POST',
+      `/api/app/erasure/${someReceiptId}/cancel?orgId=${orgId}`,
+      { reason: 'member cancel probe' },
+    ),
+    await memberSend(
+      'POST',
+      `/api/app/erasure/${someReceiptId}/retry?orgId=${orgId}`,
+    ),
+    await memberSend('GET', `/api/app/erasure/${someReceiptId}?orgId=${orgId}`),
+    await memberSend(
+      'POST',
+      `/api/app/erasure/${someReceiptId}/extend?orgId=${orgId}`,
+      { extraDays: 10, extensionReason: 'member extend probe' },
+    ),
+  ];
+  const memberBodies = await Promise.all(
+    memberProbes.map(async (res) =>
+      z
+        .object({ error: z.string() })
+        .loose()
+        .safeParse(await res.json().catch(() => ({}))),
+    ),
+  );
+  record(
+    'erasure: every lifecycle door refuses a plain member (403 forbidden)',
+    memberProbes.every((res) => res.status === 403) &&
+      memberBodies.every(
+        (body) => body.success && body.data.error === 'forbidden',
+      ),
+    `statuses=${memberProbes.map((res) => res.status).join(',')} (want all 403), codes=${memberBodies.map((body) => (body.success ? body.data.error : 'ERR')).join(',')} (want all forbidden)`,
+  );
+
+  // ---- a failed blob delete keeps the receipt honest --------------------
+  // An org-BYO connection.json WITHOUT its secrets sidecar makes store
+  // resolution throw (fail closed), standing in for an unreachable bucket:
+  // the uploads pass must FAIL the receipt ('partial') and keep the ledger
+  // row, never report erased while the bytes may live on. Removing the
+  // broken config and retrying finishes the job for real.
+  const subjectFive = await seedMember('five');
+  const fiveKey = objectStore.buildObjectKey(uploadStore, orgSlug);
+  await objectStore.s3PutObject(
+    uploadStore,
+    fiveKey,
+    new TextEncoder().encode('subject five bytes'),
+    'text/plain',
+  );
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, uploaded_by,
+      created_at_ms
+    ) VALUES (${orgId}, ${encodeUploadRef(fiveKey)}, 'five-upload.txt',
+              'text/plain', 18, ${subjectFive}, ${Date.now()})
+  `;
+  const fiveReceipt = await sql<{ id: string }[]>`
+    INSERT INTO app.gdpr_erasure_requests (
+      org_id, target_user_id, reason, reason_code, requested_by,
+      requested_at_ms, sla_deadline_at_ms, status, effective_at_ms,
+      threads_targeted
+    ) VALUES (
+      ${orgId}, ${subjectFive}, 'honest failure probe', 'objection',
+      ${userId}, ${Date.now()}, ${Date.now() + 30 * 86_400_000}, 'pending',
+      ${Date.now()}, ARRAY[]::text[]
+    ) RETURNING id
+  `;
+  const fiveId = fiveReceipt[0]?.id ?? '';
+  const orgStorageDir = path.join(configRoot, orgSlug, 'object-storage');
+  await mkdir(orgStorageDir, { recursive: true });
+  const brokenConnectionPath = path.join(orgStorageDir, 'connection.json');
+  await writeFile(
+    brokenConnectionPath,
+    await readFile(
+      path.join(configRoot, 'default', 'object-storage', 'connection.json'),
+      'utf8',
+    ),
+  );
+  objectStore.clearObjectStoreCache();
+  orgConfig.clearOrgConfigCaches();
+  const erasureService = await import('./domains/erasure/service.ts');
+  await erasureService.processErasure(sql, fiveId);
+  const fiveAfterFail = await sql<{ status: string; error: string | null }[]>`
+    SELECT status, error FROM app.gdpr_erasure_requests WHERE id = ${fiveId}
+  `;
+  const fiveRowSurvives = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.file_metadata
+    WHERE org_id = ${orgId} AND uploaded_by = ${subjectFive}
+  `;
+  const fiveBlobSurvives = await objectStore.s3HeadObject(uploadStore, fiveKey);
+  // Heal the store and retry through the route — the receipt must finish
+  // for real this time, blob included.
+  await rm(brokenConnectionPath, { force: true });
+  objectStore.clearObjectStoreCache();
+  orgConfig.clearOrgConfigCaches();
+  await post(`/api/app/erasure/${fiveId}/retry?orgId=${orgId}`);
+  let fiveStatus = '';
+  for (let i = 0; i < 50; i++) {
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.gdpr_erasure_requests WHERE id = ${fiveId}
+    `;
+    fiveStatus = rows[0]?.status ?? '';
+    if (fiveStatus === 'done') break;
+    await sleep(300);
+  }
+  const fiveRowAfterRetry = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.file_metadata
+    WHERE org_id = ${orgId} AND uploaded_by = ${subjectFive}
+  `;
+  const fiveBlobAfterRetry = await objectStore.s3HeadObject(
+    uploadStore,
+    fiveKey,
+  );
+  record(
+    'erasure: a failed blob delete lands partial + row kept, retry finishes',
+    fiveAfterFail[0]?.status === 'partial' &&
+      (fiveAfterFail[0]?.error ?? '').includes('uploads') &&
+      fiveRowSurvives[0]?.count === '1' &&
+      fiveBlobSurvives !== null &&
+      fiveStatus === 'done' &&
+      fiveRowAfterRetry[0]?.count === '0' &&
+      fiveBlobAfterRetry === null,
+    `afterFail=${fiveAfterFail[0]?.status}/${fiveAfterFail[0]?.error ?? ''} (want partial/failed passes: uploads), row=${fiveRowSurvives[0]?.count} (want 1), blob=${fiveBlobSurvives === null ? '404' : 'present'} (want present), retry=${fiveStatus} (want done), rowAfter=${fiveRowAfterRetry[0]?.count} (want 0), blobAfter=${fiveBlobAfterRetry === null ? '404' : 'present'} (want 404)`,
+  );
+
+  // This section spent 4 of the admin's 5/day DSAR filings; the limiter is
+  // per (key, subject), so clearing its rows hands downstream sections the
+  // full budget their probes assume.
+  await sql`
+    DELETE FROM app.rate_limits
+    WHERE name = 'governance:dsar_request' AND key LIKE ${`org:${orgId}:%`}
+  `;
 }
 
 /**
@@ -25520,6 +25760,66 @@ async function checkGovernanceEnforcement(
     SELECT status FROM app.approvals WHERE id = ${approvalId}
   `;
 
+  // A plain MEMBER can decide neither direction of an erasure approval —
+  // dual control means two admins, so the generic decide door kind-gates
+  // erasure rows on the session-resolved role.
+  const dsarMemberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: 'itest-dsar-member@example.com',
+      password: 'itest-password-1',
+      name: 'DSAR Member',
+    }),
+  });
+  const dsarMemberCookie = cookieHeaderFrom(dsarMemberSignUp);
+  const dsarMemberBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await dsarMemberSignUp.json());
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId},
+            ${dsarMemberBody.success ? dsarMemberBody.data.user.id : ''},
+            'member', ${new Date()})
+  `;
+  const memberDecide = async (
+    status: 'executing' | 'rejected',
+  ): Promise<Response> =>
+    fetch(`${base}/api/app/approvals/${approvalId}/decide?orgId=${orgId}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: dsarMemberCookie,
+        origin: base,
+      },
+      body: JSON.stringify({ status }),
+    });
+  const memberApprove = await memberDecide('executing');
+  const memberReject = await memberDecide('rejected');
+  const memberApproveBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await memberApprove.json().catch(() => ({})));
+  const memberRejectBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await memberReject.json().catch(() => ({})));
+  const stillPendingAfterMember = await sql<{ status: string }[]>`
+    SELECT status FROM app.approvals WHERE id = ${approvalId}
+  `;
+  record(
+    'governance: a plain member can decide an erasure approval in neither direction',
+    memberApprove.status === 403 &&
+      memberApproveBody.success &&
+      memberApproveBody.data.error === 'FORBIDDEN' &&
+      memberReject.status === 403 &&
+      memberRejectBody.success &&
+      memberRejectBody.data.error === 'FORBIDDEN' &&
+      stillPendingAfterMember[0]?.status === 'pending',
+    `approve=${memberApprove.status}/${memberApproveBody.success ? memberApproveBody.data.error : 'ERR'} (want 403/FORBIDDEN), reject=${memberReject.status}/${memberRejectBody.success ? memberRejectBody.data.error : 'ERR'} (want 403/FORBIDDEN), row=${stillPendingAfterMember[0]?.status} (want pending)`,
+  );
+
   // A SECOND admin approves: cooling-off starts and the processor is queued.
   const otherAdmin = 'dual-approver-one';
   await sql`
@@ -25546,7 +25846,11 @@ async function checkGovernanceEnforcement(
       organizationId: orgId,
       approvalId,
       status: 'executing',
-      actor: { userId: otherAdmin, email: `${otherAdmin}@example.com` },
+      actor: {
+        userId: otherAdmin,
+        role: 'admin',
+        email: `${otherAdmin}@example.com`,
+      },
     });
     secondApproveOk = true;
   } catch (error) {
@@ -25579,6 +25883,136 @@ async function checkGovernanceEnforcement(
       jobsAfter[0]?.count === '1',
     `filed=${filed.success}(${filedRes.status}:${JSON.stringify(filedBody).slice(0, 120)}), parked=${parked[0]?.status}/${parked[0]?.effectiveAt === null}, approvalRow=${approvalRows.length}, jobsBefore=${jobsBefore[0]?.count}, bell=${bell[0]?.count}, selfApprove=${selfApprove.status}/${selfApproveBody.success ? selfApproveBody.data.error : 'ERR'}, rolledBack=${stillPending[0]?.status}, second=${secondApproveOk}, scheduled=${scheduled[0]?.effectiveAt !== null}, jobsAfter=${jobsAfter[0]?.count}`,
   );
+
+  // ---- a REJECTED dual approval settles the receipt, not the subject ----
+  // Rejecting used to update only the approvals row: the receipt sat
+  // 'pending' with effective_at_ms NULL forever, and the live-unique index
+  // blocked ever re-filing the subject. Now the rejection lands the
+  // receipt as 'cancelled' (audited as gdpr_erasure_rejected) and the
+  // subject is immediately re-filable.
+  const subjectTwoId = 'dual-subject-two';
+  await sql`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES (${subjectTwoId}, 'Dual Subject Two',
+            ${`${subjectTwoId}@example.com`}, true, ${new Date()},
+            ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${`m-${subjectTwoId}`}, ${orgId}, ${subjectTwoId}, 'member',
+            ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  const filedTwoRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: subjectTwoId,
+    reason: 'reject arc probe',
+    reasonCode: 'consent_withdrawn',
+  });
+  const filedTwoBody = z
+    .object({ requestId: z.string() })
+    .loose()
+    .safeParse(await filedTwoRes.json().catch(() => ({})));
+  const requestTwoId = filedTwoBody.success ? filedTwoBody.data.requestId : '';
+  const approvalTwoRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.approvals
+    WHERE org_id = ${orgId} AND resource_type = 'erasure'
+      AND resource_id = ${requestTwoId}
+  `;
+  let rejectOk = false;
+  try {
+    await approvals.decideApproval(sql, {
+      organizationId: orgId,
+      approvalId: approvalTwoRows[0]?.id ?? '',
+      status: 'rejected',
+      comments: 'wrong subject picked',
+      actor: {
+        userId: otherAdmin,
+        role: 'admin',
+        email: `${otherAdmin}@example.com`,
+      },
+    });
+    rejectOk = true;
+  } catch (error) {
+    console.error('[itest] second-admin rejection failed', error);
+  }
+  const rejectedReceipt = await sql<
+    {
+      status: string;
+      cancelledBy: string | null;
+      cancellationReason: string | null;
+      finishedAt: number | null;
+    }[]
+  >`
+    SELECT status, cancelled_by AS "cancelledBy",
+           cancellation_reason AS "cancellationReason",
+           finished_at_ms::float8 AS "finishedAt"
+    FROM app.gdpr_erasure_requests WHERE id = ${requestTwoId}
+  `;
+  const rejectedAudit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'gdpr_erasure_rejected'
+      AND resource_id = ${subjectTwoId}
+  `;
+  const rejectedJobs = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'governance.process_erasure'
+      AND data->>'requestId' = ${requestTwoId}
+  `;
+  // The subject is re-filable NOW — the live-unique index no longer holds
+  // a pending row for them.
+  const refiledRes = await post(`/api/app/erasure?orgId=${orgId}`, {
+    targetUserId: subjectTwoId,
+    reason: 'fresh request after rejection',
+    reasonCode: 'consent_withdrawn',
+  });
+  const refiledBody = z
+    .object({ requestId: z.string() })
+    .loose()
+    .safeParse(await refiledRes.json().catch(() => ({})));
+  record(
+    'governance: DSAR rejection lands the receipt cancelled + re-filable',
+    rejectOk &&
+      rejectedReceipt[0]?.status === 'cancelled' &&
+      rejectedReceipt[0]?.cancelledBy === otherAdmin &&
+      (rejectedReceipt[0]?.cancellationReason ?? '').startsWith(
+        'Dual approval rejected',
+      ) &&
+      rejectedReceipt[0]?.finishedAt !== null &&
+      Number(rejectedAudit[0]?.count ?? '0') >= 1 &&
+      rejectedJobs[0]?.count === '0' &&
+      refiledRes.status === 201 &&
+      refiledBody.success,
+    `reject=${rejectOk}, receipt=${rejectedReceipt[0]?.status}/${rejectedReceipt[0]?.cancelledBy}/${(rejectedReceipt[0]?.cancellationReason ?? '').slice(0, 40)} (want cancelled/${otherAdmin}/Dual approval rejected…), audit=${rejectedAudit[0]?.count} (want ≥1), jobs=${rejectedJobs[0]?.count} (want 0), refile=${refiledRes.status}/${refiledBody.success} (want 201/true)`,
+  );
+
+  // ---- cancelling while parked awaiting approval also un-wedges ---------
+  // The refiled request above is parked (effective_at_ms NULL). Cancelling
+  // in that state used to throw the lying 'cannotCancelAfterCooldown';
+  // now it cancels the receipt AND settles the parked approvals row.
+  const refiledId = refiledBody.success ? refiledBody.data.requestId : '';
+  const cancelParkedRes = await post(
+    `/api/app/erasure/${refiledId}/cancel?orgId=${orgId}`,
+    { reason: 'withdrawn while awaiting approval' },
+  );
+  const cancelParkedReceipt = await sql<{ status: string }[]>`
+    SELECT status FROM app.gdpr_erasure_requests WHERE id = ${refiledId}
+  `;
+  const cancelParkedApproval = await sql<{ status: string }[]>`
+    SELECT status FROM app.approvals
+    WHERE org_id = ${orgId} AND resource_type = 'erasure'
+      AND resource_id = ${refiledId}
+  `;
+  record(
+    'governance: cancelling a parked dual-approval request settles both rows',
+    cancelParkedRes.status === 200 &&
+      cancelParkedReceipt[0]?.status === 'cancelled' &&
+      cancelParkedApproval[0]?.status === 'rejected',
+    `cancel=${cancelParkedRes.status} (want 200), receipt=${cancelParkedReceipt[0]?.status} (want cancelled), approval=${cancelParkedApproval[0]?.status} (want rejected)`,
+  );
+
   await writeFile(
     path.join(governanceDir, 'dsar-governance.yml'),
     'coolingOffHours: 0\n',
