@@ -268,9 +268,14 @@ describe('createConversationFromEmail — messages without a readable Date', () 
     expect(threaded[0]?.conversationId).toBe('conv_existing');
     expect(threaded[0]).not.toHaveProperty('sentAt');
 
-    const initialOf = (externalMessageId: string) =>
-      created.find((args) => args.externalMessageId === externalMessageId)
-        ?.initialMessage as Record<string, unknown> | undefined;
+    const initialOf = (externalMessageId: string): unknown => {
+      const args = created.find(
+        (candidate) => candidate.externalMessageId === externalMessageId,
+      );
+      return args === undefined
+        ? undefined
+        : Reflect.get(args, 'initialMessage');
+    };
     expect(initialOf('internal@x')).toMatchObject({
       sentAt: Number(INTERNAL_DATE),
       deliveredAt: Number(INTERNAL_DATE),
