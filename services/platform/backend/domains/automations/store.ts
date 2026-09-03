@@ -541,9 +541,20 @@ export function assertTriggerValid(trigger: TriggerInput): void {
   }
 }
 
-/** One trigger per name; a webhook mints its token here and returns the
- * plaintext exactly once. Re-binding keeps the previous token unless asked
- * to rotate. */
+/**
+ * One trigger per name — a rule the schema enforces (UNIQUE (org_id, name),
+ * migration 0068), so binding is ONE upsert: N racing writers (two tabs, a
+ * retried request, MCP set_trigger against the editor) converge on one row
+ * and the last commit wins, exactly as sequential saves would. The former
+ * SELECT-then-INSERT in a transaction had no lock to stop two of them from
+ * both seeing "no row" and both inserting.
+ *
+ * A webhook mints its token here and returns the plaintext exactly once.
+ * Re-binding keeps the previous token unless asked to rotate — decided in the
+ * database (the CASE on the existing row), read back from RETURNING: the
+ * plaintext is handed out only when the hash minted here is the one that
+ * landed.
+ */
 export async function setTrigger(
   sql: Sql,
   args: {
@@ -555,51 +566,40 @@ export async function setTrigger(
 ): Promise<{ token?: string }> {
   assertTriggerValid(args.trigger);
   const now = Date.now();
-  return sql.begin(async (tx) => {
-    const existing = await tx<
-      { id: string; kind: string; tokenHash: string | null }[]
-    >`
-      SELECT id, kind, token_hash AS "tokenHash"
-      FROM app.automation_triggers
-      WHERE org_id = ${args.organizationId} AND name = ${args.name}
-      LIMIT 1
-    `;
-    let token: string | undefined;
-    let tokenHash: string | null = existing[0]?.tokenHash ?? null;
-    if (
-      args.trigger.kind === 'webhook' &&
-      (tokenHash === null || args.trigger.rotateToken === true)
-    ) {
-      token = mintWebhookToken();
-      tokenHash = await hashWebhookToken(token);
-    }
-    if (args.trigger.kind !== 'webhook') tokenHash = null;
-    const enabled = args.trigger.enabled ?? true;
-    if (existing[0]) {
-      await tx`
-        UPDATE app.automation_triggers SET
-          kind = ${args.trigger.kind}, cron = ${args.trigger.cron ?? null},
-          timezone = ${args.trigger.timezone ?? null},
-          event = ${args.trigger.event ?? null},
-          token_hash = ${tokenHash}, enabled = ${enabled},
-          updated_at_ms = ${now}
-        WHERE id = ${existing[0].id}
-      `;
-    } else {
-      await tx`
-        INSERT INTO app.automation_triggers (
-          org_id, name, kind, cron, timezone, event, token_hash, enabled,
-          created_by, created_at_ms, updated_at_ms
-        ) VALUES (
-          ${args.organizationId}, ${args.name}, ${args.trigger.kind},
-          ${args.trigger.cron ?? null}, ${args.trigger.timezone ?? null},
-          ${args.trigger.event ?? null}, ${tokenHash}, ${enabled},
-          ${args.actor}, ${now}, ${now}
-        )
-      `;
-    }
-    return token !== undefined ? { token } : {};
-  });
+  const minted =
+    args.trigger.kind === 'webhook' ? mintWebhookToken() : undefined;
+  const mintedHash =
+    minted !== undefined ? await hashWebhookToken(minted) : null;
+  const rotate = args.trigger.rotateToken === true;
+  const enabled = args.trigger.enabled ?? true;
+  const rows = await sql<{ tokenHash: string | null }[]>`
+    INSERT INTO app.automation_triggers AS t (
+      org_id, name, kind, cron, timezone, event, token_hash, enabled,
+      created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${args.organizationId}, ${args.name}, ${args.trigger.kind},
+      ${args.trigger.cron ?? null}, ${args.trigger.timezone ?? null},
+      ${args.trigger.event ?? null}, ${mintedHash}, ${enabled},
+      ${args.actor}, ${now}, ${now}
+    )
+    ON CONFLICT (org_id, name) DO UPDATE SET
+      kind = EXCLUDED.kind,
+      cron = EXCLUDED.cron,
+      timezone = EXCLUDED.timezone,
+      event = EXCLUDED.event,
+      token_hash = CASE
+        WHEN EXCLUDED.kind <> 'webhook' THEN NULL
+        WHEN ${rotate}::boolean OR t.token_hash IS NULL THEN EXCLUDED.token_hash
+        ELSE t.token_hash
+      END,
+      enabled = EXCLUDED.enabled,
+      updated_at_ms = EXCLUDED.updated_at_ms
+    RETURNING token_hash AS "tokenHash"
+  `;
+  const landed = rows[0]?.tokenHash ?? null;
+  return minted !== undefined && landed !== null && landed === mintedHash
+    ? { token: minted }
+    : {};
 }
 
 export async function deleteTrigger(

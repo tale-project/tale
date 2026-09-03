@@ -7632,6 +7632,328 @@ async function checkAutomationRunLifecycle(
 }
 
 /**
+ * The TRIGGER + WEBHOOK delivery contract — the fix class over the run
+ * lifecycle: one canonical trigger row per (org, name) however many writers
+ * race (so disabling it stops EVERY fire), a schedule scan that walks every
+ * enabled trigger (no LIMIT-shaped starvation) and claims each occurrence
+ * exactly once across overlapping scans, and a webhook door that treats a
+ * vendor's redelivery — the same delivery id, or a byte-identical body inside
+ * the short window — as the delivery it already accepted, while distinct
+ * deliveries still each run and the body cap counts bytes, not code units.
+ * Closes with the 0068 de-duplication itself: re-applied over planted
+ * duplicates it keeps the last-edited row, merges the fire stamp, and puts
+ * the unique index back.
+ */
+async function checkAutomationTriggerDelivery(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const store = await import('./domains/automations/store.ts');
+  const triggersModule = await import('./domains/automations/triggers.ts');
+  const name = 'ops/trigger-fence';
+  const triggerRuns = async (): Promise<number> => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automation_runs
+      WHERE org_id = ${orgId} AND name = ${name}
+        AND started_by LIKE 'trigger:%'
+    `;
+    return Number(rows[0]?.count ?? '0');
+  };
+  const backdateStamp = (): Promise<unknown> => sql`
+    UPDATE app.automation_triggers SET last_fired_at_ms = ${Date.now() - 120_000}
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+
+  // A transform-only automation: every fire settles in the node VM.
+  await post(`/api/app/automations/${name}/save?orgId=${orgId}`, {
+    document: {
+      version: 1,
+      name,
+      nodes: [
+        {
+          id: 'echo',
+          type: 'transform',
+          input: { via: '{{ input.trigger }}' },
+          code: 'return { ok: input.via }',
+        },
+      ],
+      output: '{{ nodes.echo.output.ok }}',
+    },
+  });
+  await post(`/api/app/automations/${name}/deploy?orgId=${orgId}`, {
+    version: 1,
+  });
+
+  // ---- #1: twelve concurrent binds of one name converge on ONE row, and a
+  // disable through the HTTP door (the editor's path) silences every fire —
+  // no phantom row left enabled behind the switch.
+  const raceOutcomes = await Promise.allSettled(
+    Array.from({ length: 12 }, () =>
+      store.setTrigger(sql, {
+        organizationId: orgId,
+        name,
+        trigger: { kind: 'schedule', cron: '* * * * *', timezone: 'UTC' },
+        actor: 'itest',
+      }),
+    ),
+  );
+  const raceRejected = raceOutcomes.filter(
+    (outcome) => outcome.status === 'rejected',
+  ).length;
+  const rowsAfterRace = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automation_triggers
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const disabled = await post(
+    `/api/app/automations/${name}/trigger?orgId=${orgId}`,
+    { kind: 'schedule', cron: '* * * * *', timezone: 'UTC', enabled: false },
+  );
+  await backdateStamp();
+  const runsBeforeDisabledScan = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql);
+  const firedWhileDisabled = (await triggerRuns()) - runsBeforeDisabledScan;
+  record(
+    'concurrent trigger binds converge on one row; disabling it stops every fire',
+    rowsAfterRace[0]?.count === '1' &&
+      raceRejected === 0 &&
+      disabled.status === 200 &&
+      firedWhileDisabled === 0,
+    `rows after 12 concurrent binds=${rowsAfterRace[0]?.count} (want 1), rejected=${raceRejected}, disable → ${disabled.status}, fired while disabled=${firedWhileDisabled} (want 0)`,
+  );
+
+  // ---- #3b: overlapping scans (an expired job's retry, two workers) claim
+  // one occurrence exactly once — the stamp is a conditional claim, not a
+  // blind write.
+  await post(`/api/app/automations/${name}/trigger?orgId=${orgId}`, {
+    kind: 'schedule',
+    cron: '* * * * *',
+    timezone: 'UTC',
+    enabled: true,
+  });
+  await backdateStamp();
+  const runsBeforeOverlap = await triggerRuns();
+  await Promise.all([
+    triggersModule.scanScheduledTriggers(sql),
+    triggersModule.scanScheduledTriggers(sql),
+    triggersModule.scanScheduledTriggers(sql),
+  ]);
+  const firedByOverlap = (await triggerRuns()) - runsBeforeOverlap;
+  record(
+    'overlapping schedule scans fire one occurrence exactly once',
+    firedByOverlap === 1,
+    `three concurrent scans over one due trigger fired ${firedByOverlap} runs (want 1)`,
+  );
+
+  // ---- #3a: fairness — 205 enabled schedules platform-wide; ONE scan must
+  // examine (and stamp) every one of them, not an arbitrary 200.
+  const fairNames = Array.from(
+    { length: 205 },
+    (_, i) => `fair/t-${String(i).padStart(3, '0')}`,
+  );
+  const backdated = Date.now() - 120_000;
+  await sql`
+    INSERT INTO app.automation_triggers (
+      org_id, name, kind, cron, timezone, enabled, last_fired_at_ms,
+      created_by, created_at_ms, updated_at_ms
+    )
+    SELECT ${orgId}, n, 'schedule', '* * * * *', 'UTC', true, ${backdated},
+           'itest', ${backdated}, ${backdated}
+    FROM unnest(${fairNames}::text[]) AS n
+  `;
+  const fairScan = await triggersModule.scanScheduledTriggers(sql);
+  const stamped = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.automation_triggers
+    WHERE org_id = ${orgId} AND name LIKE 'fair/t-%'
+      AND last_fired_at_ms > ${backdated}
+  `;
+  await sql`
+    DELETE FROM app.automation_triggers
+    WHERE org_id = ${orgId} AND name LIKE 'fair/t-%'
+  `;
+  record(
+    'schedule scan walks every enabled trigger (no LIMIT-shaped starvation)',
+    stamped[0]?.count === '205',
+    `stamped ${stamped[0]?.count}/205 planted triggers in one scan (examined=${fairScan.examined})`,
+  );
+
+  // ---- #2: webhook redelivery is idempotent — a vendor's delivery id, or a
+  // byte-identical body inside the window, answers with the run it already
+  // started; distinct deliveries each run.
+  const hookBind = await post(
+    `/api/app/automations/${name}/trigger?orgId=${orgId}`,
+    { kind: 'webhook' },
+  );
+  const hookToken = z
+    .object({ token: z.string() })
+    .safeParse(await hookBind.json());
+  const hookUrl = `${base}/api/automations/webhook/${hookToken.success ? hookToken.data.token : 'x'}`;
+  const deliver = (
+    body: string,
+    headers: Record<string, string> = {},
+  ): Promise<Response> =>
+    fetch(hookUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body,
+    });
+  const accepted = z.object({
+    runId: z.string(),
+    duplicate: z.boolean().optional(),
+  });
+  const delivered = async (
+    res: Response,
+  ): Promise<{ status: number; runId: string; duplicate: boolean }> => {
+    const parsed = accepted.safeParse(await res.json());
+    return {
+      status: res.status,
+      runId: parsed.success ? parsed.data.runId : '',
+      duplicate: parsed.success && parsed.data.duplicate === true,
+    };
+  };
+  const runsBeforeHooks = await triggerRuns();
+  const deliveryId = randomUUID();
+  const h1 = await delivered(
+    await deliver('{"attempt":1}', { 'x-github-delivery': deliveryId }),
+  );
+  const h2 = await delivered(
+    await deliver('{"attempt":2}', { 'x-github-delivery': deliveryId }),
+  );
+  const h3 = await delivered(
+    await deliver('{"attempt":3}', { 'x-github-delivery': randomUUID() }),
+  );
+  const b1 = await delivered(await deliver('{"event":"paid","id":"evt_1"}'));
+  const b2 = await delivered(await deliver('{"event":"paid","id":"evt_1"}'));
+  const b3 = await delivered(await deliver('{"event":"paid","id":"evt_2"}'));
+  const hookRuns = (await triggerRuns()) - runsBeforeHooks;
+  record(
+    'webhook redelivery is idempotent; distinct deliveries each run',
+    h1.status === 202 &&
+      !h1.duplicate &&
+      h2.status === 202 &&
+      h2.duplicate &&
+      h2.runId === h1.runId &&
+      h3.status === 202 &&
+      !h3.duplicate &&
+      h3.runId !== h1.runId &&
+      b1.status === 202 &&
+      !b1.duplicate &&
+      b2.status === 202 &&
+      b2.duplicate &&
+      b2.runId === b1.runId &&
+      b3.status === 202 &&
+      !b3.duplicate &&
+      b3.runId !== b1.runId &&
+      hookRuns === 4,
+    `same delivery id → ${h1.status}/${h2.status} dup=${h2.duplicate} same-run=${h2.runId === h1.runId}; new id → ${h3.status} dup=${h3.duplicate}; same body → ${b1.status}/${b2.status} dup=${b2.duplicate} same-run=${b2.runId === b1.runId}; new body → ${b3.status} dup=${b3.duplicate}; runs started=${hookRuns} (want 4)`,
+  );
+
+  // The 256 KB cap counts BYTES: 150k two-byte characters (300 KB) is over
+  // it even though it is under the cap in UTF-16 code units.
+  const multibyte = await deliver(`"${'é'.repeat(150_000)}"`);
+  const oversizeAscii = await deliver(`"${'x'.repeat(300_000)}"`);
+  const underCap = await delivered(await deliver(`"${'x'.repeat(1000)}"`));
+  record(
+    'webhook body cap counts bytes and refuses oversize deliveries',
+    multibyte.status === 413 &&
+      oversizeAscii.status === 413 &&
+      underCap.status === 202,
+    `300 KB multibyte → ${multibyte.status} (want 413), 300 KB ascii → ${oversizeAscii.status} (want 413), 1 KB → ${underCap.status} (want 202)`,
+  );
+
+  // ---- #1 (migration): 0068 resolves planted duplicates DETERMINISTICALLY —
+  // the last-edited row (the user's most recent intent, here a disable) is
+  // kept, the group's newest fire stamp is merged onto it, the phantoms go,
+  // and the unique index comes back — re-applying the file is a no-op.
+  const migrationsDir = new URL('./db/migrations/', import.meta.url);
+  const { readdir } = await import('node:fs/promises');
+  const dedupFile = (await readdir(migrationsDir)).find((file) =>
+    file.startsWith('0068_'),
+  );
+  if (dedupFile === undefined) {
+    record(
+      'migration 0068 keeps the last-edited trigger row and restores the unique index',
+      false,
+      'no 0068_* migration file under backend/db/migrations',
+    );
+  } else {
+    const ddl = await readFile(new URL(dedupFile, migrationsDir), 'utf8');
+    const dupName = 'ops/dedup-probe';
+    const t0 = Date.now() - 600_000;
+    await sql`DROP INDEX IF EXISTS app.automation_triggers_org_name_unique`;
+    const planted = await sql<{ id: string }[]>`
+      INSERT INTO app.automation_triggers (
+        org_id, name, kind, cron, timezone, enabled, last_fired_at_ms,
+        created_by, created_at_ms, updated_at_ms
+      ) VALUES
+        (${orgId}, ${dupName}, 'schedule', '* * * * *', 'UTC', true,
+         ${t0 + 1000}, 'itest', ${t0}, ${t0}),
+        (${orgId}, ${dupName}, 'schedule', '0 9 * * *', 'UTC', false,
+         ${t0 + 5000}, 'itest', ${t0 + 1}, ${t0 + 50_000}),
+        (${orgId}, ${dupName}, 'schedule', '* * * * *', 'UTC', true,
+         ${t0 + 9000}, 'itest', ${t0 + 2}, ${t0 + 2})
+      RETURNING id
+    `;
+    const lastEditedId = planted[1]?.id ?? '';
+    await sql.begin(async (tx) => {
+      await tx.unsafe(ddl);
+    });
+    const survivors = await sql<
+      {
+        id: string;
+        enabled: boolean;
+        cron: string | null;
+        last: number | null;
+      }[]
+    >`
+      SELECT id, enabled, cron, last_fired_at_ms::float8 AS last
+      FROM app.automation_triggers
+      WHERE org_id = ${orgId} AND name = ${dupName}
+    `;
+    const uniqueIndex = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pg_indexes
+      WHERE schemaname = 'app' AND tablename = 'automation_triggers'
+        AND indexname = 'automation_triggers_org_name_unique'
+    `;
+    await sql`
+      DELETE FROM app.automation_triggers
+      WHERE org_id = ${orgId} AND name = ${dupName}
+    `;
+    record(
+      'migration 0068 keeps the last-edited trigger row and restores the unique index',
+      survivors.length === 1 &&
+        survivors[0]?.id === lastEditedId &&
+        !survivors[0]?.enabled &&
+        survivors[0]?.cron === '0 9 * * *' &&
+        survivors[0]?.last === t0 + 9000 &&
+        uniqueIndex[0]?.count === '1',
+      `survivors=${survivors.length} (want 1), kept last-edited=${survivors[0]?.id === lastEditedId}, enabled=${survivors[0]?.enabled} (want false), cron=${survivors[0]?.cron} (want "0 9 * * *"), merged stamp=${survivors[0]?.last === t0 + 9000}, unique index=${uniqueIndex[0]?.count} (want 1)`,
+    );
+  }
+
+  // Leave nothing firing: revoke the webhook and drain the fence's runs.
+  await fetch(`${base}/api/app/automations/${name}/trigger?orgId=${orgId}`, {
+    method: 'DELETE',
+    headers: { cookie, origin: base },
+  });
+  await waitFor(async () => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automation_runs
+      WHERE org_id = ${orgId} AND name = ${name}
+        AND status IN ('queued', 'running', 'waiting')
+    `;
+    return rows[0]?.count === '0';
+  }, 30_000);
+}
+
+/**
  * The platform MCP endpoint (/api/v1/mcp): the 0.4 protocol layer
  * (`handleMcpRequest`) reused whole over two pg-backed handlers — the engine
  * dispatch (org store, live) and the capability surface. Proves the frames
@@ -32112,6 +32434,7 @@ async function main(): Promise<void> {
     );
     await checkAutomations(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkAutomationRunLifecycle(sql, baseUrl, authCtx);
+    await checkAutomationTriggerDelivery(sql, baseUrl, authCtx);
     await checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkBuilderSession(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkRestDoor(sql, baseUrl, authCtx);

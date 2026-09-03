@@ -18,11 +18,12 @@ curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>"
 # → 202 { "runId": "..." }
 ```
 
-The body becomes the run's input. A body that is not JSON is handed through as text rather than refused — some vendors send plain text — and anything over 256 KB is rejected with **413**. Poll the run like any other via `GET /api/v1/runs/{runId}` with an API key, or watch it in the product.
+The body becomes the run's input. A body that is not JSON is handed through as text rather than refused — some vendors send plain text — and anything over 256 KB is rejected with **413** — the cap is counted in bytes as the body arrives, so an oversized delivery is refused rather than buffered. Poll the run like any other via `GET /api/v1/runs/{runId}` with an API key, or watch it in the product.
 
 The full response vocabulary:
 
 - **202** `{ "runId": "..." }` — the run started.
+- **202** `{ "runId": "...", "duplicate": true }` — a redelivery of a delivery already accepted; `runId` is the run the first one started, and no second run exists.
 - **404** — unknown, disabled, or mistyped token. The response never distinguishes the cases, so a guesser learns nothing.
 - **409** `{ "error": "automation has no deployed version" }` — deploy a version whose tests pass and the same call runs.
 - **413** — the body exceeds 256 KB.
@@ -35,9 +36,22 @@ Lost or leaked the URL? Rotate it — `PUT /api/v1/automations/{name}/triggers` 
 
 ## Idempotency and retries
 
-The trigger endpoint does not de-duplicate: a retried POST starts a second run. What makes retries safe is the run itself — a live run checkpoints every completed node, so a run that resumes after an interruption never repeats a side effect it already produced. Where a _duplicate run_ would still be wrong, carry your own de-duplication key in the payload and branch on it in the automation's first node.
+The endpoint de-duplicates deliveries, because every vendor delivers at least once. Two things identify a delivery:
 
-Retrying is the caller's responsibility: the response tells you whether the run _started_, not whether it succeeded. A sensible caller retries non-2xx responses with backoff and treats 202 as done.
+- **A delivery id you send.** The first of these headers present wins: `Idempotency-Key`, `X-Idempotency-Key`, the Standard Webhooks `webhook-id`, `X-GitHub-Delivery`, `X-Gitlab-Event-UUID`, `X-Shopify-Webhook-Id`, `Linear-Delivery`, `X-Atlassian-Webhook-Identifier`, `X-Request-UUID` (Bitbucket), `I-Twilio-Idempotency-Token`, `X-Webhook-Id`. A repeat with the same id inside 24 hours answers **202** with the original run and `"duplicate": true` — whatever its body says.
+- **The body itself.** Without an id header, a byte-identical body posted to the same URL (and the same `projectId`) within two minutes is the same delivery. After two minutes it is a new one, so a heartbeat that posts the same body every few minutes keeps running.
+
+```bash
+curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: order-12345-paid" \
+  -d '{ "orderId": "12345", "status": "paid" }'
+# → 202 { "runId": "run_a" }
+# the same request again, however many times, for the next 24 hours:
+# → 202 { "runId": "run_a", "duplicate": true }
+```
+
+That makes retrying safe from your side: retry timeouts and non-2xx responses with backoff, keep the delivery id stable across attempts, and treat any **202** as accepted — `duplicate: true` tells you the earlier attempt had already landed. The response says whether the run _started_, not whether it succeeded; follow the run with `GET /api/v1/runs/{runId}`. A **409** is not remembered: deploy a version and send the delivery again.
 
 ## Where this fits
 

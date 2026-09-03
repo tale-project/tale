@@ -320,7 +320,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const result = await scanScheduledTriggers(deps.sql);
       if (result.fired > 0) {
         console.log(
-          `[automations] trigger scan fired ${result.fired}/${result.examined}`,
+          `[automations] trigger scan fired ${result.fired}/${result.examined} (${result.pages} page${result.pages === 1 ? '' : 's'})`,
         );
       }
     },

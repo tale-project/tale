@@ -41,7 +41,7 @@ Four responses cover everything the endpoint can say, and each one points at a d
 
 **404** means the token matches no enabled trigger — it is wrong, it was deleted, or the trigger is disabled. The response deliberately never says which, so a caller guessing tokens learns nothing from the difference. **409** with `{ "error": "automation has no deployed version" }` means the automation exists but nothing is live: deploy a version whose tests pass and the same call runs. **413** means the body is over 256 KB; post a reference instead of the payload. **202** is the only success.
 
-Retries deserve one sentence of their own: the endpoint does not de-duplicate, so a retried POST starts a second run. What keeps that safe is the run itself — every completed node is checkpointed, so a run that resumes after an interruption never repeats the side effects it already produced. Where a _duplicate_ run would still be wrong, carry your own event id in the payload and branch on it in the first node.
+Retries deserve one sentence of their own: the endpoint de-duplicates, so a retried POST does not start a second run. Send a delivery id — `Idempotency-Key`, or your vendor's own header such as `X-GitHub-Delivery` — and a repeat inside 24 hours answers with the run the first attempt started, flagged `duplicate: true`; without one, a byte-identical body within two minutes is treated the same way. Keep the id stable across attempts and a stalled request is safe to retry. The run itself checkpoints every completed node too, so a run resumed after an interruption never repeats a side effect it already produced.
 
 ## Where this fits
 
