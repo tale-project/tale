@@ -19,7 +19,9 @@ bun run --filter @tale/sandbox-runtime docker:build
 
 `docker-entrypoint.sh` (PID 1, container-level envelope) `exec`s `entrypoint.sh`
 with args preserved, which dispatches on mode and `exec`s the executor so
-signals (SIGTERM) reach it directly. `install-playwright-browsers.sh` bakes the
+signals (SIGTERM) reach it directly. The `daemon` (session) dispatch `exec`s
+`tini -g` with runnerd as its child on every path, so PID 1 reaps the orphans a
+long-lived session accumulates. `install-playwright-browsers.sh` bakes the
 browser bundles at build time. See the script headers for the split rationale.
 
 ```bash

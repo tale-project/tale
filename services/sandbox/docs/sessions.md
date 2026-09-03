@@ -20,10 +20,14 @@ thread / workflow / render budgets); the host ceiling is `SANDBOX_MAX_SESSIONS`.
 
 ## Architecture
 
-A session is a long-lived container (Docker) / Pod (K8s) whose PID 1 is
-**runnerd**, a small control daemon (`services/sandbox-runtime/daemon`, bundled
-to a single `runnerd.mjs` and run by the image's Node 24). The spawner proxies
-every in-session operation to runnerd over plain HTTP on `:8200`:
+A session is a long-lived container (Docker) / Pod (K8s) running **runnerd**, a
+small control daemon (`services/sandbox-runtime/daemon`, bundled to a single
+`runnerd.mjs` and run by the image's Node 24), under the image's `tini` init as
+PID 1 on every dispatch path — a long-lived container needs a real reaper, since
+every cancelled exec tree and browser recycle leaves orphans that node (which
+never `wait()`s children it did not spawn) would otherwise accumulate as zombies
+against `pids-limit`. The spawner proxies every in-session operation to runnerd
+over plain HTTP on `:8200`:
 
 - Docker: container DNS name `tale-sbx-ses-<id>` on `tale-sandbox-net`.
 - K8s: the Pod IP (read from `status.podIP`).
