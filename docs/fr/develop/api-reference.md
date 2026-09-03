@@ -159,7 +159,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/uplo
 # → 200 { "uploadId": "...", "url": "https://...", "method": "POST", "expiresAt": 1774... }
 ```
 
-`method` nomme la voie de stockage que tu as reçue. `POST` vise le stockage de la plateforme : envoie les octets à `url` avec cette méthode, et la réponse porte `{"storageId": "..."}` — c'est ton `fileId`. `PUT` est une URL présignée pour le bucket propre de l'organisation : envoie les octets, puis lie la `s3Ref` du handoff comme `fileId`. Dans les deux cas, la liaison termine le chargement :
+`method` nomme la voie de stockage que tu as reçue. `POST` vise le stockage de la plateforme : envoie les octets à `url` avec cette méthode, et la réponse porte `{"storageId": "..."}` — c'est ton `fileId`. `PUT` est une URL présignée pour le bucket propre de l'organisation : envoie les octets avec un en-tête `Content-Type` strictement identique au `contentType` déclaré au moment du mint — le type déclaré est signé dans l'URL, le bucket refuse donc un PUT qui en porte un autre (sans `contentType` au mint, le PUT n'impose aucun en-tête) — puis lie la `s3Ref` du handoff comme `fileId`. Dans les deux cas, la liaison termine le chargement :
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/projects/<projectId>/files" \

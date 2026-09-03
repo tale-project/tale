@@ -16,7 +16,10 @@ import {
   parseBlobRef,
   s3KeyBelongsToOrg,
 } from '../../core/lib/storage/blob_ref.ts';
-import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
+import {
+  browserFacing,
+  s3GetObjectBytes,
+} from '../../core/lib/storage/object_store.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -347,7 +350,11 @@ export async function beginReplacementUpload(
   const uploadContentType =
     args.contentType?.trim() || 'application/octet-stream';
   const uploadExpiresAt = Date.now() + PRESIGN_TTL_SEC * 1000;
-  const url = await s3PresignPutUrl(store, stagingKey, {
+  // The browser executes this PUT (mutations.ts uploadWithProgress), so the
+  // URL must be signed against the origin the browser can reach — this lane
+  // was the one browser-handed presign missing `browserFacing`, which broke
+  // replacement uploads on deployments whose store endpoint is internal.
+  const url = await s3PresignPutUrl(browserFacing(store), stagingKey, {
     contentType: uploadContentType,
     expiresInSec: PRESIGN_TTL_SEC,
   });

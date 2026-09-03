@@ -6895,6 +6895,7 @@ toast:
     logoTooSmall: Das Logo muss mindestens {min}×{min} Pixel groß sein.
     imageTooLarge: Bild ist zu groß. Maximale Größe ist 2 MB.
     imageMimeUnsupported: Nicht unterstütztes Bildformat. Verwende PNG, SVG, JPG, WebP oder ICO.
+    imageSvgActiveContent: Die SVG-Datei enthält Skripte oder Event-Handler. Entferne sie oder lade ein PNG hoch.
     imageTypeInvalid: Ungültiger Bildtyp
     addMemberFailed:
       title: Mitglied konnte nicht hinzugefügt werden
