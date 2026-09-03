@@ -1,49 +1,22 @@
 ---
 title: Construire un agent avec du savoir
-description: Lie des documents de la base de connaissances à un agent neuf pour que ses réponses citent les documents au lieu de deviner depuis la mémoire paramétrique du modèle.
+description: Lier des documents à un agent ne fait pas partie de cette version — les connaissances appartiennent à toute l’organisation, indexées sous Connaissances, et l’assistant de chat comme les agents de projet les lisent depuis là.
 ---
 
-Un agent avec du savoir est la forme vers laquelle tu te tournes quand le modèle doit répondre à partir de documents spécifiques — ton manuel produit, tes politiques, les notes d'appel du trimestre dernier — et non depuis ce qu'il a appris durant l'entraînement. L'agent récupère des chunks dans les sources liées au moment de la réponse et les cite. Ce parcours mène un agent neuf de « je veux qu'il connaisse mes docs » à « la réponse cite le bon document » sur une seule instance.
+Ce tutoriel liait trois documents à un agent neuf : le créer sous **Agents > Nouvel agent** avec le tool RAG activé, ouvrir son onglet **Connaissances**, choisir les documents, puis discuter avec l’agent et vérifier les citations. Aucun de ces écrans n’existe dans cette version de Tale — il n’y a ni éditeur d’agent, ni onglet **Connaissances** par agent, ni agent avec lequel ouvrir un chat. Les connaissances, elles, sont bien là ; elles appartiennent à l’organisation et non à un agent, et chaque voie lit dans ce même fonds.
 
-Il te faut un rôle Éditeur, la capacité de charger des documents dans la base de connaissances, et environ trois documents à lier. Le côté conceptuel vit dans [Savoir de l'agent](/fr/platform/agents/knowledge) ; ce parcours est le mécanisme de bout en bout.
+<Note>
 
-## Avant de commencer
+Lier des documents à un agent n’est pas disponible dans cette version. Téléverse les documents sous **Connaissances** ; l’assistant de chat les fouille quand une question le demande, et un agent de projet les lit par les outils de la plateforme dont tu l’équipes.
 
-Confirme trois choses. Ton rôle est au moins Éditeur — l'édition d'agent est verrouillée à Éditeur et au-dessus. Tu as au moins trois documents prêts à charger (PDF, DOCX, Markdown — tout ce que la base de connaissances accepte). Tu as un fournisseur configuré pour que l'agent puisse tourner — sans cela, la réponse de test à la fin échoue sur l'appel au modèle.
+</Note>
 
-## Étape 1 — Charger les documents dans la base de connaissances
+## Obtenir des réponses depuis tes documents aujourd’hui
 
-Le premier geste est de mettre les documents dans la base de connaissances de Tale. Des documents hors de la base ne se lient pas ; l'agent ne voit que des sources qu'il peut nommer.
+Téléverse les documents sous [Documents](/fr/platform/knowledge/documents) et attends la fin de l’indexation — un document dont l’indexation n’est pas terminée ne se retrouve pas encore. Puis interroge l’**assistant de chat** : il fouille les connaissances de l’organisation avec `rag_search` chaque fois que la question le demande, charge le passage trouvé avec `rag_fetch` et liste sous la réponse les sources qu’il a réellement lues — dérivées des résultats des outils, si bien qu’une carte de source n’affirme jamais une lecture qui n’a pas eu lieu. Quand la base de connaissances ne peut pas être fouillée du tout — aucun modèle d’embedding configuré, le fonds encore vide —, l’assistant le dit au lieu de répondre comme si rien n’existait. Impossible de le restreindre à trois documents ; il lit les connaissances de l’organisation.
 
-Ouvre **Savoir > Documents** et clique **Charger**. Glisse les trois documents, donne-leur des titres parlants, et attends que la colonne de statut affiche **Prêt** pour chacun. Le statut parcourt `chargé → en traitement → prêt` ; le traitement découpe le document en chunks et calcule les embeddings. Un PDF typique atteint **Prêt** en une ou deux minutes.
+Un **agent de projet** lit les documents et les entrées de connaissances par les outils de la plateforme que tu lui accordes sous **Skills, connectors & outils**, limités à son projet. Ses **Instructions** sont l’endroit où vit désormais la règle de l’ancien tutoriel — « réponds seulement à partir des documents de l’organisation, cite le titre, refuse quand rien ne correspond » —, et le résultat revient en commentaire de tâche, en **En revue**, où tu vérifies la citation avant d’accepter. [Agents de projet](/fr/platform/projects/project-agents) parcourt l’équipement ; [Construire ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) en crée un de zéro.
 
-Si un document reste sur `en traitement` plus de cinq minutes, ouvre sa ligne pour voir l'erreur — la cause la plus fréquente est un format non supporté (PDF en images, fichiers protégés par mot de passe) ou un fichier plus gros que la limite d'upload de l'organisation.
+## Où cela se place
 
-## Étape 2 — Créer l'agent
-
-Un document lié s'accroche à un agent, donc l'agent doit exister d'abord. Ouvre **Agents > Nouvel agent** et remplis les quatre boutons comme base :
-
-- **Nom** — `Docs Q&A`
-- **Instructions** — `You answer questions strictly from the bound documents. If you cannot find the answer in the documents, say so explicitly. Cite the document title for every claim.`
-- **Tools** — active **RAG** ; tout le reste désactivé
-- **Modèle** — celui que l'organisation utilise par défaut
-
-Enregistre et publie. L'agent existe désormais mais n'a aucun savoir — il refusera toute question, faute de source à trouver.
-
-## Étape 3 — Lier les documents
-
-La liaison est la couture qui donne à l'agent un accès retrieval à un sous-ensemble de la base de connaissances. Ouvre l'onglet **Savoir** de l'agent et clique **Savoir de l'agent**. Choisis les trois documents de l'Étape 1 et enregistre.
-
-L'onglet Savoir liste maintenant trois sources liées. Le tool RAG de l'agent ne récupère que parmi ces trois ; rien d'autre dans la base de connaissances n'est atteignable depuis cet agent, pas même les autres documents de la même bibliothèque.
-
-## Étape 4 — Poser une question et vérifier la citation
-
-Ouvre un chat avec `Docs Q&A` et pose une question à laquelle un des documents répond. La réponse arrive en streaming avec des citations en ligne — survoler montre le titre du document, cliquer ouvre le document au chunk cité. Pose une question qu'aucun des documents ne couvre ; l'agent doit refuser explicitement selon l'instruction, et non inventer une réponse.
-
-Si l'agent invente quand même une réponse, les instructions ne sont pas assez strictes — ajoute un cas de refus explicite (« If you cannot find the answer in the bound documents, respond with exactly: 'I could not find this in the bound documents.' ») et republie.
-
-## Où ça s'utilise
-
-Les quatre gestes ci-dessus sont le build canonique de « l'agent qui répond depuis tes docs » : charger, créer l'agent avec RAG actif, lier, vérifier avec une citation. La même forme passe à l'échelle — lie dix documents au lieu de trois, ajoute un site web ou un dossier client, change de modèle. Ce sont les liaisons, pas le modèle, qui font que l'agent est le tien.
-
-Pour le côté conceptuel — comment le retrieval se compose avec les autres boutons de l'agent — voir [Concepts des agents](/fr/platform/agents/concepts). Pour l'histoire plus large de la base de connaissances — Contacts, Produits, Fournisseurs, Sites web — voir [Aperçu du savoir](/fr/platform/knowledge/overview).
+Dans cette version, les connaissances sont une propriété de l’organisation, pas d’un agent : tu décides de ce qui est indexé, et le chat, les agents de projet et le `get_knowledge` de l’endpoint MCP lisent dans ce même fonds, chacun avec ses règles d’accès. [Connaissances d’agent](/fr/platform/agents/knowledge) est le versant conceptuel ; la [Base de connaissances](/fr/platform/knowledge/overview) est l’endroit où tu façonnes le fonds — les documents, et les sites web que tu y fais collecter.

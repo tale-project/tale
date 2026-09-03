@@ -1,49 +1,22 @@
 ---
 title: Einen Agent mit Wissen bauen
-description: Binde Dokumente aus der Wissensdatenbank an einen frischen Agent, damit seine Antworten die Dokumente zitieren statt aus dem parametrischen Modellgedächtnis zu raten.
+description: Dokumente an einen Agenten zu binden gibt es in dieser Version nicht — Wissen gehört der ganzen Organisation, wird unter Wissen indexiert, und Chat-Assistent wie Projekt-Agenten lesen es von dort.
 ---
 
-Ein Agent mit Wissen ist die Form, zu der du greifst, wenn das Modell aus bestimmten Dokumenten antworten soll — deinem Produkt-Handbuch, deinen Richtlinien, den Call-Notizen des letzten Quartals — und nicht aus dem, was es im Training gelernt hat. Der Agent holt zur Antwortzeit Chunks aus den gebundenen Quellen und zitiert sie. Dieser Spaziergang führt einen frischen Agent von „ich will, dass er meine Docs kennt" zu „die Antwort zitiert das richtige Dokument" auf einer Instanz.
+Diese Anleitung hat früher drei Dokumente an einen frischen Agenten gebunden: unter **Agenten > Neuer Agent** mit eingeschaltetem RAG-Tool anlegen, seinen Tab **Wissen** öffnen, die Dokumente auswählen, dann mit dem Agenten chatten und die Belege prüfen. Keine dieser Ansichten gibt es in dieser Version von Tale — es gibt keinen Agenten-Editor, keinen Tab **Wissen** pro Agent und keinen Agenten, mit dem du einen Chat öffnen könntest. Das Wissen selbst ist sehr wohl da; es gehört der Organisation und nicht einem Agenten, und jede Bahn liest aus diesem einen Bestand.
 
-Du brauchst eine Editor-Rolle, die Fähigkeit, Dokumente in die Wissensdatenbank hochzuladen, und etwa drei zu bindende Dokumente. Die konzeptuelle Seite lebt in [Agent-Wissen](/de/platform/agents/knowledge); dieser Spaziergang ist der End-to-End-Mechanismus.
+<Note>
 
-## Bevor du beginnst
+Dokumente pro Agent zu binden ist in dieser Version nicht verfügbar. Lade Dokumente unter **Wissen** hoch; der Chat-Assistent durchsucht sie, wenn eine Frage danach verlangt, und ein Projekt-Agent liest sie über die Plattform-Tools, mit denen du ihn ausrüstest.
 
-Bestätige drei Dinge. Deine Rolle ist mindestens Editor — die Agent-Bearbeitung ist auf Editor und höher begrenzt. Du hast mindestens drei Dokumente zum Hochladen bereit (PDFs, DOCX, Markdown — alles, was die Wissensdatenbank akzeptiert). Du hast einen Anbieter konfiguriert, damit der Agent laufen kann — ohne diesen scheitert die Test-Antwort am Ende beim Modell-Call.
+</Note>
 
-## Schritt 1 — Dokumente in die Wissensdatenbank hochladen
+## Heute Antworten aus deinen Dokumenten bekommen
 
-Der erste Zug ist, die Dokumente in Tales Wissensdatenbank zu legen. Dokumente ausserhalb der Wissensdatenbank lassen sich nicht binden; der Agent sieht nur Quellen, die er benennen kann.
+Lade die Dokumente unter [Dokumente](/de/platform/knowledge/documents) hoch und warte, bis die Indexierung durch ist — ein Dokument, das noch nicht fertig indexiert ist, lässt sich noch nicht finden. Dann frag den **Chat-Assistenten**: Er durchsucht das Wissen der Organisation mit `rag_search`, wann immer die Frage danach verlangt, lädt die gefundene Passage mit `rag_fetch` und listet unter der Antwort die Quellen, die er tatsächlich gelesen hat — abgeleitet aus den Tool-Ergebnissen, sodass eine Quellenkarte nie eine Lektüre behauptet, die nicht stattgefunden hat. Lässt sich die Wissensdatenbank gar nicht durchsuchen — kein Embedding-Modell konfiguriert, der Bestand noch leer —, sagt der Assistent das, statt zu antworten, als gäbe es nichts. Auf drei Dokumente eingrenzen lässt sich der Assistent nicht; er liest das Wissen der Organisation.
 
-Öffne **Wissen > Dokumente** und klick **Hochladen**. Zieh die drei Dokumente hinein, gib ihnen sinnvolle Titel und warte, bis die Status-Spalte für jedes **Bereit** zeigt. Der Status durchläuft `hochgeladen → wird verarbeitet → bereit`; die Verarbeitung chunkt das Dokument und berechnet Embeddings. Ein typisches PDF erreicht **Bereit** in ein, zwei Minuten.
+Ein **Projekt-Agent** liest Dokumente und Wissenseinträge über die Plattform-Tools, die du ihm unter **Skills, Connectors & Tools** gibst, beschränkt auf sein Projekt. Seine **Anweisungen** sind der Ort, an dem die Regel der alten Anleitung heute steht — „antworte nur aus den Dokumenten der Organisation, nenne den Titel, lehne ab, wenn nichts passt“ —, und das Ergebnis kommt als Aufgaben-Kommentar unter **In Prüfung** zurück, wo du den Beleg prüfst, bevor du annimmst. [Projekt-Agenten](/de/platform/projects/project-agents) geht die Ausrüstung durch; [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) legt einen von Null an.
 
-Bleibt ein Dokument länger als fünf Minuten auf `wird verarbeitet`, öffne seine Zeile, um den Fehler zu sehen — die häufigste Ursache ist ein nicht unterstütztes Format (reine Bild-PDFs, passwortgeschützte Dateien) oder eine Datei grösser als das Upload-Limit der Org.
+## Wo das hingehört
 
-## Schritt 2 — Den Agent erstellen
-
-Ein gebundenes Dokument hängt an einem Agent, also muss der Agent zuerst existieren. Öffne **Agenten > Neuer Agent** und füll die vier Knöpfe als Basis aus:
-
-- **Name** — `Docs Q&A`
-- **Instruktionen** — `You answer questions strictly from the bound documents. If you cannot find the answer in the documents, say so explicitly. Cite the document title for every claim.`
-- **Tools** — **RAG** einschalten; alles andere aus
-- **Modell** — was immer die Org als Default nutzt
-
-Speichern und veröffentlichen. Der Agent existiert nun, hat aber kein Wissen — er wird jede Frage verweigern, weil er keine Quelle findet.
-
-## Schritt 3 — Die Dokumente binden
-
-Die Bindung ist die Naht, die dem Agent Retrieval-Zugriff auf eine Teilmenge der Wissensdatenbank gibt. Öffne den Tab **Wissen** des Agenten und klick **Agent-Wissen**. Wähl die drei Dokumente aus Schritt 1 und speicher.
-
-Der Wissen-Tab listet jetzt drei gebundene Quellen. Das RAG-Tool des Agenten holt nur aus diesen drei; nichts anderes in der Wissensdatenbank ist von diesem Agent aus erreichbar, auch keine anderen Dokumente in derselben Bibliothek.
-
-## Schritt 4 — Eine Frage stellen und das Zitat prüfen
-
-Öffne einen Chat mit `Docs Q&A` und stell eine Frage, die eines der Dokumente beantwortet. Die Antwort streamt mit inline gesetzten Zitaten herein — Hovern zeigt den Dokument-Titel, Klicken öffnet das Dokument am zitierten Chunk. Stell eine Frage, die keines der Dokumente abdeckt; der Agent sollte gemäss Instruktion explizit verweigern und keine Antwort erfinden.
-
-Erfindet der Agent trotzdem eine Antwort, sind die Instruktionen nicht streng genug — füg einen expliziten Verweigerungs-Fall hinzu („If you cannot find the answer in the bound documents, respond with exactly: 'I could not find this in the bound documents.'") und veröffentliche erneut.
-
-## Wo das eingesetzt wird
-
-Die vier Züge oben sind der kanonische „Agent, der aus deinen Docs antwortet"-Bau: hochladen, Agent mit aktivem RAG erstellen, binden, mit einem Zitat verifizieren. Dieselbe Form skaliert — bind zehn Dokumente statt drei, füg eine Website oder einen Kunden-Datensatz hinzu, wechsle das Modell. Die Bindungen, nicht das Modell, machen den Agent zu deinem.
-
-Für die konzeptuelle Seite, wie Retrieval mit den anderen Knöpfen des Agenten zusammenspielt, siehe [Agent-Konzepte](/de/platform/agents/concepts). Für die breitere Wissensdatenbank-Geschichte — Kontakte, Produkte, Anbieter, Websites — siehe [Wissens-Überblick](/de/platform/knowledge/overview).
+Wissen ist in dieser Version eine Eigenschaft der Organisation, nicht eines Agenten: Du entscheidest, was indexiert wird, und Chat, Projekt-Agenten und das `get_knowledge` des MCP-Endpoints lesen aus diesem einen Bestand mit ihren eigenen Zugriffsregeln. [Agent-Wissen](/de/platform/agents/knowledge) ist die konzeptionelle Seite; [Wissen](/de/platform/knowledge/overview) ist der Ort, an dem du den Bestand formst — Dokumente und die Websites, die du hineincrawlst.

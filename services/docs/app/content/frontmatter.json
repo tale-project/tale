@@ -60,7 +60,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Construire un agent avec du savoir",
-      "description": "Lie des documents de la base de connaissances à un agent neuf pour que ses réponses citent les documents au lieu de deviner depuis la mémoire paramétrique du modèle."
+      "description": "Lier des documents à un agent ne fait pas partie de cette version — les connaissances appartiennent à toute l’organisation, indexées sous Connaissances, et l’assistant de chat comme les agents de projet les lisent depuis là."
     }
   },
   "fr:tutorials/editor/workflow-with-approvals": {
@@ -1237,7 +1237,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Build an agent with knowledge",
-      "description": "Bind documents from the knowledge base to a fresh agent so its replies cite the documents instead of guessing from the model's parametric memory."
+      "description": "Binding documents to an agent is not part of this version — knowledge is organization-wide, indexed under Knowledge, and the chat assistant and project agents read it from there."
     }
   },
   "en:tutorials/editor/workflow-with-approvals": {
@@ -2414,7 +2414,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einen Agent mit Wissen bauen",
-      "description": "Binde Dokumente aus der Wissensdatenbank an einen frischen Agent, damit seine Antworten die Dokumente zitieren statt aus dem parametrischen Modellgedächtnis zu raten."
+      "description": "Dokumente an einen Agenten zu binden gibt es in dieser Version nicht — Wissen gehört der ganzen Organisation, wird unter Wissen indexiert, und Chat-Assistent wie Projekt-Agenten lesen es von dort."
     }
   },
   "de:tutorials/editor/workflow-with-approvals": {
