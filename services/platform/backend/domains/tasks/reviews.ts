@@ -15,7 +15,6 @@ import {
   notifyTaskReviewResolved,
   taskSubscriberUserIds,
 } from '../collab/service.ts';
-import { emitEvent } from '../events/emit.ts';
 import { holdsAllCompetences } from '../governance/competence.ts';
 import {
   loadProjectOrThrow,
@@ -24,13 +23,12 @@ import {
 import { kickAgentRun } from './agent-runs.ts';
 import { addTaskComment } from './comments.ts';
 import {
-  applyTaskCountTransition,
   assertTaskWritable,
   computeEndRank,
   hasOpenChildren,
   loadTaskOrThrow,
   recordActivity,
-  taskCountBucket,
+  settleTaskStatusChange,
   TaskError,
   type TaskRow,
 } from './service.ts';
@@ -623,47 +621,16 @@ export async function respondToTaskReview(
             updated_at_ms = ${now}, status_changed_at_ms = ${now}
           WHERE id = ${task.id}
         `;
-        await applyTaskCountTransition(
-          tx,
-          task.projectId,
-          taskCountBucket(task),
-          taskCountBucket({ status: 'done', archivedAt: task.archivedAt }),
-        );
-        await recordActivity(tx, {
+        // The resolved bell above already told every subscriber what the
+        // responder decided; the seam adds the rollup, activity, audit and
+        // the platform event, not a second bell.
+        await settleTaskStatusChange(tx, {
           task,
+          toStatus: 'done',
           actorType: 'user',
           actorId: args.auth.userId,
-          action: 'status.changed',
-          fromValue: task.status,
-          toValue: 'done',
-        });
-        await createAuditLog(tx, {
-          organizationId: approval.organizationId,
-          actorId: args.auth.userId,
-          ...(args.auth.email !== undefined
-            ? { actorEmail: args.auth.email }
-            : {}),
-          actorType: 'user',
-          action: 'task.status_changed',
-          category: 'data',
-          resourceType: 'task',
-          resourceId: task.id,
-          resourceName: task.title,
-          previousState: { status: task.status },
-          newState: { status: 'done' },
-          status: 'success',
-        });
-        await emitEvent(tx, {
-          organizationId: approval.organizationId,
-          eventType: 'task.status_changed',
-          eventData: {
-            taskId: task.id,
-            projectId: task.projectId,
-            fromStatus: task.status,
-            toStatus: 'done',
-            actorType: 'user',
-            actorId: args.auth.userId,
-          },
+          audit: args.auth,
+          bell: false,
         });
         taskCompleted = true;
       }
@@ -717,22 +684,16 @@ export async function respondToTaskReview(
             status_changed_at_ms = ${now}, updated_at_ms = ${now}
           WHERE id = ${fresh.id}
         `;
-        await applyTaskCountTransition(
-          tx,
-          fresh.projectId,
-          taskCountBucket(fresh),
-          taskCountBucket({
-            status: 'in_progress',
-            archivedAt: fresh.archivedAt,
-          }),
-        );
-        await recordActivity(tx, {
+        // Same seam as the approve leg: the reopen now fires the org's
+        // `task.status_changed` triggers too; the changes-requested bell
+        // already carried the news to the subscribers.
+        await settleTaskStatusChange(tx, {
           task: fresh,
+          toStatus: 'in_progress',
           actorType: 'user',
           actorId: args.auth.userId,
-          action: 'status.changed',
-          fromValue: fresh.status,
-          toValue: 'in_progress',
+          audit: args.auth,
+          bell: false,
         });
         taskReopened = true;
       }

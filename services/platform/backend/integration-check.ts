@@ -53,7 +53,7 @@ import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
-import { emitHintInTx } from './realtime/outbox.ts';
+import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
 
 const noopPayloadSchema = z.object({
   seq: z.number().optional(),
@@ -463,6 +463,118 @@ async function checkAuthAndSse(
 }
 
 /**
+ * The realtime outbox's retention: delivered hints older than the horizon
+ * are reclaimed as a strict id-prefix (an in-horizon row — and any older
+ * stamp ABOVE it, the long-transaction skew — survives), a second sweep is a
+ * no-op, and a client resuming from a reclaimed cursor is told to `resync`
+ * while one resuming from a retained cursor replays cleanly. Runs early, on
+ * a small table, so the backdate below touches only rows already consumed.
+ */
+async function checkOutboxRetention(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  // Bound as optional on purpose: on a backend without the reclaim seam the
+  // probe is the finding itself (the outbox grows forever), not a crash.
+  const seams: Partial<typeof import('./realtime/outbox.ts')> =
+    await import('./realtime/outbox.ts');
+  const { OUTBOX_RETENTION_MS, outboxRetainsCursor, reclaimOutbox } = seams;
+  if (
+    OUTBOX_RETENTION_MS === undefined ||
+    outboxRetainsCursor === undefined ||
+    reclaimOutbox === undefined
+  ) {
+    record(
+      'realtime outbox retention: prefix reclaim, skew-safe, resync on a reclaimed cursor',
+      false,
+      'no reclaim seam exported by realtime/outbox.ts — app_realtime.outbox is never pruned',
+    );
+    return;
+  }
+  const insert = async (entityId: string): Promise<string> => {
+    await sql.begin((tx) =>
+      emitHintInTx(tx, { orgId, entity: 'itest_outbox', entityId }),
+    );
+    const rows = await sql<{ id: string }[]>`
+      SELECT id::text AS id FROM app_realtime.outbox
+      WHERE org_id = ${orgId} AND entity = 'itest_outbox'
+        AND entity_id = ${entityId}
+    `;
+    return rows[0]?.id ?? '0';
+  };
+  // Three rows in id order: one past the horizon, one fresh, and one past
+  // the horizon ABOVE the fresh one (a stamp a long transaction can leave).
+  const stale = await insert('stale');
+  const fresh = await insert('fresh');
+  const skewed = await insert('skewed');
+  const twoHoursAgo = new Date(Date.now() - 2 * OUTBOX_RETENTION_MS);
+  await sql`
+    UPDATE app_realtime.outbox SET created_at = ${twoHoursAgo}
+    WHERE id <= ${stale}::bigint OR id = ${skewed}::bigint
+  `;
+  const prefixBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE id <= ${stale}::bigint
+  `;
+
+  // A tiny batch, so the sweep has to walk several rounds and stop where
+  // the prefix ends.
+  const reclaimed = await reclaimOutbox(sql, { batch: 2, maxBatches: 1_000 });
+  const reclaimedAgain = await reclaimOutbox(sql, { batch: 2 });
+  const survivors = await sql<{ entityId: string | null }[]>`
+    SELECT entity_id AS "entityId" FROM app_realtime.outbox
+    WHERE id <= ${skewed}::bigint ORDER BY id
+  `;
+  const staleRetained = await outboxRetainsCursor(sql, stale);
+  const freshRetained = await outboxRetainsCursor(sql, fresh);
+
+  // A client resuming from the reclaimed cursor is told to resync (and
+  // still gets what follows); one resuming from the retained cursor is not.
+  const url = `${base}/events?orgId=${orgId}`;
+  const gapped = connectSse(url, { cookie, 'Last-Event-ID': stale });
+  const intact = connectSse(url, { cookie, 'Last-Event-ID': fresh });
+  await sleep(700);
+  await insert('after');
+  const gappedResynced = await waitFor(
+    () => gapped.events.some((e) => e.event === 'resync'),
+    3_000,
+  );
+  const gappedLive = await waitFor(
+    () => gapped.events.some((e) => e.data.includes('"after"')),
+    3_000,
+  );
+  const intactLive = await waitFor(
+    () => intact.events.some((e) => e.data.includes('"after"')),
+    3_000,
+  );
+  const intactReplayed = intact.events.some((e) => e.data.includes('"skewed"'));
+  const intactResynced = intact.events.some((e) => e.event === 'resync');
+  gapped.abort();
+  intact.abort();
+  await gapped.done;
+  await intact.done;
+
+  record(
+    'realtime outbox retention: prefix reclaim, skew-safe, resync on a reclaimed cursor',
+    reclaimed === Number(prefixBefore[0]?.count ?? '-1') &&
+      reclaimed >= 1 &&
+      reclaimedAgain === 0 &&
+      JSON.stringify(survivors.map((r) => r.entityId)) ===
+        '["fresh","skewed"]' &&
+      !staleRetained &&
+      freshRetained &&
+      gappedResynced &&
+      gappedLive &&
+      intactLive &&
+      intactReplayed &&
+      !intactResynced,
+    `reclaimed=${reclaimed} (want ${prefixBefore[0]?.count}), again=${reclaimedAgain} (want 0), survivors=${JSON.stringify(survivors.map((r) => r.entityId))} (want fresh,skewed), retains(stale)=${staleRetained} retains(fresh)=${freshRetained}, gapped: resync=${gappedResynced} live=${gappedLive}; intact: replayed=${intactReplayed} live=${intactLive} resync=${intactResynced} (want false)`,
+  );
+}
+
+/**
  * The notifications vertical slice (org-audience bell): serializable write +
  * org-wide hint → SSE delivery → role-gated API reads → dedupe → mark-read.
  */
@@ -494,7 +606,7 @@ async function checkNotifications(
   const hintOk = await waitFor(
     () =>
       stream.events.some(
-        (e) => e.event === 'hint' && e.data.includes('notification'),
+        (e) => e.event === 'hint' && e.data.includes('"entity":"notification"'),
       ),
     5_000,
   );
@@ -24189,6 +24301,320 @@ async function checkCollabEmitters(
 }
 
 /**
+ * The personal bell's WIRE: a bell row lands as a hint named exactly what the
+ * web app keys the bell on (`notification` — `NOTIFICATION_HINT_ENTITY`),
+ * delivered to the recipient's stream only (never to another member's), and
+ * the recipient's own mark-all-read hints them too, so other tabs drop the
+ * badge. Before this contract was pinned the writer said `user_notification`
+ * and the bell never lit up live.
+ */
+async function checkBellHintWire(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (
+    route: string,
+    body: unknown,
+    asCookie: string = cookie,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: asCookie,
+        origin: base,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  // The recipient: a teammate with a session of their own.
+  const mateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `bell-wire-${Date.now()}@example.com`,
+      password: 'itest-password-1',
+      name: 'Bell Recipient',
+    }),
+  });
+  const mateCookie = cookieHeaderFrom(mateSignUp);
+  const mateBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await mateSignUp.json());
+  const mateId = mateBody.success ? mateBody.data.user.id : '';
+  const joined = await post(`/api/app/members?orgId=${orgId}`, {
+    userId: mateId,
+    role: 'member',
+  });
+
+  const ownerStream = connectSse(`${base}/events?orgId=${orgId}`, { cookie });
+  const mateStream = connectSse(`${base}/events?orgId=${orgId}`, {
+    cookie: mateCookie,
+  });
+  await sleep(500); // both tails established
+  const startId = await latestOutboxId(sql);
+
+  const { writeCoalescedNotification } =
+    await import('./domains/collab/service.ts');
+  await sql.begin((tx) =>
+    writeCoalescedNotification(tx, {
+      userId: mateId,
+      organizationId: orgId,
+      type: 'task_status_changed',
+      titleKey: 'taskStatusChanged',
+      bodyKey: 'taskStatusChangedBody',
+      params: { title: 'Bell wire', from: 'todo', to: 'in_progress' },
+      resourceType: 'task',
+      resourceId: 'itest-bell-wire',
+      taskId: 'itest-bell-wire',
+      actorType: 'user',
+      actorId: userId,
+    }),
+  );
+  const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
+  const isBellHint = (e: SseEvent): boolean =>
+    e.event === 'hint' && e.data === bellHint;
+  const mateGotIt = await waitFor(
+    () => mateStream.events.some(isBellHint),
+    5_000,
+  );
+  await sleep(700); // two poll cycles — the owner's stream had every chance
+  const ownerSpared = !ownerStream.events.some(isBellHint);
+  const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
+    SELECT user_id AS "userId", entity FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND id > ${startId}::bigint
+      AND entity IN ('notification', 'user_notification')
+  `;
+  const narrowed =
+    outboxRows.length === 1 &&
+    outboxRows[0]?.entity === 'notification' &&
+    outboxRows[0].userId === mateId;
+
+  // The recipient reads everything → their own streams are told as well.
+  const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
+  const markAll = await post(
+    `/api/app/collab/notifications/read-all?orgId=${orgId}`,
+    undefined,
+    mateCookie,
+  );
+  const mateToldOfRead = await waitFor(
+    () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
+    5_000,
+  );
+  ownerStream.abort();
+  mateStream.abort();
+  await ownerStream.done;
+  await mateStream.done;
+  const row = await sql<{ read: boolean }[]>`
+    SELECT read FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${mateId}
+      AND resource_id = 'itest-bell-wire'
+  `;
+  record(
+    'personal bell hint wire: app entity, recipient-only, read-all hints',
+    joined.ok &&
+      mateGotIt &&
+      ownerSpared &&
+      narrowed &&
+      markAll.ok &&
+      mateToldOfRead &&
+      (row[0]?.read ?? false),
+    `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
+  );
+}
+
+/**
+ * Moving a card is the same status door as the sheet's picker: the
+ * assignee's bell rings and the org's `task.status_changed` triggers fire —
+ * for the board drag (`/move`), the bulk bar (`/bulk`) and the picker
+ * (`/status`) alike, with one activity line and one audit row each. Before
+ * the shared settle seam the drag and the bulk bar did neither, so a primary
+ * interaction landed silently.
+ */
+async function checkBoardMoveEffects(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  // An automation listening on task.status_changed — a transform-only body,
+  // so the triggered run settles without an LLM.
+  const automation = 'itest/board-move';
+  const saved = await post(
+    `/api/app/automations/${automation}/save?orgId=${orgId}`,
+    {
+      document: {
+        version: 1,
+        name: automation,
+        nodes: [
+          {
+            id: 'echo',
+            type: 'transform',
+            input: { event: '{{ input.event }}' },
+            code: 'return { seen: input.event }',
+          },
+        ],
+        output: '{{ nodes.echo.output.seen }}',
+      },
+      message: 'board move probe',
+    },
+  );
+  const deployed = await post(
+    `/api/app/automations/${automation}/deploy?orgId=${orgId}`,
+    { version: 1 },
+  );
+  const armed = await post(
+    `/api/app/automations/${automation}/trigger?orgId=${orgId}`,
+    { kind: 'event', event: 'task.status_changed' },
+  );
+  const runsOf = async (): Promise<number> => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automation_runs
+      WHERE org_id = ${orgId} AND name = ${automation}
+        AND started_by LIKE 'trigger:%'
+    `;
+    return Number(rows[0]?.count ?? '0');
+  };
+
+  // The board: a project, a card, and a teammate who is assigned the card
+  // (the assignment subscribes them — the bell's recipient).
+  const project = z
+    .object({ projectId: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Board moves' })
+      ).json(),
+    );
+  const projectId = project.success ? project.data.projectId : '';
+  const task = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Drag me',
+        status: 'todo',
+      })
+    ).json(),
+  );
+  const taskId = task.success ? task.data.taskId : '';
+  const mateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `board-move-${Date.now()}@example.com`,
+      password: 'itest-password-1',
+      name: 'Board Assignee',
+    }),
+  });
+  const mateBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await mateSignUp.json());
+  const mateId = mateBody.success ? mateBody.data.user.id : '';
+  await post(`/api/app/members?orgId=${orgId}`, {
+    userId: mateId,
+    role: 'member',
+  });
+  const assigned = await post(
+    `/api/app/tasks/${taskId}/assign?orgId=${orgId}`,
+    {
+      assigneeType: 'user',
+      assigneeId: mateId,
+    },
+  );
+  const bellTo = async (): Promise<string[]> => {
+    const rows = await sql<{ params: Record<string, unknown> | null }[]>`
+      SELECT params FROM app.user_notifications
+      WHERE org_id = ${orgId} AND user_id = ${mateId}
+        AND type = 'task_status_changed' AND task_id = ${taskId}
+        AND read = false
+      ORDER BY seq
+    `;
+    return rows.map((row) => String(row.params?.to));
+  };
+  const runsBefore = await runsOf();
+
+  // 1. The drag: the board posts /move with the destination column.
+  const dragged = await post(`/api/app/tasks/${taskId}/move?orgId=${orgId}`, {
+    status: 'in_progress',
+  });
+  const dragFired = await waitFor(
+    async () => (await runsOf()) >= runsBefore + 1,
+    5_000,
+  );
+  const dragBell = await bellTo();
+
+  // 2. The bulk bar: one patch over the selection (the unread bell row
+  //    coalesces — same dimension, current truth).
+  const bulk = z.object({ updated: z.number(), skipped: z.number() }).safeParse(
+    await (
+      await post(`/api/app/tasks/bulk?orgId=${orgId}`, {
+        taskIds: [taskId],
+        status: 'todo',
+      })
+    ).json(),
+  );
+  const bulkFired = await waitFor(
+    async () => (await runsOf()) >= runsBefore + 2,
+    5_000,
+  );
+  const bulkBell = await bellTo();
+
+  // 3. The picker, for parity.
+  const picked = await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+    status: 'in_progress',
+  });
+  const pickerFired = await waitFor(
+    async () => (await runsOf()) >= runsBefore + 3,
+    5_000,
+  );
+  const pickerBell = await bellTo();
+
+  const activity = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.task_activity
+    WHERE task_id = ${taskId} AND action = 'status.changed'
+  `;
+  const audits = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_id = ${taskId}
+      AND action = 'task.status_changed'
+  `;
+  // Disarm: later probes flip statuses of their own.
+  const disarmed = await fetch(
+    `${base}/api/app/automations/${automation}/trigger?orgId=${orgId}`,
+    { method: 'DELETE', headers: { cookie, origin: base } },
+  );
+  record(
+    'board drag + bulk bar bell the assignee and fire task.status_changed like the picker',
+    saved.ok &&
+      deployed.ok &&
+      armed.ok &&
+      assigned.ok &&
+      dragged.ok &&
+      dragFired &&
+      JSON.stringify(dragBell) === '["in_progress"]' &&
+      bulk.success &&
+      bulk.data.updated === 1 &&
+      bulkFired &&
+      JSON.stringify(bulkBell) === '["todo"]' &&
+      picked.ok &&
+      pickerFired &&
+      JSON.stringify(pickerBell) === '["in_progress"]' &&
+      activity[0]?.count === '3' &&
+      audits[0]?.count === '3' &&
+      disarmed.ok,
+    `setup=${saved.status}/${deployed.status}/${armed.status}/assign=${assigned.status}, drag → ${dragged.status} event=${dragFired} bell=${JSON.stringify(dragBell)} (want ["in_progress"]), bulk → ${bulk.success ? `${bulk.data.updated}/${bulk.data.skipped}` : 'ERR'} event=${bulkFired} bell=${JSON.stringify(bulkBell)} (want ["todo"]), picker → ${picked.status} event=${pickerFired} bell=${JSON.stringify(pickerBell)}, activity=${activity[0]?.count} audit=${audits[0]?.count} (want 3/3), disarm=${disarmed.status}`,
+  );
+}
+
+/**
  * The small tail: the accounts probe (which auth backings the user has),
  * the changelog orchestration on an injected fetcher (paging honors `from`,
  * page-2 failures degrade to a partial), and the route's auth gate.
@@ -30903,6 +31329,7 @@ async function main(): Promise<void> {
     );
 
     await checkNotifications(sql, baseUrl, authCtx);
+    await checkOutboxRetention(sql, baseUrl, authCtx);
     await checkIdentityDomains(
       baseUrl,
       authCtx,
@@ -30942,6 +31369,8 @@ async function main(): Promise<void> {
     await checkTurnEquipmentBroker(sql, baseUrl, authCtx);
     await checkKnowledgeEntries(sql, baseUrl, authCtx);
     await checkCollabEmitters(sql, baseUrl, authCtx);
+    await checkBellHintWire(sql, baseUrl, authCtx);
+    await checkBoardMoveEffects(sql, baseUrl, authCtx);
     await checkChangelogAndAccounts(sql, baseUrl, authCtx);
     await checkAccountAuthzHardening(sql, baseUrl, authCtx, orgSuffix);
     await checkLegalHolds(sql, baseUrl, authCtx);
