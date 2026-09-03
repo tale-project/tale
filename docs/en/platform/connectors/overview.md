@@ -1,6 +1,6 @@
 ---
 title: Connectors
-description: The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and chat.
+description: The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and agent runs.
 ---
 
 A connector is two things at once: a **connector** that ships with the platform, and the **credentials** your organisation stores against that connector. The connector carries the vendor knowledge — which actions exist, what each one takes and returns, how signing in works — and is identical in every organisation. The credentials are yours, and a connector holds as many as you need: one per workspace, store, mailbox, or bot. Thirteen connectors ship today, and each one is already listed under **Settings > Connectors**, waiting for its first credential.
@@ -47,7 +47,7 @@ Each credential carries four things:
 
 - **Name** — the name an action uses to pick this credential. Write it for whoever reads the automation months from now: `Support inbox`, `EU store`, `Release bot`.
 - **Authentication method** — **API key**, **Token**, **Username & password**, or **OAuth**, chosen from what the connector accepts.
-- **Default** — one credential per connector can hold this. An automation node or chat action that names no credential uses the default.
+- **Default** — one credential per connector can hold this. An automation node — or an agent's call through the broker — that names no credential uses the default.
 - **State** — a credential is either in use or **Disabled**. Disabling keeps the row and its configuration but stops anything calling through it.
 
 Leave a connector without a default and it still works for callers that name a credential outright, but a caller that names none has nothing to fall back on. The connector's section says as much, and the fix is to promote one of the existing credentials.
@@ -78,7 +78,7 @@ Every connector has a section, headed by its icon, description, category tags, a
 
 <Step title="Name it, and make it the default">
 
-Give the credential a name your automations can point at, and promote it if it should be the one used when nobody names a credential. The connector's actions become available to automations and chat as soon as the row exists.
+Give the credential a name your automations can point at, and promote it if it should be the one used when nobody names a credential. The connector's actions become available to automations — and, on the read side, to project agents — as soon as the row exists.
 
 </Step>
 
@@ -86,13 +86,13 @@ Give the credential a name your automations can point at, and promote it if it s
 
 The per-method detail — what each form asks for, how to replace a secret, what happens when an authorization expires — lives on [Connector credentials](/platform/admin/connectors).
 
-## Actions in automations and chat
+## Actions in automations and agent runs
 
-Every action a connector declares has a name, a description, an input schema, an output signature, and a declared effect of `read` or `write`. Automations place an action as a node in the workflow editor; chat reaches the same actions as agent tools. Either way the call resolves a credential first — the one the caller names, or the connector's default — and fails clearly when neither exists.
+Every action a connector declares has a name, a description, an input schema, an output signature, and a declared effect of `read` or `write`. Automations place an action as a node in the workflow editor; a project agent reaches the read actions from its sandbox through a broker that runs them with the stored credential and hands back only the result. Chat reaches none of them — the chat assistant's tools are fixed and read-only. Either way the call resolves a credential first — the one the caller names, or the connector's default — and fails clearly when neither exists.
 
 <Warning>
 
-Write actions change something in the other system: a message posted, an issue opened, an SMS sent. They gate behind your organisation's approval policy, so the agent proposes the call and a person releases it. Read [Configure approvals](/platform/approvals/configure) before pointing an agent at one.
+Write actions change something in the other system: a message posted, an issue opened, an SMS sent. They run only from an automation, and they gate behind your organisation's approval policy, so the run parks and a person releases the call on the run's detail page. Read [Configure approvals](/platform/approvals/configure) before pointing an automation at one.
 
 </Warning>
 

@@ -1,6 +1,6 @@
 ---
 title: Connectors
-description: Les connecteurs livrés avec Tale, les identifiants que ton organisation enregistre en face, et comment les actions d’un connecteur arrivent dans les automatisations et le chat.
+description: Les connecteurs livrés avec Tale, les identifiants que ton organisation enregistre en face, et comment les actions d’un connecteur arrivent dans les automatisations et les exécutions d’agent.
 ---
 
 Une connector, c’est deux choses à la fois : un **connecteur** livré avec la plateforme, et les **identifiants** que ton organisation enregistre en face de ce connecteur. Le connecteur porte la connaissance du fournisseur — quelles actions existent, ce que chacune prend et renvoie, comment se fait la connexion — et il est identique dans toutes les organisations. Les identifiants, eux, sont à toi, et un connecteur en porte autant que nécessaire : un par espace de travail, boutique, boîte mail ou bot. Treize connecteurs sont livrés aujourd’hui, et chacun figure déjà sous **Paramètres > Connectors**, en attente de son premier identifiant.
@@ -47,7 +47,7 @@ Chaque identifiant porte quatre choses :
 
 - **Nom** — le nom sous lequel une action choisit ces identifiants. Écris-le pour la personne qui relira l’automatisation dans six mois : `Boîte de support`, `Boutique UE`, `Bot de release`.
 - **Méthode d’authentification** — **Clé API**, **Jeton**, **Nom d’utilisateur et mot de passe** ou **OAuth**, pris dans ce que le connecteur accepte.
-- **Par défaut** — un identifiant par connecteur peut l’être. Un nœud d’automatisation ou une action de chat qui n’en nomme aucun l’utilise.
+- **Par défaut** — un identifiant par connecteur peut l’être. Un nœud d’automatisation — ou l’appel d’un agent via le broker — qui n’en nomme aucun l’utilise.
 - **État** — un identifiant est soit en service, soit **Désactivé**. Le désactiver garde la ligne et sa configuration mais empêche tout appel qui passerait par elle.
 
 Sans identifiant par défaut, un connecteur continue de servir tous les appelants qui en nomment un ; celui qui n’en nomme aucun n’a plus rien sur quoi se rabattre. La section du connecteur le dit, et le remède est de promouvoir l’un des identifiants existants.
@@ -78,7 +78,7 @@ Chaque connecteur a sa section, en tête de laquelle figurent son icône, sa des
 
 <Step title="Le nommer et le définir par défaut">
 
-Donne à l’identifiant un nom que tes automatisations pourront viser, et promeus-le s’il doit répondre quand personne n’en nomme un. Les actions du connecteur deviennent disponibles dans les automatisations et le chat dès que la ligne existe.
+Donne à l’identifiant un nom que tes automatisations pourront viser, et promeus-le s’il doit répondre quand personne n’en nomme un. Les actions du connecteur deviennent disponibles dans les automatisations — et, en lecture, pour les agents de projet — dès que la ligne existe.
 
 </Step>
 
@@ -86,13 +86,13 @@ Donne à l’identifiant un nom que tes automatisations pourront viser, et prome
 
 Le détail par méthode — ce que chaque formulaire demande, comment remplacer un secret, ce qui se passe quand une autorisation expire — vit sur [Identifiants d’connector](/fr/platform/admin/connectors).
 
-## Les actions dans les automatisations et le chat
+## Les actions dans les automatisations et les exécutions d’agent
 
-Chaque action déclarée par un connecteur a un nom, une description, un schéma d’entrée, une signature de sortie et un effet déclaré : `read` ou `write`. Les automatisations posent une action comme nœud dans l’éditeur de workflow ; le chat atteint les mêmes actions sous forme d’outils d’agent. Dans les deux cas l’appel résout d’abord un identifiant — celui que l’appelant nomme, ou celui par défaut du connecteur — et échoue clairement quand il n’y en a ni l’un ni l’autre.
+Chaque action déclarée par un connecteur a un nom, une description, un schéma d’entrée, une signature de sortie et un effet déclaré : `read` ou `write`. Les automatisations posent une action comme nœud dans l’éditeur de workflow ; un agent de projet atteint les actions de lecture depuis sa sandbox par un broker qui les exécute avec l’identifiant stocké et ne renvoie que le résultat. Le chat n’en atteint aucune — les outils de l’assistant de chat sont fixes et en lecture seule. Dans les deux cas l’appel résout d’abord un identifiant — celui que l’appelant nomme, ou celui par défaut du connecteur — et échoue clairement quand il n’y en a ni l’un ni l’autre.
 
 <Warning>
 
-Les actions en écriture changent quelque chose dans l’autre système : un message posté, un ticket ouvert, un SMS envoyé. Elles passent par la politique d’approbation de ton organisation, l’agent propose donc l’appel et une personne le libère. Lis [Configurer les approbations](/fr/platform/approvals/configure) avant de lancer un agent dessus.
+Les actions en écriture changent quelque chose dans l’autre système : un message posté, un ticket ouvert, un SMS envoyé. Elles ne s’exécutent que depuis une automatisation, et elles passent par la politique d’approbation de ton organisation : l’exécution se met en pause et une personne libère l’appel sur la page de détail de l’exécution. Lis [Configurer les approbations](/fr/platform/approvals/configure) avant de lancer une automatisation dessus.
 
 </Warning>
 

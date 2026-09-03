@@ -1,6 +1,6 @@
 ---
 title: Connectors
-description: Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und im Chat landen.
+description: Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und Agent-Läufen landen.
 ---
 
 Eine Connector besteht aus zwei Teilen: einem **Connector**, der mit der Plattform ausgeliefert wird, und den **Zugangsdaten**, die deine Organisation dazu hinterlegt. Der Connector bringt das Wissen über den Anbieter mit — welche Aktionen es gibt, was jede davon entgegennimmt und zurückgibt, wie die Anmeldung läuft — und sieht in jeder Organisation gleich aus. Die Zugangsdaten gehören dir, und ein Connector hält davon so viele, wie du brauchst: einen Eintrag pro Workspace, Shop, Postfach oder Bot. Dreizehn Connectoren werden ausgeliefert, und jeder davon steht bereits unter **Einstellungen > Connectors** und wartet auf seinen ersten Eintrag.
@@ -47,7 +47,7 @@ Jeder Eintrag trägt vier Dinge:
 
 - **Name** — unter diesem Namen wählt eine Aktion diesen Eintrag aus. Schreib ihn für die Person, die in einem halben Jahr die Automation liest: `Support-Postfach`, `Shop EU`, `Release-Bot`.
 - **Authentifizierungsmethode** — **API-Schlüssel**, **Token**, **Benutzername & Passwort** oder **OAuth**, ausgewählt aus dem, was der Connector akzeptiert.
-- **Standard** — ein Eintrag pro Connector kann das sein. Ein Automations-Node oder eine Chat-Aktion ohne eigene Angabe nutzt ihn.
+- **Standard** — ein Eintrag pro Connector kann das sein. Ein Automations-Node — oder der Aufruf eines Agents über den Broker — ohne eigene Angabe nutzt ihn.
 - **Zustand** — ein Eintrag ist entweder im Einsatz oder **Deaktiviert**. Deaktivieren behält die Zeile samt Konfiguration, verhindert aber jeden Aufruf darüber.
 
 Ohne Standard funktioniert ein Connector weiterhin für alle Aufrufer, die einen Eintrag benennen — wer keinen benennt, hat jedoch nichts, worauf er zurückfallen kann. Der Abschnitt des Connectors sagt das, und die Lösung ist, einen der vorhandenen Einträge zum Standard zu machen.
@@ -78,7 +78,7 @@ Jeder Connector hat einen Abschnitt, überschrieben mit Icon, Beschreibung, Kate
 
 <Step title="Benennen und zum Standard machen">
 
-Gib dem Eintrag einen Namen, auf den deine Automationen zeigen können, und mache ihn zum Standard, wenn er greifen soll, sobald niemand einen Eintrag benennt. Die Aktionen des Connectors stehen Automationen und Chat zur Verfügung, sobald die Zeile existiert.
+Gib dem Eintrag einen Namen, auf den deine Automationen zeigen können, und mache ihn zum Standard, wenn er greifen soll, sobald niemand einen Eintrag benennt. Die Aktionen des Connectors stehen Automationen — und lesend auch Projekt-Agenten — zur Verfügung, sobald die Zeile existiert.
 
 </Step>
 
@@ -86,13 +86,13 @@ Gib dem Eintrag einen Namen, auf den deine Automationen zeigen können, und mach
 
 Die Details pro Methode — wonach jedes Formular fragt, wie du ein Secret ersetzt, was bei einer abgelaufenen Autorisierung passiert — stehen unter [Zugangsdaten für Connectors](/de/platform/admin/connectors).
 
-## Aktionen in Automationen und im Chat
+## Aktionen in Automationen und Agent-Läufen
 
-Jede Aktion, die ein Connector deklariert, hat einen Namen, eine Beschreibung, ein Eingabe-Schema, eine Ausgabe-Signatur und einen deklarierten Effekt: `read` oder `write`. Automationen setzen eine Aktion als Node in den Workflow-Editor; im Chat erreichen Agents dieselben Aktionen als Tools. In beiden Fällen löst der Aufruf zuerst die Zugangsdaten auf — den benannten Eintrag oder den Standard des Connectors — und scheitert mit klarer Meldung, wenn es beides nicht gibt.
+Jede Aktion, die ein Connector deklariert, hat einen Namen, eine Beschreibung, ein Eingabe-Schema, eine Ausgabe-Signatur und einen deklarierten Effekt: `read` oder `write`. Automationen setzen eine Aktion als Node in den Workflow-Editor; ein Projekt-Agent erreicht die lesenden Aktionen aus seiner Sandbox über einen Broker, der sie mit den hinterlegten Zugangsdaten ausführt und nur das Ergebnis zurückgibt. Der Chat erreicht keine davon — die Tools des Chat-Assistenten sind fest und nur lesend. In beiden Fällen löst der Aufruf zuerst die Zugangsdaten auf — den benannten Eintrag oder den Standard des Connectors — und scheitert mit klarer Meldung, wenn es beides nicht gibt.
 
 <Warning>
 
-Schreibende Aktionen verändern etwas im anderen System: eine gepostete Nachricht, ein angelegtes Issue, eine verschickte SMS. Solche Aufrufe laufen über die Genehmigungsrichtlinie deiner Organisation, der Agent schlägt den Aufruf also vor und eine Person gibt ihn frei. Lies [Genehmigungen konfigurieren](/de/platform/approvals/configure), bevor du einen Agent darauf ansetzt.
+Schreibende Aktionen verändern etwas im anderen System: eine gepostete Nachricht, ein angelegtes Issue, eine verschickte SMS. Sie laufen nur aus einer Automation, und sie laufen über die Genehmigungsrichtlinie deiner Organisation: Der Lauf parkt, und eine Person gibt den Aufruf auf der Detailseite des Laufs frei. Lies [Genehmigungen konfigurieren](/de/platform/approvals/configure), bevor du eine Automation darauf ansetzt.
 
 </Warning>
 

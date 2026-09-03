@@ -1,22 +1,23 @@
 ---
 title: Membre
-description: Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée, agir sur les approbations. Les pages ici sont ce que fait au quotidien une personne de rôle Membre.
+description: Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée. Les pages ici sont ce que fait au quotidien une personne de rôle Membre.
 ---
 
-Membre est le rôle par défaut que portent la plupart des personnes dans la plupart des orgs. C’est la surface utilisateur final de Tale — chatter avec des agents, parcourir la base de connaissances, répondre au courriel client dans la Boîte de réception d’une automatisation installée, agir sur les approbations que d’autres ont routées vers toi, et laisser des retours sur les réponses. Les Membres ne construisent pas d’agents, ne configurent pas de fournisseurs, n’installent pas d’automatisations. Ils utilisent le produit que les Éditeurs et Développeurs ont bâti pour eux.
+Membre est le rôle par défaut que portent la plupart des personnes dans la plupart des orgs. C’est la surface utilisateur final de Tale — chatter avec l’assistant, parcourir la base de connaissances, répondre au courriel client dans la Boîte de réception d’une automatisation installée, et laisser des retours sur les réponses. Les Membres ne construisent pas d’agents, ne configurent pas de fournisseurs, n’installent pas d’automatisations. Ils utilisent le produit que les Éditeurs et Développeurs ont bâti pour eux.
 
-Cette vue d’ensemble nomme ce qu’un Membre peut faire et pointe vers les pages par fonctionnalité. Les Membres atterrissent typiquement d’abord sur Chat ; le reste de cette page est ce qu’il faut lire quand chat seul ne suffit pas — quand tu veux savoir d’où vient une citation, ce qu’est une carte d’approbation, ou ce qu’empaquette un projet.
+Cette vue d’ensemble nomme ce qu’un Membre peut faire et pointe vers les pages par fonctionnalité. Les Membres atterrissent typiquement d’abord sur Chat ; le reste de cette page est ce qu’il faut lire quand chat seul ne suffit pas — quand tu veux savoir d’où vient une citation, où se décide une approbation, ou ce qu’empaquette un projet.
 
 ## Ce que couvre Membre
 
-La surface Membre est volontairement étroite. Les quatre seaux sont :
+La surface Membre est volontairement étroite. Les trois seaux sont :
 
-- **Chat** — choisir un agent (ou aucun), envoyer un message, lire la réponse. Le chat expose la bibliothèque de skills, les pièces jointes, le mode vocal, le mode arène pour la comparaison côte à côte, et le panneau Canevas quand une réponse produit plus que le chat peut tenir en ligne.
+- **Chat** — choisir un modèle (ou le laisser sur **Auto**), envoyer un message, lire la réponse. Le chat expose les pièces jointes, le mode vocal, le mode arène pour la comparaison côte à côte, et le panneau Canevas quand une réponse produit plus que le chat peut tenir en ligne.
 - **Connaissance** — parcourir les documents, contacts, produits, sites web que l’org a chargés. Lecture seule pour les Membres ; la curation arrive du côté Éditeur.
 - **Boîte de réception** — répondre dans l’onglet **Boîte de réception** qu’ajoute une automatisation d’e-mail installée. Les Membres répondent quand un agent leur rend une conversation ; installer l’automatisation elle-même est une action d’admin.
-- **Approbations** — lire les cartes d’approbation routées vers toi. Clique sur Approuver, Rejeter, ou Demander des changements ; laisse un commentaire si la règle le demande.
 
-Les réglages de configuration de l’org — Fournisseurs, Connectors, Agents, Gouvernance — sont cachés pour les Membres ; la surface travail est l’essentiel de ce qui reste. L’exception est un petit groupe de réglages personnels que porte chaque rôle : Compte, Personnalisation et [Variables d’environnement et secrets](/fr/platform/member/environment), les clés et variables injectées dans les sandboxes que tu fais tourner.
+Les approbations ne sont pas une surface Membre dans cette version. Une écriture de connector qui a besoin d’un accord met l’exécution d’automatisation en pause, et la décision se prend sur la page de détail de cette exécution — par la personne qui l’ouvre. [Concepts d’approbation](/fr/platform/approvals/concepts) explique la carte.
+
+Les réglages de configuration de l’org — Fournisseurs, Connectors, Agents, Gouvernance — sont cachés pour les Membres ; la surface travail est l’essentiel de ce qui reste. L’exception est un petit groupe de réglages personnels que porte chaque rôle : Compte, Personnalisation et [Variables d’environnement et secrets](/fr/platform/member/environment) — un magasin personnel qu’aucune exécution ne lit dans cette version.
 
 ## Pages dans cette section
 
@@ -44,7 +45,7 @@ Les automatisations d’e-mail qui ajoutent un onglet Boîte de réception — e
 
 <Card title="Approbations" icon="check-check" href="/fr/platform/approvals/concepts">
 
-Ce qu’est une carte d’approbation et ce que fait chaque bouton.
+Où une écriture de connector attend une décision, et ce que font Approuver et Rejeter.
 
 </Card>
 

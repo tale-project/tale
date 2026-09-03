@@ -1,15 +1,15 @@
 ---
 title: Genehmigungen konfigurieren
-description: Wo Genehmigungspflichten deklariert werden — pro Connector-Operation und eingebaut für Schreibzugriffe und Workflow-Änderungen — und wo du siehst, was vor dem Ausführen fragt.
+description: Wo Genehmigungspflichten deklariert werden — pro Connector-Operation, mit einer Richtliniendatei pro Organisation, die die Grenze verschiebt — und welche menschlichen Tore außerhalb dieser Richtlinie liegen.
 ---
 
-Genehmigungspflichten sind in Tale deklarativ: Jede Fähigkeit trägt ihr eigenes Flag, das sagt, ob ein Agent zuerst fragen muss, und das Flag reist mit dem Connector, der die Fähigkeit bereitstellt. Damit die Voreinstellung stimmt, musst du nichts konfigurieren — diese Seite zeigt, wo jedes Flag lebt, welche Schreibzugriffe von sich aus fragen und wie du das für deine Organisation änderst.
+Genehmigungspflichten sind in Tale deklarativ: Jede Fähigkeit trägt ihr eigenes Flag, das sagt, ob ein Lauf zuerst fragen muss, und das Flag reist mit dem Connector, der die Fähigkeit bereitstellt. Damit die Voreinstellung stimmt, musst du nichts konfigurieren — diese Seite zeigt, wo jedes Flag lebt, welche Schreibzugriffe von sich aus fragen und wie du das für deine Organisation änderst.
 
 Das Modell, was eine Genehmigungskarte ist und wer sie entscheidet, steht auf [Genehmigungskonzepte](/de/platform/approvals/concepts). Was folgt, ist die Konfigurationsoberfläche, Fähigkeit für Fähigkeit.
 
 ## Connector-Operationen
 
-Jede Connector deklariert ihre Operationen, und jede Operation trägt ihr eigenes Genehmigungs-Flag — bei den mitgelieferten Konnektoren ist das die Schreibseite: Mail senden, Nachrichten posten, Issues erstellen. Lesezugriffe laufen ohne Karte; markierte Schreibzugriffe halten im Chat mit ihren exakten Parametern, bis jemand genehmigt.
+Jede Connector deklariert ihre Operationen, und jede Operation trägt ihr eigenes Genehmigungs-Flag — bei den mitgelieferten Konnektoren ist das die Schreibseite: Mail senden, Nachrichten posten, Issues erstellen. Lesezugriffe laufen ohne Karte; ein markierter Schreibzugriff parkt den Automatisierungslauf, und die Detailseite des Laufs zeigt die Operation mit ihren exakten Parametern, bis jemand entscheidet.
 
 Das Flag ist keine separate Einstellung, die ein Admin umlegt. Jede Aktion, die ein Connector deklariert, trägt einen Effekt — `read` oder `write` —, und die Schreibseite ist das, was die Genehmigungsrichtlinie abfängt. Das hält beide ehrlich zueinander: Eine Aktion kann sich nicht klammheimlich von einem Lese- in einen Schreibzugriff verwandeln, ohne auch zu ändern, wofür sie fragen muss.
 
@@ -42,24 +42,24 @@ Eine Operation, die schon auf einer Karte wartet, behält ihre Karte auch dann, 
 
 Externe MCP-Server — und die Genehmigungs-Flags pro Tool, die ihre Manifeste einmal trugen — gibt es in dieser Version nicht: Es gibt keinen Server zu verbinden und keine Tool-Liste zu prüfen. Die einzige MCP-Oberfläche ist der eingehende Endpoint unter **Einstellungen > API > MCP**, an dem dein Client Tale steuert, und eine Connector-Aktion, die darüber aufgerufen wird, unterliegt denselben Genehmigungsregeln wie überall sonst — eine abgefangene Aktion antwortet mit einer ausstehenden Genehmigung, statt zu laufen. [MCP-Endpoint](/de/develop/mcp-endpoint) behandelt die Tools und was der Schlüssel jeder Rolle darf; [MCP-Server](/de/platform/connectors/mcp-servers) sagt, was an die Stelle des Registrierungsformulars getreten ist.
 
-## Eingebaute Schreib-Tore
+## Tore außerhalb dieser Richtlinie
 
-Einige Tore sind ab Werk an und nicht konfigurierbar, weil die Aktion ihrer Natur nach folgenreich ist:
+Drei menschliche Tore im Produkt sind keine Sache der Genehmigungsrichtlinie und lassen sich hier nicht abschalten, weil jedes seine eigene Tür hat:
 
-- **Dokument-Schreibzugriffe** — ein Agent, der Dateien im Dokumenten-Hub ablegt, fragt immer (**In Dokumenten speichern**).
-- **Wissens-Schreibzugriffe** — ein Agent, der einen organisationsweiten Fakt speichert, fragt immer (**In Wissensdatenbank speichern**).
-- **Workflow-Erstellung, -Aktualisierungen und -Läufe** — ein Agent, der einen Workflow baut, bearbeitet oder startet, fragt immer; siehe [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows).
+- **Agent-Arbeit in Prüfung** — ein Projekt-Agent schließt eine Aufgabe nie ab; sein Ergebnis parkt in **In Prüfung**, bis ein Mensch es abnimmt, und [Aufgaben-Automatisierung](/de/platform/projects/task-automation) behandelt, wer das darf.
+- **Kontrollierte Dokumente** — eine als kontrolliert markierte Datei durchläuft einen Lebenszyklus aus Einreichen, Prüfen und Freigeben mit einer benannten Prüfperson; [Dokumente](/de/platform/knowledge/documents) behandelt ihn.
+- **Löschanfragen** — eine DSGVO-Löschung braucht die Freigabe eines zweiten Admins, bevor die Kaskade läuft; [Anfragen betroffener Personen](/de/platform/admin/governance/data-subject-requests) behandelt sie.
 
 <Note>
 
-Der Hebel dafür ist nicht das Genehmigungs-Flag, sondern die Fähigkeit selbst: Ein Agent ohne Dokument- oder Workflow-Tools produziert die Karte gar nicht erst. Beschneide das [Tool-Set](/de/platform/agents/tools) des Agents, um die Fähigkeit ganz zu entfernen.
+Der Chat-Assistent erzeugt keinerlei Genehmigung: Seine Tools sind nur lesend, es gibt also keine Dokument-Schreib-Karte, keine Wissens-Schreib-Karte und keine Workflow-Karte in einem Chat. Ein Lauf, der eine Antwort statt einer Erlaubnis braucht — eine Agent-Node, die eine Frage stellt —, ist ein Lauf im Status **Wartet**, behandelt in [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows).
 
 </Note>
 
 ## Prüfen, was fragen wird
 
-Bevor du einen Agent vor echte Systeme stellst, lies seine Fähigkeiten wie ein Genehmiger: welche Schreib-Aktionen seine Connectoren deklarieren und ob der Agent überhaupt Schreib-Tools hält. Das [Audit-Log](/de/platform/admin/governance/audit-logs) protokolliert anschließend jede Entscheidung, die dieses Setup produziert.
+Bevor du eine Automatisierung gegen echte Systeme live schaltest, lies ihre Connector-Nodes wie ein Genehmiger: Welche davon schreiben, und welche davon gibt deine Richtlinie automatisch frei. **Testlauf** zeigt dir den Graphen, ohne irgendetwas anzufassen — der Mock-Modus fragt nie —, und das [Audit-Log](/de/platform/admin/governance/audit-logs) protokolliert anschließend jede Entscheidung, die die Live-Läufe produzieren.
 
 ## Wo das hingehört
 
-Konfiguration ist hier Verteilung — die Flags leben bei den Connectors, denen die Fähigkeiten gehören. Lies [Genehmigungskonzepte](/de/platform/approvals/concepts) für den Kartenlebenszyklus, den diese Flags produzieren, und [Agent-Tools](/de/platform/agents/tools) für die Fähigkeitsseite derselben Grenze.
+Konfiguration ist hier Verteilung — die Flags leben bei den Connectors, denen die Fähigkeiten gehören, und eine Richtliniendatei pro Organisation verschiebt die Grenze. Lies [Genehmigungskonzepte](/de/platform/approvals/concepts) für die Karte, die diese Flags produzieren, und [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) dafür, wo der geparkte Lauf wartet.

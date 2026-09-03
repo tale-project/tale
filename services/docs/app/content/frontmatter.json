@@ -68,7 +68,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Construire un workflow avec approbation",
-      "description": "Laisse l'Éditeur IA construire un workflow à trois étapes où une décision humaine s'intercale entre le brouillon et l'envoi, approuve sa proposition, puis lance le tout et inspecte le journal."
+      "description": "L’éditeur IA et sa carte de proposition ne font pas partie de cette version — un workflow avec une décision humaine se construit sur le canvas, et l’exécution attend cette décision sur sa page de détail."
     }
   },
   "fr:tutorials/videos/chat-in-depth": {
@@ -349,7 +349,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Assistant d’automatisation",
-      "description": "L’agent de chat épinglé à une automatisation — ce qu’il modifie directement, ce qu’il rédige pour que tu l’appliques, et comment il retrouve les automatisations existantes avant d’en construire une nouvelle."
+      "description": "Un agent de chat rattaché à une automatisation ne fait pas partie de cette version — tu modifies une automatisation sur sa propre page, et un modèle en rédige une par l’endpoint MCP."
     }
   },
   "fr:platform/automations/editor": {
@@ -373,7 +373,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Approbations dans les workflows",
-      "description": "Là où les humains décident autour des workflows — approuver les modifications de l’éditeur IA sur une définition, approuver la demande d’un agent d’exécuter un workflow, et répondre aux questions qui mettent une exécution en pause."
+      "description": "Là où une exécution en cours attend une personne — une écriture de connector en pause pour approbation, une question posée par un nœud agent — et comment une définition change et passe en service sans carte de proposition."
     }
   },
   "fr:platform/automations/builtin": {
@@ -421,7 +421,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Gérer les fichiers du projet",
-      "description": "L’onglet Connaissances du projet tient les fichiers où chaque chat du projet peut puiser — dossiers, téléversement, statut d’indexation, épinglage, et comment les fichiers du projet restent scopés au projet."
+      "description": "L’onglet Connaissances du projet tient les fichiers où chaque chat du projet peut puiser — dossiers, téléversement, statut d’indexation, et comment les fichiers du projet restent scopés au projet."
     }
   },
   "fr:platform/projects/project-agents": {
@@ -469,7 +469,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Connectors",
-      "description": "Les connecteurs livrés avec Tale, les identifiants que ton organisation enregistre en face, et comment les actions d’un connecteur arrivent dans les automatisations et le chat."
+      "description": "Les connecteurs livrés avec Tale, les identifiants que ton organisation enregistre en face, et comment les actions d’un connecteur arrivent dans les automatisations et les exécutions d’agent."
     }
   },
   "fr:platform/connectors/mcp-servers": {
@@ -485,7 +485,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Membre",
-      "description": "Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée, agir sur les approbations. Les pages ici sont ce que fait au quotidien une personne de rôle Membre."
+      "description": "Membre est la surface utilisateur final — chatter, parcourir la base de connaissances, répondre dans la Boîte de réception d’une automatisation installée. Les pages ici sont ce que fait au quotidien une personne de rôle Membre."
     }
   },
   "fr:platform/member/install-as-app": {
@@ -501,7 +501,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Variables d’environnement et secrets",
-      "description": "Tes variables d’environnement et secrets personnels, injectés dans chaque sandbox que tu lances dans une organisation, et que personne d’autre ne peut lire."
+      "description": "Ton magasin personnel de variables et de secrets sous Paramètres > Environnement — ce qu’il contient, comment les secrets sont protégés, et le fait qu’aucune exécution ne le lit dans cette version."
     }
   },
   "fr:platform/member/preferences": {
@@ -517,7 +517,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Configurer les approbations",
-      "description": "Là où les exigences d’approbation sont déclarées — par opération d’connector, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter."
+      "description": "Là où les exigences d’approbation sont déclarées — par opération de connector, avec un fichier de politique par organisation qui déplace la ligne — et quelles portes humaines se tiennent hors de cette politique."
     }
   },
   "fr:platform/approvals/concepts": {
@@ -525,7 +525,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Concepts d’approbation",
-      "description": "Une approbation est une carte dans le chat qui retient l’action d’un agent jusqu’à ta décision. Cette page nomme ce qui en déclenche une, les décisions que chaque carte offre et ce que chaque décision laisse derrière elle."
+      "description": "Une approbation est une étape en pause dans une exécution d’automatisation en cours — une écriture de connector qui attend sur la page de détail de l’exécution qu’une personne l’approuve ou la rejette. Cette page nomme ce qui en déclenche une, la décision qu’elle offre et ce qu’elle laisse derrière elle."
     }
   },
   "fr:platform/admin/changelog": {
@@ -725,7 +725,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Entrées de connaissances",
-      "description": "Les entrées de connaissances sont de petits faits indexés par sujet dans la base de connaissances — capturés depuis le chat avec approbation humaine ou ajoutés à la main — avec une seule version active par sujet et un historique complet des versions."
+      "description": "Les entrées de connaissances sont de petits faits indexés par sujet dans la base de connaissances — ajoutés à la main ou par l’API — avec une seule version active par sujet et un historique complet des versions."
     }
   },
   "fr:platform/knowledge/documents": {
@@ -1245,7 +1245,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Build a workflow with an approval",
-      "description": "Have the AI editor build a three-step workflow where a human decision sits between the draft and the send, approve its proposal, then run it end to end and inspect the journal."
+      "description": "The AI editor and its proposal card are not part of this version — a workflow with a human decision is built on the canvas, and the run waits for that decision on its detail page."
     }
   },
   "en:tutorials/videos/chat-in-depth": {
@@ -1526,7 +1526,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Automation assistant",
-      "description": "The chat agent scoped to one automation — what it edits directly, what it drafts for you to apply, and how it finds existing automations before building a new one."
+      "description": "A chat agent scoped to one automation is not part of this version — you edit an automation on its own page, and a model authors one through the MCP endpoint."
     }
   },
   "en:platform/automations/editor": {
@@ -1550,7 +1550,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Approvals in workflows",
-      "description": "Where humans decide around workflows — approving the AI editor's changes to a definition, approving an agent's request to run a workflow, and answering the questions that pause a run."
+      "description": "Where a live run waits on a person — a connector write parked for approval, a question an agent node asks — and how a definition changes and goes live without a proposal card."
     }
   },
   "en:platform/automations/builtin": {
@@ -1598,7 +1598,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Manage project files",
-      "description": "The project's Knowledge tab holds the files every chat in the project can draw on — folders, uploading, index status, pinning, and how project files stay scoped to the project."
+      "description": "The project's Knowledge tab holds the files every chat in the project can draw on — folders, uploading, index status, and how project files stay scoped to the project."
     }
   },
   "en:platform/projects/project-agents": {
@@ -1646,7 +1646,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Connectors",
-      "description": "The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and chat."
+      "description": "The connectors Tale ships, the credentials your organisation stores against them, and how a connector's actions reach automations and agent runs."
     }
   },
   "en:platform/connectors/mcp-servers": {
@@ -1662,7 +1662,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Member",
-      "description": "Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox, act on approvals. The pages here are what someone with the Member role does day to day."
+      "description": "Member is the end-user surface — chat, browse the knowledge base, reply in an installed automation's Inbox. The pages here are what someone with the Member role does day to day."
     }
   },
   "en:platform/member/install-as-app": {
@@ -1678,7 +1678,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Environment variables & secrets",
-      "description": "Your personal environment variables and secrets, injected into every sandbox you run in an organisation, and readable by nobody else."
+      "description": "Your personal store of variables and secrets under Settings > Environment — what it holds, how secrets are protected, and the fact that no run reads it in this version."
     }
   },
   "en:platform/member/preferences": {
@@ -1694,7 +1694,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Configure approvals",
-      "description": "Where approval requirements are declared — per connector operation, and built in for writes and workflow changes — and where to see what will ask before it runs."
+      "description": "Where approval requirements are declared — per connector operation, with one policy file per organization moving the line — and which human gates sit outside that policy."
     }
   },
   "en:platform/approvals/concepts": {
@@ -1702,7 +1702,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Approval concepts",
-      "description": "An approval is a card in the chat that holds an agent's action until you decide. This page names what fires one, the decisions each card offers, and what every decision leaves behind."
+      "description": "An approval is a parked step in a live automation run — a connector write waiting on the run's detail page until a person approves or rejects it. This page names what fires one, the decision it offers, and what it leaves behind."
     }
   },
   "en:platform/admin/changelog": {
@@ -1902,7 +1902,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Knowledge entries",
-      "description": "Knowledge entries are small, topic-keyed facts in the knowledge base — captured from chat with human approval or added by hand — with one live version per topic and full version history."
+      "description": "Knowledge entries are small, topic-keyed facts in the knowledge base — added by hand or through the API — with one live version per topic and full version history."
     }
   },
   "en:platform/knowledge/documents": {
@@ -2422,7 +2422,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einen Workflow mit Freigabe bauen",
-      "description": "Lass den KI-Editor einen Drei-Schritt-Workflow bauen, bei dem eine menschliche Entscheidung zwischen Entwurf und Versand sitzt, genehmige seinen Vorschlag und lies danach das Journal des Laufs."
+      "description": "Den KI-Editor und seine Vorschlagskarte gibt es in dieser Version nicht — einen Workflow mit menschlicher Entscheidung baust du auf dem Canvas, und der Lauf wartet auf diese Entscheidung auf seiner Detailseite."
     }
   },
   "de:tutorials/videos/chat-in-depth": {
@@ -2703,7 +2703,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Automatisierungs-Assistent",
-      "description": "Der Chat-Agent, der auf eine Automatisierung fixiert ist — was er direkt editiert, was er für dich entwirft, und wie er bestehende Automatisierungen findet, bevor er eine neue baut."
+      "description": "Einen Chat-Agent, der auf eine Automatisierung fixiert ist, gibt es in dieser Version nicht — eine Automatisierung bearbeitest du auf ihrer eigenen Seite, und ein Modell verfasst sie über den MCP-Endpoint."
     }
   },
   "de:platform/automations/editor": {
@@ -2727,7 +2727,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Genehmigungen in Workflows",
-      "description": "Wo Menschen rund um Workflows entscheiden — Änderungen des KI-Editors an einer Definition genehmigen, die Anfrage eines Agents auf einen Workflow-Lauf genehmigen und die Fragen beantworten, die einen Lauf pausieren."
+      "description": "Wo ein Live-Lauf auf einen Menschen wartet — ein für die Freigabe geparkter Connector-Schreibzugriff, eine Frage einer Agent-Node — und wie eine Definition sich ändert und live geht, ohne Vorschlagskarte."
     }
   },
   "de:platform/automations/builtin": {
@@ -2775,7 +2775,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekt-Dateien verwalten",
-      "description": "Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann — Ordner, Hochladen, Index-Status, Anheften und wie Projekt-Dateien auf das Projekt begrenzt bleiben."
+      "description": "Der Wissen-Tab eines Projekts hält die Dateien, aus denen jeder Chat im Projekt schöpfen kann — Ordner, Hochladen, Index-Status und wie Projekt-Dateien auf das Projekt begrenzt bleiben."
     }
   },
   "de:platform/projects/project-agents": {
@@ -2823,7 +2823,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Connectors",
-      "description": "Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und im Chat landen."
+      "description": "Die Connectoren, die mit Tale ausgeliefert werden, die Zugangsdaten, die deine Organisation dazu hinterlegt, und wie die Aktionen eines Connectors in Automationen und Agent-Läufen landen."
     }
   },
   "de:platform/connectors/mcp-servers": {
@@ -2839,7 +2839,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitglied",
-      "description": "Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung antworten, Genehmigungen entscheiden. Die Seiten hier sind das, was eine Person mit Mitglieds-Rolle tagtäglich tut."
+      "description": "Mitglied ist die Endbenutzer-Oberfläche — Chat, durch die Wissensdatenbank stöbern, in der Inbox einer installierten Automatisierung antworten. Die Seiten hier sind das, was eine Person mit Mitglieds-Rolle tagtäglich tut."
     }
   },
   "de:platform/member/install-as-app": {
@@ -2855,7 +2855,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Umgebungsvariablen & Geheimnisse",
-      "description": "Deine persönlichen Umgebungsvariablen und Geheimnisse, die Tale in jede Sandbox einspeist, die du in einer Organisation startest, und die sonst niemand lesen kann."
+      "description": "Dein persönlicher Speicher für Variablen und Geheimnisse unter Einstellungen > Umgebung — was er hält, wie Geheimnisse geschützt sind, und dass in dieser Version kein Lauf ihn liest."
     }
   },
   "de:platform/member/preferences": {
@@ -2871,7 +2871,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Genehmigungen konfigurieren",
-      "description": "Wo Genehmigungspflichten deklariert werden — pro Connector-Operation und eingebaut für Schreibzugriffe und Workflow-Änderungen — und wo du siehst, was vor dem Ausführen fragt."
+      "description": "Wo Genehmigungspflichten deklariert werden — pro Connector-Operation, mit einer Richtliniendatei pro Organisation, die die Grenze verschiebt — und welche menschlichen Tore außerhalb dieser Richtlinie liegen."
     }
   },
   "de:platform/approvals/concepts": {
@@ -2879,7 +2879,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Genehmigungskonzepte",
-      "description": "Eine Genehmigung ist eine Karte im Chat, die die Aktion eines Agents anhält, bis du entscheidest. Diese Seite benennt, was eine auslöst, welche Entscheidungen jede Karte bietet und was jede Entscheidung hinterlässt."
+      "description": "Eine Genehmigung ist ein geparkter Schritt in einem laufenden Automatisierungslauf — ein Connector-Schreibzugriff, der auf der Detailseite des Laufs wartet, bis ein Mensch ihn freigibt oder ablehnt. Diese Seite benennt, was eine auslöst, welche Entscheidung sie bietet und was sie hinterlässt."
     }
   },
   "de:platform/admin/changelog": {
@@ -3079,7 +3079,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Wissenseinträge",
-      "description": "Wissenseinträge sind kleine Fakten mit Themen-Schlüssel in der Wissensdatenbank — aus dem Chat mit menschlicher Freigabe erfasst oder von Hand hinzugefügt — mit einer aktiven Version pro Thema und vollem Versionsverlauf."
+      "description": "Wissenseinträge sind kleine Fakten mit Themen-Schlüssel in der Wissensdatenbank — von Hand oder über die API hinzugefügt — mit einer aktiven Version pro Thema und vollem Versionsverlauf."
     }
   },
   "de:platform/knowledge/documents": {

@@ -1,11 +1,17 @@
 ---
 title: Environment variables & secrets
-description: Your personal environment variables and secrets, injected into every sandbox you run in an organisation, and readable by nobody else.
+description: Your personal store of variables and secrets under Settings > Environment — what it holds, how secrets are protected, and the fact that no run reads it in this version.
 ---
 
-Environment variables & secrets is your personal store of variables that Tale injects into every sandbox you run in this organisation. When a [project agent or automation agent node](/platform/agents/harnesses) starts a harness turn, each entry you have saved here is set in the environment before the agent runs, so a command the agent issues — or the agent itself — can read it. Reach for it when the work needs something of yours that nobody else should hold: a personal API token for a service the organization has not connected, an endpoint that differs for you, a key tied to your own account. It is a member-level page every role can open, and the entries are scoped to you and to the current organisation, so they never leak to teammates and never follow you into another org.
+Environment variables & secrets is a personal store under **Settings > Environment**: named values, scoped to you and to the current organization, with a **Secret** switch that makes a value write-only. Every role can open the page, and nobody else in the organization can read your entries. What the page does not do in this version is the part worth knowing before you fill it: nothing injects these entries into a run. No project agent turn, automation agent node, or script reads them — the store is kept, but the lane that would set them in a sandbox's environment is not wired.
 
-This page covers the two kinds of entry, how secrets are protected, the rules a name and value have to satisfy, and where the values end up.
+This page covers what you can save, the rules a name and value have to satisfy, and where the values a run actually receives come from instead.
+
+<Note>
+
+Personal environment variables are stored but not injected into any sandbox in this version. The page's own description still speaks of injection; treat the store as inert until a release note says otherwise. A value a project agent needs belongs in its **Secrets** — see below.
+
+</Note>
 
 <Frame caption="Settings > Environment — the saved entries, each with the Secret switch that decides whether its value can be read back.">
 
@@ -15,26 +21,16 @@ This page covers the two kinds of entry, how secrets are protected, the rules a 
 
 ## Variables and secrets
 
-Open **Settings > Environment**. **Add variable** opens a dialog for a new entry, with the list of what you have saved below. Each entry is a **Name** and a **Value**, plus a **Secret** switch that decides how the value is stored and shown.
-
-A plain variable is stored as-is and shown back in full in the list — use it for non-sensitive configuration the agent expects, a region name or an endpoint. A **secret** is encrypted the moment you save it and is write-only from then on: the list shows `••••••••` in place of the value, and there is no way to read it back. Turn the switch on for anything sensitive — an API key, an OAuth token, a password. The trade-off is that you cannot review a secret's value later, so if you are unsure it is right, delete it and add it again rather than hunting for a reveal button that does not exist.
-
-Each row carries the name, the value or its mask, and when it was last updated. The trash icon asks for confirmation before it removes the entry, because deleting one takes it out of every sandbox of yours on the next run.
+Open **Settings > Environment**. **Add variable** adds a row to the list — a name, a value, and the **Secret** switch — and the page's **Save** writes every pending change at once. A plain variable is stored as-is and shown back in full. A secret is encrypted the moment it is saved and is write-only from then on: the list shows `••••••••` in its place, and there is no way to read it back. If you are unsure a secret's value is right, replace it rather than hunting for a reveal button that does not exist. **Remove** on a row asks for confirmation — _Remove variable?_ — and takes effect when you save.
 
 ## Names, values, and limits
 
-A **name** must start with a letter or underscore and contain only letters, numbers, and underscores — the shape of an ordinary environment variable, `MY_API_KEY` rather than `my-api.key`. Names are capped at 128 characters and values at 8,192, which is room for a long token or a multi-line key but not a file. You can keep up to 100 entries.
+A name must start with a letter or underscore and contain only letters, numbers, and underscores — the shape of an ordinary environment variable, `MY_API_KEY` rather than `my-api.key`. A name that breaks the rule is refused when you save, and so is a duplicate. Names are capped at 128 characters and values at 8,192, and you can keep up to 100 entries. Values are stored exactly as typed: nothing trims a stray space or line break from a pasted token, so check the paste before you save.
 
-Tale trims spaces from the start and end of a value when you save it, because a stray newline from a copy-paste is the most common reason a token silently fails. It does not trim spaces or line breaks _inside_ the value, but it warns you when it finds them: a credential normally has none, so interior whitespace usually means a token wrapped across lines in your terminal when you pasted it. The warning does not block the save — a genuinely multi-line secret such as a PEM private key keeps its line breaks — so read it and decide.
+## What a run receives instead
 
-## How the values reach the sandbox
-
-A secret never travels in the clear except into your own sandbox. At rest it is encrypted in Tale's backend under a key the platform holds, and the list query returns only the mask, never the plaintext. When a turn starts, the platform decrypts your secrets and sets them, alongside your plain variables, in the environment of your sandbox for that run. Whenever a secret is injected for a turn, that access is recorded in the audit log.
-
-That last step is the boundary worth understanding: the values land inside your sandbox container, so the isolation of the sandbox — not the secret store — is what stands between your credentials and anything else that runs there. This matches how the in-sandbox GitHub token works, and it is why these entries are scoped to you alone rather than shared with the org.
-
-What does not come from here is the credential a turn uses to reach its model. That belongs to the organization's provider records under [Providers](/platform/admin/providers), where it can be rotated and audited in one place — an agent holds no keys of its own, and neither does this page on its behalf. Keep these entries for the things your own work needs and let the model credential stay where the organization can govern it.
+The values a sandbox actually holds come from three places, none of them this page. A **project agent** carries the organization's **Secrets** — an API key handed to the agent as an environment variable, injected per run and gone when it ends; that is the route for a token a service without a connector needs, and [Project agents](/platform/projects/project-agents) covers it. A GitHub token arrives per run while the agent has the GitHub connector equipped. And the credential a turn uses to reach its model belongs to the organization's provider records under [Providers](/platform/admin/providers), where it can be rotated and audited in one place — an agent holds no keys of its own.
 
 ## Where this fits
 
-Environment variables & secrets is the one member-level page that reaches into the sandbox rather than the chat — it is how your own keys and configuration get to the work you run, without an Editor or Admin setting them for you. Read it alongside [Harnesses](/platform/agents/harnesses), which covers what else the container holds and what it is allowed to reach. For the rest of your personal settings — display name, password, custom instructions — see [Preferences](/platform/member/preferences).
+Environment variables & secrets is a store with no consumer in this version: entries are kept per member and per organization, secrets are encrypted and write-only, and no run reads them. Put what a project agent needs into its **Secrets**, and read [Harnesses](/platform/agents/harnesses) for what else the container holds and what it may reach. For the rest of your personal settings — display name, password, custom instructions — see [Preferences](/platform/member/preferences).

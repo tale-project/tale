@@ -1,38 +1,22 @@
 ---
 title: Einen Workflow mit Freigabe bauen
-description: Lass den KI-Editor einen Drei-Schritt-Workflow bauen, bei dem eine menschliche Entscheidung zwischen Entwurf und Versand sitzt, genehmige seinen Vorschlag und lies danach das Journal des Laufs.
+description: Den KI-Editor und seine Vorschlagskarte gibt es in dieser Version nicht — einen Workflow mit menschlicher Entscheidung baust du auf dem Canvas, und der Lauf wartet auf diese Entscheidung auf seiner Detailseite.
 ---
 
-Ein Workflow mit einer menschlichen Entscheidung in der Mitte ist die Form, zu der du greifst, wenn die Arbeit aus Entwurf, Review und Aktion besteht — und du eine Person zwischen Entwurf und Aktion willst. Der Lauf pausiert als **Wartet auf Eingabe**, bis jemand antwortet; der nächste Schritt feuert nur bei grünem Licht. Dieser Spaziergang baut so einen Daily-Summary-Workflow, und unterwegs begegnest du beiden menschlichen Toren: dem Genehmigen des KI-Editor-Vorschlags und dem Beantworten des pausierten Laufs.
+Dieses Tutorial schaltete einmal einen **KI-Editor** in der Werkzeugleiste des Canvas ein, beschrieb einen Drei-Schritt-Workflow in einer Nachricht, genehmigte die Vorschlagskarte, mit der er antwortete, und beantwortete danach den pausierten Lauf. Den KI-Editor gibt es in dieser Version von Tale nicht — der Canvas hat kein Assistenten-Panel, und keine Karte schlägt dir eine Definition zur Genehmigung vor. Die menschliche Entscheidung mitten im Lauf gibt es sehr wohl; sie kommt aus dem Lauf selbst, nicht aus einer Karte in einem Editor.
 
-Du brauchst eine Editor-Rolle und einen Agent, der einen Entwurf produziert (der erste nützliche Agent aus [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) reicht). Die konzeptuelle Seite lebt in [Automatisierungskonzepte](/de/platform/automations/concepts) und [Genehmigungs-Konzepte](/de/platform/approvals/concepts); dieser Spaziergang ist der End-to-End-Mechanismus.
+<Note>
 
-## Bevor du anfängst
+Der KI-Editor ist in dieser Version nicht verfügbar. Du baust die Definition auf dem Canvas und speicherst sie selbst als Version, oder du lässt sie ein Modell über den [MCP-Endpoint](/de/develop/mcp-endpoint) verfassen; den ausgehenden Schritt entscheidet zur Laufzeit weiterhin ein Mensch.
 
-Prüf drei Dinge. Deine Rolle ist mindestens Editor — Workflow-Bearbeitung ist ab Editor aufwärts freigeschaltet. Du hast einen Entwurfs-Agent bereit; ohne ihn hat der Entwurfs-Schritt nichts aufzurufen. Und du kannst das Review selbst beantworten — der pausierte Lauf wartet auf einen Menschen, und in diesem Spaziergang bist du das.
+</Note>
 
-## Schritt 1 — Einen Workflow im Editor öffnen
+## Heute einen Menschen zwischen Entwurf und Versand setzen
 
-Workflows leben in der Automatisierung, die sie antreiben: Öffne die Automatisierung, und ihr Tab **Editor** ist der Workflow, mit dem Schritt-Graphen auf der Leinwand. Öffne für diesen Spaziergang einen Workflow, der dir gehört, oder einen aus dem Task-Ops-Paket deiner Org — alles funktioniert, was du bearbeiten darfst, denn die neue Definition baut ohnehin der KI-Editor für dich.
+Bau die Form von Hand auf dem Canvas: eine **Agent**-Node, die die Zusammenfassung entwirft, dann eine Connector-Node, die sie versendet. Für die Entscheidung brauchst du nichts Zusätzliches — ein Connector-Schreibzugriff, der deinen Mandanten verlässt, etwa Mail senden oder in einen Kanal posten, parkt den Live-Lauf von sich aus. Der Lauf steht als **Wartet** in der Liste der Läufe, seine Detailseite zeigt **Wartet auf deine Freigabe** mit der exakten Nachricht, die der Schritt senden würde, und **Freigeben** gibt sie frei, während **Ablehnen** den Lauf stoppt. Ein Zeitplan auf der eigenen Seite der Automatisierung lässt sie jeden Werktagmorgen laufen, und **Testlauf** prüft den Graphen gegen Mocks, ohne etwas zu senden. [Der Workflow-Editor](/de/platform/automations/editor) geht Canvas, Speichern und Live-Schalten durch; [Automatisierungs-Trigger](/de/platform/automations/triggers) behandelt den Zeitplan.
 
-## Schritt 2 — Dem KI-Editor den Workflow beschreiben
-
-Schalte den **KI-Editor** in der Leinwand-Werkzeugleiste ein und beschreib die ganze Form in einer Nachricht:
-
-> Lass jeden Werktag um 08:00 den Agent <dein Agent> die ungelesenen Kontaktnachrichten von gestern in einen Absatz zusammenfassen, dann einen Menschen den Entwurf prüfen, und schick nur den freigegebenen Text an den Team-Kanal.
-
-Der KI-Editor antwortet mit einer Vorschlagskarte — **Workflow erstellen** mit der Schrittzahl, oder **Workflow aktualisieren**, wenn er den geöffneten umbaut. Solange die Karte aussteht, passiert an der Definition nichts: Klapp sie auf, prüf die gelisteten Schritte — ein **LLM**-Schritt für den Entwurf, die Review-Pause, der Versand — und genehmige sie. Die Änderung wird angewendet und versioniert wie jedes manuelle Speichern.
-
-## Schritt 3 — Den Zeitplan anhängen
-
-Wechsle zum Tab **Trigger** und klick **Zeitplan hinzufügen**. Nimm die Vorlage **Täglich** und pass den Cron auf Werktage an (`0 8 * * 1-5`) — oder beschreib die Zeit in Alltagssprache und klick **Generieren**, damit die KI den Cron schreibt. **Workflow-Variablen** füllt sich aus dem Eingabeschema des Workflows vor; lass es wie vorgeschlagen. Die Zeile erscheint mit bereits eingeschaltetem **Aktiv**-Schalter.
-
-## Schritt 4 — Laufen lassen und das Review beantworten
-
-Zurück im Editor: Öffne **Workflow testen**, füg das vorgeschlagene Eingabe-JSON ein und klick **Ausführen**. Das Panel spiegelt den Lauf Schritt für Schritt: Der Entwurfs-Schritt feuert, dann pausiert der Lauf — **Wartet auf Eingabe** — und das Review kommt als Formular-Karte mit dem Entwurf an. Füll sie aus und klick **Antwort absenden**, um freizugeben, oder **Anders antworten**, um im Freitext zurückzugeben; der Lauf setzt mit deiner Antwort fort und der Versand-Schritt feuert.
-
-Öffne den Tab **Ausführungen** und klapp den Lauf auf: Das Journal zeigt einen Eintrag pro Schritt — den Entwurf des Agents, wer das Review beantwortet hat und wie, und den Versand mit seiner Ausgabe. Dieses Journal ist der Audit-Trail; derselbe Datensatz entsteht für jeden künftigen geplanten Lauf.
+Soll die Entscheidung den Entwurf statt den Versand betreffen, lass den Agent fragen: Eine Automation-Agent-Node trägt ein Tool `ask_human`, und ein Lauf, der es aufruft, parkt als **Wartet** mit der Frage auf seiner Detailseite, bis du antwortest, und setzt dann an dieser Node mit deiner Antwort fort. [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) behandelt beide Tore.
 
 ## Wo das hinführt
 
-Entwerfen, entscheiden, handeln — mit der Entscheidung bei einem Menschen — ist der kleinste nützliche Workflow mit Freigabe, und du hast ihn gebaut, ohne einen einzigen Schritt von Hand zu setzen: Der KI-Editor hat vorgeschlagen, du hast genehmigt, der Lauf hat gefragt, du hast geantwortet. Dieselbe Form skaliert — häng ein zweites Review vor einen destruktiven Schritt, oder lass dir von [Genehmigungen in Workflows](/de/platform/automations/approvals-in-workflows) die übrigen Tore rund um einen Workflow zeigen. Für das Vokabular hinter Definition, Trigger und Ausführung ist [Automatisierungskonzepte](/de/platform/automations/concepts) die Seite, die dieser Spaziergang vorausgesetzt hat.
+Die Form, die dieses Tutorial versprach — entwerfen, entscheiden, handeln —, ist die Form, die ein Lauf in dieser Version von sich aus annimmt: Der ausgehende Schreibzugriff fragt, ein Mensch liest den exakten Aufruf, und das Protokoll sagt, wer ihn erlaubt hat. [Automatisierungskonzepte](/de/platform/automations/concepts) ist das Vokabular hinter Definition, Trigger und Lauf; [Genehmigungskonzepte](/de/platform/approvals/concepts) ist das Modell hinter dem Warten.

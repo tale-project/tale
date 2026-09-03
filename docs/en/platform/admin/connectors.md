@@ -5,7 +5,7 @@ description: Settings > Connectors is where an organisation adds, names, default
 
 Every connector ships with the platform, so the administrator's job is never installation — it is deciding which accounts Tale may act as, and keeping those credentials healthy. A connector holds as many credentials as you need, one per workspace, store, mailbox, or bot, and one of them answers for any caller that names none. This page is the operations side of that: what the page shows, how each authentication method is filled in, and what happens when you promote, disable, delete, or reconnect a row.
 
-The catalog itself — the thirteen connectors, what each one buys you, and how their actions reach automations and chat — is on [Connectors](/platform/connectors/overview). Reading time here is best spent on the credential lifecycle, because that is the part that differs per organisation and the part that breaks.
+The catalog itself — the thirteen connectors, what each one buys you, and how their actions reach automations and agent runs — is on [Connectors](/platform/connectors/overview). Reading time here is best spent on the credential lifecycle, because that is the part that differs per organisation and the part that breaks.
 
 ## What the page shows
 
@@ -63,13 +63,13 @@ Confluence and Shopify also ask for an **Instance URL**, because neither has a s
 
 ## Choosing the default
 
-One credential per connector can be the **Default**, and **Make default** on any row moves it. The default is what resolution falls back to when an automation node or a chat action names no credential. Mail sync is the exception that proves the rule the other way: `conversation.sync_mailbox` walks every _active_ credential on the connector so adding a second IMAP mailbox (or a second Gmail account) does not leave it unsynced until you promote it. Inbox triage does the same fan-out through `conversation.list_mailbox_messages`.
+One credential per connector can be the **Default**, and **Make default** on any row moves it. The default is what resolution falls back to when an automation node — or an agent's call through the broker — names no credential. Mail sync is the exception that proves the rule the other way: `conversation.sync_mailbox` walks every _active_ credential on the connector so adding a second IMAP mailbox (or a second Gmail account) does not leave it unsynced until you promote it. Inbox triage does the same fan-out through `conversation.list_mailbox_messages`.
 
 A connector with several credentials and no default is a working configuration with a gap in it. Callers that name a row keep running; callers that do not cannot pick one and fail. Promote a row and the gap closes immediately.
 
 ## Replacing a secret
 
-Rotating a key is an edit on the credential, not a separate operation. Open the row and choose **Replace API key**, **Replace token**, or **Replace username & password**, depending on the method. The stored secret is never shown back to you, and entering a new one replaces it everywhere that credential is used — every automation node and every chat action pointed at that row picks up the new secret without being touched.
+Rotating a key is an edit on the credential, not a separate operation. Open the row and choose **Replace API key**, **Replace token**, or **Replace username & password**, depending on the method. The stored secret is never shown back to you, and entering a new one replaces it everywhere that credential is used — every automation node pointed at that row picks up the new secret without being touched.
 
 The credential keeps its name, its default flag, and its instance URL through a replacement, so nothing downstream has to be repointed. **Edit credential** covers the other direction: renaming a row, or moving it to a different instance origin.
 
@@ -79,7 +79,7 @@ The credential keeps its name, its default flag, and its instance URL through a 
 
 <Warning>
 
-**Delete** is immediate and final. Automations and chat actions using that credential lose access to this connector at once — there is no grace period. Deleting the default leaves the connector without one until another row is promoted, and the confirmation says so before you commit.
+**Delete** is immediate and final. Automations and agent runs using that credential lose access to this connector at once — there is no grace period. Deleting the default leaves the connector without one until another row is promoted, and the confirmation says so before you commit.
 
 </Warning>
 
