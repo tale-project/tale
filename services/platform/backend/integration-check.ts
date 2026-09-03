@@ -16825,16 +16825,22 @@ async function checkOneDriveSync(
       // lane that ignores the declared length reads it whole and lands the
       // wrong answer instead of hanging the probe).
       return new Response(
-        new ReadableStream<Uint8Array>({
-          pull(controller) {
-            hugeBodyPulls++;
-            if (hugeBodyPulls > 64) {
-              controller.close();
-              return;
-            }
-            controller.enqueue(new Uint8Array(1024));
+        new ReadableStream<Uint8Array>(
+          {
+            pull(controller) {
+              hugeBodyPulls++;
+              if (hugeBodyPulls > 64) {
+                controller.close();
+                return;
+              }
+              controller.enqueue(new Uint8Array(1024));
+            },
           },
-        }),
+          // No pre-fill: with the default high-water mark the stream pulls a
+          // chunk on construction, before any consumer reads — the count
+          // must mean "someone read the body".
+          { highWaterMark: 0 },
+        ),
         {
           status: 200,
           headers: {
@@ -30350,15 +30356,45 @@ async function checkWorkflowDocumentListing(
     truncated: z.boolean(),
     files: z.array(z.object({ name: z.string(), storageId: z.string() })),
   });
-  const parse = (result: Awaited<ReturnType<typeof list>>) =>
-    listing.safeParse(result.status === 'ok' ? result.output : {});
+  type Listing = z.infer<typeof listing>;
+  // A refusal (the door THROWS coded refusals) or an off-shape answer is a
+  // recorded failure of this check, never an aborted probe.
+  const parse = async (
+    input: Record<string, unknown>,
+  ): Promise<
+    { success: true; data: Listing } | { success: false; error: string }
+  > => {
+    try {
+      const result = await list(input);
+      const parsed = listing.safeParse(
+        result.status === 'ok' ? result.output : {},
+      );
+      return parsed.success
+        ? { success: true, data: parsed.data }
+        : { success: false, error: `shape:${result.status}` };
+    } catch (error) {
+      return { success: false, error: `threw:${String(error)}` };
+    }
+  };
 
-  const bigById = parse(await list({ folderId: bigId }));
-  const subByPath = parse(await list({ folderPath: 'WF Big/Sub' }));
-  const missing = await list({ folderPath: 'WF Big/Nope' });
-  const smallFlat = parse(await list({ folderPath: 'WF Small' }));
-  const smallTree = parse(await list({ folderId: smallId, recursive: true }));
-  const bigTree = parse(await list({ folderPath: 'WF Big/', recursive: true }));
+  const bigById = await parse({ folderId: bigId });
+  const subByPath = await parse({ folderPath: 'WF Big/Sub' });
+  // A path that names nothing is a coded refusal (thrown, like every
+  // connector refusal) — not an empty listing, and never a silent success.
+  const { ConnectorError } = await import('../lib/connectors/errors.ts');
+  let missing = 'ok';
+  try {
+    await list({ folderPath: 'WF Big/Nope' });
+  } catch (error) {
+    missing =
+      error instanceof ConnectorError &&
+      error.message.includes('does not exist')
+        ? `refused:${error.code}`
+        : `threw:${String(error)}`;
+  }
+  const smallFlat = await parse({ folderPath: 'WF Small' });
+  const smallTree = await parse({ folderId: smallId, recursive: true });
+  const bigTree = await parse({ folderPath: 'WF Big/', recursive: true });
 
   record(
     'document.list tells the truth: truncated over the cap, folderPath, recursive',
@@ -30369,7 +30405,7 @@ async function checkWorkflowDocumentListing(
       subByPath.data.count === 1 &&
       !subByPath.data.truncated &&
       subByPath.data.files[0]?.name === 'sub-1.pdf' &&
-      missing.status !== 'ok' &&
+      missing === 'refused:INPUT_INVALID' &&
       smallFlat.success &&
       smallFlat.data.count === 2 &&
       !smallFlat.data.truncated &&
@@ -30380,7 +30416,7 @@ async function checkWorkflowDocumentListing(
       bigTree.success &&
       bigTree.data.count === 200 &&
       bigTree.data.truncated,
-    `big=${bigById.success ? `${bigById.data.count}/${bigById.data.truncated}` : 'ERR'} (want 200/true), sub=${subByPath.success ? `${subByPath.data.count}/${subByPath.data.truncated}/${subByPath.data.files[0]?.name}` : 'ERR'}, missing=${missing.status} (want not ok), small=${smallFlat.success ? smallFlat.data.count : 'ERR'} tree=${smallTree.success ? `${smallTree.data.count}/${smallTree.data.truncated}/${smallTree.data.files.map((f) => f.name).join('|')}` : 'ERR'}, bigTree=${bigTree.success ? `${bigTree.data.count}/${bigTree.data.truncated}` : 'ERR'}`,
+    `big=${bigById.success ? `${bigById.data.count}/${bigById.data.truncated}` : 'ERR'} (want 200/true), sub=${subByPath.success ? `${subByPath.data.count}/${subByPath.data.truncated}/${subByPath.data.files[0]?.name}` : 'ERR'}, missing=${missing} (want refused:INPUT_INVALID), small=${smallFlat.success ? smallFlat.data.count : 'ERR'} tree=${smallTree.success ? `${smallTree.data.count}/${smallTree.data.truncated}/${smallTree.data.files.map((f) => f.name).join('|')}` : 'ERR'}, bigTree=${bigTree.success ? `${bigTree.data.count}/${bigTree.data.truncated}` : 'ERR'}`,
   );
 }
 
