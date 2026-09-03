@@ -5804,7 +5804,7 @@ async function checkKnowledge(
 async function checkCorpusPurgeConsistency(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
   orgSlug: string,
 ): Promise<void> {
   if (!process.env.ITEST_S3_ENDPOINT) {
@@ -6075,6 +6075,72 @@ async function checkCorpusPurgeConsistency(
         detachScoped?.ok === true &&
         scopeDetached === null,
       `seed=${scoped !== null}, before=${String(scopeBefore)} (want null), attach → ${attachScoped?.status ?? 'skipped'}, stamped=${scopeAttached === scopeProjectId ? 'project' : String(scopeAttached)} (want project), detach → ${detachScoped?.status ?? 'skipped'}, cleared=${String(scopeDetached)} (want null)`,
+    );
+
+    // --- 1c. The REST door's team change re-stamps too ----------------------
+    // Only the app route re-stamped on a team change; a `PATCH /documents/:id`
+    // with a teamId left the corpus rows carrying the old scope. Same doc,
+    // back in the hub: team it via REST, then clear it.
+    const scopeTeam = await sql<{ id: string }[]>`
+      INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                          "updatedAt")
+      VALUES (gen_random_uuid(), 'Corpus scope team', ${orgId}, ${new Date()},
+              ${new Date()})
+      RETURNING "id"
+    `;
+    const scopeTeamId = scopeTeam[0]?.id ?? '';
+    await sql`
+      INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+      VALUES (gen_random_uuid(), ${scopeTeamId}, ${ctx.userId}, ${new Date()})
+    `;
+    const scopeKey = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name: 'itest-corpus-scope' }),
+        })
+      ).json(),
+    );
+    const restPatch = (body: unknown): Promise<Response> =>
+      fetch(`${base}/api/v1/documents/${scoped?.documentId ?? ''}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${scopeKey.success ? scopeKey.data.key : ''}`,
+        },
+        body: JSON.stringify(body),
+      });
+    const corpusTeamOf = async (
+      ref: string,
+    ): Promise<string | null | undefined> => {
+      const rows = await corpusPool<{ teamId: string | null }[]>`
+        SELECT team_id AS "teamId" FROM private_knowledge.documents
+        WHERE org_slug = ${orgSlug} AND file_id = ${ref}
+        LIMIT 1
+      `;
+      return rows[0]?.teamId;
+    };
+    const teamed =
+      scoped === null ? null : await restPatch({ teamId: scopeTeamId });
+    const teamStamped =
+      scoped === null ? undefined : await corpusTeamOf(scoped.ref);
+    const unteamed = scoped === null ? null : await restPatch({ teamId: null });
+    const teamCleared =
+      scoped === null ? undefined : await corpusTeamOf(scoped.ref);
+    record(
+      'corpus scope: REST team change re-stamps retrieval scope',
+      scoped !== null &&
+        scopeKey.success &&
+        teamed?.status === 204 &&
+        teamStamped === scopeTeamId &&
+        unteamed?.status === 204 &&
+        teamCleared === null,
+      `key=${scopeKey.success}, team → ${teamed?.status ?? 'skipped'} (want 204), stamped=${teamStamped === scopeTeamId ? 'team' : String(teamStamped)} (want team), clear → ${unteamed?.status ?? 'skipped'} (want 204), cleared=${String(teamCleared)} (want null)`,
     );
 
     // --- 2. Knowledge-entry edit releases the rotated-away ref -------------

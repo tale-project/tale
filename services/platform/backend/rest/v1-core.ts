@@ -34,12 +34,16 @@ import {
   DocumentError,
   getDocumentById,
   listHubDocumentsPage,
+  loadDocumentOrThrow,
   readDocumentRestExtras,
   updateDocument,
   type DocumentRow,
 } from '../domains/documents/service.ts';
 import { searchKnowledgeForOrg } from '../domains/knowledge/service.ts';
-import { markRagQueued } from '../domains/knowledge/service.ts';
+import {
+  markRagQueued,
+  syncRagDocumentScope,
+} from '../domains/knowledge/service.ts';
 import {
   createKnowledgeEntry,
   deleteKnowledgeEntry,
@@ -436,9 +440,17 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const doc = await loadHubDocument(c, c.req.param('id'));
       if (doc instanceof Response) return doc;
       const auth = await restProjectAuth(deps.sql, c);
-      await deps.sql.begin((tx) =>
+      const result = await deps.sql.begin((tx) =>
         updateDocument(tx, auth, { documentId: doc.id, ...body.data }),
       );
+      // A team change is a corpus SCOPE change — re-stamp retrieval filters
+      // after commit, exactly as the app route does (best-effort, logged
+      // inside), or the REST door leaves the corpus answering with the old
+      // team's scope.
+      if (result.teamScopeChanged && result.fileRef !== null) {
+        const updated = await loadDocumentOrThrow(deps.sql, doc.id);
+        await syncRagDocumentScope(deps.sql, auth.organizationId, updated);
+      }
       return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);
