@@ -72,6 +72,14 @@ function uniformGrants(
   };
 }
 
+// Audit-log READS are admin-only (0.4 #1505/#1852): owner + admin read;
+// developer/editor keep WRITE so their RLS-wrapped mutations can still insert
+// their own audit rows; member gets neither (member audit rows are written
+// through internal paths that bypass this gate). This mirrors the retained RLS
+// matrix (core/lib/rls/helpers/access_control.ts) and the frontend ability
+// (lib/permissions/ability.ts) — the 0.5 `uniformGrants(['read'])` default had
+// regressed audit reads to every active role, so each role below pins
+// `auditLogs` explicitly rather than inheriting the uniform read.
 const owner = ac.newRole({
   ...ownerAc.statements,
   ...uniformGrants(['read', 'write']),
@@ -82,7 +90,10 @@ const admin = ac.newRole({
   ...uniformGrants(['read', 'write']),
 });
 
-const developer = ac.newRole(uniformGrants(['read', 'write']));
+const developer = ac.newRole({
+  ...uniformGrants(['read', 'write']),
+  auditLogs: ['write'],
+});
 
 // Editor: writes content-shaped resources; connector/provider/sync/workflow
 // surfaces are read-only; no settings access (frontend menu restricted).
@@ -94,11 +105,13 @@ const editor = ac.newRole({
   wfDefinitions: ['read'],
   wfExecutions: ['read'],
   governancePolicies: ['read'],
+  auditLogs: ['write'],
 });
 
 const member = ac.newRole({
   ...uniformGrants(['read']),
   messageFeedback: ['read', 'write'],
+  auditLogs: [],
 });
 
 const disabled = ac.newRole(uniformGrants([]));
