@@ -49,8 +49,33 @@ export interface EffectiveLimits {
   warningThresholdPercent?: number;
   orgWarningThresholdPercent?: number;
   apiKeyWarningThresholdPercent?: number;
-  /** Team IDs whose rules contributed to the effective limits (for aggregate checks). */
-  effectiveTeamIds: string[];
+  /**
+   * The SHARED caps of every team the user belongs to that carries a rule —
+   * each team's own limit values, measured against that team's aggregate
+   * usage. Kept apart from the per-user triple above on purpose: a cap
+   * resolved from the user/role/default tier is a personal cap and must never
+   * be measured against a whole team's spend, and a team's shared cap stays
+   * in force for a member whose personal cap comes from a narrower rule.
+   */
+  teamLimits: TeamLimits[];
+}
+
+/** One team's shared caps for the period (its own rule values, tightest per
+ * field when several of its rules name the same period). */
+export interface TeamLimits {
+  teamId: string;
+  maxTokens?: number;
+  maxCostCents?: number;
+  maxRequests?: number;
+}
+
+/** True when the team declares at least one cap worth an aggregate read. */
+export function teamLimitsHasCap(limits: TeamLimits): boolean {
+  return (
+    limits.maxTokens != null ||
+    limits.maxCostCents != null ||
+    limits.maxRequests != null
+  );
 }
 
 /**
@@ -104,7 +129,11 @@ export function collectAllApplicableRules(
  * is an independent bucket checked against the authenticating key's own usage,
  * so it binds regardless of how high the owner's user/team/org caps are.
  *
- * For multi-team users, the most permissive (highest) team limit wins.
+ * For multi-team users, the most permissive (highest) team limit wins the
+ * PERSONAL tier. Each team's own values are ALSO returned as that team's
+ * shared cap (`teamLimits`) — the aggregate check measures a team's rule
+ * against the team's usage and nothing else, whichever tier the personal
+ * triple came from.
  */
 export function resolveEffectiveLimits(
   rules: BudgetRule[],
@@ -134,19 +163,15 @@ export function resolveEffectiveLimits(
 
   // Priority tiers for per-user limits: user > team > role > default
   const tiers = [userRules, teamRules, roleRules, defaultRules];
-  const teamTierIndex = 1;
-  const fieldsFromTeam = new Set<string>();
 
   function resolveField(
     field: 'maxTokens' | 'maxCostCents' | 'maxRequests',
   ): number | undefined {
-    for (let i = 0; i < tiers.length; i++) {
-      const tier = tiers[i];
+    for (const tier of tiers) {
       const values = tier
         .map((r) => r[field])
         .filter((v): v is number => v != null);
       if (values.length > 0) {
-        if (i === teamTierIndex) fieldsFromTeam.add(field);
         // For team tier with multiple matching teams, use the most permissive (highest)
         return Math.max(...values);
       }
@@ -195,17 +220,26 @@ export function resolveEffectiveLimits(
   const maxCostCents = resolveField('maxCostCents');
   const maxRequests = resolveField('maxRequests');
 
-  // Collect unique team IDs from team rules when any field was resolved from the team tier
-  const effectiveTeamIds =
-    fieldsFromTeam.size > 0
-      ? [
-          ...new Set(
-            teamRules
-              .map((r) => r.scopeId)
-              .filter((id): id is string => id != null),
-          ),
-        ]
-      : [];
+  // Each team's SHARED caps, from that team's rules alone (tightest per
+  // field when a team carries several rules for the period) — never the
+  // mixed personal triple, and never dropped because a narrower rule won a
+  // personal field.
+  const teamLimitsById = new Map<string, TeamLimits>();
+  for (const rule of teamRules) {
+    if (rule.scopeId == null) continue;
+    const current = teamLimitsById.get(rule.scopeId) ?? {
+      teamId: rule.scopeId,
+    };
+    const merged: TeamLimits = { teamId: rule.scopeId };
+    const teamTokens = minNonNull([current.maxTokens, rule.maxTokens]);
+    const teamCost = minNonNull([current.maxCostCents, rule.maxCostCents]);
+    const teamRequests = minNonNull([current.maxRequests, rule.maxRequests]);
+    if (teamTokens !== undefined) merged.maxTokens = teamTokens;
+    if (teamCost !== undefined) merged.maxCostCents = teamCost;
+    if (teamRequests !== undefined) merged.maxRequests = teamRequests;
+    teamLimitsById.set(rule.scopeId, merged);
+  }
+  const teamLimits = [...teamLimitsById.values()];
 
   return {
     maxTokens,
@@ -220,7 +254,7 @@ export function resolveEffectiveLimits(
     warningThresholdPercent: resolveWarningThreshold(),
     orgWarningThresholdPercent: orgWarningThreshold,
     apiKeyWarningThresholdPercent: apiKeyWarningThreshold,
-    effectiveTeamIds,
+    teamLimits,
   };
 }
 
@@ -653,21 +687,25 @@ export async function checkBudget(
       ),
     );
 
-    // Check team aggregate usage when limits came from team-scoped rules
-    for (const teamId of limits.effectiveTeamIds) {
+    // Check each team's SHARED cap against that team's aggregate usage — the
+    // team rule's own values, never the personal triple (a default-tier
+    // token cap measured against a whole team's tokens would trip for
+    // everyone at once).
+    for (const teamLimit of limits.teamLimits) {
+      if (!teamLimitsHasCap(teamLimit)) continue;
       const teamUsage = await getTeamPeriodUsage(
         ctx,
         organizationId,
-        teamId,
+        teamLimit.teamId,
         periodKey,
       );
       const teamRule: BudgetRule = {
         scope: 'team',
-        scopeId: teamId,
+        scopeId: teamLimit.teamId,
         period: period,
-        maxTokens: limits.maxTokens,
-        maxCostCents: limits.maxCostCents,
-        maxRequests: limits.maxRequests,
+        maxTokens: teamLimit.maxTokens,
+        maxCostCents: teamLimit.maxCostCents,
+        maxRequests: teamLimit.maxRequests,
       };
       const teamViolation = checkRuleAgainstUsage(
         teamRule,
@@ -784,18 +822,19 @@ export async function computeRollingRemainingCostCents(
         periodKey,
       );
       tighten(Math.max(0, limits.maxCostCents - userUsage.costEstimate));
+    }
 
-      // Team caps are shared — the user's headroom is bounded by every team
-      // whose rule contributed the effective limit.
-      for (const teamId of limits.effectiveTeamIds) {
-        const teamUsage = await getTeamPeriodUsage(
-          ctx,
-          organizationId,
-          teamId,
-          periodKey,
-        );
-        tighten(Math.max(0, limits.maxCostCents - teamUsage.costEstimate));
-      }
+    // Team caps are shared — the user's headroom is bounded by every team
+    // they belong to whose rule caps cost, at THAT team's own cap.
+    for (const teamLimit of limits.teamLimits) {
+      if (teamLimit.maxCostCents == null) continue;
+      const teamUsage = await getTeamPeriodUsage(
+        ctx,
+        organizationId,
+        teamLimit.teamId,
+        periodKey,
+      );
+      tighten(Math.max(0, teamLimit.maxCostCents - teamUsage.costEstimate));
     }
 
     if (limits.orgMaxCostCents != null) {

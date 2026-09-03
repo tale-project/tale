@@ -37,6 +37,7 @@ import { z } from 'zod';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
@@ -5601,6 +5602,81 @@ async function checkGovernance(
       autoRefsOk &&
       reopened.allowed,
     `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'}, connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), autoRefs=${autoPick.accessibleModelRefs.join(',')} (want vendor/itest-model), reopened=${reopened.allowed}`,
+  );
+
+  // Budget scope alignment over the live 0.5 enforcer (the composer's Send
+  // gate, TTS, and video links all ride `checkTtsBudget`): a default-tier
+  // token cap is a PERSONAL cap, measured against the member's own usage;
+  // a team rule is a SHARED cap, measured against the team aggregate with the
+  // team rule's own values. Two members whose combined tokens exceed the
+  // per-member cap must both stay allowed; the team's own cost cap must
+  // still bind the aggregate.
+  const { checkTtsBudget } = await import('./domains/tts/service.ts');
+  const teamId = 'itest-budget-team';
+  const monthlyKey = buildPeriodKeyFromTimestamp('monthly', Date.now());
+  const ownTokens = await sql<{ total: number }[]>`
+    SELECT coalesce(sum(total_tokens), 0)::float8 AS total
+    FROM app.usage_ledger
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND period_key = ${monthlyKey}
+  `;
+  const perMemberCap = Math.round(ownTokens[0]?.total ?? 0) + 30 + 10;
+  await writeFile(
+    path.join(governanceDir, 'budgets.yml'),
+    [
+      'enabled: true',
+      'rules:',
+      '  - scope: default',
+      '    period: monthly',
+      `    maxTokens: ${perMemberCap}`,
+      '  - scope: team',
+      `    scopeId: ${teamId}`,
+      '    period: monthly',
+      '    maxCostCents: 100',
+    ].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+  const seedTeamUsage = (
+    user: string,
+    tokens: number,
+    cents: number,
+  ): Promise<void> =>
+    governance.incrementUsageLedger(sql, {
+      organizationId: orgId,
+      userId: user,
+      teamId,
+      inputTokens: tokens,
+      outputTokens: 0,
+      costEstimateCents: cents,
+      timestamp: Date.now(),
+      agentSlug: 'itest-budget-probe',
+      model: 'itest-budget-model',
+      provider: 'itestchat',
+    });
+  await seedTeamUsage(userId, 30, 0);
+  // The teammate alone blows past the per-member cap; the team aggregate is
+  // far above it — irrelevant to a personal cap.
+  await seedTeamUsage('itest-budget-teammate', 10_000, 0);
+  const budgetArgs = {
+    organizationId: orgId,
+    userId,
+    userTeamIds: [teamId],
+    userRole: 'owner',
+    prospectiveCostCents: 0,
+    prospectiveRequests: 0,
+  };
+  const mixedScopes = await checkTtsBudget(sql, budgetArgs);
+  await seedTeamUsage('itest-budget-teammate', 0, 150);
+  const teamCapHit = await checkTtsBudget(sql, budgetArgs);
+  await unlink(path.join(governanceDir, 'budgets.yml'));
+  orgConfig.clearOrgConfigCaches();
+  record(
+    'budget scopes (personal cap vs team shared cap)',
+    mixedScopes.allowed &&
+      !teamCapHit.allowed &&
+      teamCapHit.code === 'COST_LIMIT' &&
+      teamCapHit.limit === 100,
+    `mixed=${mixedScopes.allowed ? 'allowed' : `refused ${mixedScopes.code}`} (want allowed), teamCap=${teamCapHit.allowed ? 'allowed' : `${teamCapHit.code} at ${teamCapHit.limit}`} (want COST_LIMIT at 100)`,
   );
 }
 

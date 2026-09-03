@@ -310,7 +310,7 @@ describe('resolveEffectiveLimits', () => {
     expect(result.maxTokens).toBe(1_000_000);
   });
 
-  it('returns effectiveTeamIds when limits come from team scope', () => {
+  it("returns the team's own caps as its shared teamLimits entry", () => {
     const rules: BudgetRule[] = [
       {
         scope: 'team',
@@ -325,10 +325,12 @@ describe('resolveEffectiveLimits', () => {
       ['team-a'],
       'member',
     );
-    expect(result.effectiveTeamIds).toEqual(['team-a']);
+    expect(result.teamLimits).toEqual([
+      { teamId: 'team-a', maxTokens: 500_000 },
+    ]);
   });
 
-  it('returns empty effectiveTeamIds when limits come from user scope', () => {
+  it('keeps the team shared cap in force when a user rule wins the personal tier', () => {
     const rules: BudgetRule[] = [
       {
         scope: 'user',
@@ -349,7 +351,115 @@ describe('resolveEffectiveLimits', () => {
       ['team-a'],
       'member',
     );
-    expect(result.effectiveTeamIds).toEqual([]);
+    // Personal tier: the narrower user rule. Shared tier: the team's own cap
+    // still binds the team aggregate — a personal override never silently
+    // lifts the pool everyone else is measured against.
+    expect(result.maxTokens).toBe(1_000_000);
+    expect(result.teamLimits).toEqual([
+      { teamId: 'team-a', maxTokens: 500_000 },
+    ]);
+  });
+
+  it('mixed resolution: a default-tier cap never joins the team aggregate check', () => {
+    // The admin set a shared cost pool on the team and a per-member token
+    // cap as the org default. The token cap is personal (default tier); the
+    // team entry must carry ONLY the team rule's cost cap.
+    const rules: BudgetRule[] = [
+      { scope: 'default', period: 'monthly', maxTokens: 50_000 },
+      {
+        scope: 'team',
+        scopeId: 'team-a',
+        period: 'monthly',
+        maxCostCents: 5_000,
+      },
+    ];
+    const result = resolveEffectiveLimits(
+      rules,
+      'user-1',
+      ['team-a'],
+      'member',
+    );
+    expect(result.maxTokens).toBe(50_000);
+    expect(result.maxCostCents).toBe(5_000);
+    expect(result.teamLimits).toEqual([
+      { teamId: 'team-a', maxCostCents: 5_000 },
+    ]);
+  });
+
+  it('measures each team against its own rule, not the most permissive union', () => {
+    const rules: BudgetRule[] = [
+      {
+        scope: 'team',
+        scopeId: 'team-a',
+        period: 'monthly',
+        maxCostCents: 5_000,
+      },
+      {
+        scope: 'team',
+        scopeId: 'team-b',
+        period: 'monthly',
+        maxCostCents: 20_000,
+        maxRequests: 100,
+      },
+    ];
+    const result = resolveEffectiveLimits(
+      rules,
+      'user-1',
+      ['team-a', 'team-b'],
+      'member',
+    );
+    // Personal tier keeps the multi-team "most permissive" rule.
+    expect(result.maxCostCents).toBe(20_000);
+    expect(result.teamLimits).toEqual([
+      { teamId: 'team-a', maxCostCents: 5_000 },
+      { teamId: 'team-b', maxCostCents: 20_000, maxRequests: 100 },
+    ]);
+  });
+
+  it('tightens per field when one team carries several rules for the period', () => {
+    const rules: BudgetRule[] = [
+      {
+        scope: 'team',
+        scopeId: 'team-a',
+        period: 'monthly',
+        maxCostCents: 5_000,
+      },
+      {
+        scope: 'team',
+        scopeId: 'team-a',
+        period: 'monthly',
+        maxCostCents: 3_000,
+        maxTokens: 900_000,
+      },
+    ];
+    const result = resolveEffectiveLimits(
+      rules,
+      'user-1',
+      ['team-a'],
+      'member',
+    );
+    expect(result.teamLimits).toEqual([
+      { teamId: 'team-a', maxTokens: 900_000, maxCostCents: 3_000 },
+    ]);
+  });
+
+  it('returns no teamLimits when the user is in no rule-bearing team', () => {
+    const rules: BudgetRule[] = [
+      { scope: 'default', period: 'monthly', maxTokens: 50_000 },
+      {
+        scope: 'team',
+        scopeId: 'team-z',
+        period: 'monthly',
+        maxCostCents: 5_000,
+      },
+    ];
+    const result = resolveEffectiveLimits(
+      rules,
+      'user-1',
+      ['team-a'],
+      'member',
+    );
+    expect(result.teamLimits).toEqual([]);
   });
 
   it('returns empty limits when no rules match', () => {
