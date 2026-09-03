@@ -8,18 +8,21 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { patchMailSyncWatermarks, patchCredentialConfigInternal } = vi.hoisted(
-  () => ({
-    patchMailSyncWatermarks: vi.fn(async () => undefined),
-    patchCredentialConfigInternal: vi.fn(async () => undefined),
-  }),
-);
+const {
+  patchMailSyncWatermarks,
+  patchCredentialConfigInternal,
+  resolveCredentialRowForShim,
+} = vi.hoisted(() => ({
+  patchMailSyncWatermarks: vi.fn(async () => undefined),
+  patchCredentialConfigInternal: vi.fn(async () => undefined),
+  resolveCredentialRowForShim: vi.fn(async () => null),
+}));
 
 vi.mock('../connector_credentials/service.ts', () => ({
   listActiveCredentials: vi.fn(),
-  resolveConnectorCredential: vi.fn(),
   patchMailSyncWatermarks,
   patchCredentialConfigInternal,
+  resolveCredentialRowForShim,
 }));
 vi.mock('../files/service.ts', () => ({
   putOrgBlobBytes: vi.fn(),
@@ -36,6 +39,39 @@ const patch = () => {
   if (!handler) throw new Error('handler missing');
   return handler;
 };
+
+describe('resolveCredentialRefInternal shim', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('serves the shared full-row answer the reused resolver decrypts (not an identity-only stub)', async () => {
+    const row = {
+      _id: 'cred_1',
+      organizationId: 'o1',
+      connectorSlug: 'imap-smtp',
+      authMethod: 'basic',
+      name: 'Support inbox',
+      encryptedData: { keyFingerprint: 'fp' },
+      config: { host: 'imap.door.test' },
+      status: 'active',
+    };
+    resolveCredentialRowForShim.mockResolvedValueOnce(row as never);
+    const handler = conversationShimHandlers(SQL, () => {
+      throw new Error('no connector calls in this test');
+    })['connector_credentials/queries:resolveCredentialRefInternal'];
+    if (!handler) throw new Error('handler missing');
+    const answer = await handler({
+      organizationId: 'o1',
+      connectorSlug: 'imap-smtp',
+      credentialRef: 'cred_1',
+    });
+    expect(resolveCredentialRowForShim).toHaveBeenCalledWith(SQL, {
+      organizationId: 'o1',
+      connectorSlug: 'imap-smtp',
+      credentialRef: 'cred_1',
+    });
+    expect(answer).toBe(row);
+  });
+});
 
 describe('patchCredentialInternal shim', () => {
   beforeEach(() => vi.clearAllMocks());

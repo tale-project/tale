@@ -6,7 +6,7 @@ import {
   listActiveCredentials,
   patchCredentialConfigInternal,
   patchMailSyncWatermarks,
-  resolveConnectorCredential,
+  resolveCredentialRowForShim,
 } from '../connector_credentials/service.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
 import { applyAddressRouting } from './routing.ts';
@@ -543,6 +543,13 @@ export function conversationShimHandlers(
     },
 
     // -------------------------------------------------------- credentials
+    /**
+     * The full row the reused resolver reads (the SAME answer the work-lane
+     * shim serves). The sync's account-email read wants only `config`, but the
+     * IMAP fromAddress heal runs the reused resolver on this row and decrypts
+     * `encryptedData` itself — the identity-only answer served before left it
+     * dying on the missing envelope every pass, before it could heal anything.
+     */
     'connector_credentials/queries:resolveCredentialRefInternal': async (
       raw: unknown,
     ) => {
@@ -552,22 +559,7 @@ export function conversationShimHandlers(
           credentialRef: z.string().optional(),
         })
         .parse(raw);
-      // The sync only reads identity fields off this row; refusals for a
-      // missing ref mirror the resolver's null contract.
-      try {
-        const resolved = await resolveConnectorCredential(sql, args);
-        return {
-          _id: resolved.credentialId,
-          organizationId: args.organizationId,
-          connectorSlug: resolved.connectorSlug,
-          authMethod: resolved.authMethod,
-          name: args.credentialRef ?? 'default',
-          config: resolved.config,
-          status: 'active',
-        };
-      } catch {
-        return null;
-      }
+      return resolveCredentialRowForShim(sql, args);
     },
     'connector_credentials/queries:listActiveCredentialsInternal': async (
       raw: unknown,

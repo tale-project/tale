@@ -720,6 +720,39 @@ export async function findCredentialForRef(
   return rows.find((row) => row.name.toLowerCase() === needle) ?? null;
 }
 
+/**
+ * The 0.4 `resolveCredentialRefInternal` answer every reused resolver reads —
+ * the work-lane credential broker and the mailbox sync's IMAP fromAddress
+ * heal alike: the FULL row including the sealed envelope (the reused resolver
+ * decrypts it itself and refuses disabled / needs-reauth rows on `status`), in
+ * the 0.4 wire shape where nullable columns are ABSENT fields, never nulls.
+ * Null on a miss. Internal-only by contract: it carries sealed secret
+ * material and must never reach a client, an agent, or a log.
+ */
+export async function resolveCredentialRowForShim(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    credentialRef?: string;
+  },
+): Promise<Record<string, unknown> | null> {
+  const row = await findCredentialForRef(sql, args);
+  if (row === null) return null;
+  return {
+    _id: row.id,
+    organizationId: row.organizationId,
+    connectorSlug: row.connectorSlug,
+    authMethod: row.authMethod,
+    name: row.name,
+    encryptedData: row.encryptedData,
+    ...(row.endpointUrl !== null ? { endpointUrl: row.endpointUrl } : {}),
+    ...(row.config !== null ? { config: row.config } : {}),
+    status: row.status,
+    ...(row.statusDetail !== null ? { statusDetail: row.statusDetail } : {}),
+  };
+}
+
 /** Load the addressed row (explicit id-or-name ref, else the default). */
 async function loadRowForResolve(
   sql: Sql,
