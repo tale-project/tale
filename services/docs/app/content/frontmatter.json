@@ -44,7 +44,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Construire ton premier agent",
-      "description": "Mène une organisation neuve de « je veux un agent » à un résultat de tâche relu, en tournant les quatre boutons — instructions, savoir, tools, modèle — dans l'ordre sur une seule instance."
+      "description": "Mène un projet neuf de « je veux un agent » à un résultat de tâche relu — crée un agent de projet avec un harness, un modèle et un paragraphe d’instructions, confie-lui une vraie tâche et relis ce qui revient."
     }
   },
   "fr:tutorials/editor/delegate-between-agents": {
@@ -52,7 +52,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Confier du travail à un worker",
-      "description": "Demande une recherche ouverte à l'assistant, regarde-le lancer un worker ciblé et suis la carte de job — progression en direct, résultat et transcription complète."
+      "description": "Le worker spawn_agent et sa carte de job ne font pas partie de cette version — confie le travail à un agent de projet par une tâche du tableau, ou à une automatisation par son nœud agent."
     }
   },
   "fr:tutorials/editor/agent-with-knowledge": {
@@ -108,7 +108,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Épisode 4 — Ton premier agent",
-      "description": "Un agent construit de bout en bout à l'écran — nom, instructions, périmètre de connaissances, outils, modèle — puis rendu visible et testé en direct, la frontière de confiance nommée."
+      "description": "Un agent construit de bout en bout à l’écran dans l’ancien éditeur d’agent — nom, instructions, périmètre de connaissances, outils, modèle — la frontière de confiance nommée ; les écrans ont changé depuis, le raisonnement non."
     }
   },
   "fr:tutorials/videos/people-roles-and-teams": {
@@ -477,7 +477,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Serveurs MCP",
-      "description": "Enregistre des serveurs d’outils externes sous Paramètres > API > MCP — le transport, l’authentification, la liste des outils découverts et les drapeaux d’approbation par outil qui gardent la frontière de confiance serrée."
+      "description": "Enregistrer des serveurs MCP externes pour que les agents les appellent ne fait pas partie de cette version — la seule surface MCP de Tale est l’endpoint entrant sous Paramètres > API > MCP."
     }
   },
   "fr:platform/member/overview": {
@@ -1221,7 +1221,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Build your first agent",
-      "description": "Walk a fresh org from \"I want an agent\" to a reviewed task result by turning the four knobs — instructions, knowledge, tools, model — in order on one instance."
+      "description": "Walk a fresh project from \"I want an agent\" to a reviewed task result — create a project agent with a harness, a model, and a paragraph of instructions, hand it a real task, and review what comes back."
     }
   },
   "en:tutorials/editor/delegate-between-agents": {
@@ -1229,7 +1229,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Hand work to a worker",
-      "description": "Ask the assistant for open-ended research, watch it spawn a focused worker, and follow the job card — live progress, the result, and the full transcript."
+      "description": "The spawn_agent worker and its job card are not part of this version — hand work to a project agent through a board task, or to an automation through its agent node."
     }
   },
   "en:tutorials/editor/agent-with-knowledge": {
@@ -1285,7 +1285,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Episode 4 — Your first agent",
-      "description": "An agent built end to end on camera — name, instructions, knowledge scope, tools, model — then made visible and tested live, with the trust boundary spelled out."
+      "description": "An agent built end to end on camera in the earlier agent editor — name, instructions, knowledge scope, tools, model — with the trust boundary spelled out; the screens have changed since, the reasoning has not."
     }
   },
   "en:tutorials/videos/people-roles-and-teams": {
@@ -1654,7 +1654,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "MCP servers",
-      "description": "Register external tool servers under Settings > API > MCP — transport, authentication, the discovered tool list, and the per-tool approval flags that keep the trust boundary tight."
+      "description": "Registering external MCP servers for agents to call is not part of this version — Tale's one MCP surface is the inbound endpoint under Settings > API > MCP."
     }
   },
   "en:platform/member/overview": {
@@ -2398,7 +2398,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Deinen ersten Agent bauen",
-      "description": "Bring eine frische Org von „ich will einen Agent\" zu einem geprüften Aufgaben-Ergebnis, indem du die vier Knöpfe — Instruktionen, Wissen, Tools, Modell — der Reihe nach auf einer Instanz drehst."
+      "description": "Bring ein frisches Projekt von „ich will einen Agent“ zu einem geprüften Aufgaben-Ergebnis — leg einen Projekt-Agenten mit Agent-Laufzeit, Modell und einem Absatz Anweisungen an, gib ihm eine echte Aufgabe und prüfe, was zurückkommt."
     }
   },
   "de:tutorials/editor/delegate-between-agents": {
@@ -2406,7 +2406,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Arbeit an einen Worker geben",
-      "description": "Bitte den Assistenten um offene Recherche, sieh zu, wie er einen fokussierten Worker startet, und folge der Job-Karte — Live-Fortschritt, Ergebnis und vollständiges Protokoll."
+      "description": "Den Worker spawn_agent und seine Job-Karte gibt es in dieser Version nicht — gib Arbeit über eine Board-Aufgabe an einen Projekt-Agenten oder über ihren Agent-Knoten an eine Automatisierung."
     }
   },
   "de:tutorials/editor/agent-with-knowledge": {
@@ -2462,7 +2462,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Episode 4 — Dein erster Agent",
-      "description": "Ein Agent, vor laufender Kamera gebaut — Name, Anweisungen, Wissensbereich, Werkzeuge, Modell — dann sichtbar gemacht und live getestet, mit klar benannter Vertrauensgrenze."
+      "description": "Ein Agent, im früheren Agenten-Editor vor laufender Kamera gebaut — Name, Anweisungen, Wissensbereich, Werkzeuge, Modell — mit klar benannter Vertrauensgrenze; die Ansichten haben sich seither geändert, die Überlegung nicht."
     }
   },
   "de:tutorials/videos/people-roles-and-teams": {
@@ -2831,7 +2831,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "MCP-Server",
-      "description": "Registriere externe Tool-Server unter Einstellungen > API > MCP — Transport, Authentifizierung, die Liste der erkannten Tools und die Genehmigungs-Flags pro Tool, die die Vertrauensgrenze eng halten."
+      "description": "Externe MCP-Server zu registrieren, damit Agenten sie aufrufen, gibt es in dieser Version nicht — Tales einzige MCP-Oberfläche ist der eingehende Endpoint unter Einstellungen > API > MCP."
     }
   },
   "de:platform/member/overview": {

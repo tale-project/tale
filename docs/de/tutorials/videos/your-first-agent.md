@@ -1,6 +1,6 @@
 ---
 title: Episode 4 — Dein erster Agent
-description: Ein Agent, vor laufender Kamera gebaut — Name, Anweisungen, Wissensbereich, Werkzeuge, Modell — dann sichtbar gemacht und live getestet, mit klar benannter Vertrauensgrenze.
+description: Ein Agent, im früheren Agenten-Editor vor laufender Kamera gebaut — Name, Anweisungen, Wissensbereich, Werkzeuge, Modell — mit klar benannter Vertrauensgrenze; die Ansichten haben sich seither geändert, die Überlegung nicht.
 ---
 
 Der Chat hat dir das Fragen beigebracht, das Wissen die Grundlage der Antworten. Diese Episode baut das Ding, das beides einsetzt: einen Agenten, von Null vor der Kamera. Der rote Faden ist die Vertrauensgrenze — jedes gewährte Werkzeug erweitert, was der Agent tun kann. Der kleinste Agent, der den Job erledigt, ist der sicherste.
@@ -8,6 +8,12 @@ Der Chat hat dir das Fragen beigebracht, das Wissen die Grundlage der Antworten.
 <Video src="/videos/de/tutorials/ep4-agent/ep4-agent.de.mp4" poster="/videos/de/tutorials/ep4-agent/ep4-agent.de.webp" captions="/videos/de/tutorials/ep4-agent/ep4-agent.de.vtt" lang="de" title="Episode 4 — Dein erster Agent" caption="Episode 4 — Dein erster Agent (3:18, mit Untertiteln)">
 
 </Video>
+
+<Note>
+
+Die Episode wurde im früheren Agenten-Editor aufgenommen. Die Agentenliste, den Anlege-Dialog, die Tabs **Wissen** und **Werkzeuge** und den Schritt „im Chat sichtbar“ gibt es in dieser Version nicht — die Agenten, die du heute anlegst, wohnen im Tab **Agenten** eines Projekts und erledigen Board-Aufgaben, und der Chat hat keine Agentenauswahl. Sieh sie dir für die Überlegung an; die Schritte nimmst du aus [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end).
+
+</Note>
 
 ## Was die Episode zeigt
 
@@ -24,4 +30,4 @@ Der Chat hat dir das Fragen beigebracht, das Wissen die Grundlage der Antworten.
 
 ## Wie es weitergeht
 
-[Agenten-Konzepte](/de/platform/agents/concepts) liefert das Denkmodell hinter den vier Entscheidungen; [Agent anlegen](/de/platform/agents/create) den Referenz-Durchgang. Vertiefe jede Stellschraube mit [Werkzeugen](/de/platform/agents/tools), [Wissen](/de/platform/agents/knowledge) und [Versionen](/de/platform/agents/versions) — und folge dann dem Redaktions-Tutorial [vom ersten Agenten bis zur Produktion](/de/tutorials/editor/first-agent-end-to-end).
+[Agenten-Konzepte](/de/platform/agents/concepts) liefert das Denkmodell hinter den vier Entscheidungen, und [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) geht sie auf den Ansichten durch, die diese Version ausliefert — ein Projekt-Agent mit Agent-Laufzeit, Modell und Anweisungen, an einer Aufgabe eingesetzt. [Projekt-Agenten](/de/platform/projects/project-agents) ist die Referenz Feld für Feld. Die Seiten [Einen Agent erstellen](/de/platform/agents/create), [Agent-Tools](/de/platform/agents/tools), [Agent-Wissen](/de/platform/agents/knowledge) und [Agent-Versionen](/de/platform/agents/versions) sagen jeweils, was den Tab ersetzt hat, den die Episode zeigt.

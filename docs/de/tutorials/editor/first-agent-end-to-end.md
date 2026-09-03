@@ -1,45 +1,56 @@
 ---
 title: Deinen ersten Agent bauen
-description: Bring eine frische Org von „ich will einen Agent" zu einem geprüften Aufgaben-Ergebnis, indem du die vier Knöpfe — Instruktionen, Wissen, Tools, Modell — der Reihe nach auf einer Instanz drehst.
+description: Bring ein frisches Projekt von „ich will einen Agent“ zu einem geprüften Aufgaben-Ergebnis — leg einen Projekt-Agenten mit Agent-Laufzeit, Modell und einem Absatz Anweisungen an, gib ihm eine echte Aufgabe und prüfe, was zurückkommt.
 ---
 
-Ein erster Agent ist das kleinste nützliche Ding in Tale: Instruktionen plus Modell, manchmal mit einem Tool oder einem gebundenen Dokument. Dieser Spaziergang dreht die vier Knöpfe der Reihe nach — Instruktionen, Wissen, Tools, Modell — und hinterlässt dir einen veröffentlichten Agent, der aus einer echten Aufgabe ein prüfbares Ergebnis macht. Die Form verallgemeinert sich: jeder spätere Agent ist dieselben vier Züge mit anderen Entscheidungen.
+Ein erster Agent ist das kleinste nützliche Ding in Tale: ein Name, eine Agent-Laufzeit, ein Modell und ein Absatz Anweisungen im Tab **Agenten** eines Projekts. Dieser Durchlauf legt einen an, gibt ihm eine echte Aufgabe und prüft das Ergebnis dort, wo die Arbeit jedes Agenten wartet — in der Spalte **In Prüfung**. Die Form verallgemeinert sich: Jeder Agent, den du später baust, sind dieselben vier Züge mit anderen Entscheidungen, und die Schleife am Ende ist die, in der du die meiste Zeit verbringst.
 
-Du brauchst eine Editor-Rolle und ein konfiguriertes Chat-getaggtes Modell beim Anbieter der Org. Die konzeptuelle Seite lebt in [Agent-Konzepte](/de/platform/agents/concepts); dieser Spaziergang ist der End-to-End-Mechanismus.
+Du brauchst Bearbeitungsrechte an einem Projekt und mindestens einen Provider unter **Einstellungen > KI-Anbieter** mit einem Modell darauf. Die konzeptionelle Seite steht in [Agent-Konzepte](/de/platform/agents/concepts), die Referenz Feld für Feld in [Projekt-Agenten](/de/platform/projects/project-agents); dieser Durchlauf ist die Mechanik von Anfang bis Ende.
 
 ## Bevor du beginnst
 
-Bestätige drei Dinge. Deine Rolle ist mindestens Editor — die Agent-Bearbeitung ist auf Editor und höher begrenzt. Die Org hat einen Anbieter konfiguriert und mindestens ein Chat-getaggtes Modell darauf; ohne das scheitert die Test-Antwort am Ende beim Modell-Call. Du hast eine Frage im Kopf, die der Agent beantworten soll — wähl etwas eng genug, dass ein Absatz Instruktionen sie rahmen kann, etwa „fass eine eingehende Kontaktnachricht in einen Satz plus eine empfohlene nächste Aktion zusammen".
+Prüf drei Dinge. Du darfst das Projekt bearbeiten — wer das darf, legt seine Agenten an, ändert und löscht sie, bis zu 50 pro Projekt. Die Organisation hat einen Provider mit mindestens einem Modell konfiguriert; ohne den gibt es unter **Modell** nichts zu wählen, und der Lauf am Ende hat nichts, was er aufrufen könnte. Und du hast eine Aufgabe im Kopf, die eng genug ist, dass ein Absatz Anweisungen sie rahmt — dieser Durchlauf nimmt „fass eine eingehende Kontaktnachricht in einem Satz zusammen und empfiehl den nächsten Schritt“.
 
-## Schritt 1 — Die Instruktionen schreiben
+## Schritt 1 — Den Agenten benennen und seinen Antrieb wählen
 
-Instruktionen sind der System-Prompt — die Prosa, die jede Antwort rahmt. Der erste Knopf ist der, bei dem die meisten überdrehen. Öffne **Agenten > Neuer Agent** und setze:
+Öffne den Tab **Agenten** des Projekts. Er listet die Crew des Projekts, eine Zeile pro Agent, und hier landet der Agent, den du gleich anlegst.
 
-- **Name** — `Triage assistant`
-- **Instruktionen** — `You read a contact message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.`
+<Frame caption="Der Tab Agenten — jede Zeile nennt Agent-Laufzeit, Provider und Modell des Agenten.">
 
-Speicher vorerst als Entwurf; veröffentlichen kommt nach den anderen Knöpfen. Kurze, meinungsstarke, konkrete Instruktionen schlagen lange — halt die Regeln unter einem Absatz.
+![Der Tab Agenten eines Projekts mit benannten Agenten, jeweils mit Agent-Laufzeit, Provider, Modell-ID und Ausrüstungszahl.](/images/platform/project-agents-models.webp)
 
-## Schritt 2 — Über das Wissen entscheiden
+</Frame>
 
-Wissen ist das, worauf der Agent zur Antwortzeit zurückgreifen kann. Lass Wissen für diesen ersten Agent leer: die Aufgabe ist, die Nachricht zu lesen, nicht etwas zu holen. Der Wissen-Tab bleibt unangetastet.
+Klick auf **Neuer Agent**. Die ersten drei Felder entscheiden, was läuft:
 
-Wolltest du später Wissen ergänzen — etwa eine Eskalations-Matrix, die der Agent konsultieren soll — würdest du das Dokument hochladen, den **Wissen**-Tab des Agenten öffnen und es binden. Der ganze Mechanismus liegt in [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge).
+- **Name** — `Triage assistant`. Dein Team sieht ihn auf Aufgabenkarten, also benenn ihn nach der Aufgabe.
+- **Agent-Laufzeit** — das Coding-Harness, auf dem der Agent läuft. [Harnesses](/de/platform/agents/harnesses) vergleicht sie und sagt, welche Zugänge jedes akzeptiert.
+- **Modell** — die Liste ist durchsuchbar, und ein Modell, das mehrere Provider anbieten, erscheint einmal pro Provider. Die Wahl ist exakt: Die Läufe rufen dieses Modell über diesen Provider auf, und die Kosten landen auf dessen Zugang.
 
-## Schritt 3 — Die Tools wählen
+## Schritt 2 — Die Ausrüstung leer lassen
 
-Tools sind das, was der Agent jenseits von Text-Antworten tun kann. Für Triage brauchst du keine Tools: der Agent liest Input und schreibt Output. Öffne den Tab **Tools** und lass jeden Schalter aus. Jedes Tool, das du gewährst, erweitert die Vertrauensgrenze; halt die Liste kurz.
+**Skills, Connectors & Tools** bestimmen, was der Agent jenseits seiner Sandbox erreicht: Skills stellen Referenz-Bundles bereit, Connectors vermitteln einen verbundenen Dienst, und Plattform-Tools lassen ihn die Aufgaben, Dokumente und das Wissen des Projekts lesen — oder, wenn du ein Schreib-Tool gibst, ändern. Für die Triage gib nichts: Der Agent liest Eingabe und schreibt Ausgabe, und jedes Tool, das du gewährst, weitet die Vertrauensgrenze. Lass auch **Secrets** leer — das ist der Ausweg für einen Dienst ohne Connector, und dieser Agent ruft keinen auf.
 
-Soll der Agent die empfohlene Aktion in ein CRM zurückschreiben, würdest du später den entsprechenden Connector-Tool-Schalter aktivieren — aber nicht, bevor die reine Text-Variante funktioniert.
+Soll der Agent die empfohlene Aktion später in ein CRM schreiben, rüstest du ihn dann mit dem passenden Connector aus — aber nicht, bevor die reine Text-Variante funktioniert.
 
-## Schritt 4 — Modell wählen und veröffentlichen
+## Schritt 3 — Die Anweisungen schreiben und den Agenten anlegen
 
-Öffne den Tab **Modell** und wähl als primäres den Org-Default; setz ein kleineres Modell als Fallback, damit der Agent läuft, wenn das primäre rate-limited ist. Speicher, dann klick **Veröffentlichen**. Der Agent steht nun jedem Projekt und jeder Automatisierung mit passender Rolle zur Verfügung — der Chat selbst führt nur den eingebauten Assistenten aus.
+**Anweisungen** reisen bei jedem Lauf als stehende Anweisung mit — was der Agent verantwortet, wie er arbeitet und wo er aufhört. Bei diesem Feld übertreiben die meisten; halt es unter einem Absatz:
 
-Erstell eine Aufgabe, füg eine echte Kontaktnachricht in ihre Beschreibung ein und weis sie dem `Triage assistant` zu. Das Ergebnis des Laufs sollte gemäß den Instruktionen in zwei Zeilen landen — Ein-Satz-Zusammenfassung und empfohlene Aktion. Driftet das Format ab, zieh die Instruktionen straffer und veröffentliche neu; das ist die Schleife, in der du am meisten Zeit verbringst.
+```text
+You read a contact message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.
+```
 
-## Wo das eingesetzt wird
+Klick auf **Agent erstellen**. Die Zeile nennt Agent-Laufzeit, Provider, Modell und die Ausrüstungszahl — einen Veröffentlichen-Schritt gibt es nicht, und der Agent lässt sich ab diesem Moment zuweisen.
 
-Vier Knöpfe, ein veröffentlichter Agent, eine verifizierte Antwort: dieselbe Form, der jeder später gebaute Agent folgt. Die nächsten Spaziergänge spezialisieren sich auf je einen Knopf — [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge) auf den zweiten, [Arbeit an einen Worker geben](/de/tutorials/editor/delegate-between-agents) auf den dritten.
+## Schritt 4 — Eine Aufgabe übergeben und das Ergebnis prüfen
 
-Für die Konzept-Seite, die die vier Knöpfe und ihre Trade-offs benennt, siehe [Agent-Konzepte](/de/platform/agents/concepts). Für Versionierung und Rollback, sobald der Agent reift, siehe [Agent-Versionen](/de/platform/agents/versions).
+Erstell eine Aufgabe auf dem Projekt-Board, füg eine echte Kontaktnachricht in ihre Beschreibung ein und wähl im Aufgabenblatt einen **Reviewer** — ohne ihn landet die Prüfanfrage bei dem, der die Aufgabe erstellt hat. Weis die Aufgabe dem `Triage assistant` zu und klick auf **Agent starten**. Die Karte wandert nach _In Bearbeitung_, während der Agent in seiner Sandbox arbeitet; ist er fertig, landet sein Bericht als Aufgaben-Kommentar, und die Karte parkt bei **In Prüfung** — auf _Erledigt_ setzt ein Agent nie.
+
+Lies den Kommentar: Er sollte gemäß den Anweisungen zwei Zeilen enthalten, eine Ein-Satz-Zusammenfassung und eine empfohlene Aktion. Zieh die Karte nach _Erledigt_, um sie anzunehmen. Ist das Format abgedriftet, erwähn den Agenten mit @ in einem Aufgaben-Kommentar samt Korrektur — ein Nacharbeits-Lauf setzt dasselbe Gespräch fort und parkt das Ergebnis wieder bei _In Prüfung_ — und zieh die **Anweisungen** am Agenten fürs nächste Mal straffer; Änderungen greifen ab dem nächsten Lauf.
+
+## Wo das hingehört
+
+Vier Züge, ein Agent, ein geprüftes Ergebnis: dieselbe Form, der jeder später gebaute Agent folgt. [Aufgaben-Automatisierung](/de/platform/projects/task-automation) ist die Board-Schleife, die du gerade gefahren bist, von Anfang bis Ende — die Trennung von Driver und Reviewer, Erwähnungen, Wiederholungen und der Notausschalter. [Projekt-Agenten](/de/platform/projects/project-agents) ist die Referenz für jedes Feld, das du angefasst hast, und [Agent-Konzepte](/de/platform/agents/concepts) das Modell dahinter.
+
+Die Stellschrauben, die früher in einem Agenten-Editor saßen, liegen in dieser Version woanders: Wissen gehört der ganzen Organisation unter [Wissen](/de/platform/knowledge/overview) und wird über Plattform-Tools erreicht ([Agent-Wissen](/de/platform/agents/knowledge) erklärt, wie), und Arbeit, die ohne Menschen laufen soll, ist eine [Automatisierung](/de/platform/automations/concepts) und kein zweiter Agent.

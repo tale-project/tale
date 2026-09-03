@@ -1,34 +1,31 @@
 ---
 title: Arbeit an einen Worker geben
-description: Bitte den Assistenten um offene Recherche, sieh zu, wie er einen fokussierten Worker startet, und folge der Job-Karte — Live-Fortschritt, Ergebnis und vollständiges Protokoll.
+description: Den Worker spawn_agent und seine Job-Karte gibt es in dieser Version nicht — gib Arbeit über eine Board-Aufgabe an einen Projekt-Agenten oder über ihren Agent-Knoten an eine Automatisierung.
 ---
 
-Wenn eine Anfrage ihren eigenen fokussierten Kontext verdient — zitierte Recherche, Massen-Extraktion, ein langer Entwurf — startet der Assistent einen **Worker**: einen flüchtigen Agenten, zusammengestellt für genau diese Aufgabe, mit genau den Fähigkeiten, die der Assistent ihm aus seinem eigenen Satz mitgibt. Es gibt nichts zu konfigurieren; dieser Durchlauf fährt einen Recherche-Job von Anfang bis Ende und zeigt dir, wie du die Job-Karte liest.
+Diese Anleitung hat früher einen Recherche-Job durch einen **Worker** laufen lassen: Du hast den Assistenten um offene, zitierbare Arbeit gebeten, er rief `spawn_agent` auf, und eine Job-Karte unter seinem Zug zeigte Fortschritt, Ergebnis und Protokoll des Workers. Dieses Tool existiert in dieser Version von Tale nicht — der Chat-Assistent trägt drei nur lesende Recherche-Tools und kann nichts starten, also gibt es auch keine Job-Karte zu lesen. Arbeit an einen Agenten zu geben bleibt der alltägliche Zug; er läuft jetzt über das Projekt-Board, wo die Übergabe einen Verantwortlichen und einen Prüfer hat.
 
-Die konzeptionelle Seite (Fähigkeits-Teilmengen, Budgets, Methodiken) steht in [Agent-Worker](/platform/agents/delegation).
+<Note>
 
-## Bevor du beginnst
+Worker aus dem Chat heraus sind in dieser Version nicht verfügbar. Der Chat beantwortet Fragen und recherchiert; Arbeit, die etwas hervorbringt, ist eine Aufgabe, die einem Projekt-Agenten zugewiesen wird.
 
-Du brauchst einen chatfähigen Agenten (der eingebaute Assistent funktioniert direkt) auf einem Modell mit Tool-Calling. Für Live-Webquellen verbinde eine Such-Connector wie Tavily unter **Einstellungen > Connectors** — ohne sie fällt der Worker auf einfaches Web-Abrufen zurück und sagt das in seinem Ergebnis.
+</Note>
 
-## Schritt 1 — Frag nach etwas, das einen Worker verdient
+## Arbeit heute übergeben
 
-Öffne einen Chat mit `Assistent` und bitte um offene, zitierbare Arbeit, zum Beispiel: `Recherchiere den Stand von Feststoffbatterien — Markt, wichtigste Akteure, zitierte Quellen.` Eine schnelle Faktenfrage startet keinen Worker (und sollte es auch nicht); Worker sind für Aufgaben, die von Isolation profitieren.
+Der echte Weg ist kurz, und jeder Schritt ist auf dem Board sichtbar:
 
-## Schritt 2 — Beobachte die Job-Karte
+1. **Das Projekt besetzen.** Öffne den Tab **Agenten** des Projekts und stell sicher, dass ein Agent existiert — [Projekt-Agenten](/de/platform/projects/project-agents) geht den Dialog durch, und [Deinen ersten Agent bauen](/de/tutorials/editor/first-agent-end-to-end) legt einen von Null an.
+2. **Die Anfrage als Aufgabe schreiben.** Erstell eine Aufgabe und schreib den Auftrag in ihre Beschreibung — für das Recherche-Beispiel die Frage, die Quellen, die du akzeptierst, und die Form, die die Antwort haben soll. Häng Eingabedateien an die Aufgabe, wenn die Arbeit sie braucht.
+3. **Zuweisen und starten.** Weis die Aufgabe dem Agenten zu und klick auf **Agent starten**. Die Karte wandert nach _In Bearbeitung_, und der Agent arbeitet in seiner eigenen Sandbox mit Beschreibung, Kommentaren und Eingabedateien als Kontext.
+4. **Prüfen.** Der Bericht landet als Aufgaben-Kommentar, erzeugte Dateien als Ergebnisse, und die Aufgabe parkt bei **In Prüfung** — der **Reviewer** der Aufgabe bekommt eine Glocke und eine E-Mail. Zieh die Karte nach _Erledigt_, um anzunehmen; zum Zurückgeben erwähnst du den Agenten mit @ in einem Kommentar samt deinem Feedback, und ein Nacharbeits-Lauf macht dort weiter, wo der vorige aufgehört hat.
 
-Der Assistent ruft `spawn_agent` auf, und unter seinem Zug erscheint eine **Job-Karte**: der Name des Workers, ein Live-Status und die eigene Fortschritts-Checkliste des Workers, die sich füllt, während er plant und die Teilfragen abarbeitet. Die Karte blockiert nie den Eingabebereich — du kannst weitertippen, während der Worker läuft.
+[Aufgaben-Automatisierung](/de/platform/projects/task-automation) beschreibt diese Schleife von Anfang bis Ende, auch was passiert, wenn ein Lauf scheitert.
 
-Zeigt die Karte einen „Übersprungen“-Hinweis, hat der Assistent etwas außerhalb seiner eigenen Freigaben angefragt (etwa eine nicht verbundene Connector); der Lauf geht mit dem Rest weiter, und der Hinweis sagt dir, was du fürs nächste Mal verbinden solltest.
+## Ohne Menschen in der Schleife
 
-## Schritt 3 — Lies Ergebnis und Protokoll
-
-Ist der Job fertig, faltet der Assistent das Ergebnis des Workers in seine Antwort — bei Recherche ein Fazit, Kernpunkte mit Inline-Zitaten und Quellen. Klappe auf der Karte **Worker-Aktivität** auf, um das vollständige Protokoll zu sehen: jede Suche, jeden Tool-Aufruf und die Überlegungen des Workers. Dieses Protokoll ist der Audit-Trail, auf den du zeigst, wenn jemand fragt, was der Agent tatsächlich getan hat.
-
-## Schritt 4 — Wenn etwas schiefgeht
-
-Ein Worker, dem die Zeit ausgeht oder der auf einen Fehler stößt, endet mit sichtbarem Status auf der Karte — `Zeit abgelaufen` oder `Fehlgeschlagen` — mit intaktem Teilfortschritt. Der Assistent berichtet, was er bekommen hat, und macht selbst weiter, wo er kann. Nichts scheitert still: Brauchte der Worker eine Eingabe, die nur du geben kannst, fragt dich der Assistent direkt.
+Soll die Übergabe von selbst passieren, übernimmt das eine **Automatisierung**: Ihr Agent-Knoten führt einen Harness-Zug als einen Schritt eines Workflows aus — nach Zeitplan, per Webhook oder auf ein Ereignis —, neben den Connector-Aktionen und Code-Knoten um ihn herum. [Automatisierungskonzepte](/de/platform/automations/concepts) erklärt die Teile; [Mitgelieferte Automatisierungen](/de/platform/automations/builtin) zeigt die ausgelieferten Pakete.
 
 ## Wo das hingehört
 
-Eine Anfrage, ein Worker, eine Karte ist die kleinste nützliche Form. Dieselbe Mechanik skaliert auf mehrere Worker in einem Zug — jeder bekommt seine eigene Karte, seinen eigenen Fortschritt und sein eigenes Protokoll. Für feste Stufen mit Freigaben oder Zeitplänen dazwischen greif stattdessen zu einem [Workflow](/de/platform/automations/concepts).
+Delegation ist in dieser Version ausdrücklich und prüfbar: Eine Aufgabe nennt Agent und Prüfer, eine Automatisierung nennt Trigger und Knoten, und hinter einer Chat-Antwort wird nichts gestartet. Nimm eine Aufgabe, wenn ein Mensch das Ergebnis prüfen soll; nimm eine Automatisierung, wenn die Arbeit feste Stufen hat und von selbst laufen soll. Die konzeptionelle Seite ist [Agent-Worker](/de/platform/agents/delegation).

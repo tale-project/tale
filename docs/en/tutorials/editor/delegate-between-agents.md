@@ -1,34 +1,31 @@
 ---
 title: Hand work to a worker
-description: Ask the assistant for open-ended research, watch it spawn a focused worker, and follow the job card — live progress, the result, and the full transcript.
+description: The spawn_agent worker and its job card are not part of this version — hand work to a project agent through a board task, or to an automation through its agent node.
 ---
 
-When a request deserves its own focused context — cited research, bulk extraction, a long draft — the assistant spawns a **worker**: an ephemeral agent composed for exactly that task, with exactly the capabilities the assistant grants it from its own set. There is nothing to configure; this walk runs one research job end to end and shows you how to read the job card.
+This tutorial used to run one research job through a **worker**: you asked the assistant for open-ended, citable work, it called `spawn_agent`, and a job card under its turn showed the worker's progress, result, and transcript. That tool does not exist in this version of Tale — the chat assistant carries three read-only retrieval tools and cannot spawn anything, so there is no job card to read. Handing work to an agent is still the everyday move; it runs through the project board instead, where the hand-off has an owner and a reviewer.
 
-The conceptual side (capability subsets, budgets, methodologies) lives in [Agent workers](/platform/agents/delegation).
+<Note>
 
-## Before you begin
+Worker delegation from chat is not available in this version. Chat answers questions and retrieves; work that produces something is a task assigned to a project agent.
 
-You need a chat-capable agent (the built-in Assistant works as-is) on a model with tool-calling support. For live web sources, connect a search connector such as Tavily under **Settings > Connectors** — without it the worker falls back to plain web fetching and says so in its result.
+</Note>
 
-## Step 1 — Ask for something worth a worker
+## Hand work over today
 
-Open a chat with `Assistant` and ask for open-ended, citable work, for example: `Research the current state of solid-state batteries — market, key players, cited sources.` A quick factual question won't (and shouldn't) spawn anything; workers are for tasks that benefit from isolation.
+The real walk is short, and every step of it is visible on the board:
 
-## Step 2 — Watch the job card
+1. **Staff the project.** Open the project's **Agents** tab and make sure an agent exists — [Project agents](/platform/projects/project-agents) walks the dialog, and [Build your first agent](/tutorials/editor/first-agent-end-to-end) creates one from scratch.
+2. **Write the request as a task.** Create a task and put the brief in its description — for the research example, the question, the sources you accept, and the shape of answer you want. Attach input files to the task when the work needs them.
+3. **Assign and start.** Assign the task to the agent and click **Start agent**. The card moves to _In progress_ and the agent works in its own sandbox with the description, comments, and input files as context.
+4. **Review.** The report lands as a task comment, produced files as deliverables, and the task parks at **In review** — the task's **Reviewer** gets a bell and an email. Move the card to _Done_ to accept; to send it back, @-mention the agent in a comment with your feedback, and a rework run continues where the previous one left off.
 
-The assistant calls `spawn_agent` and a **job card** appears under its turn: the worker's name, a live status, and the worker's own progress checklist filling in as it plans and works through sub-questions. The card never blocks the chat — you can keep typing while the worker runs.
+[Task automation](/platform/projects/task-automation) is that loop end to end, including what happens when a run fails.
 
-If the card shows a "skipped" note, the assistant requested something outside its own grants (say, an unconnected connector); the run continues with what remains, and the note tells you what to connect for next time.
+## Without a person in the loop
 
-## Step 3 — Read the result and the transcript
-
-When the job finishes, the assistant folds the worker's deliverable into its reply — for research, a conclusion, key points with inline citations, and sources. On the card, expand **worker activity** to see the full transcript: every search, every tool call, and the worker's reasoning. That transcript is the audit trail you point at when someone asks what the agent actually did.
-
-## Step 4 — When something goes wrong
-
-A worker that runs out of time or hits an error ends with a visible status on the card — `timed out` or `failed` — with its partial progress intact. The assistant reports what it got and continues itself where it can. Nothing fails silently: if the worker needed input only you can give, the assistant asks you directly.
+When the hand-off should happen on its own, an **automation** does it: its agent node runs a harness turn as one step of a workflow — on a schedule, a webhook, or an event — next to the connector actions and code nodes around it. [Automation concepts](/platform/automations/concepts) explains the pieces; [Built-in automations](/platform/automations/builtin) shows the shipped packs.
 
 ## Where this fits
 
-One request, one worker, one card is the smallest useful shape. The same mechanics scale to several workers in a turn — each gets its own card, its own progress, and its own transcript. For fixed stages with approvals or scheduling between them, reach for a [workflow](/platform/automations/concepts) instead.
+Delegation in this version is explicit and reviewable: a task names the agent and the reviewer, an automation names its trigger and its nodes, and nothing is spawned behind a chat reply. Reach for a task when a person should review the result; reach for an automation when the work has fixed stages and should run on its own. The conceptual side is [Agent workers](/platform/agents/delegation).

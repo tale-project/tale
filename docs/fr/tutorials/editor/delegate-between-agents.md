@@ -1,34 +1,31 @@
 ---
 title: Confier du travail à un worker
-description: Demande une recherche ouverte à l'assistant, regarde-le lancer un worker ciblé et suis la carte de job — progression en direct, résultat et transcription complète.
+description: Le worker spawn_agent et sa carte de job ne font pas partie de cette version — confie le travail à un agent de projet par une tâche du tableau, ou à une automatisation par son nœud agent.
 ---
 
-Quand une demande mérite son propre contexte ciblé — recherche citée, extraction en masse, longue rédaction — l'assistant lance un **worker** : un agent éphémère composé pour exactement cette tâche, avec exactement les capacités que l'assistant lui accorde depuis son propre ensemble. Il n'y a rien à configurer ; ce parcours fait tourner un job de recherche de bout en bout et te montre comment lire la carte de job.
+Ce tutoriel faisait tourner un job de recherche à travers un **worker** : tu demandais à l’assistant un travail ouvert et citable, il appelait `spawn_agent`, et une carte de job sous son tour montrait la progression, le résultat et la transcription du worker. Ce tool n’existe pas dans cette version de Tale — l’assistant de chat porte trois outils de recherche en lecture seule et ne peut rien lancer, il n’y a donc aucune carte de job à lire. Confier du travail à un agent reste le geste de tous les jours ; il passe désormais par le tableau du projet, où la passation a un responsable et un relecteur.
 
-Le versant conceptuel (sous-ensembles de capacités, budgets, méthodologies) vit dans [Workers d'agent](/fr/platform/agents/delegation).
+<Note>
 
-## Avant de commencer
+La délégation à un worker depuis le chat n’est pas disponible dans cette version. Le chat répond aux questions et cherche ; le travail qui produit quelque chose est une tâche assignée à un agent de projet.
 
-Il te faut un agent de chat (l'Assistant intégré fonctionne tel quel) sur un modèle avec tool-calling. Pour des sources web en direct, connecte une connector de recherche comme Tavily sous **Paramètres > Connectors** — sans elle, le worker retombe sur la simple récupération web et le dit dans son résultat.
+</Note>
 
-## Étape 1 — Demande quelque chose qui mérite un worker
+## Confier du travail aujourd’hui
 
-Ouvre un chat avec `Assistant` et demande un travail ouvert et citable, par exemple : `Fais une recherche sur l'état des batteries à électrolyte solide — marché, acteurs clés, sources citées.` Une question factuelle rapide ne lance pas de worker (et ne le devrait pas) ; les workers sont pour les tâches qui profitent de l'isolation.
+Le vrai parcours est court, et chaque étape se voit sur le tableau :
 
-## Étape 2 — Observe la carte de job
+1. **Doter le projet.** Ouvre l’onglet **Agents** du projet et vérifie qu’un agent existe — [Agents de projet](/fr/platform/projects/project-agents) parcourt la boîte de dialogue, et [Construire ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) en crée un de zéro.
+2. **Écrire la demande comme une tâche.** Crée une tâche et mets la consigne dans sa description — pour l’exemple de recherche, la question, les sources que tu acceptes et la forme de réponse que tu attends. Joins des fichiers d’entrée à la tâche quand le travail en a besoin.
+3. **Assigner et démarrer.** Assigne la tâche à l’agent et clique sur **Démarrer l'agent**. La carte passe en _En cours_ et l’agent travaille dans sa propre sandbox avec la description, les commentaires et les fichiers d’entrée pour contexte.
+4. **Relire.** Le rapport arrive en commentaire de la tâche, les fichiers produits en livrables, et la tâche se gare en **En revue** — le **Relecteur** de la tâche reçoit une cloche et un e-mail. Déplace la carte vers _Terminé_ pour accepter ; pour renvoyer le travail, @-mentionne l’agent dans un commentaire avec ton retour, et une exécution de reprise continue là où la précédente s’est arrêtée.
 
-L'assistant appelle `spawn_agent` et une **carte de job** apparaît sous son tour : le nom du worker, un statut en direct et la checklist de progression du worker qui se remplit pendant qu'il planifie et traite les sous-questions. La carte ne bloque jamais le champ de saisie — tu peux continuer à écrire pendant que le worker tourne.
+[Automatisation des tâches](/fr/platform/projects/task-automation) décrit cette boucle de bout en bout, y compris ce qui se passe quand une exécution échoue.
 
-Si la carte affiche une note « ignoré », l'assistant a demandé quelque chose hors de ses propres accès (par exemple une connector non connectée) ; l'exécution continue avec le reste, et la note te dit quoi connecter pour la prochaine fois.
+## Sans personne dans la boucle
 
-## Étape 3 — Lis le résultat et la transcription
+Quand la passation doit se faire toute seule, une **automatisation** s’en charge : son nœud agent exécute un tour de harness comme une étape d’un workflow — sur un planning, un webhook ou un événement — à côté des actions de connector et des nœuds de code qui l’entourent. [Concepts d’automatisation](/fr/platform/automations/concepts) explique les pièces ; [Automatisations livrées](/fr/platform/automations/builtin) montre les paquets livrés.
 
-Quand le job se termine, l'assistant replie le livrable du worker dans sa réponse — pour une recherche : une conclusion, des points clés avec citations en ligne et les sources. Sur la carte, déplie **l'activité du worker** pour voir la transcription complète : chaque recherche, chaque appel d'outil et le raisonnement du worker. Cette transcription est la piste d'audit à montrer quand on te demande ce que l'agent a réellement fait.
+## Où cela se place
 
-## Étape 4 — Quand quelque chose tourne mal
-
-Un worker à court de temps ou frappé par une erreur se termine avec un statut visible sur la carte — `temps écoulé` ou `échoué` — avec sa progression partielle intacte. L'assistant rapporte ce qu'il a obtenu et continue lui-même là où il peut. Rien n'échoue en silence : si le worker avait besoin d'une information que toi seul peux donner, l'assistant te la demande directement.
-
-## Où cela s'inscrit
-
-Une demande, un worker, une carte : c'est la plus petite forme utile. La même mécanique passe à l'échelle avec plusieurs workers dans un tour — chacun a sa carte, sa progression et sa transcription. Pour des étapes fixes avec validations ou planification entre elles, prends plutôt une [automatisation](/fr/platform/automations/concepts).
+La délégation, dans cette version, est explicite et relisible : une tâche nomme l’agent et le relecteur, une automatisation nomme son déclencheur et ses nœuds, et rien n’est lancé derrière une réponse de chat. Prends une tâche quand une personne doit relire le résultat ; prends une automatisation quand le travail a des étapes fixes et doit tourner tout seul. Le versant conceptuel est [Workers d’agent](/fr/platform/agents/delegation).
