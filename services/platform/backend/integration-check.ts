@@ -14265,9 +14265,9 @@ async function checkConnectorCredentials(
 async function checkConversations(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const api = (
     route: string,
     init: { method?: string; body?: unknown } = {},
@@ -14641,6 +14641,51 @@ async function checkConversations(
   `;
   await api('/bulk/reopen', { body: { conversationIds: [conversationId] } });
 
+  // The PATCH door (the app's single close/spam buttons) writes the SAME
+  // resolution record the bulk verb writes, and a metadata patch merges onto
+  // the stored object instead of wiping unread/routing state.
+  await sql`
+    UPDATE app.conversations
+    SET metadata = coalesce(metadata, '{}'::jsonb)
+      || '{"unread_count": 3, "routing": "desk"}'::jsonb
+    WHERE id = ${conversationId}
+  `;
+  const patchClose = await api(`/${conversationId}`, {
+    method: 'PATCH',
+    body: { status: 'closed' },
+  });
+  const patchMeta = await api(`/${conversationId}`, {
+    method: 'PATCH',
+    body: { metadata: { priority_note: 'VIP' } },
+  });
+  const patchedRow = await sql<
+    { status: string | null; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT status, metadata FROM app.conversations WHERE id = ${conversationId}
+  `;
+  const patched = patchedRow[0];
+  const patchKeepsRecord =
+    patchClose.status === 200 &&
+    patchMeta.status === 200 &&
+    patched?.status === 'closed' &&
+    patched.metadata?.resolved_by === userId &&
+    typeof patched.metadata?.resolved_at === 'string' &&
+    patched.metadata?.unread_count === 3 &&
+    patched.metadata?.routing === 'desk' &&
+    patched.metadata?.priority_note === 'VIP';
+  // Junk in one row's unread_count must not 500 the org's count tiles.
+  await sql`
+    UPDATE app.conversations
+    SET metadata = coalesce(metadata, '{}'::jsonb)
+      || '{"unread_count": "many"}'::jsonb
+    WHERE id = ${conversationId}
+  `;
+  const countsWithJunk = await api('/counts');
+  await api(`/${conversationId}`, {
+    method: 'PATCH',
+    body: { status: 'open' },
+  });
+
   // Delete cascades the messages.
   const deleted = await api(`/${conversationId}`, { method: 'DELETE' });
   const remnants = await sql<{ count: string }[]>`
@@ -14672,9 +14717,11 @@ async function checkConversations(
       closed.data.successCount === 1 &&
       closedRow[0]?.status === 'closed' &&
       closedRow[0]?.resolvedBy !== null &&
+      patchKeepsRecord &&
+      countsWithJunk.status === 200 &&
       deleted.status === 204 &&
       remnants[0]?.count === '0',
-    `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, strangerRefused=${strangerRefused} (${strangerAssign.status}/${strangerBody.success ? strangerBody.data.error : 'ERR'}), teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, del=${deleted.status} remnants=${remnants[0]?.count}`,
+    `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, strangerRefused=${strangerRefused} (${strangerAssign.status}/${strangerBody.success ? strangerBody.data.error : 'ERR'}), teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, patchClose=${patchClose.status}/${patchMeta.status} record=${patchKeepsRecord} (resolved_by=${patched?.metadata?.resolved_by === userId} unread=${String(patched?.metadata?.unread_count)} note=${String(patched?.metadata?.priority_note)}) countsWithJunk=${countsWithJunk.status}, del=${deleted.status} remnants=${remnants[0]?.count}`,
   );
 }
 

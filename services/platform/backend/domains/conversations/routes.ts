@@ -196,7 +196,9 @@ export function createConversationRoutes(deps: {
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
       await deps.sql.begin((tx) =>
-        updateConversation(tx, c.get('orgId'), c.req.param('id'), body.data),
+        updateConversation(tx, c.get('orgId'), c.req.param('id'), body.data, {
+          userId: c.get('sessionBundle').user.id,
+        }),
       );
       return c.json({ ok: true });
     } catch (error) {

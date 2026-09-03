@@ -575,7 +575,9 @@ export async function countConversationsByStatus(
   return out;
 }
 
-/** Unread among OPEN conversations (`metadata.unread_count` positive). */
+/** Unread among OPEN conversations (`metadata.unread_count` positive). The
+ * cast runs only on a JSON number — one row carrying junk in that key (an
+ * API metadata patch) must not 500 the whole org's count tiles. */
 export async function countUnreadConversations(
   sql: Sql,
   organizationId: string,
@@ -586,7 +588,9 @@ export async function countUnreadConversations(
     WHERE org_id = ${organizationId} AND status = 'open'
       AND (${connectorName ?? null}::text IS NULL
         OR connector_name = ${connectorName ?? null})
-      AND (metadata->>'unread_count')::numeric > 0
+      AND CASE WHEN jsonb_typeof(metadata->'unread_count') = 'number'
+            THEN (metadata->>'unread_count')::numeric > 0
+            ELSE false END
   `;
   return Number(rows[0]?.count ?? '0');
 }
@@ -602,32 +606,75 @@ export interface ConversationUpdates {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * The metadata stamps one status flip carries — SHARED by the PATCH door and
+ * the bulk verbs, so a singly-closed conversation shows the same resolution
+ * record as a bulk-closed one: `closed` stamps who resolved it and when,
+ * `spam` when it was flagged; the other statuses stamp nothing.
+ */
+export function statusChangeStamps(
+  status: ConversationStatus,
+  actorUserId: string,
+  now: number,
+): Record<string, unknown> {
+  if (status === 'closed') {
+    return {
+      resolved_at: new Date(now).toISOString(),
+      resolved_by: actorUserId,
+    };
+  }
+  if (status === 'spam') {
+    return { marked_spam_at: new Date(now).toISOString() };
+  }
+  return {};
+}
+
+/**
+ * The PATCH door. Metadata is a shallow MERGE onto the stored object (the
+ * `patchWebsite` contract), never a wholesale replace — a caller patching one
+ * key must not wipe `unread_count` or routing state — and a status flip
+ * carries the same stamps the bulk verbs write, so close/reopen/spam mean one
+ * thing whichever door they come through.
+ */
 export async function updateConversation(
   tx: TransactionSql,
   organizationId: string,
   conversationId: string,
   updates: ConversationUpdates,
+  actor: { userId: string },
 ): Promise<void> {
-  const rows = await tx<{ id: string; metadata: unknown }[]>`
+  const rows = await tx<
+    { id: string; metadata: Record<string, unknown> | null }[]
+  >`
     SELECT id, metadata FROM app.conversations
     WHERE id = ${conversationId} AND org_id = ${organizationId} LIMIT 1
   `;
-  if (rows.length === 0) {
+  const row = rows[0];
+  if (!row) {
     throw new ConversationError(
       'conversation_not_found',
       'Conversation not found',
       404,
     );
   }
+  const now = Date.now();
+  const stamps =
+    updates.status !== undefined
+      ? statusChangeStamps(updates.status, actor.userId, now)
+      : {};
+  const nextMetadata =
+    updates.metadata !== undefined || Object.keys(stamps).length > 0
+      ? { ...row.metadata, ...updates.metadata, ...stamps }
+      : undefined;
   await tx`
     UPDATE app.conversations SET
       contact_id = ${updates.contactId ?? tx.unsafe('contact_id')},
       subject = ${updates.subject ?? tx.unsafe('subject')},
       status = ${updates.status ?? tx.unsafe('status')},
-      status_changed_at_ms = ${updates.status !== undefined ? Date.now() : tx.unsafe('status_changed_at_ms')},
+      status_changed_at_ms = ${updates.status !== undefined ? now : tx.unsafe('status_changed_at_ms')},
       priority = ${updates.priority ?? tx.unsafe('priority')},
       type = ${updates.type ?? tx.unsafe('type')},
-      metadata = ${updates.metadata !== undefined ? tx.json(toJson(updates.metadata)) : tx.unsafe('metadata')}
+      metadata = ${nextMetadata !== undefined ? tx.json(toJson(nextMetadata)) : tx.unsafe('metadata')}
     WHERE id = ${conversationId}
   `;
   await emitHintInTx(tx, {
@@ -920,15 +967,7 @@ export async function bulkSetConversationStatus(
         result.errors.push(`Conversation ${conversationId} not found`);
         continue;
       }
-      const stamps: Record<string, unknown> =
-        args.verb === 'close'
-          ? {
-              resolved_at: new Date(now).toISOString(),
-              resolved_by: args.actor.userId,
-            }
-          : args.verb === 'spam'
-            ? { marked_spam_at: new Date(now).toISOString() }
-            : {};
+      const stamps = statusChangeStamps(target.status, args.actor.userId, now);
       await tx`
         UPDATE app.conversations SET
           status = ${target.status}, status_changed_at_ms = ${now},
