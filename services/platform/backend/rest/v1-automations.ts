@@ -24,6 +24,7 @@ import {
 import {
   chargeLane,
   domainErrorResponse,
+  pageLimit,
   requireDeveloper,
   restProjectAuth,
   type RestEnv,
@@ -170,10 +171,15 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   });
 
+  /** The newest runs first — a bounded window (`limit` 1..200, default
+   * 50), not a cursor walk; poll `GET /runs/{runId}` for one run. */
   app.get('/automations/:name{.+}/runs', async (c) => {
     const name = decodeName(c, '/runs');
     return c.json({
-      runs: await listRuns(deps.sql, c.get('organizationId'), { name }),
+      runs: await listRuns(deps.sql, c.get('organizationId'), {
+        name,
+        limit: pageLimit(c.req.query('limit'), { fallback: 50, max: 200 }),
+      }),
     });
   });
 

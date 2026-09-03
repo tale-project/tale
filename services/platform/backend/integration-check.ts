@@ -8806,6 +8806,152 @@ async function checkRestRateAttribution(
 }
 
 /**
+ * The documented cursor paginates to the LAST page. Contacts and products
+ * seeded beyond one page are all reachable by passing `continueCursor`
+ * back as `?cursor=` — no repeated first page, no duplicates, `isDone` on
+ * the final page, the walk agreeing with one large page — and an
+ * automation's run listing honours `limit`.
+ */
+async function checkRestPagination(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const apiKey = await mintRestKey(base, ctx.cookie, 'itest-pagination');
+  const v1 = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/v1${route}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+  const stamp = Date.now();
+
+  // Seed past one page of three on both families.
+  await v1('/contacts/bulk', {
+    body: {
+      contacts: Array.from({ length: 7 }, (_, i) => ({
+        name: `Pager ${i}`,
+        email: `pager-${stamp}-${i}@door.test`,
+      })),
+    },
+  });
+  for (let i = 0; i < 7; i++) {
+    await v1('/products', { body: { name: `Pager Widget ${stamp}-${i}` } });
+  }
+
+  const pageSchema = z.object({
+    page: z.array(z.looseObject({ id: z.string() })),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+  });
+  /** Follow continueCursor to the end (bounded — a dead-end loops). */
+  const walk = async (
+    route: string,
+  ): Promise<{ done: boolean; pages: number; seen: string[] }> => {
+    const seen: string[] = [];
+    let cursor = '';
+    let pages = 0;
+    while (pages < 25) {
+      const res = await v1(
+        `${route}?limit=3${cursor === '' ? '' : `&cursor=${encodeURIComponent(cursor)}`}`,
+      );
+      const body = pageSchema.safeParse(await res.json());
+      if (!body.success) return { done: false, pages, seen };
+      pages += 1;
+      seen.push(...body.data.page.map((row) => row.id));
+      if (body.data.isDone) return { done: true, pages, seen };
+      cursor = body.data.continueCursor;
+    }
+    return { done: false, pages, seen };
+  };
+  const allIds = async (route: string): Promise<string[]> => {
+    const body = pageSchema.safeParse(
+      await (await v1(`${route}?limit=200`)).json(),
+    );
+    return body.success ? body.data.page.map((row) => row.id) : [];
+  };
+  const covers = (walked: string[], all: string[]): boolean =>
+    new Set(walked).size === walked.length &&
+    walked.length === all.length &&
+    all.every((id) => walked.includes(id));
+
+  const contactsWalk = await walk('/contacts');
+  const contactsAll = await allIds('/contacts');
+  const productsWalk = await walk('/products');
+  const productsAll = await allIds('/products');
+
+  // Runs: an automation of our own, two runs, a window of one.
+  const appSend = (route: string, body: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: ctx.cookie,
+        origin: base,
+      },
+      body: JSON.stringify(body),
+    });
+  await appSend(`/api/app/automations/ops/pager/save?orgId=${ctx.orgId}`, {
+    document: {
+      version: 1,
+      name: 'ops/pager',
+      nodes: [
+        {
+          id: 'shape',
+          type: 'transform',
+          input: { n: '{{ input.n }}' },
+          code: 'return { n: input.n }',
+        },
+      ],
+      output: '{{ nodes.shape.output.n }}',
+    },
+  });
+  await appSend(`/api/app/automations/ops/pager/deploy?orgId=${ctx.orgId}`, {
+    version: 1,
+  });
+  const runsSchema = z.object({
+    runs: z.array(z.looseObject({ id: z.string() })),
+  });
+  const started = await Promise.all([
+    v1('/automations/ops/pager/runs', {
+      body: { input: { n: 1 }, mode: 'mock' },
+    }),
+    v1('/automations/ops/pager/runs', {
+      body: { input: { n: 2 }, mode: 'mock' },
+    }),
+  ]);
+  const runsOne = runsSchema.safeParse(
+    await (await v1('/automations/ops/pager/runs?limit=1')).json(),
+  );
+  const runsAll = runsSchema.safeParse(
+    await (await v1('/automations/ops/pager/runs')).json(),
+  );
+
+  record(
+    'REST pagination walks to the last page (contacts, products) + runs limit',
+    apiKey !== '' &&
+      contactsWalk.done &&
+      contactsWalk.pages >= 3 &&
+      covers(contactsWalk.seen, contactsAll) &&
+      productsWalk.done &&
+      productsWalk.pages >= 3 &&
+      covers(productsWalk.seen, productsAll) &&
+      started.every((res) => res.status === 202) &&
+      runsOne.success &&
+      runsOne.data.runs.length === 1 &&
+      runsAll.success &&
+      runsAll.data.runs.length >= 2,
+    `contacts: done=${contactsWalk.done} pages=${contactsWalk.pages} walked=${contactsWalk.seen.length} all=${contactsAll.length} covers=${covers(contactsWalk.seen, contactsAll)}; products: done=${productsWalk.done} pages=${productsWalk.pages} walked=${productsWalk.seen.length} all=${productsAll.length} covers=${covers(productsWalk.seen, productsAll)}; runs: started=${started.map((res) => res.status).join('/')} limit=1 → ${runsOne.success ? runsOne.data.runs.length : 'ERR'} (want 1), all → ${runsAll.success ? runsAll.data.runs.length : 'ERR'} (want ≥2)`,
+  );
+}
+
+/**
  * Enterprise SSO sign-in, end to end on the REUSED 0.4 protocol handlers:
  * connection file on disk → discover → authorize (PKCE challenge in the
  * IdP redirect, signed state) → callback (code exchange against a fake
@@ -30253,6 +30399,7 @@ async function main(): Promise<void> {
     await checkRestMachineJourney(sql, baseUrl, authCtx);
     await checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkRestRateAttribution(sql, baseUrl, authCtx);
+    await checkRestPagination(sql, baseUrl, authCtx);
     await checkSsoLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
     await checkSamlLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
     await checkEntraLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);

@@ -147,6 +147,43 @@ export async function chargeLane(
   }
 }
 
+/**
+ * The keyset cursor the paginated families exchange: `<timestamp>:<id>` —
+ * the previous page's last row, opaque to the consumer (the spec says
+ * "pass `continueCursor` back as `cursor`"). One codec for every list that
+ * orders on `(<ts>_ms DESC, id DESC)`, so no family invents its own format.
+ */
+export function formatKeysetCursor(at: number, id: string): string {
+  return `${at}:${id}`;
+}
+
+/** The inverse of `formatKeysetCursor`; anything unparseable reads as "no
+ * cursor" (the first page) rather than a 400 — an opaque token has no
+ * shape a consumer could have gotten wrong on purpose. */
+export function parseKeysetCursor(
+  raw: string | null | undefined,
+): { at: number; id: string } | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const split = raw.indexOf(':');
+  if (split <= 0 || split === raw.length - 1) return null;
+  const at = Number(raw.slice(0, split));
+  return Number.isFinite(at) ? { at, id: raw.slice(split + 1) } : null;
+}
+
+/** The page size a list route honours: the documented default, floored at
+ * one row (a negative `LIMIT` is a Postgres error, zero a dead page) and
+ * capped at `max`. */
+export function pageLimit(
+  raw: string | undefined,
+  defaults: { fallback: number; max: number },
+): number {
+  const parsed = Number(raw ?? String(defaults.fallback));
+  const limit = Number.isFinite(parsed)
+    ? Math.trunc(parsed)
+    : defaults.fallback;
+  return Math.min(Math.max(limit, 1), defaults.max);
+}
+
 /** The minting user's project-auth context (visibility matrix). */
 export async function restProjectAuth(sql: Sql, c: Context<RestEnv>) {
   return getProjectAuthContext(sql, {
