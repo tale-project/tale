@@ -37,9 +37,24 @@ vi.mock('./mention-trigger-chips', () => ({
   MentionTriggerChips: () => null,
 }));
 
+const discussionState = vi.hoisted(() => ({
+  hasEarlier: false,
+  isLoadingEarlier: false,
+  loadEarlier: vi.fn(),
+}));
+
 vi.mock('../hooks/queries', () => ({
+  // The hook answers NEWEST first (the page walk starts at the tail):
+  // msg_2 (user, newer) then msg_1 (automated, older).
   useTaskDiscussion: () => ({
     comments: [
+      {
+        messageId: 'msg_2',
+        authorType: 'user',
+        authorId: 'user_1',
+        body: 'Thanks.',
+        createdAt: Date.now(),
+      },
       {
         messageId: 'msg_1',
         authorType: 'agent',
@@ -52,14 +67,11 @@ vi.mock('../hooks/queries', () => ({
         },
         createdAt: Date.now(),
       },
-      {
-        messageId: 'msg_2',
-        authorType: 'user',
-        authorId: 'user_1',
-        body: 'Thanks.',
-        createdAt: Date.now(),
-      },
     ],
+    isLoading: false,
+    hasEarlier: discussionState.hasEarlier,
+    isLoadingEarlier: discussionState.isLoadingEarlier,
+    loadEarlier: discussionState.loadEarlier,
   }),
 }));
 
@@ -146,7 +158,7 @@ describe('TaskComments bodyByLocale', () => {
 });
 
 describe('TaskComments order', () => {
-  // The fixture timeline is ascending: msg_1 (automated) then msg_2 (user).
+  // The fixture arrives newest-first: msg_2 (user) then msg_1 (automated).
   const listedBodies = () =>
     screen
       .getAllByRole('listitem')
@@ -187,6 +199,69 @@ describe('TaskComments order', () => {
     const bodies = listedBodies();
     expect(bodies[0]).toContain('[automated] Verification complete');
     expect(bodies[1]).toContain('Thanks.');
+  });
+});
+
+describe('TaskComments earlier pages', () => {
+  // Regression: the feed used to be a fixed oldest-200 read, so a busy
+  // task's newest comments never rendered. The walk into older pages must be
+  // offered whenever the backend says more exist, at the OLDEST end.
+  it('offers to load earlier comments below a newest-first log', async () => {
+    localeState.locale = 'en';
+    discussionState.hasEarlier = true;
+    discussionState.loadEarlier.mockClear();
+    const { container } = render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment={false}
+      />,
+    );
+    const button = screen.getByRole('button', {
+      name: 'detail.showEarlierComments',
+    });
+    const list = container.querySelector('ul');
+    expect(list).not.toBeNull();
+    // The list comes BEFORE the control: older pages append at the bottom.
+    expect(
+      list!.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    button.click();
+    expect(discussionState.loadEarlier).toHaveBeenCalledTimes(1);
+    discussionState.hasEarlier = false;
+  });
+
+  it('shows no such control once the start of the discussion is loaded', () => {
+    localeState.locale = 'en';
+    discussionState.hasEarlier = false;
+    render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment={false}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: 'detail.showEarlierComments' }),
+    ).toBeNull();
+  });
+
+  it('shows the task-wide count in the heading when it is known', () => {
+    localeState.locale = 'en';
+    render(
+      <TaskComments
+        taskId={'task_1' as never}
+        organizationId="org_1"
+        projectId={'project_1' as never}
+        canComment={false}
+        commentCount={412}
+      />,
+    );
+    expect(screen.getByRole('heading', { level: 3 }).textContent).toContain(
+      '(412)',
+    );
   });
 });
 

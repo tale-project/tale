@@ -476,8 +476,7 @@ auth:
       userNotAssigned:
         Ton compte n’est pas affecté à cette application. Contacte ton
         administration pour demander l’accès.
-      notOrgMember:
-        Ton compte n’est pas membre de cette organisation. Demande à
+      notOrgMember: Ton compte n’est pas membre de cette organisation. Demande à
         l’administration de cette organisation de t’inviter, puis
         reconnecte-toi.
       silentAuthFailed: La connexion silencieuse a échoué. Connecte-toi de manière interactive.
@@ -6775,6 +6774,7 @@ tasks:
     overview: Aperçu
     comments: Commentaires
     noComments: Aucun commentaire pour le moment.
+    showEarlierComments: Afficher les commentaires précédents
     activity: Activité
     subtasks: Sous-tâches
     addSubtask: Ajouter une sous-tâche…

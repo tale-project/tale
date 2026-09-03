@@ -1,4 +1,5 @@
 import type { Sql, TransactionSql } from 'postgres';
+import { z } from 'zod';
 
 import { parseTaskSubjectContract } from '../../../lib/shared/schemas/task_contract.ts';
 import { TASK_AUDIT_ACTIONS } from '../../core/tasks/audit_actions.ts';
@@ -19,8 +20,9 @@ import {
 import {
   createThread,
   deleteMessage,
-  listThreadMessages,
+  listThreadMessagesTail,
   saveMessage,
+  THREAD_MESSAGES_READ_MAX,
   updateMessageText,
 } from '../threads/store.ts';
 import { kickAgentRun } from './agent-runs.ts';
@@ -228,37 +230,94 @@ export interface TaskCommentItem {
   bodyByLocale: Record<string, string> | null;
 }
 
-/** Ordered comment feed (message text joined with the lockstep meta). */
+/** How many comments one read answers when the reader names no size — the
+ * whole discussion for every task under it, exactly what readers saw before
+ * the feed paged. */
+export const TASK_COMMENT_PAGE_DEFAULT = 200;
+/** The most one read may ask for (the message store's own ceiling). */
+export const TASK_COMMENT_PAGE_MAX = THREAD_MESSAGES_READ_MAX;
+
+/**
+ * The wire form of a page cursor (a response's `continueCursor`): the
+ * message order the next older page ends before, as a decimal string. Absent
+ * or empty reads the newest page; anything else is refused at the door.
+ */
+export const taskCommentCursorSchema = z
+  .string()
+  .optional()
+  .transform((raw, ctx) => {
+    if (raw === undefined || raw === '') return undefined;
+    if (!/^\d{1,9}$/.test(raw)) {
+      ctx.addIssue({ code: 'custom', message: 'invalid cursor' });
+      return z.NEVER;
+    }
+    return Number(raw);
+  });
+
+export interface TaskCommentPage {
+  /** Chronological within the page (oldest first). */
+  comments: TaskCommentItem[];
+  /** Whether comments OLDER than this page exist. */
+  hasMore: boolean;
+  /** Read the next older page with `before: nextCursor`; null at the start. */
+  nextCursor: number | null;
+}
+
+/**
+ * The comment feed, NEWEST page first: the last `limit` comments (or the
+ * `limit` before the `before` cursor — a message order from a previous
+ * page's `nextCursor`), chronological within the page, plus whether older
+ * ones remain. A discussion is read from its tail because that is where
+ * the state of the task lives — agent runs report into it, so a busy task
+ * outgrows any fixed window, and a window pinned to the START hid every
+ * comment after the 200th while the POST kept answering 201.
+ */
 export async function listTaskComments(
   sql: Sql,
   auth: ProjectAuthContext,
   taskId: string,
-): Promise<TaskCommentItem[]> {
+  options: { limit?: number; before?: number } = {},
+): Promise<TaskCommentPage> {
   const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
   const project = await loadProjectOrThrow(sql, task.projectId);
   assertTaskReadable(project, auth);
   if (!task.discussionThreadId) {
-    return [];
+    return { comments: [], hasMore: false, nextCursor: null };
   }
-  const messages = await listThreadMessages(sql, task.discussionThreadId);
-  const meta = await sql<
-    {
-      messageId: string;
-      authorType: string;
-      authorId: string;
-      editedAt: number | null;
-      mentions: { type: string; id: string }[] | null;
-      bodyByLocale: Record<string, string> | null;
-    }[]
-  >`
-    SELECT message_id AS "messageId", author_type AS "authorType",
-           author_id AS "authorId", edited_at_ms::float8 AS "editedAt",
-           mentions, body_by_locale AS "bodyByLocale"
-    FROM app.task_discussion_message_meta
-    WHERE task_id = ${taskId}
-  `;
+  const limit = Math.min(
+    Math.max(options.limit ?? TASK_COMMENT_PAGE_DEFAULT, 1),
+    TASK_COMMENT_PAGE_MAX,
+  );
+  // Comments are whole turns (step 0), so a message order alone is the
+  // cursor; the store's (order, step) keyset gets the step pinned to 0.
+  const tail = await listThreadMessagesTail(sql, task.discussionThreadId, {
+    limit,
+    ...(options.before !== undefined
+      ? { before: { order: options.before, stepOrder: 0 } }
+      : {}),
+  });
+  const messageIds = tail.messages.map((message) => message.id);
+  const meta =
+    messageIds.length === 0
+      ? []
+      : await sql<
+          {
+            messageId: string;
+            authorType: string;
+            authorId: string;
+            editedAt: number | null;
+            mentions: { type: string; id: string }[] | null;
+            bodyByLocale: Record<string, string> | null;
+          }[]
+        >`
+          SELECT message_id AS "messageId", author_type AS "authorType",
+                 author_id AS "authorId", edited_at_ms::float8 AS "editedAt",
+                 mentions, body_by_locale AS "bodyByLocale"
+          FROM app.task_discussion_message_meta
+          WHERE task_id = ${taskId} AND message_id = ANY(${messageIds})
+        `;
   const metaById = new Map(meta.map((row) => [row.messageId, row]));
-  return messages.flatMap((message) => {
+  const comments = tail.messages.flatMap((message) => {
     const m = metaById.get(message.id);
     if (!m) {
       return [];
@@ -276,6 +335,11 @@ export async function listTaskComments(
       },
     ];
   });
+  return {
+    comments,
+    hasMore: tail.hasMore,
+    nextCursor: tail.nextBefore?.order ?? null,
+  };
 }
 
 async function loadCommentMeta(

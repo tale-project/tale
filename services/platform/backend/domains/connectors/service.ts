@@ -43,7 +43,11 @@ import { resolveConnectorCredential } from '../connector_credentials/service.ts'
 import { conversationShimHandlers } from '../conversations/shim.ts';
 import { createHubDocument, listDocuments } from '../documents/service.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
-import { addTaskComment, listTaskComments } from '../tasks/comments.ts';
+import {
+  addTaskComment,
+  listTaskComments,
+  TASK_COMMENT_PAGE_MAX,
+} from '../tasks/comments.ts';
 import {
   agentUpdateTaskStatusTrusted,
   loadTaskOrThrow,
@@ -134,16 +138,24 @@ function pgTaskStore(sql: Sql): WorkflowTaskStore {
     },
     async listComments({ organizationId, taskId }) {
       const auth = await systemAuth(organizationId);
-      const comments = await listTaskComments(sql, auth, taskId);
-      return comments.map((comment) => ({
-        authorType:
-          comment.authorType === 'user'
-            ? ('user' as const)
-            : ('agent' as const),
-        authorId: comment.authorId,
-        body: comment.body,
-        createdAt: comment.createdAt,
-      }));
+      // The newest page at the read ceiling: a workflow reads feedback from
+      // the tail, and `truncated` tells it when the discussion outgrew one
+      // read — never a quietly shortened list.
+      const page = await listTaskComments(sql, auth, taskId, {
+        limit: TASK_COMMENT_PAGE_MAX,
+      });
+      return {
+        comments: page.comments.map((comment) => ({
+          authorType:
+            comment.authorType === 'user'
+              ? ('user' as const)
+              : ('agent' as const),
+          authorId: comment.authorId,
+          body: comment.body,
+          createdAt: comment.createdAt,
+        })),
+        truncated: page.hasMore,
+      };
     },
   };
 }

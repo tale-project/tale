@@ -240,13 +240,13 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
 ```
 
-And fetch the results. What the automation reported lands in the task's discussion; what it filed lands as files in the quarter's folder — both readable through the door. The content endpoint answers a **302** to a short-lived presigned URL for the stored blob, so follow redirects:
+And fetch the results. What the automation reported lands in the task's discussion; what it filed lands as files in the quarter's folder — both readable through the door. The discussion comes newest page first (`limit`, default 200, at most 500), chronological within the page; while `isDone` is `false`, pass `continueCursor` back as `cursor` to read the older comments. The content endpoint answers a **302** to a short-lived presigned URL for the stored blob, so follow redirects:
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \
+curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments?limit=100" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
-# → 200 { "comments": [ { "id": "...", "authorType": "agent", "body": "Return prepared — key figures…", ... } ] }
+# → 200 { "comments": [ { "id": "...", "authorType": "agent", "body": "Return prepared — key figures…", ... } ], "isDone": false, "continueCursor": "312" }
 
 curl -sSL "https://your-host.example.com/api/v1/projects/<projectId>/files/<documentId>/content" \
   -H "Authorization: Bearer $TALE_API_KEY" \

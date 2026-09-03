@@ -2692,6 +2692,152 @@
       }
     },
     "/api/v1/tasks/{id}/comments": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "List the task’s comments",
+        "description": "The discussion read lane: what automations reported back (prepared figures, operator questions, setup summaries) and what people replied. Answers the NEWEST `limit` comments (default 200, at most 500), chronological within the page; while `isDone` is false, pass `continueCursor` back as `cursor` to read the older ones — a busy task’s discussion is never silently cut at a fixed window. `authorType` separates `user` and `agent` voices. Visibility is the minting user’s, like every task read.",
+        "operationId": "listTaskComments",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task ID"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "How many of the newest comments to answer (1–500, default 200)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `continueCursor` of a previous page — answers the comments older than that page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The newest page of the discussion, chronological within the page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["comments", "isDone", "continueCursor"],
+                  "properties": {
+                    "comments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "authorType",
+                          "authorId",
+                          "body",
+                          "createdAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "authorType": {
+                            "type": "string",
+                            "enum": ["user", "agent"]
+                          },
+                          "authorId": {
+                            "type": "string"
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          },
+                          "editedAt": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean",
+                      "description": "True once this page reaches the start of the discussion"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "description": "Pass as `cursor` for the next older page; empty when done"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": ["Tasks"],
         "summary": "Comment on the task as the key’s user",

@@ -1577,16 +1577,18 @@ async function checkTasks(
     `/api/app/tasks/comments/${c1.success ? c1.data.messageId : ''}?orgId=${orgId}`,
     { body: 'First comment (edited)' },
   );
+  // The feed is a newest-first page: the first comment is the LAST row.
   const listed = z
     .object({
       threadId: z.string().nullable(),
-      messages: z.array(
+      page: z.array(
         z.object({
           messageId: z.string(),
           body: z.string(),
           editedAt: z.number().nullable(),
         }),
       ),
+      isDone: z.boolean(),
     })
     .safeParse(await get(`/api/app/tasks/${aId}/comments?orgId=${orgId}`));
   const removed = await send(
@@ -1596,27 +1598,29 @@ async function checkTasks(
   const afterDelete = z
     .object({
       threadId: z.string().nullable(),
-      messages: z.array(z.object({ body: z.string() })),
+      page: z.array(z.object({ body: z.string() })),
     })
     .safeParse(await get(`/api/app/tasks/${aId}/comments?orgId=${orgId}`));
   const taskAfter = z
     .object({ task: z.object({ commentCount: z.number() }).loose() })
     .safeParse(await get(`/api/app/tasks/${aId}?orgId=${orgId}`));
   record(
-    'task discussion (0.4 envelope) add/edit/delete + count',
+    'task discussion (page envelope) add/edit/delete + count',
     c1.success &&
       edited.ok &&
       listed.success &&
       listed.data.threadId !== null &&
-      listed.data.messages.length === 2 &&
-      listed.data.messages[0]?.body === 'First comment (edited)' &&
-      listed.data.messages[0]?.editedAt !== null &&
+      listed.data.page.length === 2 &&
+      listed.data.isDone &&
+      listed.data.page[0]?.body === 'Second comment' &&
+      listed.data.page.at(-1)?.body === 'First comment (edited)' &&
+      listed.data.page.at(-1)?.editedAt !== null &&
       removed.ok &&
       afterDelete.success &&
-      afterDelete.data.messages.length === 1 &&
+      afterDelete.data.page.length === 1 &&
       taskAfter.success &&
       taskAfter.data.task.commentCount === 1,
-    `threadId=${listed.success ? String(listed.data.threadId !== null) : 'ERR'}, list=${listed.success ? listed.data.messages.length : 'ERR'}, first=${listed.success ? JSON.stringify(listed.data.messages[0]?.body) : 'ERR'}, afterDelete=${afterDelete.success ? afterDelete.data.messages.length : 'ERR'}, count=${taskAfter.success ? taskAfter.data.task.commentCount : 'ERR'}`,
+    `threadId=${listed.success ? String(listed.data.threadId !== null) : 'ERR'}, list=${listed.success ? listed.data.page.length : 'ERR'}, newest=${listed.success ? JSON.stringify(listed.data.page[0]?.body) : 'ERR'}, oldest=${listed.success ? JSON.stringify(listed.data.page.at(-1)?.body) : 'ERR'}, afterDelete=${afterDelete.success ? afterDelete.data.page.length : 'ERR'}, count=${taskAfter.success ? taskAfter.data.task.commentCount : 'ERR'}`,
   );
 
   // Search (fields + comment fallback), mention preview, the run-card /
@@ -29952,6 +29956,226 @@ async function checkWatchdogs(
   );
 }
 
+/**
+ * Truth in listing, discussion lane: a task's comment feed is read from its
+ * NEWEST end and paged on all three doors. The old read was a fixed
+ * oldest-200 window — a 201st comment saved fine (POST 200) and rendered
+ * nowhere. 522 comments here: the app door pages 200/200/122 newest-first
+ * and refuses a garbage cursor, the REST walk covers every comment exactly
+ * once, and the workflow native says `truncated` once the discussion has
+ * outgrown its 500-comment read.
+ */
+async function checkTaskDiscussionPaging(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const send = (path2: string, body: unknown): Promise<Response> =>
+    fetch(`${base}${path2}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify(body),
+    });
+  const get = async (path2: string): Promise<unknown> =>
+    (await fetch(`${base}${path2}`, { headers: { cookie } })).json();
+
+  const proj = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send(`/api/app/projects?orgId=${orgId}`, {
+        name: 'Busy Discussion Project',
+      })
+    ).json(),
+  );
+  const projectId = proj.success ? proj.data.projectId : '';
+  const task = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await send(`/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Busy task',
+        status: 'todo',
+      })
+    ).json(),
+  );
+  const taskId = task.success ? task.data.taskId : '';
+
+  // Comment 1 through the door mints the discussion thread; 520 more land
+  // straight in the store in the exact shape `addTaskComment` writes (orders
+  // 1..520); the last one goes through the door again (order 521).
+  const BULK = 520;
+  const TOTAL = BULK + 2;
+  const first = z
+    .object({ messageId: z.string(), threadId: z.string() })
+    .safeParse(
+      await (
+        await send(`/api/app/tasks/${taskId}/comments?orgId=${orgId}`, {
+          body: 'comment 1',
+        })
+      ).json(),
+    );
+  const threadId = first.success ? first.data.threadId : '';
+  const now = Date.now();
+  await sql`
+    WITH inserted AS (
+      INSERT INTO app.messages (
+        thread_id, org_id, "order", step_order, role, text, author_id,
+        status, created_at_ms
+      )
+      SELECT ${threadId}, ${orgId}, g, 0, 'user', 'comment ' || (g + 1),
+             ${userId}, 'complete', ${now} + g
+      FROM generate_series(1, ${BULK}) AS g
+      RETURNING id, thread_id, created_at_ms
+    )
+    INSERT INTO app.task_discussion_message_meta (
+      message_id, org_id, thread_id, task_id, author_type, author_id,
+      created_at_ms
+    )
+    SELECT id, ${orgId}, thread_id, ${taskId}, 'user', ${userId},
+           created_at_ms
+    FROM inserted
+  `;
+  await sql`
+    UPDATE app.tasks SET comment_count = comment_count + ${BULK}
+    WHERE id = ${taskId}
+  `;
+  await send(`/api/app/tasks/${taskId}/comments?orgId=${orgId}`, {
+    body: `comment ${TOTAL}`,
+  });
+
+  // App door: newest first, 200 a page, cursor = the page's oldest order.
+  const pageSchema = z.object({
+    threadId: z.string().nullable(),
+    page: z.array(z.object({ messageId: z.string(), body: z.string() })),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+  });
+  const readPage = async (cursor: string) =>
+    pageSchema.safeParse(
+      await get(
+        `/api/app/tasks/${taskId}/comments?orgId=${orgId}${cursor === '' ? '' : `&cursor=${cursor}`}`,
+      ),
+    );
+  const page1 = await readPage('');
+  const page2 = await readPage(
+    page1.success ? page1.data.continueCursor : 'unset',
+  );
+  const page3 = await readPage(
+    page2.success ? page2.data.continueCursor : 'unset',
+  );
+  const uiIds = new Set(
+    [page1, page2, page3].flatMap((page) =>
+      page.success ? page.data.page.map((row) => row.messageId) : [],
+    ),
+  );
+  const badCursor = await fetch(
+    `${base}/api/app/tasks/${taskId}/comments?orgId=${orgId}&cursor=abc`,
+    { headers: { cookie } },
+  );
+  const uiOk =
+    page1.success &&
+    page1.data.page.length === 200 &&
+    page1.data.page[0]?.body === `comment ${TOTAL}` &&
+    !page1.data.isDone &&
+    page1.data.continueCursor === String(TOTAL - 200) &&
+    page2.success &&
+    page2.data.page.length === 200 &&
+    !page2.data.isDone &&
+    page3.success &&
+    page3.data.page.length === TOTAL - 400 &&
+    page3.data.page.at(-1)?.body === 'comment 1' &&
+    page3.data.isDone &&
+    page3.data.continueCursor === '' &&
+    uiIds.size === TOTAL &&
+    badCursor.status === 400;
+
+  // REST door: the newest page first, chronological within a page, walked
+  // to the start of the discussion with every comment seen exactly once.
+  const minted = z.looseObject({ key: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/api-key/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ name: 'itest-discussion' }),
+      })
+    ).json(),
+  );
+  const apiKey = minted.success ? minted.data.key : '';
+  const restPage = z.object({
+    comments: z.array(z.object({ id: z.string(), body: z.string() })),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+  });
+  const restIds: string[] = [];
+  let restNewestFirstPage = '';
+  let restHops = 0;
+  let restParsed = true;
+  let restCursor = '';
+  for (;;) {
+    const body = restPage.safeParse(
+      await (
+        await fetch(
+          `${base}/api/v1/tasks/${taskId}/comments?limit=150${restCursor === '' ? '' : `&cursor=${restCursor}`}`,
+          {
+            headers: {
+              authorization: `Bearer ${apiKey}`,
+              'x-organization-slug': orgSlug,
+            },
+          },
+        )
+      ).json(),
+    );
+    if (!body.success) {
+      restParsed = false;
+      break;
+    }
+    if (restHops === 0) {
+      restNewestFirstPage = body.data.comments.at(-1)?.body ?? '';
+    }
+    restIds.push(...body.data.comments.map((row) => row.id));
+    restHops++;
+    if (body.data.isDone || restHops > 10) break;
+    restCursor = body.data.continueCursor;
+  }
+  const restOk =
+    restParsed &&
+    restNewestFirstPage === `comment ${TOTAL}` &&
+    restHops === 4 &&
+    restIds.length === TOTAL &&
+    new Set(restIds).size === TOTAL;
+
+  // Workflow native: the newest 500 plus the truncation bit — a marker older
+  // than the window must not silently read as "everything is new feedback".
+  const { runConnectorAction } =
+    await import('./domains/connectors/service.ts');
+  const native = await runConnectorAction(sql, {
+    organizationId: orgId,
+    connector: 'task',
+    action: 'list_comments',
+    input: { taskId, limit: 3 },
+    mode: 'live',
+    caller: { kind: 'system', reason: 'itest discussion paging' },
+  });
+  const nativeOut = z
+    .object({
+      count: z.number(),
+      truncated: z.boolean(),
+      comments: z.array(z.object({ body: z.string() })),
+    })
+    .safeParse(native.status === 'ok' ? native.output : {});
+  const nativeOk =
+    nativeOut.success &&
+    nativeOut.data.count === 3 &&
+    nativeOut.data.truncated &&
+    nativeOut.data.comments.at(-1)?.body === `comment ${TOTAL}`;
+
+  record(
+    'task discussion pages newest-first on every door (522 comments)',
+    uiOk && restOk && nativeOk,
+    `app: p1=${page1.success ? `${page1.data.page.length}/${page1.data.page[0]?.body}/${page1.data.continueCursor}` : 'ERR'} p2=${page2.success ? page2.data.page.length : 'ERR'} p3=${page3.success ? `${page3.data.page.length}/${page3.data.isDone}` : 'ERR'} unique=${uiIds.size}/${TOTAL} badCursor=${badCursor.status} (want 400); rest: hops=${restHops} newest=${restNewestFirstPage} unique=${new Set(restIds).size}/${TOTAL}; native: ${nativeOut.success ? `count=${nativeOut.data.count} truncated=${nativeOut.data.truncated} last=${nativeOut.data.comments.at(-1)?.body}` : `ERR ${native.status}`}`,
+  );
+}
+
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -30096,6 +30320,12 @@ async function main(): Promise<void> {
     await checkProjects(baseUrl, authCtx);
     await checkTasks(baseUrl, authCtx);
     await checkTasksOrgIsolation(sql, baseUrl, authCtx);
+    await checkTaskDiscussionPaging(
+      sql,
+      baseUrl,
+      authCtx,
+      `itest-${orgSuffix}`,
+    );
     await checkFiles(baseUrl, authCtx);
     await checkDocuments(sql, baseUrl, authCtx);
     await checkBlobRefAuthority(sql, baseUrl, authCtx);

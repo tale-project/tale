@@ -240,13 +240,13 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
 ```
 
-Et récupère les résultats. Ce que l'automatisation a rapporté se trouve dans la discussion de la tâche ; ce qu'elle a déposé arrive comme fichiers dans le dossier du trimestre — les deux se lisent par le même accès. L'endpoint de contenu répond **302** vers une URL présignée de courte durée pour le blob stocké, donc suis les redirections :
+Et récupère les résultats. Ce que l'automatisation a rapporté se trouve dans la discussion de la tâche ; ce qu'elle a déposé arrive comme fichiers dans le dossier du trimestre — les deux se lisent par le même accès. La discussion arrive par pages, la plus récente d'abord (`limit`, 200 par défaut, 500 au plus), en ordre chronologique dans la page ; tant que `isDone` vaut `false`, renvoie `continueCursor` comme `cursor` pour lire les commentaires plus anciens. L'endpoint de contenu répond **302** vers une URL présignée de courte durée pour le blob stocké, donc suis les redirections :
 
 ```bash
-curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \
+curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments?limit=100" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "X-Organization-Slug: <org-slug>"
-# → 200 { "comments": [ { "id": "...", "authorType": "agent", "body": "…", ... } ] }
+# → 200 { "comments": [ { "id": "...", "authorType": "agent", "body": "…", ... } ], "isDone": false, "continueCursor": "312" }
 
 curl -sSL "https://your-host.example.com/api/v1/projects/<projectId>/files/<documentId>/content" \
   -H "Authorization: Bearer $TALE_API_KEY" \

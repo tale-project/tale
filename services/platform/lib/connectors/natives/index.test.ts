@@ -291,14 +291,17 @@ const taskStore: WorkflowTaskStore = {
   updateStatus: () => Promise.resolve({ ok: true }),
   comment: () => Promise.resolve({ messageId: 'msg_1' }),
   listComments: () =>
-    Promise.resolve([
-      {
-        authorType: 'user' as const,
-        authorId: 'usr_double',
-        body: 'Please re-check page 3.',
-        createdAt: 1_750_000_000_000,
-      },
-    ]),
+    Promise.resolve({
+      comments: [
+        {
+          authorType: 'user' as const,
+          authorId: 'usr_double',
+          body: 'Please re-check page 3.',
+          createdAt: 1_750_000_000_000,
+        },
+      ],
+      truncated: false,
+    }),
 };
 
 const documentStore: WorkflowDocumentStore = {

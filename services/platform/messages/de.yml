@@ -475,8 +475,7 @@ auth:
       userNotAssigned:
         Dein Konto ist dieser Anwendung nicht zugewiesen. Wende dich an
         deine Administration, um Zugriff anzufordern.
-      notOrgMember:
-        Dein Konto ist kein Mitglied dieser Organisation. Bitte die
+      notOrgMember: Dein Konto ist kein Mitglied dieser Organisation. Bitte die
         Administration dieser Organisation, dich einzuladen, und melde dich
         danach erneut an.
       silentAuthFailed: Stille Anmeldung fehlgeschlagen. Melde dich stattdessen manuell an.
@@ -6657,6 +6656,7 @@ tasks:
     overview: Übersicht
     comments: Kommentare
     noComments: Noch keine Kommentare.
+    showEarlierComments: Frühere Kommentare anzeigen
     activity: Aktivität
     subtasks: Teilaufgaben
     addSubtask: Teilaufgabe hinzufügen…
