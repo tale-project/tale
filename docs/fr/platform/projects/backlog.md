@@ -1,20 +1,18 @@
 ---
 title: Backlog du projet
-description: Le backlog est un statut du tableau pour le travail proposé — les automatisations y synchronisent les issues, et tu déplaces les tâches avec les mêmes contrôles de glisser, de statut et d’affectation que pour toute autre colonne.
+description: Le Backlog est le statut d’entrée du tableau pour le travail auquel personne ne s’est encore engagé — comment une tâche y atterrit et comment tu la fais avancer avec les mêmes contrôles que dans toute autre colonne.
 ---
 
-Une tâche au statut **`backlog`** est du travail proposé auquel personne ne s’est encore engagé — le plus souvent synchronisé par une automatisation comme [Trier les issues GitHub](/fr/platform/automations/builtin). Elle vit dans la **colonne la plus à gauche** du Tableau et la **section du haut** de la Liste, avec la même carte, la même fiche de détail, le même sélecteur de statut et le même sélecteur d’affectation que tout autre statut. [Automatisation des tâches](/fr/platform/projects/task-automation) couvre ce qui se passe une fois qu’une tâche atteint **À faire** et entre dans la boucle d’affectation.
+Une tâche au statut **Backlog** est du travail proposé auquel personne ne s’est encore engagé. Elle vit dans la colonne la plus à gauche du tableau et la section du haut de la liste, avec la même carte, la même fiche de détail, le même sélecteur de statut et le même sélecteur d’affectation que tout autre statut — il n’y a pas de contrôles réservés au backlog. Rien de livré ne remplit la colonne tout seul dans cette version : [Trier les issues GitHub](/fr/platform/automations/builtin) évalue les issues et renvoie un rapport, et aucune automatisation ne synchronise d’issues en tâches. Le Backlog se remplit quand une personne ou un agent dépose une proposition.
 
-## Une tâche synchronisée
+## Comment une tâche atterrit dans le Backlog
 
-Trier les issues GitHub propose une tâche par issue ouverte exploitable, rattachée à l’issue pour qu’une synchronisation ultérieure ne la crée jamais en double : le titre est `#<numéro> <titre>` — par exemple `#482 Bouton de connexion mal aligné sur Safari` —, la description s’ouvre sur l’URL GitHub de l’issue elle-même, et ses étiquettes reflètent celles de l’issue sur GitHub. Une tâche que tu crées depuis le tableau avec le statut par défaut démarre à **À faire** ; choisis **Backlog** dans le formulaire de création pour déposer toi-même une proposition.
+Crée une tâche et choisis **Backlog** dans le sélecteur de statut du formulaire de création — il propose **À faire** par défaut. Un agent peut aussi en déposer une : un agent de projet équipé de l’outil de création de tâches ne peut créer que dans **Backlog** ou **À faire**, nulle part ailleurs, si bien qu’une proposition faite par un agent n’atterrit jamais dans une colonne de travail ni dans une colonne terminale. La même règle vaut pour une automatisation qui tourne avec les outils de tâches d’un projet.
 
 ## Faire avancer le travail
 
-Il n’y a pas de boutons réservés au backlog. Glisse une carte vers une autre colonne, ouvre la fiche de détail et choisis un nouveau statut, ou affecte un responsable — les mêmes chemins que pour **À faire** ou **En cours**. L’auto-affectation et les suggestions d’affectation par agent ne tournent qu’à **À faire**, pas tant que la tâche reste en **Backlog**. Si tu passes une proposition directement à **En cours** ou si tu l’affectes à la main, tu prends la responsabilité toi-même.
+Glisse la carte vers une autre colonne, ouvre la fiche de détail et choisis un nouveau statut, ou affecte un responsable — les mêmes chemins que pour **À faire** ou **En cours**. L’affectation est permise tant qu’une tâche est dans le Backlog ; tu peux donc confier une proposition à une personne ou à un agent de projet avant qu’elle bouge. Affecter un agent de projet et cliquer sur **Démarrer l'agent** le met au travail, et [Automatisation des tâches](/fr/platform/projects/task-automation) couvre ce qui se passe ensuite. Écarte une proposition comme tu fermes toute autre tâche : passe son statut à **Annulé**.
 
-Écarte une proposition comme toute autre tâche : passe le statut à **Annulé** dans le sélecteur. Une annulation humaine tient — une synchronisation GitHub ultérieure ne ressuscite pas une proposition que tu as rejetée tant que l’issue reste ouverte sur GitHub. Quand une tâche était **Terminée** sur le tableau et que quelqu’un rouvre l’issue sur GitHub, la synchronisation la remet en **Backlog**.
+## Où cela se place
 
-## Où cela s’inscrit
-
-Le backlog est la colonne d’entrée entre une automatisation qui propose du travail et ton équipe qui s’y engage. La lecture suivante naturelle est [Automatisation des tâches](/fr/platform/projects/task-automation) pour ce qui se passe à **À faire**, ou [Automatisations livrées](/fr/platform/automations/builtin) pour ce qui propose des tâches en premier lieu.
+Le Backlog est la colonne d’entrée entre une proposition — la tienne, celle d’un collègue ou celle d’un agent — et l’équipe qui s’y engage. [Automatisation des tâches](/fr/platform/projects/task-automation) est la lecture suivante pour la boucle dans laquelle une tâche entre une fois affectée ; [Automatisations livrées](/fr/platform/automations/builtin) explique pourquoi le paquet GitHub livré rapporte au lieu de créer des tâches.

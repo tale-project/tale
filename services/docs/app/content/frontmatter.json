@@ -12,7 +12,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Monter un serveur MCP depuis zéro",
-      "description": "Câble un serveur Model Context Protocol comme connector personnalisée pour que n'importe quel agent Tale de l'organisation appelle ses outils."
+      "description": "Enregistrer ton propre serveur MCP pour que les agents l’appellent ne fait pas partie de cette version — Tale est lui-même le serveur MCP, alors branche ton client sur l’endpoint entrant."
     }
   },
   "fr:tutorials/developer/trigger-automation-via-webhook": {
@@ -36,7 +36,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Construire un outil personnalisé",
-      "description": "Empaquette une fonction personnalisée en outil que les agents peuvent appeler, attache-la à un agent et observe-la apparaître en tool-call pendant un chat."
+      "description": "Un panneau d’outils personnalisés dans les paramètres ne fait pas partie de cette version — cette page montre les trois endroits où ton propre code atteint un agent aujourd’hui."
     }
   },
   "fr:tutorials/editor/first-agent-end-to-end": {
@@ -277,7 +277,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Créer un agent",
-      "description": "Du dialogue vide à un agent utilisable — nomme-le, écris ses instructions, accorde outils et skills, cadre ses connaissances et essaie-le dans le chat."
+      "description": "Le dialogue de création et l’éditeur d’agent ne font pas partie de cette version — les agents que tu crées dans l’interface sont des agents de projet, et les personas de chat sont des fichiers de configuration."
     }
   },
   "fr:platform/agents/tools": {
@@ -285,7 +285,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Outils d’agent",
-      "description": "Les permissions outil par outil qu’un agent porte au-delà de la génération de texte — les catégories, l’accès web, et les connectors et automatisations comme capacités."
+      "description": "Il n’y a pas d’onglet Outils par agent dans cette version — l’assistant de chat porte un jeu fixe d’outils en lecture seule, et les agents de projet s’équipent dans leur propre dialogue."
     }
   },
   "fr:platform/agents/harnesses": {
@@ -309,15 +309,15 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Versions d’agent",
-      "description": "La vue Historique de l’éditeur d’agent — chaque enregistrement pris en instantané, avec un diff contre la version actuelle et une restauration en un clic."
+      "description": "La vue Historique de l’éditeur d’agent ne fait pas partie de cette version — les fichiers de persona gardent un historique derrière l’API, et le versionnage visible dans le produit appartient aux automatisations."
     }
   },
   "fr:platform/agents/delegation": {
     "slug": "platform/agents/delegation",
     "locale": "fr",
     "frontmatter": {
-      "title": "Workers d'agent",
-      "description": "Un agent peut lancer un worker ciblé pour une tâche via le tool spawn_agent. Cette page donne le modèle mental — quand lancer un worker, comment les capacités restent bornées et ce que montre la carte de job."
+      "title": "Workers d’agent",
+      "description": "Le tool de worker spawn_agent ne fait pas partie de cette version — le travail passe à un agent de projet par une tâche du tableau et à une automatisation par son nœud agent."
     }
   },
   "fr:platform/agents/image-generation": {
@@ -325,7 +325,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Génération d’images",
-      "description": "La génération d’images est un outil accordable à n’importe quel agent — generate_image produit une image dans la réponse, sur un modèle choisi tour par tour."
+      "description": "La génération d’images ne fait pas partie de cette version — il n’y a pas de tool generate_image, et aucun agent ne produit d’image dans sa réponse."
     }
   },
   "fr:platform/agents/knowledge": {
@@ -333,7 +333,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Connaissances d’agent",
-      "description": "L’onglet Connaissances de l’agent — un seul réglage décide quel corpus sa recherche a le droit de lire, et où passe la frontière avec les outils."
+      "description": "Il n’y a pas d’onglet Connaissances par agent dans cette version — les connaissances se gèrent à l’échelle de l’organisation et se lisent par les outils de recherche de l’assistant de chat et les outils de plateforme d’un agent de projet."
     }
   },
   "fr:platform/agents/concepts": {
@@ -381,7 +381,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Automatisations livrées",
-      "description": "Ce que fait chaque automatisation livrée — le trio boîte de réception, le bundle Résoudre les issues GitHub, les modèles de synchronisation et d’entretien, et les packs préinstallés qui font tourner tableaux et mentions."
+      "description": "Ce que fait chacune des huit automatisations livrées — synchronisation et tri du courrier pour Gmail, Outlook et IMAP, évaluation des issues et examen des pull requests pour GitHub — et le connector dont chacune a besoin avant sa mise en service."
     }
   },
   "fr:platform/automations/catalog": {
@@ -445,7 +445,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Backlog du projet",
-      "description": "Le backlog est un statut du tableau pour le travail proposé — les automatisations y synchronisent les issues, et tu déplaces les tâches avec les mêmes contrôles de glisser, de statut et d’affectation que pour toute autre colonne."
+      "description": "Le Backlog est le statut d’entrée du tableau pour le travail auquel personne ne s’est encore engagé — comment une tâche y atterrit et comment tu la fais avancer avec les mêmes contrôles que dans toute autre colonne."
     }
   },
   "fr:platform/projects/concepts": {
@@ -661,7 +661,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Agents (vue Admin)",
-      "description": "La liste des agents à l’échelle de l’organisation — chaque agent, à qui il appartient, qui peut l’atteindre et ce qu’il a le droit de toucher."
+      "description": "Quels agents existent dans cette version et comment un admin les gouverne — les agents de projet sur l’onglet Agents de chaque projet, et les personas d’agent sous forme de fichiers dans la configuration de l’organisation."
     }
   },
   "fr:platform/admin/teams": {
@@ -1149,7 +1149,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Développement assisté par IA",
-      "description": "Comment Claude Code, Cursor, Copilot et Windsurf éditent un projet Tale — le fichier de règles que chaque éditeur lit et le miroir de schéma que Tale génère sous `.tale/reference/`."
+      "description": "Comment un agent de code édite un projet Tale — les fichiers AGENTS.md et CLAUDE.md que la CLI écrit, le miroir des sources sous .tale/reference/, et la disposition par organisation des fichiers de configuration."
     }
   },
   "fr:develop/rate-limits": {
@@ -1189,7 +1189,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Stand up an MCP server from scratch",
-      "description": "Wire a Model Context Protocol server as a custom connector so any Tale agent in the org can call its tools."
+      "description": "Registering your own MCP server for agents to call is not part of this version — Tale is the MCP server, so point your client at the inbound endpoint instead."
     }
   },
   "en:tutorials/developer/trigger-automation-via-webhook": {
@@ -1213,7 +1213,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Build a custom tool",
-      "description": "Package a custom function as a tool that agents can call, then attach it to an agent and watch it appear in tool calls during a chat."
+      "description": "A Settings > Custom tools panel is not part of this version — this page shows the three places your own code reaches an agent today."
     }
   },
   "en:tutorials/editor/first-agent-end-to-end": {
@@ -1454,7 +1454,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Create an agent",
-      "description": "Walk from an empty create dialog to a working agent — name it, write its instructions, grant tools and skills, scope its knowledge, and try it in chat."
+      "description": "The agent create dialog and editor are not part of this version — agents you create in the UI are project agents, and chat personas are configuration files."
     }
   },
   "en:platform/agents/tools": {
@@ -1462,7 +1462,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agent tools",
-      "description": "The per-tool permissions an agent carries beyond text generation — the tool categories, web access as a tool, and connectors and automations as capabilities."
+      "description": "There is no per-agent Tools tab in this version — the chat assistant carries a fixed read-only loadout, and project agents are equipped on their own dialog."
     }
   },
   "en:platform/agents/harnesses": {
@@ -1486,7 +1486,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agent versions",
-      "description": "The agent editor's History view — every save snapshotted, with a diff against the current version and one-click restore."
+      "description": "The agent editor's History view is not part of this version — persona files keep a history behind the API, and the versioning you see in the product belongs to automations."
     }
   },
   "en:platform/agents/delegation": {
@@ -1494,7 +1494,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agent workers",
-      "description": "An agent can spawn a focused worker for one task through the spawn_agent tool. This page hands you the mental model for when to spawn, how capabilities stay bounded, and what the job card shows."
+      "description": "The spawn_agent worker tool is not part of this version — work is handed to a project agent through a board task and to an automation through its agent node."
     }
   },
   "en:platform/agents/image-generation": {
@@ -1502,7 +1502,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Image generation",
-      "description": "Image generation is a tool any agent can be granted — generate_image produces a picture inline in the reply, on a model picked per turn like any other."
+      "description": "Image generation is not part of this version — there is no generate_image tool, and no agent produces pictures inline."
     }
   },
   "en:platform/agents/knowledge": {
@@ -1510,7 +1510,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agent knowledge",
-      "description": "The agent's Knowledge tab — one scope deciding which corpus its retrieval may read, and how that differs from tools."
+      "description": "There is no per-agent Knowledge tab in this version — knowledge is managed organization-wide and reached through the chat assistant's retrieval tools and a project agent's platform tools."
     }
   },
   "en:platform/agents/concepts": {
@@ -1558,7 +1558,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Built-in automations",
-      "description": "What each shipped automation does — the inbox trio, the Resolve GitHub issues bundle, the sync and upkeep templates, and the pre-installed packs that run your boards and mentions."
+      "description": "What each of the eight shipped automations does — mail sync and triage for Gmail, Outlook, and IMAP, and issue scoring and pull-request review for GitHub — and the connector each needs before you deploy it."
     }
   },
   "en:platform/automations/catalog": {
@@ -1622,7 +1622,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Project Backlog",
-      "description": "Backlog is a board status for proposed work — automations sync issues here, and you move tasks forward with the same drag, status picker, and assignee controls as every other lane."
+      "description": "Backlog is the board's intake status for work nobody has committed to yet — how a task lands there and how you move it forward with the same controls as every other column."
     }
   },
   "en:platform/projects/concepts": {
@@ -1838,7 +1838,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Agents (admin view)",
-      "description": "The org-wide agents list — every agent in the organisation, who owns it, who can reach it, and what it is allowed to touch."
+      "description": "What agents exist in this version and how an admin governs them — project agents on each project's Agents tab, and file-based agent personas in the organization's configuration."
     }
   },
   "en:platform/admin/teams": {
@@ -2326,7 +2326,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "AI-assisted development",
-      "description": "How Claude Code, Cursor, Copilot, and Windsurf edit a Tale project — the rules file each editor reads and the schema reference Tale generates under `.tale/reference/`."
+      "description": "How a coding agent edits a Tale project — the AGENTS.md and CLAUDE.md the CLI writes, the source mirror under .tale/reference/, and the org-first layout of the configuration files."
     }
   },
   "en:develop/rate-limits": {
@@ -2366,7 +2366,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einen MCP-Server von Grund auf hochziehen",
-      "description": "Verdrahte einen Model-Context-Protocol-Server als eigene Connector, damit jeder Agent in der Org seine Tools aufrufen kann."
+      "description": "Einen eigenen MCP-Server für Agenten zu registrieren gibt es in dieser Version nicht — Tale ist selbst der MCP-Server, also verbinde deinen Client mit dem eingehenden Endpoint."
     }
   },
   "de:tutorials/developer/trigger-automation-via-webhook": {
@@ -2390,7 +2390,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Ein eigenes Tool bauen",
-      "description": "Packe eine eigene Funktion als Tool ein, das Agenten aufrufen können, häng es an einen Agent und beobachte, wie es im Chat als Tool-Call erscheint."
+      "description": "Ein Panel für eigene Tools in den Einstellungen gibt es in dieser Version nicht — diese Seite zeigt die drei Stellen, an denen dein eigener Code heute einen Agenten erreicht."
     }
   },
   "de:tutorials/editor/first-agent-end-to-end": {
@@ -2631,7 +2631,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Einen Agent erstellen",
-      "description": "Vom leeren Dialog zu einem einsatzfähigen Agenten — benennen, Anweisungen schreiben, Tools und Skills gewähren, Wissen eingrenzen und im Chat ausprobieren."
+      "description": "Den Dialog zum Anlegen und den Editor für Agenten gibt es in dieser Version nicht — Agenten, die du in der UI anlegst, sind Projekt-Agenten, und Chat-Personas sind Konfigurationsdateien."
     }
   },
   "de:platform/agents/tools": {
@@ -2639,7 +2639,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agent-Tools",
-      "description": "Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, Web-Zugang als Tool und Connectors und Automatisierungen als Fähigkeiten."
+      "description": "Einen Tools-Tab pro Agent gibt es in dieser Version nicht — der Chat-Assistent trägt einen festen, rein lesenden Tool-Satz, und Projekt-Agenten rüstest du in ihrem eigenen Dialog aus."
     }
   },
   "de:platform/agents/harnesses": {
@@ -2663,7 +2663,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agent-Versionen",
-      "description": "Die Verlauf-Ansicht des Agenten-Editors — jeder Speichervorgang als Snapshot, mit Diff gegen die aktuelle Version und Wiederherstellung per Klick."
+      "description": "Die Verlauf-Ansicht des Agenten-Editors gibt es in dieser Version nicht — Persona-Dateien führen hinter der API einen Verlauf, und die Versionierung, die du im Produkt siehst, gehört den Automatisierungen."
     }
   },
   "de:platform/agents/delegation": {
@@ -2671,7 +2671,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agent-Worker",
-      "description": "Ein Agent kann über das spawn_agent-Tool einen fokussierten Worker für eine Aufgabe starten. Diese Seite gibt dir das Denkmodell — wann sich ein Worker lohnt, wie Fähigkeiten begrenzt bleiben und was die Job-Karte zeigt."
+      "description": "Das Worker-Tool spawn_agent gibt es in dieser Version nicht — Arbeit geht über eine Board-Aufgabe an einen Projekt-Agenten und über ihren Agent-Knoten an eine Automatisierung."
     }
   },
   "de:platform/agents/image-generation": {
@@ -2679,7 +2679,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Bildgenerierung",
-      "description": "Bildgenerierung ist ein Tool, das du jedem Agenten gewähren kannst — generate_image liefert ein Bild direkt in der Antwort, auf einem pro Zug gewählten Modell."
+      "description": "Bildgenerierung gibt es in dieser Version nicht — es gibt kein Tool generate_image, und kein Agent erzeugt Bilder in seiner Antwort."
     }
   },
   "de:platform/agents/knowledge": {
@@ -2687,7 +2687,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agent-Wissen",
-      "description": "Der Wissen-Tab des Agents — eine Einstellung dafür, welchen Bestand seine Suche lesen darf, und wie sich das von Tools unterscheidet."
+      "description": "Einen Wissen-Tab pro Agent gibt es in dieser Version nicht — Wissen wird organisationsweit verwaltet und über die Such-Tools des Chat-Assistenten und die Plattform-Tools eines Projekt-Agenten erreicht."
     }
   },
   "de:platform/agents/concepts": {
@@ -2735,7 +2735,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Mitgelieferte Automatisierungen",
-      "description": "Was jede mitgelieferte Automatisierung tut — das Posteingangs-Trio, das Bundle GitHub-Issues lösen, die Sync- und Pflege-Vorlagen und die vorinstallierten Pakete, die Boards und Erwähnungen am Laufen halten."
+      "description": "Was jede der acht mitgelieferten Automatisierungen tut — Mail-Sync und Sichtung für Gmail, Outlook und IMAP sowie Issue-Bewertung und Pull-Request-Prüfung für GitHub — und welchen Connector jede braucht, bevor du sie live schaltest."
     }
   },
   "de:platform/automations/catalog": {
@@ -2799,7 +2799,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projekt-Backlog",
-      "description": "Backlog ist ein Board-Status für vorgeschlagene Arbeit — Automatisierungen synchronisieren Issues hierher, und du bewegst Aufgaben mit denselben Drag-, Status- und Zuweisungs-Steuerelementen wie in jeder anderen Spalte."
+      "description": "Backlog ist der Eingangsstatus des Boards für Arbeit, zu der sich noch niemand verpflichtet hat — wie eine Aufgabe dort landet und wie du sie mit denselben Steuerelementen wie in jeder anderen Spalte weiterbewegst."
     }
   },
   "de:platform/projects/concepts": {
@@ -3015,7 +3015,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agents (Admin-Sicht)",
-      "description": "Die organisationsweite Agenten-Liste — jeder Agent der Organisation, wem er gehört, wer an ihn herankommt und was er berühren darf."
+      "description": "Welche Agenten es in dieser Version gibt und wie ein Admin sie steuert — Projekt-Agenten auf dem Tab Agenten jedes Projekts und dateibasierte Agent-Personas in der Konfiguration der Organisation."
     }
   },
   "de:platform/admin/teams": {
@@ -3503,7 +3503,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "AI-gestützte Entwicklung",
-      "description": "Wie Claude Code, Cursor, Copilot und Windsurf ein Tale-Projekt bearbeiten — die Rules-Datei, die jeder Editor liest, und der Schema-Spiegel, den Tale unter `.tale/reference/` erzeugt."
+      "description": "Wie ein Coding-Agent ein Tale-Projekt bearbeitet — die AGENTS.md und CLAUDE.md, die die CLI schreibt, der Quell-Spiegel unter .tale/reference/ und die org-first-Struktur der Konfigurationsdateien."
     }
   },
   "de:develop/rate-limits": {
