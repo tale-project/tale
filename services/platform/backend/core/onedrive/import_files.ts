@@ -53,10 +53,12 @@ export interface ImportFilesDependencies {
     driveId?: string,
   ) => Promise<{ success: boolean; data?: FileMetadata; error?: string }>;
   /**
-   * Download the source file and land it in Convex storage in one step,
+   * Download the source file and land it in org storage in one step,
    * returning only the storage id — the bytes never come back into the
-   * caller's heap. Backed by a streaming `'use node'` action so a large file
-   * (e.g. a 57 MB PDF) can't OOM the 64 MB workflow isolate the import runs in.
+   * caller's heap. The pg lane behind it refuses a file past the platform's
+   * blob ceiling before buffering it (declared length first, received bytes
+   * second) and times a stalled download out, so one oversized vendor file
+   * fails its own row instead of the worker.
    */
   downloadToStorage: (args: {
     itemId: string;

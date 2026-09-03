@@ -17,6 +17,7 @@ import {
   resolveFileReadAccess,
   viewerForMember,
 } from './access.ts';
+import { MAX_UPLOAD_BYTES, readBodyBounded } from './bounded-body.ts';
 import {
   createRestUploadHandoff,
   createUploadHandoff,
@@ -102,7 +103,9 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     try {
       const userId = c.get('sessionBundle').user.id;
       await checkUserRateLimit(deps.sql, 'file:upload', userId);
-      const bytes = new Uint8Array(await c.req.arrayBuffer());
+      // Refused past the ceiling BEFORE the body is buffered — on the declared
+      // length, then on the bytes as they arrive.
+      const bytes = await readBodyBounded(c.req.raw, MAX_UPLOAD_BYTES);
       const storageId = await putOrgBlobBytes(deps.sql, c.get('orgId'), {
         bytes,
         contentType: c.req.header('content-type') ?? 'application/octet-stream',

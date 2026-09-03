@@ -31,12 +31,12 @@ import { consumeUploadIntent, type UploadPurpose } from './upload-intents.ts';
 
 export class FileError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404 | 409 | 503;
+  readonly status: 400 | 403 | 404 | 409 | 413 | 503;
 
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 | 409 | 503 = 400,
+    status: 400 | 403 | 404 | 409 | 413 | 503 = 400,
   ) {
     super(message);
     this.name = 'FileError';
@@ -45,7 +45,9 @@ export class FileError extends Error {
   }
 }
 
-const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
+/** The largest blob the platform stores (uploads, imports, harvests). The
+ * intake lanes refuse past it BEFORE buffering — see `bounded-body.ts`. */
+export const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 
 export interface UploadHandoff {
   /** The blob reference (`s3:<key>`) the client binds with after the PUT. */
