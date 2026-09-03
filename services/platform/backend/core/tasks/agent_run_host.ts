@@ -37,6 +37,10 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
+import {
+  refuseBlindImageTurn,
+  visionUnreadableGuidance,
+} from '../lib/providers/subscription_vision';
 import type { Id } from '../lib/rows';
 import { safePathSegment } from '../lib/safe_path_segment';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
@@ -826,6 +830,20 @@ export async function startTaskAgentTurnImpl(
         attachments: brief.attachments,
         outputs: brief.outputs,
       });
+      // A subscription serving that cannot see images must not run blind
+      // over image inputs: refuse with the reason (the run fails visibly,
+      // naming the fix) before anything is minted; a turn without image
+      // inputs carries the guidance instead.
+      if (resolved.lane === 'subscription') {
+        refuseBlindImageTurn(resolved.vision, [
+          ...inputs.attachments,
+          ...inputs.outputs,
+        ]);
+      }
+      const visionGuidance =
+        resolved.lane === 'subscription'
+          ? visionUnreadableGuidance(resolved.vision)
+          : '';
 
       const prepared = await mintTurnServing(ctx, args, resolved);
       if (prepared.brokerTokenHash !== undefined) {
@@ -899,6 +917,7 @@ export async function startTaskAgentTurnImpl(
         `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+        ...(visionGuidance !== '' ? [visionGuidance] : []),
         ...secretsGuidance(args.secrets),
       ].join('\n\n');
 
@@ -1852,11 +1871,23 @@ export async function steerTaskAgentTurnImpl(
         attachments: brief.attachments,
         outputs: brief.outputs,
       });
+      // Same rule as the fresh start: a blind serving never runs over
+      // image inputs (nothing gateway-side was minted on this lane).
+      if (resolved.lane === 'subscription') {
+        refuseBlindImageTurn(resolved.vision, [
+          ...inputs.attachments,
+          ...inputs.outputs,
+        ]);
+      }
       prompt = [
         FRESH_RESTART_NOTE,
         buildTaskPrompt(brief, args.feedback, outputDir, inputs),
       ].join('\n\n');
     }
+    const visionGuidance =
+      resolved.lane === 'subscription'
+        ? visionUnreadableGuidance(resolved.vision)
+        : '';
 
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: args.organizationId,
@@ -1884,6 +1915,7 @@ export async function steerTaskAgentTurnImpl(
       `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
       KNOWLEDGE_TOOLS_GUIDANCE,
       ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+      ...(visionGuidance !== '' ? [visionGuidance] : []),
       ...secretsGuidance(args.secrets),
     ].join('\n\n');
 

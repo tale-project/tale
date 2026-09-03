@@ -37,6 +37,7 @@ import { z } from 'zod';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
@@ -4961,7 +4962,118 @@ async function checkProviderCredentials(
       envOk,
     `masked=${listedRow?.maskedPreview}, apiKeyResolve=${apiKeyOk}, badEnv → ${badEnv.status} (want 400), defaultSwap+envResolve=${envOk}`,
   );
-  void credentialId;
+
+  // Edits must take effect field for field — the endpoint URL, an env
+  // credential's variable name, and a broker configuration replacement were
+  // the fields a save could silently drop. An empty patch is refused, and a
+  // disabled credential can never be promoted to default (serving reads the
+  // ACTIVE default only).
+  const envCredentialId = envCred.success ? envCred.data.credentialId : '';
+  const listCredentials = async () =>
+    z
+      .object({
+        credentials: z.array(
+          z
+            .object({
+              id: z.string(),
+              endpointUrl: z.string().nullable(),
+              maskedPreview: z.string().nullable(),
+              envName: z.string().nullable(),
+              isDefault: z.boolean(),
+              status: z.string(),
+            })
+            .loose(),
+        ),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/provider-credentials?orgId=${orgId}`, {
+            headers: { cookie },
+          })
+        ).json(),
+      );
+  const endpointEdited = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    { endpointUrl: 'https://itest.openai.azure.com/openai/v1' },
+  );
+  process.env.TALE_PROVIDER_KEY_ITEST_2 = 'env-secret-123';
+  const envRepointed = await send(
+    'POST',
+    `/api/app/provider-credentials/${envCredentialId}?orgId=${orgId}`,
+    { envName: 'TALE_PROVIDER_KEY_ITEST_2' },
+  );
+  const resolvedRepointed = await resolveProviderCredential(sql, {
+    organizationId: orgId,
+    providerSlug: 'openai',
+  });
+  const emptyPatch = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    {},
+  );
+  const disabled = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    { status: 'disabled' },
+  );
+  const disabledDefault = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    { isDefault: true },
+  );
+  // Re-assert the env credential as the openai default: a backend that
+  // wrongly accepted the promotion above (the defect this probe records)
+  // would otherwise leave the provider with a disabled default and starve
+  // every later openai-backed lane (knowledge embeddings, chat) of a
+  // credential — the probe must fail on its own line, not take the run down.
+  await send(
+    'POST',
+    `/api/app/provider-credentials/${envCredentialId}?orgId=${orgId}`,
+    { isDefault: true },
+  );
+  const brokerCred = z.object({ credentialId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/provider-credentials?orgId=${orgId}`, {
+        providerSlug: 'anthropic',
+        authMethod: 'subscription-broker',
+        name: 'Broker pool',
+        secret: JSON.stringify({ endpoint: 'https://broker.itest/v1' }),
+      })
+    ).json(),
+  );
+  const brokerId = brokerCred.success ? brokerCred.data.credentialId : '';
+  const brokerReplaced = await send(
+    'POST',
+    `/api/app/provider-credentials/${brokerId}?orgId=${orgId}`,
+    { secret: JSON.stringify({ endpoint: 'https://broker.itest/v2' }) },
+  );
+  const edited = await listCredentials();
+  const rowsById = new Map(
+    edited.success ? edited.data.credentials.map((row) => [row.id, row]) : [],
+  );
+  // Leave the fixture as the earlier probes left it for everything after.
+  await send(
+    'DELETE',
+    `/api/app/provider-credentials/${brokerId}?orgId=${orgId}`,
+  );
+  record(
+    'provider credential edits reach the row',
+    endpointEdited.ok &&
+      rowsById.get(credentialId)?.endpointUrl ===
+        'https://itest.openai.azure.com/openai/v1' &&
+      envRepointed.ok &&
+      rowsById.get(envCredentialId)?.envName === 'TALE_PROVIDER_KEY_ITEST_2' &&
+      resolvedRepointed.authMethod === 'env' &&
+      resolvedRepointed.envName === 'TALE_PROVIDER_KEY_ITEST_2' &&
+      emptyPatch.status === 400 &&
+      disabled.ok &&
+      disabledDefault.status === 400 &&
+      rowsById.get(credentialId)?.isDefault === false &&
+      brokerReplaced.ok &&
+      rowsById.get(brokerId)?.maskedPreview === null,
+    `endpoint=${rowsById.get(credentialId)?.endpointUrl}, envName=${rowsById.get(envCredentialId)?.envName} (resolves ${resolvedRepointed.authMethod === 'env' ? resolvedRepointed.envName : resolvedRepointed.authMethod}), emptyPatch → ${emptyPatch.status} (want 400), disabledDefault → ${disabledDefault.status} (want 400), brokerPreview=${String(rowsById.get(brokerId)?.maskedPreview)} (want null)`,
+  );
 }
 
 /**
@@ -5881,6 +5993,10 @@ async function checkChat(
               object: 'model',
               context_length: 32_768,
               max_output_tokens: 512,
+              // Dollars per token, the listing dialect the normalizer reads
+              // (→ 100 / 200 cents per million): the price every turn's
+              // ledger row must be booked at.
+              pricing: { prompt: '0.000001', completion: '0.000002' },
             },
           ],
         }),
@@ -6183,6 +6299,203 @@ async function checkChat(
         Number(usageRows[0]?.count ?? '0') >= 1 &&
         settledGen[0]?.count === '0',
       `outcome=${outcome.success ? outcome.data.status : 'ERR'}${outcome.success && outcome.data.reason !== undefined ? ` (${outcome.data.reason})` : ''}, messages=${history.success ? history.data.messages.length : 'ERR'}, toolRound=${assistantRaw.includes('rag_search') && assistantRaw.includes('verdigris')}, usageRows=${usageRows[0]?.count}, genSettled=${settledGen[0]?.count === '0'}`,
+    );
+
+    // A provider that ships NO catalog (Azure deployment names, Nous Portal):
+    // the credential's allowlist IS its availability set, per the provider
+    // files and the docs. Configured exactly that way, the deployment must
+    // reach the picker AND serve a turn — until now every lane gated on the
+    // empty catalog and such a connector could never serve anything.
+    await writeFile(
+      path.join(providersDir, 'itestdeploy.yml'),
+      [
+        'name: itestdeploy',
+        'displayName: Itest Deployments',
+        'apiFormat: openai',
+        `baseUrl: ${aiBase}`,
+        'catalog:',
+        '  source: none',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    await send(`/api/app/provider-credentials?orgId=${orgId}`, {
+      providerSlug: 'itestdeploy',
+      authMethod: 'api-key',
+      name: 'Deployment key',
+      secret: 'sk-itest-deploy-key',
+      modelAllowlist: ['itest-deploy-prod'],
+    });
+    const deployPicker = z
+      .object({
+        models: z.array(
+          z.object({ id: z.string(), providerSlug: z.string() }).loose(),
+        ),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/chat/composer/models?orgId=${orgId}`, {
+            headers: { cookie },
+          })
+        ).json(),
+      );
+    const deployListed =
+      deployPicker.success &&
+      deployPicker.data.models.some(
+        (model) =>
+          model.id === 'itest-deploy-prod' &&
+          model.providerSlug === 'itestdeploy',
+      );
+    const deployThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Itest deployment chat',
+        })
+      ).json(),
+    );
+    const deployThreadId = deployThread.success ? deployThread.data.id : '';
+    // Read as text first: a serving miss surfaces as a non-JSON 500 here,
+    // and that must record as a failed probe, not kill the whole run.
+    const deployTurnRaw = await (
+      await send(
+        `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+        {
+          text: `${SLOW_MARKER} to three`,
+          modelId: 'itest-deploy-prod',
+          providerSlug: 'itestdeploy',
+        },
+      )
+    ).text();
+    let deployTurnJson: unknown = null;
+    try {
+      deployTurnJson = JSON.parse(deployTurnRaw);
+    } catch {
+      deployTurnJson = { status: `non-JSON: ${deployTurnRaw.slice(0, 80)}` };
+    }
+    const deployOutcome = z
+      .object({ status: z.string(), reason: z.string().optional() })
+      .safeParse(deployTurnJson);
+    const deployUsage = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.usage_events
+      WHERE org_id = ${orgId} AND model = 'itest-deploy-prod'
+        AND provider = 'itestdeploy'
+    `;
+    record(
+      'catalog-less provider serves its credential allowlist',
+      deployListed &&
+        deployOutcome.success &&
+        deployOutcome.data.status === 'completed' &&
+        Number(deployUsage[0]?.count ?? '0') >= 1,
+      `picker=${deployListed ? 'lists itest-deploy-prod' : `MISSING (${deployPicker.success ? deployPicker.data.models.map((m) => `${m.providerSlug}/${m.id}`).join(',') : 'ERR'})`}, turn=${deployOutcome.success ? deployOutcome.data.status : 'ERR'}${deployOutcome.success && deployOutcome.data.reason !== undefined ? ` (${deployOutcome.data.reason})` : ''}, usageRows=${deployUsage[0]?.count}`,
+    );
+
+    // The picker and serving must read ONE world. Serving resolves a
+    // provider's ACTIVE DEFAULT credential; the picker used to walk every
+    // active credential — so after the routine key rotation (add B, disable
+    // default A) it kept offering models every send then failed on. With
+    // the default disabled the connector serves nothing, and the picker
+    // must say so by omission even while another active credential exists.
+    const deployRows = z
+      .object({
+        credentials: z.array(
+          z
+            .object({
+              id: z.string(),
+              providerSlug: z.string(),
+              isDefault: z.boolean(),
+            })
+            .loose(),
+        ),
+      })
+      .safeParse(
+        await (
+          await fetch(
+            `${base}/api/app/provider-credentials?orgId=${orgId}&providerSlug=itestdeploy`,
+            { headers: { cookie } },
+          )
+        ).json(),
+      );
+    const deployDefaultId = deployRows.success
+      ? (deployRows.data.credentials.find((row) => row.isDefault)?.id ?? '')
+      : '';
+    const pickerLists = async (): Promise<boolean> => {
+      const listing = z
+        .object({
+          models: z.array(
+            z.object({ id: z.string(), providerSlug: z.string() }).loose(),
+          ),
+        })
+        .safeParse(
+          await (
+            await fetch(`${base}/api/app/chat/composer/models?orgId=${orgId}`, {
+              headers: { cookie },
+            })
+          ).json(),
+        );
+      return (
+        listing.success &&
+        listing.data.models.some(
+          (model) => model.providerSlug === 'itestdeploy',
+        )
+      );
+    };
+    const rotated = z.object({ credentialId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/provider-credentials?orgId=${orgId}`, {
+          providerSlug: 'itestdeploy',
+          authMethod: 'api-key',
+          name: 'Rotated key (not default)',
+          secret: 'sk-itest-deploy-key-2',
+          modelAllowlist: ['itest-deploy-prod'],
+        })
+      ).json(),
+    );
+    const rotatedId = rotated.success ? rotated.data.credentialId : '';
+    await send(
+      `/api/app/provider-credentials/${deployDefaultId}?orgId=${orgId}`,
+      { status: 'disabled' },
+    );
+    const offeredWhileDefaultDisabled = await pickerLists();
+    // A stale composer selection (the picker just dropped the model) must
+    // come back as a refusal the composer can show — never a bare 500.
+    const staleSendRaw = await (
+      await send(
+        `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+        {
+          text: 'still there?',
+          modelId: 'itest-deploy-prod',
+          providerSlug: 'itestdeploy',
+        },
+      )
+    ).text();
+    let staleSendJson: unknown = null;
+    try {
+      staleSendJson = JSON.parse(staleSendRaw);
+    } catch {
+      staleSendJson = { status: `non-JSON: ${staleSendRaw.slice(0, 80)}` };
+    }
+    const sendWhileDefaultDisabled = z
+      .object({ status: z.string(), reason: z.string().optional() })
+      .safeParse(staleSendJson);
+    await send(
+      `/api/app/provider-credentials/${deployDefaultId}?orgId=${orgId}`,
+      { status: 'active' },
+    );
+    const offeredAgain = await pickerLists();
+    await fetch(
+      `${base}/api/app/provider-credentials/${rotatedId}?orgId=${orgId}`,
+      { method: 'DELETE', headers: { cookie, origin: base } },
+    );
+    record(
+      'picker offers only what the active default credential can serve',
+      !offeredWhileDefaultDisabled &&
+        sendWhileDefaultDisabled.success &&
+        sendWhileDefaultDisabled.data.status === 'refused' &&
+        (sendWhileDefaultDisabled.data.reason ?? '').includes(
+          'itest-deploy-prod',
+        ) &&
+        offeredAgain,
+      `defaultDisabled: picker=${offeredWhileDefaultDisabled ? 'STILL OFFERS' : 'omits'} send=${sendWhileDefaultDisabled.success ? `${sendWhileDefaultDisabled.data.status} (${sendWhileDefaultDisabled.data.reason ?? ''})` : 'ERR'} (want refused, naming the model); reenabled: picker=${offeredAgain ? 'offers' : 'MISSING'}`,
     );
 
     // First-token UX metric. Covered because it was NOT: the statement that
@@ -7767,6 +8080,9 @@ async function checkGovernance(
       '  - scope: default',
       '    allowedModels:',
       '      - some-other-model',
+      // A vendor-slash id (the OpenRouter/aggregator dialect): the slash is
+      // part of the id, and the Auto picker's governance read must keep it.
+      '      - vendor/itest-model',
     ].join('\n'),
   );
   await writeFile(
@@ -7816,6 +8132,17 @@ async function checkGovernance(
     organizationId: orgId,
     userId,
   });
+  // The Auto picker's governance read over the same allowlist: the slash id
+  // survives as itself (no vendor prefix is ever stripped off a candidate),
+  // its vendor-less spelling and the unlisted chat model both drop.
+  const autoPick = await governance.resolveModelGovernanceForUser(sql, {
+    organizationId: orgId,
+    userId,
+    supportedModels: ['vendor/itest-model', 'itest-model', 'itest-chat'],
+  });
+  const autoRefsOk =
+    autoPick.accessibleModelRefs.length === 1 &&
+    autoPick.accessibleModelRefs[0] === 'vendor/itest-model';
 
   // Lift the policy: access opens again (proven cheaply at the service).
   const { unlink } = await import('node:fs/promises');
@@ -7831,13 +8158,92 @@ async function checkGovernance(
     'governance enforcement (model access + caps + usage buckets)',
     chatBucket !== undefined &&
       chatBucket.totalTokens > 0 &&
+      // Booked at the catalog price, not 0: the usage dashboard and the cost
+      // budgets read this column.
+      chatBucket.costEstimateCents > 0 &&
       Number(connectorBuckets[0]?.count ?? '0') >= 1 &&
       refused.success &&
       refused.data.status === 'refused' &&
       (refused.data.reason ?? '').includes('not available for your account') &&
       cap === 9000 &&
+      autoRefsOk &&
       reopened.allowed,
-    `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'}, connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), reopened=${reopened.allowed}`,
+    `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'} cost=${chatBucket?.costEstimateCents ?? 'MISSING'} (want > 0), connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), autoRefs=${autoPick.accessibleModelRefs.join(',')} (want vendor/itest-model), reopened=${reopened.allowed}`,
+  );
+
+  // Budget scope alignment over the live 0.5 enforcer (the composer's Send
+  // gate, TTS, and video links all ride `checkTtsBudget`): a default-tier
+  // token cap is a PERSONAL cap, measured against the member's own usage;
+  // a team rule is a SHARED cap, measured against the team aggregate with the
+  // team rule's own values. Two members whose combined tokens exceed the
+  // per-member cap must both stay allowed; the team's own cost cap must
+  // still bind the aggregate.
+  const { checkTtsBudget } = await import('./domains/tts/service.ts');
+  const teamId = 'itest-budget-team';
+  const monthlyKey = buildPeriodKeyFromTimestamp('monthly', Date.now());
+  const ownTokens = await sql<{ total: number }[]>`
+    SELECT coalesce(sum(total_tokens), 0)::float8 AS total
+    FROM app.usage_ledger
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND period_key = ${monthlyKey}
+  `;
+  const perMemberCap = Math.round(ownTokens[0]?.total ?? 0) + 30 + 10;
+  await writeFile(
+    path.join(governanceDir, 'budgets.yml'),
+    [
+      'enabled: true',
+      'rules:',
+      '  - scope: default',
+      '    period: monthly',
+      `    maxTokens: ${perMemberCap}`,
+      '  - scope: team',
+      `    scopeId: ${teamId}`,
+      '    period: monthly',
+      '    maxCostCents: 100',
+    ].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+  const seedTeamUsage = (
+    user: string,
+    tokens: number,
+    cents: number,
+  ): Promise<void> =>
+    governance.incrementUsageLedger(sql, {
+      organizationId: orgId,
+      userId: user,
+      teamId,
+      inputTokens: tokens,
+      outputTokens: 0,
+      costEstimateCents: cents,
+      timestamp: Date.now(),
+      agentSlug: 'itest-budget-probe',
+      model: 'itest-budget-model',
+      provider: 'itestchat',
+    });
+  await seedTeamUsage(userId, 30, 0);
+  // The teammate alone blows past the per-member cap; the team aggregate is
+  // far above it — irrelevant to a personal cap.
+  await seedTeamUsage('itest-budget-teammate', 10_000, 0);
+  const budgetArgs = {
+    organizationId: orgId,
+    userId,
+    userTeamIds: [teamId],
+    userRole: 'owner',
+    prospectiveCostCents: 0,
+    prospectiveRequests: 0,
+  };
+  const mixedScopes = await checkTtsBudget(sql, budgetArgs);
+  await seedTeamUsage('itest-budget-teammate', 0, 150);
+  const teamCapHit = await checkTtsBudget(sql, budgetArgs);
+  await unlink(path.join(governanceDir, 'budgets.yml'));
+  orgConfig.clearOrgConfigCaches();
+  record(
+    'budget scopes (personal cap vs team shared cap)',
+    mixedScopes.allowed &&
+      !teamCapHit.allowed &&
+      teamCapHit.code === 'COST_LIMIT' &&
+      teamCapHit.limit === 100,
+    `mixed=${mixedScopes.allowed ? 'allowed' : `refused ${mixedScopes.code}`} (want allowed), teamCap=${teamCapHit.allowed ? 'allowed' : `${teamCapHit.code} at ${teamCapHit.limit}`} (want COST_LIMIT at 100)`,
   );
 }
 

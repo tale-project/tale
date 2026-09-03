@@ -1206,13 +1206,29 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         `/provider-credentials/${encodeURIComponent(stringArg(args, 'credentialId'))}`,
         {
           orgId: requireOrg(args, ctx),
+          // Mirrors the create row field for field: everything the edit and
+          // replace dialogs can submit must reach the wire, or a save reads
+          // as success while nothing changed (the broker Replace-configuration
+          // and the Azure endpoint edit were exactly that).
           body: {
             ...(typeof args.name === 'string' ? { name: args.name } : {}),
             ...(typeof args.status === 'string' ? { status: args.status } : {}),
+            ...(typeof args.isDefault === 'boolean'
+              ? { isDefault: args.isDefault }
+              : {}),
             ...(args.modelAllowlist !== undefined
               ? { modelAllowlist: args.modelAllowlist }
               : {}),
+            ...(typeof args.endpointUrl === 'string'
+              ? { endpointUrl: args.endpointUrl }
+              : {}),
+            ...(typeof args.envName === 'string'
+              ? { envName: args.envName }
+              : {}),
             ...(typeof args.secret === 'string' ? { secret: args.secret } : {}),
+            ...(args.broker !== undefined
+              ? { secret: JSON.stringify(args.broker) }
+              : {}),
           },
         },
       ).then(() => null),

@@ -1,8 +1,16 @@
 import type { Sql } from 'postgres';
 
-import type { TurnStore, UsageLedger } from '../../../lib/chat/turn.ts';
+import {
+  estimateCostCents,
+  type TurnStore,
+  type UsageLedger,
+  type UsageLedgerEntry,
+} from '../../../lib/chat/turn.ts';
+import { getProviderCatalog } from '../../core/lib/providers/catalog_fetch.ts';
+import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 
 /**
@@ -265,12 +273,50 @@ export function createPgTurnStore(sql: Sql): TurnStore {
   };
 }
 
+/**
+ * The turn's cost in cents, from the serving connector's catalog `pricing`
+ * through the ONE cost formula the pipeline also stamps on the message
+ * (`estimateCostCents`). A model the catalog does not price books 0 — an
+ * honest under-count, never a fabricated rate — and a failed lookup logs
+ * and books 0 rather than losing the token row.
+ */
+export async function estimateTurnCostCents(
+  sql: Sql,
+  entry: Pick<
+    UsageLedgerEntry,
+    'organizationId' | 'provider' | 'model' | 'inputTokens' | 'outputTokens'
+  >,
+): Promise<number> {
+  try {
+    const orgSlug = await resolveOrgSlug(sql, entry.organizationId);
+    if (orgSlug === null) return 0;
+    const connector = resolveProvidersForOrg(orgSlug).find(
+      (candidate) => candidate.name === entry.provider,
+    );
+    if (connector === undefined) return 0;
+    const pricing = (await getProviderCatalog(connector)).find(
+      (candidate) => candidate.id === entry.model,
+    )?.pricing;
+    return estimateCostCents(entry.inputTokens, entry.outputTokens, pricing);
+  } catch (error) {
+    console.warn(
+      `[usage-ledger] could not price ${entry.provider}/${entry.model} (booking 0):`,
+      error instanceof Error ? error.message : error,
+    );
+    return 0;
+  }
+}
+
 /** The usage ledger: the fine-grained event row plus the governance
  * period-bucket aggregates (both best-effort together — one write). */
 export function createPgUsageLedger(sql: Sql): UsageLedger {
   return {
     async record(entry) {
       const now = Date.now();
+      // Priced at booking: the read side (the usage dashboard, the cost
+      // budgets, the budget-status gate) sums THIS column — nothing joins a
+      // price in later, so a 0 here is model spend that never existed.
+      const costEstimateCents = await estimateTurnCostCents(sql, entry);
       await sql`
         INSERT INTO app.usage_events (
           org_id, user_id, agent_slug, model, provider, input_tokens,
@@ -286,10 +332,7 @@ export function createPgUsageLedger(sql: Sql): UsageLedger {
         userId: entry.userId,
         inputTokens: entry.inputTokens,
         outputTokens: entry.outputTokens,
-        // Cost estimation joins the catalog at analytics time; the turn
-        // records tokens (the 0.4 ledger stamped a per-turn estimate the
-        // resolved pricing computed — that seam returns with usage pages).
-        costEstimateCents: 0,
+        costEstimateCents,
         timestamp: now,
         ...(entry.agentSlug !== undefined
           ? { agentSlug: entry.agentSlug }

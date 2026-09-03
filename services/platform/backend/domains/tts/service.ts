@@ -19,6 +19,7 @@ import {
   checkRuleAgainstUsage,
   collectAllApplicableRules,
   resolveEffectiveLimits,
+  teamLimitsHasCap,
   type BudgetCheckResult,
 } from '../../core/governance/budget_enforcement.ts';
 import { estimateTtsCostCents } from '../../core/governance/cost_estimation.ts';
@@ -315,12 +316,22 @@ export async function checkTtsBudget(
       args.prospectiveRequests,
     );
     if (violation) return violation;
-    for (const teamId of limits.effectiveTeamIds) {
+    // Each team's SHARED cap against that team's aggregate — the team rule's
+    // own values, never the personal triple (see `EffectiveLimits.teamLimits`).
+    for (const teamLimit of limits.teamLimits) {
+      if (!teamLimitsHasCap(teamLimit)) continue;
       const teamUsage = await periodUsage(sql, args.organizationId, periodKey, {
-        teamId,
+        teamId: teamLimit.teamId,
       });
       const teamViolation = checkRuleAgainstUsage(
-        { scope: 'team', scopeId: teamId, period, ...limitsTriple(limits) },
+        {
+          scope: 'team',
+          scopeId: teamLimit.teamId,
+          period,
+          maxTokens: teamLimit.maxTokens,
+          maxCostCents: teamLimit.maxCostCents,
+          maxRequests: teamLimit.maxRequests,
+        },
         teamUsage,
         args.prospectiveCostCents,
         args.prospectiveRequests,

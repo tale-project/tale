@@ -21,9 +21,9 @@
 
 import type { ModelCatalogEntry } from '../../../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../ctx';
-import { getProviderCatalog } from './catalog_fetch';
 import { credentialAuthFor } from './credential_auth';
 import { resolveProvidersForOrgId } from './org_providers';
+import { getServableCatalog } from './servable_catalog';
 
 type OrgConnector = Awaited<
   ReturnType<typeof resolveProvidersForOrgId>
@@ -63,7 +63,8 @@ export async function walkChatCatalog(
 
     let catalog;
     try {
-      catalog = await getProviderCatalog(connector);
+      // A catalog-less connector serves the credential's allowlist itself.
+      catalog = await getServableCatalog(connector, credential.modelAllowlist);
     } catch (error) {
       // One connector's unreachable /models endpoint must not blank the
       // whole listing; skip it loudly and offer the rest.
