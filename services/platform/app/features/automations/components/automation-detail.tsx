@@ -407,19 +407,20 @@ export function AutomationDetail({
     lookingVersion === undefined || versionEntries.length === 0
       ? []
       : [
-          versionEntries.map((entry) => ({
-            type: 'item' as const,
-            label: t('versions.versionLabel', { version: entry.version }),
-            selected: entry.version === lookingVersion,
-            ...(entry.version === meta?.deployedVersion
-              ? { trailing: t('versions.deployed') }
-              : {}),
-            onClick: () => {
-              if (entry.version !== lookingVersion) {
-                requestVersionSwitch(entry.version);
-              }
-            },
-          })),
+          versionEntries.map((entry) => {
+            const isDeployed = entry.version === meta?.deployedVersion;
+            return {
+              type: 'item' as const,
+              label: t('versions.versionLabel', { version: entry.version }),
+              selected: entry.version === lookingVersion,
+              trailing: isDeployed ? t('versions.deployed') : undefined,
+              onClick: () => {
+                if (entry.version !== lookingVersion) {
+                  requestVersionSwitch(entry.version);
+                }
+              },
+            };
+          }),
         ];
   const selectedNode =
     graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
