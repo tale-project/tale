@@ -191,7 +191,21 @@ export type SubscriptionBrokerConstraints = ExecutionConstraints;
  *  - `subscription-broker` — an external broker endpoint polled for ROTATING
  *    OAuth tokens (the credential row stores endpoint + mapping +
  *    selection); same forced-execution constraints.
+ *
+ * Both subscription flavors may declare `imageInputs`: what the endpoint the
+ * subscription rides DOES with image content blocks. `forwarded` (the
+ * default when absent) means the model's own `supportsVision` decides;
+ * `dropped` means the endpoint strips them for EVERY model — the model
+ * answers blind with a 200 (Z.ai's Anthropic-compatible coding door, live-
+ * verified). The subscription lane has no vision polyfill to fall back on,
+ * so this is the fact serving reads to refuse an image-bearing turn or tell
+ * the agent it cannot see, instead of letting a screenshot vanish silently.
  */
+const subscriptionImageInputsSchema = z.enum(['forwarded', 'dropped']);
+export type SubscriptionImageInputs = z.infer<
+  typeof subscriptionImageInputsSchema
+>;
+
 const providerAuthMethodSchema = z.discriminatedUnion('method', [
   z.object({ method: z.literal('api-key') }).strict(),
   z.object({ method: z.literal('env') }).strict(),
@@ -200,12 +214,14 @@ const providerAuthMethodSchema = z.discriminatedUnion('method', [
       method: z.literal('subscription-key'),
       baseUrl: providerBaseUrlSchema.optional(),
       apiFormat: apiFormatSchema.optional(),
+      imageInputs: subscriptionImageInputsSchema.optional(),
       constraints: executionConstraintsSchema,
     })
     .strict(),
   z
     .object({
       method: z.literal('subscription-broker'),
+      imageInputs: subscriptionImageInputsSchema.optional(),
       constraints: executionConstraintsSchema,
     })
     .strict(),

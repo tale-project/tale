@@ -98,6 +98,9 @@ const ZAI: ProviderDefinition = providerDefinitionSchema.parse({
       method: 'subscription-key',
       baseUrl: 'https://coding.z.ai/api/anthropic',
       apiFormat: 'anthropic',
+      // The shipped fact: the anthropic-dialect coding door strips image
+      // blocks for every model (live-verified 2026-08-26).
+      imageInputs: 'dropped',
       constraints: { execution: 'sandbox', harness: 'claude-code' },
     },
   ],
@@ -199,6 +202,8 @@ describe('resolveWorkflowAgentServing — subscription pass', () => {
       providerSlug: 'anthropic',
       modelId: 'claude-fable-5',
       apiBaseUrl: 'https://api.anthropic.com',
+      // The fixture entry declares no supportsVision → blind (text-only).
+      vision: expect.objectContaining({ readable: false }),
     });
   });
 
@@ -349,6 +354,7 @@ describe('resolveWorkflowAgentServing — pinned', () => {
       providerSlug: 'anthropic',
       modelId: 'claude-fable-5',
       apiBaseUrl: 'https://api.anthropic.com',
+      vision: expect.objectContaining({ readable: false }),
     });
   });
 
@@ -452,6 +458,77 @@ describe('resolveWorkflowAgentServing — pinned', () => {
     ).rejects.toThrow(
       /provider "openrouter" cannot serve model "claude-fable-5"/,
     );
+  });
+});
+
+/**
+ * The subscription lane has no vision polyfill, so a serving's ability to see
+ * images is a fact of the PATHWAY — the endpoint must forward image blocks
+ * and the model must read them — not of a static per-model flag alone.
+ */
+describe('subscription serving reports whether images are readable', () => {
+  it('reads Z.ai vision-capable GLM as blind: the coding door drops image blocks', async () => {
+    credentials = {
+      'z-ai': { status: 'active', authMethod: 'subscription-key' },
+    };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'glm-4.6v', supportsVision: true },
+    ]);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'glm-4.6v',
+      modelProvider: 'z-ai',
+      harness: 'claude-code',
+    });
+
+    expect(serving.lane).toBe('subscription');
+    if (serving.lane !== 'subscription') return;
+    expect(serving.vision.readable).toBe(false);
+    if (serving.vision.readable) return;
+    expect(serving.vision.reason).toMatch(/silently drops image inputs/);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('cannot see images'),
+    );
+    warn.mockRestore();
+  });
+
+  it('reads a vision model on a forwarding endpoint as readable (unpinned pass too)', async () => {
+    credentials = { anthropic: BROKER };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'claude-fable-5', supportsVision: true },
+    ]);
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toMatchObject({
+      lane: 'subscription',
+      providerSlug: 'anthropic',
+      vision: { readable: true },
+    });
+  });
+
+  it('reads a text-only model as blind on any subscription endpoint', async () => {
+    credentials = { anthropic: BROKER };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'claude-fable-5', supportsVision: false },
+    ]);
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toMatchObject({
+      lane: 'subscription',
+      vision: { readable: false, reason: expect.stringMatching(/text-only/) },
+    });
   });
 });
 

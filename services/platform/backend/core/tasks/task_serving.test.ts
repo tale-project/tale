@@ -225,6 +225,8 @@ describe('resolveTaskServing — subscription lane', () => {
       providerSlug: 'anthropic',
       modelId: 'claude-sonnet-4-6',
       apiBaseUrl: 'https://api.anthropic.com',
+      // The fixture entry declares no supportsVision → blind (text-only).
+      vision: expect.objectContaining({ readable: false }),
     });
     expect(resolveServingTarget).not.toHaveBeenCalled();
   });

@@ -48,6 +48,10 @@ import { directActiveCredential } from './direct_credential';
 import { loadHarnesses } from './load_system_config';
 import { resolveProvidersForOrgId } from './org_providers';
 import { getServableCatalog } from './servable_catalog';
+import {
+  subscriptionVisionCapability,
+  type SubscriptionVision,
+} from './subscription_vision';
 
 /** One resolved serving: the lane, the connector, and the model id in that
  * connector's own catalog spelling (what the wire — or the vendor CLI —
@@ -62,6 +66,11 @@ export type AgentTurnServing =
        * entry's own coding endpoint when declared, else the provider's
        * `baseUrl`. Never the broker's token endpoint. */
       apiBaseUrl: string;
+      /** Whether THIS serving pathway can see images: the endpoint must
+       * forward image blocks and the model must read them — the lane has no
+       * vision polyfill. The hosts refuse an image-bearing turn on a blind
+       * serving and tell the agent it cannot see otherwise. */
+      vision: SubscriptionVision;
     };
 
 export const AGENT_CREDENTIAL_AUTH_METHODS = [
@@ -359,12 +368,14 @@ export async function resolvePinnedAgentServing(
       `provider "${pinned}" does not list model "${args.model}" in its catalog — edit the agent's model`,
     );
   }
-  if (!entry.supportsVision) {
-    // The vision polyfill needs a gateway key this lane does not mint; a
-    // text-only subscription model would 400 on image reads. Every shipped
-    // subscription pair is vision-capable today, so this only warns.
+  // The lane mints no gateway key, so there is no vision polyfill: images
+  // reach the model only if the vendor endpoint forwards them AND the model
+  // reads them. The hosts act on this fact — refusing an image-bearing turn
+  // or telling the agent plainly — because a blind 200 is worse than a 400.
+  const vision = subscriptionVisionCapability(connector, row.authMethod, entry);
+  if (!vision.readable) {
     console.warn(
-      `[agent-serving] subscription model "${entry.id}" is text-only — image inputs will fail this turn (no vision polyfill on the subscription lane)`,
+      `[agent-serving] subscription serving ${pinned}/${entry.id} cannot see images: ${vision.reason}`,
     );
   }
 
@@ -380,6 +391,7 @@ export async function resolvePinnedAgentServing(
     providerSlug: pinned,
     modelId: entry.id,
     apiBaseUrl,
+    vision,
   };
 }
 
@@ -471,12 +483,14 @@ export async function resolveWorkflowAgentServing(
       );
       continue;
     }
-    if (!entry.supportsVision) {
-      // The vision polyfill needs a gateway key this lane does not mint; a
-      // text-only subscription model would 400 on image reads. Every shipped
-      // subscription pair is vision-capable today, so this only warns.
+    const vision = subscriptionVisionCapability(
+      connector,
+      row.authMethod,
+      entry,
+    );
+    if (!vision.readable) {
       console.warn(
-        `[agent-serving] subscription model "${entry.id}" is text-only — image inputs will fail this turn (no vision polyfill on the subscription lane)`,
+        `[agent-serving] subscription serving ${connector.name}/${entry.id} cannot see images: ${vision.reason}`,
       );
     }
     return {
@@ -484,6 +498,7 @@ export async function resolveWorkflowAgentServing(
       providerSlug: connector.name,
       modelId: entry.id,
       apiBaseUrl,
+      vision,
     };
   }
 
