@@ -248,7 +248,7 @@ describe('buildDockerSessionRunArgs', () => {
     ).toThrow(/runnerdToken/);
   });
 
-  test('accepts empty runnerd token (unsigned dev mode)', () => {
+  test('accepts an empty runnerd token (the builder validates shape only; the spawner always derives one)', () => {
     const args = buildDockerSessionRunArgs(cfg, {
       ...goodInput,
       runnerdToken: '',

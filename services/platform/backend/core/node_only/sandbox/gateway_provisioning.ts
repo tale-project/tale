@@ -39,6 +39,7 @@ import {
   isStandardGatewayProvider,
   mintVirtualKey,
   provisionProviders,
+  requireGatewayAdminPassword,
   resolveGatewayRouting,
   type AllowedModelRef,
   type ProviderProvision,
@@ -157,6 +158,12 @@ export async function provisionSessionGatewayKey(
   ctx: ActionCtx,
   args: SessionGatewayArgs,
 ): Promise<SessionGatewayKey> {
+  // Fail closed BEFORE any credential resolve or gateway call: without the
+  // admin password the management plane would be anonymous on the sandbox
+  // network, and every management call below would otherwise fail one by one
+  // with the same root cause. Surface it once, clearly.
+  requireGatewayAdminPassword();
+
   // One provision-build per unique connector (one credential resolve each),
   // then expand into the EXACT gateway records the mint will bind to. A
   // standard gateway provider routes to one shared record (`<slug>/<model>`),

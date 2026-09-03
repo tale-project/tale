@@ -855,8 +855,9 @@ services:
   # env knobs). applyGatewayConfig() pushes, idempotently on session create:
   #   - client.enforce_auth_on_inference=true → inference rejects anything but a
   #     minted virtual key (the data-plane gate).
-  #   - auth_config (admin basic-auth over /api/*) when SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD
-  #     is set → the management plane stops being anonymous on the internal network.
+  #   - auth_config (admin basic-auth over /api/*) from SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD
+  #     — REQUIRED: the backend refuses every management call without it, so the
+  #     management plane is never anonymous on the sandbox network.
   # No published port (loopback publish lives in compose.sandbox-llm-gateway.dev.yml for
   # the host bun-dev path). Built as a thin wrapper over the PINNED upstream image
   # — the project has had VK auth regressions.
@@ -877,8 +878,9 @@ services:
         required: false
     # No gateway-read env knobs: auth + VK enforcement are config-store fields
     # the platform pushes via applyGatewayConfig() (admin creds come from the
-    # platform's SANDBOX_LLM_GATEWAY_ADMIN_USERNAME / SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD,
-    # never set on the gateway container itself).
+    # platform's SANDBOX_LLM_GATEWAY_ADMIN_USERNAME / SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD
+    # — required on the backend, never set on the gateway container itself;
+    # compose.dev.yml carries an insecure dev default for the backend tier).
     volumes:
       # SQLite config/log store (providers + minted keys + auth config survive
       # restarts). Wipe this volume to re-bootstrap auth from scratch. Volume name
