@@ -42,15 +42,32 @@ function toDate(ms: number | undefined): Date | null {
   return ms === undefined ? null : new Date(ms);
 }
 
+export interface FindOrCreateSsoUserResult {
+  userId: string | null;
+  isNewUser: boolean;
+  /**
+   * `existing_user_not_in_org`: the asserted email belongs to a user with NO
+   * membership in the connection's org — the login is refused before any
+   * write. Org admins self-serve their IdP config, so honouring the match
+   * would let a hostile org's IdP assert any known email and walk away with
+   * a session as that user (cross-org account takeover).
+   */
+  refusal?: 'existing_user_not_in_org';
+}
+
 /**
- * Find or create the user + provider account + org membership. Token columns
- * refresh on every login; an existing membership's role syncs only under
- * `syncRole` and never off `owner` (that would orphan the org).
+ * Find or create the user + provider account + org membership, under the
+ * org-binding contract: an org's IdP may sign in users the org already has
+ * (a `member` row — invited and accepted, SCIM-provisioned, or admin-added)
+ * and may JIT-create users NEW to the deployment, but never attaches to an
+ * existing user from outside the org. Token columns refresh on every login;
+ * an existing membership's role syncs only under `syncRole` and never off
+ * `owner` (that would orphan the org).
  */
 export async function findOrCreateSsoUser(
   sql: Sql,
   args: FindOrCreateSsoUserArgs,
-): Promise<{ userId: string | null; isNewUser: boolean }> {
+): Promise<FindOrCreateSsoUserResult> {
   const email = normalizeAuthEmail(args.email);
   return sql.begin(async (tx) => {
     const now = new Date();
@@ -60,6 +77,24 @@ export async function findOrCreateSsoUser(
     const existingUserId = users[0]?.id;
 
     if (existingUserId !== undefined) {
+      // Membership gates EVERYTHING for an existing user — checked first,
+      // inside the transaction, so a refusal writes nothing (no account
+      // link, no auto-join, no session for the caller to mint).
+      const members = await tx<{ id: string; role: string }[]>`
+        SELECT "id", "role" FROM "member"
+        WHERE "organizationId" = ${args.organizationId}
+          AND "userId" = ${existingUserId}
+        LIMIT 1
+      `;
+      const member = members[0];
+      if (member === undefined) {
+        return {
+          userId: null,
+          isNewUser: false,
+          refusal: 'existing_user_not_in_org' as const,
+        };
+      }
+
       const accounts = await tx<{ id: string }[]>`
         SELECT "id" FROM "account"
         WHERE "userId" = ${existingUserId}
@@ -94,23 +129,7 @@ export async function findOrCreateSsoUser(
         `;
       }
 
-      const members = await tx<{ id: string; role: string }[]>`
-        SELECT "id", "role" FROM "member"
-        WHERE "organizationId" = ${args.organizationId}
-          AND "userId" = ${existingUserId}
-        LIMIT 1
-      `;
-      const member = members[0];
-      if (member === undefined) {
-        await tx`
-          INSERT INTO "member" (
-            "id", "organizationId", "userId", "role", "createdAt"
-          ) VALUES (
-            gen_random_uuid(), ${args.organizationId}, ${existingUserId},
-            ${args.role}, ${now}
-          )
-        `;
-      } else if (shouldSyncMemberRole(args.syncRole, member.role, args.role)) {
+      if (shouldSyncMemberRole(args.syncRole, member.role, args.role)) {
         await tx`
           UPDATE "member" SET "role" = ${args.role} WHERE "id" = ${member.id}
         `;
@@ -160,7 +179,9 @@ export async function findOrCreateSsoUser(
  * Mint a Better Auth session row for an SSO login — 30 days unless a session
  * idle timeout is configured (the 0.4 `createUserSession` contract). The
  * caller signs the token into the cookie; Better Auth verifies the signature
- * and reads this row on every request.
+ * and reads this row on every request. `activeOrganizationId` is bound to
+ * the connection's org: the session an org's IdP minted starts IN that org
+ * (switching later still passes Better Auth's own membership check).
  */
 export async function createSsoUserSession(
   sql: Sql,
@@ -359,6 +380,11 @@ export async function handleSsoLogin(
       syncRole: config.autoProvisionRole,
     });
     if (result.userId === null) {
+      if (result.refusal === 'existing_user_not_in_org') {
+        // i18n key — the login page renders it; the raw string still reads
+        // as an answer if a locale ever misses the key.
+        return { success: false, error: 'sso.errors.notOrgMember' };
+      }
       return { success: false, error: 'Failed to create or find user' };
     }
 

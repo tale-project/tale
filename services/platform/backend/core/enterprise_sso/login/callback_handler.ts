@@ -293,14 +293,23 @@ export async function ssoCallbackHandler(
       },
     );
 
-    if (!result.success) {
-      return redirectWithError(
-        frontendOrigin,
-        result.error || 'SSO login failed',
-      );
-    }
-    if (!result.sessionToken) {
-      return redirectWithError(frontendOrigin, 'Failed to create session');
+    if (!result.success || !result.sessionToken) {
+      // A refused provisioning (e.g. the asserted email belongs to a user
+      // outside this org) is exactly what an operator investigating a
+      // locked-out user needs to see — audit it like the ACS handler does,
+      // instead of leaving the redirect as the only trace.
+      const message = !result.success
+        ? result.error || 'SSO login failed'
+        : 'Failed to create session';
+      await recordSsoLoginFailure(ctx, {
+        organizationId: config.organizationId,
+        stage: 'callback',
+        errorMessage: message,
+        ...(message.startsWith('sso.errors.') ? { errorKey: message } : {}),
+        attemptedEmail,
+        providerId: config.providerId,
+      });
+      return redirectWithError(frontendOrigin, message);
     }
 
     return await deps.finishLogin(ctx, {

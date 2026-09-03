@@ -2,6 +2,7 @@ import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { type FinishLogin } from '../login/finish_login';
 import { recordSsoLoginFailure } from '../login/login_audit';
+import { publicOrigin } from '../login/public_origin';
 import { mapSamlIdentity } from './attributes';
 import { samlEndpoints } from './metadata_handler';
 
@@ -26,7 +27,11 @@ export async function samlAcsHandler(
   req: Request,
   deps: { finishLogin: FinishLogin },
 ): Promise<Response> {
-  const origin = new URL(req.url).origin;
+  // The PUBLIC origin, never the internal request origin: it decides the
+  // session cookie's __Secure- shape and where every redirect lands (the
+  // OIDC handlers' posture — behind the proxy `req.url` is the unreachable
+  // internal upstream, and `http` even on TLS deployments).
+  const origin = publicOrigin(req.url);
   // Known only once the assertion's connection resolves; every refusal after
   // that point is audited (the OIDC callback's posture — a rejected assertion
   // is exactly the event an operator investigating a locked-out user, or a

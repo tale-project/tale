@@ -7181,6 +7181,23 @@ async function checkSamlLogin(
     const loginLocation = loginRes.headers.get('location') ?? '';
     const loginUrl = loginLocation === '' ? null : new URL(loginLocation);
 
+    // The AuthnRequest ID inside the redirect (deflate+base64, Redirect
+    // binding) — building it must have stored the ID in the shared
+    // app.saml_request_ids store, or no instance could validate the answer.
+    const { inflateRawSync } = await import('node:zlib');
+    const samlRequestParam = loginUrl?.searchParams.get('SAMLRequest') ?? '';
+    const authnRequestId =
+      samlRequestParam === ''
+        ? ''
+        : (/ID="([^"]+)"/.exec(
+            inflateRawSync(Buffer.from(samlRequestParam, 'base64')).toString(
+              'utf8',
+            ),
+          )?.[1] ?? '');
+    const issuedRow = await sql<{ id: string }[]>`
+      SELECT id FROM app.saml_request_ids WHERE id = ${authnRequestId}
+    `;
+
     record(
       'SAML: SP metadata + AuthnRequest redirect',
       metadataRes.status === 200 &&
@@ -7202,6 +7219,7 @@ async function checkSamlLogin(
       groups: string[];
       notOnOrAfterMs: number;
       tamper?: boolean;
+      inResponseTo?: string;
     }): string => {
       const now = Date.now();
       // Group membership is ONE multi-valued attribute (the shape Entra,
@@ -7222,7 +7240,7 @@ async function checkSamlLogin(
         `<saml:Issuer>https://idp.saml.itest/entity</saml:Issuer>` +
         `<saml:Subject><saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">${opts.email}</saml:NameID>` +
         `<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">` +
-        `<saml:SubjectConfirmationData NotOnOrAfter="${iso(opts.notOnOrAfterMs)}" Recipient="${acsUrl}"></saml:SubjectConfirmationData>` +
+        `<saml:SubjectConfirmationData${opts.inResponseTo ? ` InResponseTo="${opts.inResponseTo}"` : ''} NotOnOrAfter="${iso(opts.notOnOrAfterMs)}" Recipient="${acsUrl}"></saml:SubjectConfirmationData>` +
         `</saml:SubjectConfirmation></saml:Subject>` +
         `<saml:Conditions NotBefore="${iso(now - 60_000)}" NotOnOrAfter="${iso(opts.notOnOrAfterMs)}">` +
         `<saml:AudienceRestriction><saml:Audience>${spEntityId}</saml:Audience></saml:AudienceRestriction>` +
@@ -7262,7 +7280,7 @@ async function checkSamlLogin(
           )
         : signed;
       return Buffer.from(
-        `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp${opts.id}" IssueInstant="${iso(now)}" Version="2.0" Destination="${acsUrl}">` +
+        `<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="_resp${opts.id}" IssueInstant="${iso(now)}" Version="2.0" Destination="${acsUrl}"${opts.inResponseTo ? ` InResponseTo="${opts.inResponseTo}"` : ''}>` +
           `<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"></samlp:StatusCode></samlp:Status>` +
           body +
           `</samlp:Response>`,
@@ -7387,6 +7405,104 @@ async function checkSamlLogin(
             row.metadata?.stage === 'callback',
         ),
       `tampered=${tamperedRes.status}/${(tamperedRes.headers.get('set-cookie') ?? '') === '' ? 'no-cookie' : 'COOKIE'}, impostorAccounts=${impostor.length}, expired=${expiredRes.status}, noBody=${noBodyRes.status}, auditRows=${auditsBefore[0]?.count}→${failures.length} (want +2)`,
+    );
+
+    // ---- InResponseTo one-time use -------------------------------------
+    // An SP-initiated response must answer the AuthnRequest this deployment
+    // issued (row present until consumed), the SAME captured body must not
+    // validate twice, and a request id the SP never issued is refused.
+    const spResponse = buildResponse({
+      id: '_itestsaml4',
+      email: 'saml.user@door.test',
+      groups: ['SamlOps'],
+      notOnOrAfterMs: Date.now() + 300_000,
+      inResponseTo: authnRequestId,
+    });
+    const spFirst = await postAssertion(spResponse);
+    const spFirstCookie =
+      (spFirst.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const consumedRow = await sql<{ id: string }[]>`
+      SELECT id FROM app.saml_request_ids WHERE id = ${authnRequestId}
+    `;
+    const spReplay = await postAssertion(spResponse);
+    const forged = await postAssertion(
+      buildResponse({
+        id: '_itestsaml5',
+        email: 'saml.user@door.test',
+        groups: ['SamlOps'],
+        notOnOrAfterMs: Date.now() + 300_000,
+        inResponseTo: '_never-issued',
+      }),
+    );
+    record(
+      'SAML: InResponseTo one-time use (replay + forged request refused)',
+      authnRequestId !== '' &&
+        issuedRow.length === 1 &&
+        spFirst.status === 302 &&
+        (spFirst.headers.get('location') ?? '').includes('/dashboard') &&
+        spFirstCookie.includes('better-auth.session_token=') &&
+        consumedRow.length === 0 &&
+        spReplay.status === 302 &&
+        (spReplay.headers.get('location') ?? '').includes('/log-in') &&
+        (spReplay.headers.get('set-cookie') ?? '') === '' &&
+        forged.status === 302 &&
+        (forged.headers.get('location') ?? '').includes('/log-in') &&
+        (forged.headers.get('set-cookie') ?? '') === '',
+      `issued=${authnRequestId !== ''}/row=${issuedRow.length} (want 1), first=${spFirst.status}→${(spFirst.headers.get('location') ?? '').includes('/dashboard') ? 'dashboard' : spFirst.headers.get('location')} cookie=${spFirstCookie !== ''}, consumed=${consumedRow.length === 0}, replay=${spReplay.status}→${(spReplay.headers.get('location') ?? '').includes('/log-in') ? 'log-in' : 'ERR'} noCookie=${(spReplay.headers.get('set-cookie') ?? '') === ''}, forged=${forged.status} noCookie=${(forged.headers.get('set-cookie') ?? '') === ''}`,
+    );
+
+    // ---- org binding ----------------------------------------------------
+    // A user who EXISTS on the deployment but has no membership in this org
+    // must be refused: org admins self-serve the IdP, so honouring a global
+    // email match would let this connection mint a session as any user
+    // (cross-org takeover). Refusal is actionable, audited, writes nothing.
+    const outsiderOrg = await sql<{ id: string }[]>`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (gen_random_uuid(), 'Outsider Org',
+              ${`outsider-org-${Date.now()}`}, ${new Date()})
+      RETURNING "id"
+    `;
+    const outsiderUser = await sql<{ id: string }[]>`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified",
+                          "createdAt", "updatedAt")
+      VALUES (gen_random_uuid(), 'outsider@door.test', 'Outsider', true,
+              ${new Date()}, ${new Date()})
+      RETURNING "id"
+    `;
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${outsiderOrg[0]?.id ?? ''},
+              ${outsiderUser[0]?.id ?? ''}, 'member', ${new Date()})
+    `;
+    const crossOrg = await postAssertion(
+      buildResponse({
+        id: '_itestsaml6',
+        email: 'outsider@door.test',
+        groups: ['Everyone'],
+        notOnOrAfterMs: Date.now() + 300_000,
+      }),
+    );
+    const crossOrgLocation = crossOrg.headers.get('location') ?? '';
+    const joined = await sql<{ id: string }[]>`
+      SELECT "id" FROM "member"
+      WHERE "organizationId" = ${orgId}
+        AND "userId" = ${outsiderUser[0]?.id ?? ''}
+    `;
+    const refusalAudit = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.audit_logs
+      WHERE org_id = ${orgId} AND action = 'sso_login_failed'
+        AND error_message = 'sso.errors.notOrgMember'
+    `;
+    record(
+      'SAML: an existing user outside the org is refused (no auto-join)',
+      crossOrg.status === 302 &&
+        crossOrgLocation.includes('/log-in') &&
+        crossOrgLocation.includes('notOrgMember') &&
+        (crossOrg.headers.get('set-cookie') ?? '') === '' &&
+        joined.length === 0 &&
+        (refusalAudit[0]?.count ?? 0) >= 1,
+      `refused=${crossOrg.status}→${crossOrgLocation.includes('/log-in') ? 'log-in' : crossOrgLocation} key=${crossOrgLocation.includes('notOrgMember')} noCookie=${(crossOrg.headers.get('set-cookie') ?? '') === ''}, joined=${joined.length} (want 0), audited=${refusalAudit[0]?.count}`,
     );
   } finally {
     if (savedSiteUrl === undefined) delete process.env.SITE_URL;
@@ -7810,17 +7926,20 @@ async function checkScim(
  */
 async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
   process.env.TRUSTED_HEADERS_ENABLED = 'true';
+  process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'itest-trusted-door';
   try {
     const authWith = async (
       role: string,
       cookie?: string,
-    ): Promise<{ cookie: string; status: number }> => {
+      secret: string | null = 'itest-trusted-door',
+    ): Promise<{ cookie: string; status: number; body: string }> => {
       const res = await fetch(`${base}/api/trusted-headers/authenticate`, {
         headers: {
           'Remote-Email': 'proxy.user@door.test',
           'Remote-Name': 'Proxy User',
           'Remote-Role': role,
           'Remote-Teams': 't-fin:Finance, t-ops:Operations',
+          ...(secret !== null ? { 'Remote-Internal-Secret': secret } : {}),
           ...(cookie !== undefined ? { cookie } : {}),
         },
       });
@@ -7828,6 +7947,7 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
       return {
         cookie: setCookie.split(';')[0] ?? '',
         status: res.status,
+        body: await res.text(),
       };
     };
 
@@ -7839,6 +7959,18 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
       const text = await res.text();
       process.env.TRUSTED_HEADERS_ENABLED = 'true';
       return text.includes('not enabled');
+    })();
+
+    // The spoofing guard: the identity headers alone are forgeable, so the
+    // door opens only for the proxy-injected internal secret — a missing or
+    // wrong one mints NOTHING, and an unset env secret refuses the mode.
+    const noSecret = await authWith('member', undefined, null);
+    const wrongSecret = await authWith('member', undefined, 'not-the-secret');
+    const unconfigured = await (async () => {
+      delete process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
+      const res = await authWith('member');
+      process.env.TRUSTED_HEADERS_INTERNAL_SECRET = 'itest-trusted-door';
+      return res;
     })();
 
     const first = await authWith('member');
@@ -7894,6 +8026,12 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
     record(
       'trusted-headers auth (proxy hand-off + session role override)',
       disabledProbe &&
+        noSecret.cookie === '' &&
+        noSecret.body.includes('Missing required header') &&
+        wrongSecret.cookie === '' &&
+        wrongSecret.body.includes('Failed to complete login') &&
+        unconfigured.cookie === '' &&
+        unconfigured.body.includes('Server configuration error') &&
         first.status === 200 &&
         first.cookie.includes('better-auth.session_token=') &&
         session1.success &&
@@ -7905,10 +8043,11 @@ async function checkTrustedHeaders(sql: Sql, base: string): Promise<void> {
         allowed.status === 200 &&
         sessionsAfter.length === 1 &&
         sessionsAfter[0]?.trustedRole === 'admin',
-      `disabledGate=${disabledProbe}, auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${(rows[0]?.trustedTeams ?? '').includes('Finance')}, member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
+      `disabledGate=${disabledProbe}, secretGate=${noSecret.cookie === '' && wrongSecret.cookie === '' && unconfigured.cookie === ''} (missing/wrong/unset all refused), auth=${first.status} cookie=${first.cookie !== ''}, session=${session1.success ? (session1.data.user?.email ?? 'none') : 'ERR'}, member row/session role=${rows[0]?.role}/${rows[0]?.trustedRole} teams=${(rows[0]?.trustedTeams ?? '').includes('Finance')}, member→scim=${refused.status} (want 403), reuse=${second.cookie === first.cookie}, admin→scim=${allowed.status} (want 200), sessions=${sessionsAfter.length} role=${sessionsAfter[0]?.trustedRole}`,
     );
   } finally {
     delete process.env.TRUSTED_HEADERS_ENABLED;
+    delete process.env.TRUSTED_HEADERS_INTERNAL_SECRET;
   }
 }
 
