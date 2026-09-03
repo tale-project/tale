@@ -412,6 +412,12 @@ export function createAuth(config: AuthConfig) {
           allowRemovingAllTeams: true,
           defaultTeam: { enabled: false },
         },
+        // Deletion is served by the app door only
+        // (`POST /api/app/organizations/:id/delete`, one transaction with the
+        // legal-hold gate, the audit row, the app-side cascade and the
+        // config-tree cleanup). The plugin's own `/organization/delete`
+        // would bypass all of that, so it answers 404.
+        disableOrganizationDeletion: true,
         organizationHooks: {
           beforeCreateOrganization: async (data) => {
             const slug = data.organization.slug;

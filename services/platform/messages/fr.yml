@@ -5135,6 +5135,7 @@ settings:
     deleteLoading: Suppression…
     deleteSuccess: Organisation supprimée
     deleteFailed: Échec de la suppression de l'organisation
+    deleteBlockedByLegalHold: Un legal hold actif préserve les données de cette organisation. Lève chaque hold dans Gouvernance > Conservation légale, puis réessaie.
     editMember: Modifier le membre
     removeMember: Retirer le membre
     memberUpdated: Membre mis à jour avec succès

@@ -27,7 +27,7 @@ Pour placer un hold sur un utilisateur, ouvre **Paramètres > Gouvernance > Cons
 
 ## Interaction hold-et-cascade
 
-Un hold bloque chaque passage de rétention et chaque étape d’effacement pour la cible. La page Corbeille affiche le bandeau **La suppression est bloquée par un legal hold actif** quand un Administrateur tente de purger une ligne sous hold. Une demande de personne concernée dont le sujet est couvert par un hold atterrit en statut **Bloquée** jusqu’à ce que le hold soit levé ; une couverture partielle (certains threads sous hold, d’autres pas) atterrit en **Partielle** avec des compteurs par catégorie dans le reçu.
+Un hold bloque chaque passage de rétention et chaque étape d’effacement pour la cible. Il bloque aussi la suppression de l’organisation elle-même : tant qu’un hold est actif — sur toute l’organisation ou sur un membre —, **Supprimer l'organisation** est refusé et l’organisation reste exactement telle qu’elle était. La page Corbeille affiche le bandeau **La suppression est bloquée par un legal hold actif** quand un Administrateur tente de purger une ligne sous hold. Une demande de personne concernée dont le sujet est couvert par un hold atterrit en statut **Bloquée** jusqu’à ce que le hold soit levé ; une couverture partielle (certains threads sous hold, d’autres pas) atterrit en **Partielle** avec des compteurs par catégorie dans le reçu.
 
 ## Double contrôle
 

@@ -27,7 +27,7 @@ To place a hold on a user, open **Settings > Governance > Legal hold** and click
 
 ## Hold-and-cascade interaction
 
-A hold blocks every retention pass and every erasure step for the target. The trash page shows the **Delete is blocked by an active legal hold** banner when an Admin tries to purge a row under hold. A data subject request whose subject is covered by a hold lands in the **Blocked** status until the hold is released; partial coverage (some threads under hold, some not) lands in **Partial** with per-category counters in the receipt.
+A hold blocks every retention pass and every erasure step for the target. It also blocks deleting the organization itself: while any hold — org-wide or on a member — is active, **Delete organization** is refused and the organization stays exactly as it was. The trash page shows the **Delete is blocked by an active legal hold** banner when an Admin tries to purge a row under hold. A data subject request whose subject is covered by a hold lands in the **Blocked** status until the hold is released; partial coverage (some threads under hold, some not) lands in **Partial** with per-category counters in the receipt.
 
 ## Dual-control
 

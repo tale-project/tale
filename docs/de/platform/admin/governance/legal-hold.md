@@ -27,7 +27,7 @@ Um einen Hold auf einen Benutzer zu setzen, öffne **Einstellungen > Richtlinien
 
 ## Hold-und-Kaskade-Interaktion
 
-Ein Hold blockiert jeden Aufbewahrungs-Lauf und jeden Löschungs-Schritt für das Ziel. Die Papierkorb-Seite zeigt den Banner **Löschen ist durch einen aktiven Legal Hold gesperrt**, wenn ein Admin versucht, eine Zeile unter Hold zu entfernen. Eine Anfrage einer betroffenen Person, deren Subjekt von einem Hold abgedeckt ist, landet im Status **Blockiert**, bis der Hold freigegeben ist; teilweise Abdeckung (manche Threads unter Hold, manche nicht) landet in **Teilweise** mit Per-Kategorie-Zählern im Beleg.
+Ein Hold blockiert jeden Aufbewahrungs-Lauf und jeden Löschungs-Schritt für das Ziel. Auch das Löschen der ganzen Organisation ist gesperrt: Solange irgendein Hold aktiv ist — organisationsweit oder für ein Mitglied —, lehnt Tale **Organisation löschen** ab, und die Organisation bleibt unverändert. Die Papierkorb-Seite zeigt den Banner **Löschen ist durch einen aktiven Legal Hold gesperrt**, wenn ein Admin versucht, eine Zeile unter Hold zu entfernen. Eine Anfrage einer betroffenen Person, deren Subjekt von einem Hold abgedeckt ist, landet im Status **Blockiert**, bis der Hold freigegeben ist; teilweise Abdeckung (manche Threads unter Hold, manche nicht) landet in **Teilweise** mit Per-Kategorie-Zählern im Beleg.
 
 ## Vier-Augen-Kontrolle
 

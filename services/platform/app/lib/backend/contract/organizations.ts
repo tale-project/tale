@@ -8,7 +8,9 @@
  */
 
 export interface OrganizationsContract {
-  'organizations/delete_cleanup:prepareOrganizationDeletion': {
+  /** The one deletion door: guards, audit, cascade, Better Auth rows and
+   * the config cleanup commit as one transaction, or nothing changes. */
+  'organizations/delete:deleteOrganization': {
     kind: 'mutation';
     args: { organizationId: string };
     returns: { orgSlug: string };
