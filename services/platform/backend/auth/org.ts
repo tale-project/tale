@@ -1,12 +1,12 @@
 import type { MiddlewareHandler } from 'hono';
 import type { Sql } from 'postgres';
 
-import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
 import {
   defineAbilityFor,
   type AppAction,
   type AppSubject,
 } from '../../lib/permissions/ability.ts';
+import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
 import {
   MembershipError,
   requireOrganizationMember,
