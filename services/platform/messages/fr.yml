@@ -2331,6 +2331,14 @@ documents:
     redirecting: Redirection…
     folderEmpty: Ce dossier est vide.
     loadFailed: Échec du chargement des éléments
+    listingTruncated: >-
+      Affiche les {count} premiers éléments — ce dossier en contient
+      davantage. Ouvre un sous-dossier ou lance une recherche pour atteindre
+      le reste.
+    folderTooLargeToImport: >-
+      "{name}" contient plus d'éléments qu'un import ne peut en lister.
+      Importe ses sous-dossiers un par un, ou configure un import
+      synchronisé.
     oneTimeImport: Importation unique
     oneTimeDescription:
       Importe les fichiers une seule fois et stocke-les dans ton

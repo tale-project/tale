@@ -2307,6 +2307,12 @@ documents:
     redirecting: Weiterleitung…
     folderEmpty: Dieser Ordner ist leer.
     loadFailed: Elemente konnten nicht geladen werden
+    listingTruncated: >-
+      Zeigt die ersten {count} Elemente — der Ordner enthält mehr. Öffne
+      einen Unterordner oder such gezielt, um an den Rest zu kommen.
+    folderTooLargeToImport: >-
+      "{name}" enthält mehr Elemente, als ein Import auflisten kann.
+      Importiere die Unterordner einzeln oder richte einen Sync-Import ein.
     oneTimeImport: Einmaliger Import
     oneTimeDescription: Dateien einmal importieren und in deinem Workspace speichern
     syncImport: Synchronisierungsimport

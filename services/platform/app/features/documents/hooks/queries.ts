@@ -130,7 +130,9 @@ export function useOneDriveFiles(
       if (!result.success || !result.items) {
         throw new Error(result.error || 'Failed to load OneDrive files');
       }
-      return result.items;
+      // `truncated` rides along: the picker must say when a folder holds
+      // more than the listing bound instead of showing a shorter folder.
+      return { items: result.items, truncated: result.truncated ?? false };
     },
     enabled,
     staleTime: 5 * 60 * 1000,
@@ -257,7 +259,7 @@ export function useSharePointFiles(
       if (!result.success || !result.items) {
         throw new Error(result.error || 'Failed to load SharePoint files');
       }
-      return result.items;
+      return { items: result.items, truncated: result.truncated ?? false };
     },
     enabled,
     staleTime: 5 * 60 * 1000,

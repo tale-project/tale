@@ -16756,6 +16756,21 @@ async function checkOneDriveSync(
     hash: 'h-memo-v1',
     mime: 'text/markdown',
   });
+  // A 250-child folder (2.5 Graph pages) and a file past the blob ceiling.
+  seed({ id: 'folder-big', name: 'BigFolder', folder: true });
+  for (let i = 1; i <= 250; i++) {
+    seed({
+      id: `big-${i}`,
+      name: `big-${i}.txt`,
+      parent: 'folder-big',
+      content: `big ${i}`,
+      hash: `h-big-${i}`,
+      mime: 'text/plain',
+    });
+  }
+  seed({ id: 'f-huge', name: 'huge.bin', mime: 'application/octet-stream' });
+  const GRAPH_FAKE_PAGE = 100;
+  let hugeBodyPulls = 0;
 
   const graphAuth: string[] = [];
   let refreshCalls = 0;
@@ -16780,18 +16795,54 @@ async function checkOneDriveSync(
     const node = drive.get(itemId);
     if (!node) return jsonResponse({ error: { code: 'itemNotFound' } }, 404);
     if (leaf === '/children') {
-      return jsonResponse({
-        value: childrenOf(node.id).map((child) =>
-          child.folder === true
-            ? { id: child.id, name: child.name, size: 0, folder: {} }
-            : {
-                id: child.id,
-                name: child.name,
-                size: (child.content ?? '').length,
-                file: { mimeType: child.mime },
-              },
-        ),
-      });
+      // Paged like Graph: 100 children a page, chained by an absolute
+      // `@odata.nextLink` — a lister that stops at page one sees a short
+      // folder.
+      const all = childrenOf(node.id).map((child) =>
+        child.folder === true
+          ? { id: child.id, name: child.name, size: 0, folder: {} }
+          : {
+              id: child.id,
+              name: child.name,
+              size: (child.content ?? '').length,
+              file: { mimeType: child.mime },
+            },
+      );
+      const offset = Number(url.searchParams.get('$skiptoken') ?? '0');
+      const page: Record<string, unknown> = {
+        value: all.slice(offset, offset + GRAPH_FAKE_PAGE),
+      };
+      if (offset + GRAPH_FAKE_PAGE < all.length) {
+        const next = new URL(url);
+        next.searchParams.set('$skiptoken', String(offset + GRAPH_FAKE_PAGE));
+        page['@odata.nextLink'] = next.toString();
+      }
+      return jsonResponse(page);
+    }
+    if (leaf === '/content' && node.id === 'f-huge') {
+      // A vendor file past the blob ceiling: the declared length says so;
+      // the body counts how many chunks anyone actually pulled (finite, so a
+      // lane that ignores the declared length reads it whole and lands the
+      // wrong answer instead of hanging the probe).
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          pull(controller) {
+            hugeBodyPulls++;
+            if (hugeBodyPulls > 64) {
+              controller.close();
+              return;
+            }
+            controller.enqueue(new Uint8Array(1024));
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/octet-stream',
+            'content-length': String(600 * 1024 * 1024),
+          },
+        },
+      );
     }
     if (leaf === '/content') {
       const content = node.content ?? '';
@@ -17238,6 +17289,56 @@ async function checkOneDriveSync(
         cancelMissing.status === 404 &&
         cancelSticky === 'inactive',
       `scan=${scanned}/1 (only the folder config is syncable) drained=${scanDrained}, cancel=${cancel.status} missing=${cancelMissing.status}, lateStampAfterCancel=${cancelSticky} (want inactive)`,
+    );
+
+    // 9. Truth in listing and transfer: a 250-child folder browses WHOLE
+    //    across Graph pages (the old lister stopped at page one), and a
+    //    vendor file past the blob ceiling is refused on its declared length
+    //    before a single body chunk is pulled (the old lane buffered it all
+    //    first).
+    const bigBrowse = await post('/list-files', { folderId: 'folder-big' });
+    const bigBody = z
+      .object({
+        success: z.boolean(),
+        items: z.array(z.object({ id: z.string() })).optional(),
+        truncated: z.boolean().optional(),
+      })
+      .safeParse(await bigBrowse.json());
+    const hugeImport = await post('/import', {
+      importType: 'one-time',
+      items: [
+        {
+          id: 'f-huge',
+          name: 'huge.bin',
+          size: 600 * 1024 * 1024,
+          isDirectlySelected: true,
+        },
+      ],
+    });
+    const hugeResult = z
+      .object({
+        failedCount: z.number(),
+        successCount: z.number(),
+        results: z.array(
+          z.looseObject({ status: z.string(), error: z.string().optional() }),
+        ),
+      })
+      .safeParse(await hugeImport.json());
+    const hugeRow = hugeResult.success ? hugeResult.data.results[0] : undefined;
+    record(
+      'onedrive browse pages Graph to the end; oversized download refused unread',
+      bigBody.success &&
+        bigBody.data.success &&
+        bigBody.data.items?.length === 250 &&
+        new Set(bigBody.data.items.map((item) => item.id)).size === 250 &&
+        bigBody.data.truncated === false &&
+        hugeResult.success &&
+        hugeResult.data.failedCount === 1 &&
+        hugeResult.data.successCount === 0 &&
+        hugeRow?.status === 'error' &&
+        (hugeRow.error ?? '').includes('limit') &&
+        hugeBodyPulls === 0,
+      `browse=${bigBrowse.status}/${bigBody.success ? `${bigBody.data.items?.length}/truncated=${bigBody.data.truncated}` : 'ERR'} (want 250/false), huge=${hugeResult.success ? `${hugeResult.data.failedCount}fail ${hugeRow?.status}: ${hugeRow?.error}` : `PARSE-ERR ${hugeImport.status}`}, bodyPulls=${hugeBodyPulls} (want 0)`,
     );
   } finally {
     globalThis.fetch = realFetch;
@@ -30023,7 +30124,7 @@ async function checkTaskDiscussionPaging(
         status, created_at_ms
       )
       SELECT ${threadId}, ${orgId}, g, 0, 'user', 'comment ' || (g + 1),
-             ${userId}, 'complete', ${now} + g
+             ${userId}, 'complete', ${now}::bigint + g
       FROM generate_series(1, ${BULK}) AS g
       RETURNING id, thread_id, created_at_ms
     )

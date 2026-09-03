@@ -129,7 +129,7 @@ export function OneDriveImportDialog({
     !cloudImportAuthLoading && cloudImportAuth?.status === 'active';
 
   const {
-    data: itemsData,
+    data: oneDriveListing,
     isLoading: loading,
     error: loadError,
   } = useOneDriveFiles(
@@ -137,6 +137,12 @@ export function OneDriveImportDialog({
     currentFolderId,
     stage === 'picker' && sourceTab === 'onedrive' && isMicrosoftConnected,
   );
+  const itemsData = oneDriveListing?.items;
+  // How many items the picker shows when the folder holds MORE than the
+  // listing bound — null when the listing is whole.
+  const oneDriveTruncatedCount = oneDriveListing?.truncated
+    ? oneDriveListing.items.length
+    : null;
 
   const {
     data: sitesData,
@@ -160,7 +166,7 @@ export function OneDriveImportDialog({
       isMicrosoftConnected,
   );
 
-  const { data: spFilesData, isLoading: loadingSpFiles } = useSharePointFiles(
+  const { data: spListing, isLoading: loadingSpFiles } = useSharePointFiles(
     organizationId,
     selectedSite?.id,
     selectedDrive?.id,
@@ -171,6 +177,10 @@ export function OneDriveImportDialog({
       !!selectedDrive &&
       isMicrosoftConnected,
   );
+  const spFilesData = spListing?.items;
+  const spTruncatedCount = spListing?.truncated ? spListing.items.length : null;
+  const listingTruncatedCount =
+    sourceTab === 'sharepoint' ? spTruncatedCount : oneDriveTruncatedCount;
 
   const isMicrosoftAccountError =
     (!cloudImportAuthLoading &&
@@ -222,49 +232,51 @@ export function OneDriveImportDialog({
             }),
         });
       } else if (isFolder(item)) {
-        try {
-          let folderResult;
-          if (sourceTab === 'sharepoint' && selectedSite && selectedDrive) {
-            folderResult = await listSharePointFiles({
-              organizationId,
-              siteId: selectedSite.id,
-              driveId: selectedDrive.id,
-              folderId: item.id,
-            });
-          } else {
-            folderResult = await listOneDriveFiles({
-              organizationId,
-              folderId: item.id,
-            });
-          }
-
-          if (folderResult.success && folderResult.items) {
-            const folderPathStr = currentPath
-              ? `${currentPath}/${item.name}`
-              : item.name;
-
-            const isFolderDirectlySelected =
-              directlySelectedItems?.has(item.id) ?? false;
-
-            const parentInfoForSubFiles = isFolderDirectlySelected
-              ? { id: item.id, name: item.name, path: folderPathStr }
-              : selectedParentInfo;
-
-            const subFiles = await collectAllFiles(
-              folderResult.items,
-              folderPathStr,
-              directlySelectedItems,
-              parentInfoForSubFiles,
-            );
-            allFiles.push(...subFiles);
-          }
-        } catch (error) {
-          console.error(error);
-          toast({
-            title: t('onedrive.loadFailed'),
-            variant: 'destructive',
+        let folderResult;
+        if (sourceTab === 'sharepoint' && selectedSite && selectedDrive) {
+          folderResult = await listSharePointFiles({
+            organizationId,
+            siteId: selectedSite.id,
+            driveId: selectedDrive.id,
+            folderId: item.id,
+          });
+        } else {
+          folderResult = await listOneDriveFiles({
+            organizationId,
+            folderId: item.id,
           });
         }
+
+        // A folder that cannot be listed whole cannot be imported whole:
+        // stop here (the caller reports it) instead of importing the rest
+        // and calling that a success.
+        if (!folderResult.success || !folderResult.items) {
+          throw new Error(folderResult.error || t('onedrive.loadFailed'));
+        }
+        if (folderResult.truncated) {
+          throw new Error(
+            t('onedrive.folderTooLargeToImport', { name: item.name }),
+          );
+        }
+
+        const folderPathStr = currentPath
+          ? `${currentPath}/${item.name}`
+          : item.name;
+
+        const isFolderDirectlySelected =
+          directlySelectedItems?.has(item.id) ?? false;
+
+        const parentInfoForSubFiles = isFolderDirectlySelected
+          ? { id: item.id, name: item.name, path: folderPathStr }
+          : selectedParentInfo;
+
+        const subFiles = await collectAllFiles(
+          folderResult.items,
+          folderPathStr,
+          directlySelectedItems,
+          parentInfoForSubFiles,
+        );
+        allFiles.push(...subFiles);
       }
     }
 
@@ -526,6 +538,7 @@ export function OneDriveImportDialog({
       loadingDrives,
       loadingSpFiles,
       currentItems,
+      listingTruncatedCount,
       selectedSite,
       selectedDrive,
       spFolderPath,
