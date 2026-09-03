@@ -3684,6 +3684,16 @@ async function checkProviderCredentials(
     `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
     { isDefault: true },
   );
+  // Re-assert the env credential as the openai default: a backend that
+  // wrongly accepted the promotion above (the defect this probe records)
+  // would otherwise leave the provider with a disabled default and starve
+  // every later openai-backed lane (knowledge embeddings, chat) of a
+  // credential — the probe must fail on its own line, not take the run down.
+  await send(
+    'POST',
+    `/api/app/provider-credentials/${envCredentialId}?orgId=${orgId}`,
+    { isDefault: true },
+  );
   const brokerCred = z.object({ credentialId: z.string() }).safeParse(
     await (
       await send('POST', `/api/app/provider-credentials?orgId=${orgId}`, {
