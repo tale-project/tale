@@ -160,6 +160,50 @@ export async function resolveProviderCredential(
   );
 }
 
+/** The credential facts a model-serving walk reads. */
+export interface ServingCredentialFacts {
+  providerSlug: string;
+  authMethod: 'api-key' | 'env' | 'subscription-key' | 'subscription-broker';
+  modelAllowlist?: string[];
+}
+
+/**
+ * The org's SERVABLE credential per provider — the active default row, and
+ * only that: every serving path (the chat wire, the agent walks, vision,
+ * TTS, the title lane) resolves a provider's default credential, so a model
+ * only a non-default or disabled credential could reach is a model no turn
+ * can run. The composer's picker and the Auto pick read THIS set, which is
+ * what keeps "offered" and "servable" the same world: disable or delete a
+ * connector's default and its models leave the picker (the settings page
+ * says the connector has no default) instead of failing every send.
+ */
+export async function listServingCredentialFacts(
+  sql: Sql,
+  organizationId: string,
+): Promise<ServingCredentialFacts[]> {
+  const rows = await sql<
+    {
+      providerSlug: string;
+      authMethod: ServingCredentialFacts['authMethod'];
+      modelAllowlist: string[] | null;
+    }[]
+  >`
+    SELECT provider_slug AS "providerSlug", auth_method AS "authMethod",
+           model_allowlist AS "modelAllowlist"
+    FROM app.provider_credentials
+    WHERE org_id = ${organizationId} AND is_default AND status = 'active'
+    ORDER BY provider_slug ASC
+  `;
+  return rows.map((row) => {
+    const facts: ServingCredentialFacts = {
+      providerSlug: row.providerSlug,
+      authMethod: row.authMethod,
+    };
+    if (row.modelAllowlist !== null) facts.modelAllowlist = row.modelAllowlist;
+    return facts;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Admin surface
 // ---------------------------------------------------------------------------

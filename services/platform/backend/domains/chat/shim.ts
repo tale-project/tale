@@ -18,6 +18,7 @@ import {
   listProjects,
   type ProjectRow,
 } from '../projects/service.ts';
+import { listServingCredentialFacts } from '../provider_credentials/service.ts';
 import { getThreadLineageIds, setThreadTitleIfAbsent } from './threads.ts';
 
 /**
@@ -268,32 +269,15 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       return null;
     },
 
+    // The Auto pick's credential world — the SAME servable set the composer
+    // lists (each provider's active default), so Auto can never pick a model
+    // the picker stopped offering, nor one no turn could serve.
     'provider_credentials/queries:listActiveCredentialFactsInternal': async (
       raw,
     ) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
       const args = raw as { organizationId: string };
-      return sql<
-        {
-          providerSlug: string;
-          authMethod: string;
-          modelAllowlist: string[] | null;
-        }[]
-      >`
-        SELECT provider_slug AS "providerSlug",
-               auth_method AS "authMethod",
-               model_allowlist AS "modelAllowlist"
-        FROM app.provider_credentials
-        WHERE org_id = ${args.organizationId} AND status = 'active'
-      `.then((rows) =>
-        rows.map((row) => ({
-          providerSlug: row.providerSlug,
-          authMethod: row.authMethod,
-          ...(row.modelAllowlist !== null
-            ? { modelAllowlist: row.modelAllowlist }
-            : {}),
-        })),
-      );
+      return listServingCredentialFacts(sql, args.organizationId);
     },
 
     'governance/internal_queries:resolveModelGovernanceInternal': async (

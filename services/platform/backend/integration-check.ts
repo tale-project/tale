@@ -4440,6 +4440,105 @@ async function checkChat(
       `picker=${deployListed ? 'lists itest-deploy-prod' : `MISSING (${deployPicker.success ? deployPicker.data.models.map((m) => `${m.providerSlug}/${m.id}`).join(',') : 'ERR'})`}, turn=${deployOutcome.success ? deployOutcome.data.status : 'ERR'}${deployOutcome.success && deployOutcome.data.reason !== undefined ? ` (${deployOutcome.data.reason})` : ''}, usageRows=${deployUsage[0]?.count}`,
     );
 
+    // The picker and serving must read ONE world. Serving resolves a
+    // provider's ACTIVE DEFAULT credential; the picker used to walk every
+    // active credential — so after the routine key rotation (add B, disable
+    // default A) it kept offering models every send then failed on. With
+    // the default disabled the connector serves nothing, and the picker
+    // must say so by omission even while another active credential exists.
+    const deployRows = z
+      .object({
+        credentials: z.array(
+          z
+            .object({
+              id: z.string(),
+              providerSlug: z.string(),
+              isDefault: z.boolean(),
+            })
+            .loose(),
+        ),
+      })
+      .safeParse(
+        await (
+          await fetch(
+            `${base}/api/app/provider-credentials?orgId=${orgId}&providerSlug=itestdeploy`,
+            { headers: { cookie } },
+          )
+        ).json(),
+      );
+    const deployDefaultId = deployRows.success
+      ? (deployRows.data.credentials.find((row) => row.isDefault)?.id ?? '')
+      : '';
+    const pickerLists = async (): Promise<boolean> => {
+      const listing = z
+        .object({
+          models: z.array(
+            z.object({ id: z.string(), providerSlug: z.string() }).loose(),
+          ),
+        })
+        .safeParse(
+          await (
+            await fetch(`${base}/api/app/chat/composer/models?orgId=${orgId}`, {
+              headers: { cookie },
+            })
+          ).json(),
+        );
+      return (
+        listing.success &&
+        listing.data.models.some(
+          (model) => model.providerSlug === 'itestdeploy',
+        )
+      );
+    };
+    const rotated = z.object({ credentialId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/provider-credentials?orgId=${orgId}`, {
+          providerSlug: 'itestdeploy',
+          authMethod: 'api-key',
+          name: 'Rotated key (not default)',
+          secret: 'sk-itest-deploy-key-2',
+          modelAllowlist: ['itest-deploy-prod'],
+        })
+      ).json(),
+    );
+    const rotatedId = rotated.success ? rotated.data.credentialId : '';
+    await send(
+      `/api/app/provider-credentials/${deployDefaultId}?orgId=${orgId}`,
+      { status: 'disabled' },
+    );
+    const offeredWhileDefaultDisabled = await pickerLists();
+    const sendWhileDefaultDisabled = z
+      .object({ status: z.string(), reason: z.string().optional() })
+      .safeParse(
+        await (
+          await send(
+            `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+            {
+              text: 'still there?',
+              modelId: 'itest-deploy-prod',
+              providerSlug: 'itestdeploy',
+            },
+          )
+        ).json(),
+      );
+    await send(
+      `/api/app/provider-credentials/${deployDefaultId}?orgId=${orgId}`,
+      { status: 'active' },
+    );
+    const offeredAgain = await pickerLists();
+    await fetch(
+      `${base}/api/app/provider-credentials/${rotatedId}?orgId=${orgId}`,
+      { method: 'DELETE', headers: { cookie, origin: base } },
+    );
+    record(
+      'picker offers only what the active default credential can serve',
+      !offeredWhileDefaultDisabled &&
+        sendWhileDefaultDisabled.success &&
+        sendWhileDefaultDisabled.data.status !== 'completed' &&
+        offeredAgain,
+      `defaultDisabled: picker=${offeredWhileDefaultDisabled ? 'STILL OFFERS' : 'omits'} send=${sendWhileDefaultDisabled.success ? sendWhileDefaultDisabled.data.status : 'ERR'} (want not completed); reenabled: picker=${offeredAgain ? 'offers' : 'MISSING'}`,
+    );
+
     // First-token UX metric. Covered because it was NOT: the statement that
     // stamps it built a `jsonb_build_object` around an uncast parameter, so
     // Postgres could infer nothing and every report failed to parse (42P18)
