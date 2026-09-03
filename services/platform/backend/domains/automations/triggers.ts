@@ -14,8 +14,10 @@ import { AutomationError, beginRun, beginRunInTx } from './store.ts';
  *
  *  - `scanScheduledTriggers` (a per-minute pg-boss schedule): minute-cron
  *    matching through the REUSED matcher (`cron.ts` — IANA-zone wall clock,
- *    bounded catch-up), `lastFiredAt` stamped BEFORE the start so a throwing
- *    run never re-fires the same minute;
+ *    bounded catch-up). The scan WALKS every enabled schedule (keyset pages,
+ *    never a cap an arbitrary subset could hide behind) and CLAIMS each due
+ *    occurrence with a conditional stamp, so a throwing run never re-fires
+ *    the same minute and two overlapping scans fire it once;
  *  - the webhook door `POST /api/automations/webhook/<token>` — the token in
  *    the path IS the credential (sha256 verifier + constant-time compare;
  *    unknown/disabled reads as a plain 404);
@@ -24,9 +26,14 @@ import { AutomationError, beginRun, beginRunInTx } from './store.ts';
  *    into the events emit seam.
  */
 
-const SCAN_LIMIT = 200;
+/** Rows per page of the scan walk — a page size, not a cap: the walk goes on
+ * until every enabled schedule has been examined. */
+const SCAN_PAGE_SIZE = 200;
 const DEFAULT_TIMEZONE = 'UTC';
+const MINUTE_MS = 60_000;
 const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
+/** How many undeployed schedules one scan names in its summary line. */
+const UNDEPLOYED_NAMES_IN_LOG = 5;
 
 interface TriggerRow {
   id: string;
@@ -49,57 +56,110 @@ const TRIGGER_COLUMNS = `
   created_at_ms::float8 AS "createdAt"
 `;
 
+export interface ScheduleScanResult {
+  /** Enabled schedules examined — every one of them, across all pages. */
+  examined: number;
+  /** Occurrences this scan claimed AND started a run for. */
+  fired: number;
+  /** Keyset pages the walk took (1 for fleets under the page size). */
+  pages: number;
+  /** Occurrences claimed whose automation has no deployed version to run. */
+  undeployed: number;
+}
+
 export async function scanScheduledTriggers(
   sql: Sql,
-): Promise<{ examined: number; fired: number }> {
+  options: { pageSize?: number } = {},
+): Promise<ScheduleScanResult> {
+  const pageSize = options.pageSize ?? SCAN_PAGE_SIZE;
   const now = Date.now();
-  const triggers = await sql<TriggerRow[]>`
-    SELECT ${sql.unsafe(TRIGGER_COLUMNS)} FROM app.automation_triggers
-    WHERE kind = 'schedule' AND enabled = true
-    LIMIT ${SCAN_LIMIT}
-  `;
-  let fired = 0;
-  for (const trigger of triggers) {
-    if (trigger.cron === null || trigger.cron === '') continue;
-    const since = trigger.lastFiredAt ?? trigger.createdAt;
-    let due: number | null;
-    try {
-      due = dueOccurrence(
-        trigger.cron,
-        trigger.timezone ?? DEFAULT_TIMEZONE,
-        since,
-        now,
-      );
-    } catch (error) {
-      // A schedule the author wrote wrong must not stop the whole scan.
-      console.warn(
-        `[automations] trigger ${trigger.organizationId}/${trigger.name}: unusable schedule`,
-        error instanceof Error ? error.message : error,
-      );
-      continue;
-    }
-    if (due === null) continue;
-    // Stamp BEFORE starting: a run that throws must not leave the schedule
-    // re-firing the same minute on every tick.
-    await sql`
-      UPDATE app.automation_triggers SET last_fired_at_ms = ${due}
-      WHERE id = ${trigger.id}
+  // Nothing newer than the current minute can be due, so a trigger already
+  // stamped at or past it is left out in SQL rather than fetched to be skipped.
+  const floor = Math.floor(now / MINUTE_MS) * MINUTE_MS;
+  const result: ScheduleScanResult = {
+    examined: 0,
+    fired: 0,
+    pages: 0,
+    undeployed: 0,
+  };
+  const undeployedNames: string[] = [];
+  let cursor: string | null = null;
+  for (;;) {
+    // A keyset walk in id order: deterministic, complete, and bounded per
+    // page — the LIMIT is how much sits in memory at once, not how many
+    // triggers the platform serves. The 0.4-era `LIMIT 200` with no ORDER BY
+    // handed the 201st enabled schedule to heap order, i.e. to never.
+    const page: TriggerRow[] = await sql<TriggerRow[]>`
+      SELECT ${sql.unsafe(TRIGGER_COLUMNS)} FROM app.automation_triggers
+      WHERE kind = 'schedule' AND enabled = true
+        AND (last_fired_at_ms IS NULL OR last_fired_at_ms < ${floor})
+        AND (${cursor}::text IS NULL OR id > ${cursor})
+      ORDER BY id
+      LIMIT ${pageSize}
     `;
-    const started = await beginRun(sql, {
-      organizationId: trigger.organizationId,
-      name: trigger.name,
-      input: { trigger: 'schedule', firedAt: due },
-      mode: 'live',
-      startedBy: `trigger:${trigger.id}`,
-    });
-    if (started) fired++;
-    else {
-      console.warn(
-        `[automations] trigger ${trigger.organizationId}/${trigger.name}: no deployed version to run`,
-      );
+    result.pages++;
+    result.examined += page.length;
+    for (const trigger of page) {
+      if (trigger.cron === null || trigger.cron === '') continue;
+      const since = trigger.lastFiredAt ?? trigger.createdAt;
+      let due: number | null;
+      try {
+        due = dueOccurrence(
+          trigger.cron,
+          trigger.timezone ?? DEFAULT_TIMEZONE,
+          since,
+          now,
+        );
+      } catch (error) {
+        // A schedule the author wrote wrong must not stop the whole scan.
+        console.warn(
+          `[automations] trigger ${trigger.organizationId}/${trigger.name}: unusable schedule`,
+          error instanceof Error ? error.message : error,
+        );
+        continue;
+      }
+      if (due === null) continue;
+      // CLAIM the occurrence BEFORE starting — and conditionally: a run that
+      // throws must not leave the schedule re-firing the same minute on every
+      // tick, and two overlapping scans (an expired job's retry, two workers)
+      // must fire it once. The loser's UPDATE matches no row and moves on.
+      const claimed = await sql<{ id: string }[]>`
+        UPDATE app.automation_triggers SET last_fired_at_ms = ${due}
+        WHERE id = ${trigger.id}
+          AND (last_fired_at_ms IS NULL OR last_fired_at_ms < ${due})
+        RETURNING id
+      `;
+      if (claimed.length === 0) continue;
+      const started = await beginRun(sql, {
+        organizationId: trigger.organizationId,
+        name: trigger.name,
+        input: { trigger: 'schedule', firedAt: due },
+        mode: 'live',
+        startedBy: `trigger:${trigger.id}`,
+      });
+      if (started) {
+        result.fired++;
+      } else {
+        result.undeployed++;
+        if (undeployedNames.length < UNDEPLOYED_NAMES_IN_LOG) {
+          undeployedNames.push(`${trigger.organizationId}/${trigger.name}`);
+        }
+      }
     }
+    if (page.length < pageSize) break;
+    const last = page.at(-1);
+    if (last === undefined) break;
+    cursor = last.id;
   }
-  return { examined: triggers.length, fired };
+  if (result.undeployed > 0) {
+    // One line per scan, not one per trigger: a fleet's worth of undeployed
+    // schedules must not turn the scan log into a flood.
+    const more = result.undeployed - undeployedNames.length;
+    console.warn(
+      `[automations] trigger scan: ${result.undeployed} due schedule(s) have no deployed version to run: ${undeployedNames.join(', ')}${more > 0 ? ` (+${more} more)` : ''}`,
+    );
+  }
+  return result;
 }
 
 /** Platform events → enabled `event` triggers of the org. Events raised BY
