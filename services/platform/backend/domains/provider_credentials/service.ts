@@ -53,7 +53,11 @@ function assertCredentialAdmin(scope: CredentialScope): void {
   }
 }
 
-/** The row shape the reused 0.4 resolver expects (`_id`, camelCase). */
+/** The row shape the reused 0.4 resolver and serving walks expect (`_id`,
+ * camelCase). `modelAllowlist` rides along for the walks: the direct/pinned
+ * agent serving, the title lane, and the chat lane's catalog-less lookup
+ * all read the default credential's allowlist off this row — without it
+ * every one of them saw "no allowlist" and served outside it. */
 interface ResolverRow {
   _id: string;
   organizationId: string;
@@ -63,13 +67,15 @@ interface ResolverRow {
   encryptedData?: EncryptedSecret;
   envName?: string;
   endpointUrl?: string;
+  modelAllowlist?: string[];
   status: 'active' | 'disabled';
 }
 
 const RESOLVER_COLUMNS = `
   id AS "_id", org_id AS "organizationId", provider_slug AS "providerSlug",
   auth_method AS "authMethod", name, encrypted_data AS "encryptedData",
-  env_name AS "envName", endpoint_url AS "endpointUrl", status
+  env_name AS "envName", endpoint_url AS "endpointUrl",
+  model_allowlist AS "modelAllowlist", status
 `;
 
 function rowOrNull(rows: ResolverRow[]): ResolverRow | null {
@@ -83,6 +89,7 @@ function rowOrNull(rows: ResolverRow[]): ResolverRow | null {
     encryptedData: row.encryptedData ?? undefined,
     envName: row.envName ?? undefined,
     endpointUrl: row.endpointUrl ?? undefined,
+    modelAllowlist: row.modelAllowlist ?? undefined,
   };
 }
 

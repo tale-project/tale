@@ -4416,20 +4416,27 @@ async function checkChat(
       ).json(),
     );
     const deployThreadId = deployThread.success ? deployThread.data.id : '';
+    // Read as text first: a serving miss surfaces as a non-JSON 500 here,
+    // and that must record as a failed probe, not kill the whole run.
+    const deployTurnRaw = await (
+      await send(
+        `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+        {
+          text: `${SLOW_MARKER} to three`,
+          modelId: 'itest-deploy-prod',
+          providerSlug: 'itestdeploy',
+        },
+      )
+    ).text();
+    let deployTurnJson: unknown = null;
+    try {
+      deployTurnJson = JSON.parse(deployTurnRaw);
+    } catch {
+      deployTurnJson = { status: `non-JSON: ${deployTurnRaw.slice(0, 80)}` };
+    }
     const deployOutcome = z
       .object({ status: z.string(), reason: z.string().optional() })
-      .safeParse(
-        await (
-          await send(
-            `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
-            {
-              text: `${SLOW_MARKER} to three`,
-              modelId: 'itest-deploy-prod',
-              providerSlug: 'itestdeploy',
-            },
-          )
-        ).json(),
-      );
+      .safeParse(deployTurnJson);
     const deployUsage = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.usage_events
       WHERE org_id = ${orgId} AND model = 'itest-deploy-prod'
