@@ -97,3 +97,112 @@ describe('searchKnowledge live document validation', () => {
     });
   });
 });
+
+describe('searchKnowledge — the same passage twice', () => {
+  beforeEach(() => {
+    retrieveMock.mockReset();
+  });
+
+  /** Two refs holding identical text — the same file indexed twice. */
+  function duplicatePair(text: string) {
+    return [
+      { ...hit('documents', 'copy_a'), text, fusedScore: 0.9 },
+      { ...hit('documents', 'copy_b'), text, fusedScore: 0.4 },
+    ];
+  }
+  const ACCESS = { teamIds: [], projectIds: [], includeHub: true };
+
+  it('returns one copy, keeping the higher-scoring ref', async () => {
+    // A bounded result set spending two slots on one passage pushes a
+    // different answer off the end.
+    retrieveMock.mockResolvedValueOnce({
+      hits: duplicatePair('Refunds within 30 days.'),
+      diagnostics: {},
+    });
+    const runQuery = vi.fn(async () => ['copy_a', 'copy_b']);
+    const result = await searchKnowledge({ runQuery } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'refunds',
+      access: ACCESS,
+    });
+    expect(result.hits.map((entry) => entry.source.ref)).toEqual(['copy_a']);
+  });
+
+  it('keeps a distinct passage from the same document', async () => {
+    // Deduping is per passage, not per document — a second chunk of the same
+    // file is a different answer.
+    retrieveMock.mockResolvedValueOnce({
+      hits: [
+        { ...hit('documents', 'doc'), text: 'First passage.' },
+        { ...hit('documents', 'doc'), text: 'Second passage.' },
+      ],
+      diagnostics: {},
+    });
+    const runQuery = vi.fn(async () => ['doc']);
+    const result = await searchKnowledge({ runQuery } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'passages',
+      access: ACCESS,
+    });
+    expect(result.hits.map((entry) => entry.text)).toEqual([
+      'First passage.',
+      'Second passage.',
+    ]);
+  });
+
+  it('treats two copies that only wrap differently as one', async () => {
+    retrieveMock.mockResolvedValueOnce({
+      hits: [
+        { ...hit('documents', 'copy_a'), text: 'Refunds within\n30 days.' },
+        { ...hit('documents', 'copy_b'), text: 'Refunds within 30 days.' },
+      ],
+      diagnostics: {},
+    });
+    const runQuery = vi.fn(async () => ['copy_a', 'copy_b']);
+    const result = await searchKnowledge({ runQuery } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'refunds',
+      access: ACCESS,
+    });
+    expect(result.hits).toHaveLength(1);
+  });
+
+  it('keeps the readable copy when the other is filtered out', async () => {
+    // The order matters: deduping BEFORE the retrievability gate could keep
+    // an unreadable copy and drop the readable one, and the gate would then
+    // remove what was kept — losing the passage entirely.
+    retrieveMock.mockResolvedValueOnce({
+      hits: duplicatePair('Refunds within 30 days.'),
+      diagnostics: {},
+    });
+    const runQuery = vi.fn(async () => ['copy_b']);
+    const result = await searchKnowledge({ runQuery } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'refunds',
+      access: ACCESS,
+    });
+    expect(result.hits.map((entry) => entry.source.ref)).toEqual(['copy_b']);
+  });
+
+  it('does not collapse the same text across different corpora', async () => {
+    retrieveMock.mockResolvedValueOnce({
+      hits: [
+        { ...hit('documents', 'doc'), text: 'Shared wording.' },
+        { ...hit('web', 'https://example.com'), text: 'Shared wording.' },
+      ],
+      diagnostics: {},
+    });
+    const runQuery = vi.fn(async () => ['doc']);
+    const result = await searchKnowledge({ runQuery } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'shared',
+      access: ACCESS,
+    });
+    expect(result.hits).toHaveLength(2);
+  });
+});
