@@ -5,7 +5,10 @@ import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
 import { getProjectAuthContext } from '../domains/projects/service.ts';
-import { RateLimitExceededError, checkIpRateLimit } from '../lib/rate-limit.ts';
+import {
+  RateLimitExceededError,
+  checkUserRateLimit,
+} from '../lib/rate-limit.ts';
 
 /**
  * Shared plumbing of the `/api/v1` REST families: the request variables the
@@ -22,7 +25,8 @@ export interface RestVars {
   role: string;
   /** Whether the caller NAMED the org (`X-Organization-Slug`). */
   orgExplicit: boolean;
-  /** The client IP the door rate-limited on (lane top-ups reuse it). */
+  /** The trusted-proxy-derived client IP (the door's pre-auth limiter key;
+   * kept for attribution — authenticated budgets key on the user). */
   clientIp: string;
 }
 
@@ -121,7 +125,9 @@ export async function assertExplicitOrg(
 
 /**
  * Top-up charge on a second rate lane (`rest:execute`, `rest:upload`) so a
- * route's effective budget is the tighter of its lanes.
+ * route's effective budget is the tighter of its lanes. Keyed like the
+ * door's `rest:api` charge — on the key holder (the key acts as its user),
+ * so the budget is attributable and no header can mint a fresh one.
  */
 export async function chargeLane(
   sql: Sql,
@@ -129,7 +135,7 @@ export async function chargeLane(
   rule: 'rest:api' | 'rest:execute' | 'rest:upload',
 ): Promise<Response | null> {
   try {
-    await checkIpRateLimit(sql, rule, c.get('clientIp'));
+    await checkUserRateLimit(sql, rule, c.get('userId'));
     return null;
   } catch (error) {
     if (error instanceof RateLimitExceededError) {
