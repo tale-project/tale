@@ -12,12 +12,23 @@
  *     (history) never answers as if it were the live document. Scope
  *     (project / hub team) applies per candidate document — a WebDAV COPY
  *     twin admits through its own scope, not its sibling's.
- *   - or a LIVE unbound file row holding the ref: thread-bound rows admit
- *     only inside their thread's scope; rows with neither binding keep the
- *     0.4 same-org posture DELIBERATELY — video-link transcripts index
- *     without a document, so a blanket quarantine would dark a legitimate
- *     lane. Trashed file rows (a WebDAV overwrite's strands) and refs with
- *     no row at all are never retrievable.
+ *   - or a LIVE unbound file row holding the ref, admitted only inside its
+ *     thread's scope. A row with NEITHER binding is DENIED: the corpus
+ *     stamps no project and no team for that shape, and the SQL half then
+ *     reads it as an org-wide hub row, so admitting it here serves one
+ *     member's file to the whole organization. 0.4 denied it too
+ *     (`documentId === undefined` → `continue`).
+ *
+ *     This does not dark the video-link lane, which was the stated reason
+ *     for the earlier same-org posture. A welcome-page paste indexes with
+ *     `thread_id` NULL because no thread exists yet, and the first send
+ *     stamps it (`bindStorageIdsToThread`, which updates exactly the rows
+ *     with no document and no thread). Before that send there is no thread
+ *     for a turn to be scoped to, so nothing can legitimately ask for it;
+ *     after it, the thread branch admits it.
+ *
+ *     Trashed file rows (a WebDAV overwrite's strands) and refs with no row
+ *     at all are never retrievable.
  */
 
 export interface AccessScopeArg {
@@ -84,7 +95,10 @@ export function decideRetrievable(
       }
       continue;
     }
-    return true;
+    // Neither binding: denied. See the note at the top of this file — the
+    // corpus reads an unscoped row as org-wide, so a `return true` here is a
+    // fail-open default rather than a same-org one.
+    continue;
   }
   return false;
 }

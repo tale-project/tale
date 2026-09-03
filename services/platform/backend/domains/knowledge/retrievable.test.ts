@@ -89,8 +89,42 @@ describe('decideRetrievable', () => {
     ).toBe(false);
   });
 
-  it('keeps the same-org posture for live document-less rows (video-link lane)', () => {
-    expect(decideRetrievable([], [unboundFile()], { teamIds: [] })).toBe(true);
+  it('denies a live row bound to neither a document nor a thread', () => {
+    // This replaces an assertion that admitted the same shape same-org. The
+    // corpus stamps no project and no team for a row with no document, and
+    // the SQL half reads that as org-wide — so admitting it here served one
+    // member's file to the whole organization. 0.4 denied it too.
+    expect(decideRetrievable([], [unboundFile()], { teamIds: [] })).toBe(false);
+  });
+
+  it('denies it with no access scope either', () => {
+    // `access === undefined` is the internal-caller path; it must not become
+    // a way around the rule above.
+    expect(decideRetrievable([], [unboundFile()], undefined)).toBe(false);
+  });
+
+  it('still admits the video-link lane once its thread is stamped', () => {
+    // The reason the old assertion gave for admitting unbound rows was that
+    // video-link transcripts index without a document. They do — with a
+    // thread. A welcome-page paste starts thread-less because no thread
+    // exists yet, and the first send stamps it (`bindStorageIdsToThread`
+    // updates exactly the rows with no document and no thread), after which
+    // this branch admits it.
+    expect(
+      decideRetrievable([], [unboundFile({ threadId: 'thread_1' })], {
+        teamIds: [],
+        threadIds: ['thread_1'],
+      }),
+    ).toBe(true);
+  });
+
+  it('does not admit a thread-bound row from outside its thread', () => {
+    expect(
+      decideRetrievable([], [unboundFile({ threadId: 'thread_1' })], {
+        teamIds: [],
+        threadIds: ['thread_2'],
+      }),
+    ).toBe(false);
   });
 
   it('denies trashed unbound rows — the WebDAV overwrite strands', () => {
