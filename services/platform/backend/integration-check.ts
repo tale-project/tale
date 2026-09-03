@@ -1952,6 +1952,498 @@ async function checkFiles(
 }
 
 /**
+ * Blob-ref authority: holding or naming an `s3:` ref grants nothing. The
+ * owner (ctx) stages and registers a file; a second, read-only member then
+ * drives every lane that used to trust the ref alone — register, serve,
+ * statuses, transcription verbs, the skill and automation bundle uploads
+ * (which DELETE their staged blob on every path), the document bind lane,
+ * the reclaim lane, the chat attachment gate + thread bind, the outbound
+ * mail attachment — and the cloud-import doors that used to trust membership
+ * alone. The owner's own flows stay green alongside, and a document's blob
+ * follows the document's ACL (team-scoped: hidden; org-wide: served).
+ */
+async function checkBlobRefAuthority(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'blob-ref authority (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — S3 lanes not exercised in this run',
+    );
+    return;
+  }
+  const { cookie: ownerCookie, orgId, userId: ownerId } = ctx;
+  const api = (cookie: string) => ({
+    json: (
+      method: 'GET' | 'POST' | 'DELETE',
+      route: string,
+      body?: unknown,
+    ): Promise<Response> =>
+      fetch(`${base}${route}${route.includes('?') ? '&' : '?'}orgId=${orgId}`, {
+        method,
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      }),
+    /** The byte lane, optionally staged for a purpose. */
+    bytes: (
+      purpose: string | null,
+      contentType: string,
+      body: BodyInit,
+    ): Promise<Response> =>
+      fetch(
+        `${base}/api/app/files/upload?${
+          purpose === null ? '' : `purpose=${purpose}&`
+        }orgId=${orgId}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': contentType, cookie, origin: base },
+          body,
+        },
+      ),
+  });
+  const owner = api(ownerCookie);
+
+  const signUpMember = async (
+    label: string,
+    role: string,
+  ): Promise<{ cookie: string; userId: string }> => {
+    const res = await fetch(`${base}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({
+        email: `itest-authz-${label}-${Date.now()}@example.com`,
+        password: 'itest-password-1',
+        name: `Authz ${label}`,
+      }),
+    });
+    const parsed = z
+      .object({ user: z.object({ id: z.string() }) })
+      .safeParse(await res.json());
+    const userId = parsed.success ? parsed.data.user.id : '';
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${orgId}, ${userId}, ${role}, ${new Date()})
+    `;
+    return { cookie: cookieHeaderFrom(res), userId };
+  };
+  const strangerAuth = await signUpMember('stranger', 'member');
+  const stranger = api(strangerAuth.cookie);
+  const editorAuth = await signUpMember('editor', 'editor');
+  const editor = api(editorAuth.cookie);
+
+  const storageIdOf = async (res: Response): Promise<string> => {
+    const parsed = z
+      .object({ storageId: z.string() })
+      .safeParse(await res.json());
+    return parsed.success ? parsed.data.storageId : '';
+  };
+  /** The blob body as served through `GET /files/:ref/url`, null when refused. */
+  const bodyThrough = async (
+    who: ReturnType<typeof api>,
+    ref: string,
+  ): Promise<string | null> => {
+    const res = await who.json(
+      'GET',
+      `/api/app/files/${encodeURIComponent(ref)}/url`,
+    );
+    if (!res.ok) return null;
+    const parsed = z
+      .object({ url: z.string().url() })
+      .safeParse(await res.json());
+    if (!parsed.success) return null;
+    const blob = await fetch(parsed.data.url);
+    return blob.ok ? await blob.text() : null;
+  };
+  const errorCodeOf = async (res: Response): Promise<string> => {
+    const parsed = z
+      .object({ error: z.string() })
+      .safeParse(await res.json().catch(() => null));
+    return parsed.success ? parsed.data.error : `HTTP ${res.status}`;
+  };
+
+  // ---- the owner stages a plain file and registers it ----------------------
+  const ownerRef = await storageIdOf(
+    await owner.bytes(null, 'text/plain', 'owner bytes'),
+  );
+  const ownerRegistered = z.object({ fileId: z.string() }).safeParse(
+    await (
+      await owner.json('POST', '/api/app/files/register', {
+        storageRef: ownerRef,
+        fileName: 'owner.txt',
+        contentType: 'text/plain',
+      })
+    ).json(),
+  );
+  const ownerFileId = ownerRegistered.success
+    ? ownerRegistered.data.fileId
+    : '';
+
+  // 1. Register binds only the minter, exactly once.
+  const strangerRegister = await stranger.json(
+    'POST',
+    '/api/app/files/register',
+    { storageRef: ownerRef, fileName: 'mine.txt', contentType: 'text/plain' },
+  );
+  const ownerAgain = await owner.json('POST', '/api/app/files/register', {
+    storageRef: ownerRef,
+    fileName: 'again.txt',
+    contentType: 'text/plain',
+  });
+  const rowsForRef = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.file_metadata
+    WHERE org_id = ${orgId} AND storage_ref = ${ownerRef}
+  `;
+  record(
+    'blob-ref authority: register binds only the minter, once',
+    ownerRegistered.success &&
+      strangerRegister.status === 403 &&
+      ownerAgain.status === 403 &&
+      rowsForRef[0]?.count === '1',
+    `owner=${ownerRegistered.success}, stranger → ${strangerRegister.status} (want 403), owner again → ${ownerAgain.status} (want 403), rows=${rowsForRef[0]?.count ?? 'ERR'} (want 1)`,
+  );
+
+  // 2. A bare ref serves nothing to a non-owner, on every read door.
+  const ownerReads = await bodyThrough(owner, ownerRef);
+  const strangerUrl = await stranger.json(
+    'GET',
+    `/api/app/files/${encodeURIComponent(ownerRef)}/url`,
+  );
+  const strangerMeta = await stranger.json(
+    'GET',
+    `/api/app/files/${ownerFileId}`,
+  );
+  const strangerUrls = z
+    .object({
+      urls: z.array(
+        z.object({ fileId: z.string(), url: z.string().nullable() }),
+      ),
+    })
+    .safeParse(
+      await (
+        await stranger.json('POST', '/api/app/files/urls', {
+          fileIds: [ownerRef, ownerFileId],
+        })
+      ).json(),
+    );
+  const statusCount = async (who: ReturnType<typeof api>): Promise<number> => {
+    const parsed = z.object({ statuses: z.array(z.unknown()) }).safeParse(
+      await (
+        await who.json('POST', '/api/app/files/statuses', {
+          storageIds: [ownerRef],
+        })
+      ).json(),
+    );
+    return parsed.success ? parsed.data.statuses.length : -1;
+  };
+  const strangerStatuses = await statusCount(stranger);
+  const ownerStatuses = await statusCount(owner);
+  const strangerSkip = await stranger.json(
+    'POST',
+    '/api/app/files/transcription/skip',
+    { storageRef: ownerRef },
+  );
+  record(
+    'blob-ref authority: a bare ref serves nothing to a non-owner',
+    ownerReads === 'owner bytes' &&
+      strangerUrl.status === 404 &&
+      strangerMeta.status === 404 &&
+      strangerUrls.success &&
+      strangerUrls.data.urls.length === 2 &&
+      strangerUrls.data.urls.every((entry) => entry.url === null) &&
+      strangerStatuses === 0 &&
+      ownerStatuses === 1 &&
+      strangerSkip.status === 404,
+    `owner reads=${ownerReads === 'owner bytes'}, stranger url → ${strangerUrl.status} meta → ${strangerMeta.status} (want 404/404), urls=${strangerUrls.success ? strangerUrls.data.urls.map((entry) => entry.url).join(',') : 'ERR'} (want null,null), statuses stranger=${strangerStatuses}/owner=${ownerStatuses} (want 0/1), skip → ${strangerSkip.status} (want 404)`,
+  );
+
+  // 3. Delete stays with the uploader (and, register refused, no duplicate
+  //    row exists to delete the shared blob through).
+  const strangerDelete = await stranger.json(
+    'DELETE',
+    `/api/app/files/${ownerFileId}`,
+  );
+  const servedAfterDelete =
+    (await bodyThrough(owner, ownerRef)) === 'owner bytes';
+  record(
+    'blob-ref authority: delete stays with the uploader',
+    strangerDelete.status === 403 && servedAfterDelete,
+    `stranger delete → ${strangerDelete.status} (want 403), owner still reads=${servedAfterDelete}`,
+  );
+
+  // 4. Skill bundle upload consumes ITS OWN intent and deletes nothing else.
+  const skillForeign = await stranger.json('POST', '/api/app/skills/upload', {
+    storageId: ownerRef,
+  });
+  const skillOwnRegistered = await owner.json(
+    'POST',
+    '/api/app/skills/upload',
+    {
+      storageId: ownerRef,
+    },
+  );
+  const servedAfterSkill =
+    (await bodyThrough(owner, ownerRef)) === 'owner bytes';
+  const { default: JSZip } = await import('jszip');
+  const skillZip = new JSZip();
+  skillZip.file(
+    'SKILL.md',
+    '---\nname: itest-authz-skill\ndescription: Blob-ref authority probe.\n---\n\nBody.\n',
+  );
+  const skillBlob = await skillZip.generateAsync({ type: 'blob' });
+  const skillRef = await storageIdOf(
+    await owner.bytes('skill_bundle', 'application/zip', skillBlob),
+  );
+  const skillInstall = z
+    .object({ ok: z.literal(true), slug: z.string() })
+    .safeParse(
+      await (
+        await owner.json('POST', '/api/app/skills/upload', {
+          storageId: skillRef,
+        })
+      ).json(),
+    );
+  const skillReplay = await owner.json('POST', '/api/app/skills/upload', {
+    storageId: skillRef,
+  });
+  // Staged WITHOUT the purpose: the skill lane must not consume it.
+  const unpurposedRef = await storageIdOf(
+    await owner.bytes(null, 'application/zip', skillBlob),
+  );
+  const skillWrongPurpose = await owner.json('POST', '/api/app/skills/upload', {
+    storageId: unpurposedRef,
+  });
+  await owner.json('DELETE', '/api/app/skills/itest-authz-skill');
+  record(
+    'blob-ref authority: skill upload consumes its own intent, deletes nothing else',
+    skillForeign.status === 403 &&
+      skillOwnRegistered.status === 403 &&
+      servedAfterSkill &&
+      skillInstall.success &&
+      skillInstall.data.slug === 'itest-authz-skill' &&
+      skillReplay.status === 403 &&
+      skillWrongPurpose.status === 403,
+    `foreign → ${skillForeign.status}, own-registered → ${skillOwnRegistered.status} (want 403/403), blob survived=${servedAfterSkill}, install=${skillInstall.success ? skillInstall.data.slug : 'ERR'}, replay → ${skillReplay.status} (want 403), unpurposed → ${skillWrongPurpose.status} (want 403)`,
+  );
+
+  // 5. Automation upload (the owner passes the author gate): a ref this lane
+  //    did not stage is refused, and the blob it named survives.
+  const automationForeign = await owner.json(
+    'POST',
+    '/api/app/automations/upload',
+    { storageId: ownerRef },
+  );
+  const automationForeignCode = await errorCodeOf(automationForeign);
+  const servedAfterAutomation =
+    (await bodyThrough(owner, ownerRef)) === 'owner bytes';
+  record(
+    'blob-ref authority: automation upload refuses an unstaged ref, deletes nothing',
+    !automationForeign.ok &&
+      automationForeignCode === 'STORAGE_NOT_OWNED' &&
+      servedAfterAutomation,
+    `upload → ${automationForeign.status} ${automationForeignCode} (want STORAGE_NOT_OWNED), blob survived=${servedAfterAutomation}`,
+  );
+
+  // 6. The document bind lane: an editor cannot make a document out of a
+  //    blob they did not upload.
+  const editorSteals = await editor.json(
+    'POST',
+    '/api/app/documents/from-blob-upload',
+    { storageRef: ownerRef, fileName: 'stolen.txt', contentType: 'text/plain' },
+  );
+  const editorStealsCode = await errorCodeOf(editorSteals);
+  record(
+    'blob-ref authority: the document bind lane needs the uploader',
+    editorSteals.status === 403 && editorStealsCode === 'UPLOAD_NOT_OWNED',
+    `editor binds owner blob → ${editorSteals.status} ${editorStealsCode} (want 403 UPLOAD_NOT_OWNED)`,
+  );
+
+  // 7. The reclaim lane: a stranger cannot delete the owner's fresh staged
+  //    blob; the owner still registers it afterwards.
+  const freshRef = await storageIdOf(
+    await owner.bytes(null, 'text/plain', 'fresh bytes'),
+  );
+  const strangerReject = z.object({ deleted: z.boolean() }).safeParse(
+    await (
+      await stranger.json('POST', '/api/app/files/reject-blob', {
+        storageRef: freshRef,
+      })
+    ).json(),
+  );
+  const ownerRegistersFresh = await owner.json(
+    'POST',
+    '/api/app/files/register',
+    { storageRef: freshRef, fileName: 'fresh.txt', contentType: 'text/plain' },
+  );
+  record(
+    "blob-ref authority: reclaim consumes only the minter's intent",
+    strangerReject.success &&
+      !strangerReject.data.deleted &&
+      ownerRegistersFresh.ok,
+    `stranger reclaim deleted=${strangerReject.success ? String(strangerReject.data.deleted) : 'ERR'} (want false), owner then registers → ${ownerRegistersFresh.status} (want 200)`,
+  );
+
+  // 8. A document's blob follows the document ACL.
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (gen_random_uuid(), 'Authz Squad', ${orgId}, ${new Date()},
+            ${new Date()})
+    RETURNING "id"
+  `;
+  const teamId = teamRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (gen_random_uuid(), ${teamId}, ${ownerId}, ${new Date()})
+  `;
+  const teamRef = await storageIdOf(
+    await owner.bytes(null, 'text/plain', 'team bytes'),
+  );
+  const teamDoc = await owner.json(
+    'POST',
+    '/api/app/documents/from-blob-upload',
+    {
+      storageRef: teamRef,
+      fileName: 'team.txt',
+      contentType: 'text/plain',
+      teamId,
+    },
+  );
+  const orgRef = await storageIdOf(
+    await owner.bytes(null, 'text/plain', 'org bytes'),
+  );
+  const orgDoc = await owner.json(
+    'POST',
+    '/api/app/documents/from-blob-upload',
+    { storageRef: orgRef, fileName: 'org.txt', contentType: 'text/plain' },
+  );
+  const strangerTeamBytes = await bodyThrough(stranger, teamRef);
+  const strangerOrgBytes = await bodyThrough(stranger, orgRef);
+  record(
+    'blob-ref authority: a document blob follows the document ACL',
+    teamDoc.ok &&
+      orgDoc.ok &&
+      strangerTeamBytes === null &&
+      strangerOrgBytes === 'org bytes',
+    `docs team → ${teamDoc.status} org → ${orgDoc.status}, stranger reads team=${strangerTeamBytes === null ? 'refused' : 'LEAKED'} (want refused), org=${strangerOrgBytes === 'org bytes' ? 'served' : 'REFUSED'} (want served)`,
+  );
+
+  // 9. Chat: attachments admit only what the sender may read; the thread
+  //    bind claims only the sender's own staging rows, never a document's.
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const chatShim = chatShimHandlers(sql);
+  const readableFor = async (userId: string): Promise<string[]> => {
+    const parsed = z.array(z.string()).safeParse(
+      await chatShim[
+        'file_metadata/internal_queries:filterStorageIdsReadable'
+      ]?.({
+        organizationId: orgId,
+        userId,
+        storageIds: [ownerRef, orgRef, teamRef],
+      }),
+    );
+    return parsed.success ? parsed.data : ['ERR'];
+  };
+  const strangerAttaches = await readableFor(strangerAuth.userId);
+  const ownerAttaches = await readableFor(ownerId);
+  const bindHandler =
+    chatShim['file_metadata/internal_mutations:bindStorageIdsToThread'];
+  await bindHandler?.({
+    organizationId: orgId,
+    userId: strangerAuth.userId,
+    threadId: 'itest-authz-stranger-thread',
+    storageIds: [ownerRef, orgRef],
+  });
+  await bindHandler?.({
+    organizationId: orgId,
+    userId: ownerId,
+    threadId: 'itest-authz-owner-thread',
+    storageIds: [ownerRef, orgRef],
+  });
+  const boundRows = await sql<{ threadId: string; storageRef: string }[]>`
+    SELECT thread_id AS "threadId", storage_ref AS "storageRef"
+    FROM app.file_metadata
+    WHERE org_id = ${orgId}
+      AND thread_id IN ('itest-authz-stranger-thread', 'itest-authz-owner-thread')
+  `;
+  record(
+    'blob-ref authority: chat attaches only readable refs, binds only own staging rows',
+    strangerAttaches.length === 1 &&
+      strangerAttaches[0] === orgRef &&
+      ownerAttaches.length === 3 &&
+      boundRows.length === 1 &&
+      boundRows[0]?.threadId === 'itest-authz-owner-thread' &&
+      boundRows[0]?.storageRef === ownerRef,
+    `stranger attaches=${strangerAttaches.length} (want 1: the org-wide document), owner attaches=${ownerAttaches.length} (want 3), bound=${boundRows.map((row) => `${row.threadId.replace('itest-authz-', '')}:${row.storageRef === ownerRef ? 'own-staging' : 'DOCUMENT'}`).join(',') || 'none'} (want owner-thread:own-staging only)`,
+  );
+
+  // 10. Outbound mail: a stranger cannot mail out the owner's blob.
+  const compose = await stranger.json(
+    'POST',
+    '/api/app/conversations/compose',
+    {
+      contactId: 'nope',
+      connectorName: 'nope',
+      subject: 'x',
+      content: 'x',
+      attachments: [
+        {
+          storageId: ownerRef,
+          fileName: 'owner.txt',
+          contentType: 'text/plain',
+          size: 11,
+        },
+      ],
+    },
+  );
+  const composeCode = await errorCodeOf(compose);
+  record(
+    "blob-ref authority: outbound mail attaches only the sender's uploads",
+    compose.status === 403 && composeCode === 'attachment_not_owned',
+    `compose → ${compose.status} ${composeCode} (want 403 attachment_not_owned)`,
+  );
+
+  // 11. The cloud-import doors require knowledgeWrite: a read-only member is
+  //     refused on every verb of both providers; an editor passes the gate.
+  const importBody = {
+    items: [{ id: 'x', name: 'x.txt', size: 1 }],
+    importType: 'one-time',
+  };
+  const doors = async (
+    who: ReturnType<typeof api>,
+    provider: 'onedrive' | 'google-drive',
+  ): Promise<number[]> =>
+    Promise.all([
+      who.json('POST', `/api/app/${provider}/import`, importBody),
+      who.json('POST', `/api/app/${provider}/list-files`, {}),
+      who.json('POST', `/api/app/${provider}/sync-configs/nope/cancel`, {}),
+    ]).then((responses) => responses.map((response) => response.status));
+  const strangerOneDrive = await doors(stranger, 'onedrive');
+  const strangerGoogle = await doors(stranger, 'google-drive');
+  const editorCancelOneDrive = await editor.json(
+    'POST',
+    '/api/app/onedrive/sync-configs/nope/cancel',
+    {},
+  );
+  const editorCancelGoogle = await editor.json(
+    'POST',
+    '/api/app/google-drive/sync-configs/nope/cancel',
+    {},
+  );
+  record(
+    'cloud-import doors require knowledgeWrite',
+    strangerOneDrive.every((status) => status === 403) &&
+      strangerGoogle.every((status) => status === 403) &&
+      editorCancelOneDrive.status === 404 &&
+      editorCancelGoogle.status === 404,
+    `member: onedrive=${strangerOneDrive.join('/')} google=${strangerGoogle.join('/')} (want 403 each), editor cancel-missing: onedrive → ${editorCancelOneDrive.status} google → ${editorCancelGoogle.status} (want 404/404 — through the gate)`,
+  );
+}
+
+/**
  * Document Hub vertical (needs the S3 store from checkFiles): upload →
  * document bind → hub visibility → folder tree (nesting, name clash,
  * non-empty delete guard) → project attach/detach scope flips → trash.
@@ -15380,13 +15872,15 @@ async function checkTranscription(
     //    live worker would otherwise win the race on a sub-second clip.
     const callsBeforeSkip = whisperCalls;
     const thirdRef = `s3:${orgId}/itest-transcribe-skip.wav`;
+    // Seeded the way a registered upload looks — `uploaded_by` is what lets
+    // its uploader steer the row's pipeline (a bare ref steers nothing).
     await sql`
       INSERT INTO app.file_metadata (
         org_id, storage_ref, file_name, content_type, size,
-        transcription_status, created_at_ms
+        transcription_status, uploaded_by, created_at_ms
       ) VALUES (
         ${orgId}, ${thirdRef}, 'skipme.wav', 'audio/wav', ${wav.length},
-        'queued', ${Date.now()}
+        'queued', ${ctx.userId}, ${Date.now()}
       )
     `;
     const skip = await send(
@@ -19265,10 +19759,10 @@ async function setThreadTitleProbe(
 async function checkChatMemoriesDeferredAuto(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
   orgSlug: string,
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const { createServer } = await import('node:http');
   const post = (route: string, body?: unknown): Promise<Response> =>
     fetch(`${base}${route}`, {
@@ -19583,13 +20077,15 @@ async function checkChatMemoriesDeferredAuto(
     );
     const deferThreadId = deferThread.success ? deferThread.data.id : '';
     const storageRef = `itest-defer-${Date.now()}`;
+    // Seeded the way the sender's own staging upload looks — the attachment
+    // gate admits only refs the sender may read, and `uploaded_by` is that.
     await sql`
       INSERT INTO app.file_metadata (
         org_id, storage_ref, file_name, content_type, size, rag_status,
-        created_at_ms
+        uploaded_by, created_at_ms
       ) VALUES (
         ${orgId}, ${storageRef}, 'brief.pdf', 'application/pdf', 512,
-        'running', ${Date.now()}
+        'running', ${userId}, ${Date.now()}
       )
     `;
     const noModel = await post(
@@ -23207,15 +23703,20 @@ async function checkAutomationsSurface(
     ].join('\n'),
   );
   const zipBytes = await zip.generateAsync({ type: 'blob' });
-  const stagedRes = await fetch(`${base}/api/app/files/upload?orgId=${orgId}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/zip',
-      cookie,
-      origin: base,
+  // Staged FOR this lane: the upload intent's purpose is what the automation
+  // upload consumes — a blob staged for anything else is not its to read.
+  const stagedRes = await fetch(
+    `${base}/api/app/files/upload?purpose=automation_bundle&orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/zip',
+        cookie,
+        origin: base,
+      },
+      body: zipBytes,
     },
-    body: zipBytes,
-  });
+  );
   const staged = z
     .object({ storageId: z.string() })
     .safeParse(await stagedRes.json());
@@ -23295,11 +23796,15 @@ async function checkLibrarySurface(
     const zip = new JSZip();
     zip.file('SKILL.md', body);
     const blob = await zip.generateAsync({ type: 'blob' });
-    const res = await fetch(`${base}/api/app/files/upload?orgId=${orgId}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/zip', cookie, origin: base },
-      body: blob,
-    });
+    // Staged FOR the skill lane (the upload intent's purpose).
+    const res = await fetch(
+      `${base}/api/app/files/upload?purpose=skill_bundle&orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/zip', cookie, origin: base },
+        body: blob,
+      },
+    );
     const parsed = z
       .object({ storageId: z.string() })
       .safeParse(await res.json());
@@ -25898,6 +26403,7 @@ async function main(): Promise<void> {
     await checkTasks(baseUrl, authCtx);
     await checkFiles(baseUrl, authCtx);
     await checkDocuments(sql, baseUrl, authCtx);
+    await checkBlobRefAuthority(sql, baseUrl, authCtx);
     await checkSmallDomains(baseUrl, authCtx);
     await checkAgents(baseUrl, authCtx);
     await checkSkills(baseUrl, authCtx);
