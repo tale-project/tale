@@ -1,10 +1,19 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 
-import type { Auth } from '../auth/auth.ts';
+import {
+  API_KEY_RATE_LIMIT,
+  loadTrustedProxies,
+  type Auth,
+} from '../auth/auth.ts';
 import { findOrganizationMember } from '../auth/membership.ts';
+import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
 import { resolveUserOrganization } from '../domains/organizations/service.ts';
-import { RateLimitExceededError, checkIpRateLimit } from '../lib/rate-limit.ts';
+import {
+  RateLimitExceededError,
+  checkIpRateLimit,
+  checkUserRateLimit,
+} from '../lib/rate-limit.ts';
 import type { RestEnv } from './shared.ts';
 import { createAutomationRestRoutes } from './v1-automations.ts';
 import { createCoreRoutes } from './v1-core.ts';
@@ -21,8 +30,18 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * multi-org key without the header is refused on write-capable routes
  * rather than guessed from the dashboard's last-active pointer — and the
  * tasks/projects families re-run that strictness on their reads too),
- * per-IP rate limiting on the shared `rest:api` rule, and coded JSON
- * errors.
+ * attributable rate limiting, and coded JSON errors.
+ *
+ * Rate limiting is keyed on WHO is calling, never on a header the caller
+ * writes: an authenticated request charges the key holder's `rest:api`
+ * budget (`user:<id>` — the key acts as its user, and the lane top-ups in
+ * shared.ts key the same way); a Bearer key that fails to authenticate
+ * charges the pre-auth `rest:auth-fail-ip` lane on the client IP derived
+ * through the deployment's trusted-proxy list (the same `getClientIp` walk
+ * the login and Slack lanes use — right-to-left from the TCP peer, so the
+ * spoofable leftmost `X-Forwarded-For` entry never keys anything). A
+ * request without a Bearer header costs nothing and charges nothing, so a
+ * stranger cannot drain any key holder's budget.
  *
  * The resource families are thin adapters over the SAME domain services
  * the app surface uses — the 0.4 REST handlers' parsing and response
@@ -36,29 +55,34 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * lives at `/api/automations/webhook/:token` (app.ts).
  */
 
+/** The 429 every lane answers: the flat envelope plus `Retry-After`. */
+function rateLimited(c: Context<RestEnv>, retryAfterMs: number): Response {
+  return c.json({ error: 'Rate limit exceeded' }, 429, {
+    'retry-after': String(Math.ceil(retryAfterMs / 1000)),
+  });
+}
+
+/**
+ * Better Auth's apiKey plugin enforces its own per-key window
+ * (`API_KEY_RATE_LIMIT`) inside `getSession` and reports it as a thrown
+ * `TOO_MANY_REQUESTS` APIError — a throttled key is not an invalid one.
+ */
+function isKeyWindowExceeded(error: unknown): boolean {
+  if (error === null || typeof error !== 'object') return false;
+  return (
+    Reflect.get(error, 'statusCode') === 429 ||
+    Reflect.get(error, 'status') === 'TOO_MANY_REQUESTS'
+  );
+}
+
 export function createRestV1Routes(deps: {
   sql: Sql;
   auth: Auth;
 }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
 
-  // ---- the door: rate limit → API key → org resolution → role ------------
+  // ---- the door: API key → key holder's budget → org resolution → role ---
   app.use(async (c, next) => {
-    const ip =
-      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ??
-      c.req.header('x-real-ip') ??
-      'unknown';
-    try {
-      await checkIpRateLimit(deps.sql, 'rest:api', ip);
-    } catch (error) {
-      if (error instanceof RateLimitExceededError) {
-        return c.json({ error: 'Rate limit exceeded' }, 429, {
-          'retry-after': String(Math.ceil(error.retryAfter / 1000)),
-        });
-      }
-      throw error;
-    }
-
     const header = c.req.header('authorization') ?? '';
     if (!header.startsWith('Bearer ')) {
       return c.json({ error: 'Missing or invalid Authorization header' }, 401);
@@ -67,13 +91,51 @@ export function createRestV1Routes(deps: {
     if (apiKey === '') {
       return c.json({ error: 'Empty API key' }, 401);
     }
+
+    // The client IP the trusted-proxy walk vouches for — from the TCP peer
+    // when the runtime exposes it, never the caller's leftmost XFF entry.
+    const ip = getClientIp(c.req.raw.headers, await loadTrustedProxies(), {
+      peer: nodePeerAddress(c.env),
+    });
+
     const syntheticHeaders = new Headers();
     syntheticHeaders.set('x-api-key', apiKey);
-    const session = await deps.auth.api
-      .getSession({ headers: syntheticHeaders })
-      .catch(() => null);
+    let session: Awaited<ReturnType<Auth['api']['getSession']>> = null;
+    try {
+      session = await deps.auth.api.getSession({ headers: syntheticHeaders });
+    } catch (error) {
+      if (isKeyWindowExceeded(error)) {
+        // The plugin's window is fixed and resets `timeWindow` after the last
+        // request — the honest upper bound on the wait.
+        return rateLimited(c, API_KEY_RATE_LIMIT.timeWindow);
+      }
+      // Anything else that stops the key from verifying reads as invalid.
+      session = null;
+    }
     if (!session?.user) {
+      // A key that failed to authenticate is charged to its source IP —
+      // never to any key holder. Over the failure budget the door answers
+      // 429 before 401, so an abusive source learns to back off.
+      try {
+        await checkIpRateLimit(deps.sql, 'rest:auth-fail-ip', ip);
+      } catch (error) {
+        if (error instanceof RateLimitExceededError) {
+          return rateLimited(c, error.retryAfter);
+        }
+        throw error;
+      }
       return c.json({ error: 'Invalid API key' }, 401);
+    }
+
+    // Authenticated: the shared `rest:api` budget belongs to the key holder,
+    // charged before org resolution so a misdirected request still counts.
+    try {
+      await checkUserRateLimit(deps.sql, 'rest:api', session.user.id);
+    } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        return rateLimited(c, error.retryAfter);
+      }
+      throw error;
     }
 
     const orgSlugHeader = c.req.header('x-organization-slug')?.trim();

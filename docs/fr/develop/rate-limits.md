@@ -3,7 +3,7 @@ title: Limites de débit
 description: Limites de débit REST et MCP — les buckets, la réponse 429 et son Retry-After, et comment relancer sans empirer la situation.
 ---
 
-L'API est limitée par IP cliente — avant l'authentification, le budget tient donc même face au martèlement non authentifié — avec des token buckets : les rafales passent, le martèlement continu répond **429**. Une flotte de workers derrière une même sortie NAT arrive comme une seule IP et partage un seul budget. Les budgets sont taillés pour qu'une connector normale ne les voie jamais — quand un client jusque-là sain se met à recevoir des 429, la cause est presque toujours un backoff manquant ou une boucle chaude, pas un manque de capacité.
+L'API limite avec des token buckets rattachés au détenteur de la clé — l'utilisateur au nom duquel ta clé API agit — si bien qu'un budget appartient toujours à un appelant identifiable et qu'aucun en-tête réseau ne peut en fabriquer un neuf : les rafales passent, le martèlement continu répond **429**. Chaque clé qu'un utilisateur crée puise dans le budget de cet utilisateur ; une flotte de workers qui a besoin de son propre budget reçoit son propre utilisateur machine. Une clé qui échoue à s'authentifier est freinée par IP source à la place (20 requêtes par minute, rafale de 40) : les inconnus ne puisent donc jamais dans le budget d'un détenteur de clé, et une requête sans clé ne coûte rien du tout. Les budgets sont taillés pour qu'une connector normale ne les voie jamais — quand un client jusque-là sain se met à recevoir des 429, la cause est presque toujours un backoff manquant ou une boucle chaude, pas un manque de capacité.
 
 Lis ceci quand tu câbles un client qui appelle l'API sur un planning ou sous charge.
 
@@ -31,4 +31,4 @@ Dors au moins `Retry-After` avant le prochain essai. Il n'y a pas de compteurs d
 
 ## Où ça se place
 
-La [référence API](/fr/develop/api-reference) nomme la 429 dans le modèle d'erreur et pointe ici. Si ta charge a vraiment besoin de plus que les budgets, regroupe de ton côté — `POST /api/v1/contacts/bulk` existe exactement pour ça — ou étale le planning ; les buckets valent par IP — répartir le trafic sur plusieurs clés ne change rien, une flotte partage le budget de sa sortie NAT.
+La [référence API](/fr/develop/api-reference) nomme la 429 dans le modèle d'erreur et pointe ici. Si ta charge a vraiment besoin de plus que les budgets, regroupe de ton côté — `POST /api/v1/contacts/bulk` existe exactement pour ça — ou étale le planning ; les buckets valent par détenteur de clé — répartir le trafic sur plusieurs clés du même utilisateur ne change rien. Une intégration qui a vraiment besoin de son propre budget reçoit son propre utilisateur machine.
