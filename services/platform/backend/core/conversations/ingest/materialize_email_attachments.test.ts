@@ -87,6 +87,50 @@ describe('materializeEmailAttachments', () => {
   // uploaded parked instead — invisibly, since a parked row still reads
   // "Queued", which is one of the few statuses RagStatusBadge gives no retry
   // affordance, and the watchdog skips parked rows by design.
+  // Regression: the minted URL used to point at the retired 0.4
+  // `/http_api/storage` door — mounted nowhere in the 0.5 backend and
+  // forwarded by no proxy lane — so every ingested attachment stored a dead
+  // link. It must mint the session-gated serve lane instead.
+  it('mints the serve-lane URL, never the retired /http_api/storage', async () => {
+    const ctx = {
+      runAction: vi.fn(async () => 's3:acme/blob-uuid-1'),
+      runMutation: vi.fn(async () => null),
+      storage: { getUrl: vi.fn() },
+    };
+    const emails = await materializeEmailAttachments(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test stub
+      ctx as never,
+      {
+        organizationId: 'org_1',
+        source: 'imap-smtp',
+        emails: [
+          {
+            messageId: '<cv@x>',
+            attachments: [
+              {
+                id: 'cv',
+                filename: 'CV.pdf',
+                contentType: 'application/pdf',
+                size: 3,
+                contentBase64: Buffer.from('pdf').toString('base64'),
+              },
+            ],
+          },
+        ],
+      },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the assertions below
+    const att = (emails[0] as { attachments: Array<{ url?: string }> })
+      .attachments[0];
+    expect(att?.url).toBeDefined();
+    const url = new URL(att?.url ?? '');
+    expect(url.pathname).toBe('/api/app/files/serve');
+    expect(url.searchParams.get('orgId')).toBe('org_1');
+    expect(url.searchParams.get('ref')).toBe('s3:acme/blob-uuid-1');
+    expect(url.searchParams.get('filename')).toBe('CV.pdf');
+    expect(att?.url).not.toContain('/http_api/storage');
+  });
+
   it('stores attachments without claiming a RAG indexing slot', async () => {
     const saved: Array<Record<string, unknown>> = [];
     const ctx = {

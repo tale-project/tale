@@ -214,16 +214,24 @@ export async function getFileMetadataByIdOrRef(
   return rows[0] ?? null;
 }
 
-/** Presigned GET for a blob ref the caller's org owns. */
+/**
+ * Presigned GET for a blob ref the caller's org owns. A `filename` presigns
+ * with `response-content-disposition: attachment` so the browser saves under
+ * the real name (object keys are `<org>/<uuid>`, nameless by design); omit
+ * it for inline rendering.
+ */
 export async function getFileUrl(
   sql: Sql,
   scope: { organizationId: string },
   storageRef: string,
+  opts: { filename?: string } = {},
 ): Promise<string> {
   const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
   const key = requireOrgScopedKey(storageRef, orgSlug);
   // Handed to the browser, so signed against the origin it can reach.
-  return s3PresignGetUrl(browserFacing(store), key);
+  return s3PresignGetUrl(browserFacing(store), key, {
+    ...(opts.filename !== undefined && { filename: opts.filename }),
+  });
 }
 
 /**
