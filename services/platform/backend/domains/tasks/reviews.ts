@@ -17,11 +17,15 @@ import {
 } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
 import { holdsAllCompetences } from '../governance/competence.ts';
-import { type ProjectAuthContext } from '../projects/service.ts';
+import {
+  loadProjectOrThrow,
+  type ProjectAuthContext,
+} from '../projects/service.ts';
 import { kickAgentRun } from './agent-runs.ts';
 import { addTaskComment } from './comments.ts';
 import {
   applyTaskCountTransition,
+  assertTaskWritable,
   computeEndRank,
   hasOpenChildren,
   loadTaskOrThrow,
@@ -530,10 +534,13 @@ export async function respondToTaskReview(
       typeof approval.metadata?.taskId === 'string'
         ? approval.metadata.taskId
         : '';
-    const task = await loadTaskOrThrow(tx, taskId);
-    if (task.organizationId !== args.auth.organizationId) {
-      throw new TaskReviewError('REVIEW_NOT_FOUND', 'Review not found', 404);
-    }
+    const task = await loadTaskOrThrow(tx, taskId, args.auth.organizationId);
+    // Deciding a review IS deciding the task (approve completes it,
+    // request-changes kicks the agent and moves the card): the responder
+    // needs the same project WRITE access as any other task mutation —
+    // the review_policy checks below only narrow WHO among the writers.
+    const project = await loadProjectOrThrow(tx, task.projectId);
+    assertTaskWritable(project, args.auth);
 
     const policyOutcome = await checkReviewPolicyForResponder(tx, {
       approval,
@@ -701,7 +708,7 @@ export async function respondToTaskReview(
       }
       // Changes requested hands the work back to the assignee — the card
       // leaves In review even when no agent kick moved it.
-      const fresh = await loadTaskOrThrow(tx, task.id);
+      const fresh = await loadTaskOrThrow(tx, task.id, task.organizationId);
       if (fresh.status === 'in_review') {
         const rank = await computeEndRank(tx, fresh.projectId, 'in_progress');
         await tx`

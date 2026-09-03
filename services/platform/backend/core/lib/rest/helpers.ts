@@ -186,17 +186,32 @@ export async function requireRestDeveloper(rc: RestContext): Promise<void> {
 /**
  * Extract path segments after a prefix.
  *
+ * The prefix is LOCATED in the pathname rather than assumed at position 0:
+ * some doors are mounted on more than one path (the SCIM routes serve
+ * `/scim/v2/...` and the 0.4 proxy-era alias `/http_api/scim/v2/...` — the
+ * one the admin UI advertises as the tenant URL), and the handlers parse the
+ * RAW request URL, which carries whichever mount the caller used. Every
+ * prefix starts with `/`, so a match always sits on a segment boundary. A
+ * pathname that does not contain the prefix yields an empty id — the caller
+ * answers 400/404 — instead of mis-slicing unrelated segments into an id
+ * (the bug that broke per-resource SCIM ops on the advertised alias, where
+ * `/http_api/scim/` is exactly as long as `/scim/v2/Users/`).
+ *
  * Example: extractPathParts('/api/v1/documents/abc123/retry-indexing', '/api/v1/documents/')
  *   → { id: 'abc123', subPath: 'retry-indexing' }
  *
- * Example: extractPathParts('/api/v1/documents/abc123', '/api/v1/documents/')
- *   → { id: 'abc123', subPath: null }
+ * Example: extractPathParts('/http_api/scim/v2/Users/u1', '/scim/v2/Users/')
+ *   → { id: 'u1', subPath: null }
  */
 export function extractPathParts(
   url: URL,
   prefix: string,
 ): { id: string; subPath: string | null } {
-  const rest = url.pathname.slice(prefix.length);
+  const at = url.pathname.indexOf(prefix);
+  if (at === -1) {
+    return { id: '', subPath: null };
+  }
+  const rest = url.pathname.slice(at + prefix.length);
   const parts = rest.split('/').filter(Boolean);
   return {
     id: parts[0] ?? '',

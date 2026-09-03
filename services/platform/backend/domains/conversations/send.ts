@@ -30,6 +30,7 @@ import {
   ConversationError,
   createConversation,
   MESSAGE_COLUMNS,
+  viewerIsAdmin,
   type BulkOperationResult,
   type ConversationMessageRow,
   type ConversationRow,
@@ -509,19 +510,57 @@ export async function bulkReplyToConversations(
   };
 }
 
+/**
+ * Resolve who owns a newly composed outbound conversation.
+ *
+ * Defaults to the creator; only an admin may pick another member or a team
+ * queue. Non-admin team requests are dropped (not rejected). A team must
+ * belong to the org or we throw `team_not_in_org`.
+ */
+export async function resolveComposeAssignment(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    assigneeUserId?: string;
+    assigneeTeamId?: string;
+    actor: { userId: string; role: string };
+  },
+): Promise<{ assigneeUserId: string; assigneeTeamId?: string }> {
+  const isAdmin = viewerIsAdmin(args.actor.role);
+  const assigneeUserId = isAdmin
+    ? (args.assigneeUserId ?? args.actor.userId)
+    : args.actor.userId;
+  if (!(isAdmin && args.assigneeTeamId)) {
+    return { assigneeUserId };
+  }
+  const teams = await sql<{ organizationId: string }[]>`
+    SELECT "organizationId" FROM "team" WHERE "id" = ${args.assigneeTeamId}
+    LIMIT 1
+  `;
+  if (teams[0]?.organizationId !== args.organizationId) {
+    throw new ConversationError(
+      'team_not_in_org',
+      'Team does not belong to this organization',
+    );
+  }
+  return { assigneeUserId, assigneeTeamId: args.assigneeTeamId };
+}
+
 export async function composeEmailConversation(
   sql: Sql,
   args: {
     organizationId: string;
     contactId: string;
     assigneeUserId?: string;
+    /** Team queue. Admin-only; validated in-org. Non-admin requests are dropped. */
+    assigneeTeamId?: string;
     connectorName: string;
     subject: string;
     content: string;
     sourceMarkdown?: string;
     from?: string;
     attachments?: SendAttachment[];
-    actor: { userId: string; email?: string };
+    actor: { userId: string; email?: string; role: string };
   },
 ): Promise<{ conversationId: string; messageId: string }> {
   const subject = args.subject.trim();
@@ -558,14 +597,28 @@ export async function composeEmailConversation(
   // Refuse over-cap attachments BEFORE creating the conversation — the 0.4
   // compose is one atomic mutation, so a cap denial must leave nothing.
   validateConversationAttachmentCaps(args.attachments);
+
+  const { assigneeUserId, assigneeTeamId } = await resolveComposeAssignment(
+    sql,
+    {
+      organizationId: args.organizationId,
+      actor: args.actor,
+      ...(args.assigneeUserId !== undefined
+        ? { assigneeUserId: args.assigneeUserId }
+        : {}),
+      ...(args.assigneeTeamId !== undefined
+        ? { assigneeTeamId: args.assigneeTeamId }
+        : {}),
+    },
+  );
+
   const chosenFrom = args.from?.trim();
   const conversationId = await sql.begin((tx) =>
     createConversation(tx, {
       organizationId: args.organizationId,
       contactId: args.contactId,
-      ...(args.assigneeUserId !== undefined
-        ? { assigneeUserId: args.assigneeUserId }
-        : {}),
+      assigneeUserId,
+      ...(assigneeTeamId !== undefined ? { assigneeTeamId } : {}),
       subject,
       status: 'open',
       channel: 'email',

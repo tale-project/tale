@@ -63,12 +63,25 @@ export function serveBrandingImages(): Plugin {
     }
 
     const ext = filename.split('.').pop()?.toLowerCase() ?? '';
-    const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
+    const contentType = MIME_TYPES[ext];
+    // Unknown extension: fall through (Vite 404s), matching the prod
+    // handler's allowlist-or-404 — never serve a guessable octet-stream.
+    if (!contentType) {
+      next();
+      return;
+    }
 
     void readFile(filePath)
       .then((data) => {
         res.setHeader('Content-Type', contentType);
         res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+        // Mirror the prod handler's hardening (see server.ts): branding
+        // images are org-admin-uploaded bytes (SVG included) — a direct
+        // navigation must never yield a scriptable same-origin document.
+        // Bare `sandbox` gives any such navigation an inert opaque-origin
+        // document; <img>/<link rel=icon> embeds are unaffected.
+        res.setHeader('Content-Security-Policy', 'sandbox');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
         res.end(data);
       })
       .catch((err: unknown) => {

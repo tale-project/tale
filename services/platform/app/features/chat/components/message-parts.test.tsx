@@ -74,7 +74,7 @@ describe('MessageParts — image attachments', () => {
     expect(
       screen.queryByRole('button', { name: 'View image' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText('Attachment: shot.png')).toBeInTheDocument();
+    expect(screen.getByText('shot.png')).toBeInTheDocument();
   });
 
   it('keeps the plain chip for a ref-less attachment part', () => {
@@ -91,7 +91,8 @@ describe('MessageParts — image attachments', () => {
       />,
     );
 
-    expect(screen.getByText('Attachment: legacy.pdf')).toBeInTheDocument();
+    expect(screen.getByText('legacy.pdf')).toBeInTheDocument();
+    expect(screen.queryByText('application/pdf')).not.toBeInTheDocument();
   });
 });
 

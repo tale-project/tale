@@ -26,6 +26,8 @@ export function imageUploadErrorToastKey(err: unknown): string {
       return 'error.imageTooLarge';
     case 'IMAGE_MIME_UNSUPPORTED':
       return 'error.imageMimeUnsupported';
+    case 'IMAGE_SVG_ACTIVE_CONTENT':
+      return 'error.imageSvgActiveContent';
     case 'IMAGE_TYPE_INVALID':
       return 'error.imageTypeInvalid';
     default:

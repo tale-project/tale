@@ -8,10 +8,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { EmailPreview } from '@/app/components/ui/data-display/email-preview';
 import { Image } from '@/app/components/ui/data-display/image';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import {
-  formatFileSize,
-  middleEllipsis,
-} from '@/app/features/shared/files/file-displays';
+import { AttachmentFileChip } from '@/app/features/shared/files/attachment-file-chip';
+import { formatFileSize } from '@/app/features/shared/files/file-displays';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -112,34 +110,6 @@ function useUndoCountdown(scheduledSendAt?: number): number | null {
   return secondsLeft;
 }
 
-function getFileIcon(contentType: string, filename: string) {
-  if (contentType.startsWith('image/')) return '🖼️';
-  if (contentType === 'application/pdf') return '📄';
-  if (
-    contentType.includes('word') ||
-    filename.endsWith('.doc') ||
-    filename.endsWith('.docx')
-  )
-    return '📝';
-  if (
-    contentType.includes('spreadsheet') ||
-    contentType.includes('excel') ||
-    filename.endsWith('.xls') ||
-    filename.endsWith('.xlsx') ||
-    filename.endsWith('.csv')
-  )
-    return '📊';
-  if (
-    contentType.includes('presentation') ||
-    contentType.includes('powerpoint') ||
-    filename.endsWith('.ppt') ||
-    filename.endsWith('.pptx')
-  )
-    return '📊';
-  if (contentType.startsWith('text/')) return '📄';
-  return '📎';
-}
-
 interface AttachmentCardProps {
   attachment: {
     id: string;
@@ -154,45 +124,34 @@ interface AttachmentCardProps {
 function AttachmentCard({ attachment }: AttachmentCardProps) {
   const { t } = useT('conversations');
 
-  const icon = getFileIcon(attachment.contentType, attachment.filename);
   // A download is offered ONLY when the message carries a real, servable URL
   // (materialized at sync and presigned at read time). A chip whose bytes were
   // never captured shows metadata alone — no affordance that would 404.
   const downloadUrl = attachment.url;
 
+  const trailing = downloadUrl ? (
+    <button
+      type="button"
+      onClick={() => {
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = attachment.filename;
+        a.click();
+      }}
+      className="text-muted-foreground hover:text-foreground flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-gray-100"
+      aria-label={`${t('attachment.download')} ${attachment.filename}`}
+    >
+      <Download className="size-3.5" />
+    </button>
+  ) : undefined;
+
   return (
-    <Row gap={2} className="bg-background rounded-lg border p-2">
-      <Row
-        gap={0}
-        justify="center"
-        className="size-8 shrink-0 rounded-lg bg-gray-100"
-      >
-        <span className="text-sm">{icon}</span>
-      </Row>
-      <div className="min-w-0 flex-1">
-        <Text variant="label-sm" title={attachment.filename}>
-          {middleEllipsis(attachment.filename, 28)}
-        </Text>
-        <Text variant="caption" className="text-[10px]">
-          {formatFileSize(attachment.size)}
-        </Text>
-      </div>
-      {downloadUrl ? (
-        <button
-          type="button"
-          onClick={() => {
-            const a = document.createElement('a');
-            a.href = downloadUrl;
-            a.download = attachment.filename;
-            a.click();
-          }}
-          className="text-muted-foreground hover:text-foreground flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-gray-100"
-          aria-label={`${t('attachment.download')} ${attachment.filename}`}
-        >
-          <Download className="size-3.5" />
-        </button>
-      ) : null}
-    </Row>
+    <AttachmentFileChip
+      fileName={attachment.filename}
+      contentType={attachment.contentType}
+      detail={formatFileSize(attachment.size)}
+      trailing={trailing}
+    />
   );
 }
 

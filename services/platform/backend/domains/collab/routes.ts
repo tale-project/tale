@@ -1,10 +1,20 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import {
+  getProjectAuthContext,
+  loadProjectOrThrow,
+  ProjectError,
+} from '../projects/service.ts';
+import {
+  assertTaskReadable,
+  loadTaskOrThrow,
+  TaskError,
+} from '../tasks/service.ts';
 import {
   getNotificationPreferences,
   getTaskSubscription,
@@ -118,7 +128,36 @@ export function createCollabRoutes(deps: {
     return c.json({ ok: true });
   });
 
+  /** Subscriptions follow the task's own visibility: the task must exist in
+   * THIS org and the caller must pass its project's read gate — a foreign or
+   * invisible task id answers 404, exactly like the task surface itself. */
+  const assertSubscribableTask = async (
+    c: Context<OrgEnv>,
+    taskId: string,
+  ): Promise<void> => {
+    const auth = await getProjectAuthContext(deps.sql, {
+      organizationId: c.get('orgId'),
+      userId: c.get('sessionBundle').user.id,
+      role: c.get('orgMember').role,
+    });
+    const task = await loadTaskOrThrow(deps.sql, taskId, auth.organizationId);
+    const project = await loadProjectOrThrow(deps.sql, task.projectId);
+    assertTaskReadable(project, auth);
+  };
+
+  const subscriptionError = (c: Context<OrgEnv>, error: unknown): Response => {
+    if (error instanceof TaskError || error instanceof ProjectError) {
+      return c.json({ error: error.code }, error.status);
+    }
+    throw error;
+  };
+
   app.get('/tasks/:taskId/subscription', async (c) => {
+    try {
+      await assertSubscribableTask(c, c.req.param('taskId'));
+    } catch (error) {
+      return subscriptionError(c, error);
+    }
     return c.json(
       await getTaskSubscription(deps.sql, {
         taskId: c.req.param('taskId'),
@@ -135,6 +174,11 @@ export function createCollabRoutes(deps: {
       })
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
+    try {
+      await assertSubscribableTask(c, c.req.param('taskId'));
+    } catch (error) {
+      return subscriptionError(c, error);
+    }
     await setTaskSubscription(deps.sql, {
       organizationId: c.get('orgId'),
       taskId: c.req.param('taskId'),

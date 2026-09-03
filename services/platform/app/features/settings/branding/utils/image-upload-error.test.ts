@@ -17,6 +17,11 @@ describe('imageUploadErrorToastKey', () => {
     expect(
       imageUploadErrorToastKey(new AppError({ code: 'IMAGE_TYPE_INVALID' })),
     ).toBe('error.imageTypeInvalid');
+    expect(
+      imageUploadErrorToastKey(
+        new AppError({ code: 'IMAGE_SVG_ACTIVE_CONTENT' }),
+      ),
+    ).toBe('error.imageSvgActiveContent');
   });
 
   it('reads the code from a duck-typed error data shape (HMR-safe)', () => {

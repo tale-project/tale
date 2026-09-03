@@ -368,6 +368,7 @@ export function createConversationRoutes(deps: {
         sourceMarkdown: z.string().max(200_000).optional(),
         from: z.string().max(320).optional(),
         assigneeUserId: z.string().max(128).optional(),
+        assigneeTeamId: z.string().max(128).optional(),
         attachments: z.array(attachmentSchema).max(50).optional(),
       })
       .safeParse(await c.req.json());
@@ -385,6 +386,9 @@ export function createConversationRoutes(deps: {
         ...(body.data.from !== undefined ? { from: body.data.from } : {}),
         ...(body.data.assigneeUserId !== undefined
           ? { assigneeUserId: body.data.assigneeUserId }
+          : {}),
+        ...(body.data.assigneeTeamId !== undefined
+          ? { assigneeTeamId: body.data.assigneeTeamId }
           : {}),
         ...(body.data.attachments?.length
           ? { attachments: body.data.attachments }
