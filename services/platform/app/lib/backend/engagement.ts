@@ -10,6 +10,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
+import { NOTIFICATION_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 import type {
   AdapterContext,
@@ -213,7 +214,7 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, 'notification', 'my-unread'),
+      queryKey: backendKey(orgId, NOTIFICATION_HINT_ENTITY, 'my-unread'),
       queryFn: () =>
         backendFetch<{ count: CollabUnreadResult }>(
           '/collab/notifications/unread-count',
@@ -225,7 +226,7 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, 'notification', 'org-unread'),
+      queryKey: backendKey(orgId, NOTIFICATION_HINT_ENTITY, 'org-unread'),
       queryFn: () =>
         backendFetch<{ count: OrgUnreadResult }>(
           '/notifications/unread-count',
@@ -240,7 +241,7 @@ export const engagementPaginatedAdapters: Record<string, PaginatedAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, 'notification', 'my-page'),
+      queryKey: backendKey(orgId, NOTIFICATION_HINT_ENTITY, 'my-page'),
       fetchPage: (cursor, numItems) =>
         backendFetch<{ rows: unknown[]; nextCursor: number | null }>(
           `/collab/notifications?limit=${numItems}${cursor !== null && cursor !== '' ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
@@ -257,7 +258,7 @@ export const engagementPaginatedAdapters: Record<string, PaginatedAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return {
-      queryKey: backendKey(orgId, 'notification', 'org-page'),
+      queryKey: backendKey(orgId, NOTIFICATION_HINT_ENTITY, 'org-page'),
       fetchPage: (cursor, numItems) => {
         const split = splitCursor(cursor);
         return backendFetch<{
@@ -422,7 +423,7 @@ function invalidateBells(
   const orgId = orgOf(args, ctx);
   if (orgId === undefined) return;
   void client.invalidateQueries({
-    queryKey: backendEntityPrefix(orgId, 'notification'),
+    queryKey: backendEntityPrefix(orgId, NOTIFICATION_HINT_ENTITY),
   });
 }
 

@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 
 import { eventsUrl } from './api-client';
 import { reportBackendReachable } from './connection-state';
-import { backendEntityPrefix } from './query-keys';
+import { backendEntityPrefix, backendOrgPrefix } from './query-keys';
 
 /**
  * The Tier-2 realtime bridge: subscribe the org's `/events` hint stream and
@@ -15,7 +15,9 @@ import { backendEntityPrefix } from './query-keys';
  * replay) are the browser's native behavior; the server heartbeats every
  * 15s so proxies keep the lane open. On `error` the source retries on its
  * own — TanStack's refetch-on-reconnect covers anything missed while down,
- * exactly the contract `backend/realtime/sse.ts` documents.
+ * exactly the contract `backend/realtime/sse.ts` documents. When the server
+ * cannot replay a resume in full (the cursor is older than the outbox's
+ * retention) it sends `resync` first, and the whole org scope refetches.
  */
 export function useBackendHints(orgId: string | undefined): void {
   const queryClient = useQueryClient();
@@ -51,10 +53,19 @@ export function useBackendHints(orgId: string | undefined): void {
     const onOpen = (): void => {
       reportBackendReachable();
     };
+    // The replay had a hole: hints between the reconnect cursor and now were
+    // reclaimed, so nothing the cache holds for this org can be trusted.
+    const onResync = (): void => {
+      void queryClient.invalidateQueries({
+        queryKey: backendOrgPrefix(orgId),
+      });
+    };
     source.addEventListener('hint', onHint);
+    source.addEventListener('resync', onResync);
     source.addEventListener('open', onOpen);
     return () => {
       source.removeEventListener('hint', onHint);
+      source.removeEventListener('resync', onResync);
       source.removeEventListener('open', onOpen);
       source.close();
       // A closed stream is not an outage — the next mount reopens it.

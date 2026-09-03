@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { isActionableNotificationType } from '../../../lib/shared/attention.ts';
+import { NOTIFICATION_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
 import {
   coalesceKeyFor,
   NOTIFICATION_EMAIL_DEBOUNCE_MS,
@@ -131,6 +132,37 @@ async function scheduleNotificationEmail(
 }
 
 /**
+ * Tell the recipient's OWN streams that their bell changed. Narrowed to the
+ * user — a personal notification row is one person's, so nobody else's
+ * client refetches its bell — and named with the entity the app keys both
+ * bells on (`NOTIFICATION_HINT_ENTITY`, shared with the frontend). Every
+ * write, rewrite, cancel and dismissal of a personal notification routes
+ * through here, so the wire name cannot drift per call site again.
+ */
+export async function emitBellHint(
+  db: Db,
+  args: { organizationId: string; userId: string },
+): Promise<void> {
+  await emitHintInTx(db, {
+    orgId: args.organizationId,
+    userId: args.userId,
+    entity: NOTIFICATION_HINT_ENTITY,
+    entityId: null,
+  });
+}
+
+/** One bell hint per distinct recipient of a multi-row dismissal. */
+async function emitBellHints(
+  db: Db,
+  organizationId: string,
+  userIds: Iterable<string>,
+): Promise<void> {
+  for (const userId of new Set(userIds)) {
+    await emitBellHint(db, { organizationId, userId });
+  }
+}
+
+/**
  * Write (or rewrite, or cancel) one notification row. Callers own the
  * preference gate — this is the mechanics of one row.
  */
@@ -156,10 +188,9 @@ export async function writeCoalescedNotification(
 
   if (existingId !== null && args.undoes === true) {
     await db`DELETE FROM app.user_notifications WHERE id = ${existingId}`;
-    await emitHintInTx(db, {
-      orgId: args.organizationId,
-      entity: 'user_notification',
-      entityId: null,
+    await emitBellHint(db, {
+      organizationId: args.organizationId,
+      userId: args.userId,
     });
     return 'cancelled';
   }
@@ -182,10 +213,9 @@ export async function writeCoalescedNotification(
       notificationId: existingId,
       type: args.type,
     });
-    await emitHintInTx(db, {
-      orgId: args.organizationId,
-      entity: 'user_notification',
-      entityId: null,
+    await emitBellHint(db, {
+      organizationId: args.organizationId,
+      userId: args.userId,
     });
     return 'rewritten';
   }
@@ -212,10 +242,9 @@ export async function writeCoalescedNotification(
       type: args.type,
     });
   }
-  await emitHintInTx(db, {
-    orgId: args.organizationId,
-    entity: 'user_notification',
-    entityId: null,
+  await emitBellHint(db, {
+    organizationId: args.organizationId,
+    userId: args.userId,
   });
   return 'inserted';
 }
@@ -307,6 +336,13 @@ export async function markNotificationRead(
       AND org_id = ${args.organizationId} AND read = false
     RETURNING id
   `;
+  if (rows.length > 0) {
+    // The reader's OTHER tabs and devices drop the badge too.
+    await emitBellHint(sql, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+    });
+  }
   return rows.length > 0;
 }
 
@@ -320,6 +356,9 @@ export async function markAllNotificationsRead(
     WHERE user_id = ${userId} AND org_id = ${organizationId} AND read = false
     RETURNING id
   `;
+  if (rows.length > 0) {
+    await emitBellHint(sql, { organizationId, userId });
+  }
   return rows.length;
 }
 
@@ -613,14 +652,21 @@ export async function dismissReviewRequestNotifications(
   db: Db,
   args: { organizationId: string; approvalId: string },
 ): Promise<number> {
-  const rows = await db<{ id: string }[]>`
+  const rows = await db<{ id: string; userId: string }[]>`
     UPDATE app.user_notifications SET read = true, read_at_ms = ${Date.now()}
     WHERE org_id = ${args.organizationId}
       AND type = 'task_review_requested' AND read = false
       AND (resource_id = ${args.approvalId}
            OR params ->> 'approvalId' = ${args.approvalId})
-    RETURNING id
+    RETURNING id, user_id AS "userId"
   `;
+  // The reviewer did not act here (the decision or a supersede did) — the
+  // hint is the only way their bell stops ringing without a reload.
+  await emitBellHints(
+    db,
+    args.organizationId,
+    rows.map((row) => row.userId),
+  );
   return rows.length;
 }
 
@@ -999,12 +1045,17 @@ export async function dismissAgentQuestionNotifications(
   db: Db,
   args: { organizationId: string; askId: string },
 ): Promise<number> {
-  const rows = await db<{ id: string }[]>`
+  const rows = await db<{ id: string; userId: string }[]>`
     UPDATE app.user_notifications SET read = true, read_at_ms = ${Date.now()}
     WHERE org_id = ${args.organizationId} AND type = 'agent_escalation'
       AND read = false AND params ->> 'askId' = ${args.askId}
-    RETURNING id
+    RETURNING id, user_id AS "userId"
   `;
+  await emitBellHints(
+    db,
+    args.organizationId,
+    rows.map((row) => row.userId),
+  );
   return rows.length;
 }
 

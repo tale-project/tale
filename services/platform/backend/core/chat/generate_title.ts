@@ -5,9 +5,9 @@ import type { ModelCatalogEntry } from '../../../lib/shared/schemas/providers';
 import { createBuilderModel } from '../automations_builder/model_call';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
-import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { directActiveCredential } from '../lib/providers/direct_credential';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
+import { getServableCatalog } from '../lib/providers/servable_catalog';
 
 /** The whole naming attempt shares one wall-clock budget; past it the
  * fallback title wins and the reply, if it ever arrives, is discarded. */
@@ -71,7 +71,7 @@ async function pickTitleModel(
 
     let catalog: readonly ModelCatalogEntry[];
     try {
-      catalog = await getProviderCatalog(connector);
+      catalog = await getServableCatalog(connector, credential.modelAllowlist);
     } catch (error) {
       // One connector's unreachable /models endpoint must not cost the title;
       // skip it loudly and try the next.

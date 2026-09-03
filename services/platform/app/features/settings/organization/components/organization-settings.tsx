@@ -410,7 +410,8 @@ export function OrganizationSettings({
   useRegisterActiveEditor(editor);
 
   // Deletion is owner-only and the default org can never be deleted — both are
-  // also enforced server-side in `prepareOrganizationDeletion`; this just hides
+  // also enforced server-side in `deleteOrganization` (which additionally
+  // refuses under an active legal hold, surfaced as a toast); this just hides
   // the UI when it would always fail.
   const canDelete =
     memberContext?.role === 'owner' && organization?.slug !== 'default';

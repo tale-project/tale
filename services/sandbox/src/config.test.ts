@@ -16,6 +16,7 @@ const KEYS = [
   'SANDBOX_BACKEND',
   'SANDBOX_AGENT_MEMORY',
   'SANDBOX_HOST_SESSION_ROOT',
+  'SANDBOX_TOKEN',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -32,6 +33,9 @@ beforeEach(() => {
   // read a real /app/platform-config and default cleanly to env (no file).
   cfgDir = mkdtempSync(join(tmpdir(), 'tale-cfg-'));
   process.env.TALE_PLATFORM_SHARED_CONFIG_DIR = cfgDir;
+  // loadConfig fails closed without the shared HMAC secret (server.test.ts
+  // covers that policy); these tests are about every other knob.
+  process.env.SANDBOX_TOKEN = 'test-token';
 });
 
 afterEach(() => {

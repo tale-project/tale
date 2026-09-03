@@ -30,6 +30,9 @@ import {
   assertExplicitOrg,
   chargeLane,
   domainErrorResponse,
+  formatKeysetCursor,
+  pageLimit,
+  parseKeysetCursor,
   requireEditor,
   restProjectAuth,
   RestRefusal,
@@ -390,22 +393,10 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     const project = await loadVisibleProject(c, auth, c.req.param('id'));
     if (project instanceof Response) return project;
     const folderId = c.req.query('folderId')?.trim() || undefined;
-    const limitRaw = Number(c.req.query('limit') ?? '25');
-    const limit = Math.min(
-      Math.max(Number.isFinite(limitRaw) ? limitRaw : 25, 1),
-      100,
-    );
-    const cursor = c.req.query('cursor') ?? null;
-    let cursorCreatedAt: number | null = null;
-    let cursorId: string | null = null;
-    if (cursor !== null && cursor !== '') {
-      const split = cursor.indexOf(':');
-      const createdAt = Number(cursor.slice(0, split));
-      if (split > 0 && Number.isFinite(createdAt)) {
-        cursorCreatedAt = createdAt;
-        cursorId = cursor.slice(split + 1);
-      }
-    }
+    const limit = pageLimit(c.req.query('limit'), { fallback: 25, max: 100 });
+    const cursor = parseKeysetCursor(c.req.query('cursor'));
+    const cursorCreatedAt = cursor?.at ?? null;
+    const cursorId = cursor?.id ?? null;
     if (folderId !== undefined) {
       const folders = await deps.sql<{ id: string }[]>`
         SELECT id FROM app.folders
@@ -445,7 +436,7 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return c.json({
       files: page,
       ...(rows.length > limit && last
-        ? { cursor: `${last.createdAt}:${last.id}` }
+        ? { cursor: formatKeysetCursor(last.createdAt, last.id) }
         : {}),
     });
   });

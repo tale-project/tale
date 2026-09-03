@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "1.1.0",
-    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\n## Authentication\n\nEvery request carries an organization API key (create one in\nSettings → API):\n\n```\nAuthorization: Bearer tale_...\n```\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<message>\"}`.\n\n## Pagination\n\nList endpoints take `cursor` + `limit` and answer\n`{page, isDone, continueCursor}`; pass `continueCursor` back as `cursor`.\n\n## Rate limits\n\nReads and CRUD share one bucket (120/min, burst 200). Starting an automation\nrun and sending a chat message share a tighter one (20/min, burst 40).\n\n## Quick start\n\n```bash\n# 1. What automations does the org have?\ncurl -H \"Authorization: Bearer tale_...\" \\\n  https://your-instance.com/api/v1/automations\n\n# 2. Start a run of the deployed version\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  https://your-instance.com/api/v1/automations/billing__dunning/runs\n\n# 3. Poll it\ncurl -H \"Authorization: Bearer tale_...\" \\\n  https://your-instance.com/api/v1/runs/<runId>\n```"
+    "version": "1.2.0",
+    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\n## Authentication\n\nEvery request carries an organization API key (create one in\nSettings → API):\n\n```\nAuthorization: Bearer tale_...\n```\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<message>\"}` (domain\nrefusals add a stable `code`).\n\n## Pagination\n\nThe keyset-paginated lists — contacts, products, documents, knowledge\nentries, threads, messages, websites — take `cursor` + `limit` and answer\n`{page, isDone, continueCursor}`; pass `continueCursor` back as `cursor`\nuntil `isDone`. Lists that answer a named array (`{automations}`,\n`{runs}`, `{agents}`, `{skills}`, `{folders}`, `{comments}`) are complete\nsets or bounded windows, not cursor walks; project files answer\n`{files, cursor?}`.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget. A 429 carries `Retry-After` in whole seconds.\n\n## Quick start\n\n```bash\n# 1. What automations does the org have?\ncurl -H \"Authorization: Bearer tale_...\" \\\n  https://your-instance.com/api/v1/automations\n\n# 2. Start a run of the deployed version\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  https://your-instance.com/api/v1/automations/billing__dunning/runs\n\n# 3. Poll it\ncurl -H \"Authorization: Bearer tale_...\" \\\n  https://your-instance.com/api/v1/runs/<runId>\n```"
   },
   "servers": [
     {
@@ -75,6 +75,7 @@
       "get": {
         "tags": ["Documents"],
         "summary": "List documents",
+        "description": "Knowledge-hub documents the key holder can see, newest first — project files never appear here (the Projects family owns them). `content` is not carried in the listing; read one document for it.",
         "operationId": "listDocuments",
         "security": [
           {
@@ -89,7 +90,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Pagination cursor from a previous response"
+            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
           },
           {
             "name": "limit",
@@ -98,7 +99,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Maximum number of items to return"
+            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
           },
           {
             "name": "sourceProvider",
@@ -107,7 +108,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by source provider"
+            "description": "Only documents from this source"
           },
           {
             "name": "folderId",
@@ -116,37 +117,72 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by folder ID"
+            "description": "Only documents inside this folder"
           }
         ],
         "responses": {
           "200": {
-            "description": "Paginated list of documents",
+            "description": "Paginated documents",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentList"
+                  "type": "object",
+                  "required": ["page", "isDone", "continueCursor"],
+                  "properties": {
+                    "page": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Document"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "description": "Pass back as `cursor` for the next page; empty when `isDone`"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "post": {
         "tags": ["Documents"],
         "summary": "Create document",
+        "description": "Requires a documents-write role. Either inline `content` or a `fileId` (an uploaded blob reference) backs the document.",
         "operationId": "createDocument",
         "security": [
           {
@@ -158,33 +194,67 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateDocumentRequest"
+                "$ref": "#/components/schemas/DocumentInput"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Created document",
+          "201": {
+            "description": "Created — the new document’s id",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Document"
+                  "type": "object",
+                  "required": ["id"],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "404": {
-            "description": "Not found"
+          "403": {
+            "description": "The key holder’s role cannot write documents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -193,6 +263,7 @@
       "get": {
         "tags": ["Documents"],
         "summary": "Get document",
+        "description": "A document with its `content`. A project file, a foreign document and a nonexistent id all answer the same opaque 404.",
         "operationId": "getDocument",
         "security": [
           {
@@ -212,7 +283,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Document details",
+            "description": "The document",
             "content": {
               "application/json": {
                 "schema": {
@@ -222,22 +293,51 @@
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "patch": {
         "tags": ["Documents"],
         "summary": "Update document",
+        "description": "Partial update; a `null` clears an optional field. Requires a documents-write role; a controlled record under review, approval or legal hold refuses the change.",
         "operationId": "updateDocument",
         "security": [
           {
@@ -260,39 +360,81 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateDocumentRequest"
+                "$ref": "#/components/schemas/DocumentPatch"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Updated document",
+          "204": {
+            "description": "Updated"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Document"
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
           },
-          "400": {
-            "description": "Bad request"
-          },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key holder’s role cannot write documents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "409": {
+            "description": "The record is protected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "delete": {
         "tags": ["Documents"],
         "summary": "Delete document",
+        "description": "The permanent delete: role gate, controlled-record protection, legal holds, sync stop and the audit row, then the purge.",
         "operationId": "deleteDocument",
         "security": [
           {
@@ -311,20 +453,68 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Document deleted"
+          "204": {
+            "description": "Deleted"
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key holder’s role cannot write documents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "409": {
+            "description": "A protected record (`DOCUMENT_RECORD_PROTECTED`) or a legal hold",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -333,6 +523,7 @@
       "post": {
         "tags": ["Documents"],
         "summary": "Retry RAG indexing",
+        "description": "Re-queues the document’s blob for knowledge indexing. Requires a documents-write role. Answers `skipped` — honestly — for a content-only document, a blob the platform does not track, or a file whose RAG opt-out is persisted.",
         "operationId": "retryDocumentIndexing",
         "security": [
           {
@@ -352,19 +543,71 @@
         ],
         "responses": {
           "200": {
-            "description": "Indexing retried"
+            "description": "Whether indexing was queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["indexing", "skipped"]
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key holder’s role cannot write documents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -387,7 +630,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Pagination cursor from a previous response"
+            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
           },
           {
             "name": "limit",
@@ -396,7 +639,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Maximum number of items to return"
+            "description": "Page size, 1..200 (default 25; out-of-range values are clamped)"
           },
           {
             "name": "status",
@@ -405,7 +648,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by status"
+            "description": "Only websites in this crawl status"
           },
           {
             "name": "scanInterval",
@@ -414,37 +657,72 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by scan interval"
+            "description": "Only websites on this scan interval"
           }
         ],
         "responses": {
           "200": {
-            "description": "Paginated list of websites",
+            "description": "Paginated websites",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WebsiteList"
+                  "type": "object",
+                  "required": ["page", "isDone", "continueCursor"],
+                  "properties": {
+                    "page": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Website"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "description": "Pass back as `cursor` for the next page; empty when `isDone`"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "post": {
         "tags": ["Websites"],
         "summary": "Create website",
+        "description": "Registers a domain for crawling and schedules the first crawl. With `urls`, registers (or, for an existing domain, extends) a curated URL list instead of a whole-site crawl.",
         "operationId": "createWebsite",
         "security": [
           {
@@ -456,33 +734,57 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateWebsiteRequest"
+                "$ref": "#/components/schemas/WebsiteInput"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Created website",
+          "201": {
+            "description": "Created — the website’s id",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Website"
+                  "type": "object",
+                  "required": ["id"],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -510,7 +812,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Website details",
+            "description": "The website",
             "content": {
               "application/json": {
                 "schema": {
@@ -520,16 +822,44 @@
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Website not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -558,39 +888,61 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateWebsiteRequest"
+                "$ref": "#/components/schemas/WebsitePatch"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Updated website",
+          "204": {
+            "description": "Updated"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Website"
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
           },
-          "400": {
-            "description": "Bad request"
-          },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Website not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "delete": {
         "tags": ["Websites"],
         "summary": "Delete website",
+        "description": "Deregisters the crawl and removes the website.",
         "operationId": "deleteWebsite",
         "security": [
           {
@@ -609,20 +961,48 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Website deleted"
+          "204": {
+            "description": "Deleted"
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Website not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -631,6 +1011,7 @@
       "get": {
         "tags": ["Websites"],
         "summary": "Fetch pages",
+        "description": "The crawled pages of a website — OFFSET-paginated (`offset` + `limit`, default 100), answering `{pages, total, offset, hasMore}`.",
         "operationId": "listWebsitePages",
         "security": [
           {
@@ -654,7 +1035,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Pagination offset"
+            "description": "Rows to skip (default 0)"
           },
           {
             "name": "limit",
@@ -663,12 +1044,12 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Maximum number of pages to return"
+            "description": "Rows to return (default 100)"
           }
         ],
         "responses": {
           "200": {
-            "description": "List of pages",
+            "description": "The pages window",
             "content": {
               "application/json": {
                 "schema": {
@@ -678,16 +1059,44 @@
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Website not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -696,6 +1105,7 @@
       "post": {
         "tags": ["Websites"],
         "summary": "Sync statuses",
+        "description": "Schedules the per-site corpus → row status sync and answers immediately; `syncing` means the job is queued, not finished.",
         "operationId": "syncWebsite",
         "security": [
           {
@@ -715,19 +1125,61 @@
         ],
         "responses": {
           "200": {
-            "description": "Sync initiated"
+            "description": "Sync scheduled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["syncing"]
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Website not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -736,6 +1188,7 @@
       "post": {
         "tags": ["Websites"],
         "summary": "Search content",
+        "description": "A POST because it carries a body, not because it writes: semantic search over this website’s crawled content.",
         "operationId": "searchWebsite",
         "security": [
           {
@@ -758,14 +1211,23 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebsiteSearchRequest"
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "limit": {
+                    "type": "integer"
+                  }
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Search results",
+            "description": "Matches",
             "content": {
               "application/json": {
                 "schema": {
@@ -775,16 +1237,44 @@
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Website not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -793,6 +1283,7 @@
       "get": {
         "tags": ["Products"],
         "summary": "List products",
+        "description": "Most recently updated first.",
         "operationId": "listProducts",
         "security": [
           {
@@ -807,7 +1298,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Pagination cursor from a previous response"
+            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
           },
           {
             "name": "limit",
@@ -816,7 +1307,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Maximum number of items to return"
+            "description": "Page size, 1..200 (default 25; out-of-range values are clamped)"
           },
           {
             "name": "status",
@@ -825,7 +1316,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by status"
+            "description": "Only products in this status"
           },
           {
             "name": "category",
@@ -834,31 +1325,65 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by category"
+            "description": "Only products in this category"
           }
         ],
         "responses": {
           "200": {
-            "description": "Paginated list of products",
+            "description": "Paginated products",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProductList"
+                  "type": "object",
+                  "required": ["page", "isDone", "continueCursor"],
+                  "properties": {
+                    "page": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "description": "Pass back as `cursor` for the next page; empty when `isDone`"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -876,33 +1401,67 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateProductRequest"
+                "$ref": "#/components/schemas/ProductInput"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Created product",
+          "201": {
+            "description": "Created — the product’s id",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Product"
+                  "type": "object",
+                  "required": ["id"],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "404": {
-            "description": "Not found"
+          "409": {
+            "description": "Duplicate external id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -930,7 +1489,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Product details",
+            "description": "The product",
             "content": {
               "application/json": {
                 "schema": {
@@ -940,16 +1499,44 @@
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Product not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -978,14 +1565,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateProductRequest"
+                "$ref": "#/components/schemas/ProductInput"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Updated product",
+            "description": "The updated product",
             "content": {
               "application/json": {
                 "schema": {
@@ -995,16 +1582,54 @@
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Product not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "409": {
+            "description": "Duplicate external id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -1029,20 +1654,48 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Product deleted"
+          "204": {
+            "description": "Deleted"
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Product not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1051,6 +1704,7 @@
       "get": {
         "tags": ["Contacts"],
         "summary": "List contacts",
+        "description": "Most recently updated first; trashed contacts are hidden.",
         "operationId": "listContacts",
         "security": [
           {
@@ -1065,7 +1719,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Pagination cursor from a previous response"
+            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
           },
           {
             "name": "limit",
@@ -1074,7 +1728,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Maximum number of items to return"
+            "description": "Page size, 1..200 (default 25; out-of-range values are clamped)"
           },
           {
             "name": "source",
@@ -1083,16 +1737,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by source"
-          },
-          {
-            "name": "locale",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by locale"
+            "description": "Only contacts from this source"
           }
         ],
         "responses": {
@@ -1115,7 +1760,7 @@
                     },
                     "continueCursor": {
                       "type": "string",
-                      "nullable": true
+                      "description": "Pass back as `cursor` for the next page; empty when `isDone`"
                     }
                   }
                 }
@@ -1143,7 +1788,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1157,6 +1802,7 @@
       "post": {
         "tags": ["Contacts"],
         "summary": "Create contact",
+        "description": "`source` defaults to `api_import`.",
         "operationId": "createContact",
         "security": [
           {
@@ -1168,18 +1814,24 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Contact"
+                "$ref": "#/components/schemas/ContactInput"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Created contact",
+          "201": {
+            "description": "Created — the contact’s id",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Contact"
+                  "type": "object",
+                  "required": ["id"],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -1215,7 +1867,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1231,6 +1883,7 @@
       "post": {
         "tags": ["Contacts"],
         "summary": "Create contacts in bulk",
+        "description": "Up to 500 contacts per call, each needing an `email`. Rows are created independently: the result counts successes and failures and names each failed row with its reason.",
         "operationId": "bulkCreateContacts",
         "security": [
           {
@@ -1247,8 +1900,9 @@
                 "properties": {
                   "contacts": {
                     "type": "array",
+                    "maxItems": 500,
                     "items": {
-                      "$ref": "#/components/schemas/Contact"
+                      "$ref": "#/components/schemas/ContactInput"
                     }
                   }
                 }
@@ -1257,8 +1911,15 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Bulk creation result"
+          "201": {
+            "description": "Bulk creation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkCreateResult"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -1281,7 +1942,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1316,7 +1977,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Contact",
+            "description": "The contact",
             "content": {
               "application/json": {
                 "schema": {
@@ -1356,7 +2017,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1392,14 +2053,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Contact"
+                "$ref": "#/components/schemas/ContactInput"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Updated contact",
+            "description": "The updated contact",
             "content": {
               "application/json": {
                 "schema": {
@@ -1449,7 +2110,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1481,8 +2142,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Contact deleted"
+          "204": {
+            "description": "Deleted"
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -1515,7 +2176,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1531,7 +2192,7 @@
       "get": {
         "tags": ["Projects"],
         "summary": "Look up a project by external item id",
-        "description": "A lookup door, not a list-all: `externalItemId` is REQUIRED (400 without it). Answers at most one project — the key is unique per organization. A project the key holder cannot see answers the same empty list as no match. The row carries `archivedAt` when the match is archived, so callers can detect an archived project holding the key. Shares the general REST bucket (120/min; REST buckets are IP-keyed pre-auth, so a NAT’d worker fleet shares one budget).",
+        "description": "A lookup door, not a list-all: `externalItemId` is REQUIRED (400 without it). Answers at most one project — the key is unique per organization. A project the key holder cannot see answers the same empty list as no match. The row carries `archivedAt` when the match is archived, so callers can detect an archived project holding the key. Shares the general REST bucket (120/min, keyed on the key holder).",
         "operationId": "lookupProjects",
         "security": [
           {
@@ -1599,7 +2260,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1718,7 +2379,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1809,7 +2470,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1903,7 +2564,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2027,7 +2688,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2043,7 +2704,7 @@
       "post": {
         "tags": ["Projects"],
         "summary": "Mint an upload handoff",
-        "description": "Answers where to send the bytes: `method: \"PUT\"` is a presigned URL for the organization’s own bucket (bind the returned `s3Ref` afterwards) — a declared `contentType` is signed into the URL, so the PUT must carry that exact `Content-Type` header (omit `contentType` and the PUT has no header requirement); `method: \"POST\"` targets platform storage and answers `{\"storageId\": …}` — bind that id. The `uploadId` is a single-use intent valid until `expiresAt` (60 minutes); complete the upload with `POST /api/v1/projects/{id}/files`. Requires the org editor role and project edit access. Uses the upload lane bucket (240/min — one logical upload is several calls; IP-keyed, so a NAT’d worker fleet shares the budget).",
+        "description": "Answers where to send the bytes: `method: \"PUT\"` is a presigned URL for the organization’s own bucket (bind the returned `s3Ref` afterwards) — a declared `contentType` is signed into the URL, so the PUT must carry that exact `Content-Type` header (omit `contentType` and the PUT has no header requirement); `method: \"POST\"` targets platform storage and answers `{\"storageId\": …}` — bind that id. The `uploadId` is a single-use intent valid until `expiresAt` (60 minutes); complete the upload with `POST /api/v1/projects/{id}/files`. Requires the org editor role and project edit access. Uses the upload lane bucket (240/min — one logical upload is several calls; keyed on the key holder like every REST budget).",
         "operationId": "createProjectUpload",
         "security": [
           {
@@ -2140,7 +2801,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2156,7 +2817,7 @@
       "get": {
         "tags": ["Projects"],
         "summary": "Download a project file",
-        "description": "The result lane: fetch the bytes of a file in the project — including what an automation filed back (a prepared return, a report). A Convex-stored blob streams in the response with its content type and an attachment filename; on an organization with its own object storage the answer is a **302** to a short-lived presigned URL, so follow redirects. Visibility is the minting user’s; a cross-project, cross-organization, trashed, or absent file answers the same opaque 404.",
+        "description": "The result lane: fetch the bytes of a file in the project — including what an automation filed back (a prepared return, a report). Every blob is object-storage backed, so the answer is a **302** to a short-lived presigned URL — follow redirects. Visibility is the minting user’s; a cross-project, cross-organization, trashed, or absent file answers the same opaque 404.",
         "operationId": "downloadProjectFile",
         "security": [
           {
@@ -2193,19 +2854,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "The file bytes (Convex-stored blob)",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
           "302": {
-            "description": "Redirect to a short-lived presigned URL (organization object storage)"
+            "description": "Redirect to a short-lived presigned URL"
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -2238,7 +2888,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2296,7 +2946,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Pagination cursor from a previous response"
+            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
           },
           {
             "name": "limit",
@@ -2305,7 +2955,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Maximum number of items to return"
+            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
           }
         ],
         "responses": {
@@ -2363,7 +3013,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2377,7 +3027,7 @@
       "post": {
         "tags": ["Projects"],
         "summary": "Bind an uploaded blob as a project file",
-        "description": "Consumes the single-use `uploadId` minted by `POST …/uploads` and creates the document. `fileId` is the `s3Ref` for a PUT handoff, or the `storageId` the platform-storage POST answered. `folderId` is REQUIRED and must belong to this project. `skipRagIndexing` DEFAULTS TO TRUE — project ledger files are working material, not organization knowledge; pass `false` explicitly to index the file into the knowledge corpus. Upload policy applies (authoritative size cap → 413, MIME allowlist → 415). Uses the upload lane bucket (240/min, IP-keyed).",
+        "description": "Consumes the single-use `uploadId` minted by `POST …/uploads` and creates the document. `fileId` is the `s3Ref` for a PUT handoff, or the `storageId` the platform-storage POST answered. `folderId` is REQUIRED and must belong to this project. `skipRagIndexing` DEFAULTS TO TRUE — project ledger files are working material, not organization knowledge; pass `false` explicitly to index the file into the knowledge corpus. Upload policy applies (authoritative size cap → 413, MIME allowlist → 415). Uses the upload lane bucket (240/min, keyed on the key holder).",
         "operationId": "bindProjectFile",
         "security": [
           {
@@ -2529,7 +3179,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2545,7 +3195,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Create a task from an external ref (idempotent)",
-        "description": "Materializes an external item as a task of one project, keyed by `(projectId, externalSystem, externalId)`: the first call creates (201, `created: true`), any repeat answers the SAME task (200, `created: false`) instead of a duplicate — safe for a worker that retries after a crash. `projectId` is REQUIRED: this door never falls back to the org-wide project, and the project must exist AND be visible to the key’s minting user (an opaque 404 otherwise). `externalId` is a caller-owned opaque key the platform never interprets; `externalUrl` is stored verbatim. The task is created by the minting user; over-long titles are truncated to the board cap rather than refused. When `runWorkflowSlug` names a deployed automation, a NEWLY created task also schedules that workflow on itself — the response then carries `executionId: null` (the start is scheduled, no run identity yet). To recover the run identity, call `POST /api/v1/tasks/{id}/start` ONCE — it answers `already_running` with the live run’s executionId while the run is in flight — then poll `GET /api/v1/runs/{runId}`. Do NOT poll `/start` itself: once the run settles, another call starts a fresh run. Skipped on an idempotent re-pick. Shares the general REST bucket (120/min, IP-keyed).",
+        "description": "Materializes an external item as a task of one project, keyed by `(projectId, externalSystem, externalId)`: the first call creates (201, `created: true`), any repeat answers the SAME task (200, `created: false`) instead of a duplicate — safe for a worker that retries after a crash. `projectId` is REQUIRED: this door never falls back to the org-wide project, and the project must exist AND be visible to the key’s minting user (an opaque 404 otherwise). `externalId` is a caller-owned opaque key the platform never interprets; `externalUrl` is stored verbatim. The task is created by the minting user; over-long titles are truncated to the board cap rather than refused. When `runWorkflowSlug` names a deployed automation, a NEWLY created task also schedules that workflow on itself — the response then carries `executionId: null` (the start is scheduled, no run identity yet). To recover the run identity, call `POST /api/v1/tasks/{id}/start` ONCE — it answers `already_running` with the live run’s executionId while the run is in flight — then poll `GET /api/v1/runs/{runId}`. Do NOT poll `/start` itself: once the run settles, another call starts a fresh run. Skipped on an idempotent re-pick. Shares the general REST bucket (120/min, keyed on the key holder).",
         "operationId": "createTask",
         "security": [
           {
@@ -2679,7 +3329,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2827,7 +3477,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2940,7 +3590,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3031,7 +3681,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3047,7 +3697,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Start a deployed workflow on the task",
-        "description": "Starts a fresh, subject-linked run of `workflowSlug` carrying the task as its input — the REST twin of the task board’s Start. RBAC is deliberately the session action’s: org membership plus the task’s READ visibility, NOT the developer gate `POST /api/v1/automations/{name}/runs` applies — that endpoint starts a run with arbitrary input, while this one is task-subject-bound (its input IS the task), which narrows the blast radius; deploying the workflow was the privileged act. The run is attributed `api-key:<userId>` in the run log, so machine starts stay distinguishable from human UI starts. Answers the session shape: `started: true` with the new run’s `executionId` (poll `GET /api/v1/runs/{runId}`); `already_running` with the in-flight run’s id instead of racing a duplicate over the same task; `not_started` when the slug names no deployed automation (or the start failed) — the task itself is untouched either way. Work-starting lane: charged against the execute bucket (20/min) on top of the general one (120/min); both IP-keyed.",
+        "description": "Starts a fresh, subject-linked run of `workflowSlug` carrying the task as its input — the REST twin of the task board’s Start. RBAC is deliberately the session action’s: org membership plus the task’s READ visibility, NOT the developer gate `POST /api/v1/automations/{name}/runs` applies — that endpoint starts a run with arbitrary input, while this one is task-subject-bound (its input IS the task), which narrows the blast radius; deploying the workflow was the privileged act. The run is attributed `api-key:<userId>` in the run log, so machine starts stay distinguishable from human UI starts. Answers the session shape: `started: true` with the new run’s `executionId` (poll `GET /api/v1/runs/{runId}`); `already_running` with the in-flight run’s id instead of racing a duplicate over the same task; `not_started` when the slug names no deployed automation (or the start failed) — the task itself is untouched either way. Work-starting lane: charged against the execute bucket (20/min) on top of the general one (120/min); both keyed on the key holder.",
         "operationId": "startTaskWorkflow",
         "security": [
           {
@@ -3150,7 +3800,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3166,62 +3816,27 @@
       "get": {
         "tags": ["Automations"],
         "summary": "List automations",
+        "description": "Every automation of the organization, by name — a complete set, not paginated (an organization holds tens of automations, not thousands). `projectIds` is the binding set: empty means org-level.",
         "operationId": "listAutomations",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Pagination cursor from a previous response"
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "Maximum number of items to return"
-          },
-          {
-            "name": "projectId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Only automations of this project"
-          }
-        ],
         "responses": {
           "200": {
-            "description": "Paginated automations",
+            "description": "The organization’s automations",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["page", "isDone", "continueCursor"],
+                  "required": ["automations"],
                   "properties": {
-                    "page": {
+                    "automations": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/AutomationSummary"
                       }
-                    },
-                    "isDone": {
-                      "type": "boolean"
-                    },
-                    "continueCursor": {
-                      "type": "string",
-                      "nullable": true
                     }
                   }
                 }
@@ -3248,18 +3863,8 @@
               }
             }
           },
-          "404": {
-            "description": "Project not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3343,7 +3948,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3359,6 +3964,7 @@
       "get": {
         "tags": ["Automations"],
         "summary": "List an automation’s versions",
+        "description": "The immutable version history, complete — not paginated.",
         "operationId": "listAutomationVersions",
         "security": [
           {
@@ -3378,101 +3984,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Immutable version history"
-          },
-          "400": {
-            "description": "Invalid request (malformed body or parameters)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/automations/{name}/runs": {
-      "get": {
-        "tags": ["Automations"],
-        "summary": "List an automation’s runs",
-        "operationId": "listAutomationRuns",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Pagination cursor from a previous response"
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "Maximum number of items to return"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated runs, newest first",
+            "description": "Immutable version history",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["page", "isDone", "continueCursor"],
+                  "required": ["versions", "name"],
                   "properties": {
-                    "page": {
+                    "versions": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/RunSummary"
+                        "$ref": "#/components/schemas/AutomationVersion"
                       }
                     },
-                    "isDone": {
-                      "type": "boolean"
-                    },
-                    "continueCursor": {
-                      "type": "string",
-                      "nullable": true
+                    "name": {
+                      "type": "string"
                     }
                   }
                 }
@@ -3500,7 +4026,91 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/automations/{name}/runs": {
+      "get": {
+        "tags": ["Automations"],
+        "summary": "List an automation’s runs",
+        "description": "The newest runs first — a bounded WINDOW (`limit` 1..200, default 50), not a cursor walk; each row is the full run. To follow one run, poll `GET /api/v1/runs/{runId}`.",
+        "operationId": "listAutomationRuns",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "How many of the newest runs to answer, 1..200 (default 50)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest runs first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["runs"],
+                  "properties": {
+                    "runs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Run"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3514,7 +4124,7 @@
       "post": {
         "tags": ["Automations"],
         "summary": "Start a run of the deployed version",
-        "description": "Answers 202 with the run’s identity rather than its result: a run is durable and may take minutes, so poll `GET /api/v1/runs/{runId}`. Starting a run needs no trigger — the API key is the entitlement. `mode` defaults to `live`, which requires the key holder to have the developer capability; a `mock` run needs only membership.",
+        "description": "Answers 202 with the run’s identity rather than its result: a run is durable and may take minutes, so poll `GET /api/v1/runs/{runId}`. Starting a run needs no trigger — the API key is the entitlement. `mode` defaults to `live`, which requires the key holder to have the developer capability; a `mock` run needs only membership. `projectId` scopes the run to a project (required, and restricted to the bound set, when the automation is bound to several). Charged against the execute bucket (20/min) on top of the general one.",
         "operationId": "startAutomationRun",
         "security": [
           {
@@ -3551,6 +4161,10 @@
                   "version": {
                     "type": "integer",
                     "description": "Run a specific version (the deployed one when omitted)"
+                  },
+                  "projectId": {
+                    "type": "string",
+                    "description": "The project the run operates in"
                   }
                 }
               }
@@ -3625,7 +4239,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3767,7 +4381,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3783,6 +4397,7 @@
       "get": {
         "tags": ["Automations"],
         "summary": "Read the automation’s trigger",
+        "description": "The trigger binding — at most one per automation, answered as a list. Never the webhook secret: `hasToken` says one exists.",
         "operationId": "listAutomationTriggers",
         "security": [
           {
@@ -3802,7 +4417,26 @@
         ],
         "responses": {
           "200": {
-            "description": "The trigger binding (never the webhook secret; `hasToken` says one exists)"
+            "description": "The trigger binding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["triggers", "name"],
+                  "properties": {
+                    "triggers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Trigger"
+                      }
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -3825,7 +4459,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3946,7 +4580,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4013,7 +4647,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4088,7 +4722,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4180,7 +4814,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4196,6 +4830,7 @@
       "get": {
         "tags": ["Threads"],
         "summary": "List the key holder’s threads",
+        "description": "The key’s own active threads, newest activity first.",
         "operationId": "listThreads",
         "security": [
           {
@@ -4210,7 +4845,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Pagination cursor from a previous response"
+            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
           },
           {
             "name": "limit",
@@ -4219,7 +4854,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Maximum number of items to return"
+            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
           }
         ],
         "responses": {
@@ -4242,7 +4877,7 @@
                     },
                     "continueCursor": {
                       "type": "string",
-                      "nullable": true
+                      "description": "Pass back as `cursor` for the next page; empty when `isDone`"
                     }
                   }
                 }
@@ -4270,7 +4905,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4284,6 +4919,7 @@
       "post": {
         "tags": ["Threads"],
         "summary": "Create a thread",
+        "description": "A direct chat thread (never a sandbox thread — that needs a harness this surface cannot drive).",
         "operationId": "createThread",
         "security": [
           {
@@ -4313,7 +4949,7 @@
         },
         "responses": {
           "201": {
-            "description": "Created",
+            "description": "Created — the thread’s id",
             "content": {
               "application/json": {
                 "schema": {
@@ -4369,7 +5005,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4444,7 +5080,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4460,6 +5096,7 @@
       "get": {
         "tags": ["Threads"],
         "summary": "List a thread’s messages",
+        "description": "The conversation in sequence order; `cursor` is the previous page’s `continueCursor` (the last message’s `sequence`).",
         "operationId": "listMessages",
         "security": [
           {
@@ -4483,7 +5120,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Pagination cursor from a previous response"
+            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
           },
           {
             "name": "limit",
@@ -4492,12 +5129,35 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Maximum number of items to return"
+            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
           }
         ],
         "responses": {
           "200": {
-            "description": "Paginated messages"
+            "description": "Paginated messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["page", "isDone", "continueCursor"],
+                  "properties": {
+                    "page": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Message"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "description": "Pass back as `cursor` for the next page; empty when `isDone`"
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -4530,7 +5190,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4544,7 +5204,7 @@
       "post": {
         "tags": ["Threads"],
         "summary": "Send a message and start a turn",
-        "description": "Answers 202 immediately; the turn runs in the background. Poll `GET /api/v1/threads/{id}/generation` until `{\"status\": \"idle\"}`, then read the messages. A turn that fails before producing output surfaces as an assistant message carrying an error — never silently.",
+        "description": "Answers 202 immediately; the turn runs in the background. Poll `GET /api/v1/threads/{id}/generation` until `{\"status\": \"idle\"}`, then read the messages. A turn that fails before producing output surfaces as an assistant message carrying an error — never silently. Charged against the execute bucket (20/min) on top of the general one.",
         "operationId": "postMessage",
         "security": [
           {
@@ -4657,7 +5317,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4751,7 +5411,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4767,6 +5427,7 @@
       "get": {
         "tags": ["Agents"],
         "summary": "List agents",
+        "description": "The agents the key holder can see — a complete set, not paginated. `failures` names agent files that could not be read.",
         "operationId": "listAgents",
         "security": [
           {
@@ -4775,7 +5436,30 @@
         ],
         "responses": {
           "200": {
-            "description": "The organization's agents"
+            "description": "The organization’s agents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["agents", "failures"],
+                  "properties": {
+                    "agents": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AgentSummary"
+                      }
+                    },
+                    "failures": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -4798,7 +5482,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4833,7 +5517,20 @@
         ],
         "responses": {
           "200": {
-            "description": "The agent"
+            "description": "The agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["agent"],
+                  "properties": {
+                    "agent": {
+                      "$ref": "#/components/schemas/Agent"
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -4866,7 +5563,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4902,14 +5599,43 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "type": "object",
+                "required": ["displayName"],
+                "properties": {
+                  "displayName": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "instructions": {
+                    "type": "string"
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": ["private", "org"]
+                  }
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "The saved agent"
+            "description": "The saved agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["agent"],
+                  "properties": {
+                    "agent": {
+                      "$ref": "#/components/schemas/Agent"
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -4942,7 +5668,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4956,6 +5682,7 @@
       "delete": {
         "tags": ["Agents"],
         "summary": "Delete agent",
+        "description": "Answers whether anything was deleted rather than a 404 — deleting an absent agent is a `deleted: false`.",
         "operationId": "deleteAgent",
         "security": [
           {
@@ -4974,8 +5701,21 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Deleted"
+          "200": {
+            "description": "Deletion result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["deleted"],
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -5007,18 +5747,8 @@
               }
             }
           },
-          "404": {
-            "description": "No such agent",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5034,6 +5764,7 @@
       "get": {
         "tags": ["Skills"],
         "summary": "List skills",
+        "description": "The skills the key holder can see (their own, their teams’, the organization’s) — a complete set, not paginated. `failures` names skill bundles that could not be read.",
         "operationId": "listSkills",
         "security": [
           {
@@ -5042,7 +5773,30 @@
         ],
         "responses": {
           "200": {
-            "description": "The organization's skills"
+            "description": "The organization’s skills",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["skills", "failures"],
+                  "properties": {
+                    "skills": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SkillSummary"
+                      }
+                    },
+                    "failures": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -5065,7 +5819,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5100,7 +5854,14 @@
         ],
         "responses": {
           "200": {
-            "description": "The skill"
+            "description": "The skill",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -5133,7 +5894,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5169,14 +5930,53 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "type": "object",
+                "required": ["description", "body"],
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 1000000
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": ["private", "team", "org"]
+                  },
+                  "teams": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 32
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 50
+                  }
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "The saved skill"
+            "description": "The saved skill",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -5208,8 +6008,18 @@
               }
             }
           },
+          "422": {
+            "description": "The skill body is malformed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5285,7 +6095,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5301,6 +6111,7 @@
       "get": {
         "tags": ["Knowledge"],
         "summary": "List knowledge entries",
+        "description": "Newest first; `cursor` is the previous page’s `continueCursor`.",
         "operationId": "listKnowledgeEntries",
         "security": [
           {
@@ -5315,7 +6126,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Pagination cursor from a previous response"
+            "description": "The previous page’s `continueCursor` — opaque; omit for the first page"
           },
           {
             "name": "limit",
@@ -5324,7 +6135,7 @@
             "schema": {
               "type": "integer"
             },
-            "description": "Maximum number of items to return"
+            "description": "Page size, 1..100 (default 25; out-of-range values are clamped)"
           },
           {
             "name": "status",
@@ -5338,7 +6149,30 @@
         ],
         "responses": {
           "200": {
-            "description": "Paginated entries"
+            "description": "Paginated entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["page", "isDone", "continueCursor"],
+                  "properties": {
+                    "page": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/KnowledgeEntry"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "description": "Pass back as `cursor` for the next page; empty when `isDone`"
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -5361,7 +6195,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5375,6 +6209,7 @@
       "post": {
         "tags": ["Knowledge"],
         "summary": "Create a knowledge entry",
+        "description": "Charged against the per-organization `knowledge:mutate` budget the in-app editor shares.",
         "operationId": "createKnowledgeEntry",
         "security": [
           {
@@ -5390,10 +6225,12 @@
                 "required": ["topic", "content"],
                 "properties": {
                   "topic": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 200
                   },
                   "content": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100000
                   }
                 }
               }
@@ -5402,7 +6239,7 @@
         },
         "responses": {
           "201": {
-            "description": "Created",
+            "description": "Created — the entry’s id",
             "content": {
               "application/json": {
                 "schema": {
@@ -5448,7 +6285,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5483,7 +6320,14 @@
         ],
         "responses": {
           "200": {
-            "description": "The entry"
+            "description": "The entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeEntry"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request (malformed body or parameters)",
@@ -5516,7 +6360,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5530,7 +6374,7 @@
       "patch": {
         "tags": ["Knowledge"],
         "summary": "Supersede a knowledge entry",
-        "description": "Entries are immutable: an update writes a NEW row and answers its id; the old row becomes `superseded`.",
+        "description": "Entries are immutable: an update writes a NEW row and answers its id; the old row becomes `superseded`. Both `topic` and `content` are required.",
         "operationId": "updateKnowledgeEntry",
         "security": [
           {
@@ -5554,12 +6398,15 @@
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": ["topic", "content"],
                 "properties": {
                   "topic": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 200
                   },
                   "content": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 100000
                   }
                 }
               }
@@ -5624,7 +6471,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5690,7 +6537,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5706,6 +6553,7 @@
       "post": {
         "tags": ["Knowledge"],
         "summary": "Semantic search over the organization’s knowledge",
+        "description": "A POST because it carries a body, not because it writes. Deliberately ORG-WIDE: the key speaks for the organization, not one member’s visibility.",
         "operationId": "searchKnowledge",
         "security": [
           {
@@ -5721,16 +6569,22 @@
                 "required": ["query"],
                 "properties": {
                   "query": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 2000
                   },
                   "corpus": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": ["documents", "web", "all"]
                   },
                   "limit": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50
                   },
                   "minSimilarity": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
                   }
                 }
               }
@@ -5749,13 +6603,16 @@
                     "hits": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "type": "object",
+                        "additionalProperties": true
                       }
                     },
                     "diagnostics": {
-                      "type": "object"
+                      "type": "object",
+                      "additionalProperties": true
                     }
-                  }
+                  },
+                  "additionalProperties": true
                 }
               }
             }
@@ -5791,7 +6648,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5850,7 +6707,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded",
+            "description": "Rate limit exceeded (Retry-After names the wait)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5950,81 +6807,240 @@
       }
     },
     "schemas": {
-      "CreateDocumentRequest": {
+      "Error": {
         "type": "object",
-        "required": ["title"],
+        "required": ["error"],
         "properties": {
+          "error": {
+            "type": "string",
+            "description": "What went wrong"
+          },
+          "code": {
+            "type": "string",
+            "description": "A stable refusal code, when the domain has one"
+          }
+        }
+      },
+      "Document": {
+        "type": "object",
+        "required": ["id", "title", "createdBy", "createdAt", "updatedAt"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
           "title": {
             "type": "string"
           },
           "content": {
-            "type": "string"
+            "type": "string",
+            "description": "Inline text; null for blob-backed documents and in listings",
+            "nullable": true
           },
           "fileId": {
-            "type": "string"
+            "type": "string",
+            "description": "The blob reference",
+            "nullable": true
           },
           "mimeType": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "extension": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
-          "metadata": {
-            "type": "object"
+          "sourceProvider": {
+            "type": "string",
+            "nullable": true
           },
           "teamId": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "folderId": {
-            "type": "string"
-          }
-        }
-      },
-      "CreateProductRequest": {
-        "type": "object",
-        "required": ["name"],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "price": {
-            "type": "number"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "stock": {
-            "type": "integer"
-          },
-          "category": {
-            "type": "string"
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "status": {
-            "type": "string"
-          },
-          "imageUrl": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "metadata": {
-            "type": "object"
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          },
+          "updatedAt": {
+            "type": "number",
+            "description": "Epoch ms"
           }
         }
       },
-      "CreateWebsiteRequest": {
+      "DocumentInput": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 5000000
+          },
+          "fileId": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "mimeType": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "extension": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "sourceProvider": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "teamId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "folderId": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      },
+      "DocumentPatch": {
+        "type": "object",
+        "description": "Every field optional; null clears it",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 5000000,
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "maxLength": 255,
+            "nullable": true
+          },
+          "extension": {
+            "type": "string",
+            "maxLength": 32,
+            "nullable": true
+          },
+          "sourceProvider": {
+            "type": "string",
+            "maxLength": 64,
+            "nullable": true
+          },
+          "teamId": {
+            "type": "string",
+            "maxLength": 128,
+            "nullable": true
+          },
+          "folderId": {
+            "type": "string",
+            "maxLength": 64,
+            "nullable": true
+          }
+        }
+      },
+      "Website": {
+        "type": "object",
+        "required": [
+          "id",
+          "organizationId",
+          "domain",
+          "scanInterval",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["site", "list"],
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "scanInterval": {
+            "type": "string"
+          },
+          "lastScannedAt": {
+            "type": "number",
+            "description": "Epoch ms",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageCount": {
+            "type": "integer",
+            "nullable": true
+          },
+          "crawledPageCount": {
+            "type": "integer",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          },
+          "updatedAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          }
+        }
+      },
+      "WebsiteInput": {
         "type": "object",
         "required": ["domain", "scanInterval"],
         "properties": {
           "domain": {
-            "type": "string"
+            "type": "string",
+            "description": "A hostname or URL"
           },
           "title": {
             "type": "string"
@@ -6044,187 +7060,7 @@
           }
         }
       },
-      "Document": {
-        "type": "object",
-        "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "content": {
-            "type": "string"
-          },
-          "fileId": {
-            "type": "string"
-          },
-          "mimeType": {
-            "type": "string"
-          },
-          "extension": {
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "teamId": {
-            "type": "string"
-          },
-          "folderId": {
-            "type": "string"
-          },
-          "sourceProvider": {
-            "type": "string"
-          },
-          "_creationTime": {
-            "type": "number"
-          }
-        }
-      },
-      "DocumentList": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Document"
-            }
-          },
-          "cursor": {
-            "type": "string"
-          },
-          "hasMore": {
-            "type": "boolean"
-          }
-        }
-      },
-      "Product": {
-        "type": "object",
-        "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "price": {
-            "type": "number"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "stock": {
-            "type": "integer"
-          },
-          "category": {
-            "type": "string"
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "status": {
-            "type": "string"
-          },
-          "imageUrl": {
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "_creationTime": {
-            "type": "number"
-          }
-        }
-      },
-      "ProductList": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Product"
-            }
-          },
-          "cursor": {
-            "type": "string"
-          },
-          "hasMore": {
-            "type": "boolean"
-          }
-        }
-      },
-      "UpdateDocumentRequest": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string"
-          },
-          "content": {
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "mimeType": {
-            "type": "string"
-          },
-          "extension": {
-            "type": "string"
-          },
-          "teamId": {
-            "type": "string"
-          },
-          "folderId": {
-            "type": "string"
-          }
-        }
-      },
-      "UpdateProductRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "price": {
-            "type": "number"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "stock": {
-            "type": "integer"
-          },
-          "category": {
-            "type": "string"
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "status": {
-            "type": "string"
-          },
-          "imageUrl": {
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
-          }
-        }
-      },
-      "UpdateWebsiteRequest": {
+      "WebsitePatch": {
         "type": "object",
         "properties": {
           "domain": {
@@ -6237,77 +7073,41 @@
             "type": "string"
           },
           "scanInterval": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          }
-        }
-      },
-      "Website": {
-        "type": "object",
-        "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "domain": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "scanInterval": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "_creationTime": {
-            "type": "number"
-          }
-        }
-      },
-      "WebsiteList": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Website"
-            }
-          },
-          "cursor": {
-            "type": "string"
-          },
-          "hasMore": {
-            "type": "boolean"
-          }
-        }
-      },
-      "WebsitePage": {
-        "type": "object",
-        "properties": {
-          "url": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "status": {
             "type": "string"
           }
         }
       },
       "WebsitePageList": {
         "type": "object",
+        "required": ["pages", "total", "offset", "hasMore"],
         "properties": {
-          "data": {
+          "pages": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/WebsitePage"
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "WebsiteSearchResults": {
+        "type": "object",
+        "required": ["results", "total"],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
             }
           },
           "total": {
@@ -6315,74 +7115,285 @@
           }
         }
       },
-      "WebsiteSearchRequest": {
+      "Product": {
         "type": "object",
-        "required": ["query"],
+        "required": [
+          "id",
+          "organizationId",
+          "name",
+          "tags",
+          "createdAt",
+          "updatedAt"
+        ],
         "properties": {
-          "query": {
+          "id": {
             "type": "string"
           },
-          "limit": {
-            "type": "integer"
-          }
-        }
-      },
-      "WebsiteSearchResults": {
-        "type": "object",
-        "properties": {
-          "results": {
+          "organizationId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "stock": {
+            "type": "number",
+            "nullable": true
+          },
+          "price": {
+            "type": "number",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "translations": {
             "type": "array",
             "items": {
               "type": "object",
-              "properties": {
-                "url": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "snippet": {
-                  "type": "string"
-                },
-                "score": {
-                  "type": "number"
-                }
-              }
-            }
+              "additionalProperties": true
+            },
+            "nullable": true
+          },
+          "externalId": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          },
+          "updatedAt": {
+            "type": "number",
+            "description": "Epoch ms"
           }
         }
       },
-      "Error": {
+      "ProductInput": {
         "type": "object",
-        "required": ["error"],
+        "description": "`name` is required on create; every field is optional on update",
         "properties": {
-          "error": {
-            "type": "string",
-            "description": "What went wrong"
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "stock": {
+            "type": "number"
+          },
+          "price": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
           }
         }
       },
       "Contact": {
         "type": "object",
-        "description": "A contact record. See the API reference for the full field set.",
+        "required": [
+          "id",
+          "organizationId",
+          "source",
+          "tags",
+          "createdAt",
+          "updatedAt"
+        ],
         "properties": {
           "id": {
             "type": "string"
           },
+          "organizationId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "externalId": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string"
+          },
+          "locale": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "lifecycleStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          },
+          "updatedAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          }
+        }
+      },
+      "ContactInput": {
+        "type": "object",
+        "properties": {
           "name": {
             "type": "string"
           },
           "email": {
             "type": "string"
           },
-          "source": {
+          "phone": {
             "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "Defaults to `api_import`"
           },
           "locale": {
             "type": "string"
+          },
+          "address": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "externalId": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "description": "Stored as a string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "notes": {
+            "type": "string"
           }
-        },
-        "additionalProperties": true
+        }
+      },
+      "BulkCreateResult": {
+        "type": "object",
+        "required": ["success", "failed", "errors"],
+        "properties": {
+          "success": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["index", "error", "errorCode", "contact"],
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "error": {
+                  "type": "string"
+                },
+                "errorCode": {
+                  "type": "string"
+                },
+                "contact": {
+                  "$ref": "#/components/schemas/ContactInput"
+                }
+              }
+            }
+          }
+        }
       },
       "Project": {
         "type": "object",
@@ -6464,27 +7475,25 @@
       },
       "ProjectFile": {
         "type": "object",
-        "required": ["id", "fileName", "createdAt"],
+        "required": ["id", "createdAt"],
         "properties": {
           "id": {
             "type": "string"
           },
           "fileName": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "folderId": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "nullable": true
           },
           "createdAt": {
             "type": "number"
-          },
-          "size": {
-            "type": "number",
-            "description": "Bytes, when known"
-          },
-          "ragStatus": {
-            "type": "string",
-            "description": "Knowledge-index status; absent means not indexed (the default for this door)"
           }
         }
       },
@@ -6574,23 +7583,35 @@
       },
       "AutomationSummary": {
         "type": "object",
-        "required": ["name", "latest"],
+        "required": ["name", "latestVersion", "deployedVersion", "projectIds"],
         "properties": {
           "name": {
             "type": "string",
             "description": "The real `/`-slug"
           },
-          "latest": {
+          "latestVersion": {
             "type": "integer"
           },
           "deployedVersion": {
-            "type": "integer"
+            "type": "integer",
+            "description": "null while nothing is deployed",
+            "nullable": true
+          },
+          "presentation": {
+            "description": "The newest version’s display block, if authored"
+          },
+          "projectIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The binding set; empty means org-level"
           }
         }
       },
       "Automation": {
         "type": "object",
-        "required": ["name", "version", "document"],
+        "required": ["name", "version", "document", "createdBy", "createdAt"],
         "properties": {
           "name": {
             "type": "string"
@@ -6619,12 +7640,97 @@
           }
         }
       },
-      "RunSummary": {
+      "AutomationVersion": {
         "type": "object",
-        "required": ["runId", "status", "mode", "startedAt"],
+        "required": ["version", "createdBy", "createdAt"],
         "properties": {
-          "runId": {
+          "version": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "testsPassed": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "createdBy": {
             "type": "string"
+          },
+          "createdAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          }
+        }
+      },
+      "Trigger": {
+        "type": "object",
+        "required": ["name", "kind", "hasToken", "enabled"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["schedule", "webhook", "event"]
+          },
+          "cron": {
+            "type": "string",
+            "nullable": true
+          },
+          "timezone": {
+            "type": "string",
+            "nullable": true
+          },
+          "event": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasToken": {
+            "type": "boolean",
+            "description": "A webhook secret exists (never returned here)"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "lastFiredAt": {
+            "type": "number",
+            "description": "Epoch ms",
+            "nullable": true
+          }
+        }
+      },
+      "Run": {
+        "type": "object",
+        "description": "A run in full — the same row in the runs listing and the single read: identity, status, input, output, trace, effects, and per-node checkpoints.",
+        "required": [
+          "id",
+          "organizationId",
+          "name",
+          "version",
+          "status",
+          "mode",
+          "startedBy",
+          "startedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The run id (`runId` at start)"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "projectId": {
+            "type": "string",
+            "nullable": true
           },
           "status": {
             "type": "string",
@@ -6641,30 +7747,46 @@
             "type": "string",
             "enum": ["mock", "live"]
           },
-          "version": {
+          "startedBy": {
+            "type": "string",
+            "description": "`api-key:<userId>` for runs started here"
+          },
+          "input": {},
+          "output": {},
+          "checkpoints": {},
+          "trace": {},
+          "effects": {},
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "claimEpoch": {
+            "type": "integer"
+          },
+          "chainSeq": {
             "type": "integer"
           },
           "startedAt": {
-            "type": "number"
+            "type": "number",
+            "description": "Epoch ms"
           },
           "finishedAt": {
-            "type": "number"
+            "type": "number",
+            "description": "Epoch ms",
+            "nullable": true
           }
         }
       },
-      "Run": {
-        "type": "object",
-        "description": "A run in full: summary fields plus input, output, trace, effects, and per-node checkpoints.",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/RunSummary"
-          }
-        ],
-        "additionalProperties": true
-      },
       "Thread": {
         "type": "object",
-        "required": ["id"],
+        "required": [
+          "id",
+          "kind",
+          "archived",
+          "createdAt",
+          "updatedAt",
+          "generating"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -6678,23 +7800,223 @@
           "agentSlug": {
             "type": "string"
           },
+          "harness": {
+            "type": "string"
+          },
           "projectId": {
             "type": "string"
           },
           "archived": {
             "type": "boolean"
           },
+          "isShared": {
+            "type": "boolean"
+          },
           "generating": {
             "type": "boolean"
           },
           "createdAt": {
-            "type": "number"
+            "type": "number",
+            "description": "Epoch ms"
           },
           "updatedAt": {
-            "type": "number"
+            "type": "number",
+            "description": "Epoch ms"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "required": ["id", "role", "parts", "sequence", "createdAt"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "The message parts (text, tool calls, files)"
+          },
+          "sequence": {
+            "type": "integer",
+            "description": "The paging key"
+          },
+          "model": {
+            "type": "string"
+          },
+          "providerSlug": {
+            "type": "string"
+          },
+          "blockedReason": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          }
+        }
+      },
+      "AgentSummary": {
+        "type": "object",
+        "required": ["slug", "displayName", "visibility"],
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": ["private", "org"]
+          },
+          "owner": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": true
+      },
+      "Agent": {
+        "type": "object",
+        "description": "The agent file as authored, plus its resolved summary",
+        "required": ["slug", "displayName"],
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": ["private", "org"]
+          }
+        },
+        "additionalProperties": true
+      },
+      "SkillSummary": {
+        "type": "object",
+        "required": ["slug", "description", "visibility"],
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": ["private", "team", "org"]
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owner": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Skill": {
+        "type": "object",
+        "description": "The skill bundle: its summary fields plus the body",
+        "required": ["slug", "description"],
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": ["private", "team", "org"]
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "KnowledgeEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "topic",
+          "content",
+          "status",
+          "source",
+          "createdBy",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "superseded"]
+          },
+          "source": {
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          },
+          "supersededBy": {
+            "type": "string",
+            "description": "The row that replaced this one"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "number",
+            "description": "Epoch ms"
+          }
+        }
       }
     }
   }

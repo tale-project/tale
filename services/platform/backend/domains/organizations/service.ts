@@ -7,14 +7,20 @@ import {
 } from '../../auth/membership.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { logSuccess } from '../audit_logs/service.ts';
+import {
+  loadActiveHolds,
+  LegalHoldError,
+  type ActiveHolds,
+} from '../legal_holds/service.ts';
 
 /**
  * Organizations domain — reads, the org-switch record, and the deletion
- * door. Better Auth's org plugin owns create/update/delete + invitations
- * (served on /api/auth/organization/*); this module carries the app-side
- * semantics around them. Ledger notes: the legal-hold guard on deletion and
- * the user_memories half of the personalization cascade land with the
- * governance domain.
+ * door. Better Auth's org plugin owns create/update + invitations (served on
+ * /api/auth/organization/*); this module carries the app-side semantics
+ * around them. Deletion is the exception: it is served HERE, as one
+ * transaction (`deleteOrganization`), and Better Auth's own
+ * `/organization/delete` is disabled — a second door would bypass the
+ * legal-hold gate, the audit row, and the app-side cascade.
  */
 
 export class OrganizationError extends Error {
@@ -247,13 +253,47 @@ export async function resolveUserOrganization(
 }
 
 /**
- * Owner-only pre-deletion door, invoked right before the client calls
- * Better Auth's `organization.delete`: audit while membership still exists,
- * cascade app-side per-user state, and enqueue the filesystem cleanup.
- * TODO(governance): re-add the legal-hold guard (`assertNotHeld`) when the
- * governance domain lands.
+ * The legal-hold verdict for deleting a whole organization. Deleting the org
+ * destroys every target a hold can name — the org itself AND every
+ * custodian's artifacts — so an active hold of EITHER granularity blocks.
+ * Pure: the caller loads the holds; this only shapes the refusal.
  */
-export async function prepareOrganizationDeletion(
+export function describeOrganizationHoldBlock(
+  holds: ActiveHolds,
+): LegalHoldError | null {
+  if (holds.orgHeld) {
+    return new LegalHoldError(
+      'LEGAL_HOLD_ACTIVE',
+      'This organization is under an active legal hold. Release the hold before deleting the organization.',
+      409,
+    );
+  }
+  const custodians = holds.userMembershipIds.size;
+  if (custodians > 0) {
+    return new LegalHoldError(
+      'LEGAL_HOLD_ACTIVE',
+      `${custodians} member${custodians === 1 ? '' : 's'} of this organization ${custodians === 1 ? 'is' : 'are'} under a custodian legal hold. Release those holds before deleting the organization.`,
+      409,
+    );
+  }
+  return null;
+}
+
+/**
+ * The ONE deletion door — owner-only, whole teardown in the caller's
+ * transaction so it either fully commits or leaves nothing behind. Order:
+ * every guard first (membership, owner role, default-org protection, legal
+ * holds — nothing is written until all pass), then the audit row (while the
+ * actor's membership still exists), the app-side per-user cascade, Better
+ * Auth's own rows (team members, teams, invitations, members, the org), and
+ * finally the config-tree cleanup job — enqueued THROUGH the transaction, so
+ * the job exists only if the deletion committed.
+ *
+ * Tenant isolation: every statement is keyed by this organization's id. A
+ * user who also belongs to other organizations loses exactly this
+ * membership; their account and other memberships are untouched.
+ */
+export async function deleteOrganization(
   tx: TransactionSql,
   actor: { userId: string; email?: string },
   organizationId: string,
@@ -288,6 +328,15 @@ export async function prepareOrganizationDeletion(
     );
   }
 
+  // Preservation gate: an org-wide hold or ANY custodian hold refuses — the
+  // whole tenant is what a deletion would destroy.
+  const holdBlock = describeOrganizationHoldBlock(
+    await loadActiveHolds(tx, organizationId),
+  );
+  if (holdBlock !== null) {
+    throw holdBlock;
+  }
+
   await logSuccess(tx, {
     auditCtx: {
       organizationId,
@@ -305,9 +354,41 @@ export async function prepareOrganizationDeletion(
     metadata: { slug },
   });
 
-  // Personalization cascade (the ported half): per-user preference rows die
-  // with the org. user_memories follows with its domain.
+  // Personalization cascade: per-user preference and memory rows are scoped
+  // to this org and die with it. Pointers at the dead org go too, so no
+  // session or API-key resolution follows a dangling id.
   await tx`DELETE FROM app.user_preferences WHERE org_id = ${organizationId}`;
+  await tx`DELETE FROM app.memories WHERE org_id = ${organizationId}`;
+  await tx`
+    UPDATE "user" SET "lastActiveOrganizationId" = NULL
+    WHERE "lastActiveOrganizationId" = ${organizationId}
+  `;
+  await tx`
+    UPDATE "session" SET "activeOrganizationId" = NULL
+    WHERE "activeOrganizationId" = ${organizationId}
+  `;
+
+  // Better Auth's own rows, leaf-first. (Its `organization.delete` removes
+  // members, invitations and the org but strands teams; this is the
+  // complete set for the teams-enabled plugin.)
+  await tx`
+    DELETE FROM "teamMember"
+    WHERE "teamId" IN (
+      SELECT "id" FROM "team" WHERE "organizationId" = ${organizationId}
+    )
+  `;
+  await tx`DELETE FROM "team" WHERE "organizationId" = ${organizationId}`;
+  await tx`
+    DELETE FROM "invitation" WHERE "organizationId" = ${organizationId}
+  `;
+  await tx`DELETE FROM "member" WHERE "organizationId" = ${organizationId}`;
+  const removed = await tx<{ id: string }[]>`
+    DELETE FROM "organization" WHERE "id" = ${organizationId} RETURNING "id"
+  `;
+  if (removed.length === 0) {
+    // A concurrent deletion won the race; nothing of ours may stand.
+    throw new OrganizationError('ORG_NOT_FOUND', 'Organization not found', 404);
+  }
 
   await addJobInTx(
     tx,

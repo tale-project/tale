@@ -5,7 +5,8 @@
   Runs BEFORE turbo so the whole dev fleet (platform + sandbox + …) starts from a
   production-shaped secret set instead of insecure hardcoded fallbacks:
 
-    1) Ensure INSTANCE_SECRET, BETTER_AUTH_SECRET and SANDBOX_TOKEN exist.
+    1) Ensure INSTANCE_SECRET, BETTER_AUTH_SECRET, SANDBOX_TOKEN,
+       SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD and DB_PASSWORD exist.
        Any that are genuinely missing get a cryptographically-random value
        (same shapes the CLI's `ensureEnv` mints for the container path) and are
        PERSISTED to a gitignored repo-root `.env` so they're STABLE across
@@ -75,9 +76,19 @@ function parseDotEnv(filePath: string): Record<string, string> {
 const SECRET_GENERATORS: Record<string, () => string> = {
   INSTANCE_SECRET: () => randomBytes(32).toString('hex'),
   BETTER_AUTH_SECRET: () => randomBytes(32).toString('base64'),
-  // Shared HMAC key for Convex → sandbox spawner request signing. Hex, 32 bytes
-  // (mirrors services/sandbox/src/auth.ts and the CLI's SANDBOX_TOKEN).
+  // Shared HMAC key for backend → sandbox spawner request signing. Hex, 32
+  // bytes (mirrors services/sandbox/src/auth.ts and the CLI's SANDBOX_TOKEN).
+  // The spawner refuses to boot without it, so it must exist before compose
+  // brings the sandbox container up.
   SANDBOX_TOKEN: () => randomBytes(32).toString('hex'),
+  // Admin credential for the sandbox LLM gateway's management API. The backend
+  // refuses every management call without it (the gateway shares one port on
+  // the sandbox network). Mirrors the CLI's generatePassword (16 random bytes,
+  // base64url). Must stay STABLE once minted: the gateway stores its hash in
+  // its own volume, so a changed value locks the platform out until that
+  // volume is wiped — which is why it is persisted to .env like the others.
+  SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: () =>
+    randomBytes(16).toString('base64url'),
   // Postgres/ParadeDB superuser password (db + knowledge-db). Postgres reads it
   // only on the container's first init (initdb), and the platform orchestrator
   // derives KNOWLEDGE_DATABASE_URL from it — so an unset value silently breaks

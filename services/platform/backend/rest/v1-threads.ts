@@ -4,7 +4,14 @@ import { z } from 'zod';
 
 import { createThread, loadOwnedThread } from '../domains/chat/threads.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
-import { chargeLane, domainErrorResponse, type RestEnv } from './shared.ts';
+import {
+  chargeLane,
+  domainErrorResponse,
+  formatKeysetCursor,
+  pageLimit,
+  parseKeysetCursor,
+  type RestEnv,
+} from './shared.ts';
 
 /**
  * /api/v1 threads — the REST chat lane, direct turns only.
@@ -89,22 +96,10 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   /** The key holder's own threads, newest activity first, keyset-paginated
    * (`cursor` = the previous page's `<updatedAt>:<id>`). */
   app.get('/threads', async (c) => {
-    const limitRaw = Number(c.req.query('limit') ?? '25');
-    const limit = Math.min(
-      Math.max(Number.isFinite(limitRaw) ? limitRaw : 25, 1),
-      100,
-    );
-    const cursor = c.req.query('cursor') ?? null;
-    let cursorUpdatedAt: number | null = null;
-    let cursorId: string | null = null;
-    if (cursor !== null && cursor !== '') {
-      const split = cursor.indexOf(':');
-      const updatedAt = Number(cursor.slice(0, split));
-      if (split > 0 && Number.isFinite(updatedAt)) {
-        cursorUpdatedAt = updatedAt;
-        cursorId = cursor.slice(split + 1);
-      }
-    }
+    const limit = pageLimit(c.req.query('limit'), { fallback: 25, max: 100 });
+    const cursor = parseKeysetCursor(c.req.query('cursor'));
+    const cursorUpdatedAt = cursor?.at ?? null;
+    const cursorId = cursor?.id ?? null;
     const rows = await deps.sql<RestThreadRow[]>`
       SELECT ${deps.sql.unsafe(REST_THREAD_COLUMNS)}
       FROM app.threads t
@@ -128,7 +123,8 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     return c.json({
       page: views,
       isDone,
-      continueCursor: isDone || !last ? '' : `${last.updatedAt}:${last.id}`,
+      continueCursor:
+        isDone || !last ? '' : formatKeysetCursor(last.updatedAt, last.id),
     });
   });
 

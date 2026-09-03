@@ -57,7 +57,10 @@ const DIRECT = { status: 'active', authMethod: 'api-key' };
 beforeEach(() => {
   vi.clearAllMocks();
   credentials = {};
-  resolveConnectors.mockResolvedValue([{ name: 'first' }, { name: 'second' }]);
+  resolveConnectors.mockResolvedValue([
+    { name: 'first', catalog: { source: 'static' } },
+    { name: 'second', catalog: { source: 'static' } },
+  ]);
   getProviderCatalog.mockResolvedValue([]);
   createBuilderModel.mockReturnValue(builderModel);
   builderModel.mockResolvedValue({ content: 'a fine sentence' });
@@ -151,7 +154,9 @@ describe('automationLlmCall', () => {
 
   it('serves a pack model id via OpenRouter catalog spelling on the wire', async () => {
     // Packs / Tale static catalog use hyphen minors; OpenRouter lists dots.
-    resolveConnectors.mockResolvedValue([{ name: 'openrouter' }]);
+    resolveConnectors.mockResolvedValue([
+      { name: 'openrouter', catalog: { source: 'static' } },
+    ]);
     credentials = { openrouter: DIRECT };
     getProviderCatalog.mockResolvedValue([
       { id: 'anthropic/claude-haiku-4.5' },
@@ -177,7 +182,9 @@ describe('automationLlmCall', () => {
   });
 
   it('serves a pack model id via Anthropic bare catalog id on the wire', async () => {
-    resolveConnectors.mockResolvedValue([{ name: 'anthropic' }]);
+    resolveConnectors.mockResolvedValue([
+      { name: 'anthropic', catalog: { source: 'static' } },
+    ]);
     credentials = { anthropic: DIRECT };
     getProviderCatalog.mockResolvedValue([{ id: 'claude-haiku-4-5' }]);
 
@@ -201,7 +208,9 @@ describe('automationLlmCall', () => {
   });
 
   it('honors an allowlist written in the catalog dialect when the pack uses Tale form', async () => {
-    resolveConnectors.mockResolvedValue([{ name: 'openrouter' }]);
+    resolveConnectors.mockResolvedValue([
+      { name: 'openrouter', catalog: { source: 'static' } },
+    ]);
     credentials = {
       openrouter: {
         ...DIRECT,

@@ -80,11 +80,10 @@ export class SessionRoutes {
     return stopped;
   }
 
-  /** runnerd token for a session: derived from SANDBOX_TOKEN when signed, or
-   * '' in unsigned dev mode (runnerd skips the check, matching the spawner's
-   * own opt-in HMAC policy). */
+  /** runnerd token for a session: derived from SANDBOX_TOKEN (always set —
+   * loadConfig fails closed without it, so every session carries a real
+   * token and runnerd always verifies). */
   private tokenFor(sessionId: string): string {
-    if (this.cfg.sandboxToken === null) return '';
     return deriveRunnerdToken(this.cfg.sandboxToken, sessionId);
   }
 

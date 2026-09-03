@@ -101,8 +101,53 @@ export function ensureSandboxLlmGatewayUrl(env: NodeJS.ProcessEnv): void {
 }
 
 /**
+ * Insecure local fallbacks for the two sandbox control-plane secrets. Both
+ * sides fail closed without them — the spawner refuses to boot without
+ * SANDBOX_TOKEN, the backend refuses every LLM-gateway management call
+ * without the admin password — and each value MUST agree between the host
+ * `bun dev` backend and the dockerized spawner / gateway. So these literals
+ * are the SAME values `compose.dev.yml`'s `x-dev-secrets` anchor defaults to
+ * (dev-secrets.test.ts pins the lockstep). The root `bun run dev` normally
+ * mints random values into .env first; these only fill the gap when the
+ * platform orchestrator runs on its own. Production must set real ones.
+ */
+export const DEV_SANDBOX_TOKEN =
+  'local-dev-insecure-sandbox-token-do-not-use-in-prod-0123456789abcdef';
+export const DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD =
+  'local-dev-insecure-gateway-admin-password';
+
+/** Shared HMAC key for backend → sandbox spawner request signing. */
+export function ensureSandboxToken(env: NodeJS.ProcessEnv): void {
+  if (env.SANDBOX_TOKEN?.trim()) return;
+  warnLine(
+    'SANDBOX_TOKEN not set; using an insecure local default. Set SANDBOX_TOKEN in .env for production.',
+  );
+  env.SANDBOX_TOKEN = DEV_SANDBOX_TOKEN;
+}
+
+/** Admin credential for the sandbox LLM gateway's management API. The
+ * pre-rename LLM_GATEWAY_ADMIN_PASSWORD still counts as set (the backend reads
+ * it as a fallback for one release). */
+export function ensureSandboxLlmGatewayAdminPassword(
+  env: NodeJS.ProcessEnv,
+): void {
+  if (
+    env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD?.trim() ||
+    env.LLM_GATEWAY_ADMIN_PASSWORD?.trim()
+  ) {
+    return;
+  }
+  warnLine(
+    'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD not set; using an insecure local default. Set it in .env for production.',
+  );
+  env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD =
+    DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
+}
+
+/**
  * The ordered secret-derivation chain: instance secret → better-auth secret →
- * WebDAV HMAC key (reused) → encryption key → knowledge-db URL → gateway URL.
+ * WebDAV HMAC key (reused) → encryption key → knowledge-db URL → gateway URL →
+ * the sandbox control-plane pair (spawner token, gateway admin password).
  * Each fills a gap only; the HMAC and encryption keys necessarily derive from
  * whatever INSTANCE_SECRET resolved to.
  */
@@ -113,6 +158,8 @@ export function deriveDevSecrets(env: NodeJS.ProcessEnv): void {
   ensureEncryptionSecret(env);
   ensureKnowledgeDatabaseUrl(env);
   ensureSandboxLlmGatewayUrl(env);
+  ensureSandboxToken(env);
+  ensureSandboxLlmGatewayAdminPassword(env);
   ensureAppDatabaseUrl(env);
   ensureObjectStoreEnv(env);
 }

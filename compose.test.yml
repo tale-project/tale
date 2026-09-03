@@ -63,3 +63,10 @@ services:
     ports:
       - '10080:80'
       - '10443:443'
+
+  # The spawner refuses to boot without SANDBOX_TOKEN, and the smoke test signs
+  # its session-API probes with the .env.test value — so the container must
+  # read the same file (compose.yml only reads the optional .env).
+  sandbox:
+    env_file:
+      - .env.test

@@ -64,6 +64,17 @@ x-dev-secrets: &dev-secrets
   # Stable dev key so the audit hash-chain verifies; absent → "integrity check
   # failed" alert on an otherwise-clean stack. Rotate for production.
   TALE_AUDIT_SIGNING_KEY: ${TALE_AUDIT_SIGNING_KEY:-4f8c2a9e7b1d6035e4a8c2f9d7b3061a5e8c4f2a9d7b30615e4c8a2f9d7b30614}
+  # The sandbox control plane fails closed without these two: the spawner
+  # refuses to boot without SANDBOX_TOKEN (it holds the docker socket and sits
+  # on the network every session container shares), and the backend refuses
+  # every LLM-gateway management call without the admin password (the gateway
+  # shares one port for inference and /api/* on that same network). Same
+  # literals as services/platform/scripts/dev-secrets.ts so a host `bun dev`
+  # backend and this dockerized spawner / gateway share ONE HMAC key and ONE
+  # admin credential (dev-secrets.test.ts pins the lockstep). The gateway
+  # stores the password's hash in its volume, so the value must stay stable.
+  SANDBOX_TOKEN: ${SANDBOX_TOKEN:-local-dev-insecure-sandbox-token-do-not-use-in-prod-0123456789abcdef}
+  SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: ${SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD:-local-dev-insecure-gateway-admin-password}
 
 services:
   db:
@@ -95,7 +106,6 @@ services:
     environment:
       <<: *dev-secrets
       NODE_ENV: development
-
 
   # `bun dev` runs the backend on the HOST, but a sandbox session container
   # sits on the --internal sandbox net with no host route and its undici fetch
@@ -181,3 +191,8 @@ services:
   sandbox:
     extra_hosts:
       - 'host.docker.internal:host-gateway'
+    # compose.yml only reads SANDBOX_TOKEN from the optional .env, and the
+    # spawner refuses to boot without it — the anchor's dev default keeps the
+    # no-.env dev stack bootable (and in lockstep with the host backend).
+    environment:
+      <<: *dev-secrets

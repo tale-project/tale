@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '../../../../lib/shared/errors/app-error';
 import type { ActionCtx } from '../../lib/ctx';
 import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
 import type { Id } from '../../lib/rows';
@@ -63,8 +64,15 @@ function apiKeyResolution(secret = 'sk-live') {
   } as const;
 }
 
+// The provisioning entry fails closed on the gateway admin password; give
+// every test a default so only the precondition test below removes it.
+beforeEach(() => {
+  vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-test');
+});
+
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe('buildProviderProvision', () => {
@@ -198,28 +206,79 @@ describe('provisionSessionGatewayKey', () => {
     ]);
   });
 
-  it('continues past a provider whose provision fails (mint fails closed later)', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    mockedResolve.mockRejectedValueOnce(new Error('no default credential'));
-    mockedResolve.mockResolvedValueOnce(apiKeyResolution('sk-b'));
-    await provisionSessionGatewayKey(fakeCtx(), {
-      organizationId: 'org_1',
-      sessionId: 'sess-2',
-      allowedModels: [
-        { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
-        { providerSlug: 'anthropic', modelId: 'claude-fable-5' },
-      ],
-      budgetCents: 100,
-    });
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("building provision for 'openrouter' failed"),
-      expect.anything(),
+  it('refuses to mint when a needed credential is disabled (no stale-key fallback)', async () => {
+    // The gateway still holds the org's upstream key from the last
+    // successful provision. Continuing past the failed resolve used to bind
+    // a fresh virtual key to that stale secret — a credential the admin just
+    // disabled kept serving sandbox turns.
+    mockedResolve.mockRejectedValueOnce(
+      new AppError({
+        code: 'CREDENTIAL_DISABLED',
+        message: 'Credential "Main key" is disabled',
+      }),
     );
-    expect(provisionProviders).toHaveBeenCalledWith('org_1', [
-      expect.objectContaining({ name: 'anthropic', apiKey: 'sk-b' }),
-    ]);
-    expect(mintVirtualKey).toHaveBeenCalled();
-    warn.mockRestore();
+    await expect(
+      provisionSessionGatewayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-2',
+        allowedModels: [
+          { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+        ],
+        budgetCents: 100,
+      }),
+    ).rejects.toThrow(
+      'Provider "openrouter" cannot serve this session: Credential "Main key" is disabled',
+    );
+    expect(provisionProviders).not.toHaveBeenCalled();
+    expect(mintVirtualKey).not.toHaveBeenCalled();
+  });
+
+  it('refuses to mint when a needed provider has no default credential left', async () => {
+    // Deleting the default credential leaves the provider unresolvable; the
+    // vision provider's failure fails the session exactly like the serving
+    // provider's — every model on the key must be backed by a live credential.
+    mockedResolve.mockResolvedValueOnce(apiKeyResolution('sk-a'));
+    mockedResolve.mockRejectedValueOnce(
+      new AppError({
+        code: 'CREDENTIAL_NONE_CONFIGURED',
+        message: 'No default credential is configured for provider "anthropic"',
+      }),
+    );
+    await expect(
+      provisionSessionGatewayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-2b',
+        allowedModels: [
+          { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
+          { providerSlug: 'anthropic', modelId: 'claude-fable-5' },
+        ],
+        budgetCents: 100,
+      }),
+    ).rejects.toThrow(
+      'Provider "anthropic" cannot serve this session: No default credential is configured for provider "anthropic"',
+    );
+    expect(provisionProviders).not.toHaveBeenCalled();
+    expect(mintVirtualKey).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before any credential resolve or gateway call when the admin password is unset', async () => {
+    // An anonymous management plane on the sandbox network would let sandboxed
+    // code mint its own keys — refuse the whole session up front, once.
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
+    vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', undefined);
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+    await expect(
+      provisionSessionGatewayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-5',
+        allowedModels: MODELS,
+        budgetCents: 100,
+      }),
+    ).rejects.toThrow('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set');
+    expect(mockedResolve).not.toHaveBeenCalled();
+    expect(provisionProviders).not.toHaveBeenCalled();
+    expect(applyGatewayConfig).not.toHaveBeenCalled();
+    expect(mintVirtualKey).not.toHaveBeenCalled();
   });
 
   it('propagates an auth-posture failure (fail-closed, never mints)', async () => {

@@ -59,12 +59,14 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
+import { directActiveCredential } from '../lib/providers/direct_credential';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import {
   resolveChatModel,
   type ChatAutoResolutionRefusal,
 } from '../lib/providers/resolve_chat_model';
+import { getServableCatalog } from '../lib/providers/servable_catalog';
 import { readBlobBytes } from '../lib/storage/blob_access';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
@@ -90,7 +92,9 @@ interface ResolvedModel {
  * The connector that lists it is the one whose wire the turn will speak.
  * A provider hint (the composer's picked section) is tried first, so two
  * providers serving the same id resolve to the copy the user chose; an
- * unmatched hint falls back to the id-only walk rather than refusing. */
+ * unmatched hint falls back to the id-only walk rather than refusing. A
+ * catalog-less connector (Azure deployment names) serves its DEFAULT
+ * credential's allowlist — the same credential the direct wire resolves. */
 async function resolveModel(
   ctx: ActionCtx,
   organizationId: string,
@@ -106,7 +110,17 @@ async function resolveModel(
           ...connectors.filter((connector) => connector.name !== providerSlug),
         ];
   for (const connector of ordered) {
-    const catalog = await getProviderCatalog(connector);
+    let allowlist: readonly string[] | undefined;
+    if (connector.catalog.source === 'none') {
+      const row: unknown = await ctx.runQuery(
+        internal.provider_credentials.queries.getDefaultCredentialInternal,
+        { organizationId, providerSlug: connector.name },
+      );
+      const credential = directActiveCredential(row);
+      if (credential === null) continue;
+      allowlist = credential.modelAllowlist;
+    }
+    const catalog = await getServableCatalog(connector, allowlist);
     const entry = catalog.find((candidate) => candidate.id === modelId);
     if (entry) return { entry, connector };
   }

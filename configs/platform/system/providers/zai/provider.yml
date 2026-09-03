@@ -14,8 +14,11 @@
 # endpoint, so it forces sandboxed execution on the claude-code harness and
 # never serves direct API calls. That endpoint silently DROPS image content
 # blocks for every model — even explicitly-requested vision models answer
-# blind (verified 2026-08-26) — so vision-dependent turns must ride the
-# direct lane; the plan key itself is accepted on the direct base too.
+# blind (verified 2026-08-26) — declared below as `imageInputs: dropped` so
+# serving refuses an image-bearing turn on this lane (or tells the agent it
+# cannot see) instead of letting the images vanish. Vision-dependent turns
+# must ride the direct lane; the plan key itself is accepted on the direct
+# base too.
 name: zai
 displayName: Z.ai (GLM)
 apiFormat: openai
@@ -28,6 +31,7 @@ auth:
   - method: subscription-key
     baseUrl: https://api.z.ai/api/anthropic
     apiFormat: anthropic
+    imageInputs: dropped
     constraints:
       execution: sandbox
       harness: claude-code

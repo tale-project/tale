@@ -58,6 +58,9 @@ import { resolveOrgSlug } from '../lib/org-config.ts';
 import { checkOrganizationRateLimit } from '../lib/rate-limit.ts';
 import {
   domainErrorResponse,
+  formatKeysetCursor,
+  pageLimit,
+  parseKeysetCursor,
   restProjectAuth,
   type RestEnv,
 } from './shared.ts';
@@ -92,21 +95,30 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     notes: z.string().optional(),
   });
 
+  /** Keyset-paginated (`cursor` = the previous page's `continueCursor`,
+   * `<updatedAt>:<id>`); `limit` 1..200, default 25. */
   app.get('/contacts', async (c) => {
-    const limitRaw = Number(c.req.query('limit') ?? '25');
+    const cursor = parseKeysetCursor(c.req.query('cursor'));
     try {
       const result = await listContacts(deps.sql, scope(c), {
         ...(c.req.query('source') !== undefined
           ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listContacts filters on the free-text column; unknown values match nothing
             { source: c.req.query('source') as never }
           : {}),
-        ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
+        cursor:
+          cursor === null ? null : { updatedAt: cursor.at, id: cursor.id },
+        limit: pageLimit(c.req.query('limit'), { fallback: 25, max: 200 }),
       });
       return c.json({
         page: result.items,
         isDone: result.nextCursor === null,
         continueCursor:
-          result.nextCursor === null ? '' : JSON.stringify(result.nextCursor),
+          result.nextCursor === null
+            ? ''
+            : formatKeysetCursor(
+                result.nextCursor.updatedAt,
+                result.nextCursor.id,
+              ),
       });
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -216,20 +228,32 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     metadata: z.record(z.string(), z.unknown()).optional(),
   });
 
+  /** Keyset-paginated like /contacts; `status` and `category` narrow. */
   app.get('/products', async (c) => {
-    const limitRaw = Number(c.req.query('limit') ?? '25');
+    const cursor = parseKeysetCursor(c.req.query('cursor'));
     try {
       const result = await listProducts(deps.sql, scope(c), {
         ...(c.req.query('category') !== undefined
           ? { category: c.req.query('category') ?? '' }
           : {}),
-        ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
+        ...(c.req.query('status') !== undefined
+          ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- listProducts filters on the status column; a value outside the vocabulary matches nothing
+            { status: c.req.query('status') as never }
+          : {}),
+        cursor:
+          cursor === null ? null : { updatedAt: cursor.at, id: cursor.id },
+        limit: pageLimit(c.req.query('limit'), { fallback: 25, max: 200 }),
       });
       return c.json({
         page: result.items,
         isDone: result.nextCursor === null,
         continueCursor:
-          result.nextCursor === null ? '' : JSON.stringify(result.nextCursor),
+          result.nextCursor === null
+            ? ''
+            : formatKeysetCursor(
+                result.nextCursor.updatedAt,
+                result.nextCursor.id,
+              ),
       });
     } catch (error) {
       return domainErrorResponse(c, error);

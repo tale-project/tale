@@ -7,6 +7,7 @@ import {
   classifyChatErrorCode,
   encodeChatError,
 } from '../../../lib/shared/chat-errors.ts';
+import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -42,6 +43,32 @@ import {
 import { getPendingQuestion, resolveQuestion } from './questions.ts';
 import { runChatTurn } from './service.ts';
 import { appendMessageRow } from './store.ts';
+
+/** The pre-turn refusals of the serving layer: the model is not available to
+ * the org, or the credential its provider resolves to cannot serve. Every
+ * other error from a turn stays what it is — an internal failure. */
+const SERVING_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  'CHAT_MODEL_UNKNOWN',
+  'CHAT_CREDENTIAL_UNSUPPORTED',
+  'CHAT_PROVIDER_ENDPOINT_MISSING',
+  'CREDENTIAL_NONE_CONFIGURED',
+  'CREDENTIAL_DISABLED',
+  'CREDENTIAL_KEY_ROTATED',
+  'CREDENTIAL_ENV_UNSET',
+]);
+
+function servingRefusalReason(error: unknown): string | null {
+  if (!(error instanceof AppError)) return null;
+  const data: unknown = error.data;
+  if (data === null || typeof data !== 'object') return null;
+  const code = 'code' in data ? data.code : undefined;
+  const message = 'message' in data ? data.message : undefined;
+  return typeof code === 'string' &&
+    SERVING_REFUSAL_CODES.has(code) &&
+    typeof message === 'string'
+    ? message
+    : null;
+}
 import {
   loadProjectSharedThread,
   branchForEdit,
@@ -1245,29 +1272,40 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         409,
       );
     }
-    const outcome = await runChatTurn(deps.sql, {
-      organizationId,
-      userId,
-      threadId: thread.id,
-      userText: body.data.text,
-      ...(body.data.modelId !== undefined
-        ? { modelId: body.data.modelId }
-        : {}),
-      ...(body.data.modelSelection !== undefined
-        ? { modelSelection: body.data.modelSelection }
-        : {}),
-      ...(body.data.providerSlug !== undefined
-        ? { providerSlug: body.data.providerSlug }
-        : {}),
-      ...(body.data.reasoningEffort !== undefined
-        ? { reasoningEffort: body.data.reasoningEffort }
-        : {}),
-      ...(body.data.attachments !== undefined &&
-      body.data.attachments.length > 0
-        ? { attachments: body.data.attachments }
-        : {}),
-      ...(body.data.resend === true ? { resend: true } : {}),
-    });
+    let outcome;
+    try {
+      outcome = await runChatTurn(deps.sql, {
+        organizationId,
+        userId,
+        threadId: thread.id,
+        userText: body.data.text,
+        ...(body.data.modelId !== undefined
+          ? { modelId: body.data.modelId }
+          : {}),
+        ...(body.data.modelSelection !== undefined
+          ? { modelSelection: body.data.modelSelection }
+          : {}),
+        ...(body.data.providerSlug !== undefined
+          ? { providerSlug: body.data.providerSlug }
+          : {}),
+        ...(body.data.reasoningEffort !== undefined
+          ? { reasoningEffort: body.data.reasoningEffort }
+          : {}),
+        ...(body.data.attachments !== undefined &&
+        body.data.attachments.length > 0
+          ? { attachments: body.data.attachments }
+          : {}),
+        ...(body.data.resend === true ? { resend: true } : {}),
+      });
+    } catch (error) {
+      // A turn that could not START because the picked model is not
+      // servable — its provider's default credential was disabled or
+      // deleted, or the composer still holds a model the picker has since
+      // dropped — is a refusal the composer can show, not an internal error.
+      const reason = servingRefusalReason(error);
+      if (reason === null) throw error;
+      return c.json({ status: 'refused', reason });
+    }
     return outcome.status === 'completed'
       ? c.json({ status: 'completed' })
       : c.json({ status: 'refused', reason: outcome.reason });

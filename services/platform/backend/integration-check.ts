@@ -17,12 +17,14 @@
  * Better Auth tables, and app tables, and writes test rows.
  */
 
+import { randomUUID } from 'node:crypto';
 import {
   mkdir,
   mkdtemp,
   readFile,
   rename,
   rm,
+  stat,
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -37,6 +39,7 @@ import { z } from 'zod';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { createAuth, type Auth } from './auth/auth.ts';
+import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
 import { computeAuditHash } from './core/lib/helpers/audit_hash.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
@@ -50,7 +53,7 @@ import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
-import { emitHintInTx } from './realtime/outbox.ts';
+import { emitHintInTx, latestOutboxId } from './realtime/outbox.ts';
 
 const noopPayloadSchema = z.object({
   seq: z.number().optional(),
@@ -460,6 +463,118 @@ async function checkAuthAndSse(
 }
 
 /**
+ * The realtime outbox's retention: delivered hints older than the horizon
+ * are reclaimed as a strict id-prefix (an in-horizon row — and any older
+ * stamp ABOVE it, the long-transaction skew — survives), a second sweep is a
+ * no-op, and a client resuming from a reclaimed cursor is told to `resync`
+ * while one resuming from a retained cursor replays cleanly. Runs early, on
+ * a small table, so the backdate below touches only rows already consumed.
+ */
+async function checkOutboxRetention(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  // Bound as optional on purpose: on a backend without the reclaim seam the
+  // probe is the finding itself (the outbox grows forever), not a crash.
+  const seams: Partial<typeof import('./realtime/outbox.ts')> =
+    await import('./realtime/outbox.ts');
+  const { OUTBOX_RETENTION_MS, outboxRetainsCursor, reclaimOutbox } = seams;
+  if (
+    OUTBOX_RETENTION_MS === undefined ||
+    outboxRetainsCursor === undefined ||
+    reclaimOutbox === undefined
+  ) {
+    record(
+      'realtime outbox retention: prefix reclaim, skew-safe, resync on a reclaimed cursor',
+      false,
+      'no reclaim seam exported by realtime/outbox.ts — app_realtime.outbox is never pruned',
+    );
+    return;
+  }
+  const insert = async (entityId: string): Promise<string> => {
+    await sql.begin((tx) =>
+      emitHintInTx(tx, { orgId, entity: 'itest_outbox', entityId }),
+    );
+    const rows = await sql<{ id: string }[]>`
+      SELECT id::text AS id FROM app_realtime.outbox
+      WHERE org_id = ${orgId} AND entity = 'itest_outbox'
+        AND entity_id = ${entityId}
+    `;
+    return rows[0]?.id ?? '0';
+  };
+  // Three rows in id order: one past the horizon, one fresh, and one past
+  // the horizon ABOVE the fresh one (a stamp a long transaction can leave).
+  const stale = await insert('stale');
+  const fresh = await insert('fresh');
+  const skewed = await insert('skewed');
+  const twoHoursAgo = new Date(Date.now() - 2 * OUTBOX_RETENTION_MS);
+  await sql`
+    UPDATE app_realtime.outbox SET created_at = ${twoHoursAgo}
+    WHERE id <= ${stale}::bigint OR id = ${skewed}::bigint
+  `;
+  const prefixBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE id <= ${stale}::bigint
+  `;
+
+  // A tiny batch, so the sweep has to walk several rounds and stop where
+  // the prefix ends.
+  const reclaimed = await reclaimOutbox(sql, { batch: 2, maxBatches: 1_000 });
+  const reclaimedAgain = await reclaimOutbox(sql, { batch: 2 });
+  const survivors = await sql<{ entityId: string | null }[]>`
+    SELECT entity_id AS "entityId" FROM app_realtime.outbox
+    WHERE id <= ${skewed}::bigint ORDER BY id
+  `;
+  const staleRetained = await outboxRetainsCursor(sql, stale);
+  const freshRetained = await outboxRetainsCursor(sql, fresh);
+
+  // A client resuming from the reclaimed cursor is told to resync (and
+  // still gets what follows); one resuming from the retained cursor is not.
+  const url = `${base}/events?orgId=${orgId}`;
+  const gapped = connectSse(url, { cookie, 'Last-Event-ID': stale });
+  const intact = connectSse(url, { cookie, 'Last-Event-ID': fresh });
+  await sleep(700);
+  await insert('after');
+  const gappedResynced = await waitFor(
+    () => gapped.events.some((e) => e.event === 'resync'),
+    3_000,
+  );
+  const gappedLive = await waitFor(
+    () => gapped.events.some((e) => e.data.includes('"after"')),
+    3_000,
+  );
+  const intactLive = await waitFor(
+    () => intact.events.some((e) => e.data.includes('"after"')),
+    3_000,
+  );
+  const intactReplayed = intact.events.some((e) => e.data.includes('"skewed"'));
+  const intactResynced = intact.events.some((e) => e.event === 'resync');
+  gapped.abort();
+  intact.abort();
+  await gapped.done;
+  await intact.done;
+
+  record(
+    'realtime outbox retention: prefix reclaim, skew-safe, resync on a reclaimed cursor',
+    reclaimed === Number(prefixBefore[0]?.count ?? '-1') &&
+      reclaimed >= 1 &&
+      reclaimedAgain === 0 &&
+      JSON.stringify(survivors.map((r) => r.entityId)) ===
+        '["fresh","skewed"]' &&
+      !staleRetained &&
+      freshRetained &&
+      gappedResynced &&
+      gappedLive &&
+      intactLive &&
+      intactReplayed &&
+      !intactResynced,
+    `reclaimed=${reclaimed} (want ${prefixBefore[0]?.count}), again=${reclaimedAgain} (want 0), survivors=${JSON.stringify(survivors.map((r) => r.entityId))} (want fresh,skewed), retains(stale)=${staleRetained} retains(fresh)=${freshRetained}, gapped: resync=${gappedResynced} live=${gappedLive}; intact: replayed=${intactReplayed} live=${intactLive} resync=${intactResynced} (want false)`,
+  );
+}
+
+/**
  * The notifications vertical slice (org-audience bell): serializable write +
  * org-wide hint → SSE delivery → role-gated API reads → dedupe → mark-read.
  */
@@ -491,7 +606,7 @@ async function checkNotifications(
   const hintOk = await waitFor(
     () =>
       stream.events.some(
-        (e) => e.event === 'hint' && e.data.includes('notification'),
+        (e) => e.event === 'hint' && e.data.includes('"entity":"notification"'),
       ),
     5_000,
   );
@@ -4965,7 +5080,118 @@ async function checkProviderCredentials(
       envOk,
     `masked=${listedRow?.maskedPreview}, apiKeyResolve=${apiKeyOk}, badEnv → ${badEnv.status} (want 400), defaultSwap+envResolve=${envOk}`,
   );
-  void credentialId;
+
+  // Edits must take effect field for field — the endpoint URL, an env
+  // credential's variable name, and a broker configuration replacement were
+  // the fields a save could silently drop. An empty patch is refused, and a
+  // disabled credential can never be promoted to default (serving reads the
+  // ACTIVE default only).
+  const envCredentialId = envCred.success ? envCred.data.credentialId : '';
+  const listCredentials = async () =>
+    z
+      .object({
+        credentials: z.array(
+          z
+            .object({
+              id: z.string(),
+              endpointUrl: z.string().nullable(),
+              maskedPreview: z.string().nullable(),
+              envName: z.string().nullable(),
+              isDefault: z.boolean(),
+              status: z.string(),
+            })
+            .loose(),
+        ),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/provider-credentials?orgId=${orgId}`, {
+            headers: { cookie },
+          })
+        ).json(),
+      );
+  const endpointEdited = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    { endpointUrl: 'https://itest.openai.azure.com/openai/v1' },
+  );
+  process.env.TALE_PROVIDER_KEY_ITEST_2 = 'env-secret-123';
+  const envRepointed = await send(
+    'POST',
+    `/api/app/provider-credentials/${envCredentialId}?orgId=${orgId}`,
+    { envName: 'TALE_PROVIDER_KEY_ITEST_2' },
+  );
+  const resolvedRepointed = await resolveProviderCredential(sql, {
+    organizationId: orgId,
+    providerSlug: 'openai',
+  });
+  const emptyPatch = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    {},
+  );
+  const disabled = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    { status: 'disabled' },
+  );
+  const disabledDefault = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    { isDefault: true },
+  );
+  // Re-assert the env credential as the openai default: a backend that
+  // wrongly accepted the promotion above (the defect this probe records)
+  // would otherwise leave the provider with a disabled default and starve
+  // every later openai-backed lane (knowledge embeddings, chat) of a
+  // credential — the probe must fail on its own line, not take the run down.
+  await send(
+    'POST',
+    `/api/app/provider-credentials/${envCredentialId}?orgId=${orgId}`,
+    { isDefault: true },
+  );
+  const brokerCred = z.object({ credentialId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/provider-credentials?orgId=${orgId}`, {
+        providerSlug: 'anthropic',
+        authMethod: 'subscription-broker',
+        name: 'Broker pool',
+        secret: JSON.stringify({ endpoint: 'https://broker.itest/v1' }),
+      })
+    ).json(),
+  );
+  const brokerId = brokerCred.success ? brokerCred.data.credentialId : '';
+  const brokerReplaced = await send(
+    'POST',
+    `/api/app/provider-credentials/${brokerId}?orgId=${orgId}`,
+    { secret: JSON.stringify({ endpoint: 'https://broker.itest/v2' }) },
+  );
+  const edited = await listCredentials();
+  const rowsById = new Map(
+    edited.success ? edited.data.credentials.map((row) => [row.id, row]) : [],
+  );
+  // Leave the fixture as the earlier probes left it for everything after.
+  await send(
+    'DELETE',
+    `/api/app/provider-credentials/${brokerId}?orgId=${orgId}`,
+  );
+  record(
+    'provider credential edits reach the row',
+    endpointEdited.ok &&
+      rowsById.get(credentialId)?.endpointUrl ===
+        'https://itest.openai.azure.com/openai/v1' &&
+      envRepointed.ok &&
+      rowsById.get(envCredentialId)?.envName === 'TALE_PROVIDER_KEY_ITEST_2' &&
+      resolvedRepointed.authMethod === 'env' &&
+      resolvedRepointed.envName === 'TALE_PROVIDER_KEY_ITEST_2' &&
+      emptyPatch.status === 400 &&
+      disabled.ok &&
+      disabledDefault.status === 400 &&
+      rowsById.get(credentialId)?.isDefault === false &&
+      brokerReplaced.ok &&
+      rowsById.get(brokerId)?.maskedPreview === null,
+    `endpoint=${rowsById.get(credentialId)?.endpointUrl}, envName=${rowsById.get(envCredentialId)?.envName} (resolves ${resolvedRepointed.authMethod === 'env' ? resolvedRepointed.envName : resolvedRepointed.authMethod}), emptyPatch → ${emptyPatch.status} (want 400), disabledDefault → ${disabledDefault.status} (want 400), brokerPreview=${String(rowsById.get(brokerId)?.maskedPreview)} (want null)`,
+  );
 }
 
 /**
@@ -5885,6 +6111,10 @@ async function checkChat(
               object: 'model',
               context_length: 32_768,
               max_output_tokens: 512,
+              // Dollars per token, the listing dialect the normalizer reads
+              // (→ 100 / 200 cents per million): the price every turn's
+              // ledger row must be booked at.
+              pricing: { prompt: '0.000001', completion: '0.000002' },
             },
           ],
         }),
@@ -6187,6 +6417,203 @@ async function checkChat(
         Number(usageRows[0]?.count ?? '0') >= 1 &&
         settledGen[0]?.count === '0',
       `outcome=${outcome.success ? outcome.data.status : 'ERR'}${outcome.success && outcome.data.reason !== undefined ? ` (${outcome.data.reason})` : ''}, messages=${history.success ? history.data.messages.length : 'ERR'}, toolRound=${assistantRaw.includes('rag_search') && assistantRaw.includes('verdigris')}, usageRows=${usageRows[0]?.count}, genSettled=${settledGen[0]?.count === '0'}`,
+    );
+
+    // A provider that ships NO catalog (Azure deployment names, Nous Portal):
+    // the credential's allowlist IS its availability set, per the provider
+    // files and the docs. Configured exactly that way, the deployment must
+    // reach the picker AND serve a turn — until now every lane gated on the
+    // empty catalog and such a connector could never serve anything.
+    await writeFile(
+      path.join(providersDir, 'itestdeploy.yml'),
+      [
+        'name: itestdeploy',
+        'displayName: Itest Deployments',
+        'apiFormat: openai',
+        `baseUrl: ${aiBase}`,
+        'catalog:',
+        '  source: none',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    await send(`/api/app/provider-credentials?orgId=${orgId}`, {
+      providerSlug: 'itestdeploy',
+      authMethod: 'api-key',
+      name: 'Deployment key',
+      secret: 'sk-itest-deploy-key',
+      modelAllowlist: ['itest-deploy-prod'],
+    });
+    const deployPicker = z
+      .object({
+        models: z.array(
+          z.object({ id: z.string(), providerSlug: z.string() }).loose(),
+        ),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/chat/composer/models?orgId=${orgId}`, {
+            headers: { cookie },
+          })
+        ).json(),
+      );
+    const deployListed =
+      deployPicker.success &&
+      deployPicker.data.models.some(
+        (model) =>
+          model.id === 'itest-deploy-prod' &&
+          model.providerSlug === 'itestdeploy',
+      );
+    const deployThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Itest deployment chat',
+        })
+      ).json(),
+    );
+    const deployThreadId = deployThread.success ? deployThread.data.id : '';
+    // Read as text first: a serving miss surfaces as a non-JSON 500 here,
+    // and that must record as a failed probe, not kill the whole run.
+    const deployTurnRaw = await (
+      await send(
+        `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+        {
+          text: `${SLOW_MARKER} to three`,
+          modelId: 'itest-deploy-prod',
+          providerSlug: 'itestdeploy',
+        },
+      )
+    ).text();
+    let deployTurnJson: unknown = null;
+    try {
+      deployTurnJson = JSON.parse(deployTurnRaw);
+    } catch {
+      deployTurnJson = { status: `non-JSON: ${deployTurnRaw.slice(0, 80)}` };
+    }
+    const deployOutcome = z
+      .object({ status: z.string(), reason: z.string().optional() })
+      .safeParse(deployTurnJson);
+    const deployUsage = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.usage_events
+      WHERE org_id = ${orgId} AND model = 'itest-deploy-prod'
+        AND provider = 'itestdeploy'
+    `;
+    record(
+      'catalog-less provider serves its credential allowlist',
+      deployListed &&
+        deployOutcome.success &&
+        deployOutcome.data.status === 'completed' &&
+        Number(deployUsage[0]?.count ?? '0') >= 1,
+      `picker=${deployListed ? 'lists itest-deploy-prod' : `MISSING (${deployPicker.success ? deployPicker.data.models.map((m) => `${m.providerSlug}/${m.id}`).join(',') : 'ERR'})`}, turn=${deployOutcome.success ? deployOutcome.data.status : 'ERR'}${deployOutcome.success && deployOutcome.data.reason !== undefined ? ` (${deployOutcome.data.reason})` : ''}, usageRows=${deployUsage[0]?.count}`,
+    );
+
+    // The picker and serving must read ONE world. Serving resolves a
+    // provider's ACTIVE DEFAULT credential; the picker used to walk every
+    // active credential — so after the routine key rotation (add B, disable
+    // default A) it kept offering models every send then failed on. With
+    // the default disabled the connector serves nothing, and the picker
+    // must say so by omission even while another active credential exists.
+    const deployRows = z
+      .object({
+        credentials: z.array(
+          z
+            .object({
+              id: z.string(),
+              providerSlug: z.string(),
+              isDefault: z.boolean(),
+            })
+            .loose(),
+        ),
+      })
+      .safeParse(
+        await (
+          await fetch(
+            `${base}/api/app/provider-credentials?orgId=${orgId}&providerSlug=itestdeploy`,
+            { headers: { cookie } },
+          )
+        ).json(),
+      );
+    const deployDefaultId = deployRows.success
+      ? (deployRows.data.credentials.find((row) => row.isDefault)?.id ?? '')
+      : '';
+    const pickerLists = async (): Promise<boolean> => {
+      const listing = z
+        .object({
+          models: z.array(
+            z.object({ id: z.string(), providerSlug: z.string() }).loose(),
+          ),
+        })
+        .safeParse(
+          await (
+            await fetch(`${base}/api/app/chat/composer/models?orgId=${orgId}`, {
+              headers: { cookie },
+            })
+          ).json(),
+        );
+      return (
+        listing.success &&
+        listing.data.models.some(
+          (model) => model.providerSlug === 'itestdeploy',
+        )
+      );
+    };
+    const rotated = z.object({ credentialId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/provider-credentials?orgId=${orgId}`, {
+          providerSlug: 'itestdeploy',
+          authMethod: 'api-key',
+          name: 'Rotated key (not default)',
+          secret: 'sk-itest-deploy-key-2',
+          modelAllowlist: ['itest-deploy-prod'],
+        })
+      ).json(),
+    );
+    const rotatedId = rotated.success ? rotated.data.credentialId : '';
+    await send(
+      `/api/app/provider-credentials/${deployDefaultId}?orgId=${orgId}`,
+      { status: 'disabled' },
+    );
+    const offeredWhileDefaultDisabled = await pickerLists();
+    // A stale composer selection (the picker just dropped the model) must
+    // come back as a refusal the composer can show — never a bare 500.
+    const staleSendRaw = await (
+      await send(
+        `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+        {
+          text: 'still there?',
+          modelId: 'itest-deploy-prod',
+          providerSlug: 'itestdeploy',
+        },
+      )
+    ).text();
+    let staleSendJson: unknown = null;
+    try {
+      staleSendJson = JSON.parse(staleSendRaw);
+    } catch {
+      staleSendJson = { status: `non-JSON: ${staleSendRaw.slice(0, 80)}` };
+    }
+    const sendWhileDefaultDisabled = z
+      .object({ status: z.string(), reason: z.string().optional() })
+      .safeParse(staleSendJson);
+    await send(
+      `/api/app/provider-credentials/${deployDefaultId}?orgId=${orgId}`,
+      { status: 'active' },
+    );
+    const offeredAgain = await pickerLists();
+    await fetch(
+      `${base}/api/app/provider-credentials/${rotatedId}?orgId=${orgId}`,
+      { method: 'DELETE', headers: { cookie, origin: base } },
+    );
+    record(
+      'picker offers only what the active default credential can serve',
+      !offeredWhileDefaultDisabled &&
+        sendWhileDefaultDisabled.success &&
+        sendWhileDefaultDisabled.data.status === 'refused' &&
+        (sendWhileDefaultDisabled.data.reason ?? '').includes(
+          'itest-deploy-prod',
+        ) &&
+        offeredAgain,
+      `defaultDisabled: picker=${offeredWhileDefaultDisabled ? 'STILL OFFERS' : 'omits'} send=${sendWhileDefaultDisabled.success ? `${sendWhileDefaultDisabled.data.status} (${sendWhileDefaultDisabled.data.reason ?? ''})` : 'ERR'} (want refused, naming the model); reenabled: picker=${offeredAgain ? 'offers' : 'MISSING'}`,
     );
 
     // First-token UX metric. Covered because it was NOT: the statement that
@@ -7771,6 +8198,9 @@ async function checkGovernance(
       '  - scope: default',
       '    allowedModels:',
       '      - some-other-model',
+      // A vendor-slash id (the OpenRouter/aggregator dialect): the slash is
+      // part of the id, and the Auto picker's governance read must keep it.
+      '      - vendor/itest-model',
     ].join('\n'),
   );
   await writeFile(
@@ -7820,6 +8250,17 @@ async function checkGovernance(
     organizationId: orgId,
     userId,
   });
+  // The Auto picker's governance read over the same allowlist: the slash id
+  // survives as itself (no vendor prefix is ever stripped off a candidate),
+  // its vendor-less spelling and the unlisted chat model both drop.
+  const autoPick = await governance.resolveModelGovernanceForUser(sql, {
+    organizationId: orgId,
+    userId,
+    supportedModels: ['vendor/itest-model', 'itest-model', 'itest-chat'],
+  });
+  const autoRefsOk =
+    autoPick.accessibleModelRefs.length === 1 &&
+    autoPick.accessibleModelRefs[0] === 'vendor/itest-model';
 
   // Lift the policy: access opens again (proven cheaply at the service).
   const { unlink } = await import('node:fs/promises');
@@ -7835,13 +8276,92 @@ async function checkGovernance(
     'governance enforcement (model access + caps + usage buckets)',
     chatBucket !== undefined &&
       chatBucket.totalTokens > 0 &&
+      // Booked at the catalog price, not 0: the usage dashboard and the cost
+      // budgets read this column.
+      chatBucket.costEstimateCents > 0 &&
       Number(connectorBuckets[0]?.count ?? '0') >= 1 &&
       refused.success &&
       refused.data.status === 'refused' &&
       (refused.data.reason ?? '').includes('not available for your account') &&
       cap === 9000 &&
+      autoRefsOk &&
       reopened.allowed,
-    `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'}, connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), reopened=${reopened.allowed}`,
+    `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'} cost=${chatBucket?.costEstimateCents ?? 'MISSING'} (want > 0), connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), autoRefs=${autoPick.accessibleModelRefs.join(',')} (want vendor/itest-model), reopened=${reopened.allowed}`,
+  );
+
+  // Budget scope alignment over the live 0.5 enforcer (the composer's Send
+  // gate, TTS, and video links all ride `checkTtsBudget`): a default-tier
+  // token cap is a PERSONAL cap, measured against the member's own usage;
+  // a team rule is a SHARED cap, measured against the team aggregate with the
+  // team rule's own values. Two members whose combined tokens exceed the
+  // per-member cap must both stay allowed; the team's own cost cap must
+  // still bind the aggregate.
+  const { checkTtsBudget } = await import('./domains/tts/service.ts');
+  const teamId = 'itest-budget-team';
+  const monthlyKey = buildPeriodKeyFromTimestamp('monthly', Date.now());
+  const ownTokens = await sql<{ total: number }[]>`
+    SELECT coalesce(sum(total_tokens), 0)::float8 AS total
+    FROM app.usage_ledger
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+      AND period_key = ${monthlyKey}
+  `;
+  const perMemberCap = Math.round(ownTokens[0]?.total ?? 0) + 30 + 10;
+  await writeFile(
+    path.join(governanceDir, 'budgets.yml'),
+    [
+      'enabled: true',
+      'rules:',
+      '  - scope: default',
+      '    period: monthly',
+      `    maxTokens: ${perMemberCap}`,
+      '  - scope: team',
+      `    scopeId: ${teamId}`,
+      '    period: monthly',
+      '    maxCostCents: 100',
+    ].join('\n'),
+  );
+  orgConfig.clearOrgConfigCaches();
+  const seedTeamUsage = (
+    user: string,
+    tokens: number,
+    cents: number,
+  ): Promise<void> =>
+    governance.incrementUsageLedger(sql, {
+      organizationId: orgId,
+      userId: user,
+      teamId,
+      inputTokens: tokens,
+      outputTokens: 0,
+      costEstimateCents: cents,
+      timestamp: Date.now(),
+      agentSlug: 'itest-budget-probe',
+      model: 'itest-budget-model',
+      provider: 'itestchat',
+    });
+  await seedTeamUsage(userId, 30, 0);
+  // The teammate alone blows past the per-member cap; the team aggregate is
+  // far above it — irrelevant to a personal cap.
+  await seedTeamUsage('itest-budget-teammate', 10_000, 0);
+  const budgetArgs = {
+    organizationId: orgId,
+    userId,
+    userTeamIds: [teamId],
+    userRole: 'owner',
+    prospectiveCostCents: 0,
+    prospectiveRequests: 0,
+  };
+  const mixedScopes = await checkTtsBudget(sql, budgetArgs);
+  await seedTeamUsage('itest-budget-teammate', 0, 150);
+  const teamCapHit = await checkTtsBudget(sql, budgetArgs);
+  await unlink(path.join(governanceDir, 'budgets.yml'));
+  orgConfig.clearOrgConfigCaches();
+  record(
+    'budget scopes (personal cap vs team shared cap)',
+    mixedScopes.allowed &&
+      !teamCapHit.allowed &&
+      teamCapHit.code === 'COST_LIMIT' &&
+      teamCapHit.limit === 100,
+    `mixed=${mixedScopes.allowed ? 'allowed' : `refused ${mixedScopes.code}`} (want allowed), teamCap=${teamCapHit.allowed ? 'allowed' : `${teamCapHit.code} at ${teamCapHit.limit}`} (want COST_LIMIT at 100)`,
   );
 }
 
@@ -8706,6 +9226,252 @@ async function checkRestResources(
       chatOk &&
       searchOk,
     `bulk=${bulk.success ? `${bulk.data.success}/${bulk.data.failed} ${bulk.data.errors[0]?.errorCode ?? ''}` : 'ERR'} (want 2/1 duplicate_email), docListed=${docListed.success && docListed.data.page.some((d) => d.id === docId)}, entryListed=${entryList.success ? `${entryList.data.page.some((e) => e.id === newEntryId)}/${!entryList.data.page.some((e) => e.id === entryId)}` : 'ERR'}, skillsListed=${skillsListed.success}, skillRead=${skillReadBody.success}, doc=${docCreated.success}/${docPatch.status}/${docRead.success ? docRead.data.content : 'ERR'}/retry=${retry.success ? retry.data.status : 'ERR'}/del=${docDeleted.status}→${docGone.status}, entry chain=${entryCreated.success}/dup=${entryDup.status}/new≠old=${newEntryId !== entryId}/old=${oldEntry.success ? oldEntry.data.status : 'ERR'}/del=${entryDeleted.status}, skill=${skillSaved.success}/${skillRead.status}/del=${skillDeleted.status}→${skillGone.status}, chat: ${chatDetail}, search: ${searchDetail}`,
+  );
+}
+
+/** Mint an API key for the session user through the same surface the
+ * dashboard uses; '' when minting failed (the check then fails visibly). */
+async function mintRestKey(
+  base: string,
+  cookie: string,
+  name: string,
+): Promise<string> {
+  const minted = z.looseObject({ key: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/api-key/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ name }),
+      })
+    ).json(),
+  );
+  return minted.success ? minted.data.key : '';
+}
+
+/**
+ * The /api/v1 door's rate-limit ATTRIBUTION over the wire. A Bearer key
+ * that fails to authenticate is charged to the trusted-proxy-derived client
+ * IP — the rightmost `X-Forwarded-For` hop no trusted proxy claims (this
+ * client sits on loopback, a trusted hop, so the forwarded chain is
+ * honoured) — never to the caller-written leftmost entry: rotating that
+ * entry mints no fresh bucket, and the failure lane (`rest:auth-fail-ip`,
+ * burst 40) answers 429 with Retry-After. A valid key from the very source
+ * that burned its failure lane keeps its own `user:` budget, and a request
+ * without a Bearer header charges nothing at all.
+ */
+async function checkRestRateAttribution(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const apiKey = await mintRestKey(base, ctx.cookie, 'itest-rate-attribution');
+  const probe = (headers: Record<string, string>): Promise<Response> =>
+    fetch(`${base}/api/v1/contacts`, { headers });
+  const bogus = `Bearer tale_${'x'.repeat(60)}`;
+
+  // (1) 45 failed keys, each spoofing a different leftmost hop over ONE
+  // real source: the first 40 answer 401 (the burst), then the door says 429.
+  const SOURCE = '203.0.113.77';
+  const statuses: number[] = [];
+  let retryAfter = '';
+  for (let i = 0; i < 45; i++) {
+    const res = await probe({
+      authorization: bogus,
+      'x-forwarded-for': `198.51.100.${i}, ${SOURCE}`,
+    });
+    statuses.push(res.status);
+    if (res.status === 429 && retryAfter === '') {
+      retryAfter = res.headers.get('retry-after') ?? '';
+    }
+  }
+  const firstLimited = statuses.indexOf(429);
+  const burstAll401 = statuses.slice(0, 40).every((status) => status === 401);
+
+  // (2) a valid key from the burned source: its budget is its own.
+  const authed = await probe({
+    authorization: `Bearer ${apiKey}`,
+    'x-forwarded-for': `198.51.100.250, ${SOURCE}`,
+  });
+
+  // (3) header-less requests cost nothing: 50 from a fresh source leave its
+  // failure lane untouched, so one bogus key afterwards is a plain 401.
+  const FRESH = '203.0.113.78';
+  for (let i = 0; i < 50; i++) {
+    await probe({ 'x-forwarded-for': FRESH });
+  }
+  const afterFree = await probe({
+    authorization: bogus,
+    'x-forwarded-for': FRESH,
+  });
+
+  // (4) the limiter state names the real source once and no spoofed hop.
+  const lanes = await sql<{ name: string; key: string }[]>`
+    SELECT name, key FROM app.rate_limits
+    WHERE key LIKE 'ip:198.51.100.%' OR key = ${`ip:${SOURCE}`}
+  `;
+  const spoofRows = lanes.filter((row) => row.key.startsWith('ip:198.51.100.'));
+  const sourceRow = lanes.find(
+    (row) => row.name === 'rest:auth-fail-ip' && row.key === `ip:${SOURCE}`,
+  );
+
+  record(
+    'REST door rate-limit attribution (trusted IP pre-auth, key holder post-auth)',
+    apiKey !== '' &&
+      burstAll401 &&
+      firstLimited >= 40 &&
+      firstLimited <= 44 &&
+      Number(retryAfter) >= 1 &&
+      authed.status === 200 &&
+      afterFree.status === 401 &&
+      spoofRows.length === 0 &&
+      sourceRow !== undefined,
+    `burst 401×40=${burstAll401}, first 429 at #${firstLimited + 1} (want 41..45) retry-after=${retryAfter || 'none'}, valid key from burned source → ${authed.status} (want 200), bogus after 50 free → ${afterFree.status} (want 401), spoofed-hop rows=${spoofRows.length} (want 0), source lane row=${sourceRow !== undefined}`,
+  );
+}
+
+/**
+ * The documented cursor paginates to the LAST page. Contacts and products
+ * seeded beyond one page are all reachable by passing `continueCursor`
+ * back as `?cursor=` — no repeated first page, no duplicates, `isDone` on
+ * the final page, the walk agreeing with one large page — and an
+ * automation's run listing honours `limit`.
+ */
+async function checkRestPagination(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const apiKey = await mintRestKey(base, ctx.cookie, 'itest-pagination');
+  const v1 = (
+    route: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<Response> =>
+    fetch(`${base}/api/v1${route}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+  const stamp = Date.now();
+
+  // Seed past one page of three on both families.
+  await v1('/contacts/bulk', {
+    body: {
+      contacts: Array.from({ length: 7 }, (_, i) => ({
+        name: `Pager ${i}`,
+        email: `pager-${stamp}-${i}@door.test`,
+      })),
+    },
+  });
+  for (let i = 0; i < 7; i++) {
+    await v1('/products', { body: { name: `Pager Widget ${stamp}-${i}` } });
+  }
+
+  const pageSchema = z.object({
+    page: z.array(z.looseObject({ id: z.string() })),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+  });
+  /** Follow continueCursor to the end (bounded — a dead-end loops). */
+  const walk = async (
+    route: string,
+  ): Promise<{ done: boolean; pages: number; seen: string[] }> => {
+    const seen: string[] = [];
+    let cursor = '';
+    let pages = 0;
+    while (pages < 25) {
+      const res = await v1(
+        `${route}?limit=3${cursor === '' ? '' : `&cursor=${encodeURIComponent(cursor)}`}`,
+      );
+      const body = pageSchema.safeParse(await res.json());
+      if (!body.success) return { done: false, pages, seen };
+      pages += 1;
+      seen.push(...body.data.page.map((row) => row.id));
+      if (body.data.isDone) return { done: true, pages, seen };
+      cursor = body.data.continueCursor;
+    }
+    return { done: false, pages, seen };
+  };
+  const allIds = async (route: string): Promise<string[]> => {
+    const body = pageSchema.safeParse(
+      await (await v1(`${route}?limit=200`)).json(),
+    );
+    return body.success ? body.data.page.map((row) => row.id) : [];
+  };
+  const covers = (walked: string[], all: string[]): boolean =>
+    new Set(walked).size === walked.length &&
+    walked.length === all.length &&
+    all.every((id) => walked.includes(id));
+
+  const contactsWalk = await walk('/contacts');
+  const contactsAll = await allIds('/contacts');
+  const productsWalk = await walk('/products');
+  const productsAll = await allIds('/products');
+
+  // Runs: an automation of our own, two runs, a window of one.
+  const appSend = (route: string, body: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: ctx.cookie,
+        origin: base,
+      },
+      body: JSON.stringify(body),
+    });
+  await appSend(`/api/app/automations/ops/pager/save?orgId=${ctx.orgId}`, {
+    document: {
+      version: 1,
+      name: 'ops/pager',
+      nodes: [
+        {
+          id: 'shape',
+          type: 'transform',
+          input: { n: '{{ input.n }}' },
+          code: 'return { n: input.n }',
+        },
+      ],
+      output: '{{ nodes.shape.output.n }}',
+    },
+  });
+  await appSend(`/api/app/automations/ops/pager/deploy?orgId=${ctx.orgId}`, {
+    version: 1,
+  });
+  const runsSchema = z.object({
+    runs: z.array(z.looseObject({ id: z.string() })),
+  });
+  const started = await Promise.all([
+    v1('/automations/ops/pager/runs', {
+      body: { input: { n: 1 }, mode: 'mock' },
+    }),
+    v1('/automations/ops/pager/runs', {
+      body: { input: { n: 2 }, mode: 'mock' },
+    }),
+  ]);
+  const runsOne = runsSchema.safeParse(
+    await (await v1('/automations/ops/pager/runs?limit=1')).json(),
+  );
+  const runsAll = runsSchema.safeParse(
+    await (await v1('/automations/ops/pager/runs')).json(),
+  );
+
+  record(
+    'REST pagination walks to the last page (contacts, products) + runs limit',
+    apiKey !== '' &&
+      contactsWalk.done &&
+      contactsWalk.pages >= 3 &&
+      covers(contactsWalk.seen, contactsAll) &&
+      productsWalk.done &&
+      productsWalk.pages >= 3 &&
+      covers(productsWalk.seen, productsAll) &&
+      started.every((res) => res.status === 202) &&
+      runsOne.success &&
+      runsOne.data.runs.length === 1 &&
+      runsAll.success &&
+      runsAll.data.runs.length >= 2,
+    `contacts: done=${contactsWalk.done} pages=${contactsWalk.pages} walked=${contactsWalk.seen.length} all=${contactsAll.length} covers=${covers(contactsWalk.seen, contactsAll)}; products: done=${productsWalk.done} pages=${productsWalk.pages} walked=${productsWalk.seen.length} all=${productsAll.length} covers=${covers(productsWalk.seen, productsAll)}; runs: started=${started.map((res) => res.status).join('/')} limit=1 → ${runsOne.success ? runsOne.data.runs.length : 'ERR'} (want 1), all → ${runsAll.success ? runsAll.data.runs.length : 'ERR'} (want ≥2)`,
   );
 }
 
@@ -23892,6 +24658,320 @@ async function checkCollabEmitters(
 }
 
 /**
+ * The personal bell's WIRE: a bell row lands as a hint named exactly what the
+ * web app keys the bell on (`notification` — `NOTIFICATION_HINT_ENTITY`),
+ * delivered to the recipient's stream only (never to another member's), and
+ * the recipient's own mark-all-read hints them too, so other tabs drop the
+ * badge. Before this contract was pinned the writer said `user_notification`
+ * and the bell never lit up live.
+ */
+async function checkBellHintWire(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const post = (
+    route: string,
+    body: unknown,
+    asCookie: string = cookie,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: asCookie,
+        origin: base,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  // The recipient: a teammate with a session of their own.
+  const mateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `bell-wire-${Date.now()}@example.com`,
+      password: 'itest-password-1',
+      name: 'Bell Recipient',
+    }),
+  });
+  const mateCookie = cookieHeaderFrom(mateSignUp);
+  const mateBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await mateSignUp.json());
+  const mateId = mateBody.success ? mateBody.data.user.id : '';
+  const joined = await post(`/api/app/members?orgId=${orgId}`, {
+    userId: mateId,
+    role: 'member',
+  });
+
+  const ownerStream = connectSse(`${base}/events?orgId=${orgId}`, { cookie });
+  const mateStream = connectSse(`${base}/events?orgId=${orgId}`, {
+    cookie: mateCookie,
+  });
+  await sleep(500); // both tails established
+  const startId = await latestOutboxId(sql);
+
+  const { writeCoalescedNotification } =
+    await import('./domains/collab/service.ts');
+  await sql.begin((tx) =>
+    writeCoalescedNotification(tx, {
+      userId: mateId,
+      organizationId: orgId,
+      type: 'task_status_changed',
+      titleKey: 'taskStatusChanged',
+      bodyKey: 'taskStatusChangedBody',
+      params: { title: 'Bell wire', from: 'todo', to: 'in_progress' },
+      resourceType: 'task',
+      resourceId: 'itest-bell-wire',
+      taskId: 'itest-bell-wire',
+      actorType: 'user',
+      actorId: userId,
+    }),
+  );
+  const bellHint = JSON.stringify({ entity: 'notification', entityId: null });
+  const isBellHint = (e: SseEvent): boolean =>
+    e.event === 'hint' && e.data === bellHint;
+  const mateGotIt = await waitFor(
+    () => mateStream.events.some(isBellHint),
+    5_000,
+  );
+  await sleep(700); // two poll cycles — the owner's stream had every chance
+  const ownerSpared = !ownerStream.events.some(isBellHint);
+  const outboxRows = await sql<{ userId: string | null; entity: string }[]>`
+    SELECT user_id AS "userId", entity FROM app_realtime.outbox
+    WHERE org_id = ${orgId} AND id > ${startId}::bigint
+      AND entity IN ('notification', 'user_notification')
+  `;
+  const narrowed =
+    outboxRows.length === 1 &&
+    outboxRows[0]?.entity === 'notification' &&
+    outboxRows[0].userId === mateId;
+
+  // The recipient reads everything → their own streams are told as well.
+  const hintsBeforeRead = mateStream.events.filter(isBellHint).length;
+  const markAll = await post(
+    `/api/app/collab/notifications/read-all?orgId=${orgId}`,
+    undefined,
+    mateCookie,
+  );
+  const mateToldOfRead = await waitFor(
+    () => mateStream.events.filter(isBellHint).length > hintsBeforeRead,
+    5_000,
+  );
+  ownerStream.abort();
+  mateStream.abort();
+  await ownerStream.done;
+  await mateStream.done;
+  const row = await sql<{ read: boolean }[]>`
+    SELECT read FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = ${mateId}
+      AND resource_id = 'itest-bell-wire'
+  `;
+  record(
+    'personal bell hint wire: app entity, recipient-only, read-all hints',
+    joined.ok &&
+      mateGotIt &&
+      ownerSpared &&
+      narrowed &&
+      markAll.ok &&
+      mateToldOfRead &&
+      (row[0]?.read ?? false),
+    `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
+  );
+}
+
+/**
+ * Moving a card is the same status door as the sheet's picker: the
+ * assignee's bell rings and the org's `task.status_changed` triggers fire —
+ * for the board drag (`/move`), the bulk bar (`/bulk`) and the picker
+ * (`/status`) alike, with one activity line and one audit row each. Before
+ * the shared settle seam the drag and the bulk bar did neither, so a primary
+ * interaction landed silently.
+ */
+async function checkBoardMoveEffects(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  // An automation listening on task.status_changed — a transform-only body,
+  // so the triggered run settles without an LLM.
+  const automation = 'itest/board-move';
+  const saved = await post(
+    `/api/app/automations/${automation}/save?orgId=${orgId}`,
+    {
+      document: {
+        version: 1,
+        name: automation,
+        nodes: [
+          {
+            id: 'echo',
+            type: 'transform',
+            input: { event: '{{ input.event }}' },
+            code: 'return { seen: input.event }',
+          },
+        ],
+        output: '{{ nodes.echo.output.seen }}',
+      },
+      message: 'board move probe',
+    },
+  );
+  const deployed = await post(
+    `/api/app/automations/${automation}/deploy?orgId=${orgId}`,
+    { version: 1 },
+  );
+  const armed = await post(
+    `/api/app/automations/${automation}/trigger?orgId=${orgId}`,
+    { kind: 'event', event: 'task.status_changed' },
+  );
+  const runsOf = async (): Promise<number> => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automation_runs
+      WHERE org_id = ${orgId} AND name = ${automation}
+        AND started_by LIKE 'trigger:%'
+    `;
+    return Number(rows[0]?.count ?? '0');
+  };
+
+  // The board: a project, a card, and a teammate who is assigned the card
+  // (the assignment subscribes them — the bell's recipient).
+  const project = z
+    .object({ projectId: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Board moves' })
+      ).json(),
+    );
+  const projectId = project.success ? project.data.projectId : '';
+  const task = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Drag me',
+        status: 'todo',
+      })
+    ).json(),
+  );
+  const taskId = task.success ? task.data.taskId : '';
+  const mateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `board-move-${Date.now()}@example.com`,
+      password: 'itest-password-1',
+      name: 'Board Assignee',
+    }),
+  });
+  const mateBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await mateSignUp.json());
+  const mateId = mateBody.success ? mateBody.data.user.id : '';
+  await post(`/api/app/members?orgId=${orgId}`, {
+    userId: mateId,
+    role: 'member',
+  });
+  const assigned = await post(
+    `/api/app/tasks/${taskId}/assign?orgId=${orgId}`,
+    {
+      assigneeType: 'user',
+      assigneeId: mateId,
+    },
+  );
+  const bellTo = async (): Promise<string[]> => {
+    const rows = await sql<{ params: Record<string, unknown> | null }[]>`
+      SELECT params FROM app.user_notifications
+      WHERE org_id = ${orgId} AND user_id = ${mateId}
+        AND type = 'task_status_changed' AND task_id = ${taskId}
+        AND read = false
+      ORDER BY seq
+    `;
+    return rows.map((row) => String(row.params?.to));
+  };
+  const runsBefore = await runsOf();
+
+  // 1. The drag: the board posts /move with the destination column.
+  const dragged = await post(`/api/app/tasks/${taskId}/move?orgId=${orgId}`, {
+    status: 'in_progress',
+  });
+  const dragFired = await waitFor(
+    async () => (await runsOf()) >= runsBefore + 1,
+    5_000,
+  );
+  const dragBell = await bellTo();
+
+  // 2. The bulk bar: one patch over the selection (the unread bell row
+  //    coalesces — same dimension, current truth).
+  const bulk = z.object({ updated: z.number(), skipped: z.number() }).safeParse(
+    await (
+      await post(`/api/app/tasks/bulk?orgId=${orgId}`, {
+        taskIds: [taskId],
+        status: 'todo',
+      })
+    ).json(),
+  );
+  const bulkFired = await waitFor(
+    async () => (await runsOf()) >= runsBefore + 2,
+    5_000,
+  );
+  const bulkBell = await bellTo();
+
+  // 3. The picker, for parity.
+  const picked = await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+    status: 'in_progress',
+  });
+  const pickerFired = await waitFor(
+    async () => (await runsOf()) >= runsBefore + 3,
+    5_000,
+  );
+  const pickerBell = await bellTo();
+
+  const activity = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.task_activity
+    WHERE task_id = ${taskId} AND action = 'status.changed'
+  `;
+  const audits = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_id = ${taskId}
+      AND action = 'task.status_changed'
+  `;
+  // Disarm: later probes flip statuses of their own.
+  const disarmed = await fetch(
+    `${base}/api/app/automations/${automation}/trigger?orgId=${orgId}`,
+    { method: 'DELETE', headers: { cookie, origin: base } },
+  );
+  record(
+    'board drag + bulk bar bell the assignee and fire task.status_changed like the picker',
+    saved.ok &&
+      deployed.ok &&
+      armed.ok &&
+      assigned.ok &&
+      dragged.ok &&
+      dragFired &&
+      JSON.stringify(dragBell) === '["in_progress"]' &&
+      bulk.success &&
+      bulk.data.updated === 1 &&
+      bulkFired &&
+      JSON.stringify(bulkBell) === '["todo"]' &&
+      picked.ok &&
+      pickerFired &&
+      JSON.stringify(pickerBell) === '["in_progress"]' &&
+      activity[0]?.count === '3' &&
+      audits[0]?.count === '3' &&
+      disarmed.ok,
+    `setup=${saved.status}/${deployed.status}/${armed.status}/assign=${assigned.status}, drag → ${dragged.status} event=${dragFired} bell=${JSON.stringify(dragBell)} (want ["in_progress"]), bulk → ${bulk.success ? `${bulk.data.updated}/${bulk.data.skipped}` : 'ERR'} event=${bulkFired} bell=${JSON.stringify(bulkBell)} (want ["todo"]), picker → ${picked.status} event=${pickerFired} bell=${JSON.stringify(pickerBell)}, activity=${activity[0]?.count} audit=${audits[0]?.count} (want 3/3), disarm=${disarmed.status}`,
+  );
+}
+
+/**
  * The small tail: the accounts probe (which auth backings the user has),
  * the changelog orchestration on an injected fetcher (paging honors `from`,
  * page-2 failures degrade to a partial), and the route's auth gate.
@@ -30420,6 +31500,413 @@ async function checkWorkflowDocumentListing(
   );
 }
 
+/**
+ * Organization lifecycle — deletion is ONE server transaction behind the
+ * legal-hold gate: a hold (org-wide or on any member), a non-owner, Better
+ * Auth's own delete door and an aborted transaction all leave the
+ * organization exactly as it was; a committed delete removes the rows,
+ * writes the audit row, cascades the per-user state and the config tree,
+ * while a shared user keeps their account and their other organization; a
+ * queued cleanup never touches a live organization's tree; and the slug is
+ * immutable once set (blobs, config and corpus are keyed by it). Runs on
+ * its own user + organizations so the shared fixture stays untouched.
+ */
+async function checkOrganizationLifecycle(
+  sql: Sql,
+  base: string,
+  orgSuffix: string,
+): Promise<void> {
+  const configRoot = process.env.TALE_CONFIG_DIR ?? '';
+  const jsonHeaders = { 'content-type': 'application/json', origin: base };
+  const signUp = async (
+    email: string,
+  ): Promise<{ cookie: string; userId: string }> => {
+    const response = await fetch(`${base}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        email,
+        password: 'itest-password-1',
+        name: 'Life',
+      }),
+    });
+    const body = z
+      .object({ user: z.object({ id: z.string() }) })
+      .safeParse(await response.json());
+    return {
+      cookie: cookieHeaderFrom(response),
+      userId: body.success ? body.data.user.id : '',
+    };
+  };
+  const createOrg = async (
+    cookie: string,
+    name: string,
+    slug: string,
+  ): Promise<string> => {
+    const response = await fetch(`${base}/api/auth/organization/create`, {
+      method: 'POST',
+      headers: { ...jsonHeaders, cookie },
+      body: JSON.stringify({ name, slug }),
+    });
+    const body = z.object({ id: z.string() }).safeParse(await response.json());
+    return body.success ? body.data.id : '';
+  };
+  const post = (
+    cookie: string,
+    route: string,
+    body: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { ...jsonHeaders, cookie },
+      body: JSON.stringify(body),
+    });
+  const exists = async (dir: string): Promise<boolean> =>
+    (await stat(dir).catch(() => null)) !== null;
+  const errorBody = z.object({
+    error: z.string().optional(),
+    code: z.string().optional(),
+    message: z.string().optional(),
+  });
+  const readError = async (
+    response: Response,
+  ): Promise<z.infer<typeof errorBody>> => {
+    const parsed = errorBody.safeParse(await response.json().catch(() => ({})));
+    return parsed.success ? parsed.data : {};
+  };
+
+  // Fixture: the owner holds A and B; a plain member sits in A; both orgs
+  // carry per-user preferences and a config-tree marker (what the cleanup
+  // must remove and a rename would orphan); A also has a team (Better
+  // Auth's own delete strands teams). The owner's last-active pointer aims
+  // at A.
+  const owner = await signUp(`itest-life-${orgSuffix}@example.com`);
+  const plain = await signUp(`itest-life-m-${orgSuffix}@example.com`);
+  const slugA = `itest-life-a-${orgSuffix}`;
+  const slugB = `itest-life-b-${orgSuffix}`;
+  const orgA = await createOrg(owner.cookie, 'Life A', slugA);
+  const orgB = await createOrg(owner.cookie, 'Life B', slugB);
+  const dirA = path.join(configRoot, slugA);
+  const dirB = path.join(configRoot, slugB);
+  for (const dir of [dirA, dirB]) {
+    await mkdir(path.join(dir, 'governance'), { recursive: true });
+    await writeFile(path.join(dir, 'governance', 'marker.json'), '{}');
+  }
+  await sql`
+    INSERT INTO app.user_preferences (user_id, org_id, updated_at)
+    VALUES (${owner.userId}, ${orgA}, ${Date.now()}),
+           (${owner.userId}, ${orgB}, ${Date.now()})
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${orgA}, ${plain.userId}, 'member', now())
+  `;
+  const teamId = randomUUID();
+  await sql`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt")
+    VALUES (${teamId}, 'Life team', ${orgA}, now())
+  `;
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (${randomUUID()}, ${teamId}, ${owner.userId}, now())
+  `;
+  await sql`
+    UPDATE "user" SET "lastActiveOrganizationId" = ${orgA}
+    WHERE "id" = ${owner.userId}
+  `;
+
+  interface LifecycleSnapshot {
+    org: number;
+    members: number;
+    prefs: number;
+    teams: number;
+    audit: number;
+    jobs: number;
+    dir: boolean;
+  }
+  const count = async (query: Promise<{ count: string }[]>): Promise<number> =>
+    Number((await query)[0]?.count ?? '0');
+  const snapshot = async (): Promise<LifecycleSnapshot> => ({
+    org: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM "organization" WHERE "id" = ${orgA}
+    `),
+    members: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM "member"
+      WHERE "organizationId" = ${orgA}
+    `),
+    prefs: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.user_preferences
+      WHERE org_id = ${orgA}
+    `),
+    teams: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM "team"
+      WHERE "organizationId" = ${orgA}
+    `),
+    audit: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.audit_logs
+      WHERE org_id = ${orgA} AND action = 'organization_deleted'
+    `),
+    jobs: await count(sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = 'org.cleanup_files' AND data->>'orgSlug' = ${slugA}
+    `),
+    dir: await exists(dirA),
+  });
+  const intact = (s: LifecycleSnapshot): boolean =>
+    s.org === 1 &&
+    s.members === 2 &&
+    s.prefs === 1 &&
+    s.teams === 1 &&
+    s.audit === 0 &&
+    s.jobs === 0 &&
+    s.dir;
+  const describe = (s: LifecycleSnapshot): string =>
+    `org=${s.org} members=${s.members} prefs=${s.prefs} teams=${s.teams} audit=${s.audit} jobs=${s.jobs} dir=${s.dir}`;
+  const placeHold = async (
+    targetType: 'org' | 'userMembership',
+    targetId: string,
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.legal_holds (
+        org_id, target_type, target_id, target_label, reason, placed_by,
+        placed_at_ms
+      ) VALUES (
+        ${orgA}, ${targetType}, ${targetId}, 'life', 'itest preservation',
+        ${owner.userId}, ${Date.now()}
+      ) RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const releaseHold = async (id: string): Promise<void> => {
+    await sql`
+      UPDATE app.legal_holds SET released_at_ms = ${Date.now()}
+      WHERE id = ${id}
+    `;
+  };
+
+  const baseline = await snapshot();
+  record(
+    'org lifecycle fixture in place',
+    orgA !== '' && orgB !== '' && intact(baseline) && (await exists(dirB)),
+    `orgA=${orgA || 'MISSING'} orgB=${orgB || 'MISSING'} ${describe(baseline)}`,
+  );
+
+  // A custodian hold on any member blocks the whole-org deletion.
+  const custodianHold = await placeHold('userMembership', owner.userId);
+  const refusedCustodian = await post(
+    owner.cookie,
+    `/api/app/organizations/${orgA}/delete`,
+    {},
+  );
+  const refusedCustodianBody = await readError(refusedCustodian);
+  const afterCustodian = await snapshot();
+  record(
+    'org deletion refused under a custodian hold leaves the org intact',
+    refusedCustodian.status === 409 &&
+      refusedCustodianBody.error === 'LEGAL_HOLD_ACTIVE' &&
+      intact(afterCustodian),
+    `status=${refusedCustodian.status} code=${refusedCustodianBody.error ?? ''} ${describe(afterCustodian)}`,
+  );
+  await releaseHold(custodianHold);
+
+  // So does an org-wide hold.
+  const orgHold = await placeHold('org', orgA);
+  const refusedOrg = await post(
+    owner.cookie,
+    `/api/app/organizations/${orgA}/delete`,
+    {},
+  );
+  const refusedOrgBody = await readError(refusedOrg);
+  const afterOrgHold = await snapshot();
+  record(
+    'org deletion refused under an org-wide hold leaves the org intact',
+    refusedOrg.status === 409 &&
+      refusedOrgBody.error === 'LEGAL_HOLD_ACTIVE' &&
+      /legal hold/i.test(refusedOrgBody.message ?? '') &&
+      intact(afterOrgHold),
+    `status=${refusedOrg.status} code=${refusedOrgBody.error ?? ''} ${describe(afterOrgHold)}`,
+  );
+  await releaseHold(orgHold);
+
+  // The slug is the tenant key of blobs, config and corpus: immutable once
+  // set, while re-sending it beside a name change still lands.
+  const renamed = await post(owner.cookie, '/api/auth/organization/update', {
+    organizationId: orgA,
+    data: { slug: `${slugA}-moved` },
+  });
+  const renamedBody = await readError(renamed);
+  const afterRename = await sql<{ slug: string | null; name: string }[]>`
+    SELECT "slug", "name" FROM "organization" WHERE "id" = ${orgA}
+  `;
+  record(
+    'org slug rename is refused and the config tree stays addressable',
+    renamed.status === 400 &&
+      /cannot be changed/.test(renamedBody.message ?? '') &&
+      afterRename[0]?.slug === slugA &&
+      (await exists(dirA)),
+    `status=${renamed.status} message=${renamedBody.message ?? ''} slug=${afterRename[0]?.slug ?? 'MISSING'}`,
+  );
+  const sameSlug = await post(owner.cookie, '/api/auth/organization/update', {
+    organizationId: orgA,
+    data: { name: 'Life A renamed', slug: slugA },
+  });
+  const afterSameSlug = await sql<{ slug: string | null; name: string }[]>`
+    SELECT "slug", "name" FROM "organization" WHERE "id" = ${orgA}
+  `;
+  record(
+    'org update with the unchanged slug still lands',
+    sameSlug.ok &&
+      afterSameSlug[0]?.name === 'Life A renamed' &&
+      afterSameSlug[0].slug === slugA,
+    `status=${sameSlug.status} name=${afterSameSlug[0]?.name ?? ''} slug=${afterSameSlug[0]?.slug ?? 'MISSING'}`,
+  );
+
+  // Better Auth's own delete would bypass every guard above — it is closed.
+  const pluginDelete = await post(
+    owner.cookie,
+    '/api/auth/organization/delete',
+    { organizationId: orgA },
+  );
+  const pluginBody = await readError(pluginDelete);
+  const afterPlugin = await snapshot();
+  record(
+    "better-auth's organization/delete door is closed",
+    pluginDelete.status === 404 && intact(afterPlugin),
+    `status=${pluginDelete.status} code=${pluginBody.code ?? pluginBody.error ?? ''} ${describe(afterPlugin)}`,
+  );
+
+  // Owner-only.
+  const memberDelete = await post(
+    plain.cookie,
+    `/api/app/organizations/${orgA}/delete`,
+    {},
+  );
+  const afterMember = await snapshot();
+  record(
+    'a non-owner cannot delete the organization',
+    memberDelete.status === 403 && intact(afterMember),
+    `status=${memberDelete.status} ${describe(afterMember)}`,
+  );
+
+  // The teardown is one transaction: abort it after the whole cascade ran
+  // and nothing — rows, audit, cleanup job — survives.
+  const orgService = await import('./domains/organizations/service.ts');
+  let aborted = false;
+  try {
+    await sql.begin(async (tx) => {
+      await orgService.deleteOrganization(tx, { userId: owner.userId }, orgA);
+      throw new Error('itest-abort');
+    });
+  } catch (error) {
+    aborted = error instanceof Error && error.message === 'itest-abort';
+  }
+  const afterAbort = await snapshot();
+  record(
+    'an aborted teardown transaction leaves the organization intact',
+    aborted && intact(afterAbort),
+    `aborted=${aborted} ${describe(afterAbort)}`,
+  );
+
+  // A queued cleanup for a slug a live organization still owns must not
+  // touch its tree (a stale job, or the slug re-taken by a new org).
+  await sql.begin((tx) =>
+    addJobInTx(
+      tx,
+      'org.cleanup_files',
+      { orgSlug: slugB },
+      { singletonKey: `org-cleanup:${slugB}` },
+    ),
+  );
+  const staleCleanupSettled = await waitFor(async () => {
+    const rows = await sql<{ state: string }[]>`
+      SELECT state FROM pgboss.job
+      WHERE name = 'org.cleanup_files' AND data->>'orgSlug' = ${slugB}
+      ORDER BY created_on DESC LIMIT 1
+    `;
+    return rows[0]?.state === 'completed' || rows[0]?.state === 'failed';
+  }, 15_000);
+  record(
+    'a queued cleanup refuses a slug a live organization still owns',
+    staleCleanupSettled && (await exists(dirB)),
+    `settled=${staleCleanupSettled} dirB=${await exists(dirB)}`,
+  );
+
+  // The committed delete: rows, audit, cascade, pointers, config tree.
+  const deleted = await post(
+    owner.cookie,
+    `/api/app/organizations/${orgA}/delete`,
+    {},
+  );
+  const deletedBody = z
+    .object({ orgSlug: z.string() })
+    .safeParse(await deleted.json().catch(() => ({})));
+  const afterDelete = await snapshot();
+  const treeGone = await waitFor(async () => !(await exists(dirA)), 15_000);
+  const auditRows = await sql<
+    { metadata: unknown; actorRole: string | null }[]
+  >`
+    SELECT metadata, actor_role AS "actorRole" FROM app.audit_logs
+    WHERE org_id = ${orgA} AND action = 'organization_deleted' LIMIT 1
+  `;
+  const teamMembersLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "teamMember" WHERE "teamId" = ${teamId}
+  `);
+  const sessionsPointing = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "session"
+    WHERE "activeOrganizationId" = ${orgA}
+  `);
+  record(
+    'org delete commits as one teardown: rows, audit, cascade, config tree',
+    deleted.ok &&
+      deletedBody.success &&
+      deletedBody.data.orgSlug === slugA &&
+      afterDelete.org === 0 &&
+      afterDelete.members === 0 &&
+      afterDelete.prefs === 0 &&
+      afterDelete.teams === 0 &&
+      teamMembersLeft === 0 &&
+      afterDelete.audit === 1 &&
+      auditRows[0]?.actorRole === 'owner' &&
+      JSON.stringify(auditRows[0]?.metadata ?? {}).includes(slugA) &&
+      afterDelete.jobs >= 1 &&
+      sessionsPointing === 0 &&
+      treeGone,
+    `status=${deleted.status} ${describe(afterDelete)} teamMembers=${teamMembersLeft} sessions=${sessionsPointing} actorRole=${auditRows[0]?.actorRole ?? ''} treeGone=${treeGone}`,
+  );
+
+  // Tenant isolation + shared users: B and both accounts are untouched.
+  const survivors = await sql<
+    {
+      users: string;
+      membershipB: string;
+      prefsB: string;
+      lastActive: string | null;
+    }[]
+  >`
+    SELECT
+      (SELECT count(*)::text FROM "user"
+        WHERE "id" IN (${owner.userId}, ${plain.userId})) AS users,
+      (SELECT count(*)::text FROM "member"
+        WHERE "organizationId" = ${orgB} AND "userId" = ${owner.userId})
+        AS "membershipB",
+      (SELECT count(*)::text FROM app.user_preferences
+        WHERE org_id = ${orgB}) AS "prefsB",
+      (SELECT "lastActiveOrganizationId" FROM "user"
+        WHERE "id" = ${owner.userId}) AS "lastActive"
+  `;
+  const survivor = survivors[0];
+  const dirBKept = await exists(dirB);
+  record(
+    'a shared user keeps their account and their other organization',
+    survivor?.users === '2' &&
+      survivor.membershipB === '1' &&
+      survivor.prefsB === '1' &&
+      survivor.lastActive === null &&
+      dirBKept,
+    `users=${survivor?.users ?? ''} membershipB=${survivor?.membershipB ?? ''} prefsB=${survivor?.prefsB ?? ''} lastActive=${survivor?.lastActive ?? 'null'} dirB=${dirBKept}`,
+  );
+}
+
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -30556,6 +32043,7 @@ async function main(): Promise<void> {
     );
 
     await checkNotifications(sql, baseUrl, authCtx);
+    await checkOutboxRetention(sql, baseUrl, authCtx);
     await checkIdentityDomains(
       baseUrl,
       authCtx,
@@ -30602,6 +32090,8 @@ async function main(): Promise<void> {
     await checkTurnEquipmentBroker(sql, baseUrl, authCtx);
     await checkKnowledgeEntries(sql, baseUrl, authCtx);
     await checkCollabEmitters(sql, baseUrl, authCtx);
+    await checkBellHintWire(sql, baseUrl, authCtx);
+    await checkBoardMoveEffects(sql, baseUrl, authCtx);
     await checkChangelogAndAccounts(sql, baseUrl, authCtx);
     await checkAccountAuthzHardening(sql, baseUrl, authCtx, orgSuffix);
     await checkLegalHolds(sql, baseUrl, authCtx);
@@ -30627,6 +32117,8 @@ async function main(): Promise<void> {
     await checkRestDoor(sql, baseUrl, authCtx);
     await checkRestMachineJourney(sql, baseUrl, authCtx);
     await checkRestResources(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
+    await checkRestRateAttribution(sql, baseUrl, authCtx);
+    await checkRestPagination(sql, baseUrl, authCtx);
     await checkSsoLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
     await checkSamlLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
     await checkEntraLogin(sql, baseUrl, authCtx.orgId, `itest-${orgSuffix}`);
@@ -30701,6 +32193,7 @@ async function main(): Promise<void> {
     );
     await checkDevSeed(sql, auth);
     await checkWebTierOracles(sql, baseUrl, authCtx);
+    await checkOrganizationLifecycle(sql, baseUrl, orgSuffix);
   } finally {
     await boss.stop({ graceful: false });
     await new Promise<void>((resolve) => {

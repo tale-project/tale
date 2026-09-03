@@ -3,7 +3,7 @@ title: Rate-Limits
 description: REST- und MCP-Rate-Limits — die Buckets, die 429-Antwort mit ihrem Retry-After und wie du wiederholst, ohne es schlimmer zu machen.
 ---
 
-Die API ist pro Client-IP mit Token-Buckets limitiert — vor der Authentifizierung, das Budget hält also auch unauthentifiziertem Dauerfeuer stand: Bursts gehen durch, Dauerfeuer antwortet **429**. Eine Worker-Flotte hinter einem NAT-Egress kommt als eine IP an und teilt sich ein Budget. Die Budgets sind so bemessen, dass eine normale Connector sie nie sieht — wenn ein bisher gesunder Client 429 zu treffen beginnt, fehlt fast immer ein Backoff oder eine Schleife läuft heiß, nicht die Kapazität.
+Die API limitiert mit Token-Buckets, die am Schlüsselinhaber hängen — dem Benutzer, als der dein API-Schlüssel handelt. Ein Budget gehört so immer einem erkennbaren Aufrufer, und kein Netzwerk-Header kann ein frisches prägen: Bursts gehen durch, Dauerfeuer antwortet **429**. Jeder Schlüssel, den ein Benutzer erstellt, zieht aus dem Budget dieses Benutzers; eine Worker-Flotte, die ein eigenes Budget braucht, bekommt einen eigenen Maschinenbenutzer. Ein Schlüssel, der sich nicht authentifizieren lässt, wird stattdessen pro Quell-IP gedrosselt (20 Anfragen pro Minute, Burst 40) — Fremde ziehen also nie aus dem Budget eines Schlüsselinhabers, und eine Anfrage ohne Schlüssel kostet gar nichts. Die Budgets sind so bemessen, dass eine normale Connector sie nie sieht — wenn ein bisher gesunder Client 429 zu treffen beginnt, fehlt fast immer ein Backoff oder eine Schleife läuft heiß, nicht die Kapazität.
 
 Lies das, wenn du einen Client verdrahtest, der die API nach Zeitplan oder unter Last aufruft.
 
@@ -13,7 +13,7 @@ Lies das, wenn du einen Client verdrahtest, der die API nach Zeitplan oder unter
 | --------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ----- |
 | Lesen und CRUD — jeder `/api/v1`-Endpoint, der unten nicht steht, einschließlich `POST /api/v1/mcp`                               | 120 Anfragen / Min. | 200   |
 | Arbeit starten — `POST /api/v1/automations/{name}/runs`, `POST /api/v1/threads/{id}/messages` und `POST /api/v1/tasks/{id}/start` | 20 Anfragen / Min.  | 40    |
-| Der Projekt-Upload-Fluss — der Upload-Handoff und das Datei-Binden (`POST .../uploads` und `POST .../files`)              | 240 Anfragen / Min. | 300   |
+| Der Projekt-Upload-Fluss — der Upload-Handoff und das Datei-Binden (`POST .../uploads` und `POST .../files`)                      | 240 Anfragen / Min. | 300   |
 
 Der zweite Bucket ist mit Absicht klein: jede dieser Anfragen kostet einen ganzen durablen Lauf oder einen Modell-Turn, keinen Datenbank-Read. Der dritte ist mit Absicht geräumig: eine Datei kostet hier mindestens zwei Aufrufe — Handoff holen, Datei binden — das Budget deckt also die ganze Choreografie. Jede Anfrage zählt zusätzlich gegen das allgemeine Budget — es ist die Tür — ein Arbeit-startender oder Upload-POST zieht also aus zwei Spuren zugleich, und die engere bestimmt; plane gegen sie. Ein Ordner-Anlegen ist ein einfacher Schreibzugriff und zieht allein aus dem allgemeinen Budget. Ein Token-Bucket füllt sich kontinuierlich — die Burst-Kapazität schluckt einen Stapel, danach gilt die Dauerrate.
 
@@ -31,4 +31,4 @@ Warte mindestens `Retry-After`, bevor du es erneut versuchst. Restbudget-Zähler
 
 ## Wo das hingehört
 
-Die [API-Referenz](/de/develop/api-reference) nennt die 429 im Fehlermodell und zeigt hierher. Braucht dein Workload wirklich mehr, als die Budgets erlauben, bündle auf deiner Seite — `POST /api/v1/contacts/bulk` existiert genau dafür — oder strecke den Zeitplan; die Buckets gelten pro IP — Traffic auf mehrere Schlüssel zu verteilen ändert nichts, eine Flotte teilt sich das Budget ihres NAT-Egress.
+Die [API-Referenz](/de/develop/api-reference) nennt die 429 im Fehlermodell und zeigt hierher. Braucht dein Workload wirklich mehr, als die Budgets erlauben, bündle auf deiner Seite — `POST /api/v1/contacts/bulk` existiert genau dafür — oder strecke den Zeitplan; die Buckets gelten pro Schlüsselinhaber — Traffic auf mehrere Schlüssel desselben Benutzers zu verteilen ändert nichts. Eine Integration, die wirklich ein eigenes Budget braucht, bekommt einen eigenen Maschinenbenutzer.
