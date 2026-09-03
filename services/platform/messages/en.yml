@@ -1778,6 +1778,7 @@ conversations:
     send: Send message
   attachment:
     download: Download
+    unavailable: No longer available
     attachments: '{count, plural, one {# attachment} other {# attachments}}'
   panel:
     uploadFailed: Couldn't upload attachments. Try again.

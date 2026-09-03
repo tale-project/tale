@@ -14873,6 +14873,10 @@ async function checkConversations(
   // ── A bytesless attachment (Gmail/Outlook chips the connector never fetched)
   // must offer NO download affordance — the detail projection presigns a URL
   // only from a stored storageId, so a metadata-only chip carries none.
+  const attSlugRows = await sql<{ slug: string }[]>`
+    SELECT "slug" FROM "organization" WHERE "id" = ${orgId} LIMIT 1
+  `;
+  const attOrgSlug = attSlugRows[0]?.slug ?? '';
   await sql`
     INSERT INTO app.conversation_messages (
       org_id, conversation_id, channel, direction, external_message_id,
@@ -14891,10 +14895,23 @@ async function checkConversations(
             contentType: 'image/jpeg',
             size: 0,
           },
+          // A ref whose blob is NOT in the store. Presigning signs a path and
+          // succeeds anyway, so without a presence probe the message keeps
+          // offering a download that 404s (#3017).
+          {
+            id: 'att-gone',
+            filename: 'gone.pdf',
+            contentType: 'application/pdf',
+            size: 23_359,
+            storageId: `s3:${attOrgSlug}/att-gone-never-uploaded.pdf`,
+          },
         ],
       })}, ${Date.now()}
     )
   `;
+  // The ref has to be org-scoped or `requireOrgScopedKey` refuses it before
+  // any presence probe runs — which is how the first draft of this check
+  // passed for the wrong reason.
   const attDetail = z
     .object({
       item: z
@@ -14913,18 +14930,31 @@ async function checkConversations(
     })
     .loose()
     .safeParse(await (await api(`/${conversationId}`)).json());
-  const bytelessChip = attDetail.success
-    ? attDetail.data.item.messages
-        .flatMap((message) => message.attachments ?? [])
-        .find((attachment) => attachment.id === 'att-nobytes')
-    : undefined;
+  const attChips = attDetail.success
+    ? attDetail.data.item.messages.flatMap(
+        (message) => message.attachments ?? [],
+      )
+    : [];
+  const bytelessChip = attChips.find(
+    (attachment) => attachment.id === 'att-nobytes',
+  );
+  // Only assertable with a store to probe: `statOrgBlob` throws without one,
+  // and that failure deliberately fails OPEN — a store it cannot reach is not
+  // evidence the blob is gone.
+  const goneChip = attChips.find((attachment) => attachment.id === 'att-gone');
+  const goneMarked =
+    !process.env.ITEST_S3_ENDPOINT ||
+    (goneChip !== undefined &&
+      goneChip.unavailable === true &&
+      !('url' in goneChip));
   record(
-    'conversations: connectorName filters the Inbox, and a bytesless attachment offers no download',
+    'conversations: connectorName filters the Inbox; a bytesless and a vanished attachment both offer no download',
     matchedFilter.includes(conversationId) &&
       !wrongFilter.includes(conversationId) &&
       bytelessChip !== undefined &&
-      !('url' in bytelessChip),
-    `imapFilter=${matchedFilter.includes(conversationId)} gmailExcluded=${!wrongFilter.includes(conversationId)} bytelessChipNoUrl=${bytelessChip !== undefined && !('url' in bytelessChip)}`,
+      !('url' in bytelessChip) &&
+      goneMarked,
+    `imapFilter=${matchedFilter.includes(conversationId)} gmailExcluded=${!wrongFilter.includes(conversationId)} bytelessChipNoUrl=${bytelessChip !== undefined && !('url' in bytelessChip)} goneMarked=${goneMarked}${process.env.ITEST_S3_ENDPOINT ? ` (unavailableFlag=${goneChip?.unavailable === true} url=${goneChip !== undefined && 'url' in goneChip})` : ' (SKIPPED, no ITEST_S3_ENDPOINT)'}`,
   );
 
   const closed = z

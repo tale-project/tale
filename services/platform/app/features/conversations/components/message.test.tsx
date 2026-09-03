@@ -270,4 +270,51 @@ describe('Message — attachment list vs inline images', () => {
     );
     expect(screen.queryByText('logo.png')).not.toBeInTheDocument();
   });
+
+  it('says the file is no longer available instead of its size', () => {
+    // The size reads as a promise the message cannot keep.
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p>My CV is attached.</p>',
+          attachments: [attachment({ unavailable: true, url: undefined })],
+        })}
+      />,
+    );
+    expect(screen.getByText('attachment.unavailable')).toBeInTheDocument();
+    expect(screen.queryByText(/23,359|22\.8/)).not.toBeInTheDocument();
+  });
+
+  it('offers no download for an attachment whose bytes are gone', () => {
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p>My CV is attached.</p>',
+          attachments: [attachment({ unavailable: true, url: undefined })],
+        })}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: /attachment\.download CV\.pdf/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('still shows the size and a download for an attachment that is there', () => {
+    // The other half of the pair: a flag that hid every attachment would
+    // pass the two cases above on its own.
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p>My CV is attached.</p>',
+          attachments: [attachment()],
+        })}
+      />,
+    );
+    expect(
+      screen.queryByText('attachment.unavailable'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /attachment\.download CV\.pdf/ }),
+    ).toBeInTheDocument();
+  });
 });
