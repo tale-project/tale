@@ -1,43 +1,24 @@
 ---
 title: Connaissances d’agent
-description: L’onglet Connaissances de l’agent — un seul réglage décide quel corpus sa recherche a le droit de lire, et où passe la frontière avec les outils.
+description: Il n’y a pas d’onglet Connaissances par agent dans cette version — les connaissances se gèrent à l’échelle de l’organisation et se lisent par les outils de recherche de l’assistant de chat et les outils de plateforme d’un agent de projet.
 ---
 
-Les connaissances, c’est ce qu’un agent peut retrouver et citer au moment de répondre. Sans elles il reste générique ; avec elles il répond à partir du matériel de ton organisation et montre d’où vient sa réponse. L’onglet **Connaissances** de l’agent porte une seule décision : quel corpus la recherche de cet agent a le droit de lire.
+Cette page décrivait un onglet **Connaissances** de l’éditeur d’agent avec un seul réglage — quel corpus la recherche d’un agent a le droit de lire. Cet onglet ne fait pas partie de cette version de Tale. Les connaissances elles-mêmes sont bien là : les documents et les sites explorés de l’organisation sont indexés sous **Connaissances**, l’assistant de chat les cherche dès qu’une question le demande, et un agent de projet les lit par ses outils de plateforme.
 
-Cette décision est plus petite qu’elle ne devait l’être auparavant, parce que la recherche elle-même n’est plus un mode que tu configures. Un agent cherche quand il juge en avoir besoin, et rien n’est injecté dans une réponse sans qu’il soit allé le chercher.
+<Note>
 
-## Choisir une portée
+La portée de connaissances par agent n’est pas disponible comme réglage dans cette version. Le format de fichier des personas porte encore un champ `knowledge`, mais aucun écran ne le règle et le chat n’exécute pas de personas.
 
-Quatre valeurs, un seul réglage :
+</Note>
 
-- **Documents** — les fichiers téléversés par l’organisation, et rien d’autre.
-- **Web** — les pages récupérées pour le compte de l’organisation, et rien d’autre.
-- **Tout** — les deux corpus, fusionnés en un seul classement. C’est ce qu’obtient un agent que personne n’a restreint.
-- **Rien** — aucune recherche n’est proposée à l’agent. Choisis-le quand son travail est de raisonner ou de rédiger et que des citations ne feraient que du bruit.
+## Où les connaissances se décident aujourd’hui
 
-Chaque corpus appartient à ton organisation : élargir la portée ne franchit donc jamais la frontière vers le matériel d’un autre client. Cela décide seulement de la part du tien vers laquelle l’agent est pointé.
+Les sources sont à l’échelle de l’organisation. Téléverse et range des fichiers sous [Documents](/fr/platform/knowledge/documents), ajoute des sites à explorer sous [Exploration de sites web](/fr/platform/knowledge/crawling), et lis la [Base de connaissances](/fr/platform/knowledge/overview) pour le fonctionnement de l’indexation. Tout ce qui est indexé appartient à ton organisation ; rien de ce qu’un agent récupère ne franchit jamais la frontière vers le matériel d’un autre client.
 
-## Restreindre à dessein
+L’**assistant de chat** atteint ce matériel par `rag_search` et `rag_fetch` — il cherche quand la question le demande, charge le passage trouvé en entier et répond à partir de lui. Un document dont l’indexation n’est pas finie n’est pas encore trouvable ; un assistant qui semble ignorer une source évidente attend en général l’index. Quand la base de connaissances ne peut pas être cherchée du tout — pas de modèle d’embedding configuré, corpus encore vide — l’assistant en est informé dans le résultat de l’outil et te le dit, au lieu de répondre comme si rien n’existait.
 
-Tout ce qui est dans la portée se dispute la pertinence à chaque question, et c’est pourquoi une portée étroite répond en général mieux qu’une portée large. Un agent pointé sur les documents que ton équipe entretient vraiment trouve le bon passage ; le même agent pointé en plus sur toutes les pages collectées doit d’abord battre le bruit.
-
-Choisis **Documents** quand la vérité vit dans des fichiers que tu contrôles et qu’une page web périmée serait un risque. Choisis **Web** quand le travail de l’agent porte sur ce qui est publié plutôt que sur ce qui est classé. Choisis **Tout** quand les deux comptent réellement et que tu préfères le rappel. Le matériel lui-même — ce qui est téléversé, collecté et indexé — se gère sous [Documents](/fr/platform/knowledge/documents) et [Sites web](/fr/platform/knowledge/crawling), pas ici : cet onglet ne fait qu’y pointer l’agent.
-
-## Comment la recherche arrive dans la réponse
-
-Quand l’agent cherche, les citations se rattachent aux phrases qu’elles étayent — le survol montre la source, le clic l’ouvre. Un document dont l’indexation n’est pas terminée n’est pas encore trouvable : un agent qui semble ignorer une source évidente attend donc souvent l’index plutôt qu’il n’est mal réglé.
-
-## Quand y recourir
-
-Les enregistrements structurés et les systèmes vivants sont des outils, pas des connaissances. Les frontières :
-
-| Prends…                                                      | Quand l’agent a besoin…                                            |
-| ------------------------------------------------------------ | ------------------------------------------------------------------ |
-| Les connaissances (cet onglet)                               | De chercher et citer le matériel de l’organisation                 |
-| [Les outils](/fr/platform/agents/tools)                      | De contacts, produits, fournisseurs, sites web ou systèmes vivants |
-| [Les agents de projet](/fr/platform/projects/project-agents) | De connaissances limitées à un projet                              |
+Un **agent de projet** lit les documents et les connaissances par les outils de plateforme dont tu l’équipes, dans les limites de son projet : il ne voit jamais le tableau ni les fichiers d’un autre projet. [Agents de projet](/fr/platform/projects/project-agents) couvre l’équipement ; l’[endpoint MCP](/fr/develop/mcp-endpoint) donne à un client hors de Tale la même recherche par `get_knowledge`.
 
 ## Où cela se place
 
-Les connaissances d’agent répondent à une seule question : cet agent doit-il lire les documents de l’organisation, son web collecté, les deux, ou aucun. La section [Connaissances](/fr/platform/knowledge/overview) plus large est là où ces sources vivent et s’indexent ; cet onglet raccorde un agent à une tranche d’entre elles. Pour le parcours complet — téléverser, cadrer, demander, vérifier les citations — suis [Agent avec connaissances](/fr/tutorials/editor/agent-with-knowledge).
+Les connaissances sont, dans cette version, une propriété de l’organisation et non d’un agent : tu décides ce qui est indexé, et chaque voie — le chat, les agents de projet, l’endpoint MCP — lit dans ce seul fonds avec ses propres règles d’accès. La [Base de connaissances](/fr/platform/knowledge/overview) est l’endroit où le façonner ; [Outils d’agent](/fr/platform/agents/tools) couvre le reste de ce qu’un agent peut faire.

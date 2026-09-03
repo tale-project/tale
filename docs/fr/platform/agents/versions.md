@@ -1,24 +1,24 @@
 ---
 title: Versions d’agent
-description: La vue Historique de l’éditeur d’agent — chaque enregistrement pris en instantané, avec un diff contre la version actuelle et une restauration en un clic.
+description: La vue Historique de l’éditeur d’agent ne fait pas partie de cette version — les fichiers de persona gardent un historique derrière l’API, et le versionnage visible dans le produit appartient aux automatisations.
 ---
 
-Chaque enregistrement d’un agent crée un instantané. Le bouton **Historique** en haut à droite de l’éditeur d’agent ouvre ces instantanés du plus récent au plus ancien ; comparer montre ce qui a changé, et restaurer remplace l’état courant par une version passée. Il n’y a pas de distinction entre enregistrement manuel et automatique — chaque changement persisté est une version.
+Cette page décrivait le bouton **Historique** de l’éditeur d’agent — chaque enregistrement un instantané, un diff contre la version actuelle, une restauration en un clic. L’éditeur et sa vue Historique ne font pas partie de cette version de Tale. Le versionnage n’a pas disparu avec eux : les automatisations sont versionnées dans le produit, et les personas d’agent gardent un historique de fichiers que l’API de la plateforme expose.
 
-La mécanique est petite mais porteuse. La plupart des équipes ajustent les instructions d’un agent chaque semaine ; sans l’historique, l’équipe ne ferait jamais confiance aux modifications.
+<Note>
 
-## Passer un changement en revue
+La vue Historique des agents n’est pas disponible dans cette version. Il n’y a pas d’éditeur d’agent depuis lequel l’ouvrir.
 
-Ouvre l’agent et clique sur **Historique**. La liste montre **Version actuelle** en haut et chaque **Version de l'instantané** antérieure en dessous, avec l’auteur et l’horodatage sur chaque ligne. Choisis un instantané et **Comparer les modifications** passe en revue les différences entre lui et la version actuelle — les champs modifiés se surlignent — avant que tu décides de restaurer.
+</Note>
 
-## Restaurer une version
+## Ce qui est versionné aujourd’hui
 
-Depuis un instantané, clique sur **Restaurer cette version**. L’état courant de l’agent est remplacé par l’instantané — un toast confirme **Agent restauré depuis l'historique** — et la restauration atterrit sur la frise comme sa propre entrée, donc les restaurations s’additionnent, elles ne détruisent rien. Les chats déjà en cours sur la version précédente y restent jusqu’à leur fin ; la version restaurée s’applique à partir du chat suivant.
+Les **automatisations** portent le versionnage que tu vois. Chaque enregistrement sur le canvas et chaque paquet téléversé devient une nouvelle version immuable ; tu en mets une en service sur la page de l’automatisation, et la liste **Automatisations** montre pour chacune le nombre de versions à côté de la version en service — ou **Pas en service**. [L’éditeur de workflow](/fr/platform/automations/editor) couvre les versions, les exécutions de test et la mise en service ; [Ajouter des automatisations](/fr/platform/automations/catalog) couvre ce qu’un téléversement ajoute.
 
-## Ce qui est versionné
+Les **personas d’agent** gardent un historique derrière l’API. Chaque enregistrement laisse le fichier remplacé dans la piste d’historique de la persona, et restaurer une entrée sauvegarde d’abord le fichier actuel, si bien qu’une restauration s’ajoute et ne détruit jamais l’état qu’elle remplace ; une entrée d’historique qui ne se parserait plus est refusée avec la raison plutôt qu’écrite. Aucun écran ne montre cette piste dans cette version — elle se lit par l’API propre de la plateforme et, pour les opérateurs auto-hébergés, sur le disque à côté des fichiers de persona. [Agents (vue Admin)](/fr/platform/admin/agents) explique qui peut restaurer quoi.
 
-Le versionnage couvre la configuration de l’agent : ses textes d’affichage et sa description, ses instructions, les listes d’autorisation d’outils et de skills, la portée des connaissances, sa visibilité et ses métadonnées. Il n’atteint pas ce que l’agent se contente de désigner. Remplacer un document depuis lequel il récupère change sa réponse sans incrémenter sa version, et remplacer un bundle de skill qu’il lie aussi — la liaison nomme un slug, donc la configuration propre de l’agent reste inchangée alors que son comportement, non. Pour auditer l’un comme l’autre, voir [Journaux d’audit](/fr/platform/admin/governance/audit-logs).
+Les **skills** gardent le `SKILL.md` remplacé quand un paquet téléversé remplace un bundle, comme le décrit [Ajouter des automatisations](/fr/platform/automations/catalog). Pour savoir qui a fait quoi dans l’organisation, les [journaux d’audit](/fr/platform/admin/governance/audit-logs) sont la piste.
 
-## Où ça se situe
+## Où cela se place
 
-Les versions sont le filet de sécurité de l’agent pour la même raison que git est celui du code : tout ce qui est enregistré est récupérable. La page à lire en regard est [Journaux d’audit](/fr/platform/admin/governance/audit-logs) — elle couvre la piste qui-a-fait-quoi à l’échelle de l’organisation ; l’Historique couvre la piste qu’était-ce, agent par agent.
+Les versions vivent, dans cette version, là où l’édition se fait : sur la page de l’automatisation pour les automatisations, dans la piste d’historique pour les personas, dans l’historique de chaque skill pour les bundles. La lecture compagne est [Journaux d’audit](/fr/platform/admin/governance/audit-logs) pour le qui-a-fait-quoi à travers les trois.

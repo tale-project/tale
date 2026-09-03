@@ -1,43 +1,24 @@
 ---
 title: Agent knowledge
-description: The agent's Knowledge tab — one scope deciding which corpus its retrieval may read, and how that differs from tools.
+description: There is no per-agent Knowledge tab in this version — knowledge is managed organization-wide and reached through the chat assistant's retrieval tools and a project agent's platform tools.
 ---
 
-Knowledge is what an agent can retrieve and cite at reply time. Without it the agent is generic; with it the agent answers from your organization's material and shows where the answer came from. The agent's **Knowledge** tab holds a single decision: which corpus this agent's retrieval is allowed to read.
+This page used to describe a **Knowledge** tab on the agent editor with one setting — which corpus an agent's retrieval may read. That tab is not part of this version of Tale. Knowledge itself is very much there: the organization's documents and crawled websites are indexed under **Knowledge**, the chat assistant searches them whenever a question calls for it, and a project agent reads them through its platform tools.
 
-That decision is smaller than it used to need to be, because retrieval itself is no longer a mode you configure. An agent searches when it judges that it needs to, and nothing is injected into a reply the agent did not go looking for.
+<Note>
 
-## Pick a scope
+The per-agent knowledge scope is not available as a setting in this version. The persona file format still carries a `knowledge` field, but no screen sets it and chat does not run personas.
 
-Four values, one setting:
+</Note>
 
-- **Documents** — the organization's own uploads, and nothing else.
-- **Web** — the pages fetched on the organization's behalf, and nothing else.
-- **All** — both corpora, fused into one ranked result. This is what an agent gets when nobody narrows it.
-- **None** — the agent is offered no retrieval at all. Reach for it when the agent's job is reasoning or drafting and citations would only be noise.
+## Where knowledge is decided today
 
-Every corpus belongs to your organization, so widening the scope never crosses into another tenant's material. It only decides how much of your own the agent is pointed at.
+The sources are organization-wide. Upload and organize files under [Documents](/platform/knowledge/documents), add sites to crawl under [Websites](/platform/knowledge/crawling), and read the [Knowledge overview](/platform/knowledge/overview) for how indexing works. Everything indexed belongs to your organization, so nothing an agent retrieves ever crosses into another tenant's material.
 
-## Narrow it on purpose
+The **chat assistant** reaches that material through `rag_search` and `rag_fetch` — it searches when the question calls for it, loads the full passage it found, and answers from it. A document that has not finished indexing is not retrievable yet, so an assistant that seems to ignore an obvious source is usually waiting on the index. When the knowledge base cannot be searched at all — no embedding model configured, the corpus not yet populated — the assistant is told so in the tool result and says so, rather than answering as if nothing existed.
 
-Everything in scope competes for relevance on every question, which is why a narrower scope usually answers better than a wider one. An agent pointed at the documents your team actually maintains finds the right passage; the same agent pointed at every crawled page as well has to beat the noise first.
-
-Set **Documents** when the truth lives in files you control and a stale web page would be a liability. Set **Web** when the agent's job is about what is published rather than what is filed. Set **All** when both genuinely matter and you would rather have the recall. The material itself — what is uploaded, what is crawled, and what is indexed — is managed under [Documents](/platform/knowledge/documents) and [Websites](/platform/knowledge/crawling), not here; this tab only points the agent at it.
-
-## How retrieval lands in the reply
-
-When the agent retrieves, citations attach to the sentences they support — hovering shows the source, clicking opens it. A document that has not finished indexing is not retrievable yet, so an agent that seems to be ignoring an obvious source is often waiting on the index rather than misconfigured.
-
-## When to reach for it
-
-Structured records and live systems are tools, not knowledge. The boundaries:
-
-| Use…                                                | When the agent needs…                                  |
-| --------------------------------------------------- | ------------------------------------------------------ |
-| Knowledge (this tab)                                | To search and cite the organization's material         |
-| [Tools](/platform/agents/tools)                     | Contacts, products, vendors, websites, or live systems |
-| [Project agents](/platform/projects/project-agents) | Knowledge scoped to one Project                        |
+A **project agent** reads documents and knowledge through the platform tools you equip it with, scoped to its project: it never sees another project's board or files. [Project agents](/platform/projects/project-agents) covers the equipment; the [MCP endpoint](/develop/mcp-endpoint) gives a client outside Tale the same retrieval through `get_knowledge`.
 
 ## Where this fits
 
-Agent knowledge answers one question — should this agent read the organization's documents, its crawled web, both, or neither. The wider [Knowledge](/platform/knowledge/overview) section is where those sources live and get indexed; this tab wires one agent into a slice of them. For the end-to-end build — upload, scope, ask, verify the citations — walk [Agent with knowledge](/tutorials/editor/agent-with-knowledge).
+Knowledge is a property of the organization in this version, not of an agent: you decide what is indexed, and every lane — chat, project agents, the MCP endpoint — reads from that one pool with its own access rules. The [Knowledge overview](/platform/knowledge/overview) is the place to shape it; [Agent tools](/platform/agents/tools) covers the rest of what an agent can do.

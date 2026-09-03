@@ -1,42 +1,22 @@
 ---
-title: Workers d'agent
-description: Un agent peut lancer un worker ciblé pour une tâche via le tool spawn_agent. Cette page donne le modèle mental — quand lancer un worker, comment les capacités restent bornées et ce que montre la carte de job.
+title: Workers d’agent
+description: Le tool de worker spawn_agent ne fait pas partie de cette version — le travail passe à un agent de projet par une tâche du tableau et à une automatisation par son nœud agent.
 ---
 
-Tu lances un worker quand une tâche mérite son propre contexte ciblé : recherche ouverte, extraction en masse, rédaction d'un long document. L'agent avec qui tu discutes compose un **worker** à la demande — un nom, des instructions de tâche, une méthode de travail optionnelle et une sélection d'outils — le fait tourner et replie le résultat dans sa réponse. Les workers sont éphémères : ils existent pour un seul job, et leur exécution apparaît comme une **carte de job** dans le chat.
+Cette page expliquait les workers : un tool `spawn_agent` avec lequel l’agent de ton chat composait un sous-agent éphémère, le faisait tourner et repliait le résultat dans sa réponse sous une carte de job. Ce tool n’existe pas dans cette version de Tale — l’assistant de chat n’a aucun moyen de lancer quoi que ce soit, et il n’y a pas de carte de job. Confier du travail à un agent reste le geste central ; il passe par les tâches et les automatisations.
 
-Cette page te donne le modèle mental pour savoir quand un worker est la bonne forme et comment la plateforme le maintient borné. Le parcours de bout en bout vit dans [Confier du travail à un worker](/fr/tutorials/editor/delegate-between-agents).
+<Note>
 
-## Comment tourne un job
+La délégation à un worker depuis le chat n’est pas disponible dans cette version. Le chat répond aux questions et cherche ; le travail qui produit quelque chose est une tâche assignée à un agent de projet.
 
-Quand l'agent appelle **spawn_agent**, Tale résout les capacités du worker, démarre une conversation enfant fraîche et fait tourner le worker en mode non interactif : il ne voit que la tâche envoyée par l'agent (pas tout l'historique du chat), suit sa progression sur une checklist visible en direct, et son dernier message revient à l'agent comme résultat. Le chat affiche une carte de job avec le nom du worker, la progression en direct, le statut final et une transcription dépliable de tout ce qu'il a fait.
+</Note>
 
-Les workers ne te parlent jamais. Si un worker a besoin d'une information que seul un humain peut donner, il le dit dans son résultat et l'agent te pose la question — les questions viennent toujours de l'agent avec qui tu parles réellement.
+## Confier du travail aujourd’hui
 
-## Les capacités sont toujours un sous-ensemble
+Assigne une tâche du tableau à un **agent de projet** et clique sur **Démarrer l'agent**. L’agent travaille dans une sandbox isolée avec la description, les commentaires et les fichiers d’entrée de la tâche pour contexte, poste son rapport en commentaire de la tâche, attache les fichiers produits comme livrables et gare la tâche en **En revue** — un agent ne termine jamais le travail, une personne le fait. Oriente une exécution en cours ou lance la suivante en @-mentionnant l’agent dans un commentaire de la tâche ; il lit ton commentaire d’abord et reprend là où l’exécution précédente s’est arrêtée. [Automatisation des tâches](/fr/platform/projects/task-automation) est la boucle de bout en bout, [Agents de projet](/fr/platform/projects/project-agents) l’équipe depuis laquelle tu assignes.
 
-Un worker ne peut détenir au plus que ce que détient l'agent qui le lance. Trois couches décident de la sélection effective :
+Quand la passation doit se faire sans personne, une **automatisation** s’en charge : son nœud agent exécute un tour de harness comme une étape d’un workflow, sur un planning, un webhook ou un événement, à côté des actions de connector et des nœuds de code qui l’entourent. [Concepts d’automatisation](/fr/platform/automations/concepts) explique les pièces ; [Automatisations livrées](/fr/platform/automations/builtin) montre les paquets livrés.
 
-- **La configuration de l'org** — les outils, skills et connectors de l'agent, tels que configurés par tes admins. Rien à gérer par worker.
-- **La sélection par job** — l'agent choisit le plus petit ensemble dans ses propres capacités pour cette tâche (moins d'outils = un worker plus ciblé).
-- **Les exceptions de plateforme** — quelques outils ne se transmettent jamais, au premier rang l'outil de question à l'utilisateur : les questions d'un worker passent par l'agent, pour qu'une réponse ne parte jamais dans le vide. Les workers ne peuvent pas non plus lancer de workers. Une exception va dans l'autre sens : chaque worker peut toujours lister et lire les fichiers du thread (téléversements, sorties générées) — écrire des fichiers ou exécuter du code reste une sélection explicite.
+## Où cela se place
 
-Tout ce qui sort de ces bornes est silencieusement ignoré et signalé — la carte de job montre ce qui a été retranché, et l'agent s'adapte (en te disant par exemple qu'une connector doit être connectée).
-
-## Méthodes de travail
-
-Pour du travail ouvert, l'agent peut accorder un **skill de méthodologie** comme méthode de travail du worker — `web-research` est fourni : planification en direct sur la checklist, budgets de recherche par question et un livrable cité. Les méthodologies sont des skills ; tes admins les gouvernent comme n'importe quel autre skill.
-
-## Limites et dépense
-
-Un worker tourne dans le tour qui l'a lancé et ne peut pas lui survivre ; quand le plafond est atteint, le job se termine avec sa progression partielle encore visible sur la carte. Ce plafond appartient à l'hôte qui exécute le tour, pas à l'agent, qui ne porte aucun délai propre. La consommation de tokens remonte à l'agent qui a lancé le job, et les limites de dépense s'appliquent à l'organisation dans son ensemble plutôt que par agent : le coût d'un job atterrit donc avec le reste de l'usage de l'organisation. Les admins plafonnent le nombre de jobs qui tournent en même temps via **Gouvernance → agent_jobs** (10 par défaut).
-
-## Quand y recourir
-
-| Prends … quand                                           | Worker | Agent seul | Workflow |
-| -------------------------------------------------------- | ------ | ---------- | -------- |
-| Une sous-tâche profite d'un contexte isolé et ciblé      | ✓      |            |          |
-| L'agent peut bien répondre directement                   |        | ✓          |          |
-| Le travail a des étapes fixes avec des validations entre |        |            | ✓        |
-
-Le coût d'un worker est une exécution de plus ; le gain, un contexte propre avec exactement les bonnes capacités pour la sous-tâche — et une carte de job qui montre ce qui s'est passé. Quand les étapes sont fixes et que tu veux des validations ou de la planification entre elles, un workflow est la bonne forme.
+La délégation, dans cette version, est explicite et relisible : une tâche nomme l’agent et le relecteur, une automatisation nomme son déclencheur et ses nœuds, et rien n’est lancé derrière une réponse. Prends une tâche quand une personne doit relire le résultat ; prends une automatisation quand le travail a des étapes fixes et doit tourner tout seul.

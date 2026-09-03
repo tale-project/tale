@@ -1,24 +1,24 @@
 ---
 title: Agent versions
-description: The agent editor's History view — every save snapshotted, with a diff against the current version and one-click restore.
+description: The agent editor's History view is not part of this version — persona files keep a history behind the API, and the versioning you see in the product belongs to automations.
 ---
 
-Every save of an agent creates a snapshot. The **History** button at the top right of the agent editor opens those snapshots in reverse chronological order; comparing shows what changed, and restoring replaces the current state with a past version. There is no manual-save versus auto-save distinction — every persisted change is a version.
+This page used to describe the **History** button of the agent editor — every save a snapshot, a diff against the current version, one-click restore. The editor and its History view are not part of this version of Tale. Versioning did not disappear with it: automations are versioned in the product, and agent personas keep a file history that the platform's API exposes.
 
-The mechanic is small but load-bearing. Most teams adjust an agent's instructions weekly; without the history, the team would never trust the edits.
+<Note>
 
-## Reviewing a change
+The agent History view is not available in this version. There is no agent editor to open it from.
 
-Open the agent and click **History**. The list shows **Current version** at the top and every prior **Snapshot version** below, with the author and timestamp on each row. Pick a snapshot and **Compare changes** reviews the differences between it and the current version — the changed fields highlight — before you decide to restore.
+</Note>
 
-## Restoring a version
+## What is versioned today
 
-From a snapshot, click **Restore this version**. The agent's current state is replaced with the snapshot — a toast confirms **Agent restored from history** — and the restore lands on the timeline as its own entry, so restores are additive, not destructive. Chats already running against the previous version continue on it until they end; the restored version applies from the next chat.
+**Automations** carry the versioning you can see. Every save on the canvas and every uploaded pack becomes a new immutable version; you promote one to be live on the automation's page, and the **Automations** list shows each automation's version count next to the version that is live — or **Not deployed**. [The workflow editor](/platform/automations/editor) covers versions, test runs, and deploying; [Add automations](/platform/automations/catalog) covers what an upload appends.
 
-## What gets versioned
+**Agent personas** keep a history behind the API. Every save leaves the superseded file in the persona's history trail, and restoring an entry snapshots the current file first, so a restore is additive and never destroys the state it replaced; a history entry that would no longer parse is refused with the reason rather than written. No screen shows this trail in this version — it is reachable through the platform's own API and, for self-hosted operators, on disk next to the persona files. [Agents (admin view)](/platform/admin/agents) explains who may restore what.
 
-Versioning covers everything the agent itself carries: its display strings and description, its instructions, the tool and skill allowlists, the knowledge scope, its visibility, and its metadata. It does not reach the things an agent only points at. Replacing a document the agent retrieves from changes what it answers without bumping the agent's version, and so does replacing a skill bundle it binds — the binding names a slug, so the agent's own configuration is unchanged while its behaviour is not. To audit either, see [Audit logs](/platform/admin/governance/audit-logs).
+**Skills** keep the superseded `SKILL.md` when an uploaded package replaces a bundle, as [Add automations](/platform/automations/catalog) describes. For who did what across the organization, the [audit logs](/platform/admin/governance/audit-logs) are the trail.
 
 ## Where this fits
 
-Versions are the agent's safety net for the same reason git is the codebase's: anything saved is recoverable. The companion page is [Audit logs](/platform/admin/governance/audit-logs) — it covers the org-wide who-did-what trail; History covers the per-agent what-was-it trail.
+Versions in this version live where the editing happens: on the automation's page for automations, in the history trail for personas, in each skill's history for bundles. The companion read is [Audit logs](/platform/admin/governance/audit-logs) for the who-did-what across all of them.

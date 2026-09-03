@@ -1,42 +1,22 @@
 ---
 title: Agent workers
-description: An agent can spawn a focused worker for one task through the spawn_agent tool. This page hands you the mental model for when to spawn, how capabilities stay bounded, and what the job card shows.
+description: The spawn_agent worker tool is not part of this version — work is handed to a project agent through a board task and to an automation through its agent node.
 ---
 
-Spawning is the move you make when one task deserves its own focused context: open-ended research, bulk extraction, drafting a long document. The agent you chat with composes a **worker** on demand — a name, task instructions, an optional operating method, and a tool grant — runs it, and folds the result back into its reply. Workers are ephemeral: they exist for one job, and their run is recorded as a **job card** in the chat.
+This page used to explain workers: a `spawn_agent` tool with which the agent you chat with composed an ephemeral sub-agent, ran it, and folded the result into its reply under a job card. That tool does not exist in this version of Tale — the chat assistant has no way to spawn anything, and there is no job card. Handing work to an agent is still the core move; it runs through tasks and automations instead.
 
-This page hands you the mental model for when a worker is the right shape and how the platform keeps it bounded. The end-to-end walk lives in [Hand work to a worker](/tutorials/editor/delegate-between-agents).
+<Note>
 
-## How a job runs
+Worker delegation from chat is not available in this version. Chat answers questions and retrieves; work that produces something is a task assigned to a project agent.
 
-When the agent calls **spawn_agent**, Tale resolves the worker's capabilities, starts a fresh child conversation, and runs the worker non-interactively: it sees only the task input the agent sent (not the whole chat history), tracks its progress on a live checklist, and its final message comes back to the agent as the result. The chat shows a job card with the worker's name, live progress, terminal status, and an expandable transcript of everything it did.
+</Note>
 
-Workers cannot talk to the user. If a worker needs input only a human can give, it says so in its result and the agent asks you — questions always come from the agent you actually talk to.
+## Hand work over today
 
-## Capabilities are a subset, always
+Assign a board task to a **project agent** and click **Start agent**. The agent works in an isolated sandbox with the task's description, comments, and input files as context, posts its report back as a task comment, attaches produced files as deliverables, and parks the task at **In review** — agents never complete work, a person does. Steer a live run or start the next one by @-mentioning the agent in a task comment; it reads your comment first and continues where the previous run left off. [Task automation](/platform/projects/task-automation) is the loop end to end, [Project agents](/platform/projects/project-agents) the crew you assign from.
 
-A worker can hold at most what its spawning agent holds. Three layers decide the effective grant:
+When the hand-off should happen without a person, an **automation** does it: its agent node runs a harness turn as one step of a workflow, on a schedule, a webhook, or an event, next to the connector actions and code nodes around it. [Automation concepts](/platform/automations/concepts) explains the pieces; [Built-in automations](/platform/automations/builtin) shows the shipped packs.
 
-- **Org configuration** — the agent's own tools, skills, and connectors, as configured by your admins. Nothing new to manage per worker.
-- **The per-job grant** — the agent picks the smallest set from its own capabilities for this task (fewer tools = a more focused worker).
-- **Platform exceptions** — a few tools never transfer, most importantly the ask-the-user tool: a worker's questions must flow through the agent, so answering never dead-ends. Workers also cannot spawn workers. One exception runs the other way: every worker can always list and read the thread's files (uploads, generated outputs) — writing files or running code stays an explicit grant.
+## Where this fits
 
-Anything requested outside those bounds is silently skipped and reported — the job card shows what was narrowed away, and the agent adapts (for example, telling you a connector needs connecting).
-
-## Operating methods
-
-For open-ended work, the agent can grant a **methodology skill** as the worker's operating method — `web-research` ships built-in: live planning on the checklist, per-question search budgets, and a cited deliverable. Methodologies are skills, so admins govern them the same way as every other skill.
-
-## Limits and spend
-
-A worker runs inside the turn that spawned it and cannot outlive it; when the ceiling is reached the job ends with its partial progress still visible on the card. That ceiling belongs to whatever host is running the turn rather than to the agent, which carries no deadline of its own. Token spend rolls up to the spawning agent, and spend limits are enforced for the organization as a whole rather than per agent, so a job's cost lands with the rest of the organization's usage. Admins cap how many jobs may run at once under **Governance → agent_jobs** (default 10).
-
-## When to reach for it
-
-| Use … when                                              | Worker | Single agent | Workflow |
-| ------------------------------------------------------- | ------ | ------------ | -------- |
-| One sub-task benefits from an isolated, focused context | ✓      |              |          |
-| The agent can answer well inline                        |        | ✓            |          |
-| Work has explicit stages with approvals between them    |        |              | ✓        |
-
-The cost of a worker is one extra run; the benefit is a clean context with exactly the right capabilities for the sub-task, and a job card that shows the user what happened. When the stages are fixed and you want approvals or scheduling between them, a workflow is the right shape instead.
+Delegation in this version is explicit and reviewable: a task names the agent and the reviewer, an automation names its trigger and its nodes, and nothing is spawned behind a reply. Reach for a task when a person should review the result; reach for an automation when the work has fixed stages and should run on its own.

@@ -1,43 +1,24 @@
 ---
 title: Agent-Wissen
-description: Der Wissen-Tab des Agents — eine Einstellung dafür, welchen Bestand seine Suche lesen darf, und wie sich das von Tools unterscheidet.
+description: Einen Wissen-Tab pro Agent gibt es in dieser Version nicht — Wissen wird organisationsweit verwaltet und über die Such-Tools des Chat-Assistenten und die Plattform-Tools eines Projekt-Agenten erreicht.
 ---
 
-Wissen ist das, was ein Agent zur Antwortzeit heraussuchen und belegen kann. Ohne das bleibt er allgemein; damit antwortet er aus dem Material deiner Organisation und zeigt, woher die Antwort kommt. Auf dem Tab **Wissen** steht genau eine Entscheidung: welchen Bestand die Suche dieses Agenten lesen darf.
+Diese Seite hat früher einen Tab **Wissen** im Agenten-Editor beschrieben, mit einer einzigen Einstellung — welchen Bestand die Suche eines Agenten lesen darf. Diesen Tab gibt es in dieser Version von Tale nicht. Das Wissen selbst gibt es sehr wohl: Dokumente und gecrawlte Websites der Organisation werden unter **Wissen** indexiert, der Chat-Assistent durchsucht sie, wann immer eine Frage danach verlangt, und ein Projekt-Agent liest sie über seine Plattform-Tools.
 
-Diese Entscheidung ist kleiner, als sie einmal sein musste, denn die Suche selbst ist kein Modus mehr, den du einstellst. Ein Agent sucht, wenn er es für nötig hält, und in eine Antwort rutscht nichts, wonach er nicht selbst gesucht hat.
+<Note>
 
-## Einen Bereich wählen
+Den Wissensbereich pro Agent gibt es in dieser Version nicht als Einstellung. Das Dateiformat der Personas trägt noch ein Feld `knowledge`, aber kein Bildschirm setzt es, und der Chat führt keine Personas aus.
 
-Vier Werte, eine Einstellung:
+</Note>
 
-- **Dokumente** — die hochgeladenen Dateien der Organisation und sonst nichts.
-- **Web** — die für die Organisation geholten Seiten und sonst nichts.
-- **Alles** — beide Bestände, zu einem Ranking zusammengeführt. Das bekommt ein Agent, wenn ihn niemand eingrenzt.
-- **Nichts** — dem Agenten wird gar keine Suche angeboten. Nimm das, wenn seine Aufgabe Denken oder Formulieren ist und Belege nur stören würden.
+## Wo Wissen heute entschieden wird
 
-Jeder Bestand gehört deiner Organisation, ein weiterer Bereich reicht also nie in fremdes Material hinein. Er entscheidet nur, auf wie viel vom Eigenen der Agent zeigt.
+Die Quellen sind organisationsweit. Lade Dateien unter [Dokumente](/de/platform/knowledge/documents) hoch und ordne sie, füge Sites zum Crawlen unter [Crawling](/de/platform/knowledge/crawling) hinzu, und lies [Wissen](/de/platform/knowledge/overview) dafür, wie die Indexierung arbeitet. Alles Indexierte gehört deiner Organisation; nichts, was ein Agent abruft, reicht also je in das Material eines anderen Mandanten.
 
-## Bewusst eingrenzen
+Der **Chat-Assistent** erreicht dieses Material über `rag_search` und `rag_fetch` — er sucht, wenn die Frage es verlangt, lädt die gefundene Passage vollständig und antwortet daraus. Ein Dokument, dessen Indexierung noch läuft, ist noch nicht auffindbar; ein Assistent, der eine offensichtliche Quelle zu übergehen scheint, wartet meist nur auf den Index. Lässt sich die Wissensdatenbank gar nicht durchsuchen — kein Embedding-Modell konfiguriert, der Bestand noch leer —, bekommt der Assistent das im Tool-Ergebnis gesagt und sagt es dir, statt zu antworten, als gäbe es nichts.
 
-Alles im Bereich konkurriert bei jeder Frage um Relevanz, und deshalb antwortet ein enger Bereich meist besser als ein weiter. Ein Agent, der auf die Dokumente zeigt, die dein Team tatsächlich pflegt, findet die richtige Passage; derselbe Agent, der zusätzlich auf jede gecrawlte Seite zeigt, muss erst das Rauschen schlagen.
-
-Nimm **Dokumente**, wenn die Wahrheit in Dateien liegt, die du kontrollierst, und eine veraltete Webseite ein Risiko wäre. Nimm **Web**, wenn es dem Agenten um Veröffentlichtes geht und nicht um Abgelegtes. Nimm **Alles**, wenn wirklich beides zählt und dir Trefferbreite lieber ist. Das Material selbst — was hochgeladen, was gecrawlt und was indexiert ist — verwaltest du unter [Dokumente](/de/platform/knowledge/documents) und [Websites](/de/platform/knowledge/crawling) und nicht hier; dieser Tab zeigt den Agenten nur darauf.
-
-## Wie die Suche in der Antwort landet
-
-Sucht der Agent, hängen die Belege an den Sätzen, die sie stützen — beim Überfahren siehst du die Quelle, mit einem Klick öffnest du sie. Ein Dokument, dessen Indexierung noch läuft, ist noch nicht auffindbar; ein Agent, der eine offensichtliche Quelle zu übergehen scheint, wartet also oft nur auf den Index, statt falsch eingestellt zu sein.
-
-## Wann du dazu greifst
-
-Strukturierte Datensätze und laufende Systeme sind Tools und kein Wissen. Die Grenzen:
-
-| Nimm …                                                  | Wenn der Agent … braucht                                    |
-| ------------------------------------------------------- | ----------------------------------------------------------- |
-| Wissen (diesen Tab)                                     | Suche und Belege im Material der Organisation               |
-| [Tools](/de/platform/agents/tools)                      | Kontakte, Produkte, Lieferanten, Websites, laufende Systeme |
-| [Projekt-Agenten](/de/platform/projects/project-agents) | Wissen, das auf ein Projekt begrenzt ist                    |
+Ein **Projekt-Agent** liest Dokumente und Wissen über die Plattform-Tools, mit denen du ihn ausrüstest, begrenzt auf sein Projekt: Das Board und die Dateien eines anderen Projekts sieht er nie. [Projekt-Agenten](/de/platform/projects/project-agents) behandelt die Ausrüstung; der [MCP-Endpoint](/de/develop/mcp-endpoint) gibt einem Client außerhalb von Tale dieselbe Suche über `get_knowledge`.
 
 ## Wo das hingehört
 
-Agent-Wissen beantwortet eine Frage — soll dieser Agent die Dokumente der Organisation lesen, ihr gecrawltes Web, beides oder keines von beidem. Im größeren Kapitel [Wissen](/de/platform/knowledge/overview) leben und indexieren sich die Quellen; dieser Tab hängt einen Agenten an einen Ausschnitt davon. Den Weg von Anfang bis Ende — hochladen, eingrenzen, fragen, Belege prüfen — geht [Agent mit Wissen](/de/tutorials/editor/agent-with-knowledge).
+Wissen ist in dieser Version eine Eigenschaft der Organisation, nicht eines Agenten: Du entscheidest, was indexiert wird, und jede Spur — Chat, Projekt-Agenten, der MCP-Endpoint — liest aus diesem einen Bestand mit ihren eigenen Zugriffsregeln. [Wissen](/de/platform/knowledge/overview) ist der Ort, ihn zu formen; [Agent-Tools](/de/platform/agents/tools) behandelt den Rest dessen, was ein Agent kann.

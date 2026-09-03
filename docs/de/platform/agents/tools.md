@@ -1,49 +1,34 @@
 ---
 title: Agent-Tools
-description: Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, Web-Zugang als Tool und Connectors und Automatisierungen als Fähigkeiten.
+description: Einen Tools-Tab pro Agent gibt es in dieser Version nicht — der Chat-Assistent trägt einen festen, rein lesenden Tool-Satz, und Projekt-Agenten rüstest du in ihrem eigenen Dialog aus.
 ---
 
-Tools sind das, was ein Agent über das Erzeugen von Text hinaus tun kann. Das Modell entscheidet, welches Tool es aus der Liste aufruft, die der Autor des Agents gewährt hat; Tale führt das Tool aus, reicht das Ergebnis zurück, und das Modell macht weiter. Der Tab **Tools** des Agents ist diese Liste — ein durchsuchbarer Katalog mit Schaltern pro Tool, gruppiert in Kategorie-Karten.
+Diese Seite hat früher den Tab **Tools** des Agenten-Editors beschrieben: einen Katalog aus Schaltern pro Tool, gruppiert in Kategorie-Karten, darunter Websuche, **Code ausführen** und verbundene MCP-Server. Diesen Tab gibt es in dieser Version von Tale nicht. Was ein Agent kann, entscheidet sich an zwei anderen Stellen — in einem festen Tool-Satz für den Chat-Assistenten und in der Ausrüstung, die du einem Projekt-Agenten beim Anlegen gibst.
 
-<Frame caption="Der Tool-Katalog — eine Karte pro Kategorie, jede mit der Zahl der Tools, die der Agent gewährt bekommen hat.">
+<Note>
+
+Der Tool-Katalog pro Agent ist in dieser Version nicht verfügbar. Der Chat trägt drei Lese-Tools, und kein Schalter fügt ein viertes hinzu; Projekt-Agenten rüstest du auf dem Tab **Agenten** des Projekts aus.
+
+</Note>
+
+## Was Agenten heute können
+
+Der **Chat-Assistent** hat genau drei Tools, bewusst festgelegt: `rag_search` durchsucht das Wissen der Organisation, `rag_fetch` lädt den vollen Inhalt eines Treffers, und `web_fetch` holt eine öffentliche Seite. Der Chat ist für Fragen und Recherche da; er erzeugt keine Dateien und führt keinen Code aus — ein Ergebnis wie ein Dokument, eine Tabelle oder eine übersetzte Datei entsteht stattdessen auf einer Aufgabe.
+
+Ein **Projekt-Agent** wird in seinem Dialog unter **Skills, Connectors & Tools** ausgerüstet: Skills legen Referenz-Bundles in seine Sandbox, Connectors vermitteln einen verbundenen Dienst, und Plattform-Tools lassen ihn die Aufgaben, Kontakte, Produkte, Dokumente und das Wissen der Organisation lesen — und, wenn du ein Schreib-Tool gewährst, ändern —, begrenzt auf sein Projekt. **Secrets** geben ihm einen API-Schlüssel als Umgebungsvariable für einen Dienst ohne Connector. Er läuft in einer isolierten Sandbox mit Shell; Code auszuführen gehört also zum Harness, nicht zu einem Schalter. [Projekt-Agenten](/de/platform/projects/project-agents) führt durch den Dialog.
+
+Eine **Automatisierung** erreicht dieselben Connectors über ihre Knoten und läuft auf einen Trigger statt auf Zuruf — [Automatisierungskonzepte](/de/platform/automations/concepts) ist das Modell. Externe MCP-Server werden in dieser Version nicht angebunden; die einzige MCP-Oberfläche ist der [eingehende Endpoint](/de/develop/mcp-endpoint), über den Clients außerhalb von Tale es steuern.
+
+## Der abgelöste Editor
+
+Wer das frühere Handbuch kennt, erinnert sich an den Tools-Tab unten. Er steht hier nur, damit die Änderung erkennbar bleibt — kein Bildschirm dieser Version zeigt ihn, und nichts darauf lässt sich umschalten.
+
+<Frame caption="Der Tools-Tab des früheren Agenten-Editors — ein Bildschirm, den diese Version nicht ausliefert.">
 
 ![Der Tools-Tab des Agenten-Editors, gescrollt zu den Kategorie-Karten, mit Wissen bei drei von vier angehakten Tools und Dateien bei sieben von sieben, während Konversationen, Diskussionen, Analysen und Aufgaben & Projekte nichts gewährt bekommen haben.](/images/platform/agent-editor-tools.webp)
 
 </Frame>
 
-## Tools einzeln gewähren
-
-Setz den Haken bei einem Tool, und der Agent kann es ab der nächsten Anfrage aufrufen; entfern den Haken, und der Agent vergisst, dass es existiert. **Tools durchsuchen…** filtert den Katalog nach Name oder Kategorie, jede Tool-Zeile trägt eine einzeilige Beschreibung dessen, was sie gewährt, und die Kopf-Checkbox einer Kategorie schaltet die ganze Gruppe auf einmal — der Zähler daneben zeigt, wie viele Tools der Gruppe an sind. Die Kategorien bilden die Oberflächen der Plattform ab: **Kontakte**, **Produkte**, **Lieferanten** und **Websites** stellen Lese- und Update-Tools über strukturierte Datensätze bereit; **Konversationen** lässt den Agent lesen und antworten; **Wissen** deckt Dokumentsuche und Schreiben ab; **Aufgaben & Projekte** enthält die eigene To-do-Liste des Agents; **Automatisierungen** lässt ihn die Automatisierungen der Organisation anlegen und ausführen; **Web** hält die Suche über die Sites, die deine Organisation hinzugefügt hat; **Dateien** deckt die Dateioperationen des Agents ab; **System** hält **Code ausführen**, **Mensch fragen** und die übrigen Laufzeit-Tools. Gewähre die kleinste Menge, die den Job erledigt — jedes aktivierte Tool weitet, was der Agent in deinem Namen lesen oder ändern kann.
-
-**Code ausführen** in der Gruppe **System** ist das weitreichendste dieser Tools: Es führt Python, Node oder bash in der eigenen Sandbox des Chats aus und arbeitet dabei auf den Dateien, die der Chat schon hält, statt in einer leeren Box. Ein Aufruf führt einen Schnipsel direkt aus, führt ein Skript aus, das der Agent unter `/agent/code/` abgelegt hat, oder installiert nur Pakete — deklarierte Pakete werden zuerst installiert und bleiben den Rest des Zugs erhalten, und was der Lauf unter `/agent/output/` schreibt, erscheint als Datei im Chat. Dateien und Ordner, die du mit `@` anheftest, landen in dieser Sandbox unter `/agent/uploads/`, sodass der Code die echten Bytes öffnet statt eines Retrieval-Schnipsels.
-
-<Note>
-
-Ein Agent startet für eine Teilaufgabe von sich aus einen fokussierten **Worker** — das ist kein Tool, das du hier umschaltest. [Agent-Worker](/de/platform/agents/delegation) deckt ab, wann das der richtige Zug ist und wie ein Worker eine begrenzte Teilmenge der Fähigkeiten des Agents erbt.
-
-</Note>
-
-## Web-Zugang ist ein Tool, kein Modus
-
-Die Websuche steht im Katalog wie alles andere. Gewähr sie, und der Agent kann suchen, wenn er es für richtig hält; lass sie aus, und er kann gar nicht suchen. Es gibt keinen eigenen Modus einzustellen und kein automatisches Einspeisen von Ergebnissen in eine Antwort — der Agent greift nach der Suche wie nach jedem anderen Tool. Durchsucht wird das Material, das deine Organisation hinzugefügt hat, und kein offener Crawl; die Quellen verwaltest du also unter [Websites](/de/platform/knowledge/crawling).
-
-## Auch Connectors und Automatisierungen sind Fähigkeiten
-
-Eine angebundene Connector und eine veröffentlichte Automatisierung erreichen den Agenten über dieselbe Liste. Darunter liegt keine zweite Binde-Oberfläche: Nenn die Fähigkeit in der Erlaubnisliste des Agenten, und er kann sie aufrufen, ohne die Connector oder die Automatisierungs-Id selbst zu zitieren. Verbundene [MCP-Server](/de/platform/connectors/mcp-servers) kommen auf demselben Weg, über die Connectors der Organisation.
-
-Eine Automatisierung, die nur ein Ereignis starten kann, wird aufgeführt, ist aber nicht aufrufbar. Der Agent sieht, dass es sie gibt, und wird klar darauf hingewiesen, dass sie läuft, wenn ihr Ereignis eintritt, und nicht auf Zuruf — ein Agent, der die Automatisierungen der Organisation nicht sieht, erfindet Umwege, statt auf die eine zu zeigen, die die Arbeit längst erledigt.
-
-## Wie Tool-Aufrufe erscheinen
-
-Tool-Aufrufe erscheinen im Chat als eingeklappte Karten zwischen der Nachricht des Users und der Antwort. Eine aufgeklappte Karte zeigt den Tool-Namen, die Eingaben, die das Modell ausgegeben hat, und das Ergebnis, das Tale zurückgab. Ein fehlgeschlagener Tool-Aufruf zeigt den Fehler; das Modell versucht es beim nächsten Zug meist mit anderer Form erneut.
-
-## Wann du danach greifst
-
-| Nutze Tools, wenn…                                              | Nutze Wissen, wenn…                                |
-| --------------------------------------------------------------- | -------------------------------------------------- |
-| Der Agent handeln muss — abfragen, ändern, ausführen, antworten | Der Agent abgerufene Dokumente zitieren muss       |
-| Die Daten strukturierte Datensätze oder Live-Systeme sind       | Die Daten hochgeladene oder gecrawlte Inhalte sind |
-
 ## Wo das hingehört
 
-Tools weiten, was ein Agent tun kann; sie weiten auch die Vertrauensgrenze, denn der Agent kann jetzt in deinem Namen lesen, schreiben oder aufrufen. Lies diese Seite zusammen mit der [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy), wenn der Agent Code ausführen soll. Die Anweisungen des Agents bleiben der Ort der **Richtlinie**; der Tab **Tools** ist der Ort der **Oberfläche**.
+Tools folgen der Spur: Der Chat recherchiert, ein Projekt-Agent handelt in seinem Projekt mit der Ausrüstung, die du ihm gegeben hast, und eine Automatisierung handelt auf einen Trigger. Lies [Projekt-Agenten](/de/platform/projects/project-agents) für den Ausrüstungsdialog und [Agent-Wissen](/de/platform/agents/knowledge) dafür, wie Recherche in dieser Version eingegrenzt ist.

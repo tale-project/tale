@@ -1,24 +1,24 @@
 ---
 title: Agent-Versionen
-description: Die Verlauf-Ansicht des Agenten-Editors — jeder Speichervorgang als Snapshot, mit Diff gegen die aktuelle Version und Wiederherstellung per Klick.
+description: Die Verlauf-Ansicht des Agenten-Editors gibt es in dieser Version nicht — Persona-Dateien führen hinter der API einen Verlauf, und die Versionierung, die du im Produkt siehst, gehört den Automatisierungen.
 ---
 
-Jeder Speichervorgang eines Agents erzeugt einen Snapshot. Der Button **Verlauf** oben rechts im Agenten-Editor öffnet diese Snapshots in umgekehrt chronologischer Reihenfolge; Vergleichen zeigt, was sich geändert hat, und Wiederherstellen ersetzt den aktuellen Stand durch eine frühere Version. Es gibt keine Unterscheidung zwischen manuellem Speichern und Auto-Speichern — jede persistierte Änderung ist eine Version.
+Diese Seite hat früher den Button **Verlauf** des Agenten-Editors beschrieben — jedes Speichern ein Snapshot, ein Diff gegen die aktuelle Version, Wiederherstellen per Klick. Den Editor und seine Verlauf-Ansicht gibt es in dieser Version von Tale nicht. Die Versionierung ist damit nicht verschwunden: Automatisierungen sind im Produkt versioniert, und Agent-Personas führen einen Datei-Verlauf, den die API der Plattform bereitstellt.
 
-Der Mechanismus ist klein, aber lasttragend. Die meisten Teams justieren die Anweisungen eines Agents wöchentlich; ohne den Verlauf würde das Team den Änderungen nie trauen.
+<Note>
 
-## Eine Änderung prüfen
+Die Verlauf-Ansicht für Agenten ist in dieser Version nicht verfügbar. Es gibt keinen Agenten-Editor, aus dem du sie öffnen könntest.
 
-Öffne den Agent und klicke auf **Verlauf**. Die Liste zeigt oben **Aktuelle Version** und darunter jede frühere **Snapshot-Version**, mit Autor und Zeitstempel pro Zeile. Wähle einen Snapshot, und **Änderungen vergleichen** stellt die Unterschiede zwischen ihm und der aktuellen Version gegenüber — die geänderten Felder heben sich hervor —, bevor du dich für das Wiederherstellen entscheidest.
+</Note>
 
-## Eine Version wiederherstellen
+## Was heute versioniert ist
 
-Klicke in einem Snapshot auf **Diese Version wiederherstellen**. Der aktuelle Stand des Agents wird durch den Snapshot ersetzt — eine Meldung bestätigt **Agent aus Verlauf wiederhergestellt** — und die Wiederherstellung landet als eigener Eintrag auf der Zeitleiste; Wiederherstellungen sind also additiv, nicht destruktiv. Chats, die schon gegen die vorherige Version laufen, laufen auf ihr weiter, bis sie enden; die wiederhergestellte Version gilt ab dem nächsten Chat.
+**Automatisierungen** tragen die Versionierung, die du siehst. Jedes Speichern auf dem Canvas und jedes hochgeladene Paket wird eine neue unveränderliche Version; auf der Seite der Automatisierung schaltest du eine davon live, und die Liste unter **Automatisierungen** zeigt zu jeder Automatisierung die Zahl ihrer Versionen neben der Version, die live ist — oder **Nicht live**. [Der Workflow-Editor](/de/platform/automations/editor) behandelt Versionen, Testläufe und das Live-Schalten; [Automatisierungen in deine Organisation bringen](/de/platform/automations/catalog), was ein Upload anhängt.
 
-## Was versioniert wird
+**Agent-Personas** führen ihren Verlauf hinter der API. Jedes Speichern behält die abgelöste Datei in der Verlaufsspur der Persona, und das Wiederherstellen eines Eintrags sichert zuerst die aktuelle Datei — eine Wiederherstellung ist additiv und zerstört nie den Stand, den sie ersetzt; ein Verlaufseintrag, der sich nicht mehr parsen ließe, wird mit Begründung abgelehnt statt geschrieben. Kein Bildschirm zeigt diese Spur in dieser Version — erreichbar ist sie über die eigene API der Plattform und, wer selbst hostet, auf der Platte neben den Persona-Dateien. [Agents (Admin-Sicht)](/de/platform/admin/agents) erklärt, wer was wiederherstellen darf.
 
-Die Versionierung deckt alles ab, was der Agent selbst trägt: seine Anzeigetexte und Beschreibung, seine Anweisungen, die Erlaubnislisten für Tools und Skills, den Wissensbereich, seine Sichtbarkeit und seine Metadaten. Was ein Agent nur ansteuert, erreicht sie nicht. Ein ersetztes Dokument, aus dem er abruft, ändert seine Antwort, ohne die Version zu erhöhen, und ein ersetztes Skill-Bundle, das er bindet, ebenso — die Bindung nennt einen Slug, seine eigene Konfiguration bleibt also unverändert, sein Verhalten nicht. Um beides zu prüfen, siehe [Audit-Logs](/de/platform/admin/governance/audit-logs).
+**Skills** behalten die abgelöste `SKILL.md`, wenn ein hochgeladenes Paket ein Bundle ersetzt, wie [Automatisierungen in deine Organisation bringen](/de/platform/automations/catalog) beschreibt. Wer organisationsweit was getan hat, steht in den [Audit-Logs](/de/platform/admin/governance/audit-logs).
 
 ## Wo das hingehört
 
-Versionen sind das Sicherheitsnetz des Agents, aus demselben Grund, aus dem git das der Codebasis ist: alles Gespeicherte ist wiederherstellbar. Die Begleitseite ist [Audit-Logs](/de/platform/admin/governance/audit-logs) — sie deckt die organisationsweite Spur ab, wer was getan hat; der Verlauf deckt die Spur pro Agent ab, was es war.
+Versionen leben in dieser Version dort, wo bearbeitet wird: auf der Seite der Automatisierung für Automatisierungen, in der Verlaufsspur für Personas, im Verlauf jedes Skills für Bundles. Die Begleitlektüre sind die [Audit-Logs](/de/platform/admin/governance/audit-logs) für das Wer-hat-was über alle drei hinweg.

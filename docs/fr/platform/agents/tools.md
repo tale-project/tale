@@ -1,49 +1,34 @@
 ---
 title: Outils d’agent
-description: Les permissions outil par outil qu’un agent porte au-delà de la génération de texte — les catégories, l’accès web, et les connectors et automatisations comme capacités.
+description: Il n’y a pas d’onglet Outils par agent dans cette version — l’assistant de chat porte un jeu fixe d’outils en lecture seule, et les agents de projet s’équipent dans leur propre dialogue.
 ---
 
-Les outils sont ce qu’un agent peut faire au-delà de produire du texte. Le modèle choisit quel outil appeler dans la liste que l’auteur de l’agent a accordée ; Tale exécute l’outil, rend le résultat, et le modèle continue. L’onglet **Outils** de l’agent est cette liste — un catalogue interrogeable d’interrupteurs par outil, groupés en cartes de catégorie.
+Cette page décrivait l’onglet **Outils** de l’éditeur d’agent : un catalogue d’interrupteurs par outil, groupés en cartes de catégorie, avec la recherche web, **Exécuter du code** et des serveurs MCP connectés parmi eux. Cet onglet ne fait pas partie de cette version de Tale. Ce qu’un agent peut faire se décide à deux autres endroits — un jeu fixe pour l’assistant de chat, et l’équipement que tu donnes à un agent de projet quand tu le crées.
 
-<Frame caption="Le catalogue d’outils — une carte par catégorie, chacune comptant combien de ses outils l’agent a reçus.">
+<Note>
+
+Le catalogue d’outils par agent n’est pas disponible dans cette version. Le chat porte trois outils en lecture seule et aucun interrupteur n’en ajoute un quatrième ; les agents de projet s’équipent sur l’onglet **Agents** du projet.
+
+</Note>
+
+## Ce que les agents peuvent faire aujourd’hui
+
+L’**assistant de chat** a exactement trois outils, fixés à dessein : `rag_search` cherche dans les connaissances de l’organisation, `rag_fetch` charge le contenu complet de ce qu’il a trouvé, et `web_fetch` récupère une page publique. Le chat sert aux questions et à la recherche ; il ne produit pas de fichiers et n’exécute pas de code, donc un livrable — un document, un tableur, un fichier traduit — se fabrique sur une tâche.
+
+Un **agent de projet** s’équipe dans son dialogue sous **Skills, connectors & outils** : les skills déposent des bundles de référence dans sa sandbox, les connectors relaient un service connecté, et les outils de la plateforme le laissent lire — et, quand tu accordes un outil d’écriture, modifier — les tâches, contacts, produits, documents et connaissances de l’organisation, dans les limites de son projet. Les **Secrets** lui remettent une clé API en variable d’environnement pour un service sans connector. Il tourne dans une sandbox isolée avec un shell ; exécuter du code fait donc partie du harness, pas d’un interrupteur. [Agents de projet](/fr/platform/projects/project-agents) parcourt le dialogue.
+
+Une **automatisation** atteint les mêmes connectors par ses nœuds et tourne sur un déclencheur plutôt qu’à la demande — [Concepts d’automatisation](/fr/platform/automations/concepts) est le modèle. Les serveurs MCP externes ne sont pas connectés dans cette version ; la seule surface MCP est l’[endpoint entrant](/fr/develop/mcp-endpoint), par lequel des clients hors de Tale le pilotent.
+
+## L’éditeur retiré
+
+Ceux qui connaissent le manuel précédent se souviennent de l’onglet Outils ci-dessous. Il n’est montré que pour que le changement soit reconnaissable — aucun écran de cette version ne l’affiche, et rien dessus ne peut être activé.
+
+<Frame caption="L’onglet Outils de l’ancien éditeur d’agent — un écran que cette version ne livre pas.">
 
 ![L’onglet Outils de l’éditeur d’agent, défilé jusqu’aux cartes de catégorie, avec Connaissances à trois outils cochés sur quatre et Fichiers à sept sur sept, tandis que Conversations, Discussions, Analytique et Tâches et projets n’ont rien d’accordé.](/images/platform/agent-editor-tools.webp)
 
 </Frame>
 
-## Accorder les outils un par un
+## Où cela se place
 
-Coche un outil et l’agent peut l’appeler dès la prochaine requête ; décoche-le et l’agent oublie qu’il existe. **Rechercher des outils…** filtre le catalogue par nom ou par catégorie, chaque ligne d’outil porte une description d’une ligne de ce qu’elle accorde, et la case d’en-tête d’une catégorie active tout le groupe d’un coup — le compteur à côté montre combien d’outils du groupe sont actifs. Les catégories reflètent les surfaces de la plateforme : **Contacts**, **Produits**, **Fournisseurs** et **Sites web** exposent des outils de lecture et de mise à jour sur des enregistrements structurés ; **Conversations** laisse l’agent lire et répondre ; **Connaissances** couvre la recherche et l’écriture de documents ; **Tâches et projets** inclut la propre liste de tâches de l’agent ; **Automatisations** lui permet de créer et lancer les automatisations de l’organisation ; **Web** contient la recherche sur les sites que ton organisation a ajoutés ; **Fichiers** couvre les opérations de l’agent sur les fichiers ; **Système** contient **Exécuter du code**, **Demander à un humain** et les autres outils d’exécution. Accorde le plus petit ensemble qui fait le travail — chaque outil activé élargit ce que l’agent peut lire ou changer en ton nom.
-
-**Exécuter du code**, dans le groupe **Système**, est le plus large de ces outils : il exécute du Python, du Node ou du bash dans la sandbox propre au chat, et travaille sur les fichiers que le chat tient déjà plutôt que dans une boîte vide. Un appel lance un extrait de code directement, lance un script que l’agent a déposé sous `/agent/code/`, ou installe seulement des paquets — les paquets déclarés s’installent d’abord et persistent le reste du tour, et ce que l’exécution écrit sous `/agent/output/` réapparaît comme fichier dans le chat. Les fichiers et dossiers que tu épingles avec `@` arrivent dans cette sandbox sous `/agent/uploads/`, si bien que le code ouvre les vrais octets plutôt qu’un extrait de récupération.
-
-<Note>
-
-Un agent lance de lui-même un **worker** ciblé pour une sous-tâche — ce n’est pas un outil que tu actives ici. [Workers d’agent](/fr/platform/agents/delegation) couvre quand c’est le bon mouvement et comment un worker hérite d’un sous-ensemble borné des capacités de l’agent.
-
-</Note>
-
-## L’accès web est un outil, pas un mode
-
-La recherche web est dans le catalogue comme le reste. Accorde-la et l’agent peut chercher quand il le juge bon ; laisse-la éteinte et il ne peut pas chercher du tout. Il n’y a aucun mode distinct à régler et aucune injection automatique de résultats dans une réponse — l’agent va chercher comme il va chercher n’importe quel autre outil. Ce qu’il parcourt, c’est le matériel que ton organisation a ajouté, pas un crawl ouvert ; gère donc les sources sous [Sites web](/fr/platform/knowledge/crawling).
-
-## Les connectors et les automatisations sont aussi des capacités
-
-Une connector connectée et une automatisation publiée atteignent l’agent par cette même liste. Il n’y a pas de seconde surface de liaison en dessous : nomme la capacité dans la liste d’autorisation de l’agent, et il peut l’appeler sans avoir à citer l’connector ou l’identifiant de l’automatisation. Les [serveurs MCP](/fr/platform/connectors/mcp-servers) connectés arrivent par le même chemin, à travers les connectors de l’organisation.
-
-Une automatisation que seul un événement peut lancer est listée mais pas appelable. L’agent voit qu’elle existe et on lui dit clairement qu’elle tourne quand son événement se déclenche, pas sur demande — un agent qui ne voit pas les automatisations de l’organisation invente des détours au lieu de pointer sur celle qui fait déjà le travail.
-
-## Comment les appels d’outil s’affichent
-
-Les appels d’outil apparaissent dans le chat comme des cartes repliées entre le message de l’utilisateur et la réponse. Déplier une carte révèle le nom de l’outil, les entrées émises par le modèle et le résultat rendu par Tale. Un appel d’outil échoué montre l’erreur ; le modèle réessaie en général avec une autre forme au tour suivant.
-
-## Quand y recourir
-
-| Utilise les outils quand…                                               | Utilise les connaissances quand…                   |
-| ----------------------------------------------------------------------- | -------------------------------------------------- |
-| L’agent doit agir — interroger, mettre à jour, exécuter, répondre       | L’agent doit citer les documents qu’il a récupérés |
-| Les données sont des enregistrements structurés ou des systèmes vivants | Les données sont du contenu téléversé ou crawlé    |
-
-## Où ça se situe
-
-Les outils élargissent ce qu’un agent peut faire ; ils élargissent aussi la frontière de confiance, puisque l’agent peut désormais lire, écrire ou appeler des choses au nom de la personne qui l’emploie. Couple cette page avec la [politique run-code](/fr/platform/admin/governance/run-code-policy) si l’agent exécutera du code. Les instructions de l’agent restent l’endroit où vit la **politique** ; l’onglet **Outils** est l’endroit où vit la **surface**.
+Les outils suivent la voie : le chat cherche, un agent de projet agit dans son projet avec l’équipement que tu lui as donné, et une automatisation agit sur un déclencheur. Lis [Agents de projet](/fr/platform/projects/project-agents) pour le dialogue d’équipement et [Connaissances d’agent](/fr/platform/agents/knowledge) pour la façon dont la recherche est cadrée dans cette version.
