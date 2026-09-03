@@ -14591,9 +14591,9 @@ async function checkConnectorCredentials(
 async function checkConversations(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string },
+  ctx: { cookie: string; orgId: string; userId: string },
 ): Promise<void> {
-  const { cookie, orgId } = ctx;
+  const { cookie, orgId, userId } = ctx;
   const api = (
     route: string,
     init: { method?: string; body?: unknown } = {},
@@ -14706,6 +14706,28 @@ async function checkConversations(
     WHERE org_id = ${orgId} AND user_id = ${memberId}
       AND type = 'conversation_assigned'
   `;
+  // A non-member cannot be the assignee: refused, the row keeps its owner,
+  // and no phantom bell is minted for the stranger.
+  const strangerAssign = await api(`/${conversationId}/assign`, {
+    body: { assigneeUserId: 'user-from-nowhere' },
+  });
+  const strangerBody = z
+    .object({ error: z.string() })
+    .safeParse(await strangerAssign.json());
+  const afterStranger = await sql<{ assigneeUserId: string | null }[]>`
+    SELECT assignee_user_id AS "assigneeUserId" FROM app.conversations
+    WHERE id = ${conversationId}
+  `;
+  const strangerBell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = 'user-from-nowhere'
+  `;
+  const strangerRefused =
+    strangerAssign.status === 400 &&
+    strangerBody.success &&
+    strangerBody.data.error === 'user_not_in_org' &&
+    afterStranger[0]?.assigneeUserId === memberId &&
+    strangerBell[0]?.count === '0';
 
   // Team queueing: a fresh team + a second member on it.
   const teamRows = await sql<{ id: string }[]>`
@@ -14945,6 +14967,51 @@ async function checkConversations(
   `;
   await api('/bulk/reopen', { body: { conversationIds: [conversationId] } });
 
+  // The PATCH door (the app's single close/spam buttons) writes the SAME
+  // resolution record the bulk verb writes, and a metadata patch merges onto
+  // the stored object instead of wiping unread/routing state.
+  await sql`
+    UPDATE app.conversations
+    SET metadata = coalesce(metadata, '{}'::jsonb)
+      || '{"unread_count": 3, "routing": "desk"}'::jsonb
+    WHERE id = ${conversationId}
+  `;
+  const patchClose = await api(`/${conversationId}`, {
+    method: 'PATCH',
+    body: { status: 'closed' },
+  });
+  const patchMeta = await api(`/${conversationId}`, {
+    method: 'PATCH',
+    body: { metadata: { priority_note: 'VIP' } },
+  });
+  const patchedRow = await sql<
+    { status: string | null; metadata: Record<string, unknown> | null }[]
+  >`
+    SELECT status, metadata FROM app.conversations WHERE id = ${conversationId}
+  `;
+  const patched = patchedRow[0];
+  const patchKeepsRecord =
+    patchClose.status === 200 &&
+    patchMeta.status === 200 &&
+    patched?.status === 'closed' &&
+    patched.metadata?.resolved_by === userId &&
+    typeof patched.metadata?.resolved_at === 'string' &&
+    patched.metadata?.unread_count === 3 &&
+    patched.metadata?.routing === 'desk' &&
+    patched.metadata?.priority_note === 'VIP';
+  // Junk in one row's unread_count must not 500 the org's count tiles.
+  await sql`
+    UPDATE app.conversations
+    SET metadata = coalesce(metadata, '{}'::jsonb)
+      || '{"unread_count": "many"}'::jsonb
+    WHERE id = ${conversationId}
+  `;
+  const countsWithJunk = await api('/counts');
+  await api(`/${conversationId}`, {
+    method: 'PATCH',
+    body: { status: 'open' },
+  });
+
   // Delete cascades the messages.
   const deleted = await api(`/${conversationId}`, { method: 'DELETE' });
   const remnants = await sql<{ count: string }[]>`
@@ -14966,6 +15033,7 @@ async function checkConversations(
       assignRes.status === 200 &&
       visibleAfter &&
       assignBell[0]?.count === '1' &&
+      strangerRefused &&
       teammateSees &&
       teamBell[0]?.count === '1' &&
       unreadStillOne &&
@@ -14975,9 +15043,11 @@ async function checkConversations(
       closed.data.successCount === 1 &&
       closedRow[0]?.status === 'closed' &&
       closedRow[0]?.resolvedBy !== null &&
+      patchKeepsRecord &&
+      countsWithJunk.status === 200 &&
       deleted.status === 204 &&
       remnants[0]?.count === '0',
-    `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, del=${deleted.status} remnants=${remnants[0]?.count}`,
+    `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, strangerRefused=${strangerRefused} (${strangerAssign.status}/${strangerBody.success ? strangerBody.data.error : 'ERR'}), teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, patchClose=${patchClose.status}/${patchMeta.status} record=${patchKeepsRecord} (resolved_by=${patched?.metadata?.resolved_by === userId} unread=${String(patched?.metadata?.unread_count)} note=${String(patched?.metadata?.priority_note)}) countsWithJunk=${countsWithJunk.status}, del=${deleted.status} remnants=${remnants[0]?.count}`,
   );
 }
 
@@ -15259,6 +15329,185 @@ async function checkMailboxSyncLane(
 }
 
 /**
+ * Mail without a readable Date must still land. Gmail hands back `internalDate`
+ * (epoch ms as a STRING) when a message carries no Date header, and a malformed
+ * message may carry no readable instant at all. The writers used to stamp
+ * `new Date(...)` → NaN, the shim's number validator rejected the write, and
+ * the whole pass — and its watermark — wedged on that one message forever.
+ * Driven through the REAL shim (the same handlers the sync native runs on).
+ */
+async function checkUndatedMailIngest(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { conversationShimHandlers } =
+    await import('./domains/conversations/shim.ts');
+  const { createCtxShim } = await import('./lib/ctx-shim.ts');
+  const { createConversationFromEmail } =
+    await import('./core/conversations/ingest/create_conversation_from_email.ts');
+  const handlers = conversationShimHandlers(sql, () => {
+    throw new Error('the undated-mail check dispatches no connector calls');
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 module on the real shim
+  const shim = createCtxShim(handlers) as unknown as Parameters<
+    typeof createConversationFromEmail
+  >[0];
+
+  const internalDate = Date.now() - 600_000;
+  const gmailRaw = (
+    id: string,
+    headers: Record<string, string>,
+    internalDateMs?: number,
+  ) => ({
+    id,
+    threadId: `t-${id}`,
+    labelIds: ['INBOX'],
+    ...(internalDateMs !== undefined
+      ? { internalDate: String(internalDateMs) }
+      : {}),
+    payload: {
+      mimeType: 'text/plain',
+      headers: Object.entries(headers).map(([name, value]) => ({
+        name,
+        value,
+      })),
+      body: { data: Buffer.from(`body of ${id}`).toString('base64url') },
+    },
+  });
+  const outcome = await createConversationFromEmail(shim, {
+    organizationId: orgId,
+    connectorName: 'gmail',
+    emails: [
+      gmailRaw(
+        'g-dated',
+        {
+          From: 'Dated Sender <dated@ext.test>',
+          To: 'inbox@door.test',
+          Subject: 'Dated',
+          Date: new Date(internalDate - 60_000).toUTCString(),
+          'Message-ID': '<g-dated@ext.test>',
+        },
+        internalDate - 60_000,
+      ),
+      gmailRaw(
+        'g-nodate',
+        {
+          From: 'No Date <nodate@ext.test>',
+          To: 'inbox@door.test',
+          Subject: 'No Date header',
+          'Message-ID': '<g-nodate@ext.test>',
+        },
+        internalDate,
+      ),
+      gmailRaw('g-nothing', {
+        From: 'Nothing <nothing@ext.test>',
+        To: 'inbox@door.test',
+        Subject: 'No readable instant at all',
+        'Message-ID': '<g-nothing@ext.test>',
+      }),
+    ],
+  });
+  const rows = await sql<
+    {
+      externalMessageId: string | null;
+      sentAt: number | null;
+      deliveryState: string;
+    }[]
+  >`
+    SELECT external_message_id AS "externalMessageId",
+           sent_at_ms::float8 AS "sentAt", delivery_state AS "deliveryState"
+    FROM app.conversation_messages
+    WHERE org_id = ${orgId}
+      AND external_message_id IN ('g-dated@ext.test', 'g-nodate@ext.test',
+                                  'g-nothing@ext.test')
+  `;
+  const byId = new Map(rows.map((row) => [row.externalMessageId, row]));
+  const noDate = byId.get('g-nodate@ext.test');
+  const nothing = byId.get('g-nothing@ext.test');
+  record(
+    'mail ingest: a message without a readable Date lands instead of wedging the pass',
+    outcome.processedCount === 3 &&
+      rows.length === 3 &&
+      noDate?.sentAt === internalDate &&
+      nothing?.sentAt === null &&
+      nothing.deliveryState === 'delivered' &&
+      outcome.ingestedTip === internalDate,
+    `processed=${outcome.processedCount} (want 3) rows=${rows.length} internalDateStamped=${noDate?.sentAt === internalDate} undatedStamp=${nothing?.sentAt ?? 'null'} (want null) state=${nothing?.deliveryState} tip=${outcome.ingestedTip === internalDate}`,
+  );
+}
+
+/**
+ * A heal that says it healed must have written. An IMAP credential whose
+ * public `config.fromAddress` mirror is missing (a pre-mirror row, or a config
+ * edit that dropped the hidden field) is healed by the mailbox sync from the
+ * login username — through the same `patchCredentialInternal` shim the
+ * watermark advance uses, which used to drop `config` on the floor while the
+ * sync logged "mirrored" every pass. Real credential, real decrypt, real row.
+ */
+async function checkImapFromAddressHeal(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { runConnectorAction } =
+    await import('./domains/connectors/service.ts');
+  const defaults = await sql<{ id: string }[]>`
+    SELECT id FROM app.connector_credentials
+    WHERE org_id = ${orgId} AND connector_slug = 'imap-smtp'
+      AND is_default = true AND status = 'active'
+    LIMIT 1
+  `;
+  const credentialId = defaults[0]?.id ?? '';
+  // Drift the row: drop the mirror the create door wrote.
+  await sql`
+    UPDATE app.connector_credentials
+    SET config = coalesce(config, '{}'::jsonb) - 'fromAddress'
+    WHERE id = ${credentialId}
+  `;
+  const fromBefore = await sql<{ fromAddress: string | null }[]>`
+    SELECT config->>'fromAddress' AS "fromAddress"
+    FROM app.connector_credentials WHERE id = ${credentialId}
+  `;
+
+  // An empty mailbox: the pass has nothing to ingest, only the heal to run.
+  setMailTransportForTesting({
+    openImap: async () => ({
+      listMessages: async () => [],
+      getMessage: async () => null,
+      close: async () => {},
+    }),
+    openSmtp: async () => {
+      throw new Error('the heal check sends nothing');
+    },
+  });
+  try {
+    const synced = await runConnectorAction(sql, {
+      organizationId: orgId,
+      connector: 'conversation',
+      action: 'sync_mailbox',
+      input: { connectorSlug: 'imap-smtp', includeSent: false },
+      mode: 'live',
+      caller: { kind: 'system', reason: 'itest fromAddress heal' },
+    });
+    const fromAfter = await sql<{ fromAddress: string | null }[]>`
+      SELECT config->>'fromAddress' AS "fromAddress"
+      FROM app.connector_credentials WHERE id = ${credentialId}
+    `;
+    record(
+      'imap fromAddress heal persists through the credential shim',
+      credentialId !== '' &&
+        fromBefore[0]?.fromAddress === null &&
+        synced.status === 'ok' &&
+        fromAfter[0]?.fromAddress === 'inbox@door.test',
+      `credential=${credentialId !== ''} stripped=${fromBefore[0]?.fromAddress ?? 'null'} sync=${synced.status} healed=${fromAfter[0]?.fromAddress ?? 'null'} (want inbox@door.test)`,
+    );
+  } finally {
+    setMailTransportForTesting(DEFAULT_MAIL_FAKE);
+  }
+}
+
+/**
  * The outbound send surface over the connector door: a reply queues a row
  * and schedules the send one (shortened) undo window out; the worker's job
  * re-checks the row, delivers through the fake SMTP, and stamps the
@@ -15425,6 +15674,47 @@ async function checkOutboundSendLane(
     const failedRow = await messageRow(failId);
     failMode = false;
 
+    // A member who cannot open the conversation (unassigned = admin triage)
+    // gets the opaque 404 from retry and discard, and the row is untouched —
+    // holding a messageId is not a licence to act on a colleague's mail.
+    const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({
+        email: `send-lane-member-${Date.now().toString(36)}@example.com`,
+        password: 'itest-password-1',
+        name: 'Send Lane Member',
+      }),
+    });
+    const memberCookie = cookieHeaderFrom(memberSignUp);
+    const memberBody = z
+      .object({ user: z.object({ id: z.string() }) })
+      .safeParse(await memberSignUp.json());
+    const memberId = memberBody.success ? memberBody.data.user.id : '';
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member',
+              ${new Date()})
+    `;
+    const asMember = (route: string): Promise<Response> =>
+      fetch(`${base}/api/app/conversations${route}?orgId=${orgId}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: memberCookie,
+          origin: base,
+        },
+        body: '{}',
+      });
+    const memberRetry = await asMember(`/messages/${failId}/retry`);
+    const memberDiscard = await asMember(`/messages/${failId}/discard`);
+    const afterMemberDoors = await messageRow(failId);
+    const memberRetryDiscardRefused =
+      memberRetry.status === 404 &&
+      memberDiscard.status === 404 &&
+      afterMemberDoors?.deliveryState === 'failed';
+
     // …and retry (immediate, no undo window) re-delivers.
     const retryRes = await api(`/messages/${failId}/retry`, { body: {} });
     const retriedOk = await waitForState(failId, 'sent');
@@ -15439,6 +15729,11 @@ async function checkOutboundSendLane(
       .object({ messageId: z.string() })
       .safeParse(await undoTarget.json());
     const undoId = undoTargetBody.success ? undoTargetBody.data.messageId : '';
+    // The hidden-conversation member cannot recall the owner's queued reply.
+    const memberUndo = await asMember(`/messages/${undoId}/undo`);
+    const memberUndoRefused =
+      memberUndo.status === 404 &&
+      (await messageRow(undoId))?.deliveryState === 'queued';
     const undoRes = await api(`/messages/${undoId}/undo`, { body: {} });
     const undoBody = z
       .object({ sourceMarkdown: z.string().nullable() })
@@ -15485,6 +15780,29 @@ async function checkOutboundSendLane(
           WHERE id = ${composeBody.data.conversationId} LIMIT 1
         `
       : [];
+    // Compose shares the assignee gate: an admin naming a non-member is
+    // refused before anything is created or sent.
+    const composeStranger = await api('/compose', {
+      body: {
+        contactId,
+        connectorName: 'imap-smtp',
+        subject: 'Quote for a stranger',
+        content: 'Never sent.',
+        assigneeUserId: 'user-from-nowhere',
+      },
+    });
+    const composeStrangerBody = z
+      .object({ error: z.string() })
+      .safeParse(await composeStranger.json());
+    const strangerConversations = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.conversations
+      WHERE org_id = ${orgId} AND subject = 'Quote for a stranger'
+    `;
+    const composeStrangerRefused =
+      composeStranger.status === 400 &&
+      composeStrangerBody.success &&
+      composeStrangerBody.data.error === 'user_not_in_org' &&
+      strangerConversations[0]?.count === '0';
 
     // 6. Bulk reply: one visible + one ghost → partial failure.
     const bulkRes = await api('/bulk/reply', {
@@ -15532,6 +15850,8 @@ async function checkOutboundSendLane(
         retryRes.status === 200 &&
         retriedOk &&
         retriedRow?.retryCount === 1 &&
+        memberRetryDiscardRefused &&
+        memberUndoRefused &&
         undoRes.status === 200 &&
         undoBody.success &&
         undoBody.data.sourceMarkdown === 'Recall me.' &&
@@ -15543,12 +15863,13 @@ async function checkOutboundSendLane(
         composedOk &&
         composedConv[0]?.direction === 'outbound' &&
         composedConv[0]?.subject === 'Quote 7' &&
+        composeStrangerRefused &&
         bulkBody.success &&
         bulkBody.data.successCount === 1 &&
         bulkBody.data.failedCount === 1 &&
         drained &&
         finalSendCount === 4,
-      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject}, bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
+      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 404s, row kept=${memberRetryDiscardRefused && memberUndoRefused}), undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
@@ -15724,11 +16045,20 @@ async function checkChatConversationSearchLeg(
     term: 'shipped',
     limit: 10,
   });
-  // Contact-name match (a conversation is findable by who it is with).
+  // Contact-name match (a conversation is findable by who it is with) — the
+  // contact leg prefilters in SQL now, so this drives the ILIKE path.
   const byContact = await searchConversationsForChat(sql, {
     organizationId: orgId,
     userId,
     term: 'Carla',
+    limit: 10,
+  });
+  // A LIKE metacharacter in the question matches itself, not any character:
+  // 'carla_' must NOT reach carla@ext.test through an unescaped `_`.
+  const byUnderscore = await searchConversationsForChat(sql, {
+    organizationId: orgId,
+    userId,
+    term: 'carla_',
     limit: 10,
   });
   // Listing skips the text match but keeps the privacy predicate.
@@ -15780,6 +16110,7 @@ async function checkChatConversationSearchLeg(
       subjects.has('Quote 7') &&
       byBody.conversations.some((row) => row.subject === 'Send me a quote') &&
       byContact.conversations.length >= 2 &&
+      byUnderscore.conversations.length === 0 &&
       listedAdmin.conversations.length >= 3 &&
       memberQuote.conversations.length === 1 &&
       memberQuote.conversations[0]?.subject === 'Quote 7' &&
@@ -15788,7 +16119,7 @@ async function checkChatConversationSearchLeg(
         (row) => row.assigneeUserId === memberId,
       ) &&
       stranger.conversations.length === 0,
-    `subject=${[...subjects].sort().join('|')} body=${byBody.conversations.map((r) => r.subject).join('|')} contact=${byContact.conversations.length} adminList=${listedAdmin.conversations.length}, memberQuote=${memberQuote.conversations.map((r) => r.subject).join('|')} (want only Quote 7) memberList=${memberList.conversations.length}/ownOnly=${memberList.conversations.every((row) => row.assigneeUserId === memberId)}, stranger=${stranger.conversations.length} (want 0)`,
+    `subject=${[...subjects].sort().join('|')} body=${byBody.conversations.map((r) => r.subject).join('|')} contact=${byContact.conversations.length} underscoreEscaped=${byUnderscore.conversations.length === 0} adminList=${listedAdmin.conversations.length}, memberQuote=${memberQuote.conversations.map((r) => r.subject).join('|')} (want only Quote 7) memberList=${memberList.conversations.length}/ownOnly=${memberList.conversations.every((row) => row.assigneeUserId === memberId)}, stranger=${stranger.conversations.length} (want 0)`,
   );
 }
 
@@ -32465,6 +32796,8 @@ async function main(): Promise<void> {
     await checkWorkflowTurnReattach(sql, authCtx);
     await checkConversations(sql, baseUrl, authCtx);
     await checkMailboxSyncLane(sql, authCtx);
+    await checkUndatedMailIngest(sql, authCtx);
+    await checkImapFromAddressHeal(sql, authCtx);
     await checkOutboundSendLane(sql, baseUrl, authCtx);
     await checkNotificationEmailSink(sql, authCtx);
     await checkChatConversationSearchLeg(sql, authCtx);

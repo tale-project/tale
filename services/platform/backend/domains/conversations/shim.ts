@@ -4,8 +4,9 @@ import { z } from 'zod';
 import { toJson } from '../../db/sql.ts';
 import {
   listActiveCredentials,
+  patchCredentialConfigInternal,
   patchMailSyncWatermarks,
-  resolveConnectorCredential,
+  resolveCredentialRowForShim,
 } from '../connector_credentials/service.ts';
 import { putOrgBlobBytes, registerUploadedBytes } from '../files/service.ts';
 import { applyAddressRouting } from './routing.ts';
@@ -542,6 +543,13 @@ export function conversationShimHandlers(
     },
 
     // -------------------------------------------------------- credentials
+    /**
+     * The full row the reused resolver reads (the SAME answer the work-lane
+     * shim serves). The sync's account-email read wants only `config`, but the
+     * IMAP fromAddress heal runs the reused resolver on this row and decrypts
+     * `encryptedData` itself — the identity-only answer served before left it
+     * dying on the missing envelope every pass, before it could heal anything.
+     */
     'connector_credentials/queries:resolveCredentialRefInternal': async (
       raw: unknown,
     ) => {
@@ -551,22 +559,7 @@ export function conversationShimHandlers(
           credentialRef: z.string().optional(),
         })
         .parse(raw);
-      // The sync only reads identity fields off this row; refusals for a
-      // missing ref mirror the resolver's null contract.
-      try {
-        const resolved = await resolveConnectorCredential(sql, args);
-        return {
-          _id: resolved.credentialId,
-          organizationId: args.organizationId,
-          connectorSlug: resolved.connectorSlug,
-          authMethod: resolved.authMethod,
-          name: args.credentialRef ?? 'default',
-          config: resolved.config,
-          status: 'active',
-        };
-      } catch {
-        return null;
-      }
+      return resolveCredentialRowForShim(sql, args);
     },
     'connector_credentials/queries:listActiveCredentialsInternal': async (
       raw: unknown,
@@ -588,6 +581,12 @@ export function conversationShimHandlers(
         }),
       );
     },
+    /**
+     * Two callers, two patches: the watermark advance names the since-fields,
+     * the IMAP fromAddress heal names `config`. Each lands only when named —
+     * `config` used to fall through `.loose()` and was silently DROPPED, so
+     * the heal logged "mirrored" every pass and never wrote.
+     */
     'connector_credentials/mutations:patchCredentialInternal': async (
       raw: unknown,
     ) => {
@@ -596,22 +595,38 @@ export function conversationShimHandlers(
           credentialId: z.string(),
           mailSyncInboundSince: z.number().optional(),
           mailSyncOutboundSince: z.number().optional(),
+          config: z
+            .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+            .optional(),
         })
         .loose()
         .parse(raw);
-      await patchMailSyncWatermarks(
-        sql,
-        args.organizationId,
-        args.credentialId,
-        {
-          ...(args.mailSyncInboundSince !== undefined
-            ? { inboundSince: args.mailSyncInboundSince }
-            : {}),
-          ...(args.mailSyncOutboundSince !== undefined
-            ? { outboundSince: args.mailSyncOutboundSince }
-            : {}),
-        },
-      );
+      if (args.config !== undefined) {
+        await patchCredentialConfigInternal(
+          sql,
+          args.organizationId,
+          args.credentialId,
+          args.config,
+        );
+      }
+      if (
+        args.mailSyncInboundSince !== undefined ||
+        args.mailSyncOutboundSince !== undefined
+      ) {
+        await patchMailSyncWatermarks(
+          sql,
+          args.organizationId,
+          args.credentialId,
+          {
+            ...(args.mailSyncInboundSince !== undefined
+              ? { inboundSince: args.mailSyncInboundSince }
+              : {}),
+            ...(args.mailSyncOutboundSince !== undefined
+              ? { outboundSince: args.mailSyncOutboundSince }
+              : {}),
+          },
+        );
+      }
       return null;
     },
 

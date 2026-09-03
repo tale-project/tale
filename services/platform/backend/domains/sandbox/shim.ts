@@ -5,7 +5,7 @@ import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { resolveAgentSecretsEnv } from '../agent_secrets/service.ts';
 import { automationAskShimHandlers } from '../automations/ask-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
-import { findCredentialForRef } from '../connector_credentials/service.ts';
+import { resolveCredentialRowForShim } from '../connector_credentials/service.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import { addTaskComment } from '../tasks/comments.ts';
 import { getCurrentUser } from '../users/service.ts';
@@ -202,24 +202,10 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         connectorSlug: string;
         credentialRef?: string;
       };
-      const row = await findCredentialForRef(sql, args);
-      if (row === null) return null;
-      // The 0.4 row shape the reused resolver reads — nullable columns are
-      // ABSENT fields there, never nulls.
-      return {
-        _id: row.id,
-        organizationId: row.organizationId,
-        connectorSlug: row.connectorSlug,
-        authMethod: row.authMethod,
-        name: row.name,
-        encryptedData: row.encryptedData,
-        ...(row.endpointUrl !== null ? { endpointUrl: row.endpointUrl } : {}),
-        ...(row.config !== null ? { config: row.config } : {}),
-        status: row.status,
-        ...(row.statusDetail !== null
-          ? { statusDetail: row.statusDetail }
-          : {}),
-      };
+      // The 0.4 row shape the reused resolver reads — one shared answer with
+      // the conversations shim (the mailbox sync's heal runs the same
+      // resolver), so the two cannot drift.
+      return resolveCredentialRowForShim(sql, args);
     },
 
     'sandbox/session_mutations:recordCredentialAccess': async (raw) => {
