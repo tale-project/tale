@@ -457,7 +457,13 @@ WORKDIR /app
 # Run as root so entrypoint can fix volume ownership before dropping to app user
 USER root
 
-# Re-declare all ENV vars (FROM scratch drops upstream ENV directives)
+# Re-declare all ENV vars (FROM scratch drops upstream ENV directives).
+# MUST mirror the runner stage's ENV block above, name for name — the squash
+# is what ships, so a var declared only in the runner is silently absent from
+# every deployed container (KNOWLEDGE_MIGRATIONS_DIR was dropped exactly this
+# way, regressing the BYO-corpus bootstrap to "apply the migrations
+# yourself"). tests/guards/dockerfile-env-parity.guard.test.ts pins the two
+# blocks equal.
 ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
     PORT=3000 \
@@ -466,7 +472,8 @@ ENV NODE_ENV=production \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
     TALE_CONFIG_BUILTIN_DIR=/app/builtin \
-    TALE_CONFIG_SYSTEM_DIR=/app/system
+    TALE_CONFIG_SYSTEM_DIR=/app/system \
+    KNOWLEDGE_MIGRATIONS_DIR=/app/db/migrations/knowledge-db
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1

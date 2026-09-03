@@ -1,3 +1,4 @@
+import { getString, isRecord } from '../../../../lib/utils/type-utils';
 import type {
   SsoProviderAdapter,
   SsoProviderConfig,
@@ -180,55 +181,101 @@ async function getUserInfo(
   };
 }
 
+/**
+ * Graph pages `/me/memberOf` and `/me/appRoleAssignments` at 100 entries; a
+ * page-1-only read silently truncates for enterprise users, and truncated
+ * groups are WORSE than a failed fetch — `syncTeamsFromGroupNames` prunes
+ * every membership missing from the list, so page-2+ teams would be REMOVED
+ * on each login. The cap bounds a runaway/looping feed; exceeding it throws,
+ * which lands in the callers' existing failed-fetch path (team sync skipped,
+ * memberships preserved) instead of a silent partial list.
+ */
+const GRAPH_MAX_PAGES = 50;
+
+async function fetchAllGraphPages(
+  firstUrl: string,
+  accessToken: string,
+  resource: string,
+): Promise<unknown[]> {
+  const graphOrigin = new URL(MICROSOFT_GRAPH_BASE).origin;
+  const values: unknown[] = [];
+  let url: string | undefined = firstUrl;
+  for (let page = 1; url !== undefined; page += 1) {
+    if (page > GRAPH_MAX_PAGES) {
+      throw new Error(
+        `Graph pagination cap exceeded fetching ${resource} (more than ${GRAPH_MAX_PAGES} pages)`,
+      );
+    }
+    const response: Response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      throw new Error(`Graph API error: ${response.status}`);
+    }
+    const data: unknown = await response.json();
+    if (isRecord(data) && Array.isArray(data.value)) {
+      values.push(...data.value);
+    }
+    const nextLink = isRecord(data) ? data['@odata.nextLink'] : undefined;
+    url =
+      typeof nextLink === 'string' && nextLink !== '' ? nextLink : undefined;
+    // The bearer token goes wherever we follow — only ever back to Graph.
+    if (url !== undefined && new URL(url).origin !== graphOrigin) {
+      throw new Error(
+        `Graph pagination left ${graphOrigin} fetching ${resource} — refusing to follow`,
+      );
+    }
+  }
+  return values;
+}
+
 async function getGroups(
   _config: SsoProviderConfig,
   accessToken: string,
 ): Promise<SsoGroup[]> {
-  const response = await fetch(
+  const values = await fetchAllGraphPages(
     `${MICROSOFT_GRAPH_BASE}/me/memberOf?$select=id,displayName`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    },
+    accessToken,
+    'group memberships',
   );
-
-  if (!response.ok) {
-    throw new Error(`Graph API error: ${response.status}`);
+  const groups: SsoGroup[] = [];
+  for (const member of values) {
+    if (!isRecord(member)) continue;
+    if (member['@odata.type'] !== '#microsoft.graph.group') continue;
+    const id = getString(member, 'id');
+    const name = getString(member, 'displayName');
+    if (id !== undefined && name !== undefined) {
+      groups.push({ id, name });
+    }
   }
-
-  const data = await response.json();
-  return (data.value || [])
-    .filter(
-      (member: { '@odata.type'?: string }) =>
-        member['@odata.type'] === '#microsoft.graph.group',
-    )
-    .map((group: { id: string; displayName: string }) => ({
-      id: group.id,
-      name: group.displayName,
-    }));
+  return groups;
 }
 
 async function getAppRoles(
   _config: SsoProviderConfig,
   accessToken: string,
 ): Promise<string[]> {
-  const response = await fetch(
-    `${MICROSOFT_GRAPH_BASE}/me/appRoleAssignments?$select=appRoleId`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
-  );
-
-  if (!response.ok) {
-    console.error(
-      '[Entra ID] Failed to fetch app roles:',
-      response.status,
-      await response.text(),
+  try {
+    const values = await fetchAllGraphPages(
+      `${MICROSOFT_GRAPH_BASE}/me/appRoleAssignments?$select=appRoleId`,
+      accessToken,
+      'app role assignments',
     );
+    const roles: string[] = [];
+    for (const assignment of values) {
+      if (!isRecord(assignment)) continue;
+      const appRoleId = getString(assignment, 'appRoleId');
+      if (appRoleId !== undefined && appRoleId !== '') {
+        roles.push(appRoleId);
+      }
+    }
+    return roles;
+  } catch (error) {
+    // Same contract as before: app roles are advisory for role mapping, a
+    // failed fetch degrades to "no roles" (default role), never a dead login.
+    console.error('[Entra ID] Failed to fetch app roles:', error);
     return [];
   }
-
-  const data = await response.json();
-  return (data.value || [])
-    .map((r: { appRoleId?: string }) => r.appRoleId || '')
-    .filter(Boolean);
 }
 
 async function validateConfig(

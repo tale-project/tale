@@ -15,7 +15,10 @@ import {
 } from '../../lib/ctx-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
-import { heartbeatJobByStorageRef } from '../video_links/service.ts';
+import {
+  heartbeatJobByStorageRef,
+  settleHandoffJobsByStorageRef,
+} from '../video_links/service.ts';
 import { FileError } from './service.ts';
 
 /**
@@ -45,20 +48,87 @@ interface TranscriptionRowPatch {
   contentHash?: string;
 }
 
+async function applyTranscriptionPatch(
+  db: Sql | TransactionSql,
+  storageRef: string,
+  patch: TranscriptionRowPatch,
+): Promise<void> {
+  await db`
+    UPDATE app.file_metadata SET
+      transcription_status = ${patch.transcriptionStatus !== undefined ? patch.transcriptionStatus : db.unsafe('transcription_status')},
+      transcript = ${patch.transcript !== undefined ? patch.transcript : db.unsafe('transcript')},
+      transcription_duration_sec = ${patch.transcriptionDurationSec !== undefined ? patch.transcriptionDurationSec : db.unsafe('transcription_duration_sec')},
+      transcription_progress = ${patch.transcriptionProgress !== undefined ? patch.transcriptionProgress : db.unsafe('transcription_progress')},
+      transcription_error = ${patch.transcriptionError !== undefined ? patch.transcriptionError : db.unsafe('transcription_error')},
+      status_changed_at_ms = ${patch.transcriptionStatus !== undefined ? Date.now() : db.unsafe('status_changed_at_ms')}
+    WHERE storage_ref = ${storageRef}
+  `;
+}
+
 async function updateFileTranscription(
   sql: Sql,
   storageRef: string,
   patch: TranscriptionRowPatch,
 ): Promise<void> {
-  await sql`
+  const status = patch.transcriptionStatus;
+  if (status !== 'completed' && status !== 'failed' && status !== 'skipped') {
+    await applyTranscriptionPatch(sql, storageRef, patch);
+    return;
+  }
+  // A terminal transcription settles the video-link job that handed off to
+  // this blob IN THE SAME TRANSACTION — the missing transition that left
+  // whisper jobs parked in 'transcribing_handoff' forever (holding an org
+  // ingest slot each and making the chip's Retry 409).
+  await sql.begin(async (tx) => {
+    await applyTranscriptionPatch(tx, storageRef, patch);
+    await settleHandoffJobsByStorageRef(tx, {
+      storageId: storageRef,
+      transcriptionStatus: status,
+      ...(patch.transcriptionError !== undefined
+        ? { errorMessage: patch.transcriptionError }
+        : {}),
+    });
+  });
+}
+
+/**
+ * Claim the single-flight transcription lease (the engine's
+ * `acquireTranscriptionLock`): CAS on a free/expired lease AND a claimable
+ * status. Winning the claim IS the `running` transition — the status,
+ * `transcription_started_at_ms`, and the staleness clock are stamped in the
+ * same statement, which is what makes the crash watchdog's predicate
+ * (`running` + stale `started_at`) reachable at all: a runner that dies
+ * mid-transcription leaves a row the sweep recognizes instead of a
+ * forever-`queued` one nothing will ever touch. The status guard also means
+ * a skip/fail that lands between the engine's pre-check and its claim
+ * refuses the claim instead of being resurrected to `running`.
+ * Returns the winning run's id (the caller compares against its own).
+ */
+export async function acquireTranscriptionLease(
+  sql: Sql,
+  args: { storageRef: string; runId: string; leaseMs: number },
+): Promise<string | null> {
+  const now = Date.now();
+  const rows = await sql<{ runId: string }[]>`
     UPDATE app.file_metadata SET
-      transcription_status = ${patch.transcriptionStatus !== undefined ? patch.transcriptionStatus : sql.unsafe('transcription_status')},
-      transcript = ${patch.transcript !== undefined ? patch.transcript : sql.unsafe('transcript')},
-      transcription_duration_sec = ${patch.transcriptionDurationSec !== undefined ? patch.transcriptionDurationSec : sql.unsafe('transcription_duration_sec')},
-      transcription_progress = ${patch.transcriptionProgress !== undefined ? patch.transcriptionProgress : sql.unsafe('transcription_progress')},
-      transcription_error = ${patch.transcriptionError !== undefined ? patch.transcriptionError : sql.unsafe('transcription_error')}
-    WHERE storage_ref = ${storageRef}
+      transcription_run_id = ${args.runId},
+      transcription_lease_expires_at_ms = ${now + args.leaseMs},
+      transcription_status = 'running',
+      transcription_started_at_ms = ${now},
+      status_changed_at_ms = ${now}
+    WHERE storage_ref = ${args.storageRef}
+      AND transcription_status IN ('queued', 'running')
+      AND (transcription_run_id IS NULL
+           OR transcription_lease_expires_at_ms IS NULL
+           OR transcription_lease_expires_at_ms < ${now})
+    RETURNING transcription_run_id AS "runId"
   `;
+  if (rows[0]) return rows[0].runId;
+  const holders = await sql<{ runId: string | null }[]>`
+    SELECT transcription_run_id AS "runId" FROM app.file_metadata
+    WHERE storage_ref = ${args.storageRef} LIMIT 1
+  `;
+  return holders[0]?.runId ?? null;
 }
 
 // ------------------------------------------------------------- crawl host
@@ -112,23 +182,11 @@ function transcriptionHandlers(sql: Sql): ShimHandlers {
     ) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the engine passes exactly this shape
       const args = raw as { storageId: string; runId: string; leaseMs: number };
-      const now = Date.now();
-      const rows = await sql<{ runId: string }[]>`
-        UPDATE app.file_metadata SET
-          transcription_run_id = ${args.runId},
-          transcription_lease_expires_at_ms = ${now + args.leaseMs}
-        WHERE storage_ref = ${args.storageId}
-          AND (transcription_run_id IS NULL
-               OR transcription_lease_expires_at_ms IS NULL
-               OR transcription_lease_expires_at_ms < ${now})
-        RETURNING transcription_run_id AS "runId"
-      `;
-      if (rows[0]) return rows[0].runId;
-      const holders = await sql<{ runId: string | null }[]>`
-        SELECT transcription_run_id AS "runId" FROM app.file_metadata
-        WHERE storage_ref = ${args.storageId} LIMIT 1
-      `;
-      return holders[0]?.runId ?? null;
+      return acquireTranscriptionLease(sql, {
+        storageRef: args.storageId,
+        runId: args.runId,
+        leaseMs: args.leaseMs,
+      });
     },
     'file_metadata/internal_mutations:releaseTranscriptionLock': async (
       raw,
@@ -256,7 +314,9 @@ export async function queueTranscription(
   },
 ): Promise<void> {
   await sql`
-    UPDATE app.file_metadata SET transcription_status = 'queued'
+    UPDATE app.file_metadata SET
+      transcription_status = 'queued',
+      status_changed_at_ms = ${Date.now()}
     WHERE org_id = ${args.organizationId} AND storage_ref = ${args.storageRef}
       AND transcription_status IS NULL
   `;
@@ -271,20 +331,30 @@ export async function queueTranscription(
 // ------------------------------------------------------------ user actions
 
 /** Skip an in-flight transcription (the 0.4 `skipTranscription`): only a
- * `queued`/`running` row can be skipped; the engine's phase re-checks bail. */
+ * `queued`/`running` row can be skipped; the engine's phase re-checks bail.
+ * A video-link job waiting on the blob settles to `skipped` with it. */
 export async function skipTranscription(
   sql: Sql,
   organizationId: string,
   storageRef: string,
 ): Promise<void> {
-  const rows = await sql<{ id: string }[]>`
-    UPDATE app.file_metadata SET
-      transcription_status = 'skipped', transcription_progress = ''
-    WHERE org_id = ${organizationId} AND storage_ref = ${storageRef}
-      AND transcription_status IN ('queued', 'running')
-    RETURNING id
-  `;
-  if (rows.length === 0) {
+  const skipped = await sql.begin(async (tx) => {
+    const rows = await tx<{ id: string }[]>`
+      UPDATE app.file_metadata SET
+        transcription_status = 'skipped', transcription_progress = '',
+        status_changed_at_ms = ${Date.now()}
+      WHERE org_id = ${organizationId} AND storage_ref = ${storageRef}
+        AND transcription_status IN ('queued', 'running')
+      RETURNING id
+    `;
+    if (rows.length === 0) return false;
+    await settleHandoffJobsByStorageRef(tx, {
+      storageId: storageRef,
+      transcriptionStatus: 'skipped',
+    });
+    return true;
+  });
+  if (!skipped) {
     throw new FileError(
       'TRANSCRIPTION_NOT_SKIPPABLE',
       'Transcription is not in a skippable state',
@@ -304,7 +374,8 @@ export async function retryTranscription(
   const rows = await sql<{ fileName: string; contentType: string }[]>`
     UPDATE app.file_metadata SET
       transcription_status = 'queued', transcription_error = NULL,
-      transcription_run_id = NULL, transcription_lease_expires_at_ms = NULL
+      transcription_run_id = NULL, transcription_lease_expires_at_ms = NULL,
+      status_changed_at_ms = ${Date.now()}
     WHERE org_id = ${organizationId} AND storage_ref = ${storageRef}
       AND transcription_status IN ('failed', 'skipped')
     RETURNING file_name AS "fileName", content_type AS "contentType"

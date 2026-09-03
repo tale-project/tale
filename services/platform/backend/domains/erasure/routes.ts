@@ -3,6 +3,7 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import type { Auth } from '../../auth/auth.ts';
+import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import {
@@ -15,7 +16,13 @@ import {
   getErasureRequest,
 } from './service.ts';
 
-/** /api/app/erasure — GDPR Art 17 receipts (admin-gated in the service). */
+/**
+ * /api/app/erasure — GDPR Art 17 receipts. The WHOLE lifecycle is
+ * admin-only (the docs' contract: admins file, cancel, retry, extend, and
+ * read receipts), enforced by the router-level role gate below on the
+ * session-resolved membership (so a trusted-headers `trustedRole` counts);
+ * filing additionally re-checks in the service with an audited deny.
+ */
 function handleError<E extends OrgEnv>(
   c: Context<E>,
   error: unknown,
@@ -35,6 +42,18 @@ export function createErasureRoutes(deps: {
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+  // Admin gate over every erasure operation — reads included: receipts
+  // name subjects, filers, and lawful grounds, none of which an ordinary
+  // member may enumerate. `mapDsrError` localizes the `forbidden` code.
+  app.use(async (c, next) => {
+    if (!isAdminRole(c.get('orgMember').role)) {
+      return c.json(
+        { error: 'forbidden', message: 'Only org admins manage erasure.' },
+        403,
+      );
+    }
+    return next();
+  });
 
   app.get('/', async (c) => {
     const limitParam = Number(c.req.query('limit') ?? '100');
@@ -114,6 +133,10 @@ export function createErasureRoutes(deps: {
       await retryErasure(deps.sql, {
         organizationId: c.get('orgId'),
         requestId: c.req.param('requestId'),
+        actor: {
+          userId: c.get('sessionBundle').user.id,
+          email: c.get('sessionBundle').user.email,
+        },
       });
       return c.json({ ok: true });
     } catch (error) {

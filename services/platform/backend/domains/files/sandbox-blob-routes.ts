@@ -104,6 +104,12 @@ export function createSandboxBlobRoutes(deps: { sql: Sql }): Hono {
     const headers: Record<string, string> = {
       'Content-Type':
         upstream.headers.get('content-type') ?? 'application/octet-stream',
+      // These bytes are user-uploaded and this route lives on the app
+      // origin: force download semantics so a leaked stage-token URL pasted
+      // into a browser can never render as a same-origin document (the
+      // in-sandbox consumer is curl/fetch, which ignores disposition).
+      'Content-Disposition': 'attachment',
+      'X-Content-Type-Options': 'nosniff',
     };
     // Forward the declared length when the bucket provides it — the
     // daemon's cheap over-cap rejection reads it before streaming a byte.

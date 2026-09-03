@@ -16,11 +16,7 @@
 import { isRecord } from '../../../../lib/utils/type-utils';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
-import {
-  buildBlobServeUrl,
-  buildDownloadUrl,
-} from '../../lib/helpers/public_storage_url';
-import { isS3Ref } from '../../lib/storage/blob_ref';
+import { buildBlobServeUrl } from '../../lib/helpers/public_storage_url';
 
 type WireAttachment = {
   id: string;
@@ -116,13 +112,11 @@ async function storeAttachment(
     },
   );
 
-  let url: string;
-  if (isS3Ref(storageId)) {
-    url = buildBlobServeUrl(storageId, organizationId, att.filename);
-  } else {
-    // Named `/storage` download so the browser saves under the real filename.
-    url = buildDownloadUrl(storageId, att.filename);
-  }
+  // Stable serve-lane URL for Inbox (the download anchor + inline cid
+  // images); it 302s to a fresh presigned GET at open time, named after the
+  // real filename. `putOrgBlobBytes` behind `storeOrgBlob` always answers an
+  // `s3:` ref in 0.5, so the one builder covers every stored attachment.
+  const url = buildBlobServeUrl(storageId, organizationId, att.filename);
 
   return {
     id: att.id,

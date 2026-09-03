@@ -329,8 +329,19 @@ export const DEFAULT_PRESIGN_TTL_SEC = 15 * 60;
 
 /**
  * Presign a time-limited GET URL for the browser to download the object
- * directly from the store (no proxy through the platform). `filename` sets a
- * `Content-Disposition: attachment` so the download names the file.
+ * directly from the store (no proxy through the platform). `filename` names
+ * the download.
+ *
+ * EVERY presigned GET is forced to `Content-Disposition: attachment`. On a
+ * default deployment the bucket is published on the app origin (the proxy
+ * forwards `/<bucket>/*` with no security headers), so an uploaded blob
+ * whose stored Content-Type is text/html would otherwise render as a
+ * SAME-ORIGIN document on navigation — stored XSS with full app-origin
+ * reach. `attachment` affects only navigations: `<img>`/`<video>`/`<audio>`
+ * embeds and `fetch()`-based previews ignore Content-Disposition, so every
+ * preview lane is unchanged and only a direct click-through becomes a
+ * download. The invariant: no user-uploaded bytes ever execute on the app
+ * origin.
  */
 export async function s3PresignGetUrl(
   store: S3ObjectStore,
@@ -342,17 +353,15 @@ export async function s3PresignGetUrl(
     'X-Amz-Expires',
     String(opts.expiresInSec ?? DEFAULT_PRESIGN_TTL_SEC),
   );
-  if (opts.filename) {
-    // The store reflects this param as a response header — strip quotes AND
-    // control chars (CR/LF/NUL…) so a hostile filename can't splice into the
-    // Content-Disposition header (mirrors the `/storage` route's sanitizer).
-    // oxlint-disable-next-line no-control-regex -- stripping control chars is the point
-    const safeName = opts.filename.replace(/["\u0000-\u001f\u007f]/g, '');
-    url.searchParams.set(
-      'response-content-disposition',
-      `attachment; filename="${safeName}"`,
-    );
-  }
+  // The store reflects this param as a response header — strip quotes AND
+  // control chars (CR/LF/NUL…) so a hostile filename can't splice into the
+  // Content-Disposition header (mirrors the WebDAV GET sanitizer).
+  // oxlint-disable-next-line no-control-regex -- stripping control chars is the point
+  const safeName = opts.filename?.replace(/["\u0000-\u001f\u007f]/g, '');
+  url.searchParams.set(
+    'response-content-disposition',
+    safeName ? `attachment; filename="${safeName}"` : 'attachment',
+  );
   const signed = await store.client.sign(url.toString(), {
     method: 'GET',
     aws: { signQuery: true },
@@ -363,6 +372,23 @@ export async function s3PresignGetUrl(
 /**
  * Presign a time-limited PUT URL for the browser to upload a blob directly to
  * the org's bucket — the S3 analogue of `ctx.storage.generateUploadUrl()`.
+ *
+ * When `contentType` is provided it is SIGNED INTO the URL: `content-type`
+ * joins `X-Amz-SignedHeaders`, so the store refuses a PUT whose actual
+ * header differs. Without this, the uploader could mint a URL declaring one
+ * type and land the bytes as any other (e.g. text/html, which a same-origin
+ * bucket GET would serve inline — see s3PresignGetUrl). Binding requires the
+ * executor to send the IDENTICAL `Content-Type` header on the PUT — every
+ * in-repo executor does (browser XHR/fetch uploaders, the WebDAV service,
+ * knowledge-entry blobs), and the REST API reference documents the contract
+ * for external clients. A caller that passes no `contentType` gets a
+ * header-agnostic URL (the REST mint without a declared type keeps working
+ * for bare `curl -T` clients); the serving side neutralizes those blobs
+ * regardless.
+ *
+ * `allHeaders: true` is load-bearing: aws4fetch lists `content-type` among
+ * its UNSIGNABLE_HEADERS and would otherwise silently drop it from the
+ * signature — exactly the no-op this fixes.
  */
 export async function s3PresignPutUrl(
   store: S3ObjectStore,
@@ -374,9 +400,17 @@ export async function s3PresignPutUrl(
     'X-Amz-Expires',
     String(opts.expiresInSec ?? DEFAULT_PRESIGN_TTL_SEC),
   );
+  const bindType =
+    opts.contentType !== undefined && opts.contentType !== ''
+      ? opts.contentType
+      : null;
   const signed = await store.client.sign(url.toString(), {
     method: 'PUT',
-    aws: { signQuery: true },
+    ...(bindType !== null ? { headers: { 'content-type': bindType } } : {}),
+    aws: {
+      signQuery: true,
+      ...(bindType !== null ? { allHeaders: true } : {}),
+    },
   });
   return signed.url;
 }

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { ensureWebdavHmacKey } from '../lib/webdav/hmac-key.ts';
+
 /**
  * Process roles: `api` serves HTTP/SSE, `worker` runs pg-boss task queues,
  * `all` runs both in one process (local-dev convenience). Deployment starts
@@ -28,5 +30,15 @@ const envSchema = z.object({
 export type BackendEnv = z.infer<typeof envSchema>;
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): BackendEnv {
+  // The WebDAV app-password HMAC key derives from INSTANCE_SECRET when not
+  // set explicitly — `ensureWebdavHmacKey` (the single derivation, pinned by
+  // test to docker-entrypoint.sh's web-lane sha256) caches it onto `source`
+  // so every lazy reader (webdav hash + verify, hostcall tokens, sandbox
+  // stage tokens) picks it up. The container entrypoint's api/worker branch
+  // execs node BEFORE the web lane's shell derivation runs, so without this
+  // the backend roles never receive the key and every WebDAV/app-password/
+  // stage-token op refuses in split-role deployments. No INSTANCE_SECRET
+  // (minimal dev setups) leaves the key unset, exactly as before.
+  ensureWebdavHmacKey(source);
   return envSchema.parse(source);
 }

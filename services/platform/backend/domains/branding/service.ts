@@ -16,6 +16,7 @@ import {
   resolveImagesDir,
   serializeBrandingJson,
   sha256,
+  svgHasActiveContent,
   validateImageType,
   type BrandingJsonConfig,
   type BrandingReadResult,
@@ -184,6 +185,16 @@ export async function saveBrandingImage(
     throw new BrandingError(
       'IMAGE_TOO_LARGE',
       `Image exceeds maximum size of ${MAX_IMAGE_SIZE_BYTES} bytes`,
+    );
+  }
+  // Intake nicety for the stored-XSS class: refuse SVGs carrying scripting
+  // vectors with a precise error. The serving side stays the guarantee —
+  // branding images are delivered under a `sandbox` CSP either way (see
+  // svgHasActiveContent's doc comment).
+  if (ext === 'svg' && svgHasActiveContent(buffer.toString('utf8'))) {
+    throw new BrandingError(
+      'IMAGE_SVG_ACTIVE_CONTENT',
+      'SVG contains scripts, event handlers, or javascript: URLs',
     );
   }
   const filename = `${args.type}.${ext}`;

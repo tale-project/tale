@@ -451,6 +451,9 @@ auth:
       userNotAssigned:
         Your account is not assigned to this application. Contact your
         administrator to request access.
+      notOrgMember:
+        Your account is not a member of this organization. Ask an admin of
+        this organization to invite you, then sign in again.
       silentAuthFailed: Silent sign-in failed. Sign in manually instead.
       refreshTokenExpired: Your session expired. Sign in again.
       consentRequired: An admin needs to grant consent before you can sign in.
@@ -1115,6 +1118,9 @@ chat:
       privateIpResolved: This link points to a private/internal address
       inFlightCap: Too many videos processing — wait for one to finish
       budgetExceeded: Usage limit reached — contact your administrator
+      notFound: Video link not found — it may have been removed
+      notUploader: Only the person who added this video can change it
+      notRetryable: Can't retry right now — the video may already be processing again
     actions:
       removeLink: Remove
       retry: Try again
@@ -1299,7 +1305,6 @@ chat:
     waitingInput: Waiting for your answer
     waitingOn: Waiting on {detail}
   parts:
-    attachment: 'Attachment: {name}'
     toolCall: Called {tool}
     toolResult: Result from {tool}
     toolResultFailed: Failed
@@ -1692,8 +1697,8 @@ conversations:
     subject: Subject
     subjectPlaceholder: What's this about?
     assignLabel: Assign to
-    assignPlaceholder: Choose a member
-    assignSearch: Search members
+    assignPlaceholder: Choose a person or team
+    assignSearch: Search people and teams
     assignYou: You
     bodyPlaceholder: Write your message…
     fillRequired: Choose a contact, an inbox, and a subject to send.
@@ -1742,7 +1747,6 @@ conversations:
     assignee: Assignee
     assign: Assign
     assignedTo: Assigned to {name}
-    noMembers: No members found
     unassign: Unassign
     assignError: Couldn't update the assignee
     inboxSource: 'Inbox: {inbox}'
@@ -3716,6 +3720,7 @@ governance:
       gdpr_erasure_cascade_attempts_exhausted: Cascade attempts exhausted
       gdpr_erasure_extended: Deadline extended
       gdpr_erasure_retried: Retried
+      gdpr_erasure_rejected: Rejected
       gdpr_erasure_cancelled: Cancelled
     categories:
       userMemories: Personal memories
@@ -4095,6 +4100,9 @@ metadata:
   apiDocs:
     title: API documentation
     description: Explore the Tale API with interactive documentation.
+  convexDashboard:
+    title: Convex Dashboard
+    description: Manage the Convex backend.
   knowledge:
     title: Knowledge
     description: Manage your knowledge base for AI agents.
@@ -5366,8 +5374,7 @@ settings:
         Required for single-tenant Microsoft app registrations; leave blank
         for multi-tenant ones.
       redirectUrisLabel: Redirect URIs to register
-      redirectUrisHint:
-        Add each of these to the vendor app registration before connecting.
+      redirectUrisHint: Add each of these to the vendor app registration before connecting.
       reuseSso: Use Entra ID SSO app
       reuseSsoTitle: Reuse the Entra ID SSO app registration
       reuseSsoBody:
@@ -6955,6 +6962,7 @@ toast:
     logoTooSmall: The logo must be at least {min}×{min} pixels.
     imageTooLarge: Image is too large. Maximum size is 2 MB.
     imageMimeUnsupported: Unsupported image format. Use PNG, SVG, JPG, WebP, or ICO.
+    imageSvgActiveContent: The SVG contains scripts or event handlers. Remove them or upload a PNG.
     imageTypeInvalid: Invalid image type
     addMemberFailed:
       title: Couldn't add member
