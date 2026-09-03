@@ -134,7 +134,7 @@ export function TriggerEditor({
         (timezone !== '' && timezone !== 'UTC') ||
         eventName !== '' ||
         kind !== 'schedule' ||
-        enabled !== true
+        !enabled
       );
     }
     return (
@@ -217,7 +217,7 @@ export function TriggerEditor({
   const canRemove = stored !== undefined;
 
   useEffect(() => {
-    if (onControllerChange === undefined) return;
+    if (onControllerChange === undefined) return undefined;
     onControllerChange({
       dirty,
       pending: setTrigger.isPending,

@@ -560,6 +560,38 @@ async function scrubSubjectAuditLogs(
 }
 
 /**
+ * `done` is a claim that every category was reached. A pass that threw, or
+ * that a legal hold held off, makes the claim false — so the receipt reads
+ * `partial` and names which, rather than reporting a clean erasure. Under Art
+ * 19 this receipt is the subject's confirmation, so the distinction between
+ * "found nothing" and "never looked" has to survive onto it.
+ */
+export function erasureReceiptStatus(
+  failedPasses: readonly string[],
+  heldOffPasses: readonly string[],
+): 'done' | 'partial' {
+  return failedPasses.length === 0 && heldOffPasses.length === 0
+    ? 'done'
+    : 'partial';
+}
+
+/** One line naming what stopped a `partial` receipt from being `done`, or
+ *  `null` when nothing did. */
+export function erasureReceiptError(
+  failedPasses: readonly string[],
+  heldOffPasses: readonly string[],
+): string | null {
+  const parts: string[] = [];
+  if (failedPasses.length > 0) {
+    parts.push(`failed passes: ${failedPasses.join(', ')}`);
+  }
+  if (heldOffPasses.length > 0) {
+    parts.push(`held off by a legal hold: ${heldOffPasses.join(', ')}`);
+  }
+  return parts.length > 0 ? parts.join('; ') : null;
+}
+
+/**
  * Does the subject still belong to another organization that has not
  * disabled them?
  *
@@ -623,10 +655,29 @@ export async function processErasure(
 
   const counts: Record<string, number> = {};
   const failures: string[] = [];
+  const heldOff: string[] = [];
   const pass = async (
     name: string,
     run: () => Promise<number>,
   ): Promise<void> => {
+    // The hold is re-read before EVERY pass, not once before the cascade.
+    // The passes are not one transaction, and two of them fan out per-thread
+    // and per-document deletes, so a hold placed mid-cascade would otherwise
+    // be ignored for everything after it. 0.4 re-read holds inside all 19 of
+    // its arms and named the reason: FRCP 37(e) spoliation.
+    try {
+      const current = await loadActiveHolds(sql, organizationId);
+      if (current.orgHeld || current.userMembershipIds.has(targetUserId)) {
+        heldOff.push(name);
+        return;
+      }
+    } catch (error) {
+      // An unreadable hold table is not evidence that nothing is held, so the
+      // pass is skipped rather than run.
+      console.error(`[erasure] hold re-check before ${name} failed:`, error);
+      heldOff.push(name);
+      return;
+    }
     try {
       counts[name] = await run();
     } catch (error) {
@@ -970,13 +1021,13 @@ export async function processErasure(
     scrubSubjectAuditLogs(sql, organizationId, targetUserId),
   );
 
-  const status = failures.length === 0 ? 'done' : 'partial';
+  const status = erasureReceiptStatus(failures, heldOff);
   await sql.begin(async (tx) => {
     await tx`
       UPDATE app.gdpr_erasure_requests SET
         status = ${status}, finished_at_ms = ${Date.now()},
         counts = ${tx.json(toJson(counts))},
-        error = ${failures.length > 0 ? `failed passes: ${failures.join(', ')}` : null}
+        error = ${erasureReceiptError(failures, heldOff)}
       WHERE id = ${requestId}
     `;
     await createAuditLog(tx, {

@@ -16164,10 +16164,16 @@ async function checkChatEntityWordSearch(
 
   const { chatShimHandlers } = await import('./domains/chat/shim.ts');
   const handlers = chatShimHandlers(sql);
-  const pageShape = z.object({ page: z.array(z.unknown()) }).loose();
+  const pageShape = z
+    .object({ page: z.array(z.unknown()), listed: z.boolean().optional() })
+    .loose();
+  // MATCHED rows, not returned rows: the task and project legs fall back to a
+  // listing when the words match nothing (stamped `listed: true`), so a
+  // non-empty page is not by itself evidence of a match.
   const rows = async (name: string, args: unknown): Promise<number> => {
     const parsed = pageShape.safeParse(await handlers[name]?.(args));
-    return parsed.success ? parsed.data.page.length : -1;
+    if (!parsed.success) return -1;
+    return parsed.data.listed === true ? 0 : parsed.data.page.length;
   };
 
   const productQuestion = await rows(
@@ -16215,6 +16221,404 @@ async function checkChatEntityWordSearch(
       taskMidWord === 0 &&
       taskRealWord === 1,
     `product: question=${productQuestion} typed=${productTyped} unrelated=${productUnrelated} stopwords=${productStopwords} (want 1/1/0/0), task: question=${taskQuestion} midWord=${taskMidWord} realWord=${taskRealWord} (want 1/0/1)`,
+  );
+}
+/**
+ * The chat assistant's website catalog leg (`rag_search` leg 5 and
+ * `list kind="website"`), previously an empty stub against a table that had
+ * existed since migration 0045 — so the leg answered "no sites" while the tool
+ * description shipped to the model on every turn pointed at it as the way to
+ * browse crawled content.
+ *
+ * Reuses `listWebsites`, and keeps the 0.4 reader's one editorial rule: a
+ * site mid-teardown or in error is not offered, because nothing can be
+ * fetched from it.
+ */
+async function checkChatWebsiteCatalogLeg(
+  sql: Sql,
+  ctx: { orgId: string },
+): Promise<void> {
+  const now = Date.now();
+  const org = `${ctx.orgId}-website-leg-fixture`;
+  await sql`
+    INSERT INTO app.websites (org_id, domain, title, description,
+                              scan_interval, status, page_count,
+                              created_at_ms, updated_at_ms)
+    VALUES
+      (${org}, 'handbook.example', 'Company Handbook',
+       'Policies and onboarding', 'weekly', 'active', 42, ${now}, ${now}),
+      (${org}, 'blog.example', NULL, NULL, 'daily', 'idle', NULL,
+       ${now - 1}, ${now - 1}),
+      (${org}, 'gone.example', 'Being removed', NULL, 'weekly', 'deleting',
+       7, ${now - 2}, ${now - 2}),
+      (${org}, 'broken.example', 'Crawl failed', NULL, 'weekly', 'error',
+       0, ${now - 3}, ${now - 3})
+  `;
+
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const handlers = chatShimHandlers(sql);
+  const summaries = z
+    .array(
+      z.object({
+        domain: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        pageCount: z.number().optional(),
+      }),
+    )
+    .safeParse(
+      await handlers['websites/internal_queries:listWebsiteSummaries']?.({
+        organizationId: org,
+      }),
+    );
+  const rows = summaries.success ? summaries.data : [];
+  const domains = rows.map((row) => row.domain).sort();
+  const handbook = rows.find((row) => row.domain === 'handbook.example');
+  const bare = rows.find((row) => row.domain === 'blog.example');
+
+  record(
+    'chat website catalog leg (real rows, teardown/error sites withheld)',
+    domains.join('|') === 'blog.example|handbook.example' &&
+      handbook?.title === 'Company Handbook' &&
+      handbook?.description === 'Policies and onboarding' &&
+      // The catalog answer "how big is each site?" — the search rows skip it.
+      handbook?.pageCount === 42 &&
+      // Absent optionals stay absent rather than arriving as nulls.
+      bare !== undefined &&
+      bare.title === undefined &&
+      bare.description === undefined &&
+      bare.pageCount === undefined,
+    `domains=${domains.join('|')} (want blog.example|handbook.example), handbook=title:${handbook?.title}/desc:${handbook?.description}/pages:${handbook?.pageCount}, bareOptionalsAbsent=${bare !== undefined && bare.title === undefined && bare.pageCount === undefined}`,
+  );
+}
+
+/**
+ * `list kind="mail-attachment"` — the ONLY listing surface an emailed
+ * attachment has, previously an empty stub even though migration 0037 added
+ * the binding columns and the email binder writes both.
+ *
+ * The assertion that matters is the ACCESS decision, because a listing that
+ * skips it publishes the whole inbox: an admin reaches an unassigned
+ * conversation's attachment, a plain member reaches only their own and their
+ * team's, and a non-member reaches nothing. Arrival order and an honest
+ * `truncated` are checked alongside — the stub returned `truncated: false`
+ * while listing nothing, which claims the mail index was fully walked.
+ */
+async function checkChatMailAttachmentListing(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const now = Date.now();
+  const org = `${ctx.orgId}-mail-attachment-fixture`;
+  const stamp = new Date();
+  // `member`/`team` carry a FK to `organization`, so the fixture org is a real
+  // row (a direct INSERT — the scaffold hook lives in the auth API, not here).
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${org}, 'Mail Attachment Fixture', ${org}, ${stamp})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+
+  // An admin, a plain member with a team, and a member of no team — all in
+  // the fixture org only, so the real org's inbox checks stay untouched.
+  const seedUser = async (email: string, role: string): Promise<string> => {
+    const users = await sql<{ id: string }[]>`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt",
+                          "updatedAt")
+      VALUES (gen_random_uuid(), ${email}, ${email}, true, ${stamp}, ${stamp})
+      RETURNING "id"
+    `;
+    const id = users[0]?.id ?? '';
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${org}, ${id}, ${role}, ${stamp})
+    `;
+    return id;
+  };
+  const adminId = await seedUser('mail.admin@leg.test', 'admin');
+  const memberId = await seedUser('mail.member@leg.test', 'member');
+  const outsiderId = await seedUser('mail.outsider@leg.test', 'member');
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (gen_random_uuid(), 'Mail Squad', ${org}, ${stamp}, ${stamp})
+    RETURNING "id"
+  `;
+  const teamId = teamRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (gen_random_uuid(), ${teamId}, ${memberId}, ${stamp})
+  `;
+
+  const seedConversation = async (
+    subject: string,
+    assignment: { userId?: string; teamId?: string },
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.conversations (org_id, subject, status, channel,
+                                     direction, assignee_user_id,
+                                     assignee_team_id, last_message_at_ms,
+                                     created_at_ms)
+      VALUES (${org}, ${subject}, 'open', 'email', 'inbound',
+              ${assignment.userId ?? null}, ${assignment.teamId ?? null},
+              ${now}, ${now})
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const unassigned = await seedConversation('Unassigned application', {});
+  const mine = await seedConversation('Assigned to me', { userId: memberId });
+  const ours = await seedConversation('Assigned to my team', { teamId });
+
+  const bind = async (
+    conversationId: string,
+    fileName: string,
+    receivedAt: number,
+    options: { ragStatus?: string; trashed?: boolean } = {},
+  ): Promise<void> => {
+    await sql`
+      INSERT INTO app.file_metadata (org_id, storage_ref, file_name,
+                                     content_type, size, rag_status,
+                                     lifecycle_status, conversation_id,
+                                     mail_received_at_ms, created_at_ms)
+      VALUES (${org}, ${`s3://mail/${fileName}`}, ${fileName},
+              'application/pdf', 1024, ${options.ragStatus ?? null},
+              ${options.trashed === true ? 'trashed' : null},
+              ${conversationId}, ${receivedAt}, ${receivedAt})
+    `;
+  };
+  // Arrival order deliberately disagrees with insert order.
+  await bind(mine, 'mine-older.pdf', now - 5000, { ragStatus: 'completed' });
+  await bind(ours, 'ours-newest.pdf', now - 1000);
+  await bind(unassigned, 'triage-middle.pdf', now - 3000);
+  await bind(mine, 'mine-trashed.pdf', now - 500, { trashed: true });
+  // A file with no mail arrival time is not an emailed attachment.
+  await sql`
+    INSERT INTO app.file_metadata (org_id, storage_ref, file_name,
+                                   content_type, size, created_at_ms)
+    VALUES (${org}, 's3://hub/not-mail.pdf', 'not-mail.pdf',
+            'application/pdf', 10, ${now})
+  `;
+
+  // Through the SHIM HANDLER, not the module: an empty stub in the map is
+  // exactly the defect this replaces, and the map's exhaustiveness test
+  // cannot see it (a handler that is present and answers nothing looks like
+  // a handler that works).
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const handlers = chatShimHandlers(sql);
+  const listingShape = z.object({
+    attachments: z.array(
+      z.object({
+        ref: z.string(),
+        fileName: z.string(),
+        contentType: z.string(),
+        size: z.number(),
+        conversationId: z.string(),
+        receivedAt: z.number(),
+        indexed: z.boolean(),
+      }),
+    ),
+    truncated: z.boolean(),
+  });
+  type Listing = z.infer<typeof listingShape>;
+  const listFor = async (userId: string, limit: number): Promise<Listing> => {
+    const parsed = listingShape.safeParse(
+      await handlers[
+        'file_metadata/internal_queries:listMailAttachmentsForChat'
+      ]?.({ organizationId: org, userId, limit }),
+    );
+    return parsed.success ? parsed.data : { attachments: [], truncated: false };
+  };
+  const names = (result: Listing): string =>
+    result.attachments.map((attachment) => attachment.fileName).join('|');
+
+  const admin = await listFor(adminId, 10);
+  const member = await listFor(memberId, 10);
+  const outsider = await listFor(outsiderId, 10);
+  const stranger = await listFor('no-such-user', 10);
+  // `truncated` is the walk's own claim, so both ways of cutting it short
+  // have to raise it: a filled page (through the handler), and an exhausted
+  // scan budget (the module, because the handler never overrides the cap).
+  const pageFilled = await listFor(adminId, 1);
+  const { listMailAttachments } =
+    await import('./domains/file_metadata/mail-attachments.ts');
+  const scanCut = await listMailAttachments(sql, {
+    organizationId: org,
+    userId: outsiderId,
+    limit: 10,
+    scanCap: 1,
+  });
+
+  record(
+    'chat mail-attachment listing (assignment scope, arrival order, truncated)',
+    // Newest arrival first, the trashed row skipped, the non-mail row absent.
+    names(admin) === 'ours-newest.pdf|triage-middle.pdf|mine-older.pdf' &&
+      !admin.truncated &&
+      // A plain member never sees the unassigned triage row.
+      names(member) === 'ours-newest.pdf|mine-older.pdf' &&
+      !member.truncated &&
+      // Same org, same role, no assignment and no team: nothing.
+      names(outsider) === '' &&
+      !outsider.truncated &&
+      // Not a member at all.
+      names(stranger) === '' &&
+      !stranger.truncated &&
+      // Indexed state is reported, not implied.
+      admin.attachments.find((a) => a.fileName === 'mine-older.pdf')
+        ?.indexed === true &&
+      admin.attachments.find((a) => a.fileName === 'ours-newest.pdf')
+        ?.indexed === false &&
+      // Rows carry the conversation they arrived on and a fetchable ref.
+      member.attachments.every(
+        (a) => a.conversationId !== '' && a.ref.startsWith('s3://mail/'),
+      ) &&
+      names(pageFilled) === 'ours-newest.pdf' &&
+      pageFilled.truncated &&
+      // Nothing readable, but the reach WAS bounded — saying "false" here
+      // would claim the inbox is empty.
+      names(scanCut) === '' &&
+      scanCut.truncated,
+    `admin=${names(admin)}/trunc=${admin.truncated}, member=${names(member)}/trunc=${member.truncated} (want team+own only), outsider=${names(outsider) || '(none)'}, stranger=${names(stranger) || '(none)'}, indexed=${admin.attachments.map((a) => `${a.fileName}:${a.indexed}`).join(',')}, pageFilled=${names(pageFilled)}/trunc=${pageFilled.truncated} (want true), scanCut=${names(scanCut) || '(none)'}/trunc=${scanCut.truncated} (want true)`,
+  );
+}
+
+/**
+ * The zero-hit listing fallback on the task and project legs.
+ *
+ * A mixed question names something and matches nothing — "anything blocked on
+ * procurement?" over a board whose rows say none of those words. 0.4 answered
+ * it by listing the readable rows and stamping `listed: true`, which is what
+ * makes `listedSource` in `core/chat/assistant_tools.ts` reachable; without
+ * the fallback the leg reports `searched (no matches)` over a full board.
+ *
+ * `detectListingIntent` already routes a PURE listing utterance to
+ * `action: "list"`, so the mixed query is the case that has nothing else to
+ * fall back to. The fallback must not widen scope: it lists the SAME readable
+ * project set the search was restricted to.
+ */
+async function checkChatZeroHitListingFallback(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+): Promise<void> {
+  const now = Date.now();
+  const org = `${ctx.orgId}-list-fallback-fixture`;
+  const seedProject = async (name: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                                updated_at_ms)
+      VALUES (${org}, ${name}, ${ctx.userId}, ${now}, ${now})
+      RETURNING id
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const readableId = await seedProject('Marketing Site Rebuild');
+  const hiddenId = await seedProject('Secret Board');
+  const seedTask = async (projectId: string, title: string): Promise<void> => {
+    await sql`
+      INSERT INTO app.tasks (org_id, project_id, title, description, status,
+                             rank, created_by, created_by_type, created_at_ms,
+                             updated_at_ms)
+      VALUES (${org}, ${projectId}, ${title}, NULL, 'todo', 'n',
+              ${ctx.userId}, 'user', ${now}, ${now})
+    `;
+  };
+  await seedTask(readableId, 'Draft the launch email');
+  await seedTask(hiddenId, 'Do not surface this');
+
+  const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+  const handlers = chatShimHandlers(sql);
+  const legShape = z
+    .object({
+      page: z.array(
+        z
+          .object({
+            title: z.string().optional(),
+            name: z.string().optional(),
+          })
+          .loose(),
+      ),
+      isDone: z.boolean(),
+      listed: z.boolean().optional(),
+    })
+    .loose();
+  const leg = async (
+    name: string,
+    args: unknown,
+  ): Promise<{ titles: string; listed: boolean | undefined }> => {
+    const parsed = legShape.safeParse(await handlers[name]?.(args));
+    if (!parsed.success) return { titles: '(unparseable)', listed: undefined };
+    return {
+      titles: parsed.data.page
+        .map((row) => row.title ?? row.name ?? '')
+        .join('|'),
+      listed: parsed.data.listed,
+    };
+  };
+  const TASKS = 'tasks/search_for_chat:searchTasksForChat';
+  const PROJECTS = 'tasks/search_for_chat:searchProjectsForChat';
+
+  // The mixed query: real words, no match on this board.
+  const taskFallback = await leg(TASKS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: 'is anything blocked on procurement',
+  });
+  // A term that DOES match must stay a search, not a listing.
+  const taskMatched = await leg(TASKS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: 'what about the launch email',
+  });
+  // An explicit listing is unchanged.
+  const taskListed = await leg(TASKS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: '',
+    list: true,
+  });
+  // The fallback lists the readable set, never the whole org.
+  const taskScope = await leg(TASKS, {
+    organizationId: org,
+    projectIds: [readableId, hiddenId],
+    term: 'is anything blocked on procurement',
+  });
+  // A status filter still applies to the fallback page.
+  const taskFiltered = await leg(TASKS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: 'is anything blocked on procurement',
+    status: 'done',
+  });
+
+  const projectFallback = await leg(PROJECTS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: 'are there any archived initiatives',
+  });
+  const projectMatched = await leg(PROJECTS, {
+    organizationId: org,
+    projectIds: [readableId],
+    term: 'how is the rebuild going',
+  });
+
+  record(
+    'chat task/project legs list when the words match nothing',
+    taskFallback.titles === 'Draft the launch email' &&
+      taskFallback.listed === true &&
+      taskMatched.titles === 'Draft the launch email' &&
+      taskMatched.listed === false &&
+      taskListed.titles === 'Draft the launch email' &&
+      taskListed.listed === true &&
+      taskScope.titles.split('|').sort().join('|') ===
+        'Do not surface this|Draft the launch email' &&
+      taskFiltered.titles === '' &&
+      taskFiltered.listed === true &&
+      projectFallback.titles === 'Marketing Site Rebuild' &&
+      projectFallback.listed === true &&
+      projectMatched.titles === 'Marketing Site Rebuild' &&
+      projectMatched.listed === false,
+    `taskFallback=${taskFallback.titles || '(none)'}/listed=${taskFallback.listed} (want listed), taskMatched=${taskMatched.titles || '(none)'}/listed=${taskMatched.listed} (want searched), taskListed=${taskListed.titles || '(none)'}/listed=${taskListed.listed}, scopedFallback=${taskScope.titles || '(none)'} (want both readable), statusFiltered=${taskFiltered.titles || '(none)'}/listed=${taskFiltered.listed} (want empty), projectFallback=${projectFallback.titles || '(none)'}/listed=${projectFallback.listed} (want listed), projectMatched=${projectMatched.titles || '(none)'}/listed=${projectMatched.listed} (want searched)`,
   );
 }
 
@@ -33200,6 +33604,9 @@ async function main(): Promise<void> {
     await checkNotificationEmailSink(sql, authCtx);
     await checkChatConversationSearchLeg(sql, authCtx);
     await checkChatEntityWordSearch(sql, authCtx);
+    await checkChatWebsiteCatalogLeg(sql, authCtx);
+    await checkChatMailAttachmentListing(sql, authCtx);
+    await checkChatZeroHitListingFallback(sql, authCtx);
     await checkAddressRouting(sql, authCtx, `itest-${orgSuffix}`);
     await checkControlDrain(sql, baseUrl, authCtx);
     await checkProvisioning(sql);

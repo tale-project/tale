@@ -510,6 +510,11 @@ automations:
   title: Automatisations
   entityLabel: automatisations
   entityLabelOne: automatisation
+  switcher:
+    title: Changer d'automatisation
+    searchPlaceholder: Rechercher des automatisations
+    empty: Aucune automatisation trouvée
+    ariaLabel: "Changer d'automatisation, actuel : {name}"
   list:
     searchPlaceholder: Rechercher des automatisations
     columnName: Nom
@@ -633,8 +638,6 @@ automations:
     eventLabel: Nom de l’événement
     eventPlaceholder: Choisir un événement
     enabledLabel: Actif
-    enabledBadge: Actif
-    disabledBadge: Coupé
     unsavedBadge: Non enregistré
     lastFired: 'Dernier déclenchement {at}'
     nothingToSave: La liaison correspond à ce qui est enregistré.
@@ -731,7 +734,6 @@ automations:
     nothingToSave: Rien à enregistrer
   bindings:
     title: Projets
-    orgBadge: Toute l’organisation
     countBadge: '{count, plural, one {Lié à # projet} other {Lié à # projets}}'
     hint: Limite à des projets précis, ou laisse vide pour tous.
     placeholder: Choisir des projets

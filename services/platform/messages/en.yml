@@ -480,6 +480,11 @@ automations:
   title: Automations
   entityLabel: automations
   entityLabelOne: automation
+  switcher:
+    title: Switch automation
+    searchPlaceholder: Search automations
+    empty: No automations found
+    ariaLabel: 'Switch automation, current: {name}'
   list:
     searchPlaceholder: Search automations
     columnName: Name
@@ -603,8 +608,6 @@ automations:
     eventLabel: Event name
     eventPlaceholder: Select an event
     enabledLabel: Enabled
-    enabledBadge: Active
-    disabledBadge: Off
     unsavedBadge: Unsaved
     lastFired: 'Last fired {at}'
     nothingToSave: The binding matches what is stored.
@@ -692,7 +695,6 @@ automations:
     nothingToSave: Nothing to save
   bindings:
     title: Projects
-    orgBadge: Organization-wide
     countBadge: '{count, plural, one {Bound to # project} other {Bound to # projects}}'
     hint: Restrict to specific projects, or leave empty for all.
     placeholder: Select projects

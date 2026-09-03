@@ -32,10 +32,11 @@ test('uploads a package and switches automations from the breadcrumb leaf', asyn
 }) => {
   const { organizationId } = org;
 
-  // The list toolbar's create menu — a dropdown of three lanes.
+  // The list toolbar's create menu — a dropdown of three lanes. Its trigger
+  // is the DataTable `addAction`, which the list labels `builder.new`.
   await page.goto(`/dashboard/${organizationId}/automations`);
   const createButton = page
-    .getByRole('button', { name: t('automations.list.createButton') })
+    .getByRole('button', { name: t('automations.builder.new') })
     .first();
   await expect(createButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await createButton.click();
