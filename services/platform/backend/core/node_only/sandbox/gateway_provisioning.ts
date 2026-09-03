@@ -27,6 +27,7 @@
  */
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
+import { isRecord } from '../../../../lib/utils/type-utils';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
@@ -122,6 +123,19 @@ export async function buildProviderProvision(
   };
 }
 
+/** The human sentence behind a failure — a structured refusal's
+ * `data.message` (its `Error.message` is the serialized payload), else the
+ * error's own message. */
+function describeFailure(err: unknown): string {
+  if (err instanceof AppError) {
+    const data: unknown = err.data;
+    if (isRecord(data) && typeof data.message === 'string') {
+      return data.message;
+    }
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 export interface SessionGatewayArgs {
   organizationId: string;
   sessionId: string;
@@ -146,12 +160,15 @@ export interface SessionGatewayKey {
 }
 
 /**
- * Provision + mint for one sandbox session. Provisioning is per-provider
- * best-effort (a broken provider is logged and skipped; the mint fails
- * closed if the turn's provider didn't land); the auth-posture apply is
- * fail-closed by design — swallowing its failure could leave the gateway
- * accepting un-keyed or model-unrestricted inference, defeating the whole
- * per-session key model.
+ * Provision + mint for one sandbox session. FAIL-CLOSED end to end: every
+ * provider the session's models need must resolve to a live credential NOW,
+ * or nothing is minted. The gateway keeps the org's upstream key from the
+ * last successful provision, so a mint that shrugged off a failed
+ * credential resolve (disabled, deleted, rotated away) would bind a fresh
+ * virtual key to that stale secret and keep serving a credential the admin
+ * revoked. The auth-posture apply is fail-closed for the same reason —
+ * swallowing its failure could leave the gateway accepting un-keyed or
+ * model-unrestricted inference, defeating the whole per-session key model.
  */
 export async function provisionSessionGatewayKey(
   ctx: ActionCtx,
@@ -170,19 +187,25 @@ export async function provisionSessionGatewayKey(
   for (const providerSlug of new Set(
     args.allowedModels.map((ref) => ref.providerSlug),
   )) {
+    let base: ProviderProvision | null;
     try {
-      const base = await buildProviderProvision(ctx, {
+      base = await buildProviderProvision(ctx, {
         organizationId: args.organizationId,
         providerSlug,
         credentialId: args.credentialIds?.[providerSlug],
       });
-      if (base) baseBySlug.set(providerSlug, base);
     } catch (err) {
-      console.warn(
-        `[gateway-provisioning] building provision for '${providerSlug}' failed (continuing; mint fails closed if this provider has no key):`,
-        err,
+      // No stale-key fallback: the org's upstream key from an earlier
+      // provision may still sit in the gateway, and continuing here is what
+      // let a disabled or deleted credential keep serving sandbox turns. A
+      // plain Error: the hosts post `message` on the run as the reason the
+      // turn could not start, so it carries the credential's own words.
+      throw new Error(
+        `Provider "${providerSlug}" cannot serve this session: ${describeFailure(err)}`,
+        { cause: err },
       );
     }
+    if (base) baseBySlug.set(providerSlug, base);
   }
 
   const provisions: ProviderProvision[] = [];
