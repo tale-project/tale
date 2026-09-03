@@ -10249,6 +10249,253 @@ async function checkRecoverySweeps(
     `failed=${transcriptions.failed} cascaded=${transcriptions.cascaded}, stuck=${stuckRow?.status}, freshUntouched=${freshRow?.status === 'running'}, video=${videoRow[0]?.status}/${videoRow[0]?.code}`,
   );
 
+  // ---- transcriptions: a claim-less stale 'queued' row (crash between
+  //      pickup and claim, or a lost enqueue — files.transcribe has
+  //      retryLimit 0) fails and cascades exactly like a dead run --------
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      transcription_status, created_at_ms
+    ) VALUES
+      (${orgId}, 'stuck-q.mp3', 'audio/mpeg', 10, 's3:stuck-q-1',
+       ${userId}, 'queued', ${stale}),
+      (${orgId}, 'fresh-q.mp3', 'audio/mpeg', 10, 's3:fresh-q-1',
+       ${userId}, 'queued', ${now})
+  `;
+  await sql`
+    INSERT INTO app.video_link_jobs (
+      org_id, source_url, source_url_hash, source_platform, pasted_token,
+      status, status_changed_at_ms, storage_ref, uploaded_by, created_at_ms
+    ) VALUES (
+      ${orgId}, 'https://example.test/q', 'hash-stuck-q', 'youtube',
+      'https://example.test/q', 'transcribing_handoff', ${stale},
+      's3:stuck-q-1', ${userId}, ${stale}
+    )
+  `;
+  const queuedSweep = await recoverStuckTranscriptions(sql);
+  const queuedRows = await sql<{ fileName: string; status: string | null }[]>`
+    SELECT file_name AS "fileName", transcription_status AS status
+    FROM app.file_metadata WHERE org_id = ${orgId}
+      AND file_name IN ('stuck-q.mp3', 'fresh-q.mp3')
+  `;
+  const stuckQ = queuedRows.find((row) => row.fileName === 'stuck-q.mp3');
+  const freshQ = queuedRows.find((row) => row.fileName === 'fresh-q.mp3');
+  const queuedVideo = await sql<{ status: string; code: string | null }[]>`
+    SELECT status, error_reason_code AS code FROM app.video_link_jobs
+    WHERE source_url_hash = 'hash-stuck-q'
+  `;
+  record(
+    'watchdog: a never-claimed stale queued transcription fails and cascades',
+    queuedSweep.failed >= 1 &&
+      stuckQ?.status === 'failed' &&
+      freshQ?.status === 'queued' &&
+      queuedVideo[0]?.status === 'failed' &&
+      queuedVideo[0]?.code === 'whisperFailed',
+    `failed=${queuedSweep.failed} (want >=1) stuckQueued=${stuckQ?.status} (want failed), freshUntouched=${freshQ?.status === 'queued'}, video=${queuedVideo[0]?.status}/${queuedVideo[0]?.code}`,
+  );
+
+  // ---- video reconcile: a parked handoff row over a SETTLED file row
+  //      mirrors its terminal state (any age — this is the deployed-debt
+  //      backfill), and an orphan handoff row (file row gone) fails after
+  //      the stale window while a fresh orphan gets grace -----------------
+  const parkedDoneFile = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      transcript, transcription_status, created_at_ms
+    ) VALUES (
+      ${orgId}, 'parked-done.mp3', 'audio/mpeg', 10, 's3:parked-done-1',
+      ${userId}, 'Settled transcript.', 'completed', ${stale}
+    )
+    RETURNING id
+  `;
+  await sql`
+    INSERT INTO app.video_link_jobs (
+      org_id, source_url, source_url_hash, source_platform, pasted_token,
+      status, status_changed_at_ms, storage_ref, file_metadata_id,
+      uploaded_by, created_at_ms
+    ) VALUES
+      (${orgId}, 'https://example.test/p1', 'hash-parked-done', 'youtube',
+       'p1', 'transcribing_handoff', ${now}, 's3:parked-done-1',
+       ${parkedDoneFile[0]?.id ?? ''}, ${userId}, ${stale}),
+      (${orgId}, 'https://example.test/o1', 'hash-orphan-stale', 'youtube',
+       'o1', 'transcribing_handoff', ${stale}, 's3:orphan-stale-1',
+       'fm_gone_stale', ${userId}, ${stale}),
+      (${orgId}, 'https://example.test/o2', 'hash-orphan-fresh', 'youtube',
+       'o2', 'transcribing_handoff', ${now}, 's3:orphan-fresh-1',
+       'fm_gone_fresh', ${userId}, ${now})
+  `;
+  const videoService = await import('./domains/video_links/service.ts');
+  await videoService.runVideoLinkWatchdog(sql);
+  const reconciled = await sql<
+    { hash: string; status: string; code: string | null }[]
+  >`
+    SELECT source_url_hash AS hash, status, error_reason_code AS code
+    FROM app.video_link_jobs
+    WHERE source_url_hash IN
+      ('hash-parked-done', 'hash-orphan-stale', 'hash-orphan-fresh')
+  `;
+  const byHash = new Map(reconciled.map((row) => [row.hash, row]));
+  record(
+    'watchdog: video reconcile settles parked handoff rows and orphans',
+    byHash.get('hash-parked-done')?.status === 'completed' &&
+      byHash.get('hash-orphan-stale')?.status === 'failed' &&
+      byHash.get('hash-orphan-stale')?.code === 'whisperFailed' &&
+      byHash.get('hash-orphan-fresh')?.status === 'transcribing_handoff',
+    `parkedDone=${byHash.get('hash-parked-done')?.status} (want completed), orphanStale=${byHash.get('hash-orphan-stale')?.status}/${byHash.get('hash-orphan-stale')?.code} (want failed/whisperFailed), orphanFreshGrace=${byHash.get('hash-orphan-fresh')?.status}`,
+  );
+
+  // ---- claim seam: winning the lease IS the 'running' transition --------
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      transcription_status, created_at_ms
+    ) VALUES
+      (${orgId}, 'claim.mp3', 'audio/mpeg', 10, 's3:claim-1', ${userId},
+       'queued', ${now}),
+      (${orgId}, 'claim-skip.mp3', 'audio/mpeg', 10, 's3:claim-skip-1',
+       ${userId}, 'skipped', ${now})
+  `;
+  const transcriptionModule = await import('./domains/files/transcription.ts');
+  // Optional-typed so the pre-fix tree (no such export) records a failure
+  // instead of crashing the suite.
+  const acquireTranscriptionLease = (
+    transcriptionModule as {
+      acquireTranscriptionLease?: (
+        db: Sql,
+        args: { storageRef: string; runId: string; leaseMs: number },
+      ) => Promise<string | null>;
+    }
+  ).acquireTranscriptionLease;
+  if (!acquireTranscriptionLease) {
+    record(
+      'watchdog: the transcription lease claim stamps running + started_at',
+      false,
+      'acquireTranscriptionLease is not exported — nothing ever writes running/started_at, the crash watchdog is dead code',
+    );
+  } else {
+    const won = await acquireTranscriptionLease(sql, {
+      storageRef: 's3:claim-1',
+      runId: 'run-A',
+      leaseMs: 60_000,
+    });
+    const claimRows = await sql<
+      {
+        status: string | null;
+        startedAt: number | null;
+        runId: string | null;
+      }[]
+    >`
+      SELECT transcription_status AS status,
+             transcription_started_at_ms::float8 AS "startedAt",
+             transcription_run_id AS "runId"
+      FROM app.file_metadata WHERE storage_ref = 's3:claim-1'
+    `;
+    const lost = await acquireTranscriptionLease(sql, {
+      storageRef: 's3:claim-1',
+      runId: 'run-B',
+      leaseMs: 60_000,
+    });
+    const refused = await acquireTranscriptionLease(sql, {
+      storageRef: 's3:claim-skip-1',
+      runId: 'run-C',
+      leaseMs: 60_000,
+    });
+    const skipClaimRows = await sql<{ status: string | null }[]>`
+      SELECT transcription_status AS status FROM app.file_metadata
+      WHERE storage_ref = 's3:claim-skip-1'
+    `;
+    record(
+      'watchdog: the transcription lease claim stamps running + started_at',
+      won === 'run-A' &&
+        claimRows[0]?.status === 'running' &&
+        claimRows[0]?.startedAt !== null &&
+        claimRows[0]?.runId === 'run-A' &&
+        lost === 'run-A' &&
+        refused !== 'run-C' &&
+        skipClaimRows[0]?.status === 'skipped',
+      `won=${won}/run-A row=${claimRows[0]?.status}(startedAt=${claimRows[0]?.startedAt !== null}) holderKept=${lost === 'run-A'} skippedRefused=${refused !== 'run-C'}→${skipClaimRows[0]?.status}`,
+    );
+  }
+
+  // ---- skip propagation: a user skip on the file lane cascades onto the
+  //      waiting video job ------------------------------------------------
+  const skipFile = await sql<{ id: string }[]>`
+    INSERT INTO app.file_metadata (
+      org_id, file_name, content_type, size, storage_ref, uploaded_by,
+      transcription_status, created_at_ms
+    ) VALUES (
+      ${orgId}, 'skip-audio.mp3', 'audio/mpeg', 10, 's3:skip-audio-1',
+      ${userId}, 'queued', ${now}
+    )
+    RETURNING id
+  `;
+  await sql`
+    INSERT INTO app.video_link_jobs (
+      org_id, source_url, source_url_hash, source_platform, pasted_token,
+      status, status_changed_at_ms, storage_ref, file_metadata_id,
+      uploaded_by, created_at_ms
+    ) VALUES (
+      ${orgId}, 'https://example.test/s1', 'hash-skip-1', 'youtube', 's1',
+      'transcribing_handoff', ${now}, 's3:skip-audio-1',
+      ${skipFile[0]?.id ?? ''}, ${userId}, ${now}
+    )
+  `;
+  const { skipTranscription } =
+    await import('./domains/files/transcription.ts');
+  await skipTranscription(sql, orgId, 's3:skip-audio-1');
+  const skipVideo = await sql<{ status: string }[]>`
+    SELECT status FROM app.video_link_jobs
+    WHERE source_url_hash = 'hash-skip-1'
+  `;
+  record(
+    'watchdog: skipping a file transcription cascades onto its video job',
+    skipVideo[0]?.status === 'skipped',
+    `video=${skipVideo[0]?.status} (want skipped)`,
+  );
+
+  // ---- dismissal keeps a settled transcript: cancelling a whisper chip
+  //      whose transcription already COMPLETED must not clobber the file
+  //      row to 'skipped' (the cleanup would then delete the org's donor
+  //      transcript). Blob cleanup runs, so this needs the S3 lane. ------
+  if (process.env.ITEST_S3_ENDPOINT) {
+    const donorKeepFile = await sql<{ id: string }[]>`
+      INSERT INTO app.file_metadata (
+        org_id, file_name, content_type, size, storage_ref, uploaded_by,
+        transcript, transcription_status, created_at_ms
+      ) VALUES (
+        ${orgId}, 'donor-keep.mp3', 'audio/mpeg', 10, 's3:donor-keep-1',
+        ${userId}, 'Donor transcript to keep.', 'completed', ${now}
+      )
+      RETURNING id
+    `;
+    const donorKeepJob = await sql<{ id: string }[]>`
+      INSERT INTO app.video_link_jobs (
+        org_id, source_url, source_url_hash, source_platform, pasted_token,
+        status, status_changed_at_ms, storage_ref, file_metadata_id,
+        uploaded_by, created_at_ms
+      ) VALUES (
+        ${orgId}, 'https://example.test/d1', 'hash-donor-keep', 'youtube',
+        'd1', 'transcribing_handoff', ${now}, 's3:donor-keep-1',
+        ${donorKeepFile[0]?.id ?? ''}, ${userId}, ${now}
+      )
+      RETURNING id
+    `;
+    await videoService.cancelVideoLink(sql, {
+      organizationId: orgId,
+      userId,
+      jobId: donorKeepJob[0]?.id ?? '',
+    });
+    const donorKeptRows = await sql<{ status: string | null }[]>`
+      SELECT transcription_status AS status FROM app.file_metadata
+      WHERE id = ${donorKeepFile[0]?.id ?? ''}
+    `;
+    record(
+      'watchdog: dismissing a Ready whisper chip keeps the settled donor',
+      donorKeptRows[0]?.status === 'completed',
+      `fileRow=${donorKeptRows[0]?.status ?? 'DELETED'} (want completed — dismissal must not skip-clobber a settled transcript)`,
+    );
+  }
+
   // ---- RAG: adopt / fail / leave-alone against the corpus ---------------
   await sql`
     INSERT INTO app.file_metadata (
@@ -15945,6 +16192,11 @@ async function checkVideoLinks(
   // Fake whisper for the audio branch (the transcription check's fake has
   // closed; re-point the default openai credential at this one).
   let whisperCalls = 0;
+  // One-shot failure valve: the whisper-failure regression arc arms it, the
+  // next /audio/transcriptions call burns it (HTTP 400 → the classifier's
+  // permanent branch, so the engine terminalizes without its delayed
+  // self-retries stalling the drain).
+  let whisperFailNext = false;
   const whisperServer = createServer((req, res) => {
     req.on('data', () => undefined);
     req.on('end', () => {
@@ -15954,6 +16206,17 @@ async function checkVideoLinks(
         return;
       }
       whisperCalls += 1;
+      if (whisperFailNext) {
+        whisperFailNext = false;
+        res.statusCode = 400;
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            error: { message: 'Invalid file format (itest forced failure)' },
+          }),
+        );
+        return;
+      }
       res.setHeader('content-type', 'application/json');
       res.end(
         JSON.stringify({
@@ -15998,6 +16261,7 @@ vid=""
 case "$url" in
   *v=capt1*) vid="capt1";;
   *v=whis1*) vid="whis1";;
+  *v=whis2*) vid="whis2";;
   *v=gone1*) vid="gone1";;
 esac
 if [[ "$*" == *" -J "* || "\${args[0]}" == "-J" || "$*" == *"-J --"* ]]; then
@@ -16007,6 +16271,9 @@ if [[ "$*" == *" -J "* || "\${args[0]}" == "-J" || "$*" == *"-J --"* ]]; then
       exit 0;;
     whis1)
       echo '{"id":"whis1","title":"Whisper itest video","duration":42,"subtitles":{},"automatic_captions":{}}'
+      exit 0;;
+    whis2)
+      echo '{"id":"whis2","title":"Whisper retry itest video","duration":21,"subtitles":{},"automatic_captions":{}}'
       exit 0;;
     gone1)
       echo "ERROR: [youtube] gone1: Video unavailable" >&2
@@ -16269,9 +16536,16 @@ exit 1
     const whisJob = await jobRow(whisJobId);
     const whisFile = whisJob?.storageRef
       ? await sql<
-          { transcriptionStatus: string | null; transcript: string | null }[]
+          {
+            transcriptionStatus: string | null;
+            transcript: string | null;
+            startedAt: number | null;
+            runId: string | null;
+          }[]
         >`
-          SELECT transcription_status AS "transcriptionStatus", transcript
+          SELECT transcription_status AS "transcriptionStatus", transcript,
+                 transcription_started_at_ms::float8 AS "startedAt",
+                 transcription_run_id AS "runId"
           FROM app.file_metadata
           WHERE org_id = ${orgId} AND storage_ref = ${whisJob.storageRef}
           LIMIT 1
@@ -16354,10 +16628,17 @@ exit 1
     `;
     record(
       'video links: whisper path + failure/retry/cancel + cap + watchdog',
-      whisJob?.status === 'transcribing_handoff' &&
+      // The job row itself must land terminal when the transcription lane
+      // settles — the parked 'transcribing_handoff' forever was the bug
+      // (it held an org ingest slot for every whisper video ever finished).
+      whisJob?.status === 'completed' &&
         whisJob.transcriptSource === 'whisper' &&
         whisFile[0]?.transcriptionStatus === 'completed' &&
         (whisFile[0].transcript ?? '').includes('Whisper transcript') &&
+        // The engine stamps running + started_at at claim time (the crash
+        // watchdog's predicate) and the lease is released on settle.
+        whisFile[0].startedAt !== null &&
+        whisFile[0].runId === null &&
         whisperCalls >= 1 &&
         whisChip.success &&
         whisChip.data.jobs.some(
@@ -16373,8 +16654,114 @@ exit 1
         capped.status === 429 &&
         staleAfter?.status === 'failed' &&
         staleAfter.errorReasonCode === 'transient',
-      `whisper: job=${whisJob?.status}/${whisJob?.transcriptSource} file=${whisFile[0]?.transcriptionStatus} calls=${whisperCalls} chip=${whisChip.success ? whisChip.data.jobs.find((j) => j.jobId === whisJobId)?.displayStatus : 'ERR'}; gone=${goneJob?.status}/${goneJob?.errorReasonCode} retry=${retry.status}→${goneAfterRetry?.status}(attempts=${goneAfterRetry?.attempts}) cancel=${cancel.status}→${goneAfterCancel?.status}; cap=${capped.status}/429 watchdog=${staleAfter?.status}/${staleAfter?.errorReasonCode}`,
+      `whisper: job=${whisJob?.status}/${whisJob?.transcriptSource} file=${whisFile[0]?.transcriptionStatus} startedAt=${whisFile[0]?.startedAt !== null} lease=${whisFile[0]?.runId === null} calls=${whisperCalls} chip=${whisChip.success ? whisChip.data.jobs.find((j) => j.jobId === whisJobId)?.displayStatus : 'ERR'}; gone=${goneJob?.status}/${goneJob?.errorReasonCode} retry=${retry.status}→${goneAfterRetry?.status}(attempts=${goneAfterRetry?.attempts}) cancel=${cancel.status}→${goneAfterCancel?.status}; cap=${capped.status}/429 watchdog=${staleAfter?.status}/${staleAfter?.errorReasonCode}`,
     );
+
+    // 4. REGRESSION (transcription lifecycle): a whisper FAILURE must land
+    //    the job row itself terminal ('failed'/whisperFailed via the
+    //    settle cascade), and the Retry door must accept it — the pre-fix
+    //    shape kept the row 'transcribing_handoff' so every retry 409'd.
+    const whis2Url = 'https://www.youtube.com/watch?v=whis2';
+    whisperFailNext = true;
+    const whis2Ingest = z.object({ jobId: z.string() }).safeParse(
+      await (
+        await send(`/api/app/video-links/ingest?orgId=${orgId}`, {
+          url: whis2Url,
+          pastedToken: whis2Url,
+          threadId,
+        })
+      ).json(),
+    );
+    const whis2JobId = whis2Ingest.success ? whis2Ingest.data.jobId : '';
+    await drainVideoJobs();
+    await muteRagJobs();
+    const whis2Failed = await jobRow(whis2JobId);
+    const retryDoor = await send(
+      `/api/app/video-links/${whis2JobId}/retry?orgId=${orgId}`,
+      {},
+    );
+    await drainVideoJobs();
+    await muteRagJobs();
+    const whis2After = await jobRow(whis2JobId);
+    record(
+      'video links: whisper failure lands terminal and Retry actually retries',
+      whis2Ingest.success &&
+        whis2Failed?.status === 'failed' &&
+        whis2Failed.errorReasonCode === 'whisperFailed' &&
+        retryDoor.status === 200 &&
+        whis2After?.status === 'completed' &&
+        (whis2After.attempts ?? 0) === 1,
+      `failedRow=${whis2Failed?.status}/${whis2Failed?.errorReasonCode} (want failed/whisperFailed), retryDoor=${retryDoor.status} (want 200; the un-retryable dead-end 409s), afterRetry=${whis2After?.status} attempts=${whis2After?.attempts}`,
+    );
+
+    // 5. REGRESSION (slot cap): parked-but-settled handoff rows (the debt
+    //    shape existing deployments carry) are reconciled terminal by the
+    //    video watchdog, giving the org its ingest slots back.
+    const parkedIds: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const parkedFile = await sql<{ id: string }[]>`
+        INSERT INTO app.file_metadata (
+          org_id, file_name, content_type, size, storage_ref, source,
+          uploaded_by, transcript, transcription_status, skip_rag_indexing,
+          created_at_ms
+        ) VALUES (
+          ${orgId}, ${`parked-${i}.mp3`}, 'audio/mpeg', 10,
+          ${`s3:parked-audio-${i}`}, 'video_link', ${userId},
+          'Parked whisper transcript.', 'completed', true, ${Date.now()}
+        )
+        RETURNING id
+      `;
+      const parkedJob = await sql<{ id: string }[]>`
+        INSERT INTO app.video_link_jobs (
+          org_id, thread_id, uploaded_by, source_url, source_url_hash,
+          source_platform, pasted_token, status, status_changed_at_ms,
+          storage_ref, file_metadata_id, attempts, lifecycle_status,
+          created_at_ms
+        ) VALUES (
+          ${orgId}, ${threadId}, ${userId},
+          ${`https://www.youtube.com/watch?v=park${i}`}, ${`parkhash${i}`},
+          'youtube', 'park', 'transcribing_handoff', ${Date.now()},
+          ${`s3:parked-audio-${i}`}, ${parkedFile[0]?.id ?? ''}, 0, 'active',
+          ${Date.now()}
+        )
+        RETURNING id
+      `;
+      const id = parkedJob[0]?.id;
+      if (id) parkedIds.push(id);
+    }
+    await video.runVideoLinkWatchdog(sql);
+    const parkedAfter = await sql<{ status: string }[]>`
+      SELECT status FROM app.video_link_jobs WHERE id = ANY(${parkedIds})
+    `;
+    const freed = await send(`/api/app/video-links/ingest?orgId=${orgId}`, {
+      url: 'https://www.youtube.com/watch?v=freedX1',
+      pastedToken: 'freedX1',
+      threadId,
+    });
+    await drainVideoJobs();
+    record(
+      'video links: reconcile settles parked whisper rows and frees the cap',
+      parkedIds.length === 3 &&
+        parkedAfter.length === 3 &&
+        parkedAfter.every((row) => row.status === 'completed') &&
+        freed.status === 200,
+      `parked=${parkedAfter.map((row) => row.status).join(',')} (want completed×3), nextIngest=${freed.status} (want 200; the parked-forever cap 429s)`,
+    );
+    const freedJson = z
+      .object({ jobId: z.string() })
+      .safeParse(await freed.json().catch(() => null));
+    await sql`
+      DELETE FROM app.file_metadata
+      WHERE org_id = ${orgId} AND storage_ref LIKE 's3:parked-audio-%'
+    `;
+    await sql`
+      DELETE FROM app.video_link_jobs WHERE id = ANY(${parkedIds})
+    `;
+    if (freedJson.success) {
+      await sql`
+        DELETE FROM app.video_link_jobs WHERE id = ${freedJson.data.jobId}
+      `;
+    }
   } finally {
     whisperServer.close();
     if (savedBinDir === undefined) {

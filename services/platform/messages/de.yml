@@ -1156,6 +1156,9 @@ chat:
       privateIpResolved: Dieser Link verweist auf eine private/interne Adresse
       inFlightCap: Zu viele Videos in Verarbeitung — bitte warten, bis eines fertig ist
       budgetExceeded: Nutzungslimit erreicht — Administrator kontaktieren
+      notFound: Video-Link nicht gefunden — möglicherweise wurde er entfernt
+      notUploader: Nur die Person, die dieses Video hinzugefügt hat, kann es ändern
+      notRetryable: Erneuter Versuch gerade nicht möglich — das Video wird womöglich schon wieder verarbeitet
     actions:
       removeLink: Entfernen
       retry: Erneut versuchen
@@ -5244,8 +5247,7 @@ settings:
       clientSecretLabel: Client-Secret
       clientSecretKeep: Leer lassen, um das aktuelle Secret beizubehalten.
       tenantIdLabel: Verzeichnis-ID (Tenant)
-      tenantIdHint:
-        Nötig für Single-Tenant-Registrierungen bei Microsoft; bei
+      tenantIdHint: Nötig für Single-Tenant-Registrierungen bei Microsoft; bei
         Multi-Tenant-Apps leer lassen.
       redirectUrisLabel: Zu registrierende Redirect-URIs
       redirectUrisHint:

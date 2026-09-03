@@ -20,15 +20,31 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 /** A transcription running longer than this is not going to finish. */
 const TRANSCRIPTION_STALE_MS = 35 * 60 * 1000;
 const TRANSCRIPTION_TIMEOUT_MESSAGE = 'Transcription timed out (watchdog)';
+const TRANSCRIPTION_NEVER_STARTED_MESSAGE =
+  'Transcription never started (watchdog)';
 
 /**
- * Fail transcriptions whose runner died, and cascade to the video-link job
- * waiting on them.
+ * Fail transcriptions whose chain died, and cascade to the video-link job
+ * waiting on them. Two shapes of dead chain exist:
  *
- * The cascade is load-bearing: the video-link watchdog deliberately SKIPS
- * `transcribing_handoff` (that state is delegated here), so without it the
- * job never reaches a terminal status, its cleanup never runs, and the audio
- * blob orphans.
+ *  - a dead RUN: the lease claim stamped `running` + `started_at` (see
+ *    `acquireTranscriptionLease`) and the runner then crashed — the row is
+ *    `running` past the stale window;
+ *  - a dead QUEUE: the crash hit between pickup and claim, or the enqueue
+ *    itself was lost (`files.transcribe` has retryLimit 0) — the row is
+ *    `queued`, stale, and no live lease protects it. The engine's own
+ *    delayed self-retries re-claim within minutes, so a stale, lease-free
+ *    `queued` row is a chain nothing will resume. Failing it is safe even
+ *    against a merely-backlogged job: the engine's pre-check treats a
+ *    `failed` row as cancelled and does no work.
+ *
+ * Both fail with a watchdog-attributed, RETRYABLE error — the user sees a
+ * failed chip with a working Retry, not a forever-spinner.
+ *
+ * The cascade is load-bearing: the video-link watchdog deliberately leaves
+ * a LIVE `transcribing_handoff` alone (that state is delegated here), so
+ * without it the job never reaches a terminal status, its cleanup never
+ * runs, and the audio blob orphans.
  */
 export async function recoverStuckTranscriptions(
   sql: Sql,
@@ -36,7 +52,7 @@ export async function recoverStuckTranscriptions(
 ): Promise<{ failed: number; cascaded: number }> {
   const now = Date.now();
   const cutoff = now - (options.staleMs ?? TRANSCRIPTION_STALE_MS);
-  const failed = await sql<{ storageRef: string | null }[]>`
+  const deadRuns = await sql<{ storageRef: string | null }[]>`
     UPDATE app.file_metadata SET
       transcription_status = 'failed',
       transcription_error = ${TRANSCRIPTION_TIMEOUT_MESSAGE},
@@ -47,6 +63,21 @@ export async function recoverStuckTranscriptions(
       AND coalesce(transcription_started_at_ms, created_at_ms) < ${cutoff}
     RETURNING storage_ref AS "storageRef"
   `;
+  const deadQueued = await sql<{ storageRef: string | null }[]>`
+    UPDATE app.file_metadata SET
+      transcription_status = 'failed',
+      transcription_error = ${TRANSCRIPTION_NEVER_STARTED_MESSAGE},
+      transcription_run_id = NULL,
+      transcription_lease_expires_at_ms = NULL,
+      status_changed_at_ms = ${now}
+    WHERE transcription_status = 'queued'
+      AND coalesce(status_changed_at_ms, created_at_ms) < ${cutoff}
+      AND (transcription_run_id IS NULL
+           OR transcription_lease_expires_at_ms IS NULL
+           OR transcription_lease_expires_at_ms < ${now})
+    RETURNING storage_ref AS "storageRef"
+  `;
+  const failed = [...deadRuns, ...deadQueued];
   if (failed.length === 0) return { failed: 0, cascaded: 0 };
 
   // Join on the raw blob REFERENCE so `s3:`-backed audio flips too (the 0.4
