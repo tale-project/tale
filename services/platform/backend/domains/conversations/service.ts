@@ -3,7 +3,10 @@ import type { Sql, TransactionSql } from 'postgres';
 import { projectConversationItem } from '../../../lib/shared/conversations/conversation-item.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
-import { getUserTeamIds } from '../../auth/membership.ts';
+import {
+  findOrganizationMember,
+  getUserTeamIds,
+} from '../../auth/membership.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
@@ -671,8 +674,31 @@ export async function markConversationAsRead(
 
 // ---------------------------------------------------------------- assign
 
-/** Admin-only individual assignment; unchanged = silent no-op; the new
- * assignee is notified (never on self-assignment or unassign). */
+/**
+ * The assignee gate shared by EVERY door that sets `assignee_user_id` — the
+ * admin assign door, address routing, and compose: the user must hold an
+ * ACTIVE membership of the conversation's organization. A non-member (or a
+ * disabled seat) as assignee is a silent triage black hole — the row is
+ * hidden from every non-admin while the "assignee" can never open it.
+ */
+export async function assertAssignableMember(
+  db: Sql | TransactionSql,
+  organizationId: string,
+  userId: string,
+): Promise<void> {
+  const member = await findOrganizationMember(db, organizationId, userId);
+  if (member === null || member.role === 'disabled') {
+    throw new ConversationError(
+      'user_not_in_org',
+      'Assignee is not a member of this organization',
+      400,
+    );
+  }
+}
+
+/** Admin-only individual assignment; unchanged = silent no-op; the assignee
+ * must be an active org member; the new assignee is notified (never on
+ * self-assignment or unassign). */
 export async function assignConversation(
   sql: Sql,
   args: {
@@ -706,6 +732,9 @@ export async function assignConversation(
     const previous = conversation.assigneeUserId;
     const next = args.assigneeUserId;
     if (previous === next) return;
+    if (next !== null) {
+      await assertAssignableMember(tx, args.organizationId, next);
+    }
     await tx`
       UPDATE app.conversations SET assignee_user_id = ${next}
       WHERE id = ${args.conversationId}

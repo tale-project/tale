@@ -8,7 +8,7 @@ import {
   notifyConversationAssigned,
   notifyConversationAssignedTeam,
 } from '../collab/service.ts';
-import { ConversationError } from './service.ts';
+import { assertAssignableMember, ConversationError } from './service.ts';
 
 /**
  * Address→assignee routing — the 0.5 twin of
@@ -46,19 +46,12 @@ export async function applyConversationAssignment(
   next: { assigneeUserId?: string; assigneeTeamId?: string },
 ): Promise<boolean> {
   if (next.assigneeUserId) {
-    const members = await db<{ role: string }[]>`
-      SELECT "role" FROM "member"
-      WHERE "organizationId" = ${conversation.organizationId}
-        AND "userId" = ${next.assigneeUserId}
-      LIMIT 1
-    `;
-    if (!members[0]) {
-      throw new ConversationError(
-        'user_not_in_org',
-        'Assignee is not a member of this organization',
-        400,
-      );
-    }
+    // The one assignee gate every assigning door shares (see service.ts).
+    await assertAssignableMember(
+      db,
+      conversation.organizationId,
+      next.assigneeUserId,
+    );
   }
   if (next.assigneeTeamId) {
     const teams = await db<{ organizationId: string }[]>`

@@ -26,6 +26,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { runConnectorAction } from '../connectors/service.ts';
 import { getFileUrl } from '../files/service.ts';
 import {
+  assertAssignableMember,
   CONVERSATION_COLUMNS,
   ConversationError,
   createConversation,
@@ -514,8 +515,10 @@ export async function bulkReplyToConversations(
  * Resolve who owns a newly composed outbound conversation.
  *
  * Defaults to the creator; only an admin may pick another member or a team
- * queue. Non-admin team requests are dropped (not rejected). A team must
- * belong to the org or we throw `team_not_in_org`.
+ * queue. Non-admin team requests are dropped (not rejected). A picked person
+ * must be an active org member (`user_not_in_org` otherwise — the shared
+ * assignee gate) and a team must belong to the org or we throw
+ * `team_not_in_org`.
  */
 export async function resolveComposeAssignment(
   sql: Sql,
@@ -530,6 +533,11 @@ export async function resolveComposeAssignment(
   const assigneeUserId = isAdmin
     ? (args.assigneeUserId ?? args.actor.userId)
     : args.actor.userId;
+  // The actor is a member by construction (the org middleware); anyone else
+  // an admin picks passes the same gate the assign door and routing apply.
+  if (assigneeUserId !== args.actor.userId) {
+    await assertAssignableMember(sql, args.organizationId, assigneeUserId);
+  }
   if (!(isAdmin && args.assigneeTeamId)) {
     return { assigneeUserId };
   }

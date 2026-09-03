@@ -14380,6 +14380,28 @@ async function checkConversations(
     WHERE org_id = ${orgId} AND user_id = ${memberId}
       AND type = 'conversation_assigned'
   `;
+  // A non-member cannot be the assignee: refused, the row keeps its owner,
+  // and no phantom bell is minted for the stranger.
+  const strangerAssign = await api(`/${conversationId}/assign`, {
+    body: { assigneeUserId: 'user-from-nowhere' },
+  });
+  const strangerBody = z
+    .object({ error: z.string() })
+    .safeParse(await strangerAssign.json());
+  const afterStranger = await sql<{ assigneeUserId: string | null }[]>`
+    SELECT assignee_user_id AS "assigneeUserId" FROM app.conversations
+    WHERE id = ${conversationId}
+  `;
+  const strangerBell = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.user_notifications
+    WHERE org_id = ${orgId} AND user_id = 'user-from-nowhere'
+  `;
+  const strangerRefused =
+    strangerAssign.status === 400 &&
+    strangerBody.success &&
+    strangerBody.data.error === 'user_not_in_org' &&
+    afterStranger[0]?.assigneeUserId === memberId &&
+    strangerBell[0]?.count === '0';
 
   // Team queueing: a fresh team + a second member on it.
   const teamRows = await sql<{ id: string }[]>`
@@ -14640,6 +14662,7 @@ async function checkConversations(
       assignRes.status === 200 &&
       visibleAfter &&
       assignBell[0]?.count === '1' &&
+      strangerRefused &&
       teammateSees &&
       teamBell[0]?.count === '1' &&
       unreadStillOne &&
@@ -14651,7 +14674,7 @@ async function checkConversations(
       closedRow[0]?.resolvedBy !== null &&
       deleted.status === 204 &&
       remnants[0]?.count === '0',
-    `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, del=${deleted.status} remnants=${remnants[0]?.count}`,
+    `listed=${row !== undefined} unread=${row?.unread} preview=${row?.lastMessagePreview === 'Where is my order?'} contact=${row?.contact?.email}, counts=${counts.success ? `${counts.data.byStatus.open ?? 0}/${counts.data.unread}` : 'ERR'}, memberHidden=${hiddenBefore}→assigned visible=${visibleAfter} bell=${assignBell[0]?.count}, strangerRefused=${strangerRefused} (${strangerAssign.status}/${strangerBody.success ? strangerBody.data.error : 'ERR'}), teamSees=${teammateSees} teamBell=${teamBell[0]?.count}, noteKeepsUnread=${unreadStillOne} readClears=${afterRead.success && afterRead.data.conversation.metadata?.unread_count === 0}, close=${closed.success ? closed.data.successCount : 'ERR'} status=${closedRow[0]?.status}/${closedRow[0]?.resolvedBy !== null}, del=${deleted.status} remnants=${remnants[0]?.count}`,
   );
 }
 
@@ -15268,6 +15291,29 @@ async function checkOutboundSendLane(
           WHERE id = ${composeBody.data.conversationId} LIMIT 1
         `
       : [];
+    // Compose shares the assignee gate: an admin naming a non-member is
+    // refused before anything is created or sent.
+    const composeStranger = await api('/compose', {
+      body: {
+        contactId,
+        connectorName: 'imap-smtp',
+        subject: 'Quote for a stranger',
+        content: 'Never sent.',
+        assigneeUserId: 'user-from-nowhere',
+      },
+    });
+    const composeStrangerBody = z
+      .object({ error: z.string() })
+      .safeParse(await composeStranger.json());
+    const strangerConversations = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.conversations
+      WHERE org_id = ${orgId} AND subject = 'Quote for a stranger'
+    `;
+    const composeStrangerRefused =
+      composeStranger.status === 400 &&
+      composeStrangerBody.success &&
+      composeStrangerBody.data.error === 'user_not_in_org' &&
+      strangerConversations[0]?.count === '0';
 
     // 6. Bulk reply: one visible + one ghost → partial failure.
     const bulkRes = await api('/bulk/reply', {
@@ -15326,12 +15372,13 @@ async function checkOutboundSendLane(
         composedOk &&
         composedConv[0]?.direction === 'outbound' &&
         composedConv[0]?.subject === 'Quote 7' &&
+        composeStrangerRefused &&
         bulkBody.success &&
         bulkBody.data.successCount === 1 &&
         bulkBody.data.failedCount === 1 &&
         drained &&
         finalSendCount === 4,
-      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject}, bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
+      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);
