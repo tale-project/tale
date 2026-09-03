@@ -21,6 +21,7 @@ import {
 import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
 import {
   deriveRunnerdToken,
+  isSessionWorkspaceDirName,
   sessionContainerName,
   sessionWorkspaceDirName,
 } from '../../session/session-naming.ts';
@@ -124,7 +125,7 @@ export class DockerSessionBackend implements SessionBackend {
       return flat;
     }
     for (const e of entries) {
-      if (!e.isDirectory() || e.name.startsWith('ses-')) continue;
+      if (!e.isDirectory() || isSessionWorkspaceDirName(e.name)) continue;
       const legacy = join(this.cfg.hostSessionRoot, e.name, dirName);
       if (await this.workspaceDirExists(legacy)) {
         console.warn(

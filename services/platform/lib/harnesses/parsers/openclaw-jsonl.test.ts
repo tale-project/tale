@@ -76,6 +76,21 @@ describe('openclaw-jsonl parser', () => {
     });
   });
 
+  it('maps a cancelled run_end to the cancelled status with no error event', () => {
+    // The wrapper unwinding on runnerd's cancel signal (a user Stop).
+    const text = `${[
+      { type: 'run_start', session_id: 'oc-2' },
+      { type: 'run_end', status: 'cancelled', signal: 15, session_id: 'oc-2' },
+    ]
+      .map((l) => JSON.stringify(l))
+      .join('\n')}\n`;
+    const events = collectEvents(createParser('openclaw'), text);
+    expect(events).toEqual([
+      { type: 'turn-started', harness: 'openclaw', sessionId: 'oc-2' },
+      { type: 'turn-ended', status: 'cancelled', sessionId: 'oc-2' },
+    ]);
+  });
+
   it('suppresses zero-token usage and passes unknown events through as raw', () => {
     const unknown = { type: 'novel_openclaw_event', v: 9 };
     const text = `${[{ type: 'usage', input: 0, output: 0 }, unknown]

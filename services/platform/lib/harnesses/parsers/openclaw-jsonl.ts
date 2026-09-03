@@ -11,8 +11,10 @@
 //   { schema_version, type: "run_start", session_id, model? }
 //   { type: "assistant_message", text }
 //   { type: "usage", input, output, cache_read?, cache_write?, model? }
-//   { type: "run_end", status: "ok"|"error", session_id?, final_text?,
-//     error?, duration_ms? }
+//   { type: "run_end", status: "ok"|"error"|"cancelled", session_id?,
+//     final_text?, error?, duration_ms?, signal? }
+//   ("cancelled" is the wrapper unwinding on runnerd's cancel signal — a user
+//   Stop, not a failure; `signal` carries the signal number.)
 
 import { asNumber, asString, LineReassembler, parseJsonLine } from '../jsonl';
 import type {
@@ -26,6 +28,7 @@ function mapRunStatus(status: string | undefined): HarnessTurnStatus {
   if (status === 'ok' || status === 'success' || status === 'completed') {
     return 'completed';
   }
+  if (status === 'cancelled') return 'cancelled';
   return status ? 'error' : 'completed';
 }
 

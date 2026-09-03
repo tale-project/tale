@@ -1,7 +1,9 @@
 // runnerd — the in-container control daemon for persistent sandbox sessions.
 //
-// PID 1 of a session container (entrypoint dispatch `daemon`). Listens on
-// :8200 inside tale-sandbox-net; the spawner is its only client and proxies
+// The control process of a session container (entrypoint dispatch `daemon`),
+// run under the image's tini init so the orphans that cancelled exec trees and
+// browser recycles leave behind are reaped rather than left as zombies. Listens
+// on :8200 inside tale-sandbox-net; the spawner is its only client and proxies
 // in-session operations here over HTTP. Auth is the per-session token in
 // x-tale-runnerd-token (derived spawner-side as HMAC(SANDBOX_TOKEN,
 // "runnerd-v1:"+sessionId); empty disables the check in unsigned dev mode).

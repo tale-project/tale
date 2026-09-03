@@ -21,8 +21,10 @@ The wrapper exists because (verified openclaw 2026.6.11):
     process lists leak argv, and a leading-dash prompt would parse as a flag);
     and the system-prompt APPEND — staged as the workspace AGENTS.md bootstrap
     file, which OpenClaw appends to its system prompt every turn without
-    replacing its core prompt (any pre-existing AGENTS.md is backed up and
-    restored afterwards).
+    replacing its core prompt. That file is the USER's (a cloned repo's own
+    instructions), so it is parked by an atomic rename outside the workspace
+    for the turn and put back on EVERY exit path — clean end, cancel signal,
+    and (via the next start) a hard kill. See AgentsMdSwap.
   - session continuity is an explicit-id contract: `--session-id <handle>`
     maps to the persisted session key `agent:main:explicit:<handle>` in the
     OPENCLAW_STATE_DIR session store, so the SAME handle resumes the SAME
@@ -40,10 +42,13 @@ resolves that env template natively.
 from __future__ import annotations
 
 import argparse
+import errno
+import hashlib
 import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -52,6 +57,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 ENV_TEMPLATE_RE = re.compile(r"^\$\{([A-Z][A-Z0-9_]*)\}$")
+
+# runnerd cancels an exec with a process-group SIGTERM and follows up with a
+# SIGKILL 5s later (exec-manager.ts); SIGINT/SIGHUP are the interactive
+# equivalents. Each gets the same treatment: give the user's AGENTS.md back
+# FIRST, then unwind as a cancelled run.
+CANCEL_SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
 
 
 def _ts() -> str:
@@ -75,6 +86,24 @@ def fail(message: str, session_id: str | None = None, code: int = 1) -> int:
         }
     )
     return code
+
+
+def cancelled(session_id: str, signum: int) -> int:
+    """A cancel signal unwound the run: a user Stop, not a failure. The parser
+    maps `status: cancelled` to the cancelled turn status (no error event)."""
+    emit(
+        {
+            "type": "run_end",
+            "status": "cancelled",
+            "signal": signum,
+            "session_id": session_id,
+        }
+    )
+    return 128 + signum
+
+
+def warn(message: str) -> None:
+    print(f"[tale-openclaw-run] {message}", file=sys.stderr)
 
 
 def read_stdin_payload() -> dict[str, Any] | None:
@@ -113,10 +142,7 @@ def resolve_mcp_env_templates(config: dict[str, Any]) -> None:
                 continue
             resolved = os.environ.get(match.group(1))
             if resolved is None:
-                print(
-                    f"[tale-openclaw-run] mcp env {key}: ${{{match.group(1)}}} is unset",
-                    file=sys.stderr,
-                )
+                warn(f"mcp env {key}: ${{{match.group(1)}}} is unset")
                 continue
             env[key] = resolved
 
@@ -125,6 +151,182 @@ def config_primary_model(config: dict[str, Any]) -> str | None:
     model = config.get("agents", {}).get("defaults", {}).get("model", {})
     primary = model.get("primary") if isinstance(model, dict) else None
     return primary if isinstance(primary, str) and primary else None
+
+
+class Cancelled(BaseException):
+    """Raised in the main thread when the exec's process group is signalled.
+
+    A BaseException (like KeyboardInterrupt) so the generic `except Exception`
+    in main() cannot swallow it: a cancel must unwind through every `finally`.
+    """
+
+    def __init__(self, signum: int) -> None:
+        super().__init__(signum)
+        self.signum = signum
+
+
+def _sha256_file(path: str) -> str | None:
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return None
+
+
+def _move(src: str, dst: str) -> None:
+    """Atomic same-filesystem rename; copy-then-unlink only across devices.
+
+    The default deployment keeps the workspace and the OpenClaw state dir on
+    the one /agent volume, so this is a single rename(2) — no signal can leave
+    a half-written file. Across devices (a non-default `workspace` mount) the
+    copy lands under a temp name and is renamed into place before the source
+    goes, so a kill at any point leaves at least one complete copy.
+    """
+    try:
+        os.replace(src, dst)
+    except OSError as exc:
+        if exc.errno != errno.EXDEV:
+            raise
+        tmp = f"{dst}.tmp-{os.getpid()}"
+        shutil.copy2(src, tmp)
+        os.replace(tmp, dst)
+        os.unlink(src)
+
+
+class AgentsMdSwap:
+    """Kill-safe staging of the system prompt as <workspace>/AGENTS.md.
+
+    OpenClaw reads the append-to-system-prompt file from exactly one place —
+    the workspace AGENTS.md — so for the turn the prompt has to sit where the
+    user's own AGENTS.md lives. Overwriting it with a copy stashed in a temp
+    dir and restoring in a `finally` loses the user's file on any exit that
+    skips the `finally`: runnerd's cancel (process-group SIGTERM, SIGKILL 5s
+    later — Python's default SIGTERM disposition runs no `finally`), the
+    orphan deadline, a container teardown. So instead:
+
+      * the original is PARKED by an atomic rename into a slot OUTSIDE the
+        workspace, under the persistent OpenClaw state dir and keyed by the
+        workspace path — never copied over, never left where the agent or a
+        `git clean` could take it, never moved by anything but a single
+        rename;
+      * a marker in the slot records whether an original existed and the hash
+        of the staged prompt, so a later wrapper start can put the original
+        back — or remove a stale staged prompt it can PROVE it wrote;
+      * restore runs in the `finally`, in the cancel-signal handler, and as
+        the backstop at the start of every turn (`recover`), prompt or not.
+
+    Every step is idempotent, so a signal landing mid-stage or mid-restore
+    leaves nothing a second restore can't finish.
+    """
+
+    PARKED = "AGENTS.md.orig"
+    MARKER = "state.json"
+
+    def __init__(self, workspace: str) -> None:
+        self.workspace = os.path.abspath(workspace)
+        self.agents_md = os.path.join(self.workspace, "AGENTS.md")
+        home = os.environ.get("HOME") or os.path.expanduser("~")
+        state_root = os.environ.get("OPENCLAW_STATE_DIR") or os.path.join(
+            home, ".openclaw"
+        )
+        key = hashlib.sha256(self.workspace.encode("utf-8")).hexdigest()[:16]
+        self.slot = os.path.join(state_root, "tale-agents-md", key)
+        self.parked = os.path.join(self.slot, self.PARKED)
+        self.marker = os.path.join(self.slot, self.MARKER)
+
+    # -- marker ------------------------------------------------------------
+
+    def _read_marker(self) -> dict[str, Any] | None:
+        try:
+            with open(self.marker, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return None
+        return data if isinstance(data, dict) else None
+
+    def _write_marker(self, had_original: bool, staged_sha256: str) -> None:
+        tmp = f"{self.marker}.tmp-{os.getpid()}"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "workspace": self.workspace,
+                    "had_original": had_original,
+                    "staged_sha256": staged_sha256,
+                    "pid": os.getpid(),
+                    "started_at": _ts(),
+                },
+                f,
+            )
+        os.replace(tmp, self.marker)
+
+    def _clear(self) -> None:
+        for path in (self.marker, self.parked):
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                warn(f"AGENTS.md swap: could not remove {path}: {exc}")
+        try:
+            os.rmdir(self.slot)
+        except OSError:
+            # Not empty (a temp from a dying step) or already gone — fine.
+            pass
+
+    # -- lifecycle ---------------------------------------------------------
+
+    def recover(self) -> None:
+        """Undo a previous turn's swap that never got to restore (hard kill)."""
+        if os.path.lexists(self.parked) or self._read_marker() is not None:
+            warn("AGENTS.md swap: leftover from an interrupted turn — restoring")
+            self.restore()
+
+    def stage(self, system_prompt: str) -> None:
+        if os.path.lexists(self.parked):
+            # recover() could not put a previous turn's original back (the
+            # restore itself failed). Never park over it — that would replace
+            # the user's file with a stale prompt for good. Fail the turn loudly.
+            raise RuntimeError(
+                f"a parked AGENTS.md is still at {self.parked} and could not be "
+                "restored; refusing to stage a system prompt over it"
+            )
+        os.makedirs(self.slot, exist_ok=True)
+        os.makedirs(self.workspace, exist_ok=True)
+        data = system_prompt.encode("utf-8")
+        had_original = os.path.lexists(self.agents_md)
+        # Marker first: from here on a restore knows what to undo.
+        self._write_marker(had_original, hashlib.sha256(data).hexdigest())
+        if had_original:
+            _move(self.agents_md, self.parked)
+        staged = os.path.join(self.slot, f"AGENTS.md.staged-{os.getpid()}")
+        with open(staged, "wb") as f:
+            f.write(data)
+        _move(staged, self.agents_md)
+
+    def restore(self) -> None:
+        """Put the user's AGENTS.md back (or remove ours). Idempotent."""
+        marker = self._read_marker()
+        try:
+            if os.path.lexists(self.parked):
+                _move(self.parked, self.agents_md)
+            elif marker is not None and marker.get("had_original") is False:
+                # No original to bring back: remove the staged prompt — but only
+                # a file that still hashes to what we wrote. Anything else the
+                # agent (or the user) put there stays.
+                if _sha256_file(self.agents_md) == marker.get("staged_sha256"):
+                    os.unlink(self.agents_md)
+                elif os.path.lexists(self.agents_md):
+                    warn(
+                        "AGENTS.md swap: workspace AGENTS.md changed during the "
+                        "turn; leaving it in place"
+                    )
+        except FileNotFoundError:
+            # Raced with a concurrent restore (signal handler vs finally).
+            pass
+        except OSError as exc:
+            warn(f"AGENTS.md restore failed: {exc}")
+            return
+        self._clear()
 
 
 def emit_envelope_events(
@@ -191,6 +393,25 @@ def emit_envelope_events(
     return exit_code if error_message else 0
 
 
+def install_cancel_handlers(swap: AgentsMdSwap) -> None:
+    """Turn a cancel signal into a restore + `Cancelled` unwind.
+
+    Handlers run in the main thread, interrupting the blocking child wait in
+    `subprocess.run` (which then kills the CLI and re-raises). The restore
+    happens right here, before anything else: on runnerd's cancel path a
+    SIGKILL lands ~5s later and nothing runs after that.
+    """
+
+    def on_signal(signum: int, _frame: Any) -> None:
+        for sig in CANCEL_SIGNALS:
+            signal.signal(sig, signal.SIG_IGN)
+        swap.restore()
+        raise Cancelled(signum)
+
+    for sig in CANCEL_SIGNALS:
+        signal.signal(sig, on_signal)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run OpenClaw for Tale sandbox")
     parser.add_argument("--workdir", default="/user/workspace")
@@ -226,10 +447,13 @@ def main() -> int:
         workspace = args.workdir
 
     stage_dir = None
-    agents_md_path = os.path.join(workspace, "AGENTS.md")
-    agents_md_backup: str | None = None
-    agents_md_written = False
+    swap = AgentsMdSwap(workspace)
+    install_cancel_handlers(swap)
     try:
+        # Backstop for a previous turn that died mid-swap: give the user's
+        # AGENTS.md back before this turn touches anything — with or without a
+        # system prompt of its own.
+        swap.recover()
         resolve_mcp_env_templates(config)
 
         stage_dir = tempfile.mkdtemp(prefix="tale-openclaw-")
@@ -241,16 +465,7 @@ def main() -> int:
             f.write(prompt)
 
         if system_prompt is not None:
-            # System-prompt append rides the workspace AGENTS.md bootstrap
-            # file. Back up whatever is there (a repo's own AGENTS.md must
-            # survive the turn) and restore it in the finally below.
-            os.makedirs(workspace, exist_ok=True)
-            if os.path.exists(agents_md_path):
-                agents_md_backup = os.path.join(stage_dir, "AGENTS.md.orig")
-                shutil.copy2(agents_md_path, agents_md_backup)
-            with open(agents_md_path, "w", encoding="utf-8") as f:
-                f.write(system_prompt)
-            agents_md_written = True
+            swap.stage(system_prompt)
 
         env = dict(os.environ)
         env["OPENCLAW_CONFIG_PATH"] = config_path
@@ -296,25 +511,22 @@ def main() -> int:
                 proc.returncode or 1,
             )
         return emit_envelope_events(envelope, session_id, proc.returncode)
+    except Cancelled as exc:
+        return cancelled(session_id, exc.signum)
     except FileNotFoundError as exc:
         return fail(f"openclaw not installed or file missing: {exc}", session_id)
     except Exception as exc:  # noqa: BLE001 — surface anything as a run error
         return fail(f"wrapper failure: {exc}", session_id)
     finally:
-        if agents_md_written:
-            try:
-                if agents_md_backup is not None:
-                    shutil.copy2(agents_md_backup, agents_md_path)
-                else:
-                    os.unlink(agents_md_path)
-            except OSError as exc:
-                print(
-                    f"[tale-openclaw-run] AGENTS.md restore failed: {exc}",
-                    file=sys.stderr,
-                )
+        swap.restore()
         if stage_dir is not None:
             shutil.rmtree(stage_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except Cancelled as exc:
+        # A cancel that lands inside main()'s own `finally` (restore already
+        # done or in progress) still exits as a cancelled run, not a traceback.
+        raise SystemExit(128 + exc.signum)

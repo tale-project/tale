@@ -3,7 +3,7 @@
 // Separate from docker-args.ts on purpose: the one-shot builder is snapshot-
 // tested as a frozen contract and must not change. Sessions differ in ways
 // that would break that snapshot — detached (`-d`), no entry positional (the
-// daemon is PID 1 via the `daemon` entrypoint dispatch), a long-lived
+// daemon runs under tini via the `daemon` entrypoint dispatch), a long-lived
 // resource profile (no cpu-time ulimit, bigger mem/pids, /dev/shm for
 // Chromium), the per-session runnerd token in env, and the session label.
 //
@@ -424,8 +424,8 @@ export function buildDockerSessionRunArgs(
     // Per-org cache volume mounts (empty under DinD — cold caches; see above).
     ...cacheMounts,
     cfg.runtimeImage,
-    // Entrypoint dispatch: `daemon` mode boots runnerd as PID 1 instead of
-    // running a one-shot script. See sandbox-runtime/entrypoint.sh.
+    // Entrypoint dispatch: `daemon` mode boots tini (PID 1) + runnerd instead
+    // of running a one-shot script. See sandbox-runtime/entrypoint.sh.
     'daemon',
   ];
 }
