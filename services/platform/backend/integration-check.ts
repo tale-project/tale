@@ -3805,6 +3805,115 @@ async function checkDocuments(
     `unchanged → ${finalizeSame.status} (want 400), cancel=${cancelled.success ? 'ok' : 'ERR'}, finalizeCancelled → ${finalizeCancelled.status} (want 400), status=${statusRead.success ? statusRead.data.state : 'ERR'}`,
   );
 
+  // Two finalizes racing on the SAME current file. Both intents pass their
+  // mint-time checks (both name the current blob); the bind must serialize on
+  // the document row so exactly one wins and the other gets a clear
+  // version-mismatch — never two "success" answers with one uploaded version
+  // silently missing from the chain. The race is made deterministic by
+  // parking BOTH binds behind a row lock this test holds until both wait.
+  const beginRace = async (bytes: string): Promise<string> => {
+    const minted = z
+      .object({ intentId: z.string(), url: z.string().url() })
+      .safeParse(
+        await (
+          await send(
+            'POST',
+            `/api/app/documents/${recordDocId}/replacement-upload/begin?orgId=${orgId}`,
+            {
+              expectedRecordState: 'draft',
+              expectedVersion: 2,
+              expectedFileId: fileIdAfter,
+              fileName: 'direct-post.txt',
+              contentType: 'text/plain',
+            },
+          )
+        ).json(),
+      );
+    if (!minted.success) return '';
+    await fetch(minted.data.url, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: bytes,
+    });
+    return minted.data.intentId;
+  };
+  const raceA = await beginRace('race body alpha');
+  const raceB = await beginRace('race body beta');
+  let releaseGate = (): void => {};
+  const gateReleased = new Promise<void>((resolve) => {
+    releaseGate = resolve;
+  });
+  let gateHeld = (): void => {};
+  const gateHeldOnce = new Promise<void>((resolve) => {
+    gateHeld = resolve;
+  });
+  const gate = sql.begin(async (tx) => {
+    await tx`SELECT id FROM app.documents WHERE id = ${recordDocId} FOR UPDATE`;
+    gateHeld();
+    await gateReleased;
+  });
+  await gateHeldOnce;
+  const racing = Promise.all(
+    [raceA, raceB].map((intentId) =>
+      send(
+        'POST',
+        `/api/app/documents/replacement-uploads/${intentId}/finalize?orgId=${orgId}`,
+        {},
+      ),
+    ),
+  );
+  // Both binds now wait on the document row (unserialized: at the swap
+  // UPDATE; serialized: at the locked load) — release once two backends do.
+  const bothParked = await waitFor(async () => {
+    const waiting = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pg_stat_activity
+      WHERE datname = current_database() AND wait_event_type = 'Lock'
+        AND query ILIKE '%app.documents%'
+    `;
+    return Number(waiting[0]?.count ?? '0') >= 2;
+  }, 20_000);
+  releaseGate();
+  await gate;
+  const raceResponses = await racing;
+  const raceCodes = await Promise.all(
+    raceResponses.map((response) =>
+      response.ok ? Promise.resolve('ok') : errorCodeOf(response),
+    ),
+  );
+  const raceIntents = await sql<
+    { id: string; state: string; finalRef: string }[]
+  >`
+    SELECT id, state, final_ref AS "finalRef"
+    FROM app.document_replacement_uploads
+    WHERE id IN (${raceA}, ${raceB})
+  `;
+  const afterRace = await sql<
+    { fileRef: string | null; historyFiles: string[] }[]
+  >`
+    SELECT file_ref AS "fileRef", history_files AS "historyFiles"
+    FROM app.documents WHERE id = ${recordDocId} LIMIT 1
+  `;
+  const raceWinners = raceIntents.filter((intent) => intent.state === 'bound');
+  const raceLoser = raceIntents.find((intent) => intent.state !== 'bound');
+  // No version lost: every blob a bind made current is current or retained.
+  const chainIntact = raceWinners.every(
+    (intent) =>
+      afterRace[0]?.fileRef === intent.finalRef ||
+      (afterRace[0]?.historyFiles ?? []).includes(intent.finalRef),
+  );
+  record(
+    'replacement finalize race: one bind wins, the other conflicts, no version lost',
+    bothParked &&
+      raceCodes.filter((code) => code === 'ok').length === 1 &&
+      raceCodes.includes('DOCUMENT_RECORD_VERSION_MISMATCH') &&
+      raceWinners.length === 1 &&
+      raceLoser?.state === 'failed' &&
+      afterRace[0]?.fileRef === raceWinners[0]?.finalRef &&
+      (afterRace[0]?.historyFiles ?? []).includes(fileIdAfter) &&
+      chainIntact,
+    `parked=${bothParked}, responses=${raceCodes.join('/')} (want ok + DOCUMENT_RECORD_VERSION_MISMATCH), bound=${raceWinners.length} (want 1), loser=${raceLoser?.state ?? 'none'} (want failed), currentIsWinner=${afterRace[0]?.fileRef === raceWinners[0]?.finalRef}, previousRetained=${(afterRace[0]?.historyFiles ?? []).includes(fileIdAfter)}, chainIntact=${chainIntact}`,
+  );
+
   // Hard delete removes the row and the hub listing entry.
   const hardDelete = await send(
     'POST',
