@@ -4518,20 +4518,27 @@ async function checkChat(
       { status: 'disabled' },
     );
     const offeredWhileDefaultDisabled = await pickerLists();
+    // A stale composer selection (the picker just dropped the model) must
+    // come back as a refusal the composer can show — never a bare 500.
+    const staleSendRaw = await (
+      await send(
+        `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+        {
+          text: 'still there?',
+          modelId: 'itest-deploy-prod',
+          providerSlug: 'itestdeploy',
+        },
+      )
+    ).text();
+    let staleSendJson: unknown = null;
+    try {
+      staleSendJson = JSON.parse(staleSendRaw);
+    } catch {
+      staleSendJson = { status: `non-JSON: ${staleSendRaw.slice(0, 80)}` };
+    }
     const sendWhileDefaultDisabled = z
       .object({ status: z.string(), reason: z.string().optional() })
-      .safeParse(
-        await (
-          await send(
-            `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
-            {
-              text: 'still there?',
-              modelId: 'itest-deploy-prod',
-              providerSlug: 'itestdeploy',
-            },
-          )
-        ).json(),
-      );
+      .safeParse(staleSendJson);
     await send(
       `/api/app/provider-credentials/${deployDefaultId}?orgId=${orgId}`,
       { status: 'active' },
@@ -4545,9 +4552,12 @@ async function checkChat(
       'picker offers only what the active default credential can serve',
       !offeredWhileDefaultDisabled &&
         sendWhileDefaultDisabled.success &&
-        sendWhileDefaultDisabled.data.status !== 'completed' &&
+        sendWhileDefaultDisabled.data.status === 'refused' &&
+        (sendWhileDefaultDisabled.data.reason ?? '').includes(
+          'itest-deploy-prod',
+        ) &&
         offeredAgain,
-      `defaultDisabled: picker=${offeredWhileDefaultDisabled ? 'STILL OFFERS' : 'omits'} send=${sendWhileDefaultDisabled.success ? sendWhileDefaultDisabled.data.status : 'ERR'} (want not completed); reenabled: picker=${offeredAgain ? 'offers' : 'MISSING'}`,
+      `defaultDisabled: picker=${offeredWhileDefaultDisabled ? 'STILL OFFERS' : 'omits'} send=${sendWhileDefaultDisabled.success ? `${sendWhileDefaultDisabled.data.status} (${sendWhileDefaultDisabled.data.reason ?? ''})` : 'ERR'} (want refused, naming the model); reenabled: picker=${offeredAgain ? 'offers' : 'MISSING'}`,
     );
 
     // First-token UX metric. Covered because it was NOT: the statement that
