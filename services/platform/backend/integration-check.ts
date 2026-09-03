@@ -15231,6 +15231,47 @@ async function checkOutboundSendLane(
     const failedRow = await messageRow(failId);
     failMode = false;
 
+    // A member who cannot open the conversation (unassigned = admin triage)
+    // gets the opaque 404 from retry and discard, and the row is untouched —
+    // holding a messageId is not a licence to act on a colleague's mail.
+    const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({
+        email: `send-lane-member-${Date.now().toString(36)}@example.com`,
+        password: 'itest-password-1',
+        name: 'Send Lane Member',
+      }),
+    });
+    const memberCookie = cookieHeaderFrom(memberSignUp);
+    const memberBody = z
+      .object({ user: z.object({ id: z.string() }) })
+      .safeParse(await memberSignUp.json());
+    const memberId = memberBody.success ? memberBody.data.user.id : '';
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                            "createdAt")
+      VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member',
+              ${new Date()})
+    `;
+    const asMember = (route: string): Promise<Response> =>
+      fetch(`${base}/api/app/conversations${route}?orgId=${orgId}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: memberCookie,
+          origin: base,
+        },
+        body: '{}',
+      });
+    const memberRetry = await asMember(`/messages/${failId}/retry`);
+    const memberDiscard = await asMember(`/messages/${failId}/discard`);
+    const afterMemberDoors = await messageRow(failId);
+    const memberRetryDiscardRefused =
+      memberRetry.status === 404 &&
+      memberDiscard.status === 404 &&
+      afterMemberDoors?.deliveryState === 'failed';
+
     // …and retry (immediate, no undo window) re-delivers.
     const retryRes = await api(`/messages/${failId}/retry`, { body: {} });
     const retriedOk = await waitForState(failId, 'sent');
@@ -15245,6 +15286,11 @@ async function checkOutboundSendLane(
       .object({ messageId: z.string() })
       .safeParse(await undoTarget.json());
     const undoId = undoTargetBody.success ? undoTargetBody.data.messageId : '';
+    // The hidden-conversation member cannot recall the owner's queued reply.
+    const memberUndo = await asMember(`/messages/${undoId}/undo`);
+    const memberUndoRefused =
+      memberUndo.status === 404 &&
+      (await messageRow(undoId))?.deliveryState === 'queued';
     const undoRes = await api(`/messages/${undoId}/undo`, { body: {} });
     const undoBody = z
       .object({ sourceMarkdown: z.string().nullable() })
@@ -15361,6 +15407,8 @@ async function checkOutboundSendLane(
         retryRes.status === 200 &&
         retriedOk &&
         retriedRow?.retryCount === 1 &&
+        memberRetryDiscardRefused &&
+        memberUndoRefused &&
         undoRes.status === 200 &&
         undoBody.success &&
         undoBody.data.sourceMarkdown === 'Recall me.' &&
@@ -15378,7 +15426,7 @@ async function checkOutboundSendLane(
         bulkBody.data.failedCount === 1 &&
         drained &&
         finalSendCount === 4,
-      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
+      `reply=${replyRes.status} queued=${queuedRow?.deliveryState}/${String(queuedRow?.metadata?.sendContentType)} approval=${approvalAfterSend[0]?.status}/${approvalAfterSend[0]?.approvedBy === userId}, sent=${sentOk} extId=${sentRow?.externalMessageId} smtp[0]=${firstSend?.to}/${firstSend?.subject}/inReplyTo=${firstSend?.inReplyTo}, fail=${failedOk} err=${typeof failedRow?.metadata?.error} retry=${retryRes.status}/${retriedOk}/count=${retriedRow?.retryCount}, memberDoors=${memberRetry.status}/${memberDiscard.status}/${memberUndo.status} (want 404s, row kept=${memberRetryDiscardRefused && memberUndoRefused}), undo=${undoRes.status} draft=${undoBody.success ? undoBody.data.sourceMarkdown : 'ERR'} gone=${undoneRow === null} repeat=${undoRepeat.status}, discard=${discardRes.status} gone=${discardedRow === null}, compose=${composeRes.status}/${composedOk} conv=${composedConv[0]?.direction}/${composedConv[0]?.subject} strangerRefused=${composeStrangerRefused} (${composeStranger.status}), bulk=${bulkBody.success ? `${bulkBody.data.successCount}/${bulkBody.data.failedCount}` : 'ERR'}, drained=${drained} smtpTotal=${finalSendCount} (want 4)`,
     );
   } finally {
     setMailTransportForTesting(DEFAULT_MAIL_FAKE);

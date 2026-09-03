@@ -15,11 +15,19 @@ const {
   countConversationsByStatus,
   countUnreadConversations,
   projectConversationForView,
+  loadMessageForViewer,
+  undoSendMessage,
+  retrySendMessage,
+  discardOutboundMessage,
 } = vi.hoisted(() => ({
   listConversationsPage: vi.fn(),
   countConversationsByStatus: vi.fn(),
   countUnreadConversations: vi.fn(),
   projectConversationForView: vi.fn(),
+  loadMessageForViewer: vi.fn(),
+  undoSendMessage: vi.fn(),
+  retrySendMessage: vi.fn(),
+  discardOutboundMessage: vi.fn(),
 }));
 
 vi.mock('./service.ts', async (importOriginal) => {
@@ -30,6 +38,17 @@ vi.mock('./service.ts', async (importOriginal) => {
     countConversationsByStatus,
     countUnreadConversations,
     projectConversationForView,
+    loadMessageForViewer,
+  };
+});
+
+vi.mock('./send.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./send.ts')>();
+  return {
+    ...actual,
+    undoSendMessage,
+    retrySendMessage,
+    discardOutboundMessage,
   };
 });
 
@@ -57,6 +76,7 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
 });
 
 import { createConversationRoutes } from './routes.ts';
+import { ConversationError } from './service.ts';
 
 function makeApp() {
   return createConversationRoutes({
@@ -120,4 +140,74 @@ describe('conversations route — connector filter wire contract', () => {
       'imap-smtp',
     );
   });
+});
+
+/**
+ * The message-level doors act on a message only inside a conversation the
+ * viewer can open. Org scoping alone let a member holding a messageId cancel,
+ * resend, or discard a colleague's outbound mail in a conversation the
+ * assignment predicate hides from them; the guard the attachments door
+ * already ran now fronts undo, retry and discard too.
+ */
+describe('conversations route — message doors share the visibility guard', () => {
+  const doors = [
+    ['undo', undoSendMessage],
+    ['retry', retrySendMessage],
+    ['discard', discardOutboundMessage],
+  ] as const;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    undoSendMessage.mockResolvedValue({ sourceMarkdown: null });
+    retrySendMessage.mockResolvedValue(undefined);
+    discardOutboundMessage.mockResolvedValue(undefined);
+  });
+
+  for (const [door, service] of doors) {
+    it(`POST /messages/:id/${door} answers the opaque 404 for a hidden conversation and touches nothing`, async () => {
+      loadMessageForViewer.mockRejectedValue(
+        new ConversationError(
+          'conversation_not_found',
+          'Conversation not found',
+          404,
+        ),
+      );
+      const res = await makeApp().request(
+        '/messages/m1/' + door + '?orgId=o1',
+        {
+          method: 'POST',
+          body: '{}',
+          headers: { 'content-type': 'application/json' },
+        },
+      );
+      expect(res.status).toBe(404);
+      expect(loadMessageForViewer).toHaveBeenCalledWith(
+        expect.anything(),
+        { organizationId: 'o1', userId: 'u1', role: 'admin' },
+        'm1',
+      );
+      expect(service).not.toHaveBeenCalled();
+    });
+
+    it(`POST /messages/:id/${door} runs for a message the viewer can open`, async () => {
+      loadMessageForViewer.mockResolvedValue({
+        id: 'm1',
+        conversationId: 'c1',
+        connectorName: 'imap-smtp',
+      });
+      const res = await makeApp().request(
+        '/messages/m1/' + door + '?orgId=o1',
+        {
+          method: 'POST',
+          body: '{}',
+          headers: { 'content-type': 'application/json' },
+        },
+      );
+      expect(res.status).toBe(200);
+      expect(service).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ organizationId: 'o1', messageId: 'm1' }),
+      );
+    });
+  }
 });

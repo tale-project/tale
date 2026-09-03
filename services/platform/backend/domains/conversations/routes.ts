@@ -432,9 +432,17 @@ export function createConversationRoutes(deps: {
     }
   });
 
+  /**
+   * The message-level doors (undo / retry / discard / attachments) all pass
+   * `loadMessageForViewer` first: a member acts on a message only inside a
+   * conversation they can open — org scoping alone let a member holding an id
+   * cancel or resend a colleague's mail in a conversation hidden from them.
+   */
+
   /** Cancel a still-queued send; hands the composer draft back. */
   app.post('/messages/:messageId/undo', async (c) => {
     try {
+      await loadMessageForViewer(deps.sql, viewer(c), c.req.param('messageId'));
       const result = await undoSendMessage(deps.sql, {
         organizationId: c.get('orgId'),
         messageId: c.req.param('messageId'),
@@ -459,7 +467,6 @@ export function createConversationRoutes(deps: {
    */
   app.post('/messages/:messageId/attachments', async (c) => {
     try {
-      // Still visibility-scoped: a member must be able to open the message.
       await loadMessageForViewer(deps.sql, viewer(c), c.req.param('messageId'));
       return c.json(
         {
@@ -477,6 +484,7 @@ export function createConversationRoutes(deps: {
   /** Re-attempt a failed send immediately (no undo window). */
   app.post('/messages/:messageId/retry', async (c) => {
     try {
+      await loadMessageForViewer(deps.sql, viewer(c), c.req.param('messageId'));
       await retrySendMessage(deps.sql, {
         organizationId: c.get('orgId'),
         messageId: c.req.param('messageId'),
@@ -491,6 +499,7 @@ export function createConversationRoutes(deps: {
   /** Remove a failed outbound bubble — the email never left. */
   app.post('/messages/:messageId/discard', async (c) => {
     try {
+      await loadMessageForViewer(deps.sql, viewer(c), c.req.param('messageId'));
       await discardOutboundMessage(deps.sql, {
         organizationId: c.get('orgId'),
         messageId: c.req.param('messageId'),
