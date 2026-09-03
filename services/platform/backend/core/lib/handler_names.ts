@@ -220,7 +220,7 @@ interface HandlerNames {
       updateFileTranscription: FunctionRef;
     };
     internal_queries: FunctionRef & {
-      filterStorageIdsInOrg: FunctionRef;
+      filterStorageIdsReadable: FunctionRef;
       findCachedTranscript: FunctionRef;
       getByStorageId: FunctionRef;
       getStorageSha256: FunctionRef;
