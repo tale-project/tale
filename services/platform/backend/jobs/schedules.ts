@@ -13,7 +13,7 @@ interface CronSchedule {
   cron: string;
 }
 
-const SCHEDULES: CronSchedule[] = [
+export const SCHEDULES: CronSchedule[] = [
   // Rate-limit state is per (rule, subject) — rows idle longer than any
   // window are dead weight. Daily sweep.
   { name: 'maintenance.rate_limit_gc', cron: '20 3 * * *' },
@@ -26,15 +26,31 @@ const SCHEDULES: CronSchedule[] = [
   { name: 'automation.liveness', cron: '* * * * *' },
   // The agent-lane and sandbox backstops (each its own entry so a throw in
   // one sweep can never disable another — the 0.4 isolation rationale).
+  // The three daily governance jobs are SPACED, not batched, and the order
+  // is the point.
+  //
+  // 01:00 releases first: a maker-checker legal-hold release that has cleared
+  // its cooldown frees data for the sweep three hours later, instead of
+  // waiting a further day. It also runs even when the retention kill-switch
+  // is set, so it cannot be gated on the sweep.
+  //
+  // 02:00 verifies the audit chain, deliberately clear of both siblings. The
+  // verifier trusts the oldest surviving row as its anchor, so running it
+  // inside the 04:00 window would have it walk the chain while retention is
+  // deleting audit prefixes.
+  //
+  // 04:00 sweeps. Packing all three into one half-hour window reintroduces
+  // exactly the overlap the 0.4 comments were written to avoid.
+  { name: 'governance.effect_hold_releases', cron: '0 1 * * *' },
+  { name: 'audit.integrity_check', cron: '0 2 * * *' },
   { name: 'governance.retention_cleanup', cron: '0 4 * * *' },
   // Corpus↔app reconcile: de-index refs nothing references any more — the
   // backstop for release jobs that exhausted retries, and the lazy backfill
   // that drains historically stranded rows (replaced versions, rotated
   // knowledge entries) on existing deployments. After retention, so rows it
-  // just purged reconcile the same night.
+  // just purged reconcile the same night — which is why this one DOES share
+  // the sweep's hour, deliberately, unlike the three above.
   { name: 'knowledge.reconcile_corpus', cron: '45 4 * * *' },
-  { name: 'audit.integrity_check', cron: '30 4 * * *' },
-  { name: 'governance.effect_hold_releases', cron: '15 4 * * *' },
   { name: 'watchdog.task_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.automation_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.sandbox', cron: '*/5 * * * *' },
