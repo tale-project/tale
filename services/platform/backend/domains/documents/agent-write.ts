@@ -102,6 +102,23 @@ export async function upsertAgentDocument(
   const extension = args.extension ?? extractExtension(title);
   return sql.begin(async (tx) => {
     const now = Date.now();
+    if (args.projectId !== undefined) {
+      // A project id would otherwise land on the row unverified — and a
+      // mistyped or foreign id files the document where nothing reaches it:
+      // the hub lists `project_id IS NULL`, retrieval scopes need a readable
+      // project, so the write answers "ok" and the work is lost. The same
+      // org-scoped gate the task writer applies (`agentCreateTaskTrusted`):
+      // a project in ANOTHER org reads as missing, never as forbidden, so an
+      // opaque id cannot be probed for existence.
+      const owned = await tx<{ id: string }[]>`
+        SELECT id FROM app.projects
+        WHERE id = ${args.projectId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      if (owned.length === 0) {
+        throw new DocumentError('PROJECT_NOT_FOUND', 'Project not found', 404);
+      }
+    }
     // `content_hash` mirrors the bytes `file_ref` serves — resolved from the
     // blob's ledger row (`storeAgentTextBlob` stamps it) so a refreshed
     // document never keeps the previous blob's hash.

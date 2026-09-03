@@ -4690,6 +4690,62 @@ async function checkDocumentWriteGuards(
     `create=${first.action}/${hashAfterCreate === sha('agent v1 body') ? 'hash-ok' : `hash=${hashAfterCreate ?? 'null'}`}, update=${second.action}/${hashAfterUpdate === sha('agent v2 body') ? 'hash-ok' : `hash=${hashAfterUpdate ?? 'null'}`}, mark → ${markAgent.status}, rerun=${refusedCode || 'ALLOWED'} (want DOCUMENT_RECORD_REPLACEMENT_REQUIRED), fileRefKept=${fileRefRows[0]?.fileRef === second.fileRef}`,
   );
 
+  // A named project must EXIST in this org — the task writer's rule. Without
+  // it the row lands where nothing reaches it (the hub lists `project_id IS
+  // NULL`, retrieval scopes need a readable project): saved, "ok", lost. A
+  // foreign org's project reads as missing, never as forbidden.
+  const foreignProject = await sql<{ id: string }[]>`
+    SELECT id FROM app.projects WHERE org_id <> ${orgId} LIMIT 1
+  `;
+  const agentProjectRefusal = async (
+    projectId: string,
+    key: string,
+  ): Promise<string> => {
+    const blob = await storeAgentTextBlob(sql, {
+      organizationId: orgId,
+      fileName: 'agent-lost.md',
+      content: `unreachable ${key}`,
+      contentType: 'text/markdown',
+      uploadedBy: userId,
+    });
+    try {
+      await upsertAgentDocument(sql, {
+        organizationId: orgId,
+        externalItemId: key,
+        title: 'agent-lost.md',
+        fileRef: blob.storageRef,
+        mimeType: 'text/markdown',
+        createdBy: userId,
+        projectId,
+      });
+      return 'ALLOWED';
+    } catch (error) {
+      return error instanceof DocumentError ? error.code : String(error);
+    }
+  };
+  const bogusProjectCode = await agentProjectRefusal(
+    randomUUID(),
+    `itest:doc-guards:bogus:${suffix}`,
+  );
+  const foreignProjectCode =
+    foreignProject[0] === undefined
+      ? 'NO-FOREIGN-PROJECT'
+      : await agentProjectRefusal(
+          foreignProject[0].id,
+          `itest:doc-guards:foreign:${suffix}`,
+        );
+  const unreachableRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.documents
+    WHERE org_id = ${orgId} AND title = 'agent-lost.md'
+  `;
+  record(
+    'agent upsert: unknown or foreign project is refused before the write',
+    bogusProjectCode === 'PROJECT_NOT_FOUND' &&
+      foreignProjectCode === 'PROJECT_NOT_FOUND' &&
+      unreachableRows[0]?.count === '0',
+    `bogus=${bogusProjectCode}, foreign=${foreignProjectCode} (want PROJECT_NOT_FOUND), unreachableRows=${unreachableRows[0]?.count ?? '?'} (want 0)`,
+  );
+
   // ---- (5) hub team assignment must stay visible to the caller ------------
   const bogusRest = await v1(ownerKey, 'POST', '/documents', {
     title: 'team-scoped.txt',
@@ -22279,20 +22335,83 @@ async function checkAutomationRunToolLane(
   });
   const orgFind = await dispatch(orgToken, 'task_find', {});
   const orgFindRaw = orgFind.raw;
-  // An org-level run's document is a HUB document — it belongs to no project.
+  // A MULTI-BOUND run's document must name one of its bound projects — the
+  // hub is org-wide, wider than the run's authority (task_create's rule) —
+  // and a project outside the bindings is refused like the task tools do.
+  /** The document's project — `null` for a hub row, `undefined` for NO row. */
+  const projectOf = async (
+    title: string,
+  ): Promise<string | null | undefined> => {
+    const rows = await sql<{ projectId: string | null }[]>`
+      SELECT project_id AS "projectId" FROM app.documents
+      WHERE org_id = ${orgId} AND title = ${title}
+      LIMIT 1
+    `;
+    return rows[0]?.projectId;
+  };
   const orgWrote = await dispatch(orgToken, 'document_create', {
     name: 'org-run-notes.md',
     content: '# Notes\n\nOrg-level run.',
     contentType: 'text/markdown',
   });
-  const hubDocument = await sql<{ projectId: string | null }[]>`
-    SELECT project_id AS "projectId" FROM app.documents
-    WHERE org_id = ${orgId} AND title = 'org-run-notes.md'
+  const hubDocument = await projectOf('org-run-notes.md');
+  const orgWroteBound = await dispatch(orgToken, 'document_create', {
+    name: 'org-run-bound.md',
+    content: '# Notes\n\nFiled on a bound project.',
+    contentType: 'text/markdown',
+    projectId: otherProjectId,
+  });
+  const boundDocument = await projectOf('org-run-bound.md');
+  const orgWroteOutside = await dispatch(orgToken, 'document_create', {
+    name: 'org-run-outside.md',
+    content: '# Notes\n\nNot allowed here.',
+    contentType: 'text/markdown',
+    projectId: unboundProjectId,
+  });
+  const outsideDocument = await projectOf('org-run-outside.md');
+
+  // A TRULY org-level run (no bindings) writes the hub, or a project it
+  // names — which must exist in this org: an unknown id is refused as
+  // not_found rather than filed where no listing or retrieval reaches it.
+  const freeRun = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by,
+      input, checkpoints, started_at_ms
+    ) VALUES (
+      ${orgId}, 'itest-run-tools-free', 1, 'running', 'live', ${userId},
+      ${sql.json({})}, ${sql.json(toJson(liveCursor))}, ${now}
+    ) RETURNING id
   `;
+  const freeToken = 'itest-vk-run-free';
+  await seedSession('itest-run-free', freeRun[0]?.id ?? '', freeToken);
+  const freeHub = await dispatch(freeToken, 'document_create', {
+    name: 'free-run-hub.md',
+    content: '# Notes\n\nOrg-wide.',
+    contentType: 'text/markdown',
+  });
+  const freeHubDocument = await projectOf('free-run-hub.md');
+  const freeNamed = await dispatch(freeToken, 'document_create', {
+    name: 'free-run-named.md',
+    content: '# Notes\n\nFiled on a named project.',
+    contentType: 'text/markdown',
+    projectId: unboundProjectId,
+  });
+  const freeNamedDocument = await projectOf('free-run-named.md');
+  const freeBogus = await dispatch(freeToken, 'document_create', {
+    name: 'free-run-bogus.md',
+    content: '# Notes\n\nNobody could ever reach this.',
+    contentType: 'text/markdown',
+    projectId: randomUUID(),
+  });
+  const freeBogusDocument = await projectOf('free-run-bogus.md');
 
   // Hand back the workflow session budget — the org's cap is small, and the
   // spawner scenarios that follow provision real sessions of their own.
-  for (const sessionId of ['itest-run-pinned', 'itest-run-org']) {
+  for (const sessionId of [
+    'itest-run-pinned',
+    'itest-run-org',
+    'itest-run-free',
+  ]) {
     await sessions.markSessionDestroyed(sql, {
       organizationId: orgId,
       sessionId,
@@ -22337,11 +22456,27 @@ async function checkAutomationRunToolLane(
       insideBindings.status === 'ok' &&
       orgFind.status === 'ok' &&
       orgFindRaw.includes('Filed on a bound board') &&
-      !orgFindRaw.includes("Someone else's card") &&
-      orgWrote.status === 'ok' &&
-      hubDocument.length === 1 &&
-      hubDocument[0]?.projectId === null,
-    `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")}, hubDoc=${orgWrote.status}/${hubDocument[0]?.projectId === null})`,
+      !orgFindRaw.includes("Someone else's card"),
+    `ask=${asked.status} (row=${askRows.length}, run=${askRows[0]?.runId === pinnedRunId}), create=${created.status} → project=${taskRow[0]?.projectId === boundProjectId}/actor=${taskRow[0]?.createdBy}, find=${found.status}, move=${moved.status}, done→${completing.status}, cancel(blocked=${blockedCancel.status}, child=${cancelChild.status}, parent=${cancelParent.status} → ${cancelledRow[0]?.status}/completedAt=${typeof cancelledRow[0]?.completedAt === 'number'}), foreign→${reachForeign.status} (want not_found), sync=${syncedFirst.status}/${syncedAgain.status} → ${syncedRows.length} card (want 1), document=${wrote.status} (project=${documentRow[0]?.projectId === boundProjectId}, rag=${linkedFile[0]?.ragStatus}), orgRun(noProject=${needsProject.status}, unbound=${outsideBindings.status}, bound=${insideBindings.status}, findLeak=${orgFindRaw.includes("Someone else's card")})`,
+  );
+  const placement = (project: string | null | undefined): string =>
+    project === undefined ? 'no-row' : project === null ? 'hub' : 'project';
+  record(
+    'document_create authority: bound runs name a bound project, org-level runs validate it',
+    orgWrote.status === 'invalid_args' &&
+      orgWrote.raw.includes(boundProjectId) &&
+      hubDocument === undefined &&
+      orgWroteBound.status === 'ok' &&
+      boundDocument === otherProjectId &&
+      orgWroteOutside.status === 'invalid_args' &&
+      outsideDocument === undefined &&
+      freeHub.status === 'ok' &&
+      freeHubDocument === null &&
+      freeNamed.status === 'ok' &&
+      freeNamedDocument === unboundProjectId &&
+      freeBogus.status === 'not_found' &&
+      freeBogusDocument === undefined,
+    `multiBound(noProject=${orgWrote.status}/${placement(hubDocument)} (want invalid_args/no-row), bound=${orgWroteBound.status}/${boundDocument === otherProjectId ? 'bound-project' : placement(boundDocument)} (want ok/bound-project), outside=${orgWroteOutside.status}/${placement(outsideDocument)} (want invalid_args/no-row)), orgLevel(hub=${freeHub.status}/${placement(freeHubDocument)} (want ok/hub), named=${freeNamed.status}/${freeNamedDocument === unboundProjectId ? 'named-project' : placement(freeNamedDocument)} (want ok/named-project), bogus=${freeBogus.status}/${placement(freeBogusDocument)} (want not_found/no-row))`,
   );
 }
 
