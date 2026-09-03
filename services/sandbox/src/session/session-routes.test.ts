@@ -25,7 +25,9 @@ import { TEST_SESSION_CONFIG } from './session-test-config.ts';
 const cfg: SpawnerConfig = {
   backend: 'docker',
   port: 8003,
-  sandboxToken: null, // unsigned dev mode — runnerd token is '' on the wire
+  // The per-session runnerd token is derived from this; the fake runnerd below
+  // does not check the header, so any value works.
+  sandboxToken: 'test-token',
   runtimeImage: 'tale-sandbox-runtime:test',
   runtimeTier: 'runc',
   dockerInContainer: false,

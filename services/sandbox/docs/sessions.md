@@ -32,8 +32,9 @@ every in-session operation to runnerd over plain HTTP on `:8200`:
 the exec-free K8s constraint holds. runnerd auth is the per-session token
 `HMAC-SHA256(SANDBOX_TOKEN, "runnerd-v1:" + sessionId)` in the
 `x-tale-runnerd-token` header — derivable by any spawner replica, stored
-nowhere. Unsigned dev mode (`SANDBOX_TOKEN` unset) uses an empty token and
-runnerd skips the check, mirroring the spawner's own opt-in HMAC policy.
+nowhere. `SANDBOX_TOKEN` is required (the spawner refuses to boot without it —
+`loadConfig` fails closed), so every session carries a real token and runnerd
+always verifies; there is no unsigned mode.
 
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity

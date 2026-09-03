@@ -59,8 +59,9 @@ const VOL_RE = /^[a-zA-Z0-9_.-]{1,128}$/;
 // surface a new env value adds, so validate it like every other interpolation.
 const ENDPOINT_RE = /^tcp:\/\/[a-zA-Z0-9_.-]{1,128}:[0-9]{1,5}$/;
 const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
-// Hex token from deriveRunnerdToken (SHA256 → 64 hex chars), or empty in
-// unsigned dev mode (runnerd skips the check when TALE_RUNNERD_TOKEN is empty).
+// Hex token from deriveRunnerdToken (SHA256 → 64 hex chars). The builder
+// validates shape only; the spawner always derives one (SANDBOX_TOKEN is
+// required), so an empty value never reaches a real session.
 const TOKEN_RE = /^[a-f0-9]{0,128}$/;
 const USER_RE = /^[0-9]{1,10}:[0-9]{1,10}$/;
 const MEM_RE = /^[0-9]+[bkmg]?$/i;
