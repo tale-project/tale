@@ -32,7 +32,7 @@ import type {
 export const ALLOWLIST_CATALOG_CONTEXT_WINDOW = 128_000;
 
 /** One allowlisted id as a neutral catalog entry. */
-export function allowlistCatalogEntry(
+function allowlistCatalogEntry(
   id: string,
   provider: string,
 ): ModelCatalogEntry {
