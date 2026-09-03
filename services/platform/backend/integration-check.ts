@@ -4007,13 +4007,17 @@ async function checkDocuments(
       ),
     ),
   );
-  // Both binds now wait on the document row (unserialized: at the swap
-  // UPDATE; serialized: at the locked load) — release once two backends do.
+  // Both binds now wait on the document row — release once two backends do.
+  // Serialized, they wait at the locked load of app.documents; an
+  // unserialized bind waits earlier, at its file_metadata INSERT, whose FK
+  // to documents.id takes a KEY SHARE lock the held FOR UPDATE conflicts
+  // with — so either statement counts as parked.
   const bothParked = await waitFor(async () => {
     const waiting = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM pg_stat_activity
       WHERE datname = current_database() AND wait_event_type = 'Lock'
-        AND query ILIKE '%app.documents%'
+        AND (query ILIKE '%app.documents%'
+          OR query ILIKE '%app.file_metadata%')
     `;
     return Number(waiting[0]?.count ?? '0') >= 2;
   }, 20_000);
