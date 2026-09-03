@@ -460,6 +460,118 @@ async function checkAuthAndSse(
 }
 
 /**
+ * The realtime outbox's retention: delivered hints older than the horizon
+ * are reclaimed as a strict id-prefix (an in-horizon row — and any older
+ * stamp ABOVE it, the long-transaction skew — survives), a second sweep is a
+ * no-op, and a client resuming from a reclaimed cursor is told to `resync`
+ * while one resuming from a retained cursor replays cleanly. Runs early, on
+ * a small table, so the backdate below touches only rows already consumed.
+ */
+async function checkOutboxRetention(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  // Bound as optional on purpose: on a backend without the reclaim seam the
+  // probe is the finding itself (the outbox grows forever), not a crash.
+  const seams: Partial<typeof import('./realtime/outbox.ts')> =
+    await import('./realtime/outbox.ts');
+  const { OUTBOX_RETENTION_MS, outboxRetainsCursor, reclaimOutbox } = seams;
+  if (
+    OUTBOX_RETENTION_MS === undefined ||
+    outboxRetainsCursor === undefined ||
+    reclaimOutbox === undefined
+  ) {
+    record(
+      'realtime outbox retention: prefix reclaim, skew-safe, resync on a reclaimed cursor',
+      false,
+      'no reclaim seam exported by realtime/outbox.ts — app_realtime.outbox is never pruned',
+    );
+    return;
+  }
+  const insert = async (entityId: string): Promise<string> => {
+    await sql.begin((tx) =>
+      emitHintInTx(tx, { orgId, entity: 'itest_outbox', entityId }),
+    );
+    const rows = await sql<{ id: string }[]>`
+      SELECT id::text AS id FROM app_realtime.outbox
+      WHERE org_id = ${orgId} AND entity = 'itest_outbox'
+        AND entity_id = ${entityId}
+    `;
+    return rows[0]?.id ?? '0';
+  };
+  // Three rows in id order: one past the horizon, one fresh, and one past
+  // the horizon ABOVE the fresh one (a stamp a long transaction can leave).
+  const stale = await insert('stale');
+  const fresh = await insert('fresh');
+  const skewed = await insert('skewed');
+  const twoHoursAgo = new Date(Date.now() - 2 * OUTBOX_RETENTION_MS);
+  await sql`
+    UPDATE app_realtime.outbox SET created_at = ${twoHoursAgo}
+    WHERE id <= ${stale}::bigint OR id = ${skewed}::bigint
+  `;
+  const prefixBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app_realtime.outbox
+    WHERE id <= ${stale}::bigint
+  `;
+
+  // A tiny batch, so the sweep has to walk several rounds and stop where
+  // the prefix ends.
+  const reclaimed = await reclaimOutbox(sql, { batch: 2, maxBatches: 1_000 });
+  const reclaimedAgain = await reclaimOutbox(sql, { batch: 2 });
+  const survivors = await sql<{ entityId: string | null }[]>`
+    SELECT entity_id AS "entityId" FROM app_realtime.outbox
+    WHERE id <= ${skewed}::bigint ORDER BY id
+  `;
+  const staleRetained = await outboxRetainsCursor(sql, stale);
+  const freshRetained = await outboxRetainsCursor(sql, fresh);
+
+  // A client resuming from the reclaimed cursor is told to resync (and
+  // still gets what follows); one resuming from the retained cursor is not.
+  const url = `${base}/events?orgId=${orgId}`;
+  const gapped = connectSse(url, { cookie, 'Last-Event-ID': stale });
+  const intact = connectSse(url, { cookie, 'Last-Event-ID': fresh });
+  await sleep(700);
+  await insert('after');
+  const gappedResynced = await waitFor(
+    () => gapped.events.some((e) => e.event === 'resync'),
+    3_000,
+  );
+  const gappedLive = await waitFor(
+    () => gapped.events.some((e) => e.data.includes('"after"')),
+    3_000,
+  );
+  const intactLive = await waitFor(
+    () => intact.events.some((e) => e.data.includes('"after"')),
+    3_000,
+  );
+  const intactReplayed = intact.events.some((e) => e.data.includes('"skewed"'));
+  const intactResynced = intact.events.some((e) => e.event === 'resync');
+  gapped.abort();
+  intact.abort();
+  await gapped.done;
+  await intact.done;
+
+  record(
+    'realtime outbox retention: prefix reclaim, skew-safe, resync on a reclaimed cursor',
+    reclaimed === Number(prefixBefore[0]?.count ?? '-1') &&
+      reclaimed >= 1 &&
+      reclaimedAgain === 0 &&
+      JSON.stringify(survivors.map((r) => r.entityId)) ===
+        '["fresh","skewed"]' &&
+      !staleRetained &&
+      freshRetained &&
+      gappedResynced &&
+      gappedLive &&
+      intactLive &&
+      intactReplayed &&
+      !intactResynced,
+    `reclaimed=${reclaimed} (want ${prefixBefore[0]?.count}), again=${reclaimedAgain} (want 0), survivors=${JSON.stringify(survivors.map((r) => r.entityId))} (want fresh,skewed), retains(stale)=${staleRetained} retains(fresh)=${freshRetained}, gapped: resync=${gappedResynced} live=${gappedLive}; intact: replayed=${intactReplayed} live=${intactLive} resync=${intactResynced} (want false)`,
+  );
+}
+
+/**
  * The notifications vertical slice (org-audience bell): serializable write +
  * org-wide hint → SSE delivery → role-gated API reads → dedupe → mark-read.
  */
@@ -26203,6 +26315,7 @@ async function main(): Promise<void> {
     );
 
     await checkNotifications(sql, baseUrl, authCtx);
+    await checkOutboxRetention(sql, baseUrl, authCtx);
     await checkIdentityDomains(
       baseUrl,
       authCtx,

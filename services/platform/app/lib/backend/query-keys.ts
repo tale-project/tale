@@ -34,3 +34,9 @@ export function backendEntityPrefix(
 ): readonly ['backend', string, string] {
   return ['backend', orgId, entity];
 }
+
+/** Every backend query of one org — what a `resync` (a replay the server
+ * could not serve in full) invalidates. */
+export function backendOrgPrefix(orgId: string): readonly ['backend', string] {
+  return ['backend', orgId];
+}

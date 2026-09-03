@@ -34,7 +34,11 @@ review + (eventually) lint guards:
    fed by the `app_realtime.outbox` table: writers call `emitHintInTx` in the
    changing transaction, API pods fan hints out over `GET /events` (SSE), the
    web app maps hints to TanStack Query invalidations and refetches through
-   normal authorized endpoints. No LISTEN/NOTIFY on the write path. Tier-1 hot
+   normal authorized endpoints. No LISTEN/NOTIFY on the write path. Delivered
+   hints are kept for an hour (`OUTBOX_RETENTION_MS`) and reclaimed lazily by
+   the tailing API pods — a bounded, strict-id-prefix sweep ticked from the
+   `/events` poll loop, no cron — and a client resuming from a cursor older
+   than that gets a `resync` event and refetches its org scope. Tier-1 hot
    streams (chat tokens, execution logs) will get dedicated SSE lanes, not the
    hint bus.
 
