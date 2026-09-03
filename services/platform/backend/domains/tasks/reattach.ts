@@ -1,8 +1,11 @@
+import { randomUUID } from 'node:crypto';
+
 import type { Sql } from 'postgres';
 
 import { sessionExecStatus } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { claimRecoveryResume, RECOVERY_STALE_MS } from '../sandbox/recovery.ts';
+import { failAgentRun } from './agent-runs.ts';
 
 /**
  * Re-attach abandoned task-agent turns — the 0.5 twin of 0.4's
@@ -131,4 +134,99 @@ export async function recoverStalledTaskAgentTurns(
     );
   }
   return { examined: stalled.length, resumed };
+}
+
+/**
+ * Recover runs stranded at `queued` — the start job (task.agent_turn) died
+ * before it could flip the run to `running` (a deploy/restart in the start
+ * window: resolve model, ensure session, stage, spawn).
+ *
+ * This is the gap the running-state re-attach above cannot see and the
+ * deadline sweep will not touch until the 12-hour wall — the run has no op
+ * row yet (the start dies before writing one), no capacity stamp (it never
+ * parked), and its deadline is hours away, so `recoverStalledTaskAgentTurns`
+ * (status='running' only), the parked-run wake (needs a capacity stamp), and
+ * `listOverdueAgentRuns` (past deadline only) all pass it by. Without this
+ * the card shows `queued` for up to 12 hours, then fails with a misleading
+ * time-limit message.
+ *
+ * Two outcomes, both honest:
+ *  - the assigned agent is GONE (deleted after the kick): the start job skips
+ *    forever (task-list.ts), so the run is FAILED immediately with a real
+ *    reason instead of aging to the deadline;
+ *  - otherwise the start is re-kicked under a ROTATED exec id — the
+ *    single-winner claim (guarded on the old exec id) means a lost-but-slow
+ *    original start, if it ever runs, reads the mismatch and skips, so the
+ *    turn can never double-start (at-most-once LLM spend preserved).
+ *
+ * A run only enters this list once it has been idle past the staleness window
+ * (a healthy start flips to `running` within seconds), and the claim bumps
+ * `updated_at_ms`, so a re-kicked run is not swept again on the next tick.
+ */
+export async function recoverStuckQueuedTaskAgentRuns(
+  sql: Sql,
+  options: { staleMs?: number } = {},
+): Promise<{ examined: number; requeued: number; failed: number }> {
+  const staleBeforeMs = Date.now() - (options.staleMs ?? RECOVERY_STALE_MS);
+  const now = Date.now();
+  const stuck = await sql<
+    {
+      runId: string;
+      organizationId: string;
+      execId: string;
+      agentPresent: boolean;
+    }[]
+  >`
+    SELECT r.id AS "runId", r.org_id AS "organizationId",
+           r.exec_id AS "execId", (a.id IS NOT NULL) AS "agentPresent"
+    FROM app.project_agent_runs r
+    LEFT JOIN app.project_agents a
+      ON a.id = r.agent_id AND a.org_id = r.org_id
+    WHERE r.status = 'queued'
+      AND r.waiting_for_capacity_at_ms IS NULL
+      AND r.deadline_at_ms > ${now}
+      AND r.updated_at_ms < ${staleBeforeMs}
+    ORDER BY r.updated_at_ms
+    LIMIT ${SWEEP_LIMIT}
+  `;
+  let requeued = 0;
+  let failed = 0;
+  for (const run of stuck) {
+    if (!run.agentPresent) {
+      const didFail = await failAgentRun(sql, {
+        organizationId: run.organizationId,
+        runId: run.runId,
+        execId: run.execId,
+        error: 'the assigned agent was deleted before the run could start',
+      });
+      if (didFail) {
+        failed += 1;
+        console.warn(
+          `[task-agent-watchdog] failed stranded queued run ${run.runId} — its agent was deleted`,
+        );
+      }
+      continue;
+    }
+    // Single-winner claim: rotate the exec id so a lost-but-slow original
+    // start orphans itself (its setAgentRunRunning is exec-id fenced).
+    const newExecId = randomUUID();
+    const claimed = await sql<{ id: string }[]>`
+      UPDATE app.project_agent_runs SET
+        exec_id = ${newExecId}, updated_at_ms = ${Date.now()}
+      WHERE id = ${run.runId} AND status = 'queued'
+        AND exec_id = ${run.execId} AND waiting_for_capacity_at_ms IS NULL
+      RETURNING id
+    `;
+    if (claimed.length === 0) continue;
+    await addJobInTx(sql, 'task.agent_turn', {
+      organizationId: run.organizationId,
+      runId: run.runId,
+      execId: newExecId,
+    });
+    requeued += 1;
+    console.warn(
+      `[task-agent-watchdog] re-kicked stranded queued run ${run.runId} (exec ${run.execId} → ${newExecId})`,
+    );
+  }
+  return { examined: stuck.length, requeued, failed };
 }

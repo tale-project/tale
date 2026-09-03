@@ -263,12 +263,12 @@ export async function sendMessageViaConnector(
       INSERT INTO app.conversation_messages (
         org_id, conversation_id, connector_name, channel, direction,
         delivery_state, content, sent_at_ms, delivered_at_ms, metadata,
-        created_at_ms
+        created_at_ms, status_changed_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.conversationId},
         ${args.connectorName}, 'email', 'outbound', 'queued',
         ${args.content}, ${now}, ${now},
-        ${tx.json(toJson(messageMetadata))}, ${now}
+        ${tx.json(toJson(messageMetadata))}, ${now}, ${now}
       )
       RETURNING id
     `;
@@ -775,6 +775,7 @@ export async function retrySendMessage(
     await tx`
       UPDATE app.conversation_messages SET
         delivery_state = 'queued', retry_count = ${retryCount},
+        status_changed_at_ms = ${Date.now()},
         metadata = ${tx.json(toJson(retainedMetadata))}
       WHERE id = ${args.messageId}
     `;
@@ -1028,6 +1029,7 @@ export async function runSendMessageJob(
     await sql`
       UPDATE app.conversation_messages SET
         delivery_state = 'sent', sent_at_ms = ${now},
+        status_changed_at_ms = ${now},
         external_message_id = ${externalMessageId ?? sql.unsafe('external_message_id')}
       WHERE id = ${payload.messageId}
     `;
@@ -1043,7 +1045,7 @@ export async function runSendMessageJob(
     );
     await sql`
       UPDATE app.conversation_messages SET
-        delivery_state = 'failed',
+        delivery_state = 'failed', status_changed_at_ms = ${Date.now()},
         metadata = coalesce(metadata, '{}'::jsonb)
           || ${sql.json(
             toJson({
@@ -1061,4 +1063,58 @@ export async function runSendMessageJob(
       entityId: message.conversationId,
     });
   }
+}
+
+/** A send left 'queued' this long past its last state change lost its job:
+ * the undo window is seconds and the send job's own expiry is 600s, so a row
+ * still queued well past both was never settled by a live handler. Generous,
+ * so a slow-but-live connector send is never failed out from under itself. */
+const SEND_STALE_MS = 20 * 60 * 1000;
+const SEND_WATCHDOG_ERROR =
+  'the message could not be delivered — the send was interrupted before it completed';
+
+/**
+ * Crash-recovery watchdog for outbound conversation sends (the job-liveness
+ * class): `conversation.send_message` has retryLimit 0, so a worker killed
+ * mid-send, or a job expired past its 600s window, leaves the message row
+ * `delivery_state='queued'` with no job behind it — an eternal "sending"
+ * clock, and the retry/discard controls only appear on `failed`.
+ *
+ * Flip stale queued rows to `failed` with a reason so the existing retry
+ * surface lights up (`retrySendMessage` re-queues from the stored args). The
+ * window is far past the send job's own expiry, so a live-but-slow handler is
+ * never failed under itself; and were one to finish afterwards it settles the
+ * row `sent`, correcting the bubble.
+ */
+export async function recoverStuckConversationSends(
+  sql: Sql,
+  options: { staleMs?: number } = {},
+): Promise<{ failed: number }> {
+  const now = Date.now();
+  const cutoff = now - (options.staleMs ?? SEND_STALE_MS);
+  const failed = await sql<
+    { id: string; conversationId: string; orgId: string }[]
+  >`
+    UPDATE app.conversation_messages SET
+      delivery_state = 'failed', status_changed_at_ms = ${now},
+      metadata = coalesce(metadata, '{}'::jsonb) || ${sql.json(
+        toJson({ error: SEND_WATCHDOG_ERROR, errorCode: 'send_interrupted' }),
+      )}
+    WHERE direction = 'outbound' AND delivery_state = 'queued'
+      AND coalesce(status_changed_at_ms, created_at_ms) < ${cutoff}
+    RETURNING id, conversation_id AS "conversationId", org_id AS "orgId"
+  `;
+  for (const row of failed) {
+    await emitHintInTx(sql, {
+      orgId: row.orgId,
+      entity: 'conversation',
+      entityId: row.conversationId,
+    });
+  }
+  if (failed.length > 0) {
+    console.warn(
+      `[conversation-send-watchdog] failed ${failed.length} stranded queued send(s)`,
+    );
+  }
+  return { failed: failed.length };
 }

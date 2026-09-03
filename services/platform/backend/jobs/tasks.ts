@@ -134,6 +134,9 @@ export interface TaskPayloads {
   /** One readiness-poll step of a parked send — self-chaining until the
    * media settle and the thread idles, then claims and runs the turn. */
   'chat.deferred_send_poll': { deferredSendId: string };
+  /** Crash-recovery sweep: re-poke waiting sends whose poll chain severed and
+   * clear claimed sends wedged by a crash mid-turn. */
+  'watchdog.deferred_sends': Record<string, never>;
   /** One REST-accepted chat turn (`POST /api/v1/threads/{id}/messages`
    * answered 202) — re-gates and drives the direct turn detached. */
   'chat.api_turn': {
@@ -166,6 +169,9 @@ export interface TaskPayloads {
       size: number;
     }>;
   };
+  /** Crash-recovery sweep: fail outbound sends stranded 'queued' by a lost or
+   * expired send job so the retry/discard surface appears. */
+  'watchdog.conversation_sends': Record<string, never>;
   /** Stuck-pending TTS watchdog: identity-gated failed flip so a crashed
    * synthesis can't strand the player on a forever-pending chunk. */
   'tts.watchdog_chunk': { chunkId: string; attemptCreatedAt: number };
@@ -198,6 +204,9 @@ export interface TaskPayloads {
   'audit.integrity_check': Record<string, never>;
   /** Copy an org's blobs default-store -> BYO bucket (admin-triggered). */
   'object_storage.backfill': { runId: string; organizationId: string };
+  /** Crash-recovery sweep: fail backfill runs whose process died mid-copy, so
+   * the one-running partial index stops rejecting every future backfill. */
+  'watchdog.object_storage': Record<string, never>;
   /** Daily: approved legal-hold releases past their cooldown take effect. */
   'governance.effect_hold_releases': Record<string, never>;
   /** 2-min backstops for the task-agent lane: deadline-fail overdue runs,
@@ -378,13 +387,22 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // of the same exec would replay the ring buffer twice, so no pg-boss retry.
   'automation.agent_drive': { retryLimit: 0, expireInSeconds: 43_200 },
   'chat.generate_title': { retryLimit: 0, expireInSeconds: 60 },
-  'chat.deferred_send_poll': { retryLimit: 0, expireInSeconds: 3_600 },
+  // 'short' + the per-send singletonKey (see deferred-sends.ts) collapses the
+  // poll self-chain to at most one queued hop, so the recovery sweep can
+  // blindly re-enqueue a poll for a stalled row without doubling a live chain.
+  'chat.deferred_send_poll': {
+    policy: 'short',
+    retryLimit: 0,
+    expireInSeconds: 3_600,
+  },
+  'watchdog.deferred_sends': { retryLimit: 1, expireInSeconds: 120 },
   // At-most-once LLM spend, like the other turn lanes: a crash surfaces via
   // the generation watchdog + the appended error row, never a silent rerun.
   'chat.api_turn': { retryLimit: 0, expireInSeconds: 3_600 },
   // At-most-once outbound mail: a lost job settles via retrySendMessage by a
   // human, never a silent duplicate email from pg-boss.
   'conversation.send_message': { retryLimit: 0, expireInSeconds: 600 },
+  'watchdog.conversation_sends': { retryLimit: 1, expireInSeconds: 300 },
   // Best-effort at-most-once: the bell row is the durable record; a lost or
   // failed email is never retried into a duplicate.
   'notification.email': { retryLimit: 0, expireInSeconds: 300 },
@@ -396,6 +414,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'governance.retention_cleanup': { retryLimit: 1, expireInSeconds: 1_500 },
   'audit.integrity_check': { retryLimit: 1, expireInSeconds: 1_500 },
   'object_storage.backfill': { retryLimit: 0, expireInSeconds: 3_600 },
+  'watchdog.object_storage': { retryLimit: 1, expireInSeconds: 300 },
   'governance.effect_hold_releases': { retryLimit: 1, expireInSeconds: 300 },
   'watchdog.task_agents': { retryLimit: 1, expireInSeconds: 120 },
   'watchdog.automation_agents': { retryLimit: 1, expireInSeconds: 120 },

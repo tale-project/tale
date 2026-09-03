@@ -39,9 +39,15 @@ const SCHEDULES: CronSchedule[] = [
   { name: 'watchdog.automation_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.sandbox', cron: '*/5 * * * *' },
   { name: 'watchdog.chat_generations', cron: '*/2 * * * *' },
+  // Deferred-send crash recovery: revive severed poll chains and clear sends
+  // wedged 'claimed' by a crash mid-turn (an un-cancellable tray chip).
+  { name: 'watchdog.deferred_sends', cron: '*/2 * * * *' },
   // Replacement-upload blob reclaim backstop (event-driven enqueues cover
   // the common paths; this drains expiry/crash leftovers).
   { name: 'documents.replacement_cleanup', cron: '*/10 * * * *' },
+  // Blob-backfill crash recovery: a run whose process died mid-copy would
+  // otherwise wedge 'running' and block every future backfill for the org.
+  { name: 'watchdog.object_storage', cron: '*/10 * * * *' },
   // OneDrive / Google Drive mirrors refresh on a 15-minute cadence,
   // staggered so the two vendors' scans don't land on the same tick.
   { name: 'onedrive.sync_scan', cron: '*/15 * * * *' },
@@ -61,6 +67,9 @@ const SCHEDULES: CronSchedule[] = [
   { name: 'watchdog.erasures', cron: '4-59/5 * * * *' },
   // Session-idle enforcement: the control only exists if something revokes.
   { name: 'governance.revoke_idle_sessions', cron: '*/5 * * * *' },
+  // Outbound-send crash recovery: fail replies stranded 'queued' by a lost or
+  // expired send job so the sender's retry/discard controls appear.
+  { name: 'watchdog.conversation_sends', cron: '*/5 * * * *' },
   // Voice-chunk retention GC + the task date ladder (the 0.4 hourly crons),
   // offset so the hour boundary is not a thundering herd.
   { name: 'tts.gc_chunks', cron: '10 * * * *' },
