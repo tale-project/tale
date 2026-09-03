@@ -118,6 +118,7 @@ interface AttachmentCardProps {
     size: number;
     storageId?: string;
     url?: string;
+    unavailable?: boolean;
   };
 }
 
@@ -149,7 +150,11 @@ function AttachmentCard({ attachment }: AttachmentCardProps) {
     <AttachmentFileChip
       fileName={attachment.filename}
       contentType={attachment.contentType}
-      detail={formatFileSize(attachment.size)}
+      detail={
+        attachment.unavailable
+          ? t('attachment.unavailable')
+          : formatFileSize(attachment.size)
+      }
       trailing={trailing}
     />
   );
