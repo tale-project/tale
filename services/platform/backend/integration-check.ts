@@ -4359,6 +4359,87 @@ async function checkChat(
       `outcome=${outcome.success ? outcome.data.status : 'ERR'}${outcome.success && outcome.data.reason !== undefined ? ` (${outcome.data.reason})` : ''}, messages=${history.success ? history.data.messages.length : 'ERR'}, toolRound=${assistantRaw.includes('rag_search') && assistantRaw.includes('verdigris')}, usageRows=${usageRows[0]?.count}, genSettled=${settledGen[0]?.count === '0'}`,
     );
 
+    // A provider that ships NO catalog (Azure deployment names, Nous Portal):
+    // the credential's allowlist IS its availability set, per the provider
+    // files and the docs. Configured exactly that way, the deployment must
+    // reach the picker AND serve a turn — until now every lane gated on the
+    // empty catalog and such a connector could never serve anything.
+    await writeFile(
+      path.join(providersDir, 'itestdeploy.yml'),
+      [
+        'name: itestdeploy',
+        'displayName: Itest Deployments',
+        'apiFormat: openai',
+        `baseUrl: ${aiBase}`,
+        'catalog:',
+        '  source: none',
+        'auth:',
+        '  - method: api-key',
+      ].join('\n'),
+    );
+    await send(`/api/app/provider-credentials?orgId=${orgId}`, {
+      providerSlug: 'itestdeploy',
+      authMethod: 'api-key',
+      name: 'Deployment key',
+      secret: 'sk-itest-deploy-key',
+      modelAllowlist: ['itest-deploy-prod'],
+    });
+    const deployPicker = z
+      .object({
+        models: z.array(
+          z.object({ id: z.string(), providerSlug: z.string() }).loose(),
+        ),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/chat/composer/models?orgId=${orgId}`, {
+            headers: { cookie },
+          })
+        ).json(),
+      );
+    const deployListed =
+      deployPicker.success &&
+      deployPicker.data.models.some(
+        (model) =>
+          model.id === 'itest-deploy-prod' &&
+          model.providerSlug === 'itestdeploy',
+      );
+    const deployThread = z.object({ id: z.string() }).safeParse(
+      await (
+        await send(`/api/app/chat/threads?orgId=${orgId}`, {
+          title: 'Itest deployment chat',
+        })
+      ).json(),
+    );
+    const deployThreadId = deployThread.success ? deployThread.data.id : '';
+    const deployOutcome = z
+      .object({ status: z.string(), reason: z.string().optional() })
+      .safeParse(
+        await (
+          await send(
+            `/api/app/chat/threads/${deployThreadId}/messages?orgId=${orgId}`,
+            {
+              text: `${SLOW_MARKER} to three`,
+              modelId: 'itest-deploy-prod',
+              providerSlug: 'itestdeploy',
+            },
+          )
+        ).json(),
+      );
+    const deployUsage = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.usage_events
+      WHERE org_id = ${orgId} AND model = 'itest-deploy-prod'
+        AND provider = 'itestdeploy'
+    `;
+    record(
+      'catalog-less provider serves its credential allowlist',
+      deployListed &&
+        deployOutcome.success &&
+        deployOutcome.data.status === 'completed' &&
+        Number(deployUsage[0]?.count ?? '0') >= 1,
+      `picker=${deployListed ? 'lists itest-deploy-prod' : `MISSING (${deployPicker.success ? deployPicker.data.models.map((m) => `${m.providerSlug}/${m.id}`).join(',') : 'ERR'})`}, turn=${deployOutcome.success ? deployOutcome.data.status : 'ERR'}${deployOutcome.success && deployOutcome.data.reason !== undefined ? ` (${deployOutcome.data.reason})` : ''}, usageRows=${deployUsage[0]?.count}`,
+    );
+
     // First-token UX metric. Covered because it was NOT: the statement that
     // stamps it built a `jsonb_build_object` around an uncast parameter, so
     // Postgres could infer nothing and every report failed to parse (42P18)

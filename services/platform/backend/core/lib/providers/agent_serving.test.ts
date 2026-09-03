@@ -454,3 +454,130 @@ describe('resolveWorkflowAgentServing — pinned', () => {
     );
   });
 });
+
+/**
+ * Providers that ship NO catalog: the credential's allowlist is the
+ * availability set (Azure deployment names, the Nous Portal marketplace).
+ * The provider files and the docs promised this; every lane used to gate on
+ * the empty catalog instead, so such a connector could never serve.
+ */
+describe('catalog-less providers serve their credential allowlist', () => {
+  const NOUS: ProviderDefinition = providerDefinitionSchema.parse({
+    name: 'nous-portal',
+    displayName: 'Nous Portal (Hermes)',
+    apiFormat: 'openai',
+    baseUrl: 'https://portal.nousresearch.com',
+    catalog: { source: 'none' },
+    auth: [
+      {
+        method: 'subscription-key',
+        constraints: { execution: 'sandbox', harness: 'hermes' },
+      },
+    ],
+  });
+  const AZURE: ProviderDefinition = providerDefinitionSchema.parse({
+    name: 'azure',
+    displayName: 'Azure OpenAI',
+    apiFormat: 'openai',
+    endpointMode: 'per-credential',
+    catalog: { source: 'none' },
+    auth: [{ method: 'api-key' }, { method: 'env' }],
+  });
+
+  beforeEach(() => {
+    resolveConnectors.mockResolvedValue([NOUS, AZURE, OPENROUTER]);
+    // The catalog fetch is never consulted for a catalog-less provider.
+    getProviderCatalog.mockResolvedValue([]);
+    loadHarnesses.mockReturnValue([
+      harness('hermes', { managed: true, byo: true }, true),
+      harness('claude-code', { managed: true, byo: true }, true),
+    ]);
+  });
+
+  it('serves a pinned subscription marketplace model from the allowlist', async () => {
+    credentials = {
+      'nous-portal': {
+        status: 'active',
+        authMethod: 'subscription-key',
+        modelAllowlist: ['hermes-4-405b'],
+      },
+    };
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'hermes-4-405b',
+      modelProvider: 'nous-portal',
+      harness: 'hermes',
+    });
+
+    expect(serving).toMatchObject({
+      lane: 'subscription',
+      providerSlug: 'nous-portal',
+      modelId: 'hermes-4-405b',
+      apiBaseUrl: 'https://portal.nousresearch.com',
+    });
+    expect(getProviderCatalog).not.toHaveBeenCalledWith(NOUS);
+  });
+
+  it('serves a pinned Azure deployment name on the gateway lane', async () => {
+    credentials = {
+      azure: {
+        status: 'active',
+        authMethod: 'api-key',
+        modelAllowlist: ['gpt-5-eu-prod'],
+      },
+    };
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'gpt-5-eu-prod',
+      modelProvider: 'azure',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toEqual({
+      lane: 'gateway',
+      providerSlug: 'azure',
+      modelId: 'gpt-5-eu-prod',
+    });
+  });
+
+  it('finds the deployment on the unpinned direct walk too', async () => {
+    credentials = {
+      azure: {
+        status: 'active',
+        authMethod: 'env',
+        modelAllowlist: ['gpt-5-eu-prod'],
+      },
+      openrouter: DIRECT,
+    };
+    getProviderCatalog.mockResolvedValue([{ id: 'anthropic/claude-fable-5' }]);
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'gpt-5-eu-prod',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toEqual({
+      lane: 'gateway',
+      providerSlug: 'azure',
+      modelId: 'gpt-5-eu-prod',
+    });
+  });
+
+  it('serves nothing from a catalog-less credential with an empty allowlist', async () => {
+    credentials = {
+      azure: { status: 'active', authMethod: 'api-key' },
+    };
+
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'gpt-5-eu-prod',
+        modelProvider: 'azure',
+        harness: 'claude-code',
+      }),
+    ).rejects.toThrow(/provider "azure" cannot serve model "gpt-5-eu-prod"/);
+  });
+});

@@ -43,11 +43,11 @@ import {
 import { isRecord } from '../../../../lib/utils/type-utils';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
-import { getProviderCatalog } from './catalog_fetch';
 import { credentialAuthFor } from './credential_auth';
 import { directActiveCredential } from './direct_credential';
 import { loadHarnesses } from './load_system_config';
 import { resolveProvidersForOrgId } from './org_providers';
+import { getServableCatalog } from './servable_catalog';
 
 /** One resolved serving: the lane, the connector, and the model id in that
  * connector's own catalog spelling (what the wire — or the vendor CLI —
@@ -250,7 +250,7 @@ export async function walkDirectServing(
     }
     let catalog: readonly ModelCatalogEntry[];
     try {
-      catalog = await getProviderCatalog(connector);
+      catalog = await getServableCatalog(connector, credential.modelAllowlist);
     } catch (error) {
       console.warn(
         `[automations] could not resolve catalog for "${connector.name}"`,
@@ -350,7 +350,7 @@ export async function resolvePinnedAgentServing(
       `provider "${pinned}"'s default credential does not permit model "${args.model}" — its allowlist excludes it`,
     );
   }
-  const catalog = await getProviderCatalog(connector);
+  const catalog = await getServableCatalog(connector, row.modelAllowlist);
   const entry =
     catalog.find((candidate) => candidate.id === args.model) ??
     catalog.find((candidate) => modelIdsEquivalent(candidate.id, args.model));
@@ -451,7 +451,7 @@ export async function resolveWorkflowAgentServing(
     }
     let catalog: readonly ModelCatalogEntry[];
     try {
-      catalog = await getProviderCatalog(connector);
+      catalog = await getServableCatalog(connector, row.modelAllowlist);
     } catch (error) {
       console.warn(
         `[automations] could not resolve catalog for "${connector.name}"`,
