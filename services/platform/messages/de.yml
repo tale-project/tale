@@ -2080,6 +2080,8 @@ documents:
       sendFeedback: Feedback senden
       feedbackPlaceholder: Was soll sich ändern? Dein Feedback wird mit der
         Entscheidung festgehalten.
+      onlyDesignee: 'Nur {name} kann dieses Review entscheiden.'
+      onlyDesigneeNoName: Nur der benannte Reviewer kann dieses Review entscheiden.
     toast:
       controlled: Dieses Dokument ist jetzt ein gelenktes Dokument
       controlledFailed: Das Dokument konnte nicht als gelenktes Dokument geführt werden

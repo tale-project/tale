@@ -3433,6 +3433,52 @@ async function checkDocuments(
 
   // --- Controlled-record lifecycle (inc 85) --------------------------------
 
+  // The review is FOUR-EYES: a submitter cannot designate themselves and only
+  // the designee decides, so the lifecycle needs a second writer. An
+  // editor-role member joins for this function (membership removed at its
+  // end, so later sections see the member set they always did).
+  const reviewerSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `doc-reviewer-${Date.now().toString(36)}@example.com`,
+      password: 'itest-password-1',
+      name: 'Doc Reviewer',
+    }),
+  });
+  const reviewerCookie = cookieHeaderFrom(reviewerSignUp);
+  const reviewerBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await reviewerSignUp.json());
+  const reviewerUserId = reviewerBody.success ? reviewerBody.data.user.id : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${reviewerUserId}, 'editor',
+            ${new Date()})
+  `;
+  const sendAs = (
+    asCookie: string,
+    method: 'POST' | 'DELETE',
+    route: string,
+    payload?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        cookie: asCookie,
+        origin: base,
+      },
+      ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+    });
+  const errorCodeOf = async (response: Response): Promise<string> => {
+    const parsed = z
+      .looseObject({ error: z.string().optional() })
+      .safeParse(await response.json().catch(() => null));
+    return parsed.success ? (parsed.data.error ?? '') : '';
+  };
+
   const recordDocId = directBound.success ? directBound.data.documentId : '';
   const mark = await send(
     'POST',
@@ -3462,19 +3508,30 @@ async function checkDocuments(
         `/api/app/documents/${recordDocId}/record/eligible-reviewer-ids?orgId=${orgId}`,
       ),
     );
+  // The eligible set is everyone ELSE who could respond — never the caller —
+  // and the server refuses a self-designation the picker would not offer.
+  const selfSubmit = await send(
+    'POST',
+    `/api/app/documents/${recordDocId}/record/submit?orgId=${orgId}`,
+    { reviewerUserId: userId },
+  );
+  const selfSubmitCode = await errorCodeOf(selfSubmit);
   record(
-    'record mark-controlled + double-control guard + eligibility',
+    'record mark-controlled + double-control guard + eligibility (never self)',
     mark.ok &&
       markAgain.status === 400 &&
       controlledItem.success &&
       controlledItem.data.document.record.state === 'draft' &&
       controlledItem.data.document.record.version === 1 &&
       eligible.success &&
-      eligible.data.userIds.length >= 1,
-    `mark → ${mark.status}, again → ${markAgain.status} (want 400), badge=${controlledItem.success ? `${controlledItem.data.document.record.state} v${controlledItem.data.document.record.version}` : 'ERR'}, eligible=${eligible.success ? eligible.data.userIds.length : 'ERR'}`,
+      eligible.data.userIds.includes(reviewerUserId) &&
+      !eligible.data.userIds.includes(userId) &&
+      selfSubmit.status === 400 &&
+      selfSubmitCode === 'REVIEWER_SELF_NOT_ALLOWED',
+    `mark → ${mark.status}, again → ${markAgain.status} (want 400), badge=${controlledItem.success ? `${controlledItem.data.document.record.state} v${controlledItem.data.document.record.version}` : 'ERR'}, eligible=${eligible.success ? `${eligible.data.userIds.includes(reviewerUserId) ? 'editor' : 'NO-EDITOR'}${eligible.data.userIds.includes(userId) ? '+SELF' : ''}` : 'ERR'} (want editor only), selfSubmit → ${selfSubmit.status}/${selfSubmitCode} (want 400/REVIEWER_SELF_NOT_ALLOWED)`,
   );
 
-  const reviewerId = eligible.success ? (eligible.data.userIds[0] ?? '') : '';
+  const reviewerId = reviewerUserId;
   const submit = z
     .object({ approvalId: z.string() })
     .safeParse(
@@ -3505,20 +3562,28 @@ async function checkDocuments(
     'POST',
     `/api/app/documents/${recordDocId}/trash?orgId=${orgId}`,
   );
-  const noFeedback = await send(
-    'POST',
-    `/api/app/documents/records/reviews/${submit.success ? submit.data.approvalId : ''}/respond?orgId=${orgId}`,
-    { decision: 'request_changes' },
-  );
+  const respondRoute = `/api/app/documents/records/reviews/${submit.success ? submit.data.approvalId : ''}/respond?orgId=${orgId}`;
+  const noFeedback = await sendAs(reviewerCookie, 'POST', respondRoute, {
+    decision: 'request_changes',
+  });
+  // The submitter is a writer, but not the designee: the decision is the
+  // reviewer's alone — a designation anyone could act on would make the
+  // four-eyes flow a one-person stamp. (A request-changes attempt, so a
+  // regression that lets it through leaves the record a draft the rest of
+  // this section can still drive, instead of derailing every later check.)
+  const submitterResponds = await send('POST', respondRoute, {
+    decision: 'request_changes',
+    feedback: 'Deciding my own submission.',
+  });
+  const submitterCode = await errorCodeOf(submitterResponds);
   const changes = z
     .object({ state: z.literal('draft'), version: z.number() })
     .safeParse(
       await (
-        await send(
-          'POST',
-          `/api/app/documents/records/reviews/${submit.success ? submit.data.approvalId : ''}/respond?orgId=${orgId}`,
-          { decision: 'request_changes', feedback: 'Tighten section 2.' },
-        )
+        await sendAs(reviewerCookie, 'POST', respondRoute, {
+          decision: 'request_changes',
+          feedback: 'Tighten section 2.',
+        })
       ).json(),
     );
   const lastReview = z
@@ -3537,17 +3602,21 @@ async function checkDocuments(
       ),
     );
   record(
-    'record submit → in_review guardrails → request-changes round trip',
+    'record submit → in_review guardrails → designee-only request-changes',
     submit.success &&
       pendingReview.success &&
       pendingReview.data.review?.approvalId === submit.data.approvalId &&
+      pendingReview.data.review.requestedFor === reviewerUserId &&
       trashWhileInReview.status === 400 &&
       noFeedback.status === 400 &&
+      submitterResponds.status === 403 &&
+      submitterCode === 'REVIEW_NOT_ASSIGNED' &&
       changes.success &&
       lastReview.success &&
       lastReview.data.review?.decision === 'request_changes' &&
-      lastReview.data.review.feedback === 'Tighten section 2.',
-    `submit=${submit.success ? 'ok' : 'ERR'}, pendingMatch=${pendingReview.success ? pendingReview.data.review?.approvalId === (submit.success ? submit.data.approvalId : '') : 'ERR'}, trash → ${trashWhileInReview.status} (want 400), noFeedback → ${noFeedback.status} (want 400), changes=${changes.success ? changes.data.state : 'ERR'}, last=${lastReview.success ? (lastReview.data.review?.decision ?? 'null') : 'ERR'}`,
+      lastReview.data.review.feedback === 'Tighten section 2.' &&
+      lastReview.data.review.respondedBy === reviewerUserId,
+    `submit=${submit.success ? 'ok' : 'ERR'}, pendingMatch=${pendingReview.success ? pendingReview.data.review?.approvalId === (submit.success ? submit.data.approvalId : '') : 'ERR'}, trash → ${trashWhileInReview.status} (want 400), noFeedback → ${noFeedback.status} (want 400), submitterResponds → ${submitterResponds.status}/${submitterCode} (want 403/REVIEW_NOT_ASSIGNED), changes=${changes.success ? changes.data.state : 'ERR'}, last=${lastReview.success ? `${lastReview.data.review?.decision ?? 'null'} by ${lastReview.data.review?.respondedBy === reviewerUserId ? 'reviewer' : 'OTHER'}` : 'ERR'}`,
   );
 
   const resubmit = z
@@ -3565,12 +3634,15 @@ async function checkDocuments(
     .object({ state: z.literal('approved'), version: z.number() })
     .safeParse(
       await (
-        await send(
+        await sendAs(
+          reviewerCookie,
           'POST',
           `/api/app/documents/records/reviews/${resubmit.success ? resubmit.data.approvalId : ''}/respond?orgId=${orgId}`,
           { decision: 'approve' },
         )
-      ).json(),
+      )
+        .json()
+        .catch(() => null),
     );
   const approvedItem = z
     .object({
@@ -4074,6 +4146,13 @@ async function checkDocuments(
       traversal.status === 400,
     `missing=${readMissing.success ? Object.keys(readMissing.data.values).length : 'ERR'} (want 0), write=${wrote.success ? `${wrote.data.action}/${wrote.data.createdFolder}` : 'ERR'}, readBack=${readBack.success ? JSON.stringify(readBack.data.values) : 'ERR'}, rewrite=${rewrote.success ? `${rewrote.data.action}/${rewrote.data.documentId === (wrote.success ? wrote.data.documentId : '')}` : 'ERR'}, after=${afterRewrite.success ? JSON.stringify(afterRewrite.data.values) : 'ERR'}, traversal=${traversal.status} (want 400)`,
   );
+
+  // Fixture hygiene: the reviewer leaves the org so later sections see the
+  // member set they always did.
+  await sql`
+    DELETE FROM "member"
+    WHERE "organizationId" = ${orgId} AND "userId" = ${reviewerUserId}
+  `;
 }
 
 /**
@@ -4181,6 +4260,27 @@ async function checkDocumentWriteGuards(
     INSERT INTO "member" ("id", "organizationId", "userId", "role",
                           "createdAt")
     VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member', ${new Date()})
+  `;
+  // A second WRITER: the record review is four-eyes, so the owner submits
+  // and this editor decides.
+  const editorSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `doc-guards-editor-${suffix}@example.com`,
+      password: 'itest-password-1',
+      name: 'Doc Guards Editor',
+    }),
+  });
+  const editorCookie = cookieHeaderFrom(editorSignUp);
+  const editorBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await editorSignUp.json());
+  const editorId = editorBody.success ? editorBody.data.user.id : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${editorId}, 'editor', ${new Date()})
   `;
   const mintKey = async (asCookie: string, name: string): Promise<string> => {
     const minted = z.looseObject({ key: z.string() }).safeParse(
@@ -4354,7 +4454,7 @@ async function checkDocumentWriteGuards(
   });
   // Eligibility mirrors the respond gate: a read-only member never appears
   // as a designation candidate (a designee who could not respond would
-  // strand the review).
+  // strand the review), and neither does the caller (no self-review).
   const eligibleIds = z
     .object({ userIds: z.array(z.string()) })
     .safeParse(
@@ -4374,7 +4474,7 @@ async function checkDocumentWriteGuards(
           cookie,
           'POST',
           `/api/app/documents/${docB}/record/submit?orgId=${orgId}`,
-          { reviewerUserId: userId },
+          { reviewerUserId: editorId },
         )
       ).json(),
     );
@@ -4393,22 +4493,27 @@ async function checkDocumentWriteGuards(
       draftContentCode === 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED' &&
       patchDraftTitle.status === 204 &&
       eligibleIds.success &&
-      eligibleIds.data.userIds.includes(userId) &&
+      eligibleIds.data.userIds.includes(editorId) &&
+      !eligibleIds.data.userIds.includes(userId) &&
       !eligibleIds.data.userIds.includes(memberId) &&
       submitB.success &&
       patchFrozenContent.status === 400 &&
       frozenContentCode === 'DOCUMENT_RECORD_FROZEN' &&
       patchFrozenMime.status === 400,
-    `mark → ${markB.status}, draftContent → ${patchDraftContent.status}/${draftContentCode} (want 400/REPLACEMENT_REQUIRED), rename → ${patchDraftTitle.status} (want 204), eligible=${eligibleIds.success ? `${eligibleIds.data.userIds.includes(userId) ? 'owner' : 'NO-OWNER'}${eligibleIds.data.userIds.includes(memberId) ? '+MEMBER' : ''}` : 'ERR'} (want owner only), inReviewContent → ${patchFrozenContent.status}/${frozenContentCode} (want 400/FROZEN), mime → ${patchFrozenMime.status} (want 400)`,
+    `mark → ${markB.status}, draftContent → ${patchDraftContent.status}/${draftContentCode} (want 400/REPLACEMENT_REQUIRED), rename → ${patchDraftTitle.status} (want 204), eligible=${eligibleIds.success ? `${eligibleIds.data.userIds.includes(editorId) ? 'editor' : 'NO-EDITOR'}${eligibleIds.data.userIds.includes(userId) ? '+SELF' : ''}${eligibleIds.data.userIds.includes(memberId) ? '+MEMBER' : ''}` : 'ERR'} (want editor only), inReviewContent → ${patchFrozenContent.status}/${frozenContentCode} (want 400/FROZEN), mime → ${patchFrozenMime.status} (want 400)`,
   );
 
   // ---- (4) REST DELETE uses the session protection predicate --------------
-  const approveB = await sendAs(
-    cookie,
-    'POST',
-    `/api/app/documents/records/reviews/${submitB.success ? submitB.data.approvalId : ''}/respond?orgId=${orgId}`,
-    { decision: 'approve' },
-  );
+  // The owner submitted and is not the designee — the decision is the
+  // editor's; the owner's attempt is refused as not assigned.
+  const respondB = `/api/app/documents/records/reviews/${submitB.success ? submitB.data.approvalId : ''}/respond?orgId=${orgId}`;
+  const ownerApproveB = await sendAs(cookie, 'POST', respondB, {
+    decision: 'approve',
+  });
+  const ownerApproveCode = await codeIn(ownerApproveB);
+  const approveB = await sendAs(editorCookie, 'POST', respondB, {
+    decision: 'approve',
+  });
   const deleteApproved = await v1(ownerKey, 'DELETE', `/documents/${docB}`);
   const revisionB = await sendAs(
     cookie,
@@ -4431,7 +4536,9 @@ async function checkDocumentWriteGuards(
   `;
   record(
     'REST DELETE inherits record protection (retained history) + audit',
-    approveB.status === 200 &&
+    ownerApproveB.status === 403 &&
+      ownerApproveCode === 'REVIEW_NOT_ASSIGNED' &&
+      approveB.status === 200 &&
       deleteApproved.status === 409 &&
       (await codeIn(deleteApproved)) === 'DOCUMENT_RECORD_PROTECTED' &&
       revisionB.status === 200 &&
@@ -4439,7 +4546,7 @@ async function checkDocumentWriteGuards(
       retainedRow.length === 1 &&
       deleteUncontrolled.status === 204 &&
       auditRows[0]?.count === '1',
-    `approve → ${approveB.status}, deleteApproved → ${deleteApproved.status} (want 409), revision → ${revisionB.status}, deleteRetained → ${deleteRetained.status} (want 409), rowKept=${retainedRow.length === 1}, uncontrolled → ${deleteUncontrolled.status} (want 204), auditRows=${auditRows[0]?.count ?? '0'} (want 1)`,
+    `ownerApprove → ${ownerApproveB.status}/${ownerApproveCode} (want 403/REVIEW_NOT_ASSIGNED), approve → ${approveB.status}, deleteApproved → ${deleteApproved.status} (want 409), revision → ${revisionB.status}, deleteRetained → ${deleteRetained.status} (want 409), rowKept=${retainedRow.length === 1}, uncontrolled → ${deleteUncontrolled.status} (want 204), auditRows=${auditRows[0]?.count ?? '0'} (want 1)`,
   );
 
   // ---- (2) agent upsert: freeze + content-hash coherence ------------------

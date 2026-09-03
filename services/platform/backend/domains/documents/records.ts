@@ -11,11 +11,11 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import {
-  assertDocumentsWriteRole,
   assertDocumentVisible,
   DocumentError,
   hasKnowledgeHubDocumentAccess,
   loadDocumentOrThrow,
+  requireDocumentWriteAccess,
   type DocumentRow,
 } from './service.ts';
 
@@ -145,28 +145,81 @@ function requireControlledRecord(doc: DocumentRow): ControlledRecord {
   return record;
 }
 
-/** The document-write standard (public updateDocument): org-role write
- * matrix, visible, + project canEdit for project files. */
-async function requireDocumentWriteAccess(
-  db: Sql | TransactionSql,
-  auth: ProjectAuthContext,
-  documentId: string,
-): Promise<DocumentRow> {
-  assertDocumentsWriteRole(auth);
-  const doc = await loadDocumentOrThrow(db, documentId);
-  await assertDocumentVisible(db, auth, doc);
-  if (doc.projectId !== null) {
-    const project = await loadProjectOrThrow(db, doc.projectId);
-    const access = checkProjectAccess(
-      { teamId: project.teamId, sharedWithTeamIds: project.sharedWithTeamIds },
-      auth.teamIds,
-      auth.role,
+// ---------------------------------------------------------------------------
+// Who decides (the four-eyes rule)
+// ---------------------------------------------------------------------------
+
+/** The people a review row names: the designee it was minted FOR and the
+ * submitter who minted it — read from the approval's metadata first, with the
+ * record's own mirror (`reviewerUserId`/`submittedBy`) as the fallback. */
+export interface ReviewParties {
+  requestedFor: string | undefined;
+  requestedBy: string | undefined;
+}
+
+/**
+ * A submitter may not name themselves as the reviewer. The designation IS the
+ * authorization to decide (the bell, the eligibility gate and the respond
+ * door all run for the designee), so a self-designation would turn the
+ * four-eyes lifecycle into a one-person stamp — the server refuses it even
+ * though the picker never offers it.
+ */
+export function assertReviewerNotSubmitter(
+  reviewerUserId: string,
+  submitterUserId: string,
+): void {
+  if (reviewerUserId === submitterUserId) {
+    throw new DocumentError(
+      'REVIEWER_SELF_NOT_ALLOWED',
+      'You cannot review your own submission — choose another reviewer.',
     );
-    if (!access.canEdit) {
-      throw new DocumentError('PROJECT_FORBIDDEN', 'No project access', 403);
-    }
   }
-  return doc;
+}
+
+/**
+ * Only the designated reviewer decides a review: nothing else on the row says
+ * who was asked, and a decision by anyone else would make the designation
+ * decorative. A row that names no designee fails CLOSED (submit always
+ * records one), and the submitter never decides their own submission even
+ * where an older row happened to name them.
+ */
+export function assertReviewResponder(
+  parties: ReviewParties,
+  responderUserId: string,
+): void {
+  if (
+    parties.requestedFor === undefined ||
+    parties.requestedFor !== responderUserId
+  ) {
+    throw new DocumentError(
+      'REVIEW_NOT_ASSIGNED',
+      'Only the designated reviewer can decide this review.',
+      403,
+    );
+  }
+  if (parties.requestedBy === responderUserId) {
+    throw new DocumentError(
+      'REVIEW_SELF_APPROVAL_FORBIDDEN',
+      'The submitter cannot decide their own review.',
+      403,
+    );
+  }
+}
+
+function reviewParties(
+  metadata: Record<string, unknown>,
+  record: ControlledRecord,
+): ReviewParties {
+  return {
+    requestedFor:
+      typeof metadata.requestedFor === 'string'
+        ? metadata.requestedFor
+        : record.reviewerUserId,
+    requestedBy:
+      typeof metadata.requestedBy === 'string'
+        ? metadata.requestedBy
+        : record.submittedBy,
+  };
 }
 
 async function writeRecord(
@@ -276,7 +329,8 @@ export async function isEligibleDocumentReviewer(
 }
 
 /** The picker's server-derived option set (caller needs read access; the
- * document routes' auth context already carries membership). */
+ * document routes' auth context already carries membership). The caller is
+ * never among the options — a submitter cannot designate themselves. */
 export async function listEligibleDocumentReviewerIds(
   sql: Sql,
   auth: ProjectAuthContext,
@@ -298,6 +352,7 @@ export async function listEligibleDocumentReviewerIds(
   const eligible: string[] = [];
   for (const member of members) {
     if (member.role.toLowerCase() === 'disabled') continue;
+    if (member.userId === auth.userId) continue;
     if (await isEligibleDocumentReviewer(sql, doc, member.userId)) {
       eligible.push(member.userId);
     }
@@ -549,8 +604,9 @@ export async function submitRecordForReview(
       { state: record.state },
     );
   }
-  // The designee must be able to RESPOND — the picker filters, the server
-  // is the authority (fails closed).
+  // The designee must be someone ELSE who can RESPOND — the picker filters,
+  // the server is the authority (fails closed).
+  assertReviewerNotSubmitter(args.reviewerUserId, auth.userId);
   if (!(await isEligibleDocumentReviewer(tx, doc, args.reviewerUserId))) {
     throw new DocumentError('REVIEWER_NOT_ELIGIBLE', 'Reviewer not eligible');
   }
@@ -676,6 +732,11 @@ export async function respondToDocumentRecordReview(
     throw new DocumentError('REVIEW_NOT_FOUND', 'Review not found', 404);
   }
   const record = requireControlledRecord(doc);
+  // Write access says the responder MAY touch the document; the designation
+  // says who was asked to decide. Both hold, or nothing moves.
+  const metadata = approval.metadata ?? {};
+  const parties = reviewParties(metadata, record);
+  assertReviewResponder(parties, auth.userId);
   if (
     record.state !== 'in_review' ||
     approvalRecordVersion(approval) !== record.version
@@ -695,7 +756,6 @@ export async function respondToDocumentRecordReview(
     timestamp: now,
     ...(feedback !== undefined ? { feedback } : {}),
   };
-  const metadata = approval.metadata ?? {};
   await tx`
     UPDATE app.approvals SET
       status = 'completed', approved_by = ${auth.userId},
@@ -779,28 +839,20 @@ export async function respondToDocumentRecordReview(
     },
   });
 
-  const requestedFor =
-    typeof metadata.requestedFor === 'string'
-      ? metadata.requestedFor
-      : record.reviewerUserId;
-  if (requestedFor !== undefined) {
+  if (parties.requestedFor !== undefined) {
     await dismissDocumentReviewRequestNotifications(tx, {
       organizationId: doc.organizationId,
       approvalId: args.approvalId,
-      reviewerUserId: requestedFor,
+      reviewerUserId: parties.requestedFor,
     });
   }
-  const submitter =
-    typeof metadata.requestedBy === 'string'
-      ? metadata.requestedBy
-      : record.submittedBy;
-  if (submitter !== undefined) {
+  if (parties.requestedBy !== undefined) {
     await notifyDocumentReviewResolved(tx, doc, {
       version: record.version,
       decision: args.decision,
       decidedByUserId: auth.userId,
       decidedByName: await userName(tx, auth.userId),
-      recipientUserId: submitter,
+      recipientUserId: parties.requestedBy,
       ...(feedback !== undefined ? { feedback } : {}),
     });
   }
