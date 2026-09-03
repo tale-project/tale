@@ -26417,6 +26417,59 @@ async function checkErasure(
     reason: 'self test',
     reasonCode: 'consent_withdrawn',
   });
+  // The seven categories the cascade gained. None is reachable from the
+  // thread, document, preference or upload passes: two are org-level rows
+  // ABOUT the subject, two are global auth state keyed by email or user id,
+  // and the review decision is KEPT and de-identified rather than deleted.
+  await sql`
+    INSERT INTO app.notifications (
+      org_id, category, severity, title_key, body_key, params,
+      subject_user_id, created_at_ms
+    ) VALUES (${orgId}, 'security', 'warning', 'accountLocked',
+              'lockoutDetails',
+              ${sql.json({ email: `${subject}@example.com`, ip: '203.0.113.9' })},
+              ${subject}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, started_at_ms
+    ) VALUES (${orgId}, 'erasure-fixture', 1, 'success', 'live',
+              ${`user:${subject}`}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.approvals (
+      org_id, resource_type, resource_id, status, approved_by, metadata,
+      created_at_ms
+    ) VALUES (${orgId}, 'task_review', ${`er-task-${subject}`}, 'completed',
+              ${subject},
+              ${sql.json({ requestedFor: subject, response: { respondedBy: subject } })},
+              ${now})
+  `;
+  await sql`
+    INSERT INTO app.login_attempts (email, consecutive_failures,
+                                    last_failure_at)
+    VALUES (${`${subject}@example.com`}, 3, ${now})
+    ON CONFLICT (email) DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.two_factor_attempts (user_id, consecutive_failures,
+                                         last_failure_at_ms)
+    VALUES (${subject}, 2, ${now}) ON CONFLICT (user_id) DO NOTHING
+  `;
+  await sql`
+    INSERT INTO app.user_cloud_authorizations (
+      org_id, user_id, provider, encrypted_data, status, created_at_ms,
+      updated_at_ms
+    ) VALUES (${orgId}, ${subject}, 'google-drive',
+              ${sql.json({ sealed: 'x' })}, 'active', ${now}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.google_drive_sync_configs (
+      org_id, user_id, item_type, item_id, item_name, target_bucket, status,
+      created_at_ms, updated_at_ms
+    ) VALUES (${orgId}, ${subject}, 'folder', ${`gd-${subject}`}, 'Reports',
+              'documents', 'active', ${now}, ${now})
+  `;
   const filed = z
     .object({ requestId: z.string(), threadsTargeted: z.number() })
     .loose()
@@ -26451,7 +26504,28 @@ async function checkErasure(
          WHERE org_id = ${orgId} AND user_id = ${subject})
       + (SELECT count(*) FROM app.memories
          WHERE org_id = ${orgId} AND user_id = ${subject})
+      + (SELECT count(*) FROM app.notifications
+         WHERE org_id = ${orgId} AND subject_user_id = ${subject})
+      + (SELECT count(*) FROM app.automation_runs
+         WHERE org_id = ${orgId} AND started_by = ${`user:${subject}`})
+      + (SELECT count(*) FROM app.login_attempts
+         WHERE email = ${`${subject}@example.com`})
+      + (SELECT count(*) FROM app.two_factor_attempts
+         WHERE user_id = ${subject})
+      + (SELECT count(*) FROM app.user_cloud_authorizations
+         WHERE org_id = ${orgId} AND user_id = ${subject})
+      + (SELECT count(*) FROM app.google_drive_sync_configs
+         WHERE org_id = ${orgId} AND user_id = ${subject})
     )::text AS count
+  `;
+  // A review decision is KEPT and de-identified: the decision is the audit
+  // record of a governance gate, so the row stays and the identity goes.
+  const reviewErased = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.approvals
+    WHERE org_id = ${orgId} AND resource_id = ${`er-task-${subject}`}
+      AND approved_by = 'erased-user'
+      AND metadata->>'requestedFor' = 'erased-user'
+      AND metadata->'response'->>'respondedBy' = 'erased-user'
   `;
   const scrubbed = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM app.audit_logs
@@ -26564,6 +26638,7 @@ async function checkErasure(
       receiptStatus === 'done' &&
       threadGone[0]?.count === '0' &&
       leftovers[0]?.count === '0' &&
+      reviewErased[0]?.count === '1' &&
       Number(scrubbed[0]?.count ?? '0') >= 1 &&
       filedTwo.success &&
       cancelled.success &&
@@ -26575,7 +26650,7 @@ async function checkErasure(
       filedThree.data.userCustodianHeld &&
       blockedReceipt[0]?.status === 'blocked' &&
       threeStatus === 'done',
-    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), retried=${threeStatus}`,
+    `self=${selfRefused.status} (want 403), receipt=${receiptStatus}, thread=${threadGone[0]?.count}, leftovers=${leftovers[0]?.count}, reviewDeidentified=${reviewErased[0]?.count} (want 1), scrubbed=${scrubbed[0]?.count}, cancel=${cancelled.success ? cancelled.data.ok : 'ERR'}, twoIntact=${twoIntact[0]?.count}, blocked=${blockedRes.status}/${filedThree.success ? filedThree.data.error : 'ERR'}/${blockedReceipt[0]?.status ?? '?'} (want 409/LEGAL_HOLD_BLOCKS_ERASURE/blocked), retried=${threeStatus}`,
   );
 
   // ---- the documented 'child' reason code files -------------------------
