@@ -3,6 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { projectConversationItem } from '../../../lib/shared/conversations/conversation-item.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
+import { authorizeRls } from '../../auth/access.ts';
 import {
   findOrganizationMember,
   getUserTeamIds,
@@ -118,6 +119,27 @@ export interface ConversationViewer {
 export function viewerIsAdmin(role: string): boolean {
   const normalized = role.toLowerCase();
   return normalized === 'owner' || normalized === 'admin';
+}
+
+/**
+ * May this role CHANGE a conversation? Editor-or-above, which is the 0.4
+ * gate: every conversation mutation ran through `mutationWithRLS`, and the
+ * `conversations` / `conversationMessages` RLS rules put each insert/modify
+ * (and delete) through `authorizeRls(role, …, 'write')` — ALL for
+ * owner/admin/developer/editor, READ_ONLY for `member`, NONE for `disabled`.
+ *
+ * This is the WRITE half of conversation access and it is role-shaped, org
+ * wide. The other half is assignment privacy — `conversationAssignmentAllows`
+ * per row, which decides who can SEE a thread at all — and the two compose:
+ * a write door checks this first, then loads the row through
+ * `loadVisibleConversation`. Assignment itself is stricter still
+ * (`viewerIsAdmin`).
+ */
+export function viewerCanWrite(role: string): boolean {
+  return (
+    authorizeRls(role, 'conversations', 'write') &&
+    authorizeRls(role, 'conversationMessages', 'write')
+  );
 }
 
 /** One conversation readable by the viewer, or the opaque 404. Evaluates the
