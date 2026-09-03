@@ -1778,11 +1778,9 @@ conversations:
     send: Send message
   attachment:
     download: Download
-    downloading: Downloading...
     attachments: '{count, plural, one {# attachment} other {# attachments}}'
   panel:
     uploadFailed: Couldn't upload attachments. Try again.
-    downloadFailed: Couldn't download attachments. Try again.
     noSelected: No conversation selected
     selectToView: Select a conversation to view details
     notFound: Conversation not found

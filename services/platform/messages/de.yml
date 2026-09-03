@@ -1836,11 +1836,9 @@ conversations:
     send: Nachricht senden
   attachment:
     download: Herunterladen
-    downloading: Lade herunter...
     attachments: '{count, plural, one {# Anhang} other {# Anhänge}}'
   panel:
     uploadFailed: Anhänge konnten nicht hochgeladen werden. Versuch es erneut.
-    downloadFailed: Anhänge konnten nicht heruntergeladen werden. Versuch es erneut.
     noSelected: Keine Konversation ausgewählt
     selectToView: Wähle eine Konversation, um Details anzuzeigen
     notFound: Konversation nicht gefunden

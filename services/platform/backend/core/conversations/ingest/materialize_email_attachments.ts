@@ -2,7 +2,13 @@
 
 /**
  * Persist attachment bytes returned from a mail connector onto org blob
- * storage, then replace them with storageId + download URL for Inbox.
+ * storage, then replace them with a durable `storageId` for the Inbox.
+ *
+ * NO download URL is stored: a presigned GET is minted at READ time from the
+ * storageId (the conversation projection calls `getFileUrl`). Storing a URL here
+ * baked in the retired Convex proxy's `/http_api/storage` path, which the 0.5
+ * serve layer answers 404 — every materialized attachment chip's download died
+ * on it. The storageId is stable; the URL must be fresh, so it is read-time.
  *
  * Connector `ctx.files` is deliberately unwired, so Gmail/Outlook's
  * `downloadAttachments` flag cannot store during `get_message`. IMAP returns
@@ -16,7 +22,6 @@
 import { isRecord } from '../../../../lib/utils/type-utils';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
-import { buildBlobServeUrl } from '../../lib/helpers/public_storage_url';
 
 type WireAttachment = {
   id: string;
@@ -112,19 +117,15 @@ async function storeAttachment(
     },
   );
 
-  // Stable serve-lane URL for Inbox (the download anchor + inline cid
-  // images); it 302s to a fresh presigned GET at open time, named after the
-  // real filename. `putOrgBlobBytes` behind `storeOrgBlob` always answers an
-  // `s3:` ref in 0.5, so the one builder covers every stored attachment.
-  const url = buildBlobServeUrl(storageId, organizationId, att.filename);
-
+  // No `url`: the download is presigned from `storageId` at read time. A URL
+  // minted here would be a long-lived pointer through a serve path the 0.5
+  // backend does not answer.
   return {
     id: att.id,
     filename: att.filename,
     contentType: att.contentType,
     size: bytes.byteLength > 0 ? bytes.byteLength : att.size,
     storageId,
-    url,
     ...(att.contentId !== undefined && { contentId: att.contentId }),
   };
 }
