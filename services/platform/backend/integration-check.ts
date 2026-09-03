@@ -20631,6 +20631,57 @@ async function checkChangelogAndAccounts(
       partial.length === 2,
     `accounts=${accounts.success ? `${accounts.data.hasCredentialAccount}/${accounts.data.hasMicrosoftAccount}` : 'ERR'}, unauth=${unauthenticated.status}, paged=${paged.length} (want 4), single=${single.length} (want 2), partial=${partial.length} (want 2)`,
   );
+
+  // A client cannot select trigger:'forced' to skip current-password re-auth.
+  // A fresh throwaway user has a non-expired credential, so a self-service
+  // change MUST prove the current password regardless of the requested
+  // trigger; only a genuinely expired/force-change credential is reset without
+  // it (that path is exercised by the two-factor/forced-change flows).
+  const fpSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `forced-${Date.now()}@example.com`,
+      password: 'itest-password-1',
+      name: 'Forced Probe',
+    }),
+  });
+  const fpCookie = cookieHeaderFrom(fpSignUp);
+  const fpPost = (body: unknown): Promise<Response> =>
+    fetch(`${base}/api/app/users/update-password`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: fpCookie,
+        origin: base,
+      },
+      body: JSON.stringify(body),
+    });
+  const attackForced = await fpPost({
+    newPassword: 'Itest-Passw0rd!2',
+    trigger: 'forced',
+  });
+  const attackForcedBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await attackForced.json());
+  const attackNoCurrent = await fpPost({ newPassword: 'Itest-Passw0rd!2' });
+  // Even WITH the client asking for 'forced', a legitimate self-service change
+  // that supplies the current password succeeds (server ignores the trigger).
+  const legitVoluntary = await fpPost({
+    currentPassword: 'itest-password-1',
+    newPassword: 'Itest-Passw0rd!2',
+    trigger: 'forced',
+  });
+  record(
+    "update-password: client-chosen trigger:'forced' cannot skip current-password",
+    attackForced.status === 400 &&
+      attackForcedBody.success &&
+      attackForcedBody.data.error === 'current_password_required' &&
+      attackNoCurrent.status === 400 &&
+      legitVoluntary.status === 200,
+    `forced-no-current=${attackForced.status}/${attackForcedBody.success ? attackForcedBody.data.error : 'ERR'} (want 400/current_password_required), no-current=${attackNoCurrent.status} (want 400), legit-with-current=${legitVoluntary.status} (want 200)`,
+  );
 }
 
 /**
@@ -22305,6 +22356,48 @@ async function checkAuditSurface(
       headers: { 'content-type': 'application/json', cookie, origin: base },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
+
+  // Audit-log reads are admin-only (0.4 #1505/#1852). A non-admin 'member'
+  // must be refused on EVERY audit read entry point — list, summary, errors,
+  // by-id, and integrity/status — not just have the menu hidden. (The
+  // admin-only /export and /block-counters lanes were already gated.)
+  const auditMemberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `audit-member-${Date.now()}@example.com`,
+      password: 'itest-password-1',
+      name: 'Audit Member',
+    }),
+  });
+  const auditMemberCookie = cookieHeaderFrom(auditMemberSignUp);
+  const auditMemberId = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await auditMemberSignUp.json());
+  if (auditMemberId.success) {
+    await post(`/api/app/members?orgId=${orgId}`, {
+      userId: auditMemberId.data.user.id,
+      role: 'member',
+    });
+  }
+  const mget = (route: string): Promise<Response> =>
+    fetch(`${base}${route}`, { headers: { cookie: auditMemberCookie } });
+  const [mList, mSummary, mErrors, mById, mIntegrity] = await Promise.all([
+    mget(`/api/app/audit-logs?orgId=${orgId}`),
+    mget(`/api/app/audit-logs/summary?orgId=${orgId}`),
+    mget(`/api/app/audit-logs/errors?orgId=${orgId}`),
+    mget(`/api/app/audit-logs/some-audit-id?orgId=${orgId}`),
+    mget(`/api/app/audit-logs/integrity/status?orgId=${orgId}`),
+  ]);
+  record(
+    'audit reads are admin-only: non-admin member refused on every entry point',
+    mList.status === 403 &&
+      mSummary.status === 403 &&
+      mErrors.status === 403 &&
+      mById.status === 403 &&
+      mIntegrity.status === 403,
+    `member reads → list=${mList.status}, summary=${mSummary.status}, errors=${mErrors.status}, by-id=${mById.status}, integrity=${mIntegrity.status} (want all 403)`,
+  );
 
   const summary = z
     .object({
@@ -24815,6 +24908,160 @@ async function checkGovernanceEnforcement(
   `;
 }
 
+/**
+ * Account-authorization hardening probes:
+ *   - the admin-door password reset (`setMemberPassword`) writes the GLOBAL
+ *     credential, so an admin must never seize the org OWNER, nor a user who
+ *     also belongs to an org the admin does not administer (cross-org
+ *     takeover); a legitimate owner→low-member reset still works. All targets
+ *     are throwaway users in throwaway orgs so a base run (where the guard is
+ *     absent and the resets SUCCEED) never disturbs the shared fixture.
+ *   - a freshly minted API key persists the intended 60-SECOND rate-limit
+ *     window as 60000ms — Better Auth measures `timeWindow` in milliseconds,
+ *     so a bare `60` would be a 60ms window (effectively unthrottled).
+ */
+async function checkAccountAuthzHardening(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string },
+  suffix: string,
+): Promise<void> {
+  const signUp = async (
+    label: string,
+  ): Promise<{ cookie: string; userId: string }> => {
+    const res = await fetch(`${base}/api/auth/sign-up/email`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: base },
+      body: JSON.stringify({
+        email: `authz-${label}-${suffix}-${Date.now()}@example.com`,
+        password: 'itest-password-1',
+        name: `Authz ${label}`,
+      }),
+    });
+    const parsed = z
+      .object({ user: z.object({ id: z.string() }) })
+      .safeParse(await res.json());
+    return {
+      cookie: cookieHeaderFrom(res),
+      userId: parsed.success ? parsed.data.user.id : '',
+    };
+  };
+  const createOrg = async (cookie: string, slug: string): Promise<string> => {
+    const res = await fetch(`${base}/api/auth/organization/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ name: `Authz ${slug}`, slug }),
+    });
+    const parsed = z
+      .object({ id: z.string().optional() })
+      .safeParse(await res.json());
+    return parsed.success ? (parsed.data.id ?? '') : '';
+  };
+  const addMember = async (
+    cookie: string,
+    orgId: string,
+    userId: string,
+    role: string,
+  ): Promise<string> => {
+    const res = await fetch(`${base}/api/app/members?orgId=${orgId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ userId, role }),
+    });
+    const parsed = z
+      .object({ memberId: z.string() })
+      .safeParse(await res.json());
+    return parsed.success ? parsed.data.memberId : '';
+  };
+  const setMemberPw = (cookie: string, memberId: string): Promise<Response> =>
+    fetch(`${base}/api/app/users/members/${memberId}/password`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ newPassword: 'Itest-Passw0rd!2' }),
+    });
+
+  // --- Global-credential reset authority (finding 1) ----------------------
+  const orgCOwner = await signUp('cowner');
+  const orgC = await createOrg(orgCOwner.cookie, `azc${suffix}`);
+  const orgDOwner = await signUp('downer');
+  const orgD = await createOrg(orgDOwner.cookie, `azd${suffix}`);
+  const adminA = await signUp('admin');
+  await addMember(orgCOwner.cookie, orgC, adminA.userId, 'admin');
+  const shared = await signUp('shared');
+  const sharedMemberC = await addMember(
+    orgCOwner.cookie,
+    orgC,
+    shared.userId,
+    'member',
+  );
+  await addMember(orgDOwner.cookie, orgD, shared.userId, 'member');
+  const lowN = await signUp('low');
+  const lowMemberC = await addMember(
+    orgCOwner.cookie,
+    orgC,
+    lowN.userId,
+    'member',
+  );
+  const ownerMemberRows = await sql<{ id: string }[]>`
+    SELECT "id" FROM "member"
+    WHERE "organizationId" = ${orgC} AND "userId" = ${orgCOwner.userId}
+    LIMIT 1
+  `;
+  const ownerMemberC = ownerMemberRows[0]?.id ?? '';
+
+  // An admin must not seize the org owner (privilege escalation)...
+  const adminResetsOwner = await setMemberPw(adminA.cookie, ownerMemberC);
+  // ...nor a member who also belongs to an org the admin does not administer
+  // (the global credential would grant cross-org takeover)...
+  const adminResetsShared = await setMemberPw(adminA.cookie, sharedMemberC);
+  // ...while a legitimate owner→(single-org, lower-ranked) reset still works.
+  const ownerResetsLow = await setMemberPw(orgCOwner.cookie, lowMemberC);
+  record(
+    'credential reset: admin cannot seize owner or a cross-org-shared user; owner resets a low member',
+    adminResetsOwner.status === 403 &&
+      adminResetsShared.status === 403 &&
+      ownerResetsLow.status === 200,
+    `admin→owner=${adminResetsOwner.status} (want 403), admin→cross-org=${adminResetsShared.status} (want 403), owner→member=${ownerResetsLow.status} (want 200)`,
+  );
+
+  // --- API-key rate-limit window unit (finding 5) -------------------------
+  const mintRes = await fetch(`${base}/api/auth/api-key/create`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      cookie: ctx.cookie,
+      origin: base,
+    },
+    body: JSON.stringify({ name: `authz-ratelimit-${suffix}` }),
+  });
+  const minted = z
+    .object({ id: z.string() })
+    .loose()
+    .safeParse(await mintRes.json());
+  const keyRows = minted.success
+    ? await sql<
+        {
+          rateLimitTimeWindow: number | null;
+          rateLimitMax: number | null;
+          rateLimitEnabled: boolean | null;
+        }[]
+      >`
+        SELECT "rateLimitTimeWindow"::float8 AS "rateLimitTimeWindow",
+               "rateLimitMax"::float8 AS "rateLimitMax",
+               "rateLimitEnabled" AS "rateLimitEnabled"
+        FROM "apikey" WHERE "id" = ${minted.data.id} LIMIT 1
+      `
+    : [];
+  const keyRow = keyRows[0];
+  record(
+    'api-key rate limit persists a 60-second window (60000ms), not 60ms',
+    keyRow?.rateLimitTimeWindow === 60_000 &&
+      keyRow?.rateLimitMax === 100 &&
+      keyRow?.rateLimitEnabled === true,
+    `timeWindow=${keyRow?.rateLimitTimeWindow ?? 'ERR'} (want 60000), max=${keyRow?.rateLimitMax ?? 'ERR'}, enabled=${keyRow?.rateLimitEnabled ?? 'ERR'}`,
+  );
+}
+
 async function checkTwoFactor(
   sql: Sql,
   base: string,
@@ -24844,6 +25091,24 @@ async function checkTwoFactor(
     .object({ enrollRequired: z.boolean().optional() })
     .loose()
     .safeParse(await blockedRes.json());
+
+  // A 'blocked' outcome must WITHHOLD authority server-side, not merely swap
+  // the sign-in body. With the zero-grace policy still active, the owner's
+  // existing (pre-enrolment) session must be denied 403 on org-scoped routes,
+  // while the enrolment surface (/api/app/two-factor/status, session-only)
+  // stays reachable so the user can still enrol out of the block.
+  const blockedOrgRoute = await fetch(
+    `${base}/api/app/projects?orgId=${ctx.orgId}`,
+    { headers: { cookie } },
+  );
+  const enrolmentReachable = await fetch(`${base}/api/app/two-factor/status`, {
+    headers: { cookie },
+  });
+  record(
+    'two-factor: blocked session denied on org routes, enrolment reachable',
+    blockedOrgRoute.status === 403 && enrolmentReachable.status === 200,
+    `org-route=${blockedOrgRoute.status} (want 403), enrol-status=${enrolmentReachable.status} (want 200)`,
+  );
 
   await writeFile(
     path.join(governanceDir, 'two-factor-policy.yml'),
@@ -25921,6 +26186,7 @@ async function main(): Promise<void> {
     await checkKnowledgeEntries(sql, baseUrl, authCtx);
     await checkCollabEmitters(sql, baseUrl, authCtx);
     await checkChangelogAndAccounts(sql, baseUrl, authCtx);
+    await checkAccountAuthzHardening(sql, baseUrl, authCtx, orgSuffix);
     await checkLegalHolds(sql, baseUrl, authCtx);
     await checkRetention(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
     await checkErasure(sql, baseUrl, authCtx, `itest-${orgSuffix}`);
