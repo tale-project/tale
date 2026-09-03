@@ -6,6 +6,7 @@ import { Bell } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
+import { tooltipContentClassName } from '@/app/components/ui/overlays/tooltip';
 import { useUnreadNotificationCount } from '@/app/features/inbox/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -86,7 +87,7 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
                 side="right"
                 sideOffset={8}
                 collisionPadding={8}
-                className="bg-foreground text-background motion-safe:animate-in motion-safe:fade-in-0 data-[state=closed]:motion-safe:animate-out data-[state=closed]:motion-safe:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
+                className={tooltipContentClassName}
               >
                 {tNav('notifications')}
               </TooltipPrimitive.Content>

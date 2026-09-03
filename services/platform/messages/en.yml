@@ -541,6 +541,7 @@ automations:
     noProviders:
       No AI provider is ready for the builder. Add an API-key credential in
       the provider settings first.
+    new: New automation
   notFound:
     title: Automation not found
     description: It may have been renamed, or it may belong to another
@@ -581,21 +582,30 @@ automations:
   trigger:
     title: Trigger
     none: Nothing starts this automation yet.
-    kindLabel: Kind
+    kindLabel: Trigger type
     kinds:
       schedule: Schedule
       webhook: Webhook
       event: Platform event
     cronLabel: Cron
+    cronHint: Use a standard 5-field cron expression (minute hour day month weekday).
+    cronInvalid: That cron expression is not valid.
+    cronNext: 'Next run {at}'
+    cronEveryMinutes: '{n, plural, one {Every minute} other {Every # minutes}}'
+    cronEveryHours: '{n, plural, one {Every hour} other {Every # hours}}'
+    cronDailyAt: 'Every day at {time}'
     timezoneLabel: Timezone
+    timezoneSearch: Search timezones
+    timezoneEmpty: No timezones match
     eventLabel: Event name
     eventPlaceholder: Select an event
     enabledLabel: Enabled
-    enabledBadge: Armed
+    enabledBadge: Active
     disabledBadge: Off
+    unsavedBadge: Unsaved
     lastFired: 'Last fired {at}'
     nothingToSave: The binding matches what is stored.
-    save: Save trigger
+    save: Save
     remove: Remove trigger
     removeTitle: Remove the trigger?
     removeBody: Removes the trigger. The automation and its version history are unaffected.
@@ -674,16 +684,20 @@ automations:
       forEachDescription: Run once per item of the array the expression resolves to.
       repeatUntil: Repeat until
       repeatUntilDescription: Re-run this node until the expression is truthy.
+  workflow:
+    save: Save settings
+    nothingToSave: Nothing to save
   bindings:
     title: Projects
     orgBadge: Organization-wide
     countBadge: '{count, plural, one {Bound to # project} other {Bound to # projects}}'
-    hint: Choose which projects can use this automation. Leave empty to share it org-wide.
+    hint: Restrict to specific projects, or leave empty for all.
     placeholder: Select projects
     searchPlaceholder: Search projects
     empty: No projects match
     noProjects: This organization has no projects yet.
-    save: Save projects
+    save: Save
+    unsavedBadge: Unsaved
     nothingToSave: No changes to save
   versions:
     title: Versions
@@ -1414,6 +1428,8 @@ common:
     yesterday: Yesterday
   datePicker:
     placeholder: Pick a date
+    previousMonth: Previous month
+    nextMonth: Next month
     presets:
       custom: Custom
       today: Today

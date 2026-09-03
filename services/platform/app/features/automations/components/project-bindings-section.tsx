@@ -4,7 +4,7 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Text } from '@tale/ui/text';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { MultiSelect } from '@/app/components/ui/forms/multi-select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
@@ -13,6 +13,13 @@ import { useT } from '@/lib/i18n/client';
 import { useSetAutomationProjects } from '../hooks/mutations';
 import { useAutomationProjects } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
+
+/** Imperative surface for {@link WorkflowSettings}' single Save footer. */
+export type ProjectBindingsController = {
+  dirty: boolean;
+  pending: boolean;
+  save: () => void;
+};
 
 /**
  * The automation's project bindings: which projects' task boards see it.
@@ -25,16 +32,25 @@ import { automationErrorMessage } from '../lib/errors';
  * removals happen here first, deliberately.
  *
  * Stacked under the trigger in the inspector when no node is selected.
+ * Prefer {@link WorkflowSettings} for the production surface (one Save).
  */
 export function ProjectBindingsSection({
   organizationId,
   name,
   /** Authoring is developer-gated server-side; readers still see the set. */
   canEdit,
+  /**
+   * When false, the Save button is omitted — the parent owns it through
+   * `onControllerChange` (the workflow inspector footer).
+   */
+  showActions = true,
+  onControllerChange,
 }: {
   organizationId: string;
   name: string;
   canEdit: boolean;
+  showActions?: boolean;
+  onControllerChange?: (controller: ProjectBindingsController | null) => void;
 }) {
   const { t } = useT('automations');
   const headingId = useId();
@@ -89,6 +105,23 @@ export function ProjectBindingsSection({
     );
   };
 
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  useEffect(() => {
+    if (onControllerChange === undefined) return;
+    onControllerChange({
+      dirty,
+      pending: setProjects.isPending,
+      save: () => {
+        saveRef.current();
+      },
+    });
+    return () => {
+      onControllerChange(null);
+    };
+  }, [onControllerChange, dirty, setProjects.isPending]);
+
   return (
     <section
       aria-labelledby={headingId}
@@ -99,14 +132,14 @@ export function ProjectBindingsSection({
           <h3 id={headingId} className="text-sm font-semibold">
             {t('bindings.title')}
           </h3>
-          {boundQuery.data !== undefined &&
-            (stored.length === 0 ? (
-              <Badge variant="slate">{t('bindings.orgBadge')}</Badge>
-            ) : (
-              <Badge variant="blue">
-                {t('bindings.countBadge', { count: stored.length })}
-              </Badge>
-            ))}
+          {boundQuery.data !== undefined && stored.length > 0 && (
+            <Badge variant="blue">
+              {t('bindings.countBadge', { count: stored.length })}
+            </Badge>
+          )}
+          {dirty && canEdit && (
+            <Badge variant="orange">{t('bindings.unsavedBadge')}</Badge>
+          )}
         </div>
         <Text as="p" variant="muted" className="text-xs">
           {t('bindings.hint')}
@@ -139,7 +172,7 @@ export function ProjectBindingsSection({
         )}
       </div>
 
-      {canEdit && options.length > 0 && (
+      {canEdit && showActions && options.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"

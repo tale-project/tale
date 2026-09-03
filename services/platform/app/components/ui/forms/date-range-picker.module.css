@@ -2,12 +2,22 @@
 /* Tailwind v4: Reference the theme to access utilities in CSS modules */
 @reference '../../../globals.css';
 
+/* Portaled onto `document.body`. Radix RemoveScroll sets
+ * `pointer-events: none` on `body` while a dialog is open; without this
+ * override the calendar is visible but not clickable. z-60 sits above
+ * the dialog overlay (z-50). */
+.portal {
+  pointer-events: auto;
+  position: relative;
+  z-index: 60;
+}
+
 .wrapper :global(.react-datepicker-wrapper) {
   @apply w-full;
 }
 
 .wrapper :global(.react-datepicker) {
-  @apply ring-border bg-muted rounded-lg p-2 font-sans shadow-lg ring-1;
+  @apply ring-border bg-popover w-max rounded-lg p-2 font-sans shadow-lg ring-1;
   border: none !important;
 }
 
@@ -197,7 +207,7 @@
 }
 
 .wrapper :global(.react-datepicker-popper) {
-  @apply z-50;
+  @apply z-60;
 }
 
 .wrapper :global(.react-datepicker-popper[data-placement^='bottom']) {
@@ -224,7 +234,7 @@
  * override is too specific and paints white-on-white — do not reintroduce it.
  */
 :global(.dark) .wrapper :global(.react-datepicker) {
-  @apply ring-border bg-muted;
+  @apply ring-border bg-popover;
 }
 
 :global(.dark)
