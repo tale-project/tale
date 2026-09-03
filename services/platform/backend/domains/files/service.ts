@@ -13,6 +13,7 @@ import {
   s3PutObject,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { consumeUploadIntent, type UploadPurpose } from './upload-intents.ts';
 
 /**
  * Files domain core — the upload/serve/delete lanes over the S3-only object
@@ -23,17 +24,19 @@ import { resolveOrgSlug } from '../../lib/org-config.ts';
  * Upload is a two-step handshake: `createUploadHandoff` presigns a PUT to a
  * server-minted key (the client never names keys), the client uploads, then
  * `registerUpload` verifies the blob really landed (HEAD: exists + size) and
- * writes the metadata row — an unverified key can never become a row.
+ * writes the metadata row — an unverified key can never become a row, and
+ * (`upload-intents.ts`) a key the caller did not mint can never become THEIR
+ * row: the org prefix on a key proves tenancy, the intent proves ownership.
  */
 
 export class FileError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404 | 503;
+  readonly status: 400 | 403 | 404 | 409 | 503;
 
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 | 503 = 400,
+    status: 400 | 403 | 404 | 409 | 503 = 400,
   ) {
     super(message);
     this.name = 'FileError';
@@ -119,13 +122,57 @@ export interface RegisterUploadArgs {
   source?: string;
 }
 
-/** Verify the blob landed, then write the metadata row (size from HEAD). */
+/**
+ * Who vouches that the caller owns the blob being registered. Every caller
+ * must say: the session lanes consume the app intent minted for the ref
+ * (`app.upload_intents`); the REST door has already consumed its own
+ * single-use `rest_upload_intents` row in the same transaction.
+ */
+export type UploadIntentGate =
+  | { kind: 'app'; purpose: UploadPurpose }
+  | { kind: 'external' };
+
+/**
+ * Verify the caller owns the blob (intent), that it landed (HEAD: exists +
+ * size), and that no row claims it yet, then write the metadata row.
+ */
 export async function registerUpload(
   sql: Sql,
   tx: TransactionSql,
   scope: { organizationId: string; userId: string },
   args: RegisterUploadArgs,
+  gate: UploadIntentGate,
 ): Promise<{ fileId: string; size: number }> {
+  if (gate.kind === 'app') {
+    const owned = await consumeUploadIntent(tx, {
+      organizationId: scope.organizationId,
+      userId: scope.userId,
+      purpose: gate.purpose,
+      storageRef: args.storageRef,
+    });
+    if (!owned) {
+      throw new FileError(
+        'UPLOAD_NOT_OWNED',
+        'This upload is not yours to bind, or the upload session expired. Upload the file again.',
+        403,
+      );
+    }
+  }
+  // Keys are random per mint and intents single-use, so a second row for
+  // one blob is never a legitimate outcome of this lane — and a duplicate is
+  // exactly how a stranger's row came to be deletable through its uploader.
+  const claimed = await tx<{ id: string }[]>`
+    SELECT id FROM app.file_metadata
+    WHERE org_id = ${scope.organizationId} AND storage_ref = ${args.storageRef}
+    LIMIT 1
+  `;
+  if (claimed[0]) {
+    throw new FileError(
+      'BLOB_ALREADY_REGISTERED',
+      'This blob is already registered',
+      409,
+    );
+  }
   const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
   const key = requireOrgScopedKey(args.storageRef, orgSlug);
   const head = await s3HeadObject(store, key);
@@ -163,20 +210,28 @@ export interface FileMetadataRow {
   contentType: string;
   size: number;
   uploadedBy: string | null;
+  /** The bindings the read gate (`access.ts`) walks. */
+  documentId: string | null;
   threadId: string | null;
+  conversationId: string | null;
   createdAt: number;
 }
 
+const FILE_METADATA_COLUMNS = `
+  id, org_id AS "organizationId", storage_ref AS "storageRef",
+  file_name AS "fileName", content_type AS "contentType",
+  size::float8 AS size, uploaded_by AS "uploadedBy",
+  document_id AS "documentId", thread_id AS "threadId",
+  conversation_id AS "conversationId", created_at_ms::float8 AS "createdAt"
+`;
+
 export async function getFileMetadata(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   fileId: string,
 ): Promise<FileMetadataRow | null> {
   const rows = await sql<FileMetadataRow[]>`
-    SELECT id, org_id AS "organizationId", storage_ref AS "storageRef",
-           file_name AS "fileName", content_type AS "contentType",
-           size::float8 AS size, uploaded_by AS "uploadedBy",
-           thread_id AS "threadId", created_at_ms::float8 AS "createdAt"
+    SELECT ${sql.unsafe(FILE_METADATA_COLUMNS)}
     FROM app.file_metadata
     WHERE id = ${fileId} AND org_id = ${organizationId}
     LIMIT 1
@@ -202,10 +257,7 @@ export async function getFileMetadataByIdOrRef(
     return getFileMetadata(sql, organizationId, idOrRef);
   }
   const rows = await sql<FileMetadataRow[]>`
-    SELECT id, org_id AS "organizationId", storage_ref AS "storageRef",
-           file_name AS "fileName", content_type AS "contentType",
-           size::float8 AS size, uploaded_by AS "uploadedBy",
-           thread_id AS "threadId", created_at_ms::float8 AS "createdAt"
+    SELECT ${sql.unsafe(FILE_METADATA_COLUMNS)}
     FROM app.file_metadata
     WHERE storage_ref = ${idOrRef} AND org_id = ${organizationId}
     ORDER BY created_at_ms ASC
@@ -214,7 +266,11 @@ export async function getFileMetadataByIdOrRef(
   return rows[0] ?? null;
 }
 
-/** Presigned GET for a blob ref the caller's org owns. */
+/**
+ * Presigned GET for a blob ref the caller's org owns. Tenancy only — WHO may
+ * read the row is decided first, by `access.ts` (the callers hold a row the
+ * read gate admitted; this never sees a bare client ref).
+ */
 export async function getFileUrl(
   sql: Sql,
   scope: { organizationId: string },
@@ -227,8 +283,11 @@ export async function getFileUrl(
 }
 
 /**
- * Delete a blob + its metadata row. Callers gate WHO may delete (uploader /
- * owning-domain cascade); this enforces only org scoping.
+ * Delete a metadata row and, when nothing else serves the blob, the blob.
+ * Callers gate WHO may delete (uploader / admin); this enforces org scoping
+ * and the ownership boundaries: a document-bound row is the document's
+ * content and dies with the document (the documents domain cascades), and
+ * bytes still referenced by another row or document survive the row.
  */
 export async function deleteFile(
   sql: Sql,
@@ -240,9 +299,30 @@ export async function deleteFile(
   if (!meta) {
     return;
   }
+  if (meta.documentId !== null) {
+    throw new FileError(
+      'FILE_BOUND_TO_DOCUMENT',
+      'This file is a document; delete the document instead',
+      409,
+    );
+  }
   const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
   const key = requireOrgScopedKey(meta.storageRef, orgSlug);
   await tx`DELETE FROM app.file_metadata WHERE id = ${fileId}`;
+  const stillReferenced = await tx<{ referenced: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM app.file_metadata
+      WHERE org_id = ${scope.organizationId}
+        AND storage_ref = ${meta.storageRef}
+    ) OR EXISTS (
+      SELECT 1 FROM app.documents
+      WHERE org_id = ${scope.organizationId}
+        AND file_ref = ${meta.storageRef}
+    ) AS referenced
+  `;
+  if (stillReferenced[0]?.referenced ?? false) {
+    return;
+  }
   // Blob delete is best-effort AFTER the row delete commits its intent; an
   // orphaned blob is reclaimable by a sweep, a dangling row is user-visible.
   try {
@@ -361,20 +441,28 @@ export async function statOrgBlob(
 /**
  * Reclaim a blob whose upload was REJECTED after landing (policy refusal,
  * unsupported type): the 0.4 `deleteRejectedUploadBlob` contract. Never
- * touches a blob that became a real file; the org-namespace check on the
- * key is the safety boundary for the unregistered case.
+ * touches a blob that became a real file, and never a blob the caller did
+ * not mint: the reclaim consumes the caller's own upload intent, so naming
+ * another member's staged key answers `deleted: false` like a missing one.
  */
 export async function deleteRejectedUploadBlob(
   sql: Sql,
-  organizationId: string,
+  scope: { organizationId: string; userId: string },
   storageRef: string,
 ): Promise<{ deleted: boolean }> {
+  const { organizationId } = scope;
   const linked = await sql<{ id: string }[]>`
     SELECT id FROM app.file_metadata
     WHERE org_id = ${organizationId} AND storage_ref = ${storageRef}
     LIMIT 1
   `;
   if (linked[0]) return { deleted: false };
+  const owned = await consumeUploadIntent(sql, {
+    organizationId,
+    userId: scope.userId,
+    storageRef,
+  });
+  if (!owned) return { deleted: false };
   const { orgSlug, store } = await requireOrgStore(sql, organizationId);
   const key = requireOrgScopedKey(storageRef, orgSlug);
   try {
