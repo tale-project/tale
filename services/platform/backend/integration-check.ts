@@ -3357,6 +3357,502 @@ async function checkDocuments(
 }
 
 /**
+ * The document write-guard class: the org-role write matrix on every
+ * mutating documents door (app + REST v1), the controlled-record content
+ * freeze at the service seam, REST delete protection derived from the
+ * session predicate (retained approved history included), agent upsert
+ * freeze + content-hash coherence, and hub team assignability. Runs LATE in
+ * the sequence — it adds a member-role user and a team to the org, which
+ * earlier sections' exact-count assertions must not see.
+ */
+async function checkDocumentWriteGuards(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  if (!process.env.ITEST_S3_ENDPOINT) {
+    record(
+      'document write guards (SKIPPED)',
+      true,
+      'no ITEST_S3_ENDPOINT — document write-guard lanes not exercised',
+    );
+    return;
+  }
+  const { cookie, orgId, userId } = ctx;
+  const sendAs = (
+    asCookie: string,
+    method: 'GET' | 'POST' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        cookie: asCookie,
+        origin: base,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  // A blob-backed hub document (upload bind lane), as the owner — the only
+  // controllable source this section can mint over HTTP.
+  const uploadDoc = async (fileName: string): Promise<string> => {
+    const handoff = z
+      .object({ storageRef: z.string(), uploadUrl: z.string().url() })
+      .safeParse(
+        await (
+          await sendAs(
+            cookie,
+            'POST',
+            `/api/app/files/upload-handoff?orgId=${orgId}`,
+            { contentType: 'text/plain', size: 10 },
+          )
+        ).json(),
+      );
+    if (!handoff.success) return '';
+    await fetch(handoff.data.uploadUrl, {
+      method: 'PUT',
+      headers: { 'content-type': 'text/plain' },
+      body: 'guard body',
+    });
+    const registered = z.object({ fileId: z.string() }).safeParse(
+      await (
+        await sendAs(cookie, 'POST', `/api/app/files/register?orgId=${orgId}`, {
+          storageRef: handoff.data.storageRef,
+          fileName,
+          contentType: 'text/plain',
+        })
+      ).json(),
+    );
+    const created = z.object({ documentId: z.string() }).safeParse(
+      await (
+        await sendAs(
+          cookie,
+          'POST',
+          `/api/app/documents/from-upload?orgId=${orgId}`,
+          {
+            fileId: registered.success ? registered.data.fileId : '',
+            fileName,
+          },
+        )
+      ).json(),
+    );
+    return created.success ? created.data.documentId : '';
+  };
+
+  // ---- fixtures: a member-role user (session + API key), an owner key.
+  const suffix = Date.now().toString(36);
+  const memberSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `doc-guards-member-${suffix}@example.com`,
+      password: 'itest-password-1',
+      name: 'Doc Guards Member',
+    }),
+  });
+  const memberCookie = cookieHeaderFrom(memberSignUp);
+  const memberBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await memberSignUp.json());
+  const memberId = memberBody.success ? memberBody.data.user.id : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (gen_random_uuid(), ${orgId}, ${memberId}, 'member', ${new Date()})
+  `;
+  const mintKey = async (asCookie: string, name: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: asCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const memberKey = await mintKey(memberCookie, 'itest-doc-guards-member');
+  const ownerKey = await mintKey(cookie, 'itest-doc-guards-owner');
+  const v1 = (
+    key: string,
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}/api/v1${route}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  const codeIn = async (response: Response): Promise<string> => {
+    const parsed = z
+      .looseObject({
+        error: z.string().optional(),
+        code: z.string().optional(),
+      })
+      .safeParse(await response.json().catch(() => null));
+    return parsed.success ? (parsed.data.code ?? parsed.data.error ?? '') : '';
+  };
+
+  const docA = await uploadDoc('guards-a.txt');
+  const guardsFolder = z.object({ folderId: z.string() }).safeParse(
+    await (
+      await sendAs(cookie, 'POST', `/api/app/folders?orgId=${orgId}`, {
+        name: `Guards ${suffix}`,
+      })
+    ).json(),
+  );
+  const guardsFolderId = guardsFolder.success ? guardsFolder.data.folderId : '';
+
+  // ---- (1) org-role write matrix — the app door refuses a member ----------
+  const appDoc = `/api/app/documents/${docA}`;
+  const renameDoc = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}?orgId=${orgId}`,
+    {
+      title: 'member-renamed',
+    },
+  );
+  const trash = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}/trash?orgId=${orgId}`,
+  );
+  const hardDelete = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}/delete?orgId=${orgId}`,
+  );
+  const blobBind = await sendAs(
+    memberCookie,
+    'POST',
+    `/api/app/documents/from-blob-upload?orgId=${orgId}`,
+    { storageRef: 's3:junk', fileName: 'member.txt' },
+  );
+  const markByMember = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}/record/mark-controlled?orgId=${orgId}`,
+  );
+  const replaceBegin = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}/replacement-upload/begin?orgId=${orgId}`,
+    {
+      expectedRecordState: 'draft',
+      expectedVersion: 1,
+      expectedFileId: 'file-x',
+      fileName: 'member.txt',
+    },
+  );
+  const retryRag = await sendAs(
+    memberCookie,
+    'POST',
+    `${appDoc}/retry-rag?orgId=${orgId}`,
+  );
+  const cascade = await sendAs(
+    memberCookie,
+    'DELETE',
+    `/api/app/folders/${guardsFolderId}?orgId=${orgId}`,
+  );
+  const memberList = z
+    .object({ documents: z.array(z.object({ id: z.string() })) })
+    .safeParse(
+      await (
+        await sendAs(memberCookie, 'GET', `/api/app/documents?orgId=${orgId}`)
+      ).json(),
+    );
+  const appRefused = [
+    renameDoc,
+    trash,
+    hardDelete,
+    blobBind,
+    markByMember,
+    replaceBegin,
+    retryRag,
+    cascade,
+  ];
+  const renameCode = await codeIn(renameDoc);
+  record(
+    'documents write matrix: app door refuses read-only member',
+    appRefused.every((response) => response.status === 403) &&
+      renameCode === 'RBAC_FORBIDDEN' &&
+      memberList.success &&
+      memberList.data.documents.some((doc) => doc.id === docA),
+    `rename/trash/delete/blob-bind/mark/replace-begin/retry/cascade → ${appRefused.map((r) => r.status).join('/')} (want all 403), code=${renameCode}, memberRead=${memberList.success ? memberList.data.documents.length : 'ERR'} doc(s)`,
+  );
+
+  // ---- (1) org-role write matrix — the REST v1 door refuses a member ------
+  const restPost = await v1(memberKey, 'POST', '/documents', {
+    title: 'member-rest.txt',
+  });
+  const restPatch = await v1(memberKey, 'PATCH', `/documents/${docA}`, {
+    title: 'member-rest-renamed',
+  });
+  const restDelete = await v1(memberKey, 'DELETE', `/documents/${docA}`);
+  const restRetry = await v1(
+    memberKey,
+    'POST',
+    `/documents/${docA}/retry-indexing`,
+  );
+  const restList = await v1(memberKey, 'GET', '/documents');
+  const restPostCode = await codeIn(restPost);
+  record(
+    'documents write matrix: REST v1 door refuses read-only member',
+    restPost.status === 403 &&
+      restPatch.status === 403 &&
+      restDelete.status === 403 &&
+      restRetry.status === 403 &&
+      restPostCode === 'RBAC_FORBIDDEN' &&
+      restList.status === 200,
+    `POST/PATCH/DELETE/retry → ${restPost.status}/${restPatch.status}/${restDelete.status}/${restRetry.status} (want 403), code=${restPostCode}, GET → ${restList.status} (want 200)`,
+  );
+
+  // ---- (3) content freeze at the service seam (REST PATCH) ----------------
+  const docB = await uploadDoc('guards-b.txt');
+  const markB = await sendAs(
+    cookie,
+    'POST',
+    `/api/app/documents/${docB}/record/mark-controlled?orgId=${orgId}`,
+  );
+  const patchDraftContent = await v1(ownerKey, 'PATCH', `/documents/${docB}`, {
+    content: 'rewritten draft bytes',
+  });
+  const patchDraftTitle = await v1(ownerKey, 'PATCH', `/documents/${docB}`, {
+    title: 'guards-b-renamed.txt',
+  });
+  // Eligibility mirrors the respond gate: a read-only member never appears
+  // as a designation candidate (a designee who could not respond would
+  // strand the review).
+  const eligibleIds = z
+    .object({ userIds: z.array(z.string()) })
+    .safeParse(
+      await (
+        await sendAs(
+          cookie,
+          'GET',
+          `/api/app/documents/${docB}/record/eligible-reviewer-ids?orgId=${orgId}`,
+        )
+      ).json(),
+    );
+  const submitB = z
+    .object({ approvalId: z.string() })
+    .safeParse(
+      await (
+        await sendAs(
+          cookie,
+          'POST',
+          `/api/app/documents/${docB}/record/submit?orgId=${orgId}`,
+          { reviewerUserId: userId },
+        )
+      ).json(),
+    );
+  const patchFrozenContent = await v1(ownerKey, 'PATCH', `/documents/${docB}`, {
+    content: 'rewritten in-review bytes',
+  });
+  const patchFrozenMime = await v1(ownerKey, 'PATCH', `/documents/${docB}`, {
+    mimeType: 'application/x-sneaky',
+  });
+  const draftContentCode = await codeIn(patchDraftContent);
+  const frozenContentCode = await codeIn(patchFrozenContent);
+  record(
+    'controlled-record content freeze on updateDocument (REST PATCH)',
+    markB.status === 200 &&
+      patchDraftContent.status === 400 &&
+      draftContentCode === 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED' &&
+      patchDraftTitle.status === 204 &&
+      eligibleIds.success &&
+      eligibleIds.data.userIds.includes(userId) &&
+      !eligibleIds.data.userIds.includes(memberId) &&
+      submitB.success &&
+      patchFrozenContent.status === 400 &&
+      frozenContentCode === 'DOCUMENT_RECORD_FROZEN' &&
+      patchFrozenMime.status === 400,
+    `mark → ${markB.status}, draftContent → ${patchDraftContent.status}/${draftContentCode} (want 400/REPLACEMENT_REQUIRED), rename → ${patchDraftTitle.status} (want 204), eligible=${eligibleIds.success ? `${eligibleIds.data.userIds.includes(userId) ? 'owner' : 'NO-OWNER'}${eligibleIds.data.userIds.includes(memberId) ? '+MEMBER' : ''}` : 'ERR'} (want owner only), inReviewContent → ${patchFrozenContent.status}/${frozenContentCode} (want 400/FROZEN), mime → ${patchFrozenMime.status} (want 400)`,
+  );
+
+  // ---- (4) REST DELETE uses the session protection predicate --------------
+  const approveB = await sendAs(
+    cookie,
+    'POST',
+    `/api/app/documents/records/reviews/${submitB.success ? submitB.data.approvalId : ''}/respond?orgId=${orgId}`,
+    { decision: 'approve' },
+  );
+  const deleteApproved = await v1(ownerKey, 'DELETE', `/documents/${docB}`);
+  const revisionB = await sendAs(
+    cookie,
+    'POST',
+    `/api/app/documents/${docB}/record/open-revision?orgId=${orgId}`,
+  );
+  // The hole this locks: a draft OPENED AFTER approval still retains the
+  // approved history — REST delete must refuse it exactly like the session
+  // paths, not re-derive "draft is deletable" from the state alone.
+  const deleteRetained = await v1(ownerKey, 'DELETE', `/documents/${docB}`);
+  const retainedRow = await sql<{ id: string }[]>`
+    SELECT id FROM app.documents WHERE id = ${docB} LIMIT 1
+  `;
+  const docC = await uploadDoc('guards-c.txt');
+  const deleteUncontrolled = await v1(ownerKey, 'DELETE', `/documents/${docC}`);
+  const auditRows = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'document.deleted'
+      AND resource_id = ${docC}
+  `;
+  record(
+    'REST DELETE inherits record protection (retained history) + audit',
+    approveB.status === 200 &&
+      deleteApproved.status === 409 &&
+      (await codeIn(deleteApproved)) === 'DOCUMENT_RECORD_PROTECTED' &&
+      revisionB.status === 200 &&
+      deleteRetained.status === 409 &&
+      retainedRow.length === 1 &&
+      deleteUncontrolled.status === 204 &&
+      auditRows[0]?.count === '1',
+    `approve → ${approveB.status}, deleteApproved → ${deleteApproved.status} (want 409), revision → ${revisionB.status}, deleteRetained → ${deleteRetained.status} (want 409), rowKept=${retainedRow.length === 1}, uncontrolled → ${deleteUncontrolled.status} (want 204), auditRows=${auditRows[0]?.count ?? '0'} (want 1)`,
+  );
+
+  // ---- (2) agent upsert: freeze + content-hash coherence ------------------
+  const { createHash } = await import('node:crypto');
+  const { storeAgentTextBlob, upsertAgentDocument } =
+    await import('./domains/documents/agent-write.ts');
+  const { DocumentError } = await import('./domains/documents/service.ts');
+  const sha = (content: string): string =>
+    createHash('sha256').update(content).digest('hex');
+  const agentKey = `itest:doc-guards:${suffix}`;
+  const agentWrite = async (
+    content: string,
+  ): Promise<{ documentId: string; action: string; fileRef: string }> => {
+    const blob = await storeAgentTextBlob(sql, {
+      organizationId: orgId,
+      fileName: 'agent-report.md',
+      content,
+      contentType: 'text/markdown',
+      uploadedBy: userId,
+    });
+    const upserted = await upsertAgentDocument(sql, {
+      organizationId: orgId,
+      externalItemId: agentKey,
+      title: 'agent-report.md',
+      fileRef: blob.storageRef,
+      mimeType: 'text/markdown',
+      createdBy: userId,
+      auditActorId: userId,
+    });
+    return { ...upserted, fileRef: blob.storageRef };
+  };
+  const hashOf = async (documentId: string): Promise<string | null> => {
+    const rows = await sql<{ contentHash: string | null }[]>`
+      SELECT content_hash AS "contentHash" FROM app.documents
+      WHERE id = ${documentId} LIMIT 1
+    `;
+    return rows[0]?.contentHash ?? null;
+  };
+  const first = await agentWrite('agent v1 body');
+  const hashAfterCreate = await hashOf(first.documentId);
+  const second = await agentWrite('agent v2 body');
+  const hashAfterUpdate = await hashOf(second.documentId);
+  const markAgent = await sendAs(
+    cookie,
+    'POST',
+    `/api/app/documents/${first.documentId}/record/mark-controlled?orgId=${orgId}`,
+  );
+  let refusedCode = '';
+  try {
+    await agentWrite('agent v3 body — must not land');
+  } catch (error) {
+    refusedCode = error instanceof DocumentError ? error.code : String(error);
+  }
+  const fileRefRows = await sql<{ fileRef: string | null }[]>`
+    SELECT file_ref AS "fileRef" FROM app.documents
+    WHERE id = ${first.documentId} LIMIT 1
+  `;
+  record(
+    'agent upsert: content-hash coherence + controlled-record freeze',
+    first.action === 'created' &&
+      hashAfterCreate === sha('agent v1 body') &&
+      second.action === 'updated' &&
+      second.documentId === first.documentId &&
+      hashAfterUpdate === sha('agent v2 body') &&
+      markAgent.status === 200 &&
+      refusedCode === 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED' &&
+      fileRefRows[0]?.fileRef === second.fileRef,
+    `create=${first.action}/${hashAfterCreate === sha('agent v1 body') ? 'hash-ok' : `hash=${hashAfterCreate ?? 'null'}`}, update=${second.action}/${hashAfterUpdate === sha('agent v2 body') ? 'hash-ok' : `hash=${hashAfterUpdate ?? 'null'}`}, mark → ${markAgent.status}, rerun=${refusedCode || 'ALLOWED'} (want DOCUMENT_RECORD_REPLACEMENT_REQUIRED), fileRefKept=${fileRefRows[0]?.fileRef === second.fileRef}`,
+  );
+
+  // ---- (5) hub team assignment must stay visible to the caller ------------
+  const bogusRest = await v1(ownerKey, 'POST', '/documents', {
+    title: 'team-scoped.txt',
+    teamId: 'team_bogus',
+  });
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                        "updatedAt")
+    VALUES (gen_random_uuid(), ${`Doc Guards ${suffix}`}, ${orgId},
+            ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const teamId = teamRows[0]?.id ?? '';
+  const foreignRest = await v1(ownerKey, 'POST', '/documents', {
+    title: 'team-scoped.txt',
+    teamId,
+  });
+  const bogusApp = await sendAs(cookie, 'POST', `${appDoc}?orgId=${orgId}`, {
+    teamId: 'team_bogus',
+  });
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (gen_random_uuid(), ${teamId}, ${userId}, ${new Date()})
+  `;
+  const memberOfTeam = z.object({ id: z.string() }).safeParse(
+    await (
+      await v1(ownerKey, 'POST', '/documents', {
+        title: 'team-scoped.txt',
+        teamId,
+      })
+    ).json(),
+  );
+  const teamStamp = memberOfTeam.success
+    ? await sql<{ teamId: string | null; teamTags: string[] }[]>`
+        SELECT team_id AS "teamId", team_tags AS "teamTags"
+        FROM app.documents WHERE id = ${memberOfTeam.data.id} LIMIT 1
+      `
+    : [];
+  const patchTeam = await sendAs(cookie, 'POST', `${appDoc}?orgId=${orgId}`, {
+    teamId,
+  });
+  const clearTeam = await sendAs(cookie, 'POST', `${appDoc}?orgId=${orgId}`, {
+    teamId: null,
+  });
+  const bogusRestCode = await codeIn(bogusRest);
+  const bogusAppCode = await codeIn(bogusApp);
+  record(
+    'hub teamId is validated on create + patch (never file into the void)',
+    bogusRest.status === 403 &&
+      bogusRestCode === 'TEAM_ACCESS_DENIED' &&
+      foreignRest.status === 403 &&
+      bogusApp.status === 403 &&
+      bogusAppCode === 'TEAM_ACCESS_DENIED' &&
+      memberOfTeam.success &&
+      teamStamp[0]?.teamId === teamId &&
+      (teamStamp[0]?.teamTags ?? []).join(',') === teamId &&
+      patchTeam.status === 200 &&
+      clearTeam.status === 200,
+    `bogusRest → ${bogusRest.status}/${bogusRestCode} (want 403/TEAM_ACCESS_DENIED), foreignTeam → ${foreignRest.status} (want 403), bogusApp → ${bogusApp.status}/${bogusAppCode}, joined+create → ${memberOfTeam.success ? 'ok' : 'ERR'}, stamp=${teamStamp[0]?.teamId === teamId ? 'ok' : 'MISS'}, patch → ${patchTeam.status}, clear → ${clearTeam.status}`,
+  );
+}
+
+/**
  * Small-domain smoke: contacts CRUD + find-or-create shape, message
  * feedback upsert/toggle/stats, support case lifecycle.
  */
@@ -27313,6 +27809,7 @@ async function main(): Promise<void> {
     await checkAutomationRunToolLane(sql, baseUrl, authCtx);
     await checkSandboxSpawner(sql, baseUrl, authCtx);
     await checkWatchdogs(sql, baseUrl, authCtx);
+    await checkDocumentWriteGuards(sql, baseUrl, authCtx);
     await checkLoginThrottleAndAuditChain(
       sql,
       baseUrl,

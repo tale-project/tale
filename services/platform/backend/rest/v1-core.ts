@@ -28,7 +28,10 @@ import {
   type ContactScope,
 } from '../domains/contacts/service.ts';
 import {
+  assertDocumentsWriteRole,
   createHubDocument,
+  deleteDocumentHard,
+  DocumentError,
   getDocumentById,
   listHubDocumentsPage,
   readDocumentRestExtras,
@@ -42,7 +45,6 @@ import {
   deleteKnowledgeEntry,
   updateKnowledgeEntry,
 } from '../domains/knowledge_entries/service.ts';
-import { assertNotHeld } from '../domains/legal_holds/service.ts';
 import {
   createProduct,
   deleteProduct,
@@ -51,7 +53,6 @@ import {
   updateProduct,
   type ProductScope,
 } from '../domains/products/service.ts';
-import { purgeDocument } from '../domains/retention/service.ts';
 import { addJobInTx } from '../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../lib/org-config.ts';
 import { checkOrganizationRateLimit } from '../lib/rate-limit.ts';
@@ -424,50 +425,33 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       const doc = await loadHubDocument(c, c.req.param('id'));
       if (doc instanceof Response) return doc;
-      const extras = await readDocumentRestExtras(deps.sql, doc.id);
-      const record = extras?.record;
-      // Controlled-record gate: an in-review/approved record refuses (409),
-      // exactly like the session trash path.
+      const auth = await restProjectAuth(deps.sql, c);
+      // The SESSION delete whole — org-role write gate, the controlled-record
+      // protection predicate (in_review/approved AND retained approved
+      // history, `assertRecordTrashableJson` — never re-derived from `state`
+      // alone), legal holds, sync stop, the audit row, then the purge.
+      await deleteDocumentHard(deps.sql, auth, doc.id);
+      return c.body(null, 204);
+    } catch (error) {
+      // Wire parity: this door has always refused protected records as 409.
       if (
-        record !== null &&
-        record !== undefined &&
-        typeof record === 'object' &&
-        'state' in record &&
-        (record as { state?: unknown }).state !== 'draft'
+        error instanceof DocumentError &&
+        error.code === 'DOCUMENT_RECORD_PROTECTED'
       ) {
         return c.json(
-          {
-            error: 'DOCUMENT_RECORD_PROTECTED',
-            message: 'This controlled record cannot be deleted.',
-          },
+          { error: 'DOCUMENT_RECORD_PROTECTED', message: error.message },
           409,
         );
       }
-      // Legal holds outrank the delete (the 0.4 `deleteDocumentById` gate) —
-      // the author-scoped custodian cascade included.
-      await assertNotHeld(
-        deps.sql,
-        c.get('organizationId'),
-        'document',
-        doc.id,
-        undefined,
-        doc.createdBy ?? undefined,
-      );
-      const orgSlug = await resolveOrgSlug(deps.sql, c.get('organizationId'));
-      await purgeDocument(deps.sql, orgSlug, {
-        id: doc.id,
-        fileRef: doc.fileRef,
-        organizationId: doc.organizationId,
-        historyFiles: doc.historyFiles,
-      });
-      return c.body(null, 204);
-    } catch (error) {
       return domainErrorResponse(c, error);
     }
   });
 
   app.post('/documents/:id/retry-indexing', async (c) => {
     try {
+      // Write-shaped: it rewrites RAG bookkeeping and enqueues billable
+      // indexing — the same matrix gate as the session Retry affordance.
+      assertDocumentsWriteRole({ role: c.get('role') });
       const doc = await loadHubDocument(c, c.req.param('id'));
       if (doc instanceof Response) return doc;
       if (doc.fileRef === null) {
