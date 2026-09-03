@@ -86,7 +86,8 @@ services:
 
     environment:
       # Platform DB: skip the knowledge-corpus dbmate migrations — the
-      # platform/auth schema in tale_platform is owned by Convex, not dbmate.
+      # app database (`tale_app`) is migrated by the backend at boot, not
+      # by dbmate, so `migrations/db/` is empty and this role is a no-op.
       TALE_DB_ROLE: platform
 
     # Restart policy
@@ -136,9 +137,9 @@ services:
   # Independent datastore for knowledge/RAG content (the `tale_knowledge`
   # database with the `private_knowledge` + `public_web` schemas). Split out
   # from `db` so the knowledge corpus — the data-residency-sensitive store —
-  # can be relocated/replaced independently of the platform/Convex operational
-  # DB. The platform's Convex node-actions connect here via
-  # `KNOWLEDGE_DATABASE_URL` (postgres.js); nothing else talks to it.
+  # can be relocated/replaced independently of the operational DB. The backend
+  # connects here via `KNOWLEDGE_DATABASE_URL` (postgres.js, pooled in
+  # backend/core/knowledge/pool.ts); nothing else talks to it.
   # ============================================================================
   knowledge-db:
     # Same image `db` builds. A second `build:` here makes
@@ -238,7 +239,7 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Platform (TanStack Start + Convex)
+  # Tale Platform (Vite + TanStack Router SPA, served by Bun)
   # ============================================================================
   platform:
     # Image from GHCR (used when PULL_POLICY=always)
@@ -275,12 +276,10 @@ services:
       - path: .env
         required: false
 
-    # Live browser view (read-only mirror). Read here too — the entrypoint pushes
-    # it to Convex (run_external_agent gates on it), and the sandbox spawner reads
-    # the SAME var, so the two MUST stay in lockstep. Unset ⇒ default ON; set
+    # Live browser view (read-only mirror). Read here too — the sandbox spawner
+    # reads the SAME var, so the two MUST stay in lockstep. Unset ⇒ default ON; set
     # SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt out. Interpolates from the
-    # same root .env as the sandbox service so one value drives both. Empty ⇒ the
-    # entrypoint skips pushing it, leaving the Convex-side default ON. Mirrors the
+    # same root .env as the sandbox service so one value drives both. Mirrors the
     # CLI generator (create-platform-service.ts).
     environment:
       SANDBOX_BROWSER_VIEW: ${SANDBOX_BROWSER_VIEW:-}
@@ -340,11 +339,10 @@ services:
   # Tale 0.5 backend (parallel build) — OPT-IN under the `backend` profile
   # ----------------------------------------------------------------------------
   # The SAME platform image, started in a different role via TALE_ROLE
-  # (docker-entrypoint.sh dispatches before any Convex work). Default topology
+  # (docker-entrypoint.sh dispatches on it). Default topology
   # is one `api` + one `worker` container; either scales independently:
   #   docker compose --profile backend up -d --scale backend-worker=3
   # (no `container_name` on these two services precisely so --scale works).
-  # Runs alongside the Convex stack during the 0.5 parallel build; replaces the
   # State lives in the `tale_app` database on the `db` service (created
   # idempotently by services/db/init-scripts/04-create-app-database.sql).
   # ============================================================================
@@ -587,11 +585,6 @@ services:
         required: false
 
     environment:
-      # The Convex→Postgres cutover switch. Set (with the `backend` profile
-      # running) it routes auth, the app API, the hint stream, both machine
-      # doors, SSO/SCIM/trusted-headers, the control channel, cloud-import
-      # OAuth and WebDAV to the pg backend; unset, every lane stays on
-      # Convex. `tale deploy` writes it into .env once a stack is migrated.
       # The application backend. Every migrated lane routes here; the switch
       # remains an env var so an operator can point the proxy at another
       # host/port, never so the stack can fall back to a runtime that no
@@ -642,7 +635,7 @@ services:
         # `localhost` this alias is inert — every container's /etc/hosts pins
         # `localhost` to 127.0.0.1, which shadows Docker DNS — and that is fine:
         # the platform makes no server-side calls to its own public URL (no SSR;
-        # internal traffic uses Docker service names / the internal Convex URL).
+        # internal traffic uses Docker service names).
         # The alias still does real work when HOST is a custom domain.
         aliases:
           - ${HOST:-localhost}
@@ -748,7 +741,7 @@ services:
     container_name: tale-sandbox
     # Loopback-only port mapping. The spawner mounts /var/run/docker.sock,
     # so an unauthenticated request on this port = remote root via docker.
-    # Convex reaches the spawner through the `internal` Docker network
+    # The backend reaches the spawner through the `internal` Docker network
     # (http://sandbox:8003) — the published port is only for `bun dev`
     # running the backend on the host. NEVER publish on 0.0.0.0.
     ports:
@@ -779,8 +772,8 @@ services:
       SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}
       # Live browser view (read-only mirror). Unset here so BOTH sides apply
       # their default-ON; set SANDBOX_BROWSER_VIEW=0 (or false/no/off) to opt out.
-      # ONE value drives both sides — this spawner reads it directly and the
-      # platform pushes it to Convex — so they MUST share a source. It is read on
+      # ONE value drives both sides — this spawner and the sandbox runtime each
+      # read it directly — so they MUST share a source. It is read on
       # the platform service too (NOT a sandbox-only var like the ones above), and
       # both interpolate from the same root .env, so a single value keeps them in
       # lockstep. Mirrors the CLI generator (create-sandbox-service.ts).

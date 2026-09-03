@@ -41,7 +41,7 @@ export function createDbService(config: ServiceConfig): ComposeService {
     // is set here or in .env). The split `compose.yml` runs a SEPARATE
     // `knowledge-db` service, so the in-process RAG/crawler code resolves its
     // datastore at host `knowledge-db` by default
-    // (convex/lib/knowledge/db/knowledge_db.ts → getKnowledgeDatabaseUrl). We
+    // (the backend resolves it via getKnowledgeDatabaseUrl). We
     // alias this service to `knowledge-db` so that same default URL resolves
     // here, with no extra env wiring — keeping the runtime identical across
     // both topologies.
