@@ -40,6 +40,7 @@ import type { DateRange } from 'react-day-picker';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { DatePickerPopperContainer } from './date-picker-popper';
 import { FieldShell } from './field-shell';
 import { Label } from './label';
 
@@ -163,6 +164,7 @@ const DateInputHeader = memo(function DateInputHeader({
   prevMonthButtonDisabled,
   nextMonthButtonDisabled,
 }: DateInputHeaderProps) {
+  const { t } = useT('common');
   return (
     <div className="mb-2 flex items-center justify-between px-1">
       <Button
@@ -170,10 +172,11 @@ const DateInputHeader = memo(function DateInputHeader({
         variant="secondary"
         size="sm"
         disabled={prevMonthButtonDisabled}
+        aria-label={t('datePicker.previousMonth')}
         onClick={decreaseMonth}
         className="hover:bg-accent size-6 p-0"
       >
-        <ChevronLeft className="text-foreground size-3.5" />
+        <ChevronLeft className="text-foreground size-3.5" aria-hidden="true" />
       </Button>
       <Text>{format(date, 'MMMM yyyy')}</Text>
       <Button
@@ -181,10 +184,11 @@ const DateInputHeader = memo(function DateInputHeader({
         size="sm"
         variant="secondary"
         disabled={nextMonthButtonDisabled}
+        aria-label={t('datePicker.nextMonth')}
         onClick={increaseMonth}
         className="hover:bg-accent size-6 p-0"
       >
-        <ChevronRight className="text-foreground size-3.5" />
+        <ChevronRight className="text-foreground size-3.5" aria-hidden="true" />
       </Button>
     </div>
   );
@@ -405,6 +409,7 @@ function DatePickerWithRangeBase({
         wrapperClassName="w-full"
         popperClassName="date-range-picker-popper"
         popperPlacement="bottom-start"
+        popperContainer={DatePickerPopperContainer}
       >
         {(startDate || endDate) && (
           <div className="justify-end">

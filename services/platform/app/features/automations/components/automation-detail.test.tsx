@@ -224,22 +224,17 @@ beforeEach(() => {
 });
 
 describe('AutomationDetail', () => {
-  it('shows the pack description in the header', () => {
+  it('omits the pack description from the workbench header', () => {
     state.presentation = {
       name: 'Chase overdue invoices',
       description: 'Sends the dunning ladder.',
       i18n: { de: { name: 'Offene Rechnungen anmahnen' } },
     };
     renderPage();
-    expect(screen.getByText('Sends the dunning ladder.')).toBeVisible();
+    expect(screen.queryByText('Sends the dunning ladder.')).toBeNull();
+    expect(screen.queryByText('Chases unpaid invoices.')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Trigger' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Projects' })).toBeVisible();
-  });
-
-  it('falls back to the document description when nothing was declared', () => {
-    state.presentation = undefined;
-    renderPage();
-    expect(screen.getByText('Chases unpaid invoices.')).toBeVisible();
   });
 
   it('swaps the inspector from the trigger to a node and back', async () => {

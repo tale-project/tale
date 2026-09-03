@@ -574,6 +574,7 @@ automations:
     noProviders:
       Aucun fournisseur d’IA n’est prêt pour le builder. Ajoute d’abord une
       clé API dans Paramètres → Fournisseurs d’IA.
+    new: Nouvelle automatisation
   notFound:
     title: Automatisation introuvable
     description: Elle a peut-être été renommée, ou elle appartient à une autre
@@ -614,21 +615,30 @@ automations:
   trigger:
     title: Déclencheur
     none: Rien ne démarre encore cette automatisation.
-    kindLabel: Type
+    kindLabel: Type de déclencheur
     kinds:
       schedule: Planification
       webhook: Webhook
       event: Événement de la plateforme
     cronLabel: Cron
+    cronHint: Expression cron standard à 5 champs (minute heure jour mois jour-semaine).
+    cronInvalid: Cette expression cron n’est pas valide.
+    cronNext: 'Prochaine exécution {at}'
+    cronEveryMinutes: '{n, plural, one {Toutes les minutes} other {Toutes les # minutes}}'
+    cronEveryHours: '{n, plural, one {Toutes les heures} other {Toutes les # heures}}'
+    cronDailyAt: 'Tous les jours à {time}'
     timezoneLabel: Fuseau horaire
+    timezoneSearch: Rechercher un fuseau
+    timezoneEmpty: Aucun fuseau ne correspond
     eventLabel: Nom de l’événement
     eventPlaceholder: Choisir un événement
     enabledLabel: Actif
     enabledBadge: Actif
     disabledBadge: Coupé
+    unsavedBadge: Non enregistré
     lastFired: 'Dernier déclenchement {at}'
     nothingToSave: La liaison correspond à ce qui est enregistré.
-    save: Enregistrer le déclencheur
+    save: Enregistrer
     remove: Retirer le déclencheur
     removeTitle: Retirer le déclencheur ?
     removeBody: Supprime le déclencheur. L’automatisation et son historique de versions ne sont pas touchés.
@@ -716,16 +726,20 @@ automations:
       forEachDescription: S’exécute une fois par élément du tableau que produit l’expression.
       repeatUntil: Répéter jusqu’à
       repeatUntilDescription: Relancer ce nœud jusqu’à ce que l’expression soit vraie.
+  workflow:
+    save: Enregistrer les réglages
+    nothingToSave: Rien à enregistrer
   bindings:
     title: Projets
     orgBadge: Toute l’organisation
     countBadge: '{count, plural, one {Lié à # projet} other {Lié à # projets}}'
-    hint: Choisis les projets qui peuvent utiliser cette automatisation. Laisse vide pour la partager à toute l’organisation.
+    hint: Limite à des projets précis, ou laisse vide pour tous.
     placeholder: Choisir des projets
     searchPlaceholder: Rechercher des projets
     empty: Aucun projet ne correspond
     noProjects: Cette organisation n’a pas encore de projets.
-    save: Enregistrer les projets
+    save: Enregistrer
+    unsavedBadge: Non enregistré
     nothingToSave: Aucune modification à enregistrer
   versions:
     title: Versions
@@ -1469,6 +1483,8 @@ common:
     yesterday: Hier
   datePicker:
     placeholder: Choisir une date
+    previousMonth: Mois précédent
+    nextMonth: Mois suivant
     presets:
       custom: Personnalisé
       today: Aujourd'hui

@@ -67,9 +67,10 @@ describe('TriggerEditor', () => {
 
     expect(screen.getByLabelText('Cron')).toHaveValue('0 */6 * * *');
     // `disabledReason` keeps the button focusable, so it disables via ARIA.
-    expect(
-      screen.getByRole('button', { name: 'Save trigger' }),
-    ).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
   });
 
   it('saves an edited schedule binding', async () => {
@@ -84,7 +85,7 @@ describe('TriggerEditor', () => {
     const cron = screen.getByLabelText('Cron');
     await userEvent.clear(cron);
     await userEvent.type(cron, '0 9 * * 1');
-    await userEvent.click(screen.getByRole('button', { name: 'Save trigger' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(mockSetTrigger).toHaveBeenCalledWith(
       {
@@ -115,9 +116,11 @@ describe('TriggerEditor', () => {
       <TriggerEditor organizationId="org-1" name="fresh-automation" canEdit />,
     );
 
-    await userEvent.click(screen.getByRole('combobox', { name: 'Kind' }));
+    await userEvent.click(
+      screen.getByRole('combobox', { name: 'Trigger type' }),
+    );
     await userEvent.click(screen.getByRole('option', { name: 'Webhook' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Save trigger' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     // The minted token appears inside the ready-to-run curl command (the
     // "copy it now" alert and the persistent endpoint block both show it).
@@ -142,7 +145,7 @@ describe('TriggerEditor', () => {
 
     expect(screen.getByLabelText('Cron')).toHaveAttribute('readonly');
     expect(
-      screen.queryByRole('button', { name: 'Save trigger' }),
+      screen.queryByRole('button', { name: 'Save' }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Remove trigger' }),

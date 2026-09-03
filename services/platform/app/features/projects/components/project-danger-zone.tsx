@@ -9,6 +9,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 
@@ -38,18 +39,20 @@ export function ProjectDangerZone({
       title={t('dangerZone.title')}
       description={t('dangerZone.description')}
     >
-      <Alert
-        variant="destructive"
-        live="off"
-        icon={AlertTriangle}
-        title={t('rowActions.delete')}
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-sm">{t('dangerZone.deleteHelp')}</span>
+      <Alert variant="destructive" live="off" icon={AlertTriangle}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <Stack gap={1} className="max-w-2xl min-w-0">
+            <span className="text-foreground text-sm leading-none font-medium">
+              {t('rowActions.delete')}
+            </span>
+            <span className="text-sm leading-relaxed">
+              {t('dangerZone.deleteHelp')}
+            </span>
+          </Stack>
           <Button
             type="button"
             variant="destructive"
-            className="shrink-0"
+            className="shrink-0 self-end sm:self-auto"
             onClick={() => setDeleteOpen(true)}
           >
             {t('rowActions.delete')}

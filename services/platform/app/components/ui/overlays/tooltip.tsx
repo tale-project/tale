@@ -5,6 +5,10 @@ import { type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
+/** Shared surface for every platform tooltip — one place for width/wrap rules. */
+export const tooltipContentClassName =
+  'bg-foreground text-background animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 z-[60] max-w-xs overflow-hidden rounded-lg border p-2 py-1 text-xs text-wrap shadow-md';
+
 interface TooltipProps {
   content: ReactNode;
   children: ReactNode;
@@ -45,10 +49,7 @@ export function Tooltip({
             side={side}
             sideOffset={sideOffset}
             collisionPadding={collisionPadding}
-            className={cn(
-              'bg-foreground text-background animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md',
-              contentClassName,
-            )}
+            className={cn(tooltipContentClassName, contentClassName)}
           >
             {content}
           </TooltipPrimitive.Content>

@@ -12,6 +12,24 @@ import { Drawer as DrawerPrimitive } from 'vaul';
 import { useIsMobile } from '../../hooks/use-is-mobile';
 import { cn } from '../../lib/cn';
 
+/**
+ * Portaled date calendars (platform DatePicker) sit on `document.body`
+ * so dialog overflow cannot clip them. Clicks on that layer must not
+ * count as outside the modal or the dialog closes under the calendar.
+ */
+function isDatePickerPopperEvent(event: {
+  target: EventTarget | null;
+}): boolean {
+  return (
+    event.target instanceof Element &&
+    event.target.closest('[data-tale-datepicker-popper]') !== null
+  );
+}
+
+function preventDatePickerDismiss(event: Event): void {
+  if (isDatePickerPopperEvent(event)) event.preventDefault();
+}
+
 export interface ResponsiveDialogProps {
   open?: boolean;
   defaultOpen?: boolean;
@@ -107,6 +125,9 @@ export const ResponsiveDialogContent = forwardRef<
             ref={ref}
             aria-modal="true"
             onOpenAutoFocus={onOpenAutoFocus}
+            onPointerDownOutside={preventDatePickerDismiss}
+            onInteractOutside={preventDatePickerDismiss}
+            onFocusOutside={preventDatePickerDismiss}
             className={cn(
               'bg-background fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[92dvh] flex-col rounded-t-2xl',
               'pr-(--safe-right) pb-(--safe-bottom) pl-(--safe-left)',
@@ -138,6 +159,9 @@ export const ResponsiveDialogContent = forwardRef<
           ref={ref}
           aria-modal="true"
           onOpenAutoFocus={onOpenAutoFocus}
+          onPointerDownOutside={preventDatePickerDismiss}
+          onInteractOutside={preventDatePickerDismiss}
+          onFocusOutside={preventDatePickerDismiss}
           className={cn(
             'bg-background fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border p-6 shadow-lg',
             // Never exceed the viewport: cap at 90dvh and scroll internally so a

@@ -6,6 +6,7 @@ import { useParams } from '@tanstack/react-router';
 import { Building2 } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { tooltipContentClassName } from '@/app/components/ui/overlays/tooltip';
 import { OrganizationListPanel } from '@/app/features/organization/components/organization-list-panel';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { useT } from '@/lib/i18n/client';
@@ -90,7 +91,7 @@ export function OrganizationButton({
         <TooltipPrimitive.Content
           side="right"
           sideOffset={4}
-          className="bg-foreground text-background animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 z-[60] overflow-hidden rounded-lg border p-2 py-1 text-xs shadow-md"
+          className={tooltipContentClassName}
         >
           {accessibleLabel}
         </TooltipPrimitive.Content>

@@ -13,6 +13,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import type { NodeTypeSummary } from '../hooks/backend';
 import { useDeselectOnEscape } from '../hooks/use-deselect-on-escape';
@@ -213,10 +214,10 @@ export interface NodeInspectorProps {
   organizationId: string;
   projectId?: string;
   /**
-   * What the panel shows when no node is selected — the automation's trigger,
-   * project bindings, and description. Hidden (not unmounted) while a node is
-   * selected so unsaved trigger/project edits survive a click on the canvas.
-   * The run page omits this and keeps the empty prompt.
+   * What the panel shows when no node is selected — the automation's trigger
+   * and project bindings. Hidden (not unmounted) while a node is selected so
+   * unsaved trigger/project edits survive a click on the canvas. The run page
+   * omits this and keeps the empty prompt.
    */
   workflow?: ReactNode;
   /** Clears the canvas selection — Close, Escape, and click-again share this. */
@@ -226,11 +227,11 @@ export interface NodeInspectorProps {
 /**
  * The inspector beside the canvas.
  *
- * With no node selected it shows the automation (trigger, projects, the pack
- * description) when the page hands that in — Figma's "the file, until you
- * click a layer". Clicking a box swaps to that node's fields; clicking the
- * same box again, Close, Escape (when not typing), or the empty canvas returns
- * to the automation. Focus moves into this panel on select so Tab reaches the
+ * With no node selected it shows the automation (trigger, projects) when the
+ * page hands that in — Figma's "the file, until you click a layer". Clicking a
+ * box swaps to that node's fields; clicking the same box again, Close, Escape
+ * (when not typing), or the empty canvas returns to the automation. Focus moves
+ * into this panel on select so Tab reaches the
  * fields next. The workflow slot stays mounted and hidden so unsaved trigger
  * edits are not dropped.
  * A recorded run omits the slot and the empty prompt asks the reader to pick
@@ -279,7 +280,12 @@ export function NodeInspector({
       tabIndex={-1}
       aria-labelledby={showingWorkflow ? undefined : headingId}
       aria-label={showingWorkflow ? t('editor.workflowTitle') : undefined}
-      className="border-border bg-card flex h-full max-h-[70dvh] min-h-0 flex-col gap-4 overflow-y-auto rounded-lg border p-4 outline-none lg:max-h-none"
+      className={cn(
+        'border-border bg-card flex h-full max-h-[70dvh] min-h-0 w-full flex-col gap-4 rounded-lg border p-4 outline-none lg:max-h-none',
+        // Workflow mode pins Save to the bottom of the column; scrolling stays
+        // on the fields. Node editing scrolls the whole panel as before.
+        showingWorkflow ? 'overflow-hidden' : 'overflow-y-auto',
+      )}
     >
       {showingEmpty && (
         <SectionHeader
@@ -291,11 +297,10 @@ export function NodeInspector({
       )}
 
       {workflow !== undefined && (
-        <div hidden={node !== null} className="flex flex-col gap-4">
+        <div hidden={node !== null} className="flex min-h-0 flex-1 flex-col">
           {workflow}
         </div>
       )}
-
       {node !== null && (
         <NodeFields
           headingId={headingId}
