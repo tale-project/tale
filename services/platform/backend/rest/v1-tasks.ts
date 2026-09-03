@@ -8,8 +8,13 @@ import {
   loadProjectOrThrow,
   type ProjectAuthContext,
 } from '../domains/projects/service.ts';
-import { addTaskComment, listTaskComments } from '../domains/tasks/comments.ts';
-import { TASK_COMMENT_MAX } from '../domains/tasks/comments.ts';
+import {
+  addTaskComment,
+  listTaskComments,
+  TASK_COMMENT_MAX,
+  TASK_COMMENT_PAGE_MAX,
+  taskCommentCursorSchema,
+} from '../domains/tasks/comments.ts';
 import {
   startWorkflowForTask,
   upsertTaskByExternalRef,
@@ -227,15 +232,45 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   });
 
   /** The discussion read lane: what an automation reported back and what
-   * humans replied. Chronological, READ visibility like every task read. */
+   * humans replied. READ visibility like every task read. Answers the
+   * NEWEST `limit` comments (chronological within the page) and walks older
+   * pages through `cursor` = the previous response's `continueCursor` —
+   * `isDone` says when the start of the discussion has been reached. */
   app.get('/tasks/:id/comments', async (c) => {
+    const query = z
+      .object({
+        limit: z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(TASK_COMMENT_PAGE_MAX)
+          .optional(),
+        cursor: taskCommentCursorSchema,
+      })
+      .safeParse({
+        limit: c.req.query('limit'),
+        cursor: c.req.query('cursor'),
+      });
+    if (!query.success) {
+      return c.json(
+        {
+          error: `Invalid query: limit must be 1..${TASK_COMMENT_PAGE_MAX} and cursor a continueCursor from a previous page`,
+        },
+        400,
+      );
+    }
     const auth = await restProjectAuth(deps.sql, c);
     const task = await loadVisibleTask(c, auth, c.req.param('id'));
     if (task === null) return c.json({ error: 'Task not found' }, 404);
     try {
-      const comments = await listTaskComments(deps.sql, auth, task.id);
+      const page = await listTaskComments(deps.sql, auth, task.id, {
+        ...(query.data.limit !== undefined ? { limit: query.data.limit } : {}),
+        ...(query.data.cursor !== undefined
+          ? { before: query.data.cursor }
+          : {}),
+      });
       return c.json({
-        comments: comments.map((comment) => {
+        comments: page.comments.map((comment) => {
           const view: Record<string, unknown> = {
             id: comment.messageId,
             authorType: comment.authorType,
@@ -246,6 +281,8 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           if (comment.editedAt !== null) view.editedAt = comment.editedAt;
           return view;
         }),
+        isDone: !page.hasMore,
+        continueCursor: page.nextCursor === null ? '' : String(page.nextCursor),
       });
     } catch (error) {
       return domainErrorResponse(c, error);

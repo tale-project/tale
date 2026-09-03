@@ -29,6 +29,7 @@ import {
   isCloudImportProvider,
   resolveCloudAccessToken,
 } from '../cloud_import/service.ts';
+import { MAX_UPLOAD_BYTES, readBodyBounded } from '../files/bounded-body.ts';
 import { putOrgBlobBytes } from '../files/service.ts';
 import {
   buildHubFolderPath,
@@ -567,6 +568,10 @@ const DOC_SYNC_COLUMNS = `
   content_hash AS "contentHash", metadata
 `;
 
+/** How long one vendor download may take, headers to last byte — generous
+ * for a 512 MB file on a slow link, finite for a stalled one. */
+const VENDOR_DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+
 async function fetchVendorContentToStorage(
   sql: Sql,
   adapter: SyncProviderAdapter,
@@ -586,8 +591,10 @@ async function fetchVendorContentToStorage(
 }> {
   const url = adapter.buildDownloadUrl(args);
   try {
+    // A hung vendor download must not park a sync worker forever.
     const download = await fetch(url, {
       headers: { Authorization: `Bearer ${args.token}` },
+      signal: AbortSignal.timeout(VENDOR_DOWNLOAD_TIMEOUT_MS),
     });
     if (!download.ok) {
       const errorText = await download.text();
@@ -598,10 +605,11 @@ async function fetchVendorContentToStorage(
     }
     const mimeType =
       download.headers.get('content-type') || 'application/octet-stream';
-    // Buffered on purpose: the pg worker has no 64 MB isolate cap (the 0.4
-    // streaming constraint), and `putOrgBlobBytes` enforces the same size
-    // ceiling uploads get.
-    const bytes = new Uint8Array(await download.arrayBuffer());
+    // Buffered (the blob store signs whole bodies), but never unbounded: the
+    // declared length is refused before a byte is read and the received
+    // bytes abort at the cap — `putOrgBlobBytes` re-checks the same ceiling,
+    // it just can no longer be the FIRST check a multi-GB file meets.
+    const bytes = await readBodyBounded(download, MAX_UPLOAD_BYTES);
     const ref = await putOrgBlobBytes(sql, args.organizationId, {
       bytes,
       contentType: mimeType,

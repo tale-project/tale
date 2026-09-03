@@ -65,7 +65,11 @@ import {
   settingsWriteAdapters,
   settingsPaginatedAdapters,
 } from './settings';
-import { taskReadAdapters, taskWriteAdapters } from './tasks';
+import {
+  taskPaginatedAdapters,
+  taskReadAdapters,
+  taskWriteAdapters,
+} from './tasks';
 
 export interface AdapterContext {
   /** The active org from the route (`$id`) — the org scope for rows whose
@@ -164,6 +168,7 @@ export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
   ...metricsPaginatedAdapters,
   ...documentPaginatedAdapters,
   ...settingsPaginatedAdapters,
+  ...taskPaginatedAdapters,
 };
 
 export const ACTION_QUERY_ADAPTERS: Record<string, ActionQueryAdapter> = {

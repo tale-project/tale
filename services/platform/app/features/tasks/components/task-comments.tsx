@@ -64,6 +64,11 @@ interface TaskComment {
  * to answer it under a wall of history — and it contradicted the Activity list
  * right below, which has always been newest-first. A conversational surface can
  * still opt into `order="asc"`.
+ *
+ * The feed is a PAGE WALK from the newest end: the first page holds the latest
+ * comments, and a "show earlier comments" control at the oldest end loads the
+ * ones before them — so however busy a task gets, its freshest comment is on
+ * screen and nothing older is silently cut.
  */
 export function TaskComments({
   taskId,
@@ -73,6 +78,7 @@ export function TaskComments({
   currentUserId,
   isAdmin,
   showHeading = true,
+  commentCount,
   order = 'desc',
   composerHint,
 }: {
@@ -84,6 +90,9 @@ export function TaskComments({
   isAdmin?: boolean;
   /** When false, omit the "Comments (N)" title (e.g. parent disclosure owns it). */
   showHeading?: boolean;
+  /** The task's total comment count for the heading (the denormalized
+   *  `tasks.commentCount`); the loaded count stands in when absent. */
+  commentCount?: number;
   /** `desc` (default) puts the newest comment first — the actionable state of
    *  a task, and what the composer answers. `asc` reads as a conversation, for
    *  a surface whose messages are short and mutually referring. */
@@ -95,8 +104,13 @@ export function TaskComments({
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { locale } = useLocale();
-  const { comments: timeline } = useTaskDiscussion(taskId);
-  const comments = order === 'desc' ? timeline.toReversed() : timeline;
+  const {
+    comments: newestFirst,
+    hasEarlier,
+    isLoadingEarlier,
+    loadEarlier,
+  } = useTaskDiscussion(taskId);
+  const comments = order === 'desc' ? newestFirst : newestFirst.toReversed();
   const { resolveActor, resolveActorPreview } = useActorDirectory(
     organizationId,
     projectId,
@@ -300,15 +314,31 @@ export function TaskComments({
     </Stack>
   );
 
+  // The walk into older pages sits at the OLDEST end of the thread — below a
+  // newest-first log, above an ascending conversation.
+  const earlier = hasEarlier && (
+    <Row gap={0} align="stretch" justify="center" className="my-3">
+      <Button
+        variant="secondary"
+        isLoading={isLoadingEarlier}
+        disabled={isLoadingEarlier}
+        onClick={loadEarlier}
+      >
+        {t('detail.showEarlierComments')}
+      </Button>
+    </Row>
+  );
+
   return (
     <section>
       {showHeading ? (
         <Text as="h3" variant="label">
-          {t('detail.comments')} ({comments.length})
+          {t('detail.comments')} ({commentCount ?? comments.length})
         </Text>
       ) : null}
 
       {order === 'desc' && composer}
+      {order === 'asc' && earlier}
 
       <Stack as="ul" className={showHeading ? 'mt-3' : undefined}>
         {comments.length === 0 && (
@@ -323,6 +353,7 @@ export function TaskComments({
         ))}
       </Stack>
 
+      {order === 'desc' && earlier}
       {order === 'asc' && composer}
 
       <DeleteDialog

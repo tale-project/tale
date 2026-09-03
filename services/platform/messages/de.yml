@@ -475,8 +475,7 @@ auth:
       userNotAssigned:
         Dein Konto ist dieser Anwendung nicht zugewiesen. Wende dich an
         deine Administration, um Zugriff anzufordern.
-      notOrgMember:
-        Dein Konto ist kein Mitglied dieser Organisation. Bitte die
+      notOrgMember: Dein Konto ist kein Mitglied dieser Organisation. Bitte die
         Administration dieser Organisation, dich einzuladen, und melde dich
         danach erneut an.
       silentAuthFailed: Stille Anmeldung fehlgeschlagen. Melde dich stattdessen manuell an.
@@ -2308,6 +2307,12 @@ documents:
     redirecting: Weiterleitung…
     folderEmpty: Dieser Ordner ist leer.
     loadFailed: Elemente konnten nicht geladen werden
+    listingTruncated: >-
+      Zeigt die ersten {count} Elemente — der Ordner enthält mehr. Öffne
+      einen Unterordner oder such gezielt, um an den Rest zu kommen.
+    folderTooLargeToImport: >-
+      "{name}" enthält mehr Elemente, als ein Import auflisten kann.
+      Importiere die Unterordner einzeln oder richte einen Sync-Import ein.
     oneTimeImport: Einmaliger Import
     oneTimeDescription: Dateien einmal importieren und in deinem Workspace speichern
     syncImport: Synchronisierungsimport
@@ -6658,6 +6663,7 @@ tasks:
     overview: Übersicht
     comments: Kommentare
     noComments: Noch keine Kommentare.
+    showEarlierComments: Frühere Kommentare anzeigen
     activity: Aktivität
     subtasks: Teilaufgaben
     addSubtask: Teilaufgabe hinzufügen…

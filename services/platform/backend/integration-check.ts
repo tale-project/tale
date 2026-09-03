@@ -1692,16 +1692,18 @@ async function checkTasks(
     `/api/app/tasks/comments/${c1.success ? c1.data.messageId : ''}?orgId=${orgId}`,
     { body: 'First comment (edited)' },
   );
+  // The feed is a newest-first page: the first comment is the LAST row.
   const listed = z
     .object({
       threadId: z.string().nullable(),
-      messages: z.array(
+      page: z.array(
         z.object({
           messageId: z.string(),
           body: z.string(),
           editedAt: z.number().nullable(),
         }),
       ),
+      isDone: z.boolean(),
     })
     .safeParse(await get(`/api/app/tasks/${aId}/comments?orgId=${orgId}`));
   const removed = await send(
@@ -1711,27 +1713,29 @@ async function checkTasks(
   const afterDelete = z
     .object({
       threadId: z.string().nullable(),
-      messages: z.array(z.object({ body: z.string() })),
+      page: z.array(z.object({ body: z.string() })),
     })
     .safeParse(await get(`/api/app/tasks/${aId}/comments?orgId=${orgId}`));
   const taskAfter = z
     .object({ task: z.object({ commentCount: z.number() }).loose() })
     .safeParse(await get(`/api/app/tasks/${aId}?orgId=${orgId}`));
   record(
-    'task discussion (0.4 envelope) add/edit/delete + count',
+    'task discussion (page envelope) add/edit/delete + count',
     c1.success &&
       edited.ok &&
       listed.success &&
       listed.data.threadId !== null &&
-      listed.data.messages.length === 2 &&
-      listed.data.messages[0]?.body === 'First comment (edited)' &&
-      listed.data.messages[0]?.editedAt !== null &&
+      listed.data.page.length === 2 &&
+      listed.data.isDone &&
+      listed.data.page[0]?.body === 'Second comment' &&
+      listed.data.page.at(-1)?.body === 'First comment (edited)' &&
+      listed.data.page.at(-1)?.editedAt !== null &&
       removed.ok &&
       afterDelete.success &&
-      afterDelete.data.messages.length === 1 &&
+      afterDelete.data.page.length === 1 &&
       taskAfter.success &&
       taskAfter.data.task.commentCount === 1,
-    `threadId=${listed.success ? String(listed.data.threadId !== null) : 'ERR'}, list=${listed.success ? listed.data.messages.length : 'ERR'}, first=${listed.success ? JSON.stringify(listed.data.messages[0]?.body) : 'ERR'}, afterDelete=${afterDelete.success ? afterDelete.data.messages.length : 'ERR'}, count=${taskAfter.success ? taskAfter.data.task.commentCount : 'ERR'}`,
+    `threadId=${listed.success ? String(listed.data.threadId !== null) : 'ERR'}, list=${listed.success ? listed.data.page.length : 'ERR'}, newest=${listed.success ? JSON.stringify(listed.data.page[0]?.body) : 'ERR'}, oldest=${listed.success ? JSON.stringify(listed.data.page.at(-1)?.body) : 'ERR'}, afterDelete=${afterDelete.success ? afterDelete.data.page.length : 'ERR'}, count=${taskAfter.success ? taskAfter.data.task.commentCount : 'ERR'}`,
   );
 
   // Search (fields + comment fallback), mention preview, the run-card /
@@ -17518,6 +17522,21 @@ async function checkOneDriveSync(
     hash: 'h-memo-v1',
     mime: 'text/markdown',
   });
+  // A 250-child folder (2.5 Graph pages) and a file past the blob ceiling.
+  seed({ id: 'folder-big', name: 'BigFolder', folder: true });
+  for (let i = 1; i <= 250; i++) {
+    seed({
+      id: `big-${i}`,
+      name: `big-${i}.txt`,
+      parent: 'folder-big',
+      content: `big ${i}`,
+      hash: `h-big-${i}`,
+      mime: 'text/plain',
+    });
+  }
+  seed({ id: 'f-huge', name: 'huge.bin', mime: 'application/octet-stream' });
+  const GRAPH_FAKE_PAGE = 100;
+  let hugeBodyPulls = 0;
 
   const graphAuth: string[] = [];
   let refreshCalls = 0;
@@ -17542,18 +17561,60 @@ async function checkOneDriveSync(
     const node = drive.get(itemId);
     if (!node) return jsonResponse({ error: { code: 'itemNotFound' } }, 404);
     if (leaf === '/children') {
-      return jsonResponse({
-        value: childrenOf(node.id).map((child) =>
-          child.folder === true
-            ? { id: child.id, name: child.name, size: 0, folder: {} }
-            : {
-                id: child.id,
-                name: child.name,
-                size: (child.content ?? '').length,
-                file: { mimeType: child.mime },
-              },
+      // Paged like Graph: 100 children a page, chained by an absolute
+      // `@odata.nextLink` — a lister that stops at page one sees a short
+      // folder.
+      const all = childrenOf(node.id).map((child) =>
+        child.folder === true
+          ? { id: child.id, name: child.name, size: 0, folder: {} }
+          : {
+              id: child.id,
+              name: child.name,
+              size: (child.content ?? '').length,
+              file: { mimeType: child.mime },
+            },
+      );
+      const offset = Number(url.searchParams.get('$skiptoken') ?? '0');
+      const page: Record<string, unknown> = {
+        value: all.slice(offset, offset + GRAPH_FAKE_PAGE),
+      };
+      if (offset + GRAPH_FAKE_PAGE < all.length) {
+        const next = new URL(url);
+        next.searchParams.set('$skiptoken', String(offset + GRAPH_FAKE_PAGE));
+        page['@odata.nextLink'] = next.toString();
+      }
+      return jsonResponse(page);
+    }
+    if (leaf === '/content' && node.id === 'f-huge') {
+      // A vendor file past the blob ceiling: the declared length says so;
+      // the body counts how many chunks anyone actually pulled (finite, so a
+      // lane that ignores the declared length reads it whole and lands the
+      // wrong answer instead of hanging the probe).
+      return new Response(
+        new ReadableStream<Uint8Array>(
+          {
+            pull(controller) {
+              hugeBodyPulls++;
+              if (hugeBodyPulls > 64) {
+                controller.close();
+                return;
+              }
+              controller.enqueue(new Uint8Array(1024));
+            },
+          },
+          // No pre-fill: with the default high-water mark the stream pulls a
+          // chunk on construction, before any consumer reads — the count
+          // must mean "someone read the body".
+          { highWaterMark: 0 },
         ),
-      });
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/octet-stream',
+            'content-length': String(600 * 1024 * 1024),
+          },
+        },
+      );
     }
     if (leaf === '/content') {
       const content = node.content ?? '';
@@ -18000,6 +18061,56 @@ async function checkOneDriveSync(
         cancelMissing.status === 404 &&
         cancelSticky === 'inactive',
       `scan=${scanned}/1 (only the folder config is syncable) drained=${scanDrained}, cancel=${cancel.status} missing=${cancelMissing.status}, lateStampAfterCancel=${cancelSticky} (want inactive)`,
+    );
+
+    // 9. Truth in listing and transfer: a 250-child folder browses WHOLE
+    //    across Graph pages (the old lister stopped at page one), and a
+    //    vendor file past the blob ceiling is refused on its declared length
+    //    before a single body chunk is pulled (the old lane buffered it all
+    //    first).
+    const bigBrowse = await post('/list-files', { folderId: 'folder-big' });
+    const bigBody = z
+      .object({
+        success: z.boolean(),
+        items: z.array(z.object({ id: z.string() })).optional(),
+        truncated: z.boolean().optional(),
+      })
+      .safeParse(await bigBrowse.json());
+    const hugeImport = await post('/import', {
+      importType: 'one-time',
+      items: [
+        {
+          id: 'f-huge',
+          name: 'huge.bin',
+          size: 600 * 1024 * 1024,
+          isDirectlySelected: true,
+        },
+      ],
+    });
+    const hugeResult = z
+      .object({
+        failedCount: z.number(),
+        successCount: z.number(),
+        results: z.array(
+          z.looseObject({ status: z.string(), error: z.string().optional() }),
+        ),
+      })
+      .safeParse(await hugeImport.json());
+    const hugeRow = hugeResult.success ? hugeResult.data.results[0] : undefined;
+    record(
+      'onedrive browse pages Graph to the end; oversized download refused unread',
+      bigBody.success &&
+        bigBody.data.success &&
+        bigBody.data.items?.length === 250 &&
+        new Set(bigBody.data.items.map((item) => item.id)).size === 250 &&
+        bigBody.data.truncated === false &&
+        hugeResult.success &&
+        hugeResult.data.failedCount === 1 &&
+        hugeResult.data.successCount === 0 &&
+        hugeRow?.status === 'error' &&
+        (hugeRow.error ?? '').includes('limit') &&
+        hugeBodyPulls === 0,
+      `browse=${bigBrowse.status}/${bigBody.success ? `${bigBody.data.items?.length}/truncated=${bigBody.data.truncated}` : 'ERR'} (want 250/false), huge=${hugeResult.success ? `${hugeResult.data.failedCount}fail ${hugeRow?.status}: ${hugeRow?.error}` : `PARSE-ERR ${hugeImport.status}`}, bodyPulls=${hugeBodyPulls} (want 0)`,
     );
   } finally {
     globalThis.fetch = realFetch;
@@ -31033,6 +31144,363 @@ async function checkWatchdogs(
 }
 
 /**
+ * Truth in listing, discussion lane: a task's comment feed is read from its
+ * NEWEST end and paged on all three doors. The old read was a fixed
+ * oldest-200 window — a 201st comment saved fine (POST 200) and rendered
+ * nowhere. 522 comments here: the app door pages 200/200/122 newest-first
+ * and refuses a garbage cursor, the REST walk covers every comment exactly
+ * once, and the workflow native says `truncated` once the discussion has
+ * outgrown its 500-comment read.
+ */
+async function checkTaskDiscussionPaging(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const send = (path2: string, body: unknown): Promise<Response> =>
+    fetch(`${base}${path2}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify(body),
+    });
+  const get = async (path2: string): Promise<unknown> =>
+    (await fetch(`${base}${path2}`, { headers: { cookie } })).json();
+
+  const proj = z.object({ projectId: z.string() }).safeParse(
+    await (
+      await send(`/api/app/projects?orgId=${orgId}`, {
+        name: 'Busy Discussion Project',
+      })
+    ).json(),
+  );
+  const projectId = proj.success ? proj.data.projectId : '';
+  const task = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await send(`/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Busy task',
+        status: 'todo',
+      })
+    ).json(),
+  );
+  const taskId = task.success ? task.data.taskId : '';
+
+  // Comment 1 through the door mints the discussion thread; 520 more land
+  // straight in the store in the exact shape `addTaskComment` writes (orders
+  // 1..520); the last one goes through the door again (order 521).
+  const BULK = 520;
+  const TOTAL = BULK + 2;
+  const first = z
+    .object({ messageId: z.string(), threadId: z.string() })
+    .safeParse(
+      await (
+        await send(`/api/app/tasks/${taskId}/comments?orgId=${orgId}`, {
+          body: 'comment 1',
+        })
+      ).json(),
+    );
+  const threadId = first.success ? first.data.threadId : '';
+  const now = Date.now();
+  await sql`
+    WITH inserted AS (
+      INSERT INTO app.messages (
+        thread_id, org_id, "order", step_order, role, text, author_id,
+        status, created_at_ms
+      )
+      SELECT ${threadId}, ${orgId}, g, 0, 'user', 'comment ' || (g + 1),
+             ${userId}, 'complete', ${now}::bigint + g
+      FROM generate_series(1, ${BULK}) AS g
+      RETURNING id, thread_id, created_at_ms
+    )
+    INSERT INTO app.task_discussion_message_meta (
+      message_id, org_id, thread_id, task_id, author_type, author_id,
+      created_at_ms
+    )
+    SELECT id, ${orgId}, thread_id, ${taskId}, 'user', ${userId},
+           created_at_ms
+    FROM inserted
+  `;
+  await sql`
+    UPDATE app.tasks SET comment_count = comment_count + ${BULK}
+    WHERE id = ${taskId}
+  `;
+  await send(`/api/app/tasks/${taskId}/comments?orgId=${orgId}`, {
+    body: `comment ${TOTAL}`,
+  });
+
+  // App door: newest first, 200 a page, cursor = the page's oldest order.
+  const pageSchema = z.object({
+    threadId: z.string().nullable(),
+    page: z.array(z.object({ messageId: z.string(), body: z.string() })),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+  });
+  const readPage = async (cursor: string) =>
+    pageSchema.safeParse(
+      await get(
+        `/api/app/tasks/${taskId}/comments?orgId=${orgId}${cursor === '' ? '' : `&cursor=${cursor}`}`,
+      ),
+    );
+  const page1 = await readPage('');
+  const page2 = await readPage(
+    page1.success ? page1.data.continueCursor : 'unset',
+  );
+  const page3 = await readPage(
+    page2.success ? page2.data.continueCursor : 'unset',
+  );
+  const uiIds = new Set(
+    [page1, page2, page3].flatMap((page) =>
+      page.success ? page.data.page.map((row) => row.messageId) : [],
+    ),
+  );
+  const badCursor = await fetch(
+    `${base}/api/app/tasks/${taskId}/comments?orgId=${orgId}&cursor=abc`,
+    { headers: { cookie } },
+  );
+  const uiOk =
+    page1.success &&
+    page1.data.page.length === 200 &&
+    page1.data.page[0]?.body === `comment ${TOTAL}` &&
+    !page1.data.isDone &&
+    page1.data.continueCursor === String(TOTAL - 200) &&
+    page2.success &&
+    page2.data.page.length === 200 &&
+    !page2.data.isDone &&
+    page3.success &&
+    page3.data.page.length === TOTAL - 400 &&
+    page3.data.page.at(-1)?.body === 'comment 1' &&
+    page3.data.isDone &&
+    page3.data.continueCursor === '' &&
+    uiIds.size === TOTAL &&
+    badCursor.status === 400;
+
+  // REST door: the newest page first, chronological within a page, walked
+  // to the start of the discussion with every comment seen exactly once.
+  const minted = z.looseObject({ key: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/api-key/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ name: 'itest-discussion' }),
+      })
+    ).json(),
+  );
+  const apiKey = minted.success ? minted.data.key : '';
+  const restPage = z.object({
+    comments: z.array(z.object({ id: z.string(), body: z.string() })),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
+  });
+  const restIds: string[] = [];
+  let restNewestFirstPage = '';
+  let restHops = 0;
+  let restParsed = true;
+  let restCursor = '';
+  for (;;) {
+    const body = restPage.safeParse(
+      await (
+        await fetch(
+          `${base}/api/v1/tasks/${taskId}/comments?limit=150${restCursor === '' ? '' : `&cursor=${restCursor}`}`,
+          {
+            headers: {
+              authorization: `Bearer ${apiKey}`,
+              'x-organization-slug': orgSlug,
+            },
+          },
+        )
+      ).json(),
+    );
+    if (!body.success) {
+      restParsed = false;
+      break;
+    }
+    if (restHops === 0) {
+      restNewestFirstPage = body.data.comments.at(-1)?.body ?? '';
+    }
+    restIds.push(...body.data.comments.map((row) => row.id));
+    restHops++;
+    if (body.data.isDone || restHops > 10) break;
+    restCursor = body.data.continueCursor;
+  }
+  const restOk =
+    restParsed &&
+    restNewestFirstPage === `comment ${TOTAL}` &&
+    restHops === 4 &&
+    restIds.length === TOTAL &&
+    new Set(restIds).size === TOTAL;
+
+  // Workflow native: the newest 500 plus the truncation bit — a marker older
+  // than the window must not silently read as "everything is new feedback".
+  const { runConnectorAction } =
+    await import('./domains/connectors/service.ts');
+  const native = await runConnectorAction(sql, {
+    organizationId: orgId,
+    connector: 'task',
+    action: 'list_comments',
+    input: { taskId, limit: 3 },
+    mode: 'live',
+    caller: { kind: 'system', reason: 'itest discussion paging' },
+  });
+  const nativeOut = z
+    .object({
+      count: z.number(),
+      truncated: z.boolean(),
+      comments: z.array(z.object({ body: z.string() })),
+    })
+    .safeParse(native.status === 'ok' ? native.output : {});
+  const nativeOk =
+    nativeOut.success &&
+    nativeOut.data.count === 3 &&
+    nativeOut.data.truncated &&
+    nativeOut.data.comments.at(-1)?.body === `comment ${TOTAL}`;
+
+  record(
+    'task discussion pages newest-first on every door (522 comments)',
+    uiOk && restOk && nativeOk,
+    `app: p1=${page1.success ? `${page1.data.page.length}/${page1.data.page[0]?.body}/${page1.data.continueCursor}` : 'ERR'} p2=${page2.success ? page2.data.page.length : 'ERR'} p3=${page3.success ? `${page3.data.page.length}/${page3.data.isDone}` : 'ERR'} unique=${uiIds.size}/${TOTAL} badCursor=${badCursor.status} (want 400); rest: hops=${restHops} newest=${restNewestFirstPage} unique=${new Set(restIds).size}/${TOTAL}; native: ${nativeOut.success ? `count=${nativeOut.data.count} truncated=${nativeOut.data.truncated} last=${nativeOut.data.comments.at(-1)?.body}` : `ERR ${native.status}`}`,
+  );
+}
+
+/**
+ * Truth in listing, workflow documents lane: `document.list` answers the
+ * real truncation bit over its 200-file cap, resolves `folderPath`, and
+ * walks `recursive` with subfolder-prefixed names. The old store hardcoded
+ * `truncated: false`, answered "the folder does not exist" for every
+ * folderPath, and ignored recursive — an automation iterating a 201-file
+ * folder skipped one while being told the listing was whole.
+ */
+async function checkWorkflowDocumentListing(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const createFolder = async (
+    name: string,
+    parentId?: string,
+  ): Promise<string> => {
+    const body = z.object({ folderId: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/app/folders?orgId=${orgId}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie, origin: base },
+          body: JSON.stringify({
+            name,
+            ...(parentId !== undefined ? { parentId } : {}),
+          }),
+        })
+      ).json(),
+    );
+    return body.success ? body.data.folderId : '';
+  };
+  const seedDocs = async (
+    folderId: string,
+    prefix: string,
+    count: number,
+  ): Promise<void> => {
+    const now = Date.now();
+    await sql`
+      INSERT INTO app.documents (
+        org_id, title, source_provider, created_by, folder_id,
+        created_at_ms, updated_at_ms
+      )
+      SELECT ${orgId}, ${prefix} || '-' || g || '.pdf', 'itest', ${userId},
+             ${folderId}, ${now}::bigint + g, ${now}::bigint + g
+      FROM generate_series(1, ${count}) AS g
+    `;
+  };
+  const bigId = await createFolder('WF Big');
+  const bigSubId = await createFolder('Sub', bigId);
+  const smallId = await createFolder('WF Small');
+  const leafId = await createFolder('Leaf', smallId);
+  await seedDocs(bigId, 'big', 201);
+  await seedDocs(bigSubId, 'sub', 1);
+  await seedDocs(smallId, 'small', 2);
+  await seedDocs(leafId, 'leaf', 1);
+
+  const { runConnectorAction } =
+    await import('./domains/connectors/service.ts');
+  const list = (input: Record<string, unknown>) =>
+    runConnectorAction(sql, {
+      organizationId: orgId,
+      connector: 'document',
+      action: 'list',
+      input,
+      mode: 'live',
+      caller: { kind: 'system', reason: 'itest document listing' },
+    });
+  const listing = z.object({
+    count: z.number(),
+    truncated: z.boolean(),
+    files: z.array(z.object({ name: z.string(), storageId: z.string() })),
+  });
+  type Listing = z.infer<typeof listing>;
+  // A refusal (the door THROWS coded refusals) or an off-shape answer is a
+  // recorded failure of this check, never an aborted probe.
+  const parse = async (
+    input: Record<string, unknown>,
+  ): Promise<
+    { success: true; data: Listing } | { success: false; error: string }
+  > => {
+    try {
+      const result = await list(input);
+      const parsed = listing.safeParse(
+        result.status === 'ok' ? result.output : {},
+      );
+      return parsed.success
+        ? { success: true, data: parsed.data }
+        : { success: false, error: `shape:${result.status}` };
+    } catch (error) {
+      return { success: false, error: `threw:${String(error)}` };
+    }
+  };
+
+  const bigById = await parse({ folderId: bigId });
+  const subByPath = await parse({ folderPath: 'WF Big/Sub' });
+  // A path that names nothing is a coded refusal (thrown, like every
+  // connector refusal) — not an empty listing, and never a silent success.
+  const { ConnectorError } = await import('../lib/connectors/errors.ts');
+  let missing = 'ok';
+  try {
+    await list({ folderPath: 'WF Big/Nope' });
+  } catch (error) {
+    missing =
+      error instanceof ConnectorError &&
+      error.message.includes('does not exist')
+        ? `refused:${error.code}`
+        : `threw:${String(error)}`;
+  }
+  const smallFlat = await parse({ folderPath: 'WF Small' });
+  const smallTree = await parse({ folderId: smallId, recursive: true });
+  const bigTree = await parse({ folderPath: 'WF Big/', recursive: true });
+
+  record(
+    'document.list tells the truth: truncated over the cap, folderPath, recursive',
+    bigById.success &&
+      bigById.data.count === 200 &&
+      bigById.data.truncated &&
+      subByPath.success &&
+      subByPath.data.count === 1 &&
+      !subByPath.data.truncated &&
+      subByPath.data.files[0]?.name === 'sub-1.pdf' &&
+      missing === 'refused:INPUT_INVALID' &&
+      smallFlat.success &&
+      smallFlat.data.count === 2 &&
+      !smallFlat.data.truncated &&
+      smallTree.success &&
+      smallTree.data.count === 3 &&
+      !smallTree.data.truncated &&
+      smallTree.data.files.some((file) => file.name === 'Leaf/leaf-1.pdf') &&
+      bigTree.success &&
+      bigTree.data.count === 200 &&
+      bigTree.data.truncated,
+    `big=${bigById.success ? `${bigById.data.count}/${bigById.data.truncated}` : 'ERR'} (want 200/true), sub=${subByPath.success ? `${subByPath.data.count}/${subByPath.data.truncated}/${subByPath.data.files[0]?.name}` : 'ERR'}, missing=${missing} (want refused:INPUT_INVALID), small=${smallFlat.success ? smallFlat.data.count : 'ERR'} tree=${smallTree.success ? `${smallTree.data.count}/${smallTree.data.truncated}/${smallTree.data.files.map((f) => f.name).join('|')}` : 'ERR'}, bigTree=${bigTree.success ? `${bigTree.data.count}/${bigTree.data.truncated}` : 'ERR'}`,
+  );
+}
+
+/**
  * Organization lifecycle — deletion is ONE server transaction behind the
  * legal-hold gate: a hold (org-wide or on any member), a non-owner, Better
  * Auth's own delete door and an aborted transaction all leave the
@@ -31584,8 +32052,15 @@ async function main(): Promise<void> {
     await checkProjects(baseUrl, authCtx);
     await checkTasks(baseUrl, authCtx);
     await checkTasksOrgIsolation(sql, baseUrl, authCtx);
+    await checkTaskDiscussionPaging(
+      sql,
+      baseUrl,
+      authCtx,
+      `itest-${orgSuffix}`,
+    );
     await checkFiles(baseUrl, authCtx);
     await checkDocuments(sql, baseUrl, authCtx);
+    await checkWorkflowDocumentListing(sql, baseUrl, authCtx);
     await checkBlobRefAuthority(sql, baseUrl, authCtx);
     await checkSmallDomains(baseUrl, authCtx);
     await checkAgents(baseUrl, authCtx);

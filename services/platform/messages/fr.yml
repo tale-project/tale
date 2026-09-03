@@ -476,8 +476,7 @@ auth:
       userNotAssigned:
         Ton compte n’est pas affecté à cette application. Contacte ton
         administration pour demander l’accès.
-      notOrgMember:
-        Ton compte n’est pas membre de cette organisation. Demande à
+      notOrgMember: Ton compte n’est pas membre de cette organisation. Demande à
         l’administration de cette organisation de t’inviter, puis
         reconnecte-toi.
       silentAuthFailed: La connexion silencieuse a échoué. Connecte-toi de manière interactive.
@@ -2332,6 +2331,14 @@ documents:
     redirecting: Redirection…
     folderEmpty: Ce dossier est vide.
     loadFailed: Échec du chargement des éléments
+    listingTruncated: >-
+      Affiche les {count} premiers éléments — ce dossier en contient
+      davantage. Ouvre un sous-dossier ou lance une recherche pour atteindre
+      le reste.
+    folderTooLargeToImport: >-
+      "{name}" contient plus d'éléments qu'un import ne peut en lister.
+      Importe ses sous-dossiers un par un, ou configure un import
+      synchronisé.
     oneTimeImport: Importation unique
     oneTimeDescription:
       Importe les fichiers une seule fois et stocke-les dans ton
@@ -6776,6 +6783,7 @@ tasks:
     overview: Aperçu
     comments: Commentaires
     noComments: Aucun commentaire pour le moment.
+    showEarlierComments: Afficher les commentaires précédents
     activity: Activité
     subtasks: Sous-tâches
     addSubtask: Ajouter une sous-tâche…

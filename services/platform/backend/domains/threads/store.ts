@@ -125,7 +125,16 @@ export async function saveMessage(
   return { messageId: id, order };
 }
 
-/** Ordered page of a thread's messages (ascending, keyset by order). */
+/** The most messages one read may ask for, on either lane below. */
+export const THREAD_MESSAGES_READ_MAX = 500;
+
+/**
+ * Ordered page of a thread's messages (ascending, keyset by order) — the
+ * REPLAY lane: a reader walking a thread from its start (`afterOrder` = the
+ * previous page's last order). A surface that must show what is NEWEST reads
+ * {@link listThreadMessagesTail} instead — a fixed ascending window keeps
+ * the first N turns forever and hides every later one.
+ */
 export async function listThreadMessages(
   sql: Sql | TransactionSql,
   threadId: string,
@@ -135,7 +144,7 @@ export async function listThreadMessages(
     excludeToolRoles?: boolean;
   } = {},
 ): Promise<MessageRow[]> {
-  const limit = Math.min(options.limit ?? 200, 500);
+  const limit = Math.min(options.limit ?? 200, THREAD_MESSAGES_READ_MAX);
   const afterOrder = options.afterOrder ?? -1;
   const excludeTools = options.excludeToolRoles ?? true;
   return sql<MessageRow[]>`
@@ -146,6 +155,65 @@ export async function listThreadMessages(
     ORDER BY "order" ASC, step_order ASC
     LIMIT ${limit}
   `;
+}
+
+/** A position in a thread's (order, step_order) sequence — the keyset the
+ * tail read walks backwards from. */
+export interface ThreadMessageCursor {
+  order: number;
+  stepOrder: number;
+}
+
+/**
+ * The NEWEST page of a thread — the last `limit` messages (or the `limit`
+ * strictly before `before`), answered in chronological order with whether
+ * older ones remain. The SURFACE lane: a discussion or feed reads its tail
+ * first so a fresh message is always visible, and walks older pages through
+ * `nextBefore`. One row past the limit is fetched to answer `hasMore`
+ * without a count.
+ */
+export async function listThreadMessagesTail(
+  sql: Sql | TransactionSql,
+  threadId: string,
+  options: {
+    before?: ThreadMessageCursor;
+    limit?: number;
+    excludeToolRoles?: boolean;
+  } = {},
+): Promise<{
+  /** Chronological within the page (oldest first). */
+  messages: MessageRow[];
+  /** Whether messages older than this page exist. */
+  hasMore: boolean;
+  /** The cursor for the next older page; null once the start is reached. */
+  nextBefore: ThreadMessageCursor | null;
+}> {
+  const limit = Math.min(
+    Math.max(options.limit ?? 200, 1),
+    THREAD_MESSAGES_READ_MAX,
+  );
+  const excludeTools = options.excludeToolRoles ?? true;
+  const before = options.before ?? null;
+  const rows = await sql<MessageRow[]>`
+    SELECT ${sql.unsafe(MESSAGE_COLUMNS)} FROM app.messages
+    WHERE thread_id = ${threadId}
+      AND (${before === null}
+        OR ("order", step_order) < (${before?.order ?? 0}, ${before?.stepOrder ?? 0}))
+      AND (${!excludeTools} OR role IN ('user', 'assistant'))
+    ORDER BY "order" DESC, step_order DESC
+    LIMIT ${limit + 1}
+  `;
+  const hasMore = rows.length > limit;
+  const page = (hasMore ? rows.slice(0, limit) : rows).reverse();
+  const oldest = page[0];
+  return {
+    messages: page,
+    hasMore,
+    nextBefore:
+      hasMore && oldest !== undefined
+        ? { order: oldest.order, stepOrder: oldest.stepOrder }
+        : null,
+  };
 }
 
 export async function updateMessageText(

@@ -1023,27 +1023,68 @@ export function buildSpec(): Json {
       description:
         'The discussion read lane: what automations reported back (prepared ' +
         'figures, operator questions, setup summaries) and what people ' +
-        'replied — chronological, capped at the same bound the app renders. ' +
+        'replied. Answers the NEWEST `limit` comments (default 200, at most ' +
+        '500), chronological within the page; while `isDone` is false, pass ' +
+        '`continueCursor` back as `cursor` to read the older ones — a busy ' +
+        'task’s discussion is never silently cut at a fixed window. ' +
         '`authorType` separates `user` and `agent` voices. Visibility is ' +
         'the minting user’s, like every task read.',
       operationId: 'listTaskComments',
       security: sec,
-      parameters: [orgSlugHeaderParam, pathParam('id', 'Task ID')],
+      parameters: [
+        orgSlugHeaderParam,
+        pathParam('id', 'Task ID'),
+        queryParam(
+          'limit',
+          'How many of the newest comments to answer (1–500, default 200)',
+          { type: 'integer' },
+        ),
+        queryParam(
+          'cursor',
+          'The `continueCursor` of a previous page — answers the comments ' +
+            'older than that page',
+        ),
+      ],
       responses: {
         '200': jsonResponse(
-          'The discussion, oldest first',
-          listOf('comments', {
+          'The newest page of the discussion, chronological within the page',
+          {
             type: 'object',
-            required: ['id', 'authorType', 'authorId', 'body', 'createdAt'],
+            required: ['comments', 'isDone', 'continueCursor'],
             properties: {
-              id: { type: 'string' },
-              authorType: { type: 'string', enum: ['user', 'agent'] },
-              authorId: { type: 'string' },
-              body: { type: 'string' },
-              createdAt: { type: 'number' },
-              editedAt: { type: 'number' },
+              comments: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: [
+                    'id',
+                    'authorType',
+                    'authorId',
+                    'body',
+                    'createdAt',
+                  ],
+                  properties: {
+                    id: { type: 'string' },
+                    authorType: { type: 'string', enum: ['user', 'agent'] },
+                    authorId: { type: 'string' },
+                    body: { type: 'string' },
+                    createdAt: { type: 'number' },
+                    editedAt: { type: 'number' },
+                  },
+                },
+              },
+              isDone: {
+                type: 'boolean',
+                description:
+                  'True once this page reaches the start of the discussion',
+              },
+              continueCursor: {
+                type: 'string',
+                description:
+                  'Pass as `cursor` for the next older page; empty when done',
+              },
             },
-          }),
+          },
         ),
         '404': errorResponse('Task not found'),
         ...standardErrors,

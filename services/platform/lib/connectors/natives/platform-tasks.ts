@@ -69,10 +69,12 @@ export interface WorkflowTaskStore {
     body: string;
     bodyByLocale?: { en: string; de: string; fr: string };
   }): Promise<{ messageId: string }>;
+  /** The NEWEST comments the store will answer in one read, chronological;
+   * `truncated` when the discussion holds older ones beyond that window. */
   listComments(args: {
     organizationId: string;
     taskId: string;
-  }): Promise<WorkflowTaskComment[]>;
+  }): Promise<{ comments: WorkflowTaskComment[]; truncated: boolean }>;
 }
 
 const taskRef = z.object({ taskId: z.string().min(1) });
@@ -200,10 +202,11 @@ export function platformTaskNatives(
   ) => {
     const parsed = listCommentsInput.safeParse(input);
     if (!parsed.success) refuse('list_comments', parsed.error);
-    const all = await store.listComments({
+    const listed = await store.listComments({
       organizationId: ctx.organizationId,
       taskId: parsed.data.taskId,
     });
+    const all = listed.comments;
     const { afterMarker, authorTypes, limit } = parsed.data;
     let window = all;
     if (afterMarker !== undefined) {
@@ -221,8 +224,13 @@ export function platformTaskNatives(
       window = window.filter((entry) => wanted.has(entry.authorType));
     }
     if (limit !== undefined) window = window.slice(-limit);
+    // `truncated` rides the payload so a workflow can tell "the whole
+    // discussion" from "as much as one read answers" — a count alone reads
+    // as complete either way, and a marker older than the window would
+    // silently make everything look like fresh feedback.
     return {
       count: window.length,
+      truncated: listed.truncated,
       comments: window.map((entry) => ({
         authorType: entry.authorType,
         authorId: entry.authorId,

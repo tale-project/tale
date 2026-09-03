@@ -3345,7 +3345,7 @@
       "get": {
         "tags": ["Tasks"],
         "summary": "List the task’s comments",
-        "description": "The discussion read lane: what automations reported back (prepared figures, operator questions, setup summaries) and what people replied — chronological, capped at the same bound the app renders. `authorType` separates `user` and `agent` voices. Visibility is the minting user’s, like every task read.",
+        "description": "The discussion read lane: what automations reported back (prepared figures, operator questions, setup summaries) and what people replied. Answers the NEWEST `limit` comments (default 200, at most 500), chronological within the page; while `isDone` is false, pass `continueCursor` back as `cursor` to read the older ones — a busy task’s discussion is never silently cut at a fixed window. `authorType` separates `user` and `agent` voices. Visibility is the minting user’s, like every task read.",
         "operationId": "listTaskComments",
         "security": [
           {
@@ -3370,16 +3370,34 @@
               "type": "string"
             },
             "description": "Task ID"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "How many of the newest comments to answer (1–500, default 200)"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `continueCursor` of a previous page — answers the comments older than that page"
           }
         ],
         "responses": {
           "200": {
-            "description": "The discussion, oldest first",
+            "description": "The newest page of the discussion, chronological within the page",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["comments"],
+                  "required": ["comments", "isDone", "continueCursor"],
                   "properties": {
                     "comments": {
                       "type": "array",
@@ -3414,6 +3432,14 @@
                           }
                         }
                       }
+                    },
+                    "isDone": {
+                      "type": "boolean",
+                      "description": "True once this page reaches the start of the discussion"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "description": "Pass as `cursor` for the next older page; empty when done"
                     }
                   }
                 }

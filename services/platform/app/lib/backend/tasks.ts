@@ -7,9 +7,14 @@
 
 import type { QueryClient } from '@tanstack/react-query';
 
-import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import type { ItemOf, PageItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 
-import type { AdapterContext, ReadAdapter, WriteAdapter } from './adapters';
+import type {
+  AdapterContext,
+  PaginatedAdapter,
+  ReadAdapter,
+  WriteAdapter,
+} from './adapters';
 import { backendFetch, BackendApiError } from './api-client';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
@@ -23,7 +28,7 @@ type GetTaskResult = ReturnsOf<'tasks/queries:getTask'>;
 type TaskLabelItem = ItemOf<'tasks/queries:listTaskLabels'>;
 type TaskDependenciesResult = ReturnsOf<'tasks/queries:listTaskDependencies'>;
 type ProjectDependencyEdge = ItemOf<'tasks/queries:listProjectDependencies'>;
-type TaskDiscussionResult = ReturnsOf<'tasks/queries:getTaskDiscussion'>;
+type TaskDiscussionComment = PageItemOf<'tasks/queries:listTaskDiscussion'>;
 type TaskActivityItem = ItemOf<'tasks/queries:listTaskActivity'>;
 
 /** One task as the backend answers it (decorated: labels + folder facts). */
@@ -332,52 +337,6 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
         ).then((body) => body.edges),
     };
   },
-  'tasks/queries:getTaskDiscussion': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    const taskId = args.taskId;
-    if (orgId === undefined || typeof taskId !== 'string') return null;
-    return {
-      queryKey: backendKey(orgId, 'task', 'discussion', taskId),
-      queryFn: () =>
-        backendFetch<{
-          threadId: string | null;
-          messages: {
-            messageId: string;
-            authorType: string;
-            authorId: string;
-            body: string;
-            createdAt: number;
-            editedAt: number | null;
-            mentions: { type: string; id: string }[] | null;
-            bodyByLocale: Record<string, string> | null;
-          }[];
-        }>(`/tasks/${encodeURIComponent(taskId)}/comments`, { orgId }).then(
-          (body): TaskDiscussionResult => ({
-            threadId: body.threadId,
-            messages: body.messages.map((message) => {
-              const view: Record<string, unknown> = {
-                messageId: message.messageId,
-                authorType: message.authorType,
-                authorId: message.authorId,
-                body: message.body,
-                createdAt: message.createdAt,
-                ...(message.editedAt !== null
-                  ? { editedAt: message.editedAt }
-                  : {}),
-                ...(message.mentions !== null
-                  ? { mentions: message.mentions }
-                  : {}),
-                ...(message.bodyByLocale !== null
-                  ? { bodyByLocale: message.bodyByLocale }
-                  : {}),
-              };
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the one fetch-boundary projection to the 0.4 shape
-              return view as unknown as TaskDiscussionResult['messages'][number];
-            }),
-          }),
-        ),
-    };
-  },
   'tasks/queries:getTaskOpsIndicators': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const projectId = args.projectId;
@@ -642,6 +601,69 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
               return view as TaskActivityItem;
             }),
         ),
+    };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Paginated adapters
+// ---------------------------------------------------------------------------
+
+/** One comment as the backend answers it (nulls for the absent optionals). */
+interface TaskDiscussionCommentWire {
+  messageId: string;
+  authorType: string;
+  authorId: string;
+  body: string;
+  createdAt: number;
+  editedAt: number | null;
+  mentions: { type: string; id: string }[] | null;
+  bodyByLocale: Record<string, string> | null;
+}
+
+function toTaskDiscussionComment(
+  wire: TaskDiscussionCommentWire,
+): TaskDiscussionComment {
+  const view: Record<string, unknown> = {
+    messageId: wire.messageId,
+    authorType: wire.authorType,
+    authorId: wire.authorId,
+    body: wire.body,
+    createdAt: wire.createdAt,
+    ...(wire.editedAt !== null ? { editedAt: wire.editedAt } : {}),
+    ...(wire.mentions !== null ? { mentions: wire.mentions } : {}),
+    ...(wire.bodyByLocale !== null ? { bodyByLocale: wire.bodyByLocale } : {}),
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the one fetch-boundary projection to the 0.4 shape
+  return view as unknown as TaskDiscussionComment;
+}
+
+export const taskPaginatedAdapters: Record<string, PaginatedAdapter> = {
+  /** The discussion walks NEWEST-first: page one is the latest comments,
+   * `continueCursor` reads the ones before them — so a busy task's freshest
+   * comment is always on screen and no fixed window hides the rest. */
+  'tasks/queries:listTaskDiscussion': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const taskId = args.taskId;
+    if (orgId === undefined || typeof taskId !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'task', 'discussion', taskId),
+      fetchPage: (cursor, numItems) => {
+        const query = new URLSearchParams({ numItems: String(numItems) });
+        if (cursor !== null) query.set('cursor', cursor);
+        return backendFetch<{
+          page: TaskDiscussionCommentWire[];
+          isDone: boolean;
+          continueCursor: string;
+        }>(
+          `/tasks/${encodeURIComponent(taskId)}/comments?${query.toString()}`,
+          { orgId },
+        ).then((body) => ({
+          page: body.page.map(toTaskDiscussionComment),
+          isDone: body.isDone,
+          continueCursor: body.continueCursor,
+        }));
+      },
     };
   },
 };

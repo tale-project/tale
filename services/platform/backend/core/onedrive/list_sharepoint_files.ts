@@ -1,4 +1,4 @@
-import { fetchJson } from '../../../lib/utils/type-utils';
+import { fetchGraphCollection, GRAPH_LIST_MAX_ITEMS } from './graph_collection';
 
 export interface SharePointItem {
   id: string;
@@ -21,37 +21,56 @@ export interface ListSharePointFilesArgs {
 export interface ListSharePointFilesResult {
   success: boolean;
   items?: SharePointItem[];
+  /** The bound cut the listing: the folder holds more items than were
+   * returned. A consumer must not treat the list as whole. */
+  truncated?: boolean;
   error?: string;
 }
 
+interface GraphDriveItem {
+  id: string;
+  name: string;
+  size?: number;
+  file?: {
+    mimeType?: string;
+  };
+  folder?: {
+    childCount?: number;
+  };
+  lastModifiedDateTime?: string;
+  webUrl?: string;
+}
+
+/**
+ * Browse a SharePoint document library folder: every page Graph has,
+ * followed through `@odata.nextLink` up to the bound, with `truncated`
+ * when the bound cut it. SharePoint never syncs, so nothing heals a short
+ * read here later — the one-time import is the only import.
+ */
 export async function listSharePointFiles(
   args: ListSharePointFilesArgs,
 ): Promise<ListSharePointFilesResult> {
   try {
-    let url: string;
+    const select =
+      '$select=id,name,size,file,folder,lastModifiedDateTime,webUrl&$top=200';
+    const url = args.folderId
+      ? `https://graph.microsoft.com/v1.0/sites/${args.siteId}/drives/${args.driveId}/items/${args.folderId}/children?${select}`
+      : `https://graph.microsoft.com/v1.0/sites/${args.siteId}/drives/${args.driveId}/root/children?${select}`;
 
-    if (args.folderId) {
-      url = `https://graph.microsoft.com/v1.0/sites/${args.siteId}/drives/${args.driveId}/items/${args.folderId}/children?$select=id,name,size,file,folder,lastModifiedDateTime,webUrl&$top=200`;
-    } else {
-      url = `https://graph.microsoft.com/v1.0/sites/${args.siteId}/drives/${args.driveId}/root/children?$select=id,name,size,file,folder,lastModifiedDateTime,webUrl&$top=200`;
-    }
-
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${args.token}`,
-        Accept: 'application/json',
-      },
+    const listed = await fetchGraphCollection<GraphDriveItem>({
+      url,
+      token: args.token,
+      maxItems: GRAPH_LIST_MAX_ITEMS,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    if (!listed.ok) {
       console.error(
         '[listSharePointFiles] API error:',
-        response.status,
-        errorText,
+        listed.status,
+        listed.errorText,
       );
 
-      if (response.status === 403) {
+      if (listed.status === 403) {
         return {
           success: false,
           error:
@@ -59,7 +78,7 @@ export async function listSharePointFiles(
         };
       }
 
-      if (response.status === 404) {
+      if (listed.status === 404) {
         return {
           success: false,
           error: 'Location not found.',
@@ -68,27 +87,11 @@ export async function listSharePointFiles(
 
       return {
         success: false,
-        error: `Failed to list files: ${response.status}`,
+        error: `Failed to list files: ${listed.status}`,
       };
     }
 
-    const data = await fetchJson<{
-      value: Array<{
-        id: string;
-        name: string;
-        size?: number;
-        file?: {
-          mimeType?: string;
-        };
-        folder?: {
-          childCount?: number;
-        };
-        lastModifiedDateTime?: string;
-        webUrl?: string;
-      }>;
-    }>(response);
-
-    const items: SharePointItem[] = data.value.map((item) => ({
+    const items: SharePointItem[] = listed.items.map((item) => ({
       id: item.id,
       name: item.name,
       size: item.size || 0,
@@ -110,6 +113,7 @@ export async function listSharePointFiles(
     return {
       success: true,
       items,
+      truncated: listed.truncated,
     };
   } catch (error) {
     console.error('[listSharePointFiles] Error:', error);

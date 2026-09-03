@@ -386,12 +386,24 @@ export interface TasksContract {
       status: 'running' | 'failed' | 'cancelled' | 'completed';
     };
   };
-  'tasks/queries:getTaskDiscussion': {
+  /** The discussion as a NEWEST-FIRST page walk: the first page carries the
+   * latest comments, each further page the ones before them. */
+  'tasks/queries:listTaskDiscussion': {
     kind: 'query';
-    args: { organizationId: string; taskId: string };
+    args: {
+      organizationId: string;
+      taskId: string;
+      paginationOpts: {
+        id?: number;
+        endCursor?: null | string;
+        maximumRowsRead?: number;
+        maximumBytesRead?: number;
+        numItems: number;
+        cursor: null | string;
+      };
+    };
     returns: {
-      threadId: null | string;
-      messages: Array<{
+      page: Array<{
         messageId: string;
         authorType: 'user' | 'agent';
         authorId: string;
@@ -401,6 +413,8 @@ export interface TasksContract {
         mentions?: Array<{ type: 'user' | 'agent' | 'automation'; id: string }>;
         bodyByLocale?: { en: string; de: string; fr: string };
       }>;
+      isDone: boolean;
+      continueCursor: string;
     };
   };
   'tasks/queries:getTaskOpsIndicators': {

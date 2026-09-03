@@ -34,6 +34,8 @@ import {
   editTaskComment,
   listTaskComments,
   TASK_COMMENT_MAX,
+  TASK_COMMENT_PAGE_MAX,
+  taskCommentCursorSchema,
 } from './comments.ts';
 import {
   findLiveAutomationRunForTask,
@@ -768,7 +770,28 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
+  /** The discussion, newest page first — the page envelope the infinite-
+   * query lane walks (`cursor` = the previous page's `continueCursor`, an
+   * older page each time), so a busy task's freshest comment is always on
+   * the first page and no fixed window ever hides the rest. */
   app.get('/:taskId/comments', async (c) => {
+    const query = z
+      .object({
+        numItems: z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(TASK_COMMENT_PAGE_MAX)
+          .optional(),
+        cursor: taskCommentCursorSchema,
+      })
+      .safeParse({
+        numItems: c.req.query('numItems'),
+        cursor: c.req.query('cursor'),
+      });
+    if (!query.success) {
+      return c.json({ error: 'invalid query' }, 400);
+    }
     try {
       const auth = await authCtx(c);
       const task = await loadTaskOrThrow(
@@ -776,11 +799,26 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         c.req.param('taskId'),
         auth.organizationId,
       );
+      const page = await listTaskComments(
+        deps.sql,
+        auth,
+        c.req.param('taskId'),
+        {
+          ...(query.data.numItems !== undefined
+            ? { limit: query.data.numItems }
+            : {}),
+          ...(query.data.cursor !== undefined
+            ? { before: query.data.cursor }
+            : {}),
+        },
+      );
       return c.json({
-        // The 0.4 discussion envelope: the lazily-created thread id (null =
-        // the threadless-task bootstrap) beside the ordered messages.
+        // The lazily-created thread id (null = the threadless-task
+        // bootstrap) beside the page, newest comment first.
         threadId: task.discussionThreadId,
-        messages: await listTaskComments(deps.sql, auth, c.req.param('taskId')),
+        page: page.comments.reverse(),
+        isDone: !page.hasMore,
+        continueCursor: page.nextCursor === null ? '' : String(page.nextCursor),
       });
     } catch (error) {
       return handleError(c, error);

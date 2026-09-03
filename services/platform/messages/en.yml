@@ -2229,6 +2229,12 @@ documents:
     redirecting: Redirecting...
     folderEmpty: This folder is empty.
     loadFailed: Failed to load items
+    listingTruncated: >-
+      Showing the first {count} items — this folder holds more. Open a
+      subfolder or search to reach the rest.
+    folderTooLargeToImport: >-
+      "{name}" holds more items than one import can list. Import its
+      subfolders one at a time, or set up a sync import.
     oneTimeImport: One-time import
     oneTimeDescription: Import files once and store them in your workspace
     syncImport: Sync import
@@ -6729,6 +6735,7 @@ tasks:
     overview: Overview
     comments: Comments
     noComments: No comments yet.
+    showEarlierComments: Show earlier comments
     activity: Activity
     subtasks: Subtasks
     addSubtask: Add a subtask…

@@ -21,7 +21,7 @@ actions:
       required: [path]
       properties:
         path: { type: string, description: 'Folder path, e.g. "/reports".' }
-    output: '{ entries: Array<{ path: string, name: string, isDir: boolean, size: number }> }'
+    output: '{ entries: Array<{ path: string, name: string, isDir: boolean, size: number }>, truncated: boolean }'
     mock: |
       const base = input.path.replace(/\/+$/, '');
       return {
@@ -29,6 +29,7 @@ actions:
           { path: `${base}/notes.md`, name: 'notes.md', isDir: false, size: 128 },
           { path: `${base}/archive`, name: 'archive', isDir: true, size: 0 },
         ],
+        truncated: false,
       };
     backend:
       kind: native
