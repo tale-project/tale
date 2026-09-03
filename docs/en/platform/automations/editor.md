@@ -29,7 +29,7 @@ The canvas is for reading and selecting. You wire nodes together by referencing 
 
 ## Edit a node
 
-Click a box and the panel beside the canvas switches from **Trigger** to that node's fields. Click **Close**, press Escape (when you are not typing in a field), click the box again, or click the empty canvas, to switch back. Which fields appear depends on the node's type: **Code** for a `transform`, **Prompt**, **System prompt**, **Model** and **Output schema** for an `llm`, **Workflow** for a `subworkflow`, and **Input** for anything that takes one. The type-specific fields sit above **Input**.
+Click a box and the panel beside the canvas switches from **Trigger** to that node's fields. Click **Close**, press Escape (when you are not typing in a field), click the box again, or click the empty canvas, to switch back. Which fields appear depends on the node's type: **Code** for a `transform`; **Prompt**, **System prompt**, **Model** and **Output schema** for an `llm`; **Automation** for a `subautomation`; and an `agent` adds its equipment — **Harness**, **Skills**, **Connectors**, **Platform tools**, **Secrets**, and **Staged files** — to the prompt and model it shares with `llm`. **Input** appears for anything that takes one, and the type-specific fields sit above it.
 
 **Input** is a JSON object, and it is where references live. A string value may reference another node's output, and that reference is exactly what draws an arrow on the canvas. While the JSON is incomplete the panel tells you it is not valid yet and leaves the node unchanged, so a half-typed edit can never be saved by accident.
 

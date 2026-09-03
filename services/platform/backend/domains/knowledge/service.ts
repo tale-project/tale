@@ -35,6 +35,12 @@ import { resolveObjectStore } from '../../lib/object-store.ts';
 import { readGovernancePolicy, resolveOrgSlug } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
+import {
+  decideRetrievable,
+  type AccessScopeArg,
+  type DocCandidate,
+  type UnboundFileCandidate,
+} from './retrievable.ts';
 
 /**
  * Knowledge (RAG) — the retrieval and ingest lanes over the knowledge
@@ -54,18 +60,15 @@ const ADAPTER_FIND_ONE = '_reference/childComponent/betterAuth/adapter/findOne';
 const FILTER_RETRIEVABLE =
   'documents/internal_queries:filterRetrievableRagFileIds';
 
-interface AccessScopeArg {
-  teamIds?: string[];
-  projectIds?: string[];
-  includeHub?: boolean;
-  includeConversationScoped?: boolean;
-  threadIds?: string[];
-}
-
 /**
- * Tier-A retrievable filter over app tables: a file ref passes when its
- * metadata row belongs to the org AND (bound document is un-trashed and in
- * scope | thread-bound and the thread is in scope | legacy unbound same-org).
+ * Tier-A retrievable filter over app tables — lifecycle truth for the
+ * corpus. A ref passes when a document CURRENTLY exposes it (`file_ref` =
+ * ref, active lifecycle, in scope — a replaced version's ref or a trashed/
+ * expired document is dark immediately, whatever the physical purge is
+ * still doing) or a LIVE unbound file row holds it (thread files inside
+ * their thread's scope; document-less lanes like video-link transcripts
+ * keep the 0.4 same-org posture). The DECISION is `decideRetrievable`
+ * (pure, tested); this wrapper only fetches its candidates.
  */
 async function filterRetrievableRagFileIds(
   sql: Sql,
@@ -78,85 +81,51 @@ async function filterRetrievableRagFileIds(
   if (args.fileIds.length === 0) {
     return [];
   }
-  const rows = await sql<
-    {
-      storageRef: string;
-      threadId: string | null;
-      documentId: string | null;
-      docTrashed: boolean | null;
-      docProjectId: string | null;
-      docTeamId: string | null;
-      docTeamTags: string[] | null;
-    }[]
-  >`
+  const docRows = await sql<({ fileRef: string } & DocCandidate)[]>`
+    SELECT d.file_ref AS "fileRef", d.lifecycle_status AS "lifecycleStatus",
+           d.project_id AS "projectId", d.team_id AS "teamId",
+           d.team_tags AS "teamTags"
+    FROM app.documents d
+    WHERE d.org_id = ${args.organizationId}
+      AND d.file_ref = ANY(${args.fileIds})
+  `;
+  const fileRows = await sql<({ storageRef: string } & UnboundFileCandidate)[]>`
     SELECT fm.storage_ref AS "storageRef", fm.thread_id AS "threadId",
-           fm.document_id AS "documentId",
-           (d.lifecycle_status = 'trashed') AS "docTrashed",
-           d.project_id AS "docProjectId", d.team_id AS "docTeamId",
-           d.team_tags AS "docTeamTags"
+           fm.lifecycle_status AS "lifecycleStatus"
     FROM app.file_metadata fm
-    LEFT JOIN app.documents d ON d.id = fm.document_id
     WHERE fm.org_id = ${args.organizationId}
       AND fm.storage_ref = ANY(${args.fileIds})
+      AND fm.document_id IS NULL
   `;
-  const byRef = new Map(rows.map((row) => [row.storageRef, row]));
-  const access = args.access;
+  const docsByRef = new Map<string, DocCandidate[]>();
+  for (const row of docRows) {
+    const { fileRef, ...candidate } = row;
+    const list = docsByRef.get(fileRef);
+    if (list) list.push(candidate);
+    else docsByRef.set(fileRef, [candidate]);
+  }
+  const filesByRef = new Map<string, UnboundFileCandidate[]>();
+  for (const row of fileRows) {
+    const { storageRef, ...candidate } = row;
+    const list = filesByRef.get(storageRef);
+    if (list) list.push(candidate);
+    else filesByRef.set(storageRef, [candidate]);
+  }
   const retrievable: string[] = [];
   for (const ref of args.fileIds) {
     // Conversation/email-message refs (`msg:`) deny until that domain lands.
     if (ref.startsWith('msg:')) {
       continue;
     }
-    const row = byRef.get(ref);
-    if (!row) {
-      continue;
+    if (
+      decideRetrievable(
+        docsByRef.get(ref) ?? [],
+        filesByRef.get(ref) ?? [],
+        args.access,
+      )
+    ) {
+      retrievable.push(ref);
     }
-    if (row.documentId !== null) {
-      if (row.docTrashed === true) {
-        continue;
-      }
-      if (access === undefined) {
-        retrievable.push(ref);
-        continue;
-      }
-      if (row.docProjectId !== null) {
-        if ((access.projectIds ?? []).includes(row.docProjectId)) {
-          retrievable.push(ref);
-        }
-        continue;
-      }
-      if (access.includeHub === false) {
-        continue;
-      }
-      const docTeams =
-        row.docTeamTags && row.docTeamTags.length > 0
-          ? row.docTeamTags
-          : row.docTeamId
-            ? [row.docTeamId]
-            : [];
-      if (
-        docTeams.length === 0 ||
-        docTeams.some((teamId) => (access.teamIds ?? []).includes(teamId))
-      ) {
-        retrievable.push(ref);
-      }
-      continue;
-    }
-    if (row.threadId !== null) {
-      if (access === undefined) {
-        retrievable.push(ref);
-        continue;
-      }
-      if (
-        access.includeConversationScoped !== false &&
-        (access.threadIds ?? []).includes(row.threadId)
-      ) {
-        retrievable.push(ref);
-      }
-      continue;
-    }
-    // Legacy/unbound: same-org fallback (the 0.4 posture).
-    retrievable.push(ref);
   }
   return retrievable;
 }

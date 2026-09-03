@@ -345,6 +345,9 @@ export function createProjectRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             contentType: body.data.contentType ?? 'application/octet-stream',
             source: 'rest',
           },
+          // Ownership was proven by the `rest_upload_intents` consume above,
+          // in this same transaction.
+          { kind: 'external' },
         );
         const created = await createDocumentFromUpload(tx, auth, {
           fileId: registered.fileId,

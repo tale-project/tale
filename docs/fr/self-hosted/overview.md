@@ -1,55 +1,60 @@
 ---
 title: Architecture auto-hébergée
-description: Huit conteneurs, un fichier compose, deux bases Postgres. Cette page donne le modèle mental pour savoir ce que fait chaque conteneur, où vivent les données sur le disque et quels secrets comptent au premier boot.
+description: Neuf conteneurs derrière un proxy Caddy, un Postgres, un stockage d'objets compatible S3. Cette page donne le modèle mental pour savoir ce que fait chaque conteneur, où vivent les données sur le disque et quels secrets comptent au premier boot.
 ---
 
-Une instance Tale, ce sont huit conteneurs derrière un proxy Caddy, parlant à deux bases Postgres — une opérationnelle, une pour le corpus de connaissances ; deux d'entre eux sont des conteneurs sandbox sur le côté pour l'exécution de code. Le fichier compose est le contrat — ce qui tourne, ce qui est exposé, ce qui est monté. Cette page te donne le modèle mental pour que les pages installation, configuration et exploitation n'aient pas à le réexpliquer.
+Une instance Tale, ce sont neuf conteneurs derrière un proxy Caddy : le tier web, un backend applicatif à deux rôles, un Postgres, un stockage d'objets compatible S3, et le plan sandbox à trois conteneurs sur le côté pour l'exécution de code. Un petit sidecar `bgutil-provider` complète l'ensemble pour l'ingestion de liens vidéo. Le fichier compose est le contrat — ce qui tourne, ce qui est exposé, ce qui est monté. Cette page te donne le modèle mental pour que les pages installation, configuration et exploitation n'aient pas à le réexpliquer.
 
-Lis ceci avant de `docker compose up`. Reviens-y quand tu débogues un incident et que tu dois savoir quel log de conteneur ouvrir en premier.
+Lis ceci avant de déployer. Reviens-y quand tu débogues un incident et que tu dois savoir quel log de conteneur ouvrir en premier.
 
-## Les huit conteneurs
+## Les conteneurs
 
-**tale-proxy** est Caddy en bordure. Il termine TLS, route tout sous `/` vers le conteneur plateforme, et tout sous `/api/` et les chemins Convex vers le conteneur convex. Les healthchecks vivent ici.
+**tale-proxy** est Caddy en bordure. Il termine TLS, sert la SPA et les routes propres à la plateforme depuis le conteneur plateforme, et transfère la surface applicative — tout sous `/api/` sauf `/api/health`, plus `/events` et la porte WebDAV — vers le backend. Les healthchecks vivent ici.
 
-**tale-platform** est le serveur React + TanStack Start. Il rend l'UI, sert les assets statiques et est le seul conteneur exposé au navigateur. Il ne porte pas d'état métier — tout ce qui doit persister parle à convex.
+**tale-platform** est le tier web : une SPA Vite + TanStack Router avec le serveur Bun qui la sert. Il rend l'UI, sert les assets statiques et le branding, surveille le magasin de config pour les changements à chaud et possède quelques routes à lui (la sonde de santé, l'aperçu canvas/screencast, le repli WebDAV). C'est le seul conteneur auquel le navigateur parle directement, et il ne porte aucun état métier — tout ce qui persiste passe par le backend.
 
-**tale-convex** est le backend : les actions, queries, mutations et la couche WebSocket à laquelle l'UI s'abonne. Clés de fournisseur, définitions d'agent, exécutions de workflow, journaux d'audit — tout cela vit ici. Il exécute aussi le travail de connaissances en in-process — l'ingestion de documents, le crawling web, la recherche RAG et la génération de documents sont des node-actions Convex, pas des services séparés. Le travail headless dont ces tâches ont besoin (rendre une page web, transformer du HTML en PDF ou en image) est délégué au runtime sandbox, qui embarque déjà Chromium et Playwright.
+**tale-backend-api** est le backend applicatif dans le rôle `api` (`TALE_ROLE=api`) : chaque porte applicative — l'API de l'app, Better Auth, le flux SSE de hints, les portes machine et les ponts in-sandbox. Clés de fournisseur, définitions d'agent, exécutions d'automatisation et journaux d'audit passent tous par lui. C'est un singleton — les deux couleurs de plateforme pointent vers la même api — et il est aussi rattaché au réseau sandbox pour qu'un conteneur de session l'atteigne directement.
 
-**tale-db** est le Postgres opérationnel (ParadeDB). Il porte les données du backend Convex — agents, runs, le log d'audit — et est l'un des deux conteneurs stateful qui comptent pour les sauvegardes.
+**tale-backend-worker** est la même image dans le rôle `worker` (`TALE_ROLE=worker`) : l'exécuteur de jobs derrière les schedules, les watchdogs et les tours d'agent. Il exécute aussi le travail de connaissances — ingestion de documents, crawling web, indexation RAG et génération de documents — comme des jobs en arrière-plan plutôt que comme des services séparés. Le travail headless dont ces jobs ont besoin (rendre une page web, transformer du HTML en PDF ou en image) est délégué au runtime sandbox, qui embarque déjà Chromium et Playwright. Le worker n'expose aucun HTTP et scale horizontalement (`--scale backend-worker=N`).
 
-**tale-knowledge-db** est le Postgres du corpus de connaissances (ParadeDB), la base `tale_knowledge` avec deux schémas : `private_knowledge` (fragments de documents téléversés, embeddings, index BM25, cache sémantique) et `public_web` (pages web crawlées). Il est séparé de `tale-db` pour que le corpus — la banque sensible à la résidence des données — puisse être relocalisé ou remplacé tout seul. Le backend Convex s'y connecte directement ; rien d'autre ne le fait.
+**tale-db** est le Postgres opérationnel (ParadeDB, avec `pg_search` + `pgvector`). Le stack single-host y replie deux bases : `tale_app` — le magasin applicatif derrière les agents, les runs et le log d'audit — et `tale_knowledge`, le corpus de connaissances avec deux schémas, `private_knowledge` (fragments de documents téléversés, embeddings, index BM25, cache sémantique) et `public_web` (pages web crawlées). Le service porte l'alias `knowledge-db` sur le réseau interne, si bien que le corpus se résout vers le même Postgres sans câblage supplémentaire. Le `compose.yml` de développement sépare plutôt le corpus dans un service `knowledge-db` dédié, pour qu'il puisse être relocalisé tout seul — voir [Résidence des données](/fr/self-hosted/configuration/data-residency).
 
-**tale-sandbox-llm-gateway** est la gateway LLM pour les tours sur harness. C'est le seul chemin d'un harness en sandbox vers un fournisseur de modèles ; la plateforme le provisionne et frappe des clés par session.
+**tale-object-store** est MinIO, le backend de blobs compatible S3. Documents téléversés, pièces jointes de chat, audio et médias générés vivent ici — c'est le seul backend de blobs, donc un déploiement qui ne l'atteint pas refuse le moindre téléversement. Il est purement interne : les blobs atteignent le navigateur via des URLs présignées que le backend signe et que le proxy transfère, jamais en exposant le magasin lui-même.
 
-**tale-sandbox** et **tale-sandbox-egress** exécutent du code en sandbox pour le compte de l'outil **Exécuter du code** et des scripts de compétence, et servent de runtime de navigateur headless que le backend convex appelle pour le rendu web et la génération de documents. Le conteneur egress est le seul chemin que la sandbox a vers le réseau. L'egress est ouvert par défaut — le code en sandbox atteint n'importe quel hôte public en HTTPS, tandis que les métadonnées cloud et les plages d'adresses privées restent bloquées au niveau IP ; restreins-le à une allowlist d'hôtes avec `SANDBOX_EGRESS_ALLOWLIST`, décrite dans [Durcissement](/fr/self-hosted/operate/security/hardening).
+**tale-sandbox-llm-gateway** est la passerelle LLM pour les tours d'agent de code in-sandbox (harness). C'est le seul chemin d'un harness sandboxé vers un fournisseur de modèle ; le backend le provisionne et frappe des clés par session.
+
+**tale-sandbox** et **tale-sandbox-egress** exécutent du code sandboxé pour le compte de l'outil `Run code` et des scripts de skill, et servent de runtime navigateur headless que le backend appelle pour le rendu web et la génération de documents. Le conteneur egress est le seul chemin de la sandbox vers le réseau. L'egress est ouvert par défaut — le code sandboxé atteint n'importe quel hôte public en HTTPS tandis que les cibles cloud-metadata et de plages privées restent bloquées à la couche IP ; verrouille-le sur une allowlist de noms d'hôtes avec `SANDBOX_EGRESS_ALLOWLIST`, décrit dans [Durcissement](/fr/self-hosted/operate/security/hardening).
+
+Un dixième conteneur, **tale-bgutil-provider**, est un sidecar tiers best-effort qui fournit les PO-tokens dont l'ingestion de liens vidéo a besoin pour passer le mur anti-bot de YouTube — voir [Ingestion vidéo](/fr/self-hosted/configuration/video-ingestion).
 
 ## Données sur le disque
 
-Quatre volumes survivent à un `docker compose down` :
+Ces volumes survivent à un `docker compose down` :
 
-- `db-data` — le répertoire de données du Postgres opérationnel : la base derrière les agents, les runs et le log d'audit.
-- `knowledge-db-data` — le répertoire de données du Postgres du corpus de connaissances : fragments de documents, embeddings, index de recherche et pages web crawlées. Se sauvegarde séparément de `db-data` parce que c'est une base distincte.
-- `backups` — snapshots de volumes checksummés, écrits par `tale backup` et automatiquement avant les déploiements migrants ; [Backups et restauration](/fr/self-hosted/operate/backups-and-restore) est le drill.
-- Le montage du magasin d'objets Convex — fichiers téléversés, documents générés, bundles exportés.
+- `db-data` — le répertoire de données du Postgres opérationnel : le magasin applicatif _et_ le corpus de connaissances (fragments de documents, embeddings, index de recherche, pages crawlées), puisque le stack single-host replie les deux dans une seule base.
+- `convex-data` — le magasin de config de l'org : agents, skills, fournisseurs, politiques de gouvernance, fichiers de connexion SSO et branding téléversé. Le nom précède le retrait de Convex et est conservé pour qu'aucun opérateur n'ait à migrer un volume pour un renommage ; le backend possède chaque écriture, et la plateforme le monte en lecture seule.
+- `object-store-data` — le store de blobs : fichiers téléversés, pièces jointes de chat, documents générés, bundles exportés.
+- `caddy-data`, `caddy-config` — certificats TLS et état du proxy.
+- `backups` — snapshots de volumes vérifiés par somme de contrôle, écrits par `tale backup` et automatiquement avant les déploiements qui migrent ; [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore) est l'exercice.
 
-Tout le reste est éphémère. Les conteneurs peuvent être remplacés sans perte de données tant que les volumes survivent.
+Tout le reste est éphémère. Les conteneurs se remplacent sans perte de données tant que les volumes survivent. Une réserve à intérioriser : `tale backup` snapshotte `db-data`, `convex-data` et les volumes Caddy, mais **pas** `object-store-data` — les blobs ont besoin de leur propre capture off-host, traitée dans [Sauvegardes et restauration](/fr/self-hosted/operate/backups-and-restore).
 
 ## Secrets de fournisseur et couche SOPS
 
-Les clés de fournisseur (OpenAI, Anthropic, Azure, Ollama, etc.) vivent sur le disque dans un répertoire `providers/` monté dans le conteneur plateforme. Chaque fournisseur a un `<nom>.json` et un `<nom>.secrets.json` ; le fichier secrets est chiffré avec SOPS et la variable [`SOPS_AGE_KEY`](/fr/self-hosted/configuration/environment-reference).
+Les clés de fournisseur (OpenAI, Anthropic, Azure, Ollama, etc.) vivent sur le disque dans un répertoire `providers/` à l'intérieur du magasin de config. Chaque fournisseur a un `<name>.json` et un `<name>.secrets.json` ; le fichier de secrets est chiffré avec SOPS et la variable [`SOPS_AGE_KEY`](/fr/self-hosted/configuration/environment-reference).
 
-Cette séparation existe pour deux raisons. Faire tourner une clé de fournisseur, c'est éditer un fichier, pas redémarrer la plateforme ; sauvegarder le fichier chiffré est sûr à committer aux côtés de l'infrastructure. Le mode clair (pas de SOPS, secrets en clair) est supporté pour des environnements étroitement contrôlés où le disque lui-même est chiffré au repos.
+Cette séparation existe pour deux raisons. Faire tourner une clé de fournisseur, c'est éditer un fichier, pas relancer le backend ; sauvegarder le fichier chiffré est sûr à committer aux côtés de l'infrastructure. Le mode texte clair (pas de SOPS, secrets en clair au mode 0600) est pris en charge pour les environnements strictement contrôlés où le disque lui-même est chiffré at rest.
 
 ## Auth et sessions
 
-Le sign-in est Better Auth tournant dans le conteneur convex. Quatre modes de sign-in sont fournis : mot de passe local, Microsoft Entra (OAuth/OIDC), OIDC générique et trusted headers (le reverse proxy fournit l'identité). Le conteneur plateforme lit le cookie, le passe à convex, et convex décide de ce que la session peut faire sur la base du rôle de l'utilisateur et de la matrice de permissions par ressource documentée dans [Membres et rôles](/fr/platform/admin/members-and-roles).
+La connexion est Better Auth, tournant dans le conteneur backend-api. Les modes livrés sont l'e-mail/mot de passe local (avec second facteur et passkeys optionnels), le SSO — Microsoft Entra et OIDC générique — et les en-têtes de confiance (trusted headers), où le reverse-proxy fournit l'identité. Le conteneur plateforme lit le cookie et transfère la requête ; backend-api valide la session et décide ce qu'elle peut faire selon le rôle de l'utilisateur et la matrice de permissions par ressource documentée dans [Membres et rôles](/fr/platform/admin/members-and-roles).
 
-La [référence d'authentification](/fr/self-hosted/configuration/authentication) couvre les variables d'environnement et les arbitrages par mode.
+La [référence d'authentification](/fr/self-hosted/configuration/authentication) couvre les variables d'environnement et les compromis par mode.
 
 ## Quand tu sors du single-host
 
-Le fichier compose par défaut fait tourner les huit conteneurs sur un hôte. L'architecture est mono-tenant : rien dans le design ne répartit le travail entre hôtes. La première chose que tu peux sortir de la boîte sans réarchitecturer, c'est le corpus de connaissances — `tale-knowledge-db` est un Postgres autonome, donc le pointer vers une infrastructure gérée (pour la capacité ou pour une exigence de résidence) est un changement de chaîne de connexion, couvert dans [Résidence des données](/fr/self-hosted/configuration/data-residency). La couche Convex reste mono-instance ; la scalabilité horizontale du backend n'est pas une fonctionnalité v1.
+Le stack par défaut fait tourner chaque conteneur sur un seul hôte. L'architecture est mono-locataire, mais les tiers se séparent déjà proprement : `tale-backend-worker` scale horizontalement, et le magasin opérationnel et celui des connaissances sont des bases distinctes même quand ils partagent un seul processus Postgres. La première chose que tu peux sortir de la machine sans ré-architecturer, c'est le corpus de connaissances — pointe `KNOWLEDGE_DATABASE_URL` vers un ParadeDB managé (pour la capacité ou une exigence de résidence), et il se relocalise indépendamment, traité dans [Résidence des données](/fr/self-hosted/configuration/data-residency). Le store de blobs est le deuxième — une org qui apporte son propre bucket S3 sous **Paramètres > Résidence des données** contourne entièrement l'`object-store` embarqué.
 
 ## Où cela s'inscrit
 
-Cette page d'architecture est la carte que présuppose chaque autre page auto-hébergée. La lecture suivante naturelle est [Quickstart](/fr/self-hosted/install/quickstart) si tu montes une instance neuve, ou [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) si tu en exploites une et que tu veux la même image superposée aux modes de défaillance.
+Cette page d'architecture est la carte que toute autre page auto-hébergée présuppose. La lecture suivante naturelle est [Démarrage rapide](/fr/self-hosted/install/quickstart) si tu montes une instance fraîche, ou [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) si tu en exploites une et qu'il te faut la même image avec les modes de défaillance superposés.

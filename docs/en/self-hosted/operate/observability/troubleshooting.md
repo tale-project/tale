@@ -26,24 +26,24 @@ If the mode is already `letsencrypt`, check the proxy logs for ACME failures —
 
 ## UI loads but no data appears
 
-The UI shell is static assets served by `tale-platform`; everything else flows through `tale-convex` over a WebSocket. When the WebSocket cannot connect, the shell loads and stays empty. Symptoms: spinners that never resolve, "reconnecting" toasts, the chat input that never accepts a message.
+The UI shell is static assets served by `tale-platform`; everything else flows through `tale-backend-api` — the app API over HTTP and the live-update SSE stream on `/events`. When the backend cannot be reached, the shell loads and stays empty. Symptoms: spinners that never resolve, "reconnecting" toasts, the chat input that never accepts a message.
 
 ```bash
-docker compose logs --tail=200 tale-convex
+docker compose logs --tail=200 backend-api
 ```
 
-The convex container is probably restarting (look for `panic` in the logs) or unreachable from the proxy. Restart with `docker compose restart tale-convex` — sessions are server-side and clients re-subscribe on reconnect, so the restart is safe.
+The backend-api container is probably restarting (look for a crash in the logs) or unreachable from the proxy. Restart with `docker compose restart backend-api` — sessions are server-side and clients reconnect the SSE stream, so the restart is safe.
 
 ## Uploads stuck in "indexing"
 
-Document ingestion runs inside the Convex backend and writes the extracted chunks and embeddings to the knowledge corpus database. A long "indexing" state means either the backend cannot reach `tale-knowledge-db` or the file itself failed to extract. Check the convex logs and the corpus database first:
+Document ingestion runs inside the backend worker and writes the extracted chunks and embeddings to the knowledge corpus database. A long "indexing" state means either the worker cannot reach the corpus database or the file itself failed to extract. Check the worker logs and the corpus database first:
 
 ```bash
-docker compose logs --tail=200 tale-convex | grep -iE "knowledge|ingest|embed"
-docker compose ps tale-knowledge-db
+docker compose logs --tail=200 backend-worker | grep -iE "knowledge|ingest|embed"
+docker compose ps db
 ```
 
-If the logs show connection errors to `knowledge-db`, restart the corpus database (`docker compose restart tale-knowledge-db`); ingestion retries on the next pass, so uploads do not have to be re-submitted. If the database is healthy but a specific upload is stuck, the file itself is the suspect — corrupt PDFs and password-protected documents land in a failure state and require deletion and re-upload.
+If the logs show connection errors to the corpus database (`knowledge-db` on the network, folded into `db` on a single-host deploy), restart it (`docker compose restart db`); ingestion retries on the next pass, so uploads do not have to be re-submitted. If the database is healthy but a specific upload is stuck, the file itself is the suspect — corrupt PDFs and password-protected documents land in a failure state and require deletion and re-upload.
 
 ## Chat replies stop mid-stream
 
@@ -57,14 +57,14 @@ A `429` is the common case. Either the org's budget is hitting the provider's ra
 
 ## Saving fails with "saving failed" toast
 
-The convex container could not write to Postgres. Either `tale-db` is down or its disk is full:
+The backend could not write to Postgres. Either `tale-db` is down or its disk is full:
 
 ```bash
 docker compose ps tale-db
 docker compose exec db df -h /var/lib/postgresql/data
 ```
 
-A disk at 100 % is the failure that produces the most surprised faces. Free space, restart `tale-db`, and the queued writes flush. If the disk has room, the suspect is connection-pool exhaustion or a lock — restart `tale-convex` to clear the pool.
+A disk at 100 % is the failure that produces the most surprised faces. Free space, restart `tale-db`, and the queued writes flush. If the disk has room, the suspect is connection-pool exhaustion or a lock — restart `backend-api` to clear the pool.
 
 ## "Run code" tool errors with "egress denied"
 

@@ -15,11 +15,11 @@ Die Transkription läuft einmal pro gesprochener Nachricht. Was der Agent bekomm
 
 ## Text zu Sprache
 
-Ob eine Antwort vorgelesen wird, entscheidest du in der Eingabezeile, für den Zug, den du gerade absendest. Schalte die Sprachausgabe ein, und die zurückkommende Antwort geht an ein Text-to-Speech-Modell und wird abgespielt, während sie eintrifft; lässt du sie aus, landet die Antwort als Text wie jede andere. Die Wiedergabe lässt sich vorzeitig stoppen, und die letzte Antwort lässt sich erneut abspielen, ohne die Frage zu wiederholen.
+Ob eine Antwort vorgelesen wird, ist ein Schalter in der Eingabezeile, der die Sprachausgabe für den Chat setzt, in dem du gerade bist. Schalte die Sprachausgabe ein, und die zurückkommende Antwort geht an ein Text-to-Speech-Modell und wird abgespielt, während sie eintrifft; lässt du sie aus, landet die Antwort als Text wie jede andere. Die Wiedergabe lässt sich vorzeitig stoppen, und die letzte Antwort lässt sich erneut abspielen, ohne die Frage zu wiederholen.
 
 <Note>
 
-Die Sprachausgabe ist ein Bedienelement der Eingabezeile und keine gespeicherte Einstellung. Es gibt keine Stimme, die an einem Agent hängt, und keine organisationsweite Vorgabe, die für dich entscheidet — der Zug, den du gerade sendest, ist der ganze Geltungsbereich der Wahl. Das bewahrt dich davor, dass eine freihändige Sitzung dir ins Großraumbüro folgt.
+Die Sprachausgabe löst eine Kaskade auf, keinen einzelnen Schalter pro Zug: Eine organisationsweite Richtlinie kann sie ganz abschalten — dann verschwindet das Bedienelement —, und darunter liegen dein gespeicherter Standard und die Übersteuerung jedes einzelnen Chats. Schaltest du sie innerhalb eines Chats um, schreibt das die Übersteuerung dieses Chats; schaltest du sie in einem neuen Chat um, setzt das den Standard, den deine späteren Chats erben. Es gibt keine Stimme, die an einem Agent hängt.
 
 </Note>
 

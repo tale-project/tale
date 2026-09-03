@@ -476,6 +476,10 @@ auth:
       userNotAssigned:
         Ton compte n’est pas affecté à cette application. Contacte ton
         administration pour demander l’accès.
+      notOrgMember:
+        Ton compte n’est pas membre de cette organisation. Demande à
+        l’administration de cette organisation de t’inviter, puis
+        reconnecte-toi.
       silentAuthFailed: La connexion silencieuse a échoué. Connecte-toi de manière interactive.
       refreshTokenExpired: Ta session a expiré. Reconnecte-toi.
       consentRequired:
@@ -1160,6 +1164,9 @@ chat:
       privateIpResolved: Ce lien pointe vers une adresse privée/interne
       inFlightCap: Trop de vidéos en cours de traitement — attends qu'une se termine
       budgetExceeded: Limite d'usage atteinte — contacte ton administrateur
+      notFound: Lien vidéo introuvable — il a peut-être été supprimé
+      notUploader: Seule la personne qui a ajouté cette vidéo peut la modifier
+      notRetryable: Nouvelle tentative impossible pour le moment — la vidéo est peut-être déjà en cours de traitement
     actions:
       removeLink: Retirer
       retry: Réessayer
@@ -1346,7 +1353,6 @@ chat:
     waitingInput: En attente de ta réponse
     waitingOn: En attente de {detail}
   parts:
-    attachment: 'Pièce jointe : {name}'
     toolCall: '{tool} appelé'
     toolResult: Résultat de {tool}
     toolResultFailed: Échec
@@ -1753,8 +1759,8 @@ conversations:
     subject: Objet
     subjectPlaceholder: De quoi s'agit-il ?
     assignLabel: Responsable
-    assignPlaceholder: Choisir un membre
-    assignSearch: Rechercher des membres
+    assignPlaceholder: Choisir une personne ou une équipe
+    assignSearch: Rechercher des personnes et des équipes
     assignYou: Toi
     bodyPlaceholder: Écris ton message…
     fillRequired: Choisis un contact, une boîte et un objet pour envoyer.
@@ -1811,7 +1817,6 @@ conversations:
     assignee: Responsable
     assign: Assigner
     assignedTo: Attribué à {name}
-    noMembers: Aucun membre trouvé
     unassign: Retirer l'attribution
     assignError: Impossible de mettre à jour le responsable
     inboxSource: 'Boîte de réception : {inbox}'
@@ -1847,11 +1852,9 @@ conversations:
     send: Envoyer le message
   attachment:
     download: Télécharger
-    downloading: Téléchargement...
     attachments: '{count, plural, one {# pièce jointe} other {# pièces jointes}}'
   panel:
     uploadFailed: Échec du téléversement des pièces jointes. Merci de réessayer.
-    downloadFailed: Échec du téléchargement des pièces jointes. Merci de réessayer.
     noSelected: Aucune conversation sélectionnée
     selectToView: Sélectionne une conversation pour voir les détails
     notFound: Conversation introuvable
@@ -3932,6 +3935,7 @@ governance:
       gdpr_erasure_cascade_attempts_exhausted: Tentatives de cascade épuisées
       gdpr_erasure_extended: Échéance prolongée
       gdpr_erasure_retried: Réessayée
+      gdpr_erasure_rejected: Rejetée
       gdpr_erasure_cancelled: Annulée
     categories:
       userMemories: Mémoires personnelles
@@ -4320,6 +4324,9 @@ metadata:
   apiDocs:
     title: Documentation API
     description: Explore l'API Tale avec la documentation interactive.
+  convexDashboard:
+    title: Convex Dashboard
+    description: Gère le backend Convex.
   knowledge:
     title: Connaissances
     description: Gère ta base de connaissances pour les agents IA.
@@ -7009,6 +7016,7 @@ toast:
     logoTooSmall: Le logo doit faire au moins {min}×{min} pixels.
     imageTooLarge: L'image est trop volumineuse. La taille maximale est de 2 Mo.
     imageMimeUnsupported: Format d'image non pris en charge. Utilise PNG, SVG, JPG, WebP ou ICO.
+    imageSvgActiveContent: Le SVG contient des scripts ou des gestionnaires d'événements. Retire-les ou téléverse un PNG.
     imageTypeInvalid: Type d'image invalide
     addMemberFailed:
       title: Impossible d'ajouter le membre

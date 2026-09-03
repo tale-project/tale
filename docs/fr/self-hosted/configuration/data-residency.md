@@ -23,7 +23,7 @@ Trois banques de données, chacune indépendante et optionnelle. Un réglage abs
 
 - **Base de connaissances** — le corpus de connaissances : métadonnées des documents, texte des fragments extraits, embeddings, index BM25, cache sémantique et pages web crawlées. Elle est livrée comme le conteneur `knowledge-db` (`tale_knowledge`, avec les schémas `private_knowledge` et `public_web`) et c'est la banque qui compte le plus pour les exigences de résidence, car elle détient le contenu de tes documents. Pointe-la vers ton propre Postgres géré pour garder le corpus sur une infrastructure que ton équipe exploite.
 - **Stockage de fichiers** — où vivent les fichiers téléversés (les blobs d'origine). Par défaut ils résident dans le magasin d'objets fourni avec la pile (le service `object-store`, sur son propre volume) ; tu peux les pointer vers un bucket externe compatible S3.
-- **Base de données applicative** (avancé) — la base Convex opérationnelle (le conteneur `db` fourni). Le backend Convex déduit le nom de cette base de `INSTANCE_NAME` (`tale_platform`) et se connecte uniquement via hôte:port, donc le Postgres externe doit contenir une base nommée exactement `tale_platform`. Son mode TLS est fixé par le pilote Convex et n'est pas configurable.
+- **Base de données applicative** (avancé) — le magasin opérationnel derrière les agents, les runs et le log d'audit (le conteneur `db` fourni, la base `tale_app`). La relocaliser pointe la `DATABASE_URL` du backend vers ton propre Postgres ; le nom de la base est `tale_app` par défaut (override avec `APP_DB_NAME`), donc un Postgres externe doit contenir une base de ce nom.
 
 > Note : la base de connaissances et la base de données applicative sont deux instances Postgres séparées — déplacer l'une ne touche pas l'autre. Relocaliser la base de connaissances déplace le texte extrait et les embeddings ; les fichiers téléversés d'origine ne suivent que si tu relocalises aussi le **stockage de fichiers** vers S3.
 
@@ -64,7 +64,7 @@ La connexion vit à côté de celle des connaissances, dans le répertoire de co
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` — région, endpoint optionnel (pour MinIO/R2), indicateur path-style, bucket et un préfixe de clé optionnel.
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.secrets.json` — la paire de clés d'accès, chiffrée avec SOPS dès qu'une clé age SOPS est configurée (voir [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops)).
 
-Contrairement au basculement S3 au niveau du déploiement ci-dessus, ce chemin n'est **pas** réservé aux installations neuves : dès que la configuration existe, les nouveaux téléversements vont dans le bucket de l'org, tandis que les fichiers stockés avant restent lisibles là où ils sont — les références mixtes sont prises en charge, tu peux donc basculer à tout moment. Les fichiers stockés plus tôt restent dans le stockage Convex jusqu'à ce que tu les relocalises avec le backfill de blobs ci-dessous. Si tu supprimes la configuration, les nouveaux téléversements retournent au défaut du déploiement ; les fichiers déjà écrits dans le bucket y restent, mais Tale ne peut plus les lire tant que la connexion n'est pas rétablie. Aucun redémarrage n'est nécessaire, dans un sens comme dans l'autre.
+Contrairement au basculement S3 au niveau du déploiement ci-dessus, ce chemin n'est **pas** réservé aux installations neuves : dès que la configuration existe, les nouveaux téléversements vont dans le bucket de l'org, tandis que les fichiers stockés avant restent lisibles là où ils sont — les références mixtes sont prises en charge, tu peux donc basculer à tout moment. Les fichiers stockés plus tôt restent dans le store d'objets du déploiement jusqu'à ce que tu les relocalises avec le backfill de blobs ci-dessous. Si tu supprimes la configuration, les nouveaux téléversements retournent au défaut du déploiement ; les fichiers déjà écrits dans le bucket y restent, mais Tale ne peut plus les lire tant que la connexion n'est pas rétablie. Aucun redémarrage n'est nécessaire, dans un sens comme dans l'autre.
 
 Les admins d'org gèrent aussi cette connexion dans les mêmes sections par organisation de **Paramètres > Résidence des données** ; son test de connexion effectue un aller-retour réel écriture-lecture-suppression contre le bucket avant que tu t'engages. Comme pour la connexion des connaissances, les fichiers JSON restent la source de vérité.
 
@@ -72,27 +72,17 @@ Les admins d'org gèrent aussi cette connexion dans les mêmes sections par orga
 
 ### Déplacer les fichiers pré-existants dans le bucket
 
-Connecter le bucket ne réachemine que les **nouveaux** téléversements ; les blobs écrits avant la connexion restent dans le `_storage` de Convex et continuent de fonctionner via les références mixtes ci-dessus. Pour amener aussi cet historique sur ta propre infrastructure — tout l'intérêt de la résidence des données — lance le **backfill de blobs** : il copie chaque blob pré-existant dans le bucket de l'org, vérifie qu'il revient identique octet pour octet, réécrit chaque ligne qui le référence et supprime la copie Convex.
+Connecter le bucket ne réachemine que les **nouveaux** téléversements ; les blobs écrits avant la connexion restent dans le store d'objets par défaut du déploiement et continuent de fonctionner via les références mixtes ci-dessus. Pour amener aussi cet historique sur ta propre infrastructure — tout l'intérêt de la résidence des données — lance le **backfill de blobs** : il copie chaque blob pré-existant dans le bucket de l'org, vérifie qu'il revient identique octet pour octet, réécrit chaque ligne qui le référence et supprime la copie source.
 
 Un admin d'org le lance depuis l'UI : une fois la connexion au bucket enregistrée, la section Stockage d'objets de **Paramètres > Résidence des données** affiche **Déplacer les fichiers existants** — confirme, et le déplacement tourne en arrière-plan pendant que les téléversements continuent ; une ligne de statut dans la même section rapporte la progression et l'issue du dernier lancement.
 
-Un opérateur ayant accès à la CLI Convex peut lancer le même moteur depuis un shell, en passant l'id de l'organisation. Fais d'abord un essai à blanc pour voir ce qui serait déplacé, puis le vrai lancement :
-
-```bash
-# Essai à blanc — compte et échantillonne ce qui serait déplacé, n'écrit rien :
-bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>","dryRun":true}'
-
-# Le vrai lancement — retire dryRun une fois les comptes vérifiés :
-bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>"}'
-```
-
-Le backfill est **idempotent** et **limité à l'org** : il ne déplace que les blobs de cette organisation, saute tout ce qui est déjà dans le bucket, et laisse chaque source Convex en place tant que sa copie n'est pas vérifiée — un nouveau lancement après une interruption reprend donc sans risque. Un vrai lancement exige que la connexion au bucket soit déjà configurée ; un essai à blanc, non. Ce n'est délibérément **pas** une migration de framework versionnée — il tourne à la demande, par organisation, quand tu choisis de relocaliser l'historique d'un locataire, pas à une frontière de version.
+Le backfill est **idempotent** et **limité à l'org** : il ne déplace que les blobs de cette organisation, saute tout ce qui est déjà dans le bucket, et laisse chaque source en place tant que sa copie n'est pas vérifiée — un nouveau lancement après une interruption reprend donc sans risque. Il exige que la connexion au bucket soit déjà configurée. Ce n'est délibérément **pas** une migration de framework versionnée — il tourne à la demande, par organisation, quand tu choisis de relocaliser l'historique d'un locataire, pas à une frontière de version.
 
 ## Stockage de fichiers sur S3
 
-Le stockage de fichiers externe est tout-ou-rien à travers les cas d'usage de stockage de Convex, donc tu fournis **cinq buckets** — files, exports, snapshot-imports, modules et search — plus une région et des identifiants. Pour les services compatibles S3 (MinIO, Cloudflare R2), définis l'endpoint et active l'adressage path-style.
+Le stockage de fichiers externe utilise un seul bucket compatible S3 — un nom de bucket, une région, des identifiants et (pour MinIO ou Cloudflare R2) un endpoint avec l'adressage path-style activé. Ils correspondent aux variables `OBJECT_STORE_*` dans la [Référence d'environnement](/fr/self-hosted/configuration/environment-reference).
 
-> **Greenfield uniquement.** Faire passer le stockage de fichiers de local à S3 ne migre **pas** les blobs déjà sur le volume local — Convex les cherche dans le bucket et ne les trouve pas. Définis S3 au déploiement initial, ou copie le stockage local existant dans le bucket hors bande avant de basculer.
+> **Greenfield uniquement.** Faire passer le stockage de fichiers au niveau du déploiement du store fourni à un bucket externe ne migre **pas** les blobs déjà sur le volume local — le backend les cherche dans le bucket et ne les trouve pas. Définis S3 au déploiement initial, ou copie le stockage local existant dans le bucket hors bande avant de basculer.
 
 ## Comment la configuration est stockée
 
@@ -101,7 +91,7 @@ Enregistrer écrit deux fichiers à la racine de configuration (pas sous un rép
 - `deployment.json` — la configuration non secrète (hôtes, ports, buckets, modes).
 - `deployment.secrets.json` — les mots de passe de base de données et les clés S3, chiffrés avec SOPS (voir [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops)).
 
-Au démarrage, l'entrypoint `convex` les lit et en dérive ses connexions avant de démarrer. L'ingestion et la récupération de connaissances tournent dans le backend Convex, c'est donc le seul conteneur qui ouvre la connexion à la base de connaissances — il n'y a pas de service de récupération séparé à configurer. Le contrat est **fail-closed** : un `deployment.json` présent mais impossible à parser, un secret indéchiffrable ou une configuration sans champs requis **interrompt le démarrage** au lieu de retomber silencieusement sur la base fournie — mal router des données réglementées est pire que ne pas démarrer. Un fichier absent est le chemin par défaut normal.
+Au démarrage, le backend les lit et en dérive ses connexions avant de démarrer. L'ingestion et la récupération de connaissances tournent dans le backend worker, c'est donc le backend qui ouvre la connexion à la base de connaissances — il n'y a pas de service de récupération séparé à configurer. Le contrat est **fail-closed** : un `deployment.json` présent mais impossible à parser, un secret indéchiffrable ou une configuration sans champs requis **interrompt le démarrage** au lieu de retomber silencieusement sur la base fournie — mal router des données réglementées est pire que ne pas démarrer. Un fichier absent est le chemin par défaut normal.
 
 ## Appliquer un changement : redémarrage
 

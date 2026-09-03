@@ -1,14 +1,15 @@
 // @vitest-environment node
 
 import JSZip from 'jszip';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import {
   MAX_SKILL_BUNDLE_FILE_BYTES,
   MAX_SKILL_BUNDLE_FILES,
+  MAX_SKILL_BUNDLE_TOTAL_BYTES,
 } from '../../../lib/shared/schemas/skills';
-import { parseSkillBundleZip } from './bundle_zip';
+import { declaredUncompressedSize, parseSkillBundleZip } from './bundle_zip';
 
 function skillMd(fields: Record<string, string>, body = 'Body.\n'): string {
   const frontmatter = Object.entries(fields)
@@ -184,5 +185,139 @@ describe('parseSkillBundleZip', () => {
       await zipOf({ 'SKILL.md': VALID_SKILL_MD }),
     );
     expect(unmarked.meta.visibility).toBe('org');
+  });
+});
+
+/**
+ * JSZip's entry class is not exported; reach its prototype through an
+ * instance so the inflate seam — `internalStream`, which both `async()` and
+ * `nodeStream()` ride — can be spied on. A refusal that never touches it
+ * happened before any decompression.
+ */
+interface InflateSeam {
+  internalStream(type: string): unknown;
+}
+
+function inflateSeam(): InflateSeam {
+  const probe = new JSZip().file('probe', 'x').file('probe');
+  if (!probe) throw new Error('probe entry missing');
+  const proto: unknown = Object.getPrototypeOf(probe);
+  if (
+    proto === null ||
+    typeof proto !== 'object' ||
+    typeof Reflect.get(proto, 'internalStream') !== 'function'
+  ) {
+    throw new Error('JSZip entry prototype has no internalStream');
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape verified just above
+  return proto as InflateSeam;
+}
+
+/**
+ * Rewrite the central-directory uncompressed size of one entry — the header
+ * lie a hand-crafted bomb tells so a declared-size check waves it through.
+ * JSZip reads sizes from the central directory only.
+ */
+function lieAboutUncompressedSize(
+  zipBuf: Buffer,
+  entryName: string,
+  declared: number,
+): Buffer {
+  const out = Buffer.from(zipBuf);
+  const signature = Buffer.from([0x50, 0x4b, 0x01, 0x02]); // PK\x01\x02
+  let offset = out.indexOf(signature);
+  let patched = false;
+  while (offset !== -1) {
+    const nameLength = out.readUInt16LE(offset + 28);
+    const name = out.toString('utf8', offset + 46, offset + 46 + nameLength);
+    if (name === entryName) {
+      out.writeUInt32LE(declared, offset + 24);
+      patched = true;
+    }
+    offset = out.indexOf(signature, offset + 4);
+  }
+  if (!patched) {
+    throw new Error(`entry ${entryName} not found in the central directory`);
+  }
+  return out;
+}
+
+describe('parseSkillBundleZip — caps hold before decompression', () => {
+  it('reads the declared size off a loaded entry, null for an empty one', async () => {
+    const zip = await JSZip.loadAsync(
+      await zipOf({
+        'SKILL.md': VALID_SKILL_MD,
+        'reference.md': 'twelve bytes',
+        'empty.txt': '',
+      }),
+    );
+    expect(declaredUncompressedSize(zip.file('reference.md')!)).toBe(12);
+    expect(declaredUncompressedSize(zip.file('SKILL.md')!)).toBe(
+      Buffer.byteLength(VALID_SKILL_MD),
+    );
+    expect(declaredUncompressedSize(zip.file('empty.txt')!)).toBeNull();
+  });
+
+  it('refuses an entry declaring more than the per-file cap without inflating anything', async () => {
+    // Zeros deflate past 1000:1 — the whole upload is a few KB.
+    const bomb = await zipOf({
+      'SKILL.md': VALID_SKILL_MD,
+      'bomb.bin': Buffer.alloc(MAX_SKILL_BUNDLE_FILE_BYTES + 1),
+    });
+    const inflate = vi.spyOn(inflateSeam(), 'internalStream');
+    try {
+      await expectRefusal(bomb, 'FILE_TOO_LARGE');
+      expect(inflate).not.toHaveBeenCalled();
+    } finally {
+      inflate.mockRestore();
+    }
+  });
+
+  it('refuses a bundle whose declared total exceeds the cap without inflating anything', async () => {
+    // Each entry sits exactly at the per-file cap; together they overflow
+    // the bundle cap — and compress to a few KB apiece.
+    const entries: Record<string, string | Buffer> = {
+      'SKILL.md': VALID_SKILL_MD,
+    };
+    const count = MAX_SKILL_BUNDLE_TOTAL_BYTES / MAX_SKILL_BUNDLE_FILE_BYTES;
+    for (let i = 0; i < count; i += 1) {
+      entries[`assets/part-${i}.bin`] = Buffer.alloc(
+        MAX_SKILL_BUNDLE_FILE_BYTES,
+      );
+    }
+    const bomb = await zipOf(entries);
+    const inflate = vi.spyOn(inflateSeam(), 'internalStream');
+    try {
+      await expectRefusal(bomb, 'BUNDLE_TOO_LARGE');
+      expect(inflate).not.toHaveBeenCalled();
+    } finally {
+      inflate.mockRestore();
+    }
+  });
+
+  it('cuts off an entry whose header lies about its size at the per-file cap', async () => {
+    const honest = await zipOf({
+      'SKILL.md': VALID_SKILL_MD,
+      'liar.bin': Buffer.alloc(MAX_SKILL_BUNDLE_FILE_BYTES + 512 * 1024),
+    });
+    const liar = lieAboutUncompressedSize(honest, 'liar.bin', 10);
+    // The declared-size gate is fooled (ten bytes); the size-limited sink is
+    // not — refused as too large, never as a corrupted archive after the
+    // whole entry was inflated.
+    await expectRefusal(liar, 'FILE_TOO_LARGE');
+  });
+
+  it('still accepts a bundle right at the caps', async () => {
+    const parsed = await parseSkillBundleZip(
+      await zipOf({
+        'SKILL.md': VALID_SKILL_MD,
+        'exact.bin': Buffer.alloc(MAX_SKILL_BUNDLE_FILE_BYTES, 7),
+      }),
+    );
+    expect(parsed.files.map((f) => f.relPath)).toEqual([
+      'SKILL.md',
+      'exact.bin',
+    ]);
+    expect(parsed.files[1]?.content.length).toBe(MAX_SKILL_BUNDLE_FILE_BYTES);
   });
 });

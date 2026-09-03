@@ -1,9 +1,9 @@
 ---
 title: Conservation légale
-description: Le gel à double contrôle qui met en pause les balayages de rétention et les cascades d’effacement pour un utilisateur, un document, un thread ou l’organisation entière pendant un litige. Les Administrateurs et Propriétaires lisent ceci quand le conseil leur demande de préserver des preuves.
+description: Le gel à double contrôle qui met en pause les balayages de rétention et les cascades d’effacement pour un utilisateur ou l’organisation entière pendant un litige. Les Administrateurs et Propriétaires lisent ceci quand le conseil leur demande de préserver des preuves.
 ---
 
-Conservation légale est le mécanisme que Tale livre pour préserver des preuves sous conservation contentieuse. Un hold épingle une cible — un utilisateur, un document, un thread, une exécution de workflow ou l’organisation entière — hors de portée du balayage de rétention et de la cascade d’effacement des personnes concernées. Les Administrateurs et Propriétaires lisent cette page quand le conseil leur demande de préserver les données d’un custodian, quand une demande de levée a besoin de la signature à double contrôle, ou quand un audit réconcilie quels holds étaient en vigueur à une date donnée.
+Conservation légale est le mécanisme que Tale livre pour préserver des preuves sous conservation contentieuse. Un hold épingle une cible — un utilisateur en tant que custodian, ou l’organisation entière — hors de portée du balayage de rétention et de la cascade d’effacement des personnes concernées. Les Administrateurs et Propriétaires lisent cette page quand le conseil leur demande de préserver les données d’un custodian, quand une demande de levée a besoin de la signature à double contrôle, ou quand un audit réconcilie quels holds étaient en vigueur à une date donnée.
 
 <Frame caption="Gouvernance > Conservation légale — le tableau des holds actifs avec l’action Placer une conservation légale, au-dessus de la file à double contrôle des demandes de levée.">
 
@@ -13,7 +13,7 @@ Conservation légale est le mécanisme que Tale livre pour préserver des preuve
 
 ## Une mise en place mise en pratique
 
-Pour placer un hold sur un utilisateur, ouvre **Paramètres > Gouvernance > Conservation légale** et clique sur **Placer une conservation légale**. Choisis le type de cible — utilisateur, thread, document, exécution ou organisation — choisis la cible précise, ajoute un motif et lie le hold à un dossier s’il y en a un d’ouvert. Le hold prend effet immédiatement ; les balayages de rétention sautent les lignes de la cible, la cascade d’effacement les rapporte comme **Ignorées par hold**, et la ligne cible porte le badge **Sous conservation légale** dans chaque liste où elle apparaît.
+Pour placer un hold sur un utilisateur, ouvre **Paramètres > Gouvernance > Conservation légale** et clique sur **Placer une conservation légale**. Choisis le type de cible — utilisateur en tant que custodian, ou l’organisation entière — choisis la personne là où il en faut une, ajoute un motif et lie le hold à un dossier s’il y en a un d’ouvert. Le hold prend effet immédiatement : les balayages de rétention sautent les lignes de la cible, une demande d’effacement contre la cible est refusée, et supprimer du contenu retenu est refusé à la source.
 
 ## Les quatre sections
 
@@ -27,7 +27,7 @@ Pour placer un hold sur un utilisateur, ouvre **Paramètres > Gouvernance > Cons
 
 ## Interaction hold-et-cascade
 
-Un hold bloque chaque passage de rétention et chaque étape d’effacement pour la cible. Il bloque aussi la suppression de l’organisation elle-même : tant qu’un hold est actif — sur toute l’organisation ou sur un membre —, **Supprimer l'organisation** est refusé et l’organisation reste exactement telle qu’elle était. La page Corbeille affiche le bandeau **La suppression est bloquée par un legal hold actif** quand un Administrateur tente de purger une ligne sous hold. Une demande de personne concernée dont le sujet est couvert par un hold atterrit en statut **Bloquée** jusqu’à ce que le hold soit levé ; une couverture partielle (certains threads sous hold, d’autres pas) atterrit en **Partielle** avec des compteurs par catégorie dans le reçu.
+Un hold bloque chaque passage de rétention et chaque étape d’effacement pour la cible, et la suppression est refusée à la source — mettre à la corbeille les threads ou documents d’une personne retenue échoue avec une erreur de conservation légale, et supprimer un dossier refuse tant qu’il contient un fichier retenu. Il bloque aussi la suppression de l’organisation elle-même : tant qu’un hold est actif — sur toute l’organisation ou sur un membre —, **Supprimer l'organisation** est refusé et l’organisation reste exactement telle qu’elle était. Une demande de personne concernée dont le sujet est couvert par un hold atterrit en statut **Bloquée** jusqu’à ce que le hold soit levé ; le reçu enregistre le blocage.
 
 ## Double contrôle
 

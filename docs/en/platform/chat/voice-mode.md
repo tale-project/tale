@@ -15,11 +15,11 @@ Transcription runs once per spoken message. What the agent receives is text; no 
 
 ## Text to speech
 
-Reading a reply aloud is a choice you make in the composer, for the turn you are about to send. Switch voice output on and the reply that comes back is sent to a text-to-speech model and played as it arrives; leave it off and the reply lands as text like any other. Playback can be stopped early, and the last reply can be played again without re-asking the question.
+Reading a reply aloud is a toggle in the composer that sets voice output for the chat you are in. Switch voice output on and the reply that comes back is sent to a text-to-speech model and played as it arrives; leave it off and the reply lands as text like any other. Playback can be stopped early, and the last reply can be played again without re-asking the question.
 
 <Note>
 
-Voice output is a composer control, not a saved preference. There is no per-agent voice pinned to an agent and no organisation-wide default that decides for you — the turn you are sending is the scope of the choice, which keeps a hands-free session from following you into a shared office.
+Voice output resolves a cascade, not a single per-turn switch: an organisation-wide policy can turn it off entirely — which hides the control — and under that sit your saved default and each chat's own override. Toggling it inside a chat writes that chat's override; toggling it on a new chat sets the user default your later chats inherit. There is no per-agent voice pinned to an agent.
 
 </Note>
 

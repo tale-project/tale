@@ -39,11 +39,11 @@ Chaque requête authentifiée vérifie aussi que l’utilisateur est membre acti
 | PROPFIND   | Lister une ressource (Depth 0) ou les enfants directs d’une collection (Depth 1). La liste de propriétés émise est documentée plus bas. **Depth: infinity est rejeté avec 403** pour éviter des réponses sans borne.    | Requise    |
 | PROPPATCH  | Renvoie succès 207 par propriété sans stocker les valeurs. Les dead properties ne sont pas persistées en v1 ; PROPPATCH réussit de manière optimiste pour la compatibilité client.                                      | Requise    |
 | GET / HEAD | Streamer le blob du document. Pose `Content-Type`, `Content-Length`, `ETag` et `Last-Modified`. GET sur une collection renvoie 405.                                                                                     | Requise    |
-| PUT        | Créer ou remplacer un document. Le nouveau blob est stocké dans le stockage Convex avec déduplication par hash ; la ligne du document reçoit `sourceProvider: "webdav"`. Renvoie 201 à la création, 204 à l’écrasement. | Requise    |
+| PUT        | Créer ou remplacer un document. Le nouveau blob est stocké dans le stockage objet ; la ligne du document reçoit `sourceProvider: "webdav"`. Renvoie 201 à la création, 204 à l’écrasement. | Requise    |
 | DELETE     | Soft-supprimer un document (`lifecycleStatus: "trashed"`) ou un dossier (corbeille en cascade sur les documents contenus, hard-supprime les lignes de dossier). Renvoie 204.                                            | Requise    |
 | MKCOL      | Créer un dossier sous un parent existant. Corps vide uniquement. Renvoie 201, 405 si la cible existe, 409 si le parent manque.                                                                                          | Requise    |
 | MOVE       | Renommer ou déplacer. Atomique pour les documents. Pour les dossiers, met à jour le `parentId` du dossier déplacé. Respecte `Overwrite: T/F` et `If`. Renvoie 201 (nouvelle destination) ou 204 (écrasement).           | Requise    |
-| COPY       | Copie côté serveur. Les copies de documents réutilisent l’identifiant de stockage Convex (déduplication). Les copies de dossiers sont récursives. Respecte `Overwrite` et `If`.                                         | Requise    |
+| COPY       | Copie côté serveur. Les copies de documents réutilisent le même objet stocké. Les copies de dossiers sont récursives. Respecte `Overwrite` et `If`.                                         | Requise    |
 | LOCK       | Verrou d’écriture Class 2 exclusif ou partagé. Timeout depuis le header `Timeout: Second-N`, plafonné à 3600. Rafraîchissement en renvoyant LOCK avec `If: (<opaquelocktoken:...>)` et un corps vide.                   | Requise    |
 | UNLOCK     | Libérer un verrou par son jeton. Seul le propriétaire peut libérer. Renvoie 204.                                                                                                                                        | Requise    |
 
@@ -67,7 +67,7 @@ Les dead properties ne sont pas stockées. PROPPATCH renvoie 200 pour une dead p
 
 ## Sémantique des verrous
 
-Les verrous vivent dans leur propre table Convex, indexés par `(organizationId, resourcePath)`. La forme filaire est `opaquelocktoken:<uuid>`. Le serveur :
+Les verrous vivent dans leur propre table Postgres (`app.webdav_locks`), indexés par `(organizationId, resourcePath)`. La forme filaire est `opaquelocktoken:<uuid>`. Le serveur :
 
 - Plafonne le timeout à 3600 secondes. Les requêtes pour des fenêtres plus longues sont silencieusement bornées.
 - Traite `LOCK` avec un header `If: (<opaquelocktoken:UUID>)` et un corps vide comme un refresh — l’expiration du verrou existant est repoussée.
@@ -111,16 +111,16 @@ Le serveur annonce `DAV: 1, 2` dans la réponse OPTIONS.
 
 - `Depth: infinity` sur PROPFIND est rejeté avec `403`.
 - `Timeout: Second-N` sur LOCK est borné à `[1, 3600]`.
-- La taille du corps PUT est plafonnée à **5 Go** par défaut (`413` au-delà), appliquée à la fois au reverse-proxy et dans le serveur de plateforme. Les opérateurs peuvent l’ajuster via la variable d’environnement `WEBDAV_MAX_PUT_BYTES`. Le corps est streamé vers une URL pré-signée Convex sans qu’un gros upload soit mis en mémoire tampon côté plateforme.
+- La taille du corps PUT est plafonnée à **5 Go** par défaut (`413` au-delà), appliquée à la fois au reverse-proxy et dans le serveur de plateforme. Les opérateurs peuvent l’ajuster via la variable d’environnement `WEBDAV_MAX_PUT_BYTES`. Le corps est streamé vers une URL S3 pré-signée sans qu’un gros upload soit mis en mémoire tampon côté plateforme.
 - Les corps XML (PROPFIND / PROPPATCH / MKCOL / LOCK) sont plafonnés à **64 Ko** (`413` au-delà) — ces enveloppes sont minuscules par conception.
 - Les mots de passe applicatifs sont hachés avec HMAC-SHA256 ; le secret n’apparaît dans aucune réponse après l’appel de création.
 - `lastUsedAt` est patché au plus une fois par minute par mot de passe applicatif pour éviter les write-storms sur les montages actifs.
 
 ## Prérequis réseau
 
-Le point de terminaison WebDAV tourne dans le serveur Hono de la plateforme (`platform:3000` en compose). Caddy route `/dav/*` vers lui via le fallback par défaut — aucune configuration supplémentaire n’est requise. Le chemin requiert que le serveur de plateforme ait `ADMIN_KEY` défini dans son environnement pour appeler les requêtes internes Convex avec auth admin.
+Le point de terminaison WebDAV tourne dans le serveur Hono de la plateforme (`platform:3000` en compose). Caddy route `/dav/*` vers lui via le fallback par défaut — aucune configuration supplémentaire n’est requise. Le handler parle directement à Postgres via la connexion base de données du backend ; il n’y a aucun service séparé à joindre.
 
-Pour le dev (`bun dev`), le même dispatch est monté comme middleware Vite (`vite-plugins/serve-webdav.ts`) — `curl` et les clients peuvent atteindre `http://localhost:3000/dav/<orgSlug>/...` contre un serveur dev qui tourne sans rebuild.
+Pour le dev (`bun run dev`), Vite proxie `/dav` vers le backend — `curl` et les clients peuvent atteindre `http://localhost:3000/dav/<orgSlug>/...` contre un serveur dev qui tourne sans rebuild.
 
 ## Sécurité
 

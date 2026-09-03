@@ -62,13 +62,15 @@ Brancher et répéter sont des champs du nœud plutôt que des types d’étape 
 
 ### Les types de nœud
 
-Trois types sont intégrés, et chaque action d’connector comme chaque capacité native de la plateforme — recherche dans les connaissances, opérations sur documents — rejoint la même table à côté d’eux.
+Quatre types sont intégrés, et chaque action d’connector comme chaque capacité native de la plateforme — recherche dans les connaissances, opérations sur documents — rejoint la même table à côté d’eux.
 
 **`transform`** exécute du JavaScript pur pour remettre des données en forme. Sans réseau ni imports : le corps lit l’`input` résolue du nœud et doit retourner une valeur.
 
 **`llm`** appelle un modèle de langage avec un prompt en template. `model` est obligatoire et toujours explicite — une automatisation n’en choisit jamais un à ta place (l’Auto du composer est une affaire de chat, et de chat seulement). La sortie est `{text}`, ou l’objet à la forme du schéma quand le nœud déclare un `outputSchema`.
 
-**`subworkflow`** exécute une autre automatisation enregistrée comme un seul nœud, référencée en `"name"` ou `"name@version"`. Sans version, c’est celle en service, et l’imbrication s’arrête à trois niveaux.
+**`agent`** exécute un tour d’un agent de code (Claude Code, Codex et les autres harnesses) dans la sandbox. Il lit les `files` mis en place, utilise des `skills`, des `connectors` relayés, des `tools` de plateforme accordés et des `secrets` injectés, et renvoie `{text, files, status}` ; `model` est obligatoire. Prends `llm` quand une complétion unique suffit, et `agent` seulement quand l’étape a besoin d’outils, de fichiers ou de plusieurs tours — un nœud agent en service s’exécute comme un tour asynchrone, il siège donc au niveau supérieur plutôt que dans une `subautomation` et n’itère pas avec `forEach`.
+
+**`subautomation`** exécute une autre automatisation enregistrée comme un seul nœud ; son champ `automation` nomme `"name"` ou `"name@version"`. Sans version, c’est celle en service, et l’imbrication s’arrête à trois niveaux.
 
 ### Sortie structurée et non structurée
 

@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { projectConversationItem } from '../../../lib/shared/conversations/conversation-item.ts';
 import { nextConversationLastMessageAt } from '../../../lib/shared/conversations/message-order.ts';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { toJson } from '../../db/sql.ts';
@@ -12,6 +13,7 @@ import {
   notifyConversationAssignedTeam,
 } from '../collab/service.ts';
 import { emitEvent } from '../events/emit.ts';
+import { getFileUrl } from '../files/service.ts';
 import { assertNotHeld } from '../legal_holds/service.ts';
 
 /**
@@ -163,6 +165,8 @@ export interface CreateConversationArgs {
   organizationId: string;
   contactId?: string;
   assigneeUserId?: string;
+  /** Team queue (Better Auth teamId). May sit alongside assigneeUserId. */
+  assigneeTeamId?: string;
   externalMessageId?: string;
   subject?: string;
   status?: ConversationStatus;
@@ -181,12 +185,13 @@ export async function createConversation(
   const now = Date.now();
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.conversations (
-      org_id, contact_id, assignee_user_id, external_message_id, subject,
-      status, priority, type, channel, direction, connector_name, metadata,
-      created_at_ms
+      org_id, contact_id, assignee_user_id, assignee_team_id, external_message_id,
+      subject, status, priority, type, channel, direction, connector_name,
+      metadata, created_at_ms
     ) VALUES (
       ${args.organizationId}, ${args.contactId ?? null},
-      ${args.assigneeUserId ?? null}, ${args.externalMessageId ?? null},
+      ${args.assigneeUserId ?? null}, ${args.assigneeTeamId ?? null},
+      ${args.externalMessageId ?? null},
       ${args.subject ?? null}, ${args.status ?? 'open'},
       ${args.priority ?? null}, ${args.type ?? null}, ${args.channel ?? null},
       ${args.direction ?? null}, ${args.connectorName ?? null},
@@ -954,6 +959,51 @@ export async function deleteConversation(
 }
 
 /**
+ * Mint a fresh presigned download URL for each stored mail attachment from its
+ * durable `storageId`. Materialize stores only the storageId (a stored URL
+ * baked in the retired proxy path that now 404s), so the servable URL is minted
+ * HERE, at read time. Best-effort per attachment: a blob whose presign fails
+ * (deleted, or a metadata-only chip the connector never fetched bytes for) drops
+ * its URL so the client shows the chip WITHOUT a broken download affordance.
+ */
+export async function presignMessageAttachments(
+  sql: Sql,
+  organizationId: string,
+  messages: ConversationMessageRow[],
+): Promise<ConversationMessageRow[]> {
+  return Promise.all(
+    messages.map(async (message) => {
+      const metadata = message.metadata;
+      if (metadata === null || !Array.isArray(metadata.attachments)) {
+        return message;
+      }
+      const attachments = await Promise.all(
+        metadata.attachments.map(async (raw) => {
+          if (!isRecord(raw) || typeof raw.storageId !== 'string') return raw;
+          try {
+            const url = await getFileUrl(
+              sql,
+              { organizationId },
+              raw.storageId,
+            );
+            return { ...raw, url };
+          } catch (error) {
+            console.warn(
+              `[conversations] attachment presign failed for ${raw.storageId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+            const { url: _drop, ...rest } = raw;
+            return rest;
+          }
+        }),
+      );
+      return { ...message, metadata: { ...metadata, attachments } };
+    }),
+  );
+}
+
+/**
  * One conversation in the shape the Inbox reads — the SHARED projection
  * (`lib/shared/conversations/conversation-item.ts`), so this lane and 0.4
  * cannot drift into two different "same" shapes. `withMessages: false`
@@ -966,7 +1016,11 @@ export async function projectConversationForView(
   options: { withMessages: boolean },
 ): Promise<Record<string, unknown>> {
   const messages = options.withMessages
-    ? await listConversationMessages(sql, conversation.id)
+    ? await presignMessageAttachments(
+        sql,
+        conversation.organizationId,
+        await listConversationMessages(sql, conversation.id),
+      )
     : await sql<ConversationMessageRow[]>`
         SELECT ${sql.unsafe(MESSAGE_COLUMNS)} FROM app.conversation_messages
         WHERE conversation_id = ${conversation.id}

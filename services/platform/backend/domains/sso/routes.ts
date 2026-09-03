@@ -8,6 +8,7 @@ import type {
   FinishLogin,
   FinishLoginArgs,
 } from '../../core/enterprise_sso/login/finish_login.ts';
+import { publicOrigin } from '../../core/enterprise_sso/login/public_origin.ts';
 import { samlAcsHandler } from '../../core/enterprise_sso/saml/acs_handler.ts';
 import { samlLoginHandler } from '../../core/enterprise_sso/saml/login_handler.ts';
 import { samlMetadataHandler } from '../../core/enterprise_sso/saml/metadata_handler.ts';
@@ -92,7 +93,9 @@ export function createSsoRoutes(deps: { sql: Sql }): Hono {
    */
   app.get('/set-session', async (c) => {
     const token = c.req.query('token');
-    const frontendOrigin = new URL(c.req.url).origin;
+    // Public origin, not the internal request origin — it decides the
+    // __Secure-/Secure cookie shape Better Auth will read back.
+    const frontendOrigin = publicOrigin(c.req.url);
     const basePath = process.env.BASE_PATH || '';
     if (!token) {
       const html = `<!DOCTYPE html>

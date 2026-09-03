@@ -5,7 +5,7 @@ description: Coding-CLIs, die ein Modell in einer isolierten Sandbox ausführen 
 
 Ein **Harness** ist eine mitgelieferte Coding-CLI — Claude Code, Codex, Cursor und weitere —, die dein gewähltes Modell in einem isolierten Container ausführt statt in der gewöhnlichen Chat-Schleife. Das Harness plant, schreibt Dateien, führt Befehle aus, installiert Pakete und berichtet zurück. Im Chat-Composer wählst du kein Harness: Chat wählt nur ein **Modell**. Das Harness legst du fest, wenn du einen **Projekt-Agenten** oder einen Automation-**Agent**-Knoten anlegst — beide Oberflächen nennen das Feld **Agent-Laufzeit**.
 
-Diese Seite behandelt, welche Harnesses mit Tale kommen, wo du eines bindest, woher der Zugang stammt und was der Container erreichen darf und was nicht. Die Zugänge selbst sind Sache der Organisation — siehe [Provider](/de/platform/admin/providers). Unter **Einstellungen > Provider** zeigt der Tab **Harnesses**, wie jedes Harness für die Organisation aufgelöst würde.
+Diese Seite behandelt, welche Harnesses mit Tale kommen, wo du eines bindest, woher der Zugang stammt und was der Container erreichen darf und was nicht. Die Zugänge selbst sind Sache der Organisation — siehe [Provider](/de/platform/admin/providers). Unter **Einstellungen > KI-Anbieter** zeigt der Abschnitt **Harnesses**, wie jedes Harness für die Organisation aufgelöst würde.
 
 ## Wo du ein Harness wählst
 
@@ -55,7 +55,7 @@ Ein Harness-Zug benennt immer ein konkretes Harness. Nichts rät eines für dich
 
 ## Was die Sandbox erreicht
 
-Der Container startet mit leerem Arbeitsverzeichnis und ist standardmäßig abgeriegelt. Dateien und Ordner, die du mit `@` anheftest, fahren unter `/agent/uploads/` in die Sitzung mit, der Agent öffnet also die echten Bytes statt eines Such-Schnipsels, und was er unter `/agent/output/` schreibt, kommt als Datei in den Chat zurück. Ausgehender Netzwerkverkehr ist bis auf eine schmale Freigabeliste gesperrt — Paketregister und GitHub —, der Agent kann also installieren, was er braucht, und ein öffentliches Repository klonen, ohne beliebige Hosts zu erreichen.
+Der Container startet mit leerem Arbeitsverzeichnis. Dateien und Ordner, die du mit `@` anheftest, fahren unter `/agent/uploads/` in die Sitzung mit, der Agent öffnet also die echten Bytes statt eines Such-Schnipsels, und was er unter `/agent/output/` schreibt, kommt als Datei in den Chat zurück. Ausgehender Netzwerkverkehr ist standardmäßig offen, die gefährlichen Ziele sind immer gesperrt — der Cloud-Metadaten-Endpunkt und private Adressbereiche —, der Agent kann also Pakete installieren und Repositories klonen, ohne je das Host-Netz zu erreichen; ein Self-hosted-Betreiber kann den Egress auf Deployment-Ebene auf eine Hostnamen-Freigabeliste verengen.
 
 Angebundene Connectors erreichen den Agenten über einen Broker statt über die Box. Ruft der Agent eine auf, geht die Anfrage zurück an Tale, das sie mit dem hinterlegten Zugang ausführt und nur das Ergebnis zurückgibt — ein kompromittierter Container kann deine Schlüssel also nicht lesen. Ein Schreibvorgang erscheint als Freigabekarte im Chat und läuft weiter, sobald du zustimmst. GitHub ist die bewusste Ausnahme: `git` und das `gh`-CLI brauchen lokal ein Token; ein Zug läuft also mit einem eingeschränkten, solange die Unterhaltung den GitHub-Connector ausgerüstet hat — es kommt pro Zug hinein und verschwindet mit dessen Ende.
 

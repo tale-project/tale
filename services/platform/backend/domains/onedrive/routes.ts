@@ -3,7 +3,11 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import type { Auth } from '../../auth/auth.ts';
-import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
+import {
+  requireOrgAbility,
+  requireOrgMember,
+  type OrgEnv,
+} from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
 import { listFiles } from '../../core/onedrive/list_files.ts';
@@ -21,8 +25,12 @@ import {
 /**
  * /api/app/onedrive — the Knowledge OneDrive/SharePoint browse + import
  * surface (the 0.4 `onedrive/actions` + `mutations.cancelSyncConfig`).
- * Membership-gated like 0.4; tokens resolve per signed-in member (cloud
- * grant first, login account second) and never reach the client.
+ * The whole surface exists to write Knowledge documents, so it sits behind
+ * `knowledgeWrite` — the same gate the cloud-import OAuth start enforces and
+ * the UI hides the import behind; a read-only member holding a usable Graph
+ * token (the login-account lane) must not import or cancel syncs through the
+ * API. Tokens resolve per signed-in member (cloud grant first, login account
+ * second) and never reach the client.
  */
 
 function handleError<E extends OrgEnv>(
@@ -60,7 +68,11 @@ export function createOneDriveRoutes(deps: {
   auth: Auth;
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
-  app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
+  app.use(
+    requireSession(deps.auth),
+    requireOrgMember(deps.sql),
+    requireOrgAbility('write', 'knowledgeWrite'),
+  );
 
   const tokenFor = async (c: Context<OrgEnv>) =>
     resolveGraphTokenForUser(deps.sql, {

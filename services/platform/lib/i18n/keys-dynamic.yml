@@ -197,6 +197,7 @@ entries:
   # bounce (`sso.errors.multipleConnections`) are passed as literals from the
   # handlers but under a namespace the client-source scanner can't resolve.
   - 'auth.sso.errors.multipleConnections'
+  - 'auth.sso.errors.notOrgMember'
 
   # Skill load-error detail titles: skill-load-error.ts maps machine error codes
   # (yaml_syntax, not_found, …) to `skills.loadErrorDetail.title.*` /

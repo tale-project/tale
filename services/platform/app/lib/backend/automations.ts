@@ -456,11 +456,18 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
   },
   'automations/upload_mutations:generateAutomationUploadUrl': {
     // The pg byte lane IS the staging handshake: POST bytes → org blob ref.
+    // The purpose scopes the upload intent the server records to the
+    // automation bundle lane, which consumes it once.
     run: (args, ctx) =>
-      Promise.resolve(backendUrl('/files/upload', requireOrg(args, ctx))),
+      Promise.resolve(
+        backendUrl(
+          '/files/upload?purpose=automation_bundle',
+          requireOrg(args, ctx),
+        ),
+      ),
   },
   'automations/upload_mutations:recordAutomationUploadIntent': {
-    // Ownership rides the org-prefixed key — nothing to record on pg.
+    // The byte lane records the intent server-side — nothing to add here.
     run: () => Promise.resolve(null),
   },
   'automations_builder/actions:startBuilderSession': {

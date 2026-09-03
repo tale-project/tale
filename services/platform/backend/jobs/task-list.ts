@@ -257,6 +257,22 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const input = z.object({ fileId: z.string().min(1) }).parse(payload);
       await indexUploadedFile(deps.sql, input.fileId);
     },
+    'knowledge.release_refs': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          refs: z.array(z.string().min(1)).min(1),
+        })
+        .parse(payload);
+      const { runReleaseRefsJob } =
+        await import('../domains/knowledge/release.ts');
+      await runReleaseRefsJob(deps.sql, input);
+    },
+    'knowledge.reconcile_corpus': async () => {
+      const { runCorpusReconcile } =
+        await import('../domains/knowledge/release.ts');
+      await runCorpusReconcile(deps.sql);
+    },
     'org.cleanup_files': async (payload) => {
       const input = orgCleanupSchema.parse(payload);
       const configRoot = process.env.TALE_CONFIG_DIR;
@@ -339,6 +355,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         await import('../domains/object_storage/service.ts');
       await runBackfill(deps.sql, input);
     },
+    'watchdog.object_storage': async () => {
+      const { recoverStuckBackfills } =
+        await import('../domains/object_storage/service.ts');
+      const result = await recoverStuckBackfills(deps.sql);
+      if (result.failed > 0) {
+        console.log(
+          `[watchdog] object-storage: failed ${result.failed} stalled backfill run(s)`,
+        );
+      }
+    },
     'audit.integrity_check': async () => {
       const { listAuditedOrgIds, runScheduledIntegrityCheck } =
         await import('../domains/audit_logs/verify.ts');
@@ -369,12 +395,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // Re-attach BEFORE the deadline pass: a turn whose chain died is
       // still doing work, and failing it for a stale heartbeat would throw
       // away a live agent's output.
-      const { recoverStalledTaskAgentTurns } =
+      const { recoverStalledTaskAgentTurns, recoverStuckQueuedTaskAgentRuns } =
         await import('../domains/tasks/reattach.ts');
       const reattached = await recoverStalledTaskAgentTurns(deps.sql);
       if (reattached.resumed > 0) {
         console.log(
           `[watchdog] task agents: re-attached ${reattached.resumed} of ${reattached.examined} abandoned turn(s)`,
+        );
+      }
+      // The queued-start twin: a start job lost before setAgentRunRunning
+      // leaves the run 'queued' with no op row and no capacity stamp — invisible
+      // to the re-attach above and the deadline sweep below until the 12h wall.
+      const queued = await recoverStuckQueuedTaskAgentRuns(deps.sql);
+      if (queued.requeued > 0 || queued.failed > 0) {
+        console.log(
+          `[watchdog] task agents: re-kicked ${queued.requeued} stranded queued run(s), failed ${queued.failed} with a deleted agent`,
         );
       }
       const result = await runTaskAgentWatchdog(deps.sql);
@@ -388,12 +423,22 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // The workflow twin of the task-agent re-attach: a drive chain that
       // died mid-turn is resurrected from the run cursor, never failed —
       // the agent in the sandbox is still doing (or has finished) the work.
-      const { recoverStalledWorkflowAgentTurns } =
+      const { recoverAnsweredAskResumes, recoverStalledWorkflowAgentTurns } =
         await import('../domains/automations/reattach.ts');
       const reattached = await recoverStalledWorkflowAgentTurns(deps.sql);
       if (reattached.resumed > 0) {
         console.log(
           `[watchdog] automation agents: re-attached ${reattached.resumed} of ${reattached.examined} abandoned turn(s)`,
+        );
+      }
+      // The answered-ask twin: a resume lost to a restart while the run still
+      // parks on the asking exec (the re-attach above spares it as
+      // awaiting_human) is re-enqueued instead of stranding to the 7-day ask
+      // deadline.
+      const asks = await recoverAnsweredAskResumes(deps.sql);
+      if (asks.requeued > 0) {
+        console.log(
+          `[watchdog] automation agents: re-enqueued ${asks.requeued} lost answered-ask resume(s)`,
         );
       }
     },
@@ -496,6 +541,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         await import('../domains/conversations/send.ts');
       await runSendMessageJob(deps.sql, input);
     },
+    'watchdog.conversation_sends': async () => {
+      const { recoverStuckConversationSends } =
+        await import('../domains/conversations/send.ts');
+      const result = await recoverStuckConversationSends(deps.sql);
+      if (result.failed > 0) {
+        console.log(
+          `[watchdog] conversation sends: failed ${result.failed} stranded queued send(s)`,
+        );
+      }
+    },
     'chat.deferred_send_poll': async (payload) => {
       const input = z
         .object({ deferredSendId: z.string().min(1) })
@@ -508,6 +563,16 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const cleared = await runChatGenerationWatchdog(deps.sql);
       if (cleared > 0) {
         console.log(`[watchdog] chat: cleared ${cleared} stale generations`);
+      }
+    },
+    'watchdog.deferred_sends': async () => {
+      const { recoverStuckDeferredSends } =
+        await import('../domains/chat/deferred-sends.ts');
+      const result = await recoverStuckDeferredSends(deps.sql);
+      if (result.repolled > 0 || result.cleared > 0) {
+        console.log(
+          `[watchdog] deferred sends: re-polled ${result.repolled} waiting, cleared ${result.cleared} wedged claimed`,
+        );
       }
     },
     'documents.replacement_cleanup': async () => {

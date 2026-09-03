@@ -1,9 +1,18 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { isAdminRole } from '../../auth/membership.ts';
+import {
+  ERASURE_REASON_CODES,
+  ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
+} from '../../core/governance/erasure_constants.ts';
+import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
-import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { resolveObjectStore, s3DeleteObject } from '../../lib/object-store.ts';
+import {
+  readGovernancePolicyForOrg,
+  resolveOrgSlug,
+} from '../../lib/org-config.ts';
 import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -48,21 +57,18 @@ export class ErasureError extends Error {
 }
 
 /**
- * The watchdog's verdict text. Load-bearing beyond the message: the retry
- * path refuses a receipt carrying it (see `retryErasureRequest`).
+ * Membership test over the closed reason-code list. The ONE list is
+ * `core/governance/erasure_constants.ts` — the file-request picker, the
+ * i18n labels, and the docs all speak it. (A divergent local copy here
+ * once carried `child_consent` while everything user-facing offered
+ * `child`, making the documented Art 17(1)(f) ground unfileable.)
  */
-export const ERASURE_WATCHDOG_TIMEOUT_MESSAGE =
-  'Erasure timed out and was stopped by the watchdog. File a new request.';
-
-export const ERASURE_REASON_CODES = [
-  'consent_withdrawn',
-  'no_longer_necessary',
-  'unlawful_processing',
-  'legal_obligation',
-  'objection',
-  'child_consent',
-  'contract_termination',
-] as const;
+export function isValidErasureReasonCode(code: string): boolean {
+  return ERASURE_REASON_CODES.includes(
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- membership test over the closed list
+    code as (typeof ERASURE_REASON_CODES)[number],
+  );
+}
 
 async function dsarPolicy(sql: Sql | TransactionSql, organizationId: string) {
   const config = await readGovernancePolicyForOrg(
@@ -120,12 +126,7 @@ export async function requestErasure(
   if (!args.reason.trim()) {
     throw new ErasureError('validation', 'reason is required');
   }
-  if (
-    !ERASURE_REASON_CODES.includes(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- membership test over the closed list
-      args.reasonCode as (typeof ERASURE_REASON_CODES)[number],
-    )
-  ) {
+  if (!isValidErasureReasonCode(args.reasonCode)) {
     throw new ErasureError('validation', 'unknown reason code');
   }
   // Self-deletion guard: erasure scrubs the actor's audit trail — a
@@ -363,7 +364,12 @@ export async function cancelErasure(
     );
   }
   const now = Date.now();
-  if (row.effectiveAt === null || row.effectiveAt <= now) {
+  // A NULL `effective_at_ms` on a pending row means the request is parked
+  // awaiting the second admin's approval (dual-approval mode): nothing is
+  // scheduled yet, so it is trivially cancellable — the docs promise "any
+  // Admin can cancel" before the cascade runs. Only a stamp in the PAST
+  // means the processor was already dispatched.
+  if (row.effectiveAt !== null && row.effectiveAt <= now) {
     throw new ErasureError(
       'cannotCancelAfterCooldown',
       'The cooling-off window has elapsed; the processor has already been dispatched. Use Retry on the resulting receipt instead.',
@@ -390,6 +396,27 @@ export async function cancelErasure(
         'The request left the cancellable window while cancelling.',
         409,
       );
+    }
+    // Dual-approval mode parks an approvals-inbox row per request; a
+    // cancelled receipt's approval must not stay decidable, so settle any
+    // still-pending row as rejected (an approve that raced ahead flipped
+    // it to 'executing' — this update then no-ops, which is fine: the
+    // receipt cancel above already prevailed and the processor no-ops on
+    // non-pending receipts).
+    const settledApprovals = await tx<{ id: string }[]>`
+      UPDATE app.approvals SET
+        status = 'rejected', approved_by = ${args.actorId},
+        reviewed_at_ms = ${now}
+      WHERE org_id = ${args.organizationId} AND resource_type = 'erasure'
+        AND resource_id = ${row.id} AND status = 'pending'
+      RETURNING id
+    `;
+    for (const approval of settledApprovals) {
+      await emitHintInTx(tx, {
+        orgId: args.organizationId,
+        entity: 'approval',
+        entityId: approval.id,
+      });
     }
     await createAuditLog(tx, {
       organizationId: args.organizationId,
@@ -419,7 +446,13 @@ export async function cancelErasure(
  * or wants a fresh pass). Re-checks the hold gate. */
 export async function retryErasure(
   sql: Sql,
-  args: { organizationId: string; requestId: string },
+  args: {
+    organizationId: string;
+    requestId: string;
+    /** The admin who clicked Retry — audited as the actor. Absent only
+     * for system-driven re-arms, which audit as `system`. */
+    actor?: { userId: string; email?: string };
+  },
 ): Promise<void> {
   const holds = await loadActiveHolds(sql, args.organizationId);
   const rows = await sql<{ targetUserId: string; error: string | null }[]>`
@@ -472,8 +505,11 @@ export async function retryErasure(
     });
     await createAuditLog(tx, {
       organizationId: args.organizationId,
-      actorId: 'system',
-      actorType: 'system',
+      actorId: args.actor?.userId ?? 'system',
+      ...(args.actor?.email !== undefined
+        ? { actorEmail: args.actor.email }
+        : {}),
+      actorType: args.actor !== undefined ? 'user' : 'system',
       action: 'gdpr_erasure_retried',
       category: 'admin',
       resourceType: 'user',
@@ -584,7 +620,6 @@ export async function processErasure(
       FROM app.documents
       WHERE org_id = ${organizationId} AND created_by = ${targetUserId}
     `;
-    const { resolveOrgSlug } = await import('../../lib/org-config.ts');
     const orgSlug = await resolveOrgSlug(sql, organizationId);
     for (const doc of docs) {
       await purgeDocument(sql, orgSlug, {
@@ -598,13 +633,44 @@ export async function processErasure(
   });
 
   await pass('uploads', async () => {
-    const removed = await sql<{ id: string }[]>`
-      DELETE FROM app.file_metadata
+    // Chat/task uploads — document-bound file rows ride the documents pass
+    // (`purgeDocument` deletes them with the document's own blobs).
+    const uploads = await sql<{ id: string; storageRef: string }[]>`
+      SELECT id, storage_ref AS "storageRef" FROM app.file_metadata
       WHERE org_id = ${organizationId} AND uploaded_by = ${targetUserId}
         AND document_id IS NULL
-      RETURNING id
     `;
-    return removed.length;
+    if (uploads.length === 0) return 0;
+    const orgSlug = await resolveOrgSlug(sql, organizationId);
+    if (orgSlug === null) {
+      // Rows exist but no slug resolves a store: fail the pass (receipt
+      // 'partial', rows kept, Retry re-attempts) instead of dropping the
+      // ledger rows while the subject's bytes live on in object storage.
+      throw new Error(
+        `no org slug for ${organizationId}; upload blobs not deletable`,
+      );
+    }
+    // STRICT blob-then-row — deliberately NOT the retention sweeps'
+    // best-effort idiom: an erasure receipt that says done must be TRUE,
+    // so a failed S3 delete throws and keeps the row for Retry. A 404 is
+    // success (already gone — `s3DeleteObject` treats it so); a legacy
+    // Convex ref has no reachable backend left, so only the row remains
+    // to delete. The store resolves lazily inside the s3 branch so a
+    // legacy-only batch never trips over an unconfigured store; upload
+    // keys are minted per object (`buildObjectKey`), and the ref-dedupe
+    // set guards a double-listed ref the way `purgeDocument` guards
+    // `historyFiles` against `fileRef`.
+    const deletedRefs = new Set<string>();
+    for (const upload of uploads) {
+      const parsed = parseBlobRef(upload.storageRef);
+      if (parsed.backend === 's3' && !deletedRefs.has(upload.storageRef)) {
+        const store = await resolveObjectStore(orgSlug);
+        await s3DeleteObject(store, parsed.key);
+        deletedRefs.add(upload.storageRef);
+      }
+      await sql`DELETE FROM app.file_metadata WHERE id = ${upload.id}`;
+    }
+    return uploads.length;
   });
 
   await pass('preferences', async () => {
@@ -1073,8 +1139,10 @@ export async function getErasureRequest(
  * the cooling-off window starts now and the processor is scheduled (the 0.4
  * `confirmAndScheduleErasure`). Filer ≠ approver is a HARD refusal here, not
  * just a UI gate — the approvals inbox enforces it above, this enforces it
- * again at the write. An already-scheduled or no-longer-pending row is a
- * no-op: approving twice is a double-submit, not an error.
+ * again at the write (the approver-must-be-an-admin half of the contract is
+ * `decideApproval`'s kind gate, which runs before this dispatch). An
+ * already-scheduled or no-longer-pending row is a no-op: approving twice is
+ * a double-submit, not an error.
  */
 export async function confirmAndScheduleErasure(
   tx: TransactionSql,
@@ -1149,6 +1217,81 @@ export async function confirmAndScheduleErasure(
     },
     subjectUserId: row.targetUserId,
     link: { kind: 'dsar' },
+  });
+}
+
+/**
+ * The dual-approval refusal hand-off: the second admin REJECTED the erasure
+ * row in the approvals inbox. Without this the receipt stayed `pending`
+ * with `effective_at_ms` NULL forever — unschedulable, and the live
+ * partial-unique index blocked ever re-filing the subject. A rejection
+ * lands the receipt in the terminal `cancelled` state (the existing status
+ * vocabulary; the live index covers only pending/running, so the subject
+ * becomes re-filable), attributed to the rejecting admin with a distinct
+ * `gdpr_erasure_rejected` audit action. An already-scheduled or settled
+ * row is a no-op: the decision FSM refuses a second decide anyway, and a
+ * cancel that raced ahead already settled the receipt.
+ */
+export async function rejectErasure(
+  tx: TransactionSql,
+  args: {
+    requestId: string;
+    rejectedBy: string;
+    organizationId: string;
+    comments?: string;
+  },
+): Promise<void> {
+  const rows = await tx<
+    {
+      id: string;
+      targetUserId: string;
+      status: string;
+      effectiveAt: number | null;
+    }[]
+  >`
+    SELECT id, target_user_id AS "targetUserId", status,
+           effective_at_ms::float8 AS "effectiveAt"
+    FROM app.gdpr_erasure_requests
+    WHERE id = ${args.requestId} AND org_id = ${args.organizationId}
+    FOR UPDATE
+  `;
+  const row = rows[0];
+  if (row === undefined) return;
+  if (row.status !== 'pending' || row.effectiveAt !== null) return;
+  const now = Date.now();
+  const trimmed = args.comments?.trim() ?? '';
+  await tx`
+    UPDATE app.gdpr_erasure_requests SET
+      status = 'cancelled', cancelled_by = ${args.rejectedBy},
+      cancellation_reason = ${
+        trimmed !== ''
+          ? `Dual approval rejected: ${trimmed}`
+          : 'Dual approval rejected.'
+      },
+      finished_at_ms = ${now}
+    WHERE id = ${row.id}
+  `;
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    actorId: args.rejectedBy,
+    actorType: 'user',
+    action: 'gdpr_erasure_rejected',
+    category: 'admin',
+    resourceType: 'user',
+    resourceId: row.targetUserId,
+    status: 'success',
+    previousState: { status: 'pending' },
+    newState: {
+      requestId: row.id,
+      status: 'cancelled',
+      rejectedBy: args.rejectedBy,
+      ...(trimmed !== '' ? { comments: trimmed } : {}),
+    },
+  });
+  await emitHintInTx(tx, {
+    orgId: args.organizationId,
+    entity: 'gdpr_erasure',
+    entityId: row.id,
   });
 }
 

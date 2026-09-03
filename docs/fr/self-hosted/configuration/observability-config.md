@@ -19,18 +19,17 @@ Tale ne ship pas de log shipper. L'échange de driver est le point de connector 
 
 ## Métriques
 
-Le proxy Caddy expose jusqu'à quatre chemins de métriques derrière un seul bearer token :
+Le proxy Caddy expose trois chemins de métriques derrière un seul bearer token :
 
-| Chemin               | Source          | Ce qui est dedans                                                                                       |
-| -------------------- | --------------- | ------------------------------------------------------------------------------------------------------- |
-| `/metrics/platform`  | `tale-platform` | Latence HTTP, compteurs de routes, métriques de processus Node, gauges de cible SLA de temps de réponse |
-| `/metrics/convex`    | `tale-convex`   | 261 métriques Convex intégrées, plus les timings RAG et de crawl                                        |
-| `/metrics/sla-rules` | `tale-platform` | Rules Prometheus de recording + alerting générées pour les SLA de temps de réponse                      |
+| Chemin               | Source             | Ce qui est dedans                                                                                                                                                                                              |
+| -------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/metrics/platform`  | `tale-platform`    | Latence HTTP, compteurs de routes, métriques de processus Node, gauges de cible SLA de temps de réponse                                                                                                        |
+| `/metrics/sla-rules` | `tale-platform`    | Rules Prometheus de recording + alerting générées pour les SLA de temps de réponse                                                                                                                             |
 | `/metrics/backend`   | `tale-backend-api` | Métriques process, compteurs et latence HTTP par classe de route, profondeur de queue par état de job, générations de chat en cours, streams de hints ouverts, état de drain, et les mêmes gauges de cible SLA |
 
-Le travail de connaissances (recherche RAG, ingestion de documents, crawling web) tourne désormais dans le backend Convex, donc ses timings empruntent la série `/metrics/convex` plutôt qu'un endpoint séparé. Mets `METRICS_BEARER_TOKEN` dans `.env` pour activer ces endpoints ; laisse-le non défini pour qu'ils retournent 401 à chaque requête. Le chemin `/metrics/sla-rules` est un fichier YAML de rules en lecture seule que tu charges dans Prometheus, pas une cible de scrape — les seuils qu'il porte sont documentés dans [Opérations](/fr/self-hosted/operate/observability/operations). Tout sauf les chemins listés retourne aussi 401, donc un scraper mal routé ne voit pas accidentellement les endpoints de santé internes de la plateforme.
+Le travail de connaissances (recherche RAG, ingestion de documents, crawling web) tourne désormais dans le backend worker, donc ses timings empruntent la série `/metrics/backend` plutôt qu'un endpoint séparé. Mets `METRICS_BEARER_TOKEN` dans `.env` pour activer ces endpoints ; laisse-le non défini pour qu'ils retournent 401 à chaque requête. Le chemin `/metrics/sla-rules` est un fichier YAML de rules en lecture seule que tu charges dans Prometheus, pas une cible de scrape — les seuils qu'il porte sont documentés dans [Opérations](/fr/self-hosted/operate/observability/operations). Tout sauf les chemins listés retourne aussi 401, donc un scraper mal routé ne voit pas accidentellement les endpoints de santé internes de la plateforme.
 
-`/metrics/backend` n'existe qu'une fois le déploiement basculé sur le backend Postgres (`BACKEND_UPSTREAM` défini dans `.env`). Avant la bascule, le chemin répond 404 au lieu de servir en silence les chiffres d'un autre service sous le nom du backend : une cible de scrape ajoutée trop tôt échoue visiblement au lieu de tracer le mauvais processus.
+`/metrics/backend` est servi par le backend applicatif, que chaque déploiement fait tourner ; `BACKEND_UPSTREAM` ne fait que surcharger l'upstream pour un déploiement scindé. Un chemin de métriques gated sans lane sur le déploiement répond 404 au lieu de servir en silence les chiffres d'un autre service sous le mauvais nom.
 
 Une stanza de scrape Prometheus qui marche :
 
@@ -61,7 +60,7 @@ Le sample rate plafonne les traces de performance du navigateur et ne s'applique
 
 ## Ce qui ne ship pas encore
 
-Les traces OpenTelemetry ne sont pas intégrées aux conteneurs. Les données sont joignables indirectement — les durées d'action Convex et les timings de routes HTTP arrivent par les métriques Prometheus — mais il n'y a pas d'exportateur OTLP sur la boîte aujourd'hui. Si tu as besoin d'export de traces complet, fais tourner un OpenTelemetry Collector à côté de Tale et scrape les endpoints Prometheus depuis lui.
+Les traces OpenTelemetry ne sont pas intégrées aux conteneurs. Les données sont joignables indirectement — les durées de requête backend et les timings de routes HTTP arrivent par les métriques Prometheus — mais il n'y a pas d'exportateur OTLP sur la boîte aujourd'hui. Si tu as besoin d'export de traces complet, fais tourner un OpenTelemetry Collector à côté de Tale et scrape les endpoints Prometheus depuis lui.
 
 ## Où cela s'inscrit
 

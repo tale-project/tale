@@ -17,7 +17,7 @@ Zwei Warnungen erscheinen hier, und sie bedeuten Unterschiedliches. _Keine Stand
 
 ## Zugangsdaten hinzufügen
 
-**Zugangsdaten hinzufügen** öffnet den mitgelieferten Katalog. Connectoren, für die du schon Zugangsdaten hältst, stehen zuerst unter **In Verwendung**; alles andere folgt darunter, alphabetisch, jeweils mit den Kategorien und der Anzahl der Aktionen. Die Suche grenzt die Liste ein; eine Auswahl führt zum Einrichtungsschritt, **Zurück zum Katalog** wieder heraus.
+**Zugangsdaten hinzufügen** öffnet den mitgelieferten Katalog. Connectoren, für die du schon Zugangsdaten hältst, stehen zuerst unter **Konfiguriert**; alles andere folgt darunter, jeweils mit den Kategorien und der Anzahl der Aktionen. Die Suche grenzt die Liste ein; eine Auswahl führt zum Einrichtungsschritt, **Zurück** wieder heraus.
 
 Die Einrichtung fragt zuerst nach einem **Namen**, und der Hilfetext des Felds erklärt, warum er zählt: unter diesem Namen wählt eine Aktion diesen Eintrag aus. Nimm etwas, das eine Autorin von Automationen Monate später wiedererkennt, etwa `Support-Postfach` oder `Shop EU`.
 
@@ -53,7 +53,7 @@ Kein Secret zum Eintippen, der Einrichtungsschritt ist also allein die Übergabe
 
 </Tabs>
 
-Einen zweiten Eintrag an einem Connector anzulegen, der schon einen hat, ist derselbe Ablauf noch einmal — der Connector steht dann im Katalog unter **In Verwendung**. Es gibt keine Grenze zu umgehen und nichts vorher zu trennen.
+Einen zweiten Eintrag an einem Connector anzulegen, der schon einen hat, ist derselbe Ablauf noch einmal — der Connector steht dann im Katalog unter **Konfiguriert**. Es gibt keine Grenze zu umgehen und nichts vorher zu trennen.
 
 <Note>
 
@@ -71,7 +71,7 @@ Ein Connector mit mehreren Einträgen und ohne Standard ist eine funktionierende
 
 Einen Schlüssel zu wechseln ist eine Bearbeitung am Eintrag, keine eigene Operation. Öffne die Zeile und wähle je nach Methode **API-Schlüssel ersetzen**, **Token ersetzen** oder **Benutzername & Passwort ersetzen**. Das gespeicherte Secret wird nie angezeigt, und ein neuer Wert ersetzt es überall dort, wo dieser Eintrag verwendet wird — jeder Automations-Node und jede Chat-Aktion, die darauf zeigt, übernimmt den neuen Wert, ohne angefasst zu werden.
 
-Name, Standard-Kennzeichen und Instanz-URL überstehen den Wechsel, nachgelagert muss also nichts umgezogen werden. **Name & Instanz bearbeiten** deckt die andere Richtung ab: eine Zeile umbenennen oder auf eine andere Instanz umziehen.
+Name, Standard-Kennzeichen und Instanz-URL überstehen den Wechsel, nachgelagert muss also nichts umgezogen werden. **Zugangsdaten bearbeiten** deckt die andere Richtung ab: eine Zeile umbenennen oder auf eine andere Instanz umziehen.
 
 ## Deaktivieren und löschen
 
@@ -101,10 +101,8 @@ Ein OAuth-Eintrag, dessen gespeicherte Autorisierung abgelaufen ist oder widerru
 
 ## Connectoren und MCP-Server
 
-Beide Oberflächen lassen einen Agent über Tale hinausgreifen, und der Unterschied liegt darin, wem die Brücke gehört. Ein Connector ist anbieterspezifisch, kommt mit der Plattform und wird für dich gepflegt; deine Seite davon sind die Zugangsdaten. Ein MCP-Server ist ein Prozess, den du selbst betreibst und unter **Einstellungen > API > MCP** registrierst, mit genau den Tools, die du schreibst. Greif zum Connector, wenn es einen für das Zielsystem gibt, und zu [MCP-Servern](/de/platform/connectors/mcp-servers), wenn nicht.
+Beide Oberflächen lassen einen Agent über Tale hinausgreifen, und der Unterschied liegt darin, wem die Brücke gehört. Ein Connector ist anbieterspezifisch, kommt mit der Plattform und wird für dich gepflegt; deine Seite davon sind die Zugangsdaten. Ein MCP-Server ist ein Prozess, den du selbst betreibst und für deine Agents anbindest, mit genau den Tools, die du schreibst. Greif zum Connector, wenn es einen für das Zielsystem gibt, und zu [MCP-Servern](/de/platform/connectors/mcp-servers), wenn nicht.
 
 ## Wo das hingehört
 
 Zugangsdaten zu verwalten ist inzwischen die gesamte Connector-Administration, weil nichts mehr installiert wird: Konten anlegen, gut benennen, pro Connector einen Standard halten und die OAuth-Einträge neu verbinden, die auslaufen. [Connectors](/de/platform/connectors/overview) ist der Katalog, an dem diese Einträge hängen, [Agent-Tools](/de/platform/agents/tools) zeigt, wie die daraus entstehenden Aktionen im Werkzeugkasten eines Agents ankommen, und [Genehmigungen konfigurieren](/de/platform/approvals/configure) ist der Ort, an dem schreibende Aktionen auf eine Freigabe warten.
-</content>
-</invoke>

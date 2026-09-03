@@ -43,9 +43,12 @@ Trusted headers est le mode pour les sites qui terminent SSO sur un reverse prox
 ```bash
 # .env
 TRUSTED_HEADERS_ENABLED=true
+TRUSTED_HEADERS_INTERNAL_SECRET=<longue valeur aléatoire>
 ```
 
-Le modèle de menace est délicat. Tout ce qui peut joindre le conteneur plateforme avec ces en-têtes devient l'utilisateur qu'ils nomment. Restreins le port plateforme pour que seul le proxy puisse lui parler (un réseau Docker ou une règle firewall hôte), et n'expose jamais le conteneur plateforme directement à Internet quand ce mode est actif.
+Le secret n'est pas optionnel : n'importe qui capable de joindre le backend peut forger les en-têtes d'identité, donc l'endpoint refuse de fonctionner tant que `TRUSTED_HEADERS_INTERNAL_SECRET` n'est pas défini. Configure le proxy authentifiant pour qu'il envoie la même valeur dans l'en-tête `Remote-Internal-Secret` sur chaque requête transmise à Tale (renomme l'en-tête via `TRUSTED_SECRET_HEADER` si ton proxy impose ses propres noms) — une requête qui arrive sans la valeur attendue est refusée avant toute recherche d'utilisateur.
+
+Le modèle de menace reste délicat. Tout ce qui peut joindre le conteneur plateforme avec ces en-têtes **et** le secret devient l'utilisateur qu'ils nomment. Restreins le port plateforme pour que seul le proxy puisse lui parler (un réseau Docker ou une règle firewall hôte), et n'expose jamais le conteneur plateforme directement à Internet quand ce mode est actif.
 
 ## Où cela s'inscrit
 

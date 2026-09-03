@@ -475,6 +475,10 @@ auth:
       userNotAssigned:
         Dein Konto ist dieser Anwendung nicht zugewiesen. Wende dich an
         deine Administration, um Zugriff anzufordern.
+      notOrgMember:
+        Dein Konto ist kein Mitglied dieser Organisation. Bitte die
+        Administration dieser Organisation, dich einzuladen, und melde dich
+        danach erneut an.
       silentAuthFailed: Stille Anmeldung fehlgeschlagen. Melde dich stattdessen manuell an.
       refreshTokenExpired: Deine Sitzung ist abgelaufen. Melde dich erneut an.
       consentRequired: Ein Administrator muss die Zustimmung erteilen, bevor du dich anmelden kannst.
@@ -1152,6 +1156,9 @@ chat:
       privateIpResolved: Dieser Link verweist auf eine private/interne Adresse
       inFlightCap: Zu viele Videos in Verarbeitung — bitte warten, bis eines fertig ist
       budgetExceeded: Nutzungslimit erreicht — Administrator kontaktieren
+      notFound: Video-Link nicht gefunden — möglicherweise wurde er entfernt
+      notUploader: Nur die Person, die dieses Video hinzugefügt hat, kann es ändern
+      notRetryable: Erneuter Versuch gerade nicht möglich — das Video wird womöglich schon wieder verarbeitet
     actions:
       removeLink: Entfernen
       retry: Erneut versuchen
@@ -1336,7 +1343,6 @@ chat:
     waitingInput: Wartet auf deine Antwort
     waitingOn: Wartet auf {detail}
   parts:
-    attachment: 'Anhang: {name}'
     toolCall: '{tool} aufgerufen'
     toolResult: Ergebnis von {tool}
     toolResultFailed: Fehlgeschlagen
@@ -1739,8 +1745,8 @@ conversations:
     subject: Betreff
     subjectPlaceholder: Worum geht es?
     assignLabel: Zuständig
-    assignPlaceholder: Mitglied auswählen
-    assignSearch: Mitglieder suchen
+    assignPlaceholder: Person oder Team wählen
+    assignSearch: Personen und Teams suchen
     assignYou: Du
     bodyPlaceholder: Schreib deine Nachricht…
     fillRequired: Wähle einen Kontakt, ein Postfach und einen Betreff, um zu senden.
@@ -1799,7 +1805,6 @@ conversations:
     assignee: Zuständig
     assign: Zuweisen
     assignedTo: 'Zuständig: {name}'
-    noMembers: Keine Mitglieder gefunden
     unassign: Zuweisung aufheben
     assignError: Zuständigkeit konnte nicht aktualisiert werden
     inboxSource: 'Postfach: {inbox}'
@@ -1831,11 +1836,9 @@ conversations:
     send: Nachricht senden
   attachment:
     download: Herunterladen
-    downloading: Lade herunter...
     attachments: '{count, plural, one {# Anhang} other {# Anhänge}}'
   panel:
     uploadFailed: Anhänge konnten nicht hochgeladen werden. Versuch es erneut.
-    downloadFailed: Anhänge konnten nicht heruntergeladen werden. Versuch es erneut.
     noSelected: Keine Konversation ausgewählt
     selectToView: Wähle eine Konversation, um Details anzuzeigen
     notFound: Konversation nicht gefunden
@@ -3849,6 +3852,7 @@ governance:
       gdpr_erasure_cascade_attempts_exhausted: Kaskaden-Versuche erschöpft
       gdpr_erasure_extended: Frist verlängert
       gdpr_erasure_retried: Wiederholt
+      gdpr_erasure_rejected: Zurückgewiesen
       gdpr_erasure_cancelled: Abgebrochen
     categories:
       userMemories: Persönliche Memos
@@ -4242,6 +4246,9 @@ metadata:
   apiDocs:
     title: API-Dokumentation
     description: Die Tale-API mit interaktiver Dokumentation erkunden.
+  convexDashboard:
+    title: Convex Dashboard
+    description: Das Convex-Backend verwalten.
   knowledge:
     title: Wissen
     description: deine Wissensdatenbank für KI-Agents verwalten.
@@ -5240,8 +5247,7 @@ settings:
       clientSecretLabel: Client-Secret
       clientSecretKeep: Leer lassen, um das aktuelle Secret beizubehalten.
       tenantIdLabel: Verzeichnis-ID (Tenant)
-      tenantIdHint:
-        Nötig für Single-Tenant-Registrierungen bei Microsoft; bei
+      tenantIdHint: Nötig für Single-Tenant-Registrierungen bei Microsoft; bei
         Multi-Tenant-Apps leer lassen.
       redirectUrisLabel: Zu registrierende Redirect-URIs
       redirectUrisHint:
@@ -6891,6 +6897,7 @@ toast:
     logoTooSmall: Das Logo muss mindestens {min}×{min} Pixel groß sein.
     imageTooLarge: Bild ist zu groß. Maximale Größe ist 2 MB.
     imageMimeUnsupported: Nicht unterstütztes Bildformat. Verwende PNG, SVG, JPG, WebP oder ICO.
+    imageSvgActiveContent: Die SVG-Datei enthält Skripte oder Event-Handler. Entferne sie oder lade ein PNG hoch.
     imageTypeInvalid: Ungültiger Bildtyp
     addMemberFailed:
       title: Mitglied konnte nicht hinzugefügt werden

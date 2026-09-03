@@ -62,13 +62,15 @@ Verzweigen und Wiederholen sind Felder an einer Node statt eigener Schritttypen.
 
 ### Node-Typen
 
-Drei Typen sind eingebaut, und jede Connectorsaktion sowie jede Plattformfunktion — Wissenssuche, Dokumentoperationen — reiht sich in dieselbe Tabelle daneben ein.
+Vier Typen sind eingebaut, und jede Connectorsaktion sowie jede Plattformfunktion — Wissenssuche, Dokumentoperationen — reiht sich in dieselbe Tabelle daneben ein.
 
 **`transform`** führt reines JavaScript aus, um Daten umzuformen. Ohne Netzwerk und ohne Imports: Der Rumpf liest die aufgelöste `input` der Node und muss einen Wert zurückgeben.
 
 **`llm`** ruft ein Sprachmodell mit einem Prompt-Template auf. `model` ist Pflicht und immer ausdrücklich — eine Automatisierung wählt nie eines für dich (das Auto der Chat-Eingabezeile ist eine reine Chat-Sache). Die Ausgabe ist `{text}` oder das Objekt in Form des Schemas, wenn die Node ein `outputSchema` deklariert.
 
-**`subworkflow`** führt eine andere gespeicherte Automatisierung als einzelne Node aus, referenziert als `"name"` oder `"name@version"`. Ohne Version läuft die live geschaltete, und die Verschachtelung endet bei drei Ebenen.
+**`agent`** führt einen Agent-Turn eines Coding-Agents (Claude Code, Codex und die übrigen Harnesses) in der Sandbox aus. Er liest bereitgestellte `files`, nutzt `skills`, vermittelte `connectors`, gewährte Plattform-`tools` und eingespielte `secrets` und gibt `{text, files, status}` zurück; `model` ist Pflicht. Greif zu `llm`, wenn eine einmalige Completion reicht, und zu `agent` nur, wenn der Schritt Werkzeuge, Dateien oder mehrere Turns braucht — eine live geschaltete Agent-Node läuft als asynchroner Turn, sitzt daher auf der obersten Ebene statt in einer `subautomation` und iteriert nicht mit `forEach`.
+
+**`subautomation`** führt eine andere gespeicherte Automatisierung als einzelne Node aus; ihr Feld `automation` benennt `"name"` oder `"name@version"`. Ohne Version läuft die live geschaltete, und die Verschachtelung endet bei drei Ebenen.
 
 ### Strukturierte und unstrukturierte Ausgabe
 

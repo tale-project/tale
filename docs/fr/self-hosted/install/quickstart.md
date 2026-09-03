@@ -83,7 +83,7 @@ Sur une instance vide, il n’y a pas de page d’inscription à chercher : la p
 
 <Note>
 
-[Premier admin](/fr/self-hosted/install/first-admin) couvre l’assistant en détail, comment les coéquipiers arrivent, et la clé admin du tableau de bord Convex — un outil d’inspection du backend qui ne joue aucun rôle dans la connexion.
+[Premier admin](/fr/self-hosted/install/first-admin) couvre l’assistant en détail et comment les coéquipiers arrivent.
 
 </Note>
 

@@ -132,6 +132,82 @@ export function isAdminOrDeveloperRole(role: string): boolean {
   return ADMIN_OR_DEVELOPER_ROLES.has(role.toLowerCase());
 }
 
+/**
+ * Authority rank for the owner-protection / strict-outrank guards. Higher =
+ * more authority. Unknown roles rank 0 (fail closed: they can outrank nobody).
+ */
+export const ROLE_RANK: Readonly<Record<string, number>> = {
+  owner: 5,
+  admin: 4,
+  developer: 3,
+  editor: 2,
+  member: 1,
+  disabled: 0,
+};
+
+export function roleRank(role: string): number {
+  return ROLE_RANK[role.toLowerCase()] ?? 0;
+}
+
+export type CredentialResetDenial =
+  | 'self'
+  | 'cross_org_authority'
+  | 'insufficient_rank';
+
+/**
+ * Decide whether `actor` may reset `target`'s email/password credential
+ * through the admin door.
+ *
+ * The credential is a SINGLE GLOBAL row per user (Better Auth `account` keyed
+ * by (userId, providerId='credential')), so a reset rewrites the password in
+ * EVERY organization the target belongs to and lets the actor — who chooses
+ * the replacement password — sign in as the target everywhere. The authority
+ * to do that must therefore hold across the target's ENTIRE membership set,
+ * not just the org the admin happens to be looking at:
+ *
+ *  - never on yourself — self-service is `/users/update-password`, which
+ *    proves the current password (this door does not);
+ *  - for EVERY org the target belongs to, the actor must be a member there and
+ *    STRICTLY OUTRANK the target's role in that org.
+ *
+ * Consequences (the enforced contract): an admin can never seize an owner
+ * (nobody outranks owner) or a peer admin (equal rank), and one org's admin
+ * can never reset a user who also belongs to an org the actor does not
+ * administer (cross-org takeover). Disabled memberships still count — the
+ * global credential governs the account's identity even where a seat is
+ * dormant, so we fail closed.
+ *
+ * Pure: the caller reads both membership lists from the `member` table and
+ * passes them in; `targetMemberships` MUST be the full cross-org set.
+ */
+export function evaluateCredentialResetAuthority(args: {
+  actorUserId: string;
+  targetUserId: string;
+  actorMemberships: OrgMembership[];
+  targetMemberships: OrgMembership[];
+}): { allowed: true } | { allowed: false; reason: CredentialResetDenial } {
+  if (args.actorUserId === args.targetUserId) {
+    return { allowed: false, reason: 'self' };
+  }
+  if (args.targetMemberships.length === 0) {
+    // No membership to authorize against — fail closed.
+    return { allowed: false, reason: 'cross_org_authority' };
+  }
+  const actorRankByOrg = new Map(
+    args.actorMemberships.map((m) => [m.organizationId, roleRank(m.role)]),
+  );
+  for (const membership of args.targetMemberships) {
+    const actorRank = actorRankByOrg.get(membership.organizationId);
+    if (actorRank === undefined) {
+      return { allowed: false, reason: 'cross_org_authority' };
+    }
+    if (actorRank <= roleRank(membership.role)) {
+      return { allowed: false, reason: 'insufficient_rank' };
+    }
+  }
+  return { allowed: true };
+}
+
 /** Team ids the user belongs to (the other half of the RLS prime). */
 export async function getUserTeamIds(
   sql: Sql | TransactionSql,

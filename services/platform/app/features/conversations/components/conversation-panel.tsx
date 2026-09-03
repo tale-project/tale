@@ -26,7 +26,6 @@ import { lazyComponent } from '@/lib/utils/lazy-component';
 import {
   useDeleteConversation,
   useDiscardOutboundMessage,
-  useDownloadAttachments,
   useGenerateUploadUrl,
   useMarkAsRead,
   useReopenConversation,
@@ -132,7 +131,6 @@ export function ConversationPanel({
   const { mutate: markAsRead } = useMarkAsRead();
   const { mutateAsync: sendMessageViaConnector } = useSendMessageViaConnector();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
-  const { mutate: downloadAttachments } = useDownloadAttachments();
   const { mutate: reopenConversation, isPending: isReopening } =
     useReopenConversation();
   const { mutate: deleteConversation, isPending: isDeleting } =
@@ -143,6 +141,8 @@ export function ConversationPanel({
 
   // Draft handed back by an undo-send: seeds the composer's pendingMessage so
   // the message the user just cancelled reappears exactly as they wrote it.
+  // Cleared via MessageEditor.onPendingMessageConsumed on a successful resend
+  // (same turn as the editor remount) so the remount cannot re-seed from it.
   const [restoredDraft, setRestoredDraft] = useState<
     { id: string; content: string } | undefined
   >(undefined);
@@ -212,11 +212,6 @@ export function ConversationPanel({
     if (!conversation) {
       return;
     }
-
-    // A previous undo's draft has served its purpose the moment a new send
-    // goes out — dropping it keeps the editor's re-seed effect from restoring
-    // stale content after this send clears the composer.
-    setRestoredDraft(undefined);
 
     let uploadedAttachments:
       | Array<{
@@ -595,27 +590,6 @@ export function ConversationPanel({
                             onUndoSend={handleUndoSend}
                             onRetrySend={handleRetrySend}
                             onDiscard={handleDiscardOutbound}
-                            onDownloadAttachments={(messageId) => {
-                              downloadAttachments(
-                                {
-                                  messageId: messageId,
-                                },
-                                {
-                                  onError: (error) => {
-                                    console.error(
-                                      'Failed to download attachments:',
-                                      error,
-                                    );
-                                    toast({
-                                      title: tConversations(
-                                        'panel.downloadFailed',
-                                      ),
-                                      variant: 'destructive',
-                                    });
-                                  },
-                                },
-                              );
-                            }}
                           />
                         ))}
                       </Stack>
@@ -670,6 +644,7 @@ export function ConversationPanel({
                     onSelectedConversationChange(null);
                   }}
                   pendingMessage={restoredDraft ?? pendingMessage}
+                  onPendingMessageConsumed={() => setRestoredDraft(undefined)}
                   hasMessageHistory={displayMessages.length > 0}
                   organizationId={conversation.organizationId}
                 />

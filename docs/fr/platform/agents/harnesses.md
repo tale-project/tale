@@ -5,7 +5,7 @@ description: Des CLI de code qui exécutent un modèle dans une sandbox isolée 
 
 Un **Harness** est une CLI de code livrée avec la plateforme — Claude Code, Codex, Cursor et les autres — qui exécute le modèle choisi dans un conteneur isolé, au lieu de la boucle de chat ordinaire. Le harness planifie, écrit des fichiers, lance des commandes, installe des paquets et rend compte. Tu ne choisis jamais un harness dans le composer du chat : le chat ne sélectionne qu’un **modèle**. Le harness se choisit quand tu crées un **agent de projet** ou un nœud **agent** d’automatisation — les deux surfaces nomment le champ **Harness**.
 
-Cette page traite des harnesses livrés avec Tale, de l’endroit où tu en choisis un, de l’origine de l’accès, et de ce que le conteneur peut ou ne peut pas atteindre. Les accès eux-mêmes relèvent de l’organisation — voir [Fournisseurs](/fr/platform/admin/providers). **Paramètres > Fournisseurs** porte aussi un onglet **Harnesses** qui montre comment chaque harness se résoudrait pour l’organisation.
+Cette page traite des harnesses livrés avec Tale, de l’endroit où tu en choisis un, de l’origine de l’accès, et de ce que le conteneur peut ou ne peut pas atteindre. Les accès eux-mêmes relèvent de l’organisation — voir [Fournisseurs](/fr/platform/admin/providers). **Paramètres > Fournisseurs IA** porte aussi une section **Harnesses** qui montre comment chaque harness se résoudrait pour l’organisation.
 
 ## Où tu choisis un harness
 
@@ -55,7 +55,7 @@ Un tour sur harness nomme toujours un harness concret. Rien n’en devine un à 
 
 ## Ce que la sandbox peut atteindre
 
-Le conteneur démarre sur un répertoire de travail vide et reste verrouillé par défaut. Les fichiers et dossiers que tu épingles avec `@` entrent dans la session sous `/agent/uploads/`, de sorte que l’agent ouvre les vrais octets plutôt qu’un extrait de recherche, et ce qu’il écrit sous `/agent/output/` revient dans la conversation sous forme de fichier. Le trafic sortant est bloqué hormis une liste étroite — registres de paquets et GitHub — si bien que l’agent peut installer ce dont il a besoin et cloner un dépôt public sans atteindre des hôtes arbitraires.
+Le conteneur démarre sur un répertoire de travail vide. Les fichiers et dossiers que tu épingles avec `@` entrent dans la session sous `/agent/uploads/`, de sorte que l’agent ouvre les vrais octets plutôt qu’un extrait de recherche, et ce qu’il écrit sous `/agent/output/` revient dans la conversation sous forme de fichier. Le trafic sortant est ouvert par défaut, les cibles dangereuses restant toujours bloquées — le point de métadonnées cloud et les plages d’adresses privées — si bien que l’agent installe des paquets et clone des dépôts sans jamais atteindre le réseau hôte ; un opérateur auto-hébergé peut resserrer l’egress sur une liste d’hôtes au niveau du déploiement.
 
 Les connectors connectées atteignent l’agent par un broker, pas par la boîte. Quand l’agent en appelle une, la requête repart vers Tale, qui l’exécute avec l’accès stocké et ne renvoie que le résultat : un conteneur compromis ne peut donc pas lire tes clés. Une écriture apparaît comme une carte de validation dans la conversation et se poursuit une fois que tu l’approuves. GitHub est l’exception assumée : `git` et la CLI `gh` ont besoin d’un jeton en local ; un tour s’exécute donc avec un jeton restreint tant que la conversation garde le connecteur GitHub équipé — injecté à chaque tour, disparu dès la fin du tour.
 

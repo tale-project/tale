@@ -26,7 +26,7 @@ The default mode is **Denylist** with an empty list, which means every package i
 
 Each mode reads from two lists — Python and Node. One package per line, or comma-separated. Version constraints are stripped automatically (`pandas==2.1` matches `pandas`), so the policy is name-based and survives library upgrades. Scoped Node packages (`@scope/pkg`) are supported.
 
-The lists are independent per language: a Python allowlist plus a Node denylist is a valid combination, and means Python is strict and Node is permissive on the same sandbox.
+The mode is global: in allowlist mode both languages read their allow lists, in denylist mode both read their deny lists. The lists themselves are per language, so Python and Node each keep their own set.
 
 ## The tester
 

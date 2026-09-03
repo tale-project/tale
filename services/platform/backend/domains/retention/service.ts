@@ -11,17 +11,15 @@ import {
   isRetentionDisabled,
   type EffectiveBoundDef,
 } from '../../core/governance/retention_floors.ts';
-import { deleteKnowledgeDocument } from '../../core/legacy/knowledge_delete.ts';
 import { readDomainConfigFile } from '../../core/lib/config_store/read_domain_file.ts';
 import { getConfigRoot } from '../../core/lib/file_io.ts';
-import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { toJson } from '../../db/sql.ts';
-import { resolveObjectStore, s3DeleteObject } from '../../lib/object-store.ts';
 import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { releaseRefs, type ReleaseFailure } from '../knowledge/release.ts';
 import { loadActiveHolds, type ActiveHolds } from '../legal_holds/service.ts';
 import { cascadeDeleteThreadTtsChunks } from '../tts/service.ts';
 
@@ -399,25 +397,37 @@ interface Phase2Stats {
   tempFiles: number;
 }
 
-/** Best-effort blob removal — a missing object is success. */
-async function deleteBlobBestEffort(
-  orgSlug: string,
-  storageRef: string,
-): Promise<void> {
-  try {
-    const parsed = parseBlobRef(storageRef);
-    if (parsed.backend !== 's3') return;
-    const store = await resolveObjectStore(orgSlug);
-    await s3DeleteObject(store, parsed.key);
-  } catch (error) {
-    console.warn(`[retention] blob delete failed for ${storageRef}:`, error);
+/** A purge that could not remove every dead surface (corpus rows, bytes).
+ * The document row is KEPT so the caller can retry — a delete lane must
+ * never report success while content persists. Deliberately not a 4xx: the
+ * request was valid; the infrastructure failed. */
+export class PurgeIncompleteError extends Error {
+  readonly code = 'PURGE_INCOMPLETE';
+  readonly failures: ReleaseFailure[];
+  constructor(documentId: string, failures: ReleaseFailure[]) {
+    super(
+      `Purge incomplete for document ${documentId}: ${failures
+        .map(
+          (failure) => `${failure.ref} (${failure.stage}): ${failure.message}`,
+        )
+        .join('; ')}`,
+    );
+    this.name = 'PurgeIncompleteError';
+    this.failures = failures;
   }
 }
 
-/** Hard-delete one document: corpus entry (keyed by the file REF), blobs
- * (current + `historyFiles` — replaced blobs a sync/replace appended, the
- * 0.4 `eraseDocumentBlobs` contract), file rows, dependent knowledge-entry
- * chains, then the row. */
+/** Hard-delete one document: corpus entries + blobs first, through the
+ * shared refcounted release seam (current ref + `historyFiles` — replaced
+ * blobs a sync/replace appended, the 0.4 `eraseDocumentBlobs` contract; a
+ * ref another document still holds — a WebDAV COPY twin, a shared history
+ * snapshot — is KEPT for the twin), then file rows, dependent knowledge-
+ * entry chains, and the row. Throws `PurgeIncompleteError` when a corpus or
+ * blob delete fails, WITHOUT touching the app rows — every hard-delete lane
+ * funnels here (user delete, folder cascade, REST, retention sweep, erasure
+ * cascade, sync prune), and each retries from its own loop: the daily
+ * sweep re-selects the row, an erasure lands `partial` and can be re-armed,
+ * a user sees the failure instead of a false receipt. Idempotent. */
 export async function purgeDocument(
   sql: Sql,
   orgSlug: string | null,
@@ -428,32 +438,17 @@ export async function purgeDocument(
     historyFiles?: string[];
   },
 ): Promise<void> {
+  // A null slug means the organization row itself is gone — its corpus and
+  // bucket are unaddressable; only the app rows remain to clean up.
   if (orgSlug !== null) {
-    for (const ref of doc.historyFiles ?? []) {
-      if (ref !== doc.fileRef) {
-        await deleteBlobBestEffort(orgSlug, ref);
-      }
-    }
-  }
-  if (doc.fileRef !== null && orgSlug !== null) {
-    try {
-      const result = await deleteKnowledgeDocument({
-        orgSlug,
-        fileId: doc.fileRef,
-      });
-      if (!result.success) {
-        console.warn(
-          `[retention] corpus delete failed for document ${doc.id}: ${result.message}`,
-        );
-      }
-    } catch (error) {
-      console.warn(
-        `[retention] corpus delete failed for document ${doc.id}:`,
-        error,
-      );
-    }
-    if (orgSlug !== null) {
-      await deleteBlobBestEffort(orgSlug, doc.fileRef);
+    const outcome = await releaseRefs(sql, {
+      organizationId: doc.organizationId,
+      orgSlug,
+      refs: [doc.fileRef, ...(doc.historyFiles ?? [])],
+      excludeDocumentId: doc.id,
+    });
+    if (outcome.failures.length > 0) {
+      throw new PurgeIncompleteError(doc.id, outcome.failures);
     }
   }
   await sql.begin(async (tx) => {
@@ -519,7 +514,13 @@ async function sweepDocuments(
             AND status_changed_at_ms < ${Date.now() - graceDays * DAY_MS}
           LIMIT ${BATCH_LIMIT}
         `
-      : await sql<
+      : // No grace window: trashed/expired rows (user trash, a project-
+        // cascade's 'expired' marks) hard-delete on the next sweep, and
+        // active rows past the cutoff go directly. Without the lifecycle
+        // arm, grace=0 orgs kept 'expired' documents forever — the project-
+        // cascade promise ("the retention pipeline hard-deletes blob + RAG
+        // chunks") silently never ran.
+        await sql<
           {
             id: string;
             fileRef: string | null;
@@ -530,8 +531,9 @@ async function sweepDocuments(
           SELECT id, file_ref AS "fileRef", created_by AS "createdBy",
                  history_files AS "historyFiles"
           FROM app.documents
-          WHERE org_id = ${org.organizationId} AND lifecycle_status IS NULL
-            AND created_at_ms < ${cutoff}
+          WHERE org_id = ${org.organizationId}
+            AND ((lifecycle_status IS NULL AND created_at_ms < ${cutoff})
+                 OR lifecycle_status IN ('trashed', 'expired'))
           LIMIT ${BATCH_LIMIT}
         `;
   if (passB.length === 0) return processed;
@@ -540,12 +542,19 @@ async function sweepDocuments(
     if (doc.createdBy !== null && holds.userMembershipIds.has(doc.createdBy)) {
       continue;
     }
-    await purgeDocument(sql, orgSlug, {
-      id: doc.id,
-      fileRef: doc.fileRef,
-      organizationId: org.organizationId,
-      historyFiles: doc.historyFiles,
-    });
+    try {
+      await purgeDocument(sql, orgSlug, {
+        id: doc.id,
+        fileRef: doc.fileRef,
+        organizationId: org.organizationId,
+        historyFiles: doc.historyFiles,
+      });
+    } catch (error) {
+      // The row is kept (purgeDocument releases before it deletes), so the
+      // next daily run retries; one stuck document must not starve the rest.
+      console.warn(`[retention] purge failed for document ${doc.id}:`, error);
+      continue;
+    }
     processed += 1;
   }
   return processed;
@@ -838,11 +847,31 @@ async function sweepTempFiles(
   `;
   if (rows.length === 0) return 0;
   const orgSlug = await resolveOrgSlug(sql, org.organizationId);
+  let removed = 0;
   for (const row of rows) {
-    if (orgSlug !== null) await deleteBlobBestEffort(orgSlug, row.storageRef);
+    if (orgSlug !== null) {
+      // Refcounted release: an indexed temp/thread file's corpus rows die
+      // with it, a shared blob survives for its other holders, and a failed
+      // delete KEEPS the row so the next daily sweep retries — deleting the
+      // row after a swallowed blob failure leaked the bytes forever.
+      const outcome = await releaseRefs(sql, {
+        organizationId: org.organizationId,
+        orgSlug,
+        refs: [row.storageRef],
+        excludeFileMetadataId: row.id,
+      });
+      if (outcome.failures.length > 0) {
+        console.warn(
+          `[retention] temp-file release failed for ${row.id} — keeping the row for the next sweep:`,
+          outcome.failures,
+        );
+        continue;
+      }
+    }
     await sql`DELETE FROM app.file_metadata WHERE id = ${row.id}`;
+    removed += 1;
   }
-  return rows.length;
+  return removed;
 }
 
 /** The phase-2 categories, run after the row-level ones per org. */

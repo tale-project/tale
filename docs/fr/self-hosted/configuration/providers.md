@@ -66,11 +66,11 @@ TALE_PROVIDER_KEY_OPENAI_PROD=sk-...
 
 <Note>
 
-La barrière est fail-closed : tout nom hors du préfixe réservé est rejeté, ce qui empêche un identifiant de désigner un secret de déploiement étranger comme `SOPS_AGE_KEY` ou `BETTER_AUTH_SECRET` et de le voir partir en jeton Bearer vers l’endpoint d’un fournisseur. Les noms sont plafonnés à 40 caractères, la limite de la synchronisation d’environnement entre la plateforme et Convex — un nom plus long n’atteindrait jamais le runtime du backend.
+La barrière est fail-closed : tout nom hors du préfixe réservé est rejeté, ce qui empêche un identifiant de désigner un secret de déploiement étranger comme `SOPS_AGE_KEY` ou `BETTER_AUTH_SECRET` et de le voir partir en jeton Bearer vers l’endpoint d’un fournisseur. Les noms sont plafonnés à 40 caractères — un nom plus long n’atteindrait jamais le runtime du backend.
 
 </Note>
 
-Définis la variable de façon que le conteneur de la plateforme et le backend Convex puissent tous deux la lire. La plateforme synchronise son environnement vers Convex au boot, donc les actions qui y tournent résolvent la même valeur ; une variable ajoutée ou changée après le boot demande un redémarrage du conteneur plateforme avant d’être visible. Les valeurs sont nettoyées de leurs espaces, ce qui t’épargne le retour à la ligne que porte souvent un fichier de secret monté, et le `401` qui s’ensuit.
+Définis la variable de façon que le backend puisse la lire — il résout l’identifiant du fournisseur au moment de la requête. Une variable ajoutée ou changée après le boot demande un redémarrage de `backend-api` et `backend-worker` avant d’être visible. Les valeurs sont nettoyées de leurs espaces, ce qui t’épargne le retour à la ligne que porte souvent un fichier de secret monté, et le `401` qui s’ensuit.
 
 ## Secrets de courtier depuis l’environnement
 

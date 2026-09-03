@@ -43,9 +43,12 @@ Trusted headers is the mode for sites that terminate SSO at an upstream reverse 
 ```bash
 # .env
 TRUSTED_HEADERS_ENABLED=true
+TRUSTED_HEADERS_INTERNAL_SECRET=<long random value>
 ```
 
-The threat model is delicate. Anything that can reach the platform container with those headers becomes the user named in them. Restrict the platform port so only the proxy can speak to it (a Docker network or a host firewall rule), and never expose the platform container directly to the internet when this mode is on.
+The secret is not optional: the identity headers alone are forgeable by anything that can reach the backend, so the endpoint refuses to run until `TRUSTED_HEADERS_INTERNAL_SECRET` is set. Configure the authenticating proxy to send the same value in the `Remote-Internal-Secret` header on every request it forwards to Tale (rename the header with `TRUSTED_SECRET_HEADER` if your proxy dictates its own naming) — a request arriving without the matching value is refused before any user is looked up.
+
+The threat model is still delicate. Anything that can reach the platform container with those headers **and** the secret becomes the user named in them. Restrict the platform port so only the proxy can speak to it (a Docker network or a host firewall rule), and never expose the platform container directly to the internet when this mode is on.
 
 ## Where this fits
 

@@ -38,7 +38,7 @@ Installable bundles of connectors, agents, skills, and a workflow — the catalo
 
 <Card title="Knowledge" icon="library" href="/platform/knowledge/overview">
 
-Documents, contacts, products, vendors, websites — the structured-data model agents cite.
+Documents, contacts, products, websites — the structured-data model agents cite.
 
 </Card>
 

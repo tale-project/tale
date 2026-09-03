@@ -1,9 +1,9 @@
 ---
 title: Teams
-description: Teams are named groups of members that share access to agents, prompts, projects, and connectors. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer.
+description: Teams are named groups of members that share access to documents, projects, skills, and conversations. Admins create and manage teams under Settings > Teams; the boundary they draw is the scoping layer for everything below the role layer.
 ---
 
-A team is a named group of members that shares access to agents, prompts, projects, connectors, and conversations. Where roles define what a person _can_ do, teams define which slice of the org's data that person works in. Most orgs end up with a handful of teams — support, sales, ops — and most of the day-to-day permission decisions land on the team boundary, not the role boundary. Admins manage teams under **Settings > Teams**.
+A team is a named group of members that shares access to documents, projects, skills, and conversations. Where roles define what a person _can_ do, teams define which slice of the org's data that person works in. Most orgs end up with a handful of teams — support, sales, ops — and most of the day-to-day permission decisions land on the team boundary, not the role boundary. Admins manage teams under **Settings > Teams**.
 
 This page is the reference for what a team owns, how membership works, and how the team boundary interacts with the role-based permissions documented under [Members and roles](/platform/admin/members-and-roles). Read it once when you stand up the org's teams; come back when you reorganise.
 
@@ -17,19 +17,18 @@ This page is the reference for what a team owns, how membership works, and how t
 
 A team holds membership and a set of resources scoped to it. The resources are:
 
-- **Agents** — agents created with a team scope are visible and editable only by members of that team. Org-wide agents stay visible to everyone with the right role.
-- **Prompts** — saved prompts with `Team` visibility appear only to that team's members. Personal prompts stay private to their owner; Global prompts are visible org-wide.
-- **Projects** — projects can be assigned to a team; the team's members inherit project access without being added one by one.
-- **Connectors** — connectors restricted to certain teams (under the **Allowed teams** lever on **Settings > Connectors**) only appear in pickers for those teams.
+- **Documents and folders** — a document or folder scoped to a team is visible and editable only by that team's members. Org-wide documents stay visible to everyone with the right role.
+- **Projects** — a project can be assigned to a team, and shared with further teams; the teams' members inherit project access without being added one by one.
+- **Skills** — a skill saved with team visibility appears only to those teams' members; the skill library's tabs split **Organization**, **Teams**, and **Personal**.
 - **Conversations** — a conversation can be assigned to a team as well as to an individual, from the assignee picker in its header. Visibility follows that assignment: a team queue is visible to that team's members, a person assignment to that person, and admins and owners see everything. True unassigned conversations (no person, no team) stay with admins for triage — pair with [Conversation routing](/platform/admin/governance/policies-and-limits#conversation-routing) so inbound lands in a team on arrival.
 
 A resource without a team scope stays visible to everyone whose role allows it. Teams are an _additive_ scoping layer — they narrow visibility, never widen it.
 
 ## Creating a team
 
-Open **Settings > Teams** and click **Create team**. Give the team a name (`Support`, `Sales`, `Operations`) and an optional description; the name appears everywhere the team shows up — pickers, badges, team-scoped document access, and the project assignment field. Saving creates an empty team you can fill with members from the team's row.
+Open **Settings > Teams** and click **Create team**. Give the team a name (`Support`, `Sales`, `Operations`) and tick its first members in the checklist — leave it empty and you are added automatically, since a team must keep at least one member. The name appears everywhere the team shows up: pickers, badges, team-scoped document access, and the project assignment field.
 
-The team's row carries three sub-views: **Members** (who is in the team), **Resources** (what the team owns), and **Settings** (the team's name, description, and lifecycle). The Resources view is the easiest way to see what a team can reach into; it doubles as the audit surface when someone asks why a team can see a particular agent.
+The team's row carries the day-to-day actions: **Members** manages who is in the team, **Edit team** renames it, **Delete team** retires it. What a team can reach follows from where the team is picked — a document's access scope, a project's assignment, a skill's visibility.
 
 ## Adding and removing members
 
@@ -37,13 +36,13 @@ Open the team's row and click **Add members**. The picker lists the org's member
 
 ## Team versus role
 
-The role decides what a person can do; the team decides what they can do it to. A Member-role user in the Support team can read the support team's agents but cannot edit them; a Developer-role user in the Support team can read and write the support team's agents but cannot see Sales's. Teams never grant capabilities the role lacks; roles never widen visibility past the team scope.
+The role decides what a person can do; the team decides what they can do it to. A Member-role user in the Support team can read the support team's documents but cannot edit them; an Editor-role user in the Support team can read and write them but cannot see Sales's. Teams never grant capabilities the role lacks; roles never widen visibility past the team scope.
 
 When you need a permission decision the existing roles and teams cannot express, the next lever is a governance policy — see [Members and roles](/platform/admin/members-and-roles) for how policies attach to roles, and the governance section for the policy fields themselves.
 
 ## Deleting a team
 
-Click the team's row, then **Delete team**. Deletion is hard-stop — the team is gone, every team-scoped resource it owned moves to org-wide visibility, and members lose the team-scoped slice of their access. There is no undo; orphaned resources stay reachable by everyone whose role allows them, which is rarely the right outcome. Reach for delete when a team is genuinely retired, not when it is reorganising.
+Click the team's row, then **Delete team**. Deletion is hard-stop — the team is gone, all its members are removed from it, and they lose the team-scoped slice of their access. There is no undo. Reach for delete when a team is genuinely retired, not when it is reorganising.
 
 ## Where this fits
 

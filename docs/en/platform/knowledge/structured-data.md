@@ -1,6 +1,6 @@
 ---
 title: Structured data
-description: Tale's knowledge base ships four built-in structured entities — Contacts, Products, Vendors, Websites — alongside Documents. This page hands you the mental model for when to pick a typed record over a document.
+description: Tale's knowledge base ships three built-in structured entities — Contacts, Products, Websites — alongside Documents. This page hands you the mental model for when to pick a typed record over a document.
 ---
 
 Tale's knowledge base ships two shapes side by side. Documents are text the agent retrieves chunks from; structured records are typed rows the agent reads fields from. The shape you pick is the most important decision in how an agent will use your knowledge — get it wrong and the agent either dilutes a clear answer or guesses at a value you have on file.
@@ -13,24 +13,23 @@ A document is free-form: the indexing pipeline extracts text, chunks it, embeds 
 
 A structured record is typed: the entity has known fields (a contact has a name, an email, an industry; a product has a SKU, a price, stock). The agent reads the fields directly, joins across entities, and answers with the value. This is the right shape when the source is a database row — accounts, orders, parts, supplier records.
 
-## The four built-in entities
+## The three built-in entities
 
-Four structured tabs sit beside **Documents** and **Knowledge entries** in the Knowledge area:
+Three structured tabs sit beside **Documents** and **Knowledge entries** in the Knowledge area:
 
-- **Contacts** — the people and organisations you do business with.
+- **Contacts** — the people and organisations you do business with, customers and suppliers alike; the directory unifies both, so a vendor is a contact you buy from.
 - **Products** — the things you sell.
-- **Vendors** — the suppliers you buy from.
 - **Websites** — public sites a crawler fetches on a schedule; the record holds the domain and scan settings, the indexed pages hold the content ([Crawling](/platform/knowledge/crawling)).
 
 Structured records share the knowledge base's team-scoping levers: a team-scoped record is invisible outside the team the same way a team-scoped document is.
 
 ## Content models for custom shapes
 
-When the four built-ins do not fit, content models let you define a custom structured record type: name the entity, declare its fields, set field-level access, and the new type appears alongside the built-ins. The definitions live under [governance content models](/platform/admin/governance/content-models).
+When the three built-ins do not fit, content models let you define a custom structured record type: name the entity, declare its fields, set field-level access, and the new type appears alongside the built-ins. The definitions live under [governance content models](/platform/admin/governance/content-models).
 
 <Note>
 
-Content models cost governance attention — every field's access and retention policy is yours to set. Reach for them when the data is genuinely a new shape, not a slight variation on one of the four built-ins.
+Content models cost governance attention — every field's access and retention policy is yours to set. Reach for them when the data is genuinely a new shape, not a slight variation on one of the three built-ins.
 
 </Note>
 
@@ -51,4 +50,4 @@ Without structured records, the agent has to find Acme by name across PDFs and r
 
 ## Where this fits
 
-Structured data is the seam between your operational data and the agent surface. Use the four built-ins for what they cover; reach for [content models](/platform/admin/governance/content-models) when a fifth shape appears. The next read worth queuing is [Documents](/platform/knowledge/documents) — the indexing pipeline that serves the unstructured half.
+Structured data is the seam between your operational data and the agent surface. Use the three built-ins for what they cover; reach for [content models](/platform/admin/governance/content-models) when a fourth shape appears. The next read worth queuing is [Documents](/platform/knowledge/documents) — the indexing pipeline that serves the unstructured half.
