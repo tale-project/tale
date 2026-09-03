@@ -89,7 +89,9 @@ const startSchema = z.object({
   input: z.unknown().optional(),
   mode: z.enum(['mock', 'live']).optional(),
   version: z.number().int().min(1).optional(),
-  projectId: z.string().optional(),
+  // Capped like every other project-id door — beginRun validates it exists in
+  // the org, so an uncapped bare string can neither run long nor misfile.
+  projectId: z.string().min(1).max(128).optional(),
 });
 
 const builderSessionSchema = z.object({
@@ -337,9 +339,15 @@ export function createAutomationRoutes(deps: {
   });
 
   app.post('/runs/:runId/cancel', async (c) => {
-    return c.json(
-      await cancelRun(deps.sql, c.get('orgId'), c.req.param('runId')),
-    );
+    try {
+      return c.json(
+        await cancelRun(deps.sql, c.get('orgId'), c.req.param('runId')),
+      );
+    } catch (error) {
+      // cancelRun is now a terminal door (audit row + session stop) — surface
+      // a rare terminal-write failure structured rather than as a bare 500.
+      return handleError(c, error);
+    }
   });
 
   app.get('/runs/:runId', async (c) => {
@@ -616,11 +624,16 @@ export function createAutomationRoutes(deps: {
   app.delete('/:name{.+}', async (c) => {
     const denied = requireAuthor(c);
     if (denied) return denied;
-    await deleteAutomationCascade(deps.sql, {
-      organizationId: c.get('orgId'),
-      name: nameFrom(c, ''),
-      actor: c.get('sessionBundle').user.id,
-    });
+    try {
+      await deleteAutomationCascade(deps.sql, {
+        organizationId: c.get('orgId'),
+        name: nameFrom(c, ''),
+        actor: c.get('sessionBundle').user.id,
+      });
+    } catch (error) {
+      // The active-run guard refuses with a coded 409 the dialog surfaces.
+      return handleError(c, error);
+    }
     return c.json({ deleted: true });
   });
 

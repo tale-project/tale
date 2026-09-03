@@ -69,8 +69,8 @@ A deployment can host more than one organization, each with its own connection. 
 Every protocol shares one provisioning policy:
 
 - **Default role** — the role a newly provisioned member receives (Member by default).
-- **Auto-assign roles** — when on, role-mapping rules map a job title, app role, group, or claim to a platform role; the default role applies when nothing matches.
-- **Sync groups to teams** — when on, each of the user's IdP groups becomes (or joins) a team of the same name on sign-in; **Exclude groups** skips noisy groups (comma-separated).
+- **Auto-assign roles from the IdP** — when on, role-mapping rules map a job title, app role, group, or claim to a platform role; the default role applies when nothing matches.
+- **Sync IdP groups to teams** — when on, each of the user's IdP groups becomes (or joins) a team of the same name on sign-in; **Exclude groups** skips noisy groups (comma-separated).
 
 ## SCIM provisioning (users and groups)
 

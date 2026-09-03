@@ -67,6 +67,7 @@ export interface ConversationsContract {
         contentType: string;
       }>;
       assigneeUserId?: string;
+      assigneeTeamId?: string;
       from?: string;
       sourceMarkdown?: string;
       organizationId: string;

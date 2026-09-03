@@ -69,8 +69,8 @@ Ein Deployment kann mehrere Organisationen mit jeweils eigener Verbindung beherb
 Jedes Protokoll teilt sich eine Bereitstellungsrichtlinie:
 
 - **Standardrolle** — die Rolle, die ein neu bereitgestelltes Mitglied erhält (standardmäßig Mitglied).
-- **Rollen automatisch zuweisen** — wenn aktiv, ordnen Rollenregeln einen Jobtitel, eine App-Rolle, eine Gruppe oder einen Claim einer Plattformrolle zu; trifft nichts zu, gilt die Standardrolle.
-- **Gruppen mit Teams synchronisieren** — wenn aktiv, wird jede IdP-Gruppe des Benutzers bei der Anmeldung zu einem gleichnamigen Team (oder tritt ihm bei); **Gruppen ausschließen** überspringt störende Gruppen (kommagetrennt).
+- **Rollen automatisch vom IdP zuweisen** — wenn aktiv, ordnen Rollenregeln einen Jobtitel, eine App-Rolle, eine Gruppe oder einen Claim einer Plattformrolle zu; trifft nichts zu, gilt die Standardrolle.
+- **IdP-Gruppen mit Teams synchronisieren** — wenn aktiv, wird jede IdP-Gruppe des Benutzers bei der Anmeldung zu einem gleichnamigen Team (oder tritt ihm bei); **Gruppen ausschließen** überspringt störende Gruppen (kommagetrennt).
 
 ## SCIM-Bereitstellung (Benutzer und Gruppen)
 

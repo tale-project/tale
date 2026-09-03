@@ -1,9 +1,16 @@
 # 0.5 migration ledger
 
-The single tracking document for the Convex → Postgres port on branch `0.5`.
-Every domain of `services/platform/convex/` must land here as `done` (or
-`dropped` with a reason) before cutover. Update this file in the same change
-that ports a domain — it is the campaign's source of truth across sessions.
+The record of the completed Convex → Postgres port that produced the 0.5
+backend. The port has landed on `main`: every domain reached `done` (or
+`dropped`, with a reason), the Convex runtime is gone (see the teardown
+below), and `services/platform/convex/` no longer exists — its ported logic
+now lives under [`core/`](./core/). This file stays as the campaign's history:
+how each 0.5 surface got here and the semantics it carries.
+
+Schema changes now ship as numbered `.sql` files under
+[`db/migrations/`](./db/migrations/), applied at boot in filename order under
+one advisory lock ([`db/migrate.ts`](./db/migrate.ts)) — see the
+[`create-migration`](../../../.agents/skills/create-migration/SKILL.md) skill.
 
 Legend: `pending` · `in-progress` · `done` · `dropped(reason)`
 

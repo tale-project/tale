@@ -9,18 +9,18 @@ L'index par symptôme est dans [Dépannage](/fr/self-hosted/operate/observabilit
 
 ## Signaux qui méritent une alerte
 
-| Signal                                         | Sévérité | Pourquoi ça compte                                              |
-| ---------------------------------------------- | -------- | --------------------------------------------------------------- |
-| Sonde de santé `tale-proxy` en échec > 1 min   | page     | Chaque utilisateur voit une erreur de connexion                 |
-| Taux HTTP 5xx `tale-platform` > 5 %            | page     | L'UI est cassée pour une part significative des requêtes        |
-| Tempête de reconnexion WebSocket `tale-convex` | page     | L'UI charge mais aucune donnée ne circule                       |
-| Connexions Postgres > 80 % du pool             | warn     | Le prochain pic va commencer à bloquer                          |
-| Volume `db-data` > 80 % plein                  | warn     | Le Postgres opérationnel passe en lecture seule à plein         |
-| Volume `knowledge-db-data` > 80 % plein        | warn     | L'ingestion échoue quand la base du corpus est pleine           |
-| `tale-knowledge-db` injoignable depuis convex  | warn     | La recherche de connaissances renvoie vide ; l'ingestion stagne |
-| Taux d'erreur de requête fournisseur > 20 %    | warn     | Le fournisseur LLM amont passe une mauvaise journée             |
-| Backup quotidien non écrit                     | page     | Le drill de restauration échouera au pire moment                |
-| Renouvellement de cert TLS échoué              | warn     | Renouvelle 30 j avant l'expiration — tu as le temps             |
+| Signal                                       | Sévérité | Pourquoi ça compte                                              |
+| -------------------------------------------- | -------- | --------------------------------------------------------------- |
+| Sonde de santé `tale-proxy` en échec > 1 min | page     | Chaque utilisateur voit une erreur de connexion                 |
+| Taux HTTP 5xx `tale-platform` > 5 %          | page     | L'UI est cassée pour une part significative des requêtes        |
+| `tale-backend-api` down ou en crash-loop     | page     | L'UI charge mais aucune donnée ne circule                       |
+| Connexions Postgres > 80 % du pool           | warn     | Le prochain pic va commencer à bloquer                          |
+| Volume `db-data` > 80 % plein                | warn     | Le Postgres opérationnel passe en lecture seule à plein         |
+| Volume `knowledge-db-data` > 80 % plein      | warn     | L'ingestion échoue quand la base du corpus est pleine           |
+| `knowledge-db` injoignable depuis le backend | warn     | La recherche de connaissances renvoie vide ; l'ingestion stagne |
+| Taux d'erreur de requête fournisseur > 20 %  | warn     | Le fournisseur LLM amont passe une mauvaise journée             |
+| Backup quotidien non écrit                   | page     | Le drill de restauration échouera au pire moment                |
+| Renouvellement de cert TLS échoué            | warn     | Renouvelle 30 j avant l'expiration — tu as le temps             |
 
 Les deux premières pages sont les seules réellement client-impactantes. Les warns attrapent les tendances avant qu'elles ne basculent dans le territoire page.
 
@@ -28,10 +28,10 @@ Les deux premières pages sont les seules réellement client-impactantes. Les wa
 
 Les logs arrivent par stdout par conteneur, capturés par le driver `json-file` de Docker. Les quatre phrases qui signifient consistamment un souci :
 
-- `panic` ou `unexpected error` dans les logs `tale-convex` — crash d'action Convex.
+- des lignes d'erreur non gérées répétées dans les logs `tale-backend-api` — un crash-loop du gestionnaire de requêtes backend.
 - `decryption failed` dans les logs `tale-platform` — mismatch entre clé age SOPS et fichier sur disque.
 - `429 Too Many Requests` répété d'un fournisseur — rate limit atteint, les agents vont commencer à échouer.
-- `connection refused` ou `ECONNREFUSED` vers `knowledge-db` dans les logs `tale-convex` — le backend ne peut pas joindre la base du corpus ; l'ingestion et la recherche de connaissances échouent.
+- `connection refused` ou `ECONNREFUSED` vers `knowledge-db` dans les logs `tale-backend-worker` — le worker ne peut pas joindre la base du corpus ; l'ingestion et la recherche de connaissances échouent.
 
 Pipe ceux-ci vers ton aggregator comme alertes dérivées ; les endpoints de métriques ne les exposent pas comme gauges.
 
@@ -58,7 +58,7 @@ Deux budgets de temps de réponse sont suivis comme signaux de premier ordre : l
 | Saisie dialogue  | moyenne     | ~1 s  | 30 min  | `tale_dialog_ttft_seconds`    |
 | Opération longue | moyenne     | ~40 s | 6 h     | `tale_long_operation_seconds` |
 
-Chaque cible chevauche aussi l'endpoint de métriques de la plateforme sous `tale_sla_target_seconds{sla,statistic}`, pour qu'un panel Grafana trace la ligne de budget directement depuis Prometheus au lieu de la coder en dur. Les séries de latence sous-jacentes sont les histogrammes d'exécution de fonction Convex sur `/metrics/convex` ; relabel ou record-les vers les noms ci-dessus pour que les rules se résolvent. La plateforme sert les rules de recording et d'alerting prêtes à l'emploi sous `/metrics/sla-rules` (derrière le même bearer token que les autres chemins de métriques) — récupère-le une fois et référence le fichier sous `rule_files:`, ou colle l'équivalent :
+Chaque cible chevauche aussi l'endpoint de métriques de la plateforme sous `tale_sla_target_seconds{sla,statistic}`, pour qu'un panel Grafana trace la ligne de budget directement depuis Prometheus au lieu de la coder en dur. Les séries de latence sous-jacentes sont les histogrammes de durée de requête du backend sur `/metrics/backend` ; relabel ou record-les vers les noms ci-dessus pour que les rules se résolvent. La plateforme sert les rules de recording et d'alerting prêtes à l'emploi sous `/metrics/sla-rules` (derrière le même bearer token que les autres chemins de métriques) — récupère-le une fois et référence le fichier sous `rule_files:`, ou colle l'équivalent :
 
 ```yaml
 groups:

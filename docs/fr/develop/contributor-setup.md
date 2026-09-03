@@ -52,7 +52,7 @@ Tant que l'orchestrateur n'a pas affiché sa bannière `READY`, une connexion re
 
 L'orchestrateur de dev génère tout ce dont il a besoin, donc une copie locale de `.env.example` est optionnelle en développement local — les valeurs par défaut non sécurisées (`INSTANCE_SECRET`, `BETTER_AUTH_SECRET`, la clé HMAC WebDAV) sont remplies au démarrage et affichées en avertissement. Ne mets de vraies valeurs dans `services/platform/.env.local` que si tu as besoin d'un comportement proche de la production ou veux écraser une valeur par défaut.
 
-Les conteneurs tournent déjà, ou tu veux itérer uniquement sur le code frontend ? `bun run dev:fast` (`TALE_DEV_SKIP_DOCKER=1`) saute la levée Docker et va droit au backend et à Vite.
+Les conteneurs tournent déjà, ou tu veux itérer uniquement sur le code frontend ? `TALE_DEV_SKIP_DOCKER=1 bun run dev` saute la levée Docker et va droit au backend et à Vite.
 
 ## Un login de dev prêt à l'emploi
 
@@ -84,7 +84,7 @@ Cela détruit les bases locales — chaque organisation, conversation et fichier
 `bun run dev` fait tourner le backend sur ton hôte, ce qui convient à la plupart du travail. Pour pointer Vite vers un backend qui tourne ailleurs — un conteneur, ou la stack d'un collègue — définis `TALE_BACKEND_URL` :
 
 ```bash
-TALE_BACKEND_URL=http://localhost:3105 bun run dev:fast
+TALE_BACKEND_URL=http://localhost:3105 TALE_DEV_SKIP_DOCKER=1 bun run dev
 ```
 
 Vite proxifie chaque voie backend là-bas, et l'orchestrateur attend cette URL au lieu de démarrer son propre enfant.

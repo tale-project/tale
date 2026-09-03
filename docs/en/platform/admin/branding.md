@@ -25,7 +25,7 @@ There is no "app name" or "text logo" field. The wordmark in the sidebar header 
 
 ## The assets
 
-**Logo** is an image — PNG, SVG, or JPG. The platform renders it at sidebar height; aim for a transparent background and a wordmark that reads at roughly 32 pixels tall. The logo is a single upload used on both themes, so pick a mark that reads on light and dark backgrounds. With no logo, the chrome falls back to your organisation's name as a text wordmark.
+**Logo** is an image — PNG, SVG, JPG, WebP, or ICO. The platform renders it at sidebar height; aim for a transparent background and a wordmark that reads at roughly 32 pixels tall. The logo is a single upload used on both themes, so pick a mark that reads on light and dark backgrounds. With no logo, the chrome falls back to your organisation's name as a text wordmark.
 
 **Favicon** is the tab icon. Upload a light and a dark variant so the icon stays legible whichever theme the operating system has chosen — or leave it blank and Tale derives one from your logo the moment you upload it, so a single upload skins both the sidebar and the browser tab. An explicit favicon always wins over the auto-derived one.
 

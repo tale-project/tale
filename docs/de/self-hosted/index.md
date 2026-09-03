@@ -1,10 +1,10 @@
 ---
 title: Selbst gehostet
-description: Selbst gehostetes Tale läuft auf deiner Infrastruktur — on-premise, in deiner VPC oder air-gapped. Sieben Container, deine Daten auf deinem Storage, keine Pro-Sitz-Abrechnung.
+description: Selbst gehostetes Tale läuft auf deiner Infrastruktur — on-premise, in deiner VPC oder air-gapped. Neun Container, deine Daten auf deinem Storage, keine Pro-Sitz-Abrechnung.
 kind: index
 ---
 
-Selbst gehostetes Tale läuft auf deiner eigenen Infrastruktur — on-premise, in deiner VPC oder air-gapped. Sieben Container, deine Daten auf deinem Storage, keine Pro-Sitz-Abrechnung und kein Traffic, der zu Tales Servern fließt, außer du richtest einen Anbieter dort ein.
+Selbst gehostetes Tale läuft auf deiner eigenen Infrastruktur — on-premise, in deiner VPC oder air-gapped. Neun Container, deine Daten auf deinem Storage, keine Pro-Sitz-Abrechnung und kein Traffic, der zu Tales Servern fließt, außer du richtest einen Anbieter dort ein.
 
 Dieser Abschnitt ist für Operator: die Leute, die entscheiden, wo Tale läuft, es installieren, konfigurieren, gepatcht halten und den Pager übernehmen, wenn etwas schiefgeht. Endnutzer von selbst gehosteten Instanzen lesen meist den Reiter Plattform — die Produktoberfläche ist zwischen den Editionen identisch.
 

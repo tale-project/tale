@@ -11,7 +11,7 @@ Tu préfères regarder d’abord ? L’épisode 6 parcourt un vrai projet en deu
 
 </Video>
 
-<Frame caption="Le tableau des tâches d’un projet — l’un des huit onglets que porte chaque projet.">
+<Frame caption="Le tableau des tâches d’un projet — l’un des cinq onglets que porte chaque projet.">
 
 ![Un tableau kanban de tâches dans le projet Website relaunch, avec sept cartes de tâches réparties sur les colonnes Backlog, À faire, En cours, En revue, Terminé et Annulé.](/images/platform/projects-task-board.webp)
 

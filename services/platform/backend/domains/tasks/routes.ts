@@ -12,7 +12,7 @@ import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
-import { cancelRun } from '../automations/store.ts';
+import { cancelRunInTx } from '../automations/store.ts';
 import { getOrCreateProjectFolder } from '../folders/service.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
@@ -506,7 +506,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       }
       let executionId: string | null | undefined;
       if (args.runWorkflowSlug !== undefined && result.upserted.created) {
-        const task = await loadTaskOrThrow(deps.sql, taskId);
+        const task = await loadTaskOrThrow(
+          deps.sql,
+          taskId,
+          auth.organizationId,
+        );
         const started = await startWorkflowForTask(deps.sql, {
           organizationId: auth.organizationId,
           task,
@@ -767,7 +771,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.get('/:taskId/comments', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       return c.json({
         // The 0.4 discussion envelope: the lazily-created thread id (null =
         // the threadless-task bootstrap) beside the ordered messages.
@@ -901,7 +909,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.get('/:taskId/agent-runs', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertTaskReadable(project, auth);
       const runs = await listAgentRunsForTask(
@@ -919,7 +931,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.get('/:taskId/agent-runs/latest', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertTaskReadable(project, auth);
       return c.json({
@@ -938,7 +954,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.get('/:taskId/live-automation-run', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertTaskReadable(project, auth);
       return c.json({
@@ -976,9 +996,15 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      assertTaskReadable(project, auth);
+      // Starting a run is a WRITE (it spends budget and moves the card) —
+      // same gate as the manual agent-run kick, not the read-level banner.
+      assertTaskWritable(project, auth);
       const started = await startWorkflowForTask(deps.sql, {
         organizationId: auth.organizationId,
         task,
@@ -1010,28 +1036,38 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/:taskId/workflow/cancel', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
-      assertTaskReadable(project, auth);
+      // The WRITE gate must precede the run cancel: `updateTaskStatus` below
+      // asserts writable too, but by then the live run would already be dead
+      // — a read-only member must be refused before any side effect.
+      assertTaskWritable(project, auth);
       const live = await findLiveAutomationRunForTask(deps.sql, {
         organizationId: auth.organizationId,
         projectId: task.projectId,
         taskId: task.id,
       });
-      let executionCancelled = false;
-      if (live !== null) {
-        const cancelled = await cancelRun(
-          deps.sql,
-          auth.organizationId,
-          live.runId,
-        );
-        executionCancelled = cancelled.cancelled;
-      }
-      if (task.status !== 'cancelled') {
-        await transactSerializable(deps.sql, (tx) =>
-          updateTaskStatus(tx, auth, task.id, 'cancelled'),
-        );
-      }
+      // ONE transaction for the run cancel and the status flip: if the flip
+      // refuses (open subtasks, archived), the cancel rolls back with it —
+      // never a dead run behind a task that answered an error.
+      const executionCancelled = await transactSerializable(
+        deps.sql,
+        async (tx) => {
+          const cancelled =
+            live === null
+              ? false
+              : (await cancelRunInTx(tx, auth.organizationId, live.runId))
+                  .cancelled;
+          if (task.status !== 'cancelled') {
+            await updateTaskStatus(tx, auth, task.id, 'cancelled');
+          }
+          return cancelled;
+        },
+      );
       return c.json({
         taskCancelled: true,
         executionCancelled,
@@ -1046,7 +1082,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/:taskId/agent-runs/cancel-live', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertTaskWritable(project, auth);
       const live = await deps.sql<{ id: string }[]>`
@@ -1072,7 +1112,11 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   app.post('/:taskId/agent-runs/:runId/cancel', async (c) => {
     try {
       const auth = await authCtx(c);
-      const task = await loadTaskOrThrow(deps.sql, c.req.param('taskId'));
+      const task = await loadTaskOrThrow(
+        deps.sql,
+        c.req.param('taskId'),
+        auth.organizationId,
+      );
       const project = await loadProjectOrThrow(deps.sql, task.projectId);
       assertTaskWritable(project, auth);
       const cancelled = await cancelAgentRun(deps.sql, {

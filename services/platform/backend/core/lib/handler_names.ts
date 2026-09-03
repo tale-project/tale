@@ -77,6 +77,7 @@ interface HandlerNames {
       getRunProjectContext: FunctionRef;
       getRunProjectId: FunctionRef;
       loadAutomationDocument: FunctionRef;
+      loadLiveAgentOpForRun: FunctionRef;
       loadRunForStep: FunctionRef;
       readAgentCursor: FunctionRef;
       storeDeployedVersion: FunctionRef;

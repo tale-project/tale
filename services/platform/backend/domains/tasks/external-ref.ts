@@ -60,9 +60,13 @@ async function findTaskByExternalRef(
         "dedupeScope 'project' requires a projectId",
       );
     }
+    // org_id rides along even though project ids are unique: the caller's
+    // projectId is caller-supplied, and a foreign project must never resolve
+    // (and then update) a foreign org's task through this lane.
     const rows = await tx<TaskRow[]>`
       SELECT ${tx.unsafe(TASK_COLUMNS)} FROM app.tasks
-      WHERE project_id = ${args.projectId}
+      WHERE org_id = ${args.organizationId}
+        AND project_id = ${args.projectId}
         AND external_system = ${args.externalSystem}
         AND external_id = ${args.externalId}
       LIMIT 1
@@ -153,10 +157,16 @@ async function automationOwnerOfWorkflowSlug(
 
 /**
  * Upsert a task from an external system, keyed by the caller-owned natural
- * key within `dedupeScope`. Status policy (task-ops invariant): only the
- * workflow engine (`actorId === 'workflow'`) may COMPLETE — any other actor
- * parks an external close at `in_review`; an external reopen lifts only a
- * `done` task back to the neutral inbox (a human `cancelled` stays rejected).
+ * key within `dedupeScope`. Idempotency is DB-enforced per project (the
+ * `tasks_project_external_unique` partial index): a concurrent duplicate
+ * intake reconciles the winner's row instead of inserting a second task.
+ * Org-scope dedupe across two DIFFERENT projects stays advisory — only the
+ * lookup covers it, because the same external ref in two projects is legal
+ * under `dedupeScope: 'project'`. Status policy (task-ops invariant): only
+ * the workflow engine (`actorId === 'workflow'`) may COMPLETE — any other
+ * actor parks an external close at `in_review`; an external reopen lifts
+ * only a `done` task back to the neutral inbox (a human `cancelled` stays
+ * rejected).
  */
 export async function upsertTaskByExternalRef(
   tx: TransactionSql,
@@ -169,15 +179,17 @@ export async function upsertTaskByExternalRef(
   const now = Date.now();
   const createIfMissing = args.createIfMissing ?? true;
 
-  const existing = await findTaskByExternalRef(tx, {
-    organizationId: args.organizationId,
-    ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
-    externalSystem: args.externalSystem,
-    externalId: args.externalId,
-    dedupeScope: args.dedupeScope ?? 'org',
-  });
+  const findExisting = (): Promise<TaskRow | null> =>
+    findTaskByExternalRef(tx, {
+      organizationId: args.organizationId,
+      ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
+      externalSystem: args.externalSystem,
+      externalId: args.externalId,
+      dedupeScope: args.dedupeScope ?? 'org',
+    });
 
-  if (existing) {
+  /** The update lane: reconcile an existing task from the external item. */
+  const reconcileExisting = async (existing: TaskRow): Promise<void> => {
     const preserveDescription =
       args.descriptionMode === 'preserve' &&
       existing.description !== null &&
@@ -292,6 +304,11 @@ export async function upsertTaskByExternalRef(
         externalId: args.externalId,
       },
     });
+  };
+
+  const existing = await findExisting();
+  if (existing) {
+    await reconcileExisting(existing);
     return { taskId: existing.id, created: false };
   }
 
@@ -356,11 +373,26 @@ export async function upsertTaskByExternalRef(
       ${createdByUser ? 'user' : ownerAutomation !== null ? 'app' : 'agent'},
       ${now}, ${now}, ${now}
     )
+    ON CONFLICT (project_id, external_system, external_id)
+      WHERE external_system IS NOT NULL AND external_id IS NOT NULL
+      DO NOTHING
     RETURNING id
   `;
   const taskId = inserted[0]?.id;
-  if (!taskId) {
-    throw new TaskError('TASK_CREATE_FAILED', 'Insert failed');
+  if (taskId === undefined) {
+    // Lost the (project, external ref) uniqueness race: a concurrent intake
+    // (a retried webhook, a double-submitted sync) materialized this item
+    // between the lookup above and this insert. The winner's row IS the
+    // task — reconcile it like any other re-sync instead of duplicating the
+    // task and its run. The task number claimed above stays burned;
+    // numbering gaps are fine. (A serializable caller may see the race as a
+    // serialization failure instead — its retry lands on the update lane.)
+    const winner = await findExisting();
+    if (!winner) {
+      throw new TaskError('TASK_CREATE_FAILED', 'Insert failed');
+    }
+    await reconcileExisting(winner);
+    return { taskId: winner.id, created: false };
   }
   // Read the bucket from the INSERTED state, never assume "create ⇒ open":
   // a closed external issue is materialized directly as `done`.

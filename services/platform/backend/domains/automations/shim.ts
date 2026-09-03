@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
@@ -14,6 +15,7 @@ import {
   claimRun,
   continueRun,
   deployedVersion,
+  emitRunHint,
   finishRun,
   heartbeatRun,
   recordProgress,
@@ -190,6 +192,46 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       };
     },
 
+    'automations/queries:loadLiveAgentOpForRun': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
+      const args = raw as { organizationId: string; runId: string };
+      // The run's latest STILL-RUNNING workflow-agent op. A kick creates this
+      // op row BEFORE it schedules the turn start and BEFORE the run's cursor
+      // is persisted, so a `running` op is the durable evidence that a turn is
+      // in flight even when a crash lost the cursor — the stepper adopts it
+      // rather than kicking a SECOND turn (the double-spend guard). Terminal
+      // ops (a settled prior node) are not returned. Provider/model split off
+      // the op's `<provider>/<gatewayModel>` ref (the slug never has a slash).
+      const rows = await sql<
+        {
+          execId: string;
+          sessionId: string;
+          modelRef: string | null;
+          deadlineMs: number | null;
+        }[]
+      >`
+        SELECT exec_id AS "execId", session_id AS "sessionId",
+               model_ref AS "modelRef", deadline_ms::float8 AS "deadlineMs"
+        FROM app.sandbox_session_ops
+        WHERE org_id = ${args.organizationId}
+          AND session_id = ${sessionIdForWorkflowExecution(args.runId)}
+          AND kind = 'workflow-agent' AND status = 'running'
+        ORDER BY started_at_ms DESC, id DESC
+        LIMIT 1
+      `;
+      const op = rows[0];
+      if (!op) return null;
+      const modelRef = op.modelRef ?? '';
+      const slash = modelRef.indexOf('/');
+      return {
+        execId: op.execId,
+        sessionId: op.sessionId,
+        deadlineAt: op.deadlineMs ?? 0,
+        providerSlug: slash > 0 ? modelRef.slice(0, slash) : '',
+        gatewayModel: slash > 0 ? modelRef.slice(slash + 1) : modelRef,
+      };
+    },
+
     'automations/mutations:recordAgentTurnSettled': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as {
@@ -262,6 +304,8 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
           organizationId: args.organizationId,
           runId: args.runId,
         });
+        // The agent result just landed in the cursor — nudge open run views.
+        await emitRunHint(tx, args.organizationId, args.runId);
         return { recorded: true };
       });
     },

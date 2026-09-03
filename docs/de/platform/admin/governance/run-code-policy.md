@@ -26,7 +26,7 @@ Der Standardmodus ist **Sperrliste** mit leerer Liste, was bedeutet, dass jedes 
 
 Jeder Modus liest aus zwei Listen — Python und Node. Ein Paket pro Zeile oder kommagetrennt. Versionsangaben werden automatisch entfernt (`pandas==2.1` entspricht `pandas`), sodass die Richtlinie namensbasiert ist und Bibliotheks-Upgrades übersteht. Scoped Node-Pakete (`@scope/pkg`) werden unterstützt.
 
-Die Listen sind pro Sprache unabhängig: eine Python-Zulassungsliste plus eine Node-Sperrliste ist eine gültige Kombination und bedeutet, dass Python streng ist und Node permissiv auf derselben Sandbox.
+Der Modus gilt global: Im Allowlist-Modus lesen beide Sprachen ihre Zulassungslisten, im Denylist-Modus beide ihre Sperrlisten. Die Listen selbst sind pro Sprache — Python und Node halten je ihr eigenes Set.
 
 ## Der Tester
 

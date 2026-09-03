@@ -85,6 +85,7 @@ export function createKnowledgeEntryRoutes(deps: {
       const id = await createKnowledgeEntry(deps.sql, {
         organizationId: c.get('orgId'),
         userId: c.get('sessionBundle').user.id,
+        role: c.get('orgMember').role,
         topic: body.data.topic,
         content: body.data.content,
       });
@@ -108,6 +109,7 @@ export function createKnowledgeEntryRoutes(deps: {
       const id = await updateKnowledgeEntry(deps.sql, {
         organizationId: c.get('orgId'),
         userId: c.get('sessionBundle').user.id,
+        role: c.get('orgMember').role,
         entryId: c.req.param('entryId'),
         topic: body.data.topic,
         content: body.data.content,
@@ -123,6 +125,7 @@ export function createKnowledgeEntryRoutes(deps: {
       await deleteKnowledgeEntry(deps.sql, {
         organizationId: c.get('orgId'),
         entryId: c.req.param('entryId'),
+        role: c.get('orgMember').role,
       });
       return c.json({ ok: true });
     } catch (error) {

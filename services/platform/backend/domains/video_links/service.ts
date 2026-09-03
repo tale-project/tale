@@ -378,6 +378,45 @@ export async function heartbeatJobByStorageRef(
   `;
 }
 
+/**
+ * The handoff's missing terminal transition: when the transcription lane
+ * settles the file row for this blob, drive the video-link job that handed
+ * off to it to the SAME terminal state. Without this write the job sits in
+ * `transcribing_handoff` forever — `countInFlight` keeps charging the org's
+ * ingest cap for finished work, the GC never reaps it, and retry 409s.
+ * The transcription seam calls this in the SAME transaction as the file
+ * row's terminal write, so chip state and slot accounting cannot diverge.
+ */
+export async function settleHandoffJobsByStorageRef(
+  db: Sql | TransactionSql,
+  args: {
+    storageId: string;
+    transcriptionStatus: 'completed' | 'failed' | 'skipped';
+    errorMessage?: string;
+  },
+): Promise<void> {
+  const now = Date.now();
+  if (args.transcriptionStatus === 'failed') {
+    await db`
+      UPDATE app.video_link_jobs SET
+        status = 'failed',
+        status_changed_at_ms = ${now},
+        progress = NULL,
+        error_reason_code = 'whisperFailed',
+        error_message = ${args.errorMessage ?? 'Whisper transcription failed'}
+      WHERE status = 'transcribing_handoff' AND storage_ref = ${args.storageId}
+    `;
+    return;
+  }
+  await db`
+    UPDATE app.video_link_jobs SET
+      status = ${args.transcriptionStatus},
+      status_changed_at_ms = ${now},
+      progress = NULL
+    WHERE status = 'transcribing_handoff' AND storage_ref = ${args.storageId}
+  `;
+}
+
 // ---------------------------------------------------------------- watchdog
 
 const STATUS_WINDOWS: ReadonlyArray<readonly [string, number]> = [
@@ -390,12 +429,19 @@ const STATUS_WINDOWS: ReadonlyArray<readonly [string, number]> = [
 const UNBOUND_GC_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const UNBOUND_GC_BATCH = 50;
 const STUCK_RECOVERY_BATCH = 200;
+/** How long a handoff row may sit over a MISSING file row before it is
+ * declared dead. Matches the transcription lane's own stale window; live
+ * runs advance `status_changed_at_ms` via the per-chunk heartbeat. */
+const HANDOFF_ORPHAN_WINDOW_MS = 35 * 60_000;
 
 /**
  * The 0.4 stuck-row watchdog + lazy GC: flip stuck non-terminal jobs to
- * `failed`/transient (per-status windows; `transcribing_handoff` is owned
- * by the transcription pipeline's own recovery), and reap terminal-but-
- * unbound rows older than 7 days (blob + non-completed file row + job).
+ * `failed`/transient (per-status windows; a LIVE `transcribing_handoff` is
+ * owned by the transcription pipeline's own recovery), reconcile parked
+ * handoff rows whose transcription already settled (the safety net under
+ * the settle cascade — and the heal for rows parked by older deployments),
+ * fail handoff rows whose file row is gone, and reap terminal-but-unbound
+ * rows older than 7 days (blob + non-completed file row + job).
  */
 export async function runVideoLinkWatchdog(sql: Sql): Promise<void> {
   const now = Date.now();
@@ -417,6 +463,69 @@ export async function runVideoLinkWatchdog(sql: Sql): Promise<void> {
       if (flipped === 'ok') {
         await cleanupCancelledVideoLink(sql, row.id);
       }
+    }
+  }
+
+  // Reconcile: a handoff row over a SETTLED file row mirrors the terminal
+  // state, at ANY age. The settle cascade writes this transactionally on
+  // the live path; this sweep is the idempotent backstop that also flips
+  // the rows existing deployments parked forever (freeing their org's
+  // ingest slots within one tick).
+  const settledRows = await sql<
+    { id: string; fileStatus: string; fileError: string | null }[]
+  >`
+    SELECT j.id, m.transcription_status AS "fileStatus",
+           m.transcription_error AS "fileError"
+    FROM app.video_link_jobs j
+    JOIN app.file_metadata m ON m.id = j.file_metadata_id
+    WHERE j.status = 'transcribing_handoff'
+      AND m.transcription_status IN ('completed', 'failed', 'skipped')
+    LIMIT ${STUCK_RECOVERY_BATCH}
+  `;
+  for (const row of settledRows) {
+    if (row.fileStatus === 'failed') {
+      await updateJob(sql, {
+        jobId: row.id,
+        status: 'failed',
+        expectedStatus: 'transcribing_handoff',
+        errorReasonCode: 'whisperFailed',
+        errorMessage: row.fileError ?? 'Whisper transcription failed',
+        progress: null,
+      });
+      continue;
+    }
+    await updateJob(sql, {
+      jobId: row.id,
+      status: row.fileStatus,
+      expectedStatus: 'transcribing_handoff',
+      progress: null,
+    });
+  }
+
+  // A handoff row whose file row is GONE (or was never recorded) can never
+  // settle — no engine write and no cascade will ever reach it. Fail it
+  // once the transcription lane's own stale window has passed so the user
+  // gets a retryable failure instead of a forever-spinner, and reap its
+  // audio blob.
+  const orphanRows = await sql<{ id: string }[]>`
+    SELECT j.id
+    FROM app.video_link_jobs j
+    LEFT JOIN app.file_metadata m ON m.id = j.file_metadata_id
+    WHERE j.status = 'transcribing_handoff'
+      AND j.status_changed_at_ms < ${now - HANDOFF_ORPHAN_WINDOW_MS}
+      AND (j.file_metadata_id IS NULL OR m.id IS NULL)
+    LIMIT ${STUCK_RECOVERY_BATCH}
+  `;
+  for (const row of orphanRows) {
+    const flipped = await updateJob(sql, {
+      jobId: row.id,
+      status: 'failed',
+      expectedStatus: 'transcribing_handoff',
+      errorReasonCode: 'whisperFailed',
+      errorMessage: 'Transcription record disappeared — retry to re-process',
+    });
+    if (flipped === 'ok') {
+      await cleanupCancelledVideoLink(sql, row.id);
     }
   }
 
@@ -1054,9 +1163,13 @@ export async function cancelDeferredJobs(
       job.storageRef !== null &&
       job.status === 'transcribing_handoff'
     ) {
+      // Only an in-flight transcription is skipped along; a SETTLED file
+      // row keeps its state — clobbering a completed transcript here would
+      // hand it to the cleanup's delete and destroy the org's donor copy.
       await sql`
         UPDATE app.file_metadata SET transcription_status = 'skipped'
         WHERE storage_ref = ${job.storageRef}
+          AND transcription_status IN ('queued', 'running')
       `;
     }
     await cleanupCancelledVideoLink(sql, jobId);
@@ -1086,9 +1199,14 @@ export async function cancelVideoLink(
     job.storageRef !== null &&
     job.status === 'transcribing_handoff'
   ) {
+    // Only an in-flight transcription is skipped along; a SETTLED file row
+    // keeps its state — clobbering a completed transcript here would hand
+    // it to the cleanup's delete and destroy the org's donor copy (the
+    // donor contract at findReusableTranscriptDonor: cancel keeps the row).
     await sql`
       UPDATE app.file_metadata SET transcription_status = 'skipped'
       WHERE storage_ref = ${job.storageRef}
+        AND transcription_status IN ('queued', 'running')
     `;
   }
   await cleanupCancelledVideoLink(sql, args.jobId);
@@ -1111,8 +1229,32 @@ export async function cancelVideoLink(
   );
 }
 
+/**
+ * The retry door's truth table. Terminal `failed`/`skipped` jobs retry as
+ * always; a `transcribing_handoff` job retries exactly when its file row's
+ * transcription settled failed/skipped — the chip already shows Retry for
+ * that shape (the reactive join), so the door must accept it even if the
+ * settle cascade was missed (rows parked by older deployments, drift).
+ * A live handoff (file queued/running) and every other in-flight status
+ * stay non-retryable: retrying them would double-run the pipeline.
+ */
+export function isVideoJobRetryable(
+  jobStatus: string,
+  fileTranscriptionStatus: string | null,
+): boolean {
+  if (jobStatus === 'failed' || jobStatus === 'skipped') return true;
+  return (
+    jobStatus === 'transcribing_handoff' &&
+    (fileTranscriptionStatus === 'failed' ||
+      fileTranscriptionStatus === 'skipped')
+  );
+}
+
 /** Retry a failed/skipped job (the 0.4 semantics): bot-wall cooldown,
- * the same abuse gates as ingest, cleanup of stale artifacts, re-queue. */
+ * the same abuse gates as ingest, cleanup of stale artifacts, re-queue.
+ * Accepts a whisper handoff whose transcription settled failed/skipped —
+ * the cleanup below resets the file lane (drops the settled-non-completed
+ * file row + blob) so the re-queued pipeline starts coherently. */
 export async function retryVideoLink(
   sql: Sql,
   args: { organizationId: string; userId: string; jobId: string },
@@ -1128,7 +1270,15 @@ export async function retryVideoLink(
       403,
     );
   }
-  if (job.status !== 'failed' && job.status !== 'skipped') {
+  let fileTranscriptionStatus: string | null = null;
+  if (job.status === 'transcribing_handoff' && job.fileMetadataId !== null) {
+    const metas = await sql<{ status: string | null }[]>`
+      SELECT transcription_status AS status FROM app.file_metadata
+      WHERE id = ${job.fileMetadataId} LIMIT 1
+    `;
+    fileTranscriptionStatus = metas[0]?.status ?? null;
+  }
+  if (!isVideoJobRetryable(job.status, fileTranscriptionStatus)) {
     throw new VideoLinkError(
       'notRetryable',
       `Can only retry failed or skipped video links (current: ${job.status})`,

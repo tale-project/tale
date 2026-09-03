@@ -72,6 +72,18 @@ const attachmentSchema = z.object({
 
 const statusSchema = z.enum(['open', 'closed', 'spam', 'archived']);
 
+/**
+ * The Inbox connector filter, read from whichever key the caller sent. The
+ * paginated list adapter serializes `connectorName` while the counts adapter
+ * serializes `connector`; accepting both keeps the two entry points on ONE
+ * server contract (canonical `connectorName`) so the list can no longer show
+ * every connector while the sidebar counts filter correctly.
+ */
+function connectorFilter<E extends OrgEnv>(c: Context<E>): string | undefined {
+  const value = c.req.query('connectorName') ?? c.req.query('connector');
+  return value !== undefined && value !== '' ? value : undefined;
+}
+
 export function createConversationRoutes(deps: {
   sql: Sql;
   auth: Auth;
@@ -107,8 +119,8 @@ export function createConversationRoutes(deps: {
       ...(c.req.query('channel') !== undefined
         ? { channel: c.req.query('channel') ?? '' }
         : {}),
-      ...(c.req.query('connector') !== undefined
-        ? { connectorName: c.req.query('connector') ?? '' }
+      ...(connectorFilter(c) !== undefined
+        ? { connectorName: connectorFilter(c) ?? '' }
         : {}),
       ...(c.req.query('contactId') !== undefined
         ? { contactId: c.req.query('contactId') ?? '' }
@@ -129,16 +141,17 @@ export function createConversationRoutes(deps: {
   });
 
   app.get('/counts', async (c) => {
+    const connector = connectorFilter(c);
     return c.json({
       byStatus: await countConversationsByStatus(
         deps.sql,
         c.get('orgId'),
-        c.req.query('connector') ?? undefined,
+        connector,
       ),
       unread: await countUnreadConversations(
         deps.sql,
         c.get('orgId'),
-        c.req.query('connector') ?? undefined,
+        connector,
       ),
     });
   });
@@ -385,6 +398,7 @@ export function createConversationRoutes(deps: {
         sourceMarkdown: z.string().max(200_000).optional(),
         from: z.string().max(320).optional(),
         assigneeUserId: z.string().max(128).optional(),
+        assigneeTeamId: z.string().max(128).optional(),
         attachments: z.array(attachmentSchema).max(50).optional(),
       })
       .safeParse(await c.req.json());
@@ -403,6 +417,9 @@ export function createConversationRoutes(deps: {
         ...(body.data.from !== undefined ? { from: body.data.from } : {}),
         ...(body.data.assigneeUserId !== undefined
           ? { assigneeUserId: body.data.assigneeUserId }
+          : {}),
+        ...(body.data.assigneeTeamId !== undefined
+          ? { assigneeTeamId: body.data.assigneeTeamId }
           : {}),
         ...(body.data.attachments?.length
           ? { attachments: body.data.attachments }
@@ -430,40 +447,28 @@ export function createConversationRoutes(deps: {
   });
 
   /**
-   * Materialize a received message's attachments. The provider fetch itself
-   * is absent in BOTH versions (0.4's `downloadAttachmentsAction` is a
-   * no-op), so this door is the guards: the message must exist and be
-   * visible, and its conversation must carry a connector — a conversation no
-   * sync has stamped fails CLOSED rather than dispatching through whichever
-   * provider happens to be configured.
+   * On-demand provider attachment fetch. Attachments whose bytes were captured
+   * at sync (IMAP) are served straight from their `storageId` — the detail
+   * projection presigns a download URL, so those chips never reach here. This
+   * door exists only for the providers whose bytes are NOT captured at sync
+   * (Gmail/Outlook, whose connector `ctx.files` sink is unwired), and it answers
+   * HONESTLY that there is nothing to fetch rather than the fake `{ok:true}` the
+   * previous version returned — which left the client polling for a URL forever.
+   * Wiring the Gmail/Outlook fetch (a `get_attachments` connector action into
+   * the org blob store) is the tracked follow-up that lights this up.
    */
   app.post('/messages/:messageId/attachments', async (c) => {
     try {
-      const message = await loadMessageForViewer(
-        deps.sql,
-        viewer(c),
-        c.req.param('messageId'),
+      // Still visibility-scoped: a member must be able to open the message.
+      await loadMessageForViewer(deps.sql, viewer(c), c.req.param('messageId'));
+      return c.json(
+        {
+          error: 'attachment_bytes_unavailable',
+          message:
+            'These attachment bytes were not captured at sync, and on-demand provider download is not yet wired for this mailbox. Downloadable attachments carry their own link.',
+        },
+        501,
       );
-      if (!message.externalMessageId) {
-        return c.json(
-          {
-            error: 'message_no_external_id',
-            message: 'Message has no external ID for attachment download',
-          },
-          400,
-        );
-      }
-      if (!message.connectorName) {
-        return c.json(
-          {
-            error: 'conversation_connector_missing',
-            message:
-              'Conversation has no connector to download attachments through — unavailable until a sync stamps its connectorName',
-          },
-          400,
-        );
-      }
-      return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
     }

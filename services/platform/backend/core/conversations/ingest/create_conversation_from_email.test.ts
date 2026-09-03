@@ -156,6 +156,20 @@ describe('createConversationFromEmail', () => {
     expect(addMessageCalls).toHaveLength(1);
     expect(addMessageCalls[0]?.conversationId).toBe(createdConversationIds[0]);
   });
+
+  it('reports the ingestedTip as the newest email it covered', async () => {
+    const { ctx } = createMockCtx();
+    const result = await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [
+        makeEmail('a@thread.com', '2026-07-01T09:00:00.000Z'),
+        makeEmail('b@thread.com', '2026-07-03T09:00:00.000Z'),
+        makeEmail('c@thread.com', '2026-07-02T09:00:00.000Z'),
+      ],
+    });
+    // The sync advances the watermark to exactly this, never past it.
+    expect(result.ingestedTip).toBe(Date.parse('2026-07-03T09:00:00.000Z'));
+  });
 });
 
 // #2985: an inbound attachment's bytes were stored with no record of the mail

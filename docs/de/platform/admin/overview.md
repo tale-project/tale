@@ -25,7 +25,7 @@ Die sechs Rollen und die ressourcengenaue Matrix, die sagt, wer lesen, schreiben
 
 <Card title="Teams" icon="users-round" href="/de/platform/admin/teams">
 
-Gruppiere Mitglieder in Teams, die Agents, Skills und Connectors teilen.
+Gruppiere Mitglieder in Teams, die Dokumente, Projekte, Skills und Konversationen teilen.
 
 </Card>
 
@@ -55,13 +55,13 @@ Verdrahte die Anmeldung mit deinem Identity-Provider über SAML oder OIDC.
 
 <Card title="API-Schlüssel" icon="key" href="/de/platform/admin/api-keys">
 
-Erzeuge und begrenze die Schlüssel, mit denen externer Code Tales REST-API erreicht.
+Erzeuge die Schlüssel, mit denen externer Code Tales REST-API erreicht.
 
 </Card>
 
 <Card title="Branding" icon="palette" href="/de/platform/admin/branding">
 
-Der Name, das Logo und die Farben, die der Rest der Organisation sieht.
+Das Logo, das Favicon und die Akzentfarbe, die der Rest der Organisation sieht.
 
 </Card>
 

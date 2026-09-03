@@ -1,9 +1,9 @@
 ---
 title: Teams
-description: Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Connectors teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene.
+description: Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Dokumente, Projekte, Skills und Konversationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene.
 ---
 
-Ein Team ist eine benannte Gruppe von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte, Connectors und Konversationen teilt. Wo Rollen definieren, was eine Person tun _kann_, definieren Teams, in welchem Ausschnitt der Organisationsdaten diese Person arbeitet. Die meisten Organisationen landen bei einer Handvoll Teams — Support, Vertrieb, Betrieb — und die meisten alltäglichen Berechtigungs-Entscheidungen liegen auf der Team-Grenze, nicht auf der Rollen-Grenze. Admins verwalten Teams unter **Einstellungen > Teams**.
+Ein Team ist eine benannte Gruppe von Mitgliedern, die sich Zugriff auf Dokumente, Projekte, Skills und Konversationen teilt. Wo Rollen definieren, was eine Person tun _kann_, definieren Teams, in welchem Ausschnitt der Organisationsdaten diese Person arbeitet. Die meisten Organisationen landen bei einer Handvoll Teams — Support, Vertrieb, Betrieb — und die meisten alltäglichen Berechtigungs-Entscheidungen liegen auf der Team-Grenze, nicht auf der Rollen-Grenze. Admins verwalten Teams unter **Einstellungen > Teams**.
 
 Diese Seite ist die Referenz dafür, was ein Team besitzt, wie Mitgliedschaft funktioniert und wie die Team-Grenze mit den rollenbasierten Berechtigungen aus [Mitglieder und Rollen](/de/platform/admin/members-and-roles) zusammenspielt. Lies sie einmal, wenn du die Teams der Organisation aufsetzt; komm wieder, wenn du umorganisierst.
 
@@ -17,19 +17,18 @@ Diese Seite ist die Referenz dafür, was ein Team besitzt, wie Mitgliedschaft fu
 
 Ein Team hält Mitgliedschaft und eine Menge ihm zugeordneter Ressourcen. Die Ressourcen sind:
 
-- **Agents** — Agents, die mit Team-Scope erstellt wurden, sind nur für Mitglieder dieses Teams sichtbar und editierbar. Organisationsweite Agents bleiben für alle mit passender Rolle sichtbar.
-- **Prompts** — gespeicherte Prompts mit Sichtbarkeit `Team` erscheinen nur für die Mitglieder dieses Teams. Persönliche Prompts bleiben privat beim Eigentümer; Globale Prompts sind organisationsweit sichtbar.
-- **Projekte** — Projekte können einem Team zugewiesen werden; die Mitglieder des Teams erben den Projekt-Zugriff, ohne einzeln hinzugefügt zu werden.
-- **Connectors** — Connectors, die auf bestimmte Teams beschränkt sind (über den Hebel **Erlaubte Teams** unter **Einstellungen > Connectors**), erscheinen nur in Pickern dieser Teams.
+- **Dokumente und Ordner** — ein Dokument oder Ordner mit Team-Scope ist nur für die Mitglieder dieses Teams sichtbar und editierbar. Organisationsweite Dokumente bleiben für alle mit passender Rolle sichtbar.
+- **Projekte** — ein Projekt kann einem Team zugewiesen und mit weiteren Teams geteilt werden; die Mitglieder der Teams erben den Projekt-Zugriff, ohne einzeln hinzugefügt zu werden.
+- **Skills** — ein Skill mit Team-Sichtbarkeit erscheint nur für die Mitglieder dieser Teams; die Tabs der Skill-Bibliothek trennen **Organisation**, **Teams** und **Persönlich**.
 - **Konversationen** — eine Konversation kann zusätzlich zu einer zuständigen Person auch einem Team zugewiesen werden, über die Zuweisungs-Auswahl in ihrer Kopfzeile. Die Sichtbarkeit folgt dieser Zuweisung: eine Team-Warteschlange ist für die Mitglieder dieses Teams sichtbar, eine Personenzuweisung für diese Person, und Admins sowie Inhaber sehen alles. Wirklich unzugewiesene Konversationen (weder Person noch Team) bleiben bei Admins zur Sichtung — kombiniere das mit [Konversations-Routing](/de/platform/admin/governance/policies-and-limits#konversations-routing), damit eingehende Post beim Eintreffen in ein Team landet.
 
 Eine Ressource ohne Team-Scope bleibt für alle sichtbar, deren Rolle es erlaubt. Teams sind eine _zusätzliche_ Eingrenzungsebene — sie engen Sichtbarkeit ein, weiten sie nie aus.
 
 ## Ein Team erstellen
 
-Öffne **Einstellungen > Teams** und klick auf **Team erstellen**. Gib dem Team einen Namen (`Support`, `Vertrieb`, `Betrieb`) und eine optionale Beschreibung; der Name erscheint überall, wo das Team auftaucht — Picker, Badges, team-eingegrenzter Dokumentzugriff und das Zuweisungsfeld eines Projekts. Speichern erstellt ein leeres Team, das du aus der Team-Zeile mit Mitgliedern füllen kannst.
+Öffne **Einstellungen > Teams** und klick auf **Team erstellen**. Gib dem Team einen Namen (`Support`, `Vertrieb`, `Betrieb`) und hake seine ersten Mitglieder in der Liste an — bleibt sie leer, wirst du automatisch hinzugefügt, denn ein Team muss mindestens ein Mitglied behalten. Der Name erscheint überall, wo das Team auftaucht: Picker, Badges, team-eingegrenzter Dokumentzugriff und das Zuweisungsfeld eines Projekts.
 
-Die Team-Zeile trägt drei Untersichten: **Mitglieder** (wer im Team ist), **Ressourcen** (was das Team besitzt) und **Einstellungen** (Name, Beschreibung und Lebenszyklus des Teams). Die Ressourcen-Sicht ist der einfachste Weg, zu sehen, wohin ein Team reicht; sie dient zusätzlich als Audit-Oberfläche, wenn jemand fragt, warum ein Team einen bestimmten Agent sieht.
+Die Team-Zeile trägt die Alltags-Aktionen: **Mitglieder** verwaltet, wer im Team ist, **Team bearbeiten** benennt es um, **Team löschen** legt es still. Wohin ein Team reicht, ergibt sich daraus, wo das Team gewählt ist — im Zugriffs-Scope eines Dokuments, in der Zuweisung eines Projekts, in der Sichtbarkeit eines Skills.
 
 ## Mitglieder hinzufügen und entfernen
 
@@ -37,13 +36,13 @@ Die Team-Zeile trägt drei Untersichten: **Mitglieder** (wer im Team ist), **Res
 
 ## Team versus Rolle
 
-Die Rolle entscheidet, was eine Person tun darf; das Team entscheidet, woran. Ein Mitglied-Rollen-Benutzer im Support-Team kann die Agents des Support-Teams lesen, aber nicht bearbeiten; ein Entwickler-Rollen-Benutzer im Support-Team kann die Agents des Support-Teams lesen und schreiben, aber die des Vertriebs nicht sehen. Teams gewähren nie Fähigkeiten, die der Rolle fehlen; Rollen weiten Sichtbarkeit nie über den Team-Scope hinaus.
+Die Rolle entscheidet, was eine Person tun darf; das Team entscheidet, woran. Ein Mitglied-Rollen-Benutzer im Support-Team kann die Dokumente des Support-Teams lesen, aber nicht bearbeiten; ein Redakteur-Rollen-Benutzer im Support-Team kann sie lesen und schreiben, aber die des Vertriebs nicht sehen. Teams gewähren nie Fähigkeiten, die der Rolle fehlen; Rollen weiten Sichtbarkeit nie über den Team-Scope hinaus.
 
 Wenn du eine Berechtigungs-Entscheidung brauchst, die bestehende Rollen und Teams nicht ausdrücken können, ist der nächste Hebel eine Governance-Richtlinie — siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) dafür, wie Richtlinien sich an Rollen heften, und den Governance-Bereich für die Richtlinien-Felder selbst.
 
 ## Ein Team löschen
 
-Klick auf die Team-Zeile, dann auf **Team löschen**. Löschen ist Hard-Stop — das Team ist weg, jede team-gebundene Ressource, die es besaß, wechselt auf organisationsweite Sichtbarkeit, und Mitglieder verlieren den team-gebundenen Ausschnitt ihres Zugriffs. Es gibt kein Undo; verwaiste Ressourcen bleiben für alle erreichbar, deren Rolle es erlaubt, was selten das richtige Ergebnis ist. Greif zu Löschen, wenn ein Team wirklich aufgelöst wird, nicht wenn es umorganisiert wird.
+Klick auf die Team-Zeile, dann auf **Team löschen**. Löschen ist Hard-Stop — das Team ist weg, alle Mitglieder werden daraus entfernt, und sie verlieren den team-gebundenen Ausschnitt ihres Zugriffs. Es gibt kein Undo. Greif zu Löschen, wenn ein Team wirklich aufgelöst wird, nicht wenn es umorganisiert wird.
 
 ## Wo das hingehört
 

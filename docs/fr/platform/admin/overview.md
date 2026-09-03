@@ -25,7 +25,7 @@ Les six rôles et la matrice au niveau ressource qui dit qui peut lire, écrire,
 
 <Card title="Équipes" icon="users-round" href="/fr/platform/admin/teams">
 
-Regroupe les membres en équipes qui partagent agents, skills et connectors.
+Regroupe les membres en équipes qui partagent documents, projets, skills et conversations.
 
 </Card>
 
@@ -55,13 +55,13 @@ Branche la connexion à ton fournisseur d’identité via SAML ou OIDC.
 
 <Card title="Clés API" icon="key" href="/fr/platform/admin/api-keys">
 
-Émets et cadre les clés que le code externe utilise pour joindre l’API REST de Tale.
+Émets les clés que le code externe utilise pour joindre l’API REST de Tale.
 
 </Card>
 
 <Card title="Branding" icon="palette" href="/fr/platform/admin/branding">
 
-Le nom, le logo et les couleurs que le reste de l’organisation voit.
+Le logo, le favicon et la couleur d’accent que le reste de l’organisation voit.
 
 </Card>
 
