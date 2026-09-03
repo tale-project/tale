@@ -1770,6 +1770,356 @@ async function checkTasks(
 }
 
 /**
+ * The tenant-isolation net over the tasks surface (the tasks-org-scoping
+ * class): a task id from another organization answers like one that does
+ * not exist — reads, writes, deletes, run verbs, collab subscriptions —
+ * even when the caller is an OWNER of their own org (the admin bypass in
+ * the role matrix was the hole). Read-only members must not start or
+ * cancel runs, deciding a review takes task-edit access, and the
+ * external-ref intake neither duplicates a task under concurrency (the
+ * 0059 unique index + ON CONFLICT reconcile) nor reaches across orgs.
+ */
+async function checkTasksOrgIsolation(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const now = Date.now();
+  const api = (
+    route: string,
+    init: {
+      method?: string;
+      body?: unknown;
+      cookie?: string;
+      org?: string;
+    } = {},
+  ): Promise<Response> =>
+    fetch(`${base}${route}?orgId=${init.org ?? orgId}`, {
+      method: init.method ?? (init.body !== undefined ? 'POST' : 'GET'),
+      headers: {
+        'content-type': 'application/json',
+        cookie: init.cookie ?? cookie,
+        origin: base,
+      },
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    });
+
+  // The victim org's project + task (org-wide: readable to every role).
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Isolation project', ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const projectId = projectRows[0]?.id ?? '';
+  const created = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await api('/api/app/tasks', {
+        body: { projectId, title: 'Isolation task', status: 'todo' },
+      })
+    ).json(),
+  );
+  const taskId = created.success ? created.data.taskId : '';
+
+  // An ATTACKER user owning a SECOND org — the exact shape of the hole:
+  // org-blind guards ran checkProjectAccess with the attacker's own OWNER
+  // role, whose admin bypass granted every project in the deployment. A
+  // dedicated user (never the suite's main one) keeps the main user
+  // single-org — REST sections later in the suite resolve their API key's
+  // org implicitly, and a second membership would poison them.
+  const attackerSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `itest-iso-attacker-${now}@example.com`,
+      password: 'itest-password-1',
+      name: 'Iso Attacker',
+    }),
+  });
+  const attackerCookie = cookieHeaderFrom(attackerSignUp);
+  const attackerParsed = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await attackerSignUp.json());
+  const attackerId = attackerParsed.success ? attackerParsed.data.user.id : '';
+  const rivalCreate = await fetch(`${base}/api/auth/organization/create`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      cookie: attackerCookie,
+      origin: base,
+    },
+    body: JSON.stringify({
+      name: `Isolation Rival ${now}`,
+      slug: `itest-iso-rival-${now}`,
+    }),
+  });
+  const rivalBody = z
+    .object({ id: z.string().optional() })
+    .safeParse(await rivalCreate.json());
+  const rivalOrgId = rivalBody.success ? (rivalBody.data.id ?? '') : '';
+  /** The attacker's own session, aimed at their own org (the request is
+   * WELL-FORMED — only the task id belongs to the victim). */
+  const rival = { cookie: attackerCookie, org: rivalOrgId };
+
+  // Creating the task auto-subscribed its creator: the invariant is that
+  // the cross-org attempts below ADD nothing, not that the count is zero.
+  const subsBefore = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.task_subscriptions
+    WHERE task_id = ${taskId}
+  `;
+  const crossRead = await api(`/api/app/tasks/${taskId}`, { ...rival });
+  const crossWrite = await api(`/api/app/tasks/${taskId}/status`, {
+    ...rival,
+    body: { status: 'done' },
+  });
+  const crossSubGet = await api(
+    `/api/app/collab/tasks/${taskId}/subscription`,
+    { ...rival },
+  );
+  const crossSubSet = await api(
+    `/api/app/collab/tasks/${taskId}/subscription`,
+    { ...rival, body: { subscribed: true } },
+  );
+  const garbageSub = await api(
+    '/api/app/collab/tasks/no-such-task/subscription',
+    { body: { subscribed: true } },
+  );
+  const crossDelete = await api(`/api/app/tasks/${taskId}`, {
+    ...rival,
+    method: 'DELETE',
+  });
+  const survivor = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${taskId}
+  `;
+  const subsAfter = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.task_subscriptions
+    WHERE task_id = ${taskId}
+  `;
+  record(
+    'tasks: a foreign org owner cannot read, mutate, delete, or follow a task',
+    rivalOrgId.length > 0 &&
+      crossRead.status === 404 &&
+      crossWrite.status === 404 &&
+      crossSubGet.status === 404 &&
+      crossSubSet.status === 404 &&
+      garbageSub.status === 404 &&
+      crossDelete.status === 404 &&
+      survivor[0]?.status === 'todo' &&
+      subsAfter[0]?.count === subsBefore[0]?.count,
+    `read=${crossRead.status}, write=${crossWrite.status}, sub=${crossSubGet.status}/${crossSubSet.status}, garbage-sub=${garbageSub.status}, delete=${crossDelete.status} (want 404s), task=${survivor[0]?.status ?? 'GONE'} (want todo), subs=${subsBefore[0]?.count}→${subsAfter[0]?.count} (want unchanged)`,
+  );
+
+  // A live automation run on the victim task: the rival's cancel answers
+  // 404 and the run keeps running (on the old org-blind guards the task
+  // flipped to cancelled cross-org).
+  await sql`
+    INSERT INTO app.automation_runs (
+      org_id, project_id, name, version, status, mode, started_by, input,
+      started_at_ms
+    ) VALUES (
+      ${orgId}, ${projectId}, 'itest-iso-run', 1, 'running', 'live',
+      ${userId}, ${sql.json({ task: { id: taskId } })}, ${now}
+    )
+  `;
+  const crossCancel = await api(`/api/app/tasks/${taskId}/workflow/cancel`, {
+    ...rival,
+    method: 'POST',
+  });
+  const runAfterCross = await sql<{ status: string }[]>`
+    SELECT status FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = 'itest-iso-run'
+  `;
+  const taskAfterCross = await sql<{ status: string }[]>`
+    SELECT status FROM app.tasks WHERE id = ${taskId}
+  `;
+  record(
+    'tasks: a foreign org owner cannot cancel the live run behind a task',
+    crossCancel.status === 404 &&
+      runAfterCross[0]?.status === 'running' &&
+      taskAfterCross[0]?.status === 'todo',
+    `cancel=${crossCancel.status} (want 404), run=${runAfterCross[0]?.status} (want running), task=${taskAfterCross[0]?.status} (want todo)`,
+  );
+
+  // A read-only MEMBER of the victim org (the harness member idiom): reads
+  // pass, but starting or cancelling a run is an EDIT and refuses BEFORE
+  // any side effect — the run must still be running afterwards.
+  const viewerSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `itest-iso-viewer-${now}@example.com`,
+      password: 'itest-password-1',
+      name: 'Iso Viewer',
+    }),
+  });
+  const viewerCookie = cookieHeaderFrom(viewerSignUp);
+  const viewerParsed = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await viewerSignUp.json());
+  const viewerId = viewerParsed.success ? viewerParsed.data.user.id : '';
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${`m-iso-${viewerId}`}, ${orgId}, ${viewerId}, 'member',
+            ${new Date()})
+    ON CONFLICT ("id") DO NOTHING
+  `;
+  const viewerRead = await api(`/api/app/tasks/${taskId}`, {
+    cookie: viewerCookie,
+  });
+  const viewerStart = await api(`/api/app/tasks/${taskId}/workflow/start`, {
+    cookie: viewerCookie,
+    body: { workflowSlug: 'no-such-automation' },
+  });
+  const viewerCancel = await api(`/api/app/tasks/${taskId}/workflow/cancel`, {
+    cookie: viewerCookie,
+    method: 'POST',
+  });
+  const runAfterViewer = await sql<{ status: string }[]>`
+    SELECT status FROM app.automation_runs
+    WHERE org_id = ${orgId} AND name = 'itest-iso-run'
+  `;
+  record(
+    'tasks: a read-only member reads the task but cannot start/cancel runs',
+    viewerRead.status === 200 &&
+      viewerStart.status === 403 &&
+      viewerCancel.status === 403 &&
+      runAfterViewer[0]?.status === 'running',
+    `read=${viewerRead.status} (want 200), start=${viewerStart.status}/cancel=${viewerCancel.status} (want 403), run=${runAfterViewer[0]?.status} (want running)`,
+  );
+  await sql`
+    UPDATE app.automation_runs SET status = 'failed'
+    WHERE org_id = ${orgId} AND name = 'itest-iso-run'
+  `;
+
+  // Deciding a review is deciding the task: a read-only member's respond
+  // refuses on the project write gate and the gate stays pending.
+  const approvalRows = await sql<{ id: string }[]>`
+    INSERT INTO app.approvals (
+      org_id, status, resource_type, resource_id, priority, metadata,
+      created_at_ms
+    ) VALUES (
+      ${orgId}, 'pending', 'task_review', ${taskId}, 'medium',
+      ${sql.json({ taskId })}, ${now}
+    ) RETURNING id
+  `;
+  const approvalId = approvalRows[0]?.id ?? '';
+  const { respondToTaskReview } = await import('./domains/tasks/reviews.ts');
+  const respondOutcome = await respondToTaskReview(sql, {
+    auth: {
+      organizationId: orgId,
+      userId: viewerId,
+      role: 'member',
+      teamIds: [],
+    },
+    approvalId,
+    decision: 'approve',
+  }).then(
+    () => 'approved',
+    (error: unknown) =>
+      error instanceof Error && 'code' in error
+        ? String(error.code)
+        : 'other-error',
+  );
+  const approvalAfter = await sql<{ status: string }[]>`
+    SELECT status FROM app.approvals WHERE id = ${approvalId}
+  `;
+  record(
+    'tasks: responding to a review requires task-edit access',
+    respondOutcome === 'RBAC_FORBIDDEN' &&
+      approvalAfter[0]?.status === 'pending',
+    `respond → ${respondOutcome} (want RBAC_FORBIDDEN), approval=${approvalAfter[0]?.status} (want pending)`,
+  );
+
+  // The external-ref intake under concurrency: two simultaneous intakes of
+  // the same item land exactly ONE task (unique index + reconcile lane) and
+  // a later replay reconciles instead of creating.
+  const { upsertTaskByExternalRef } =
+    await import('./domains/tasks/external-ref.ts');
+  const upsertArgs = {
+    organizationId: orgId,
+    actorId: userId,
+    projectId,
+    externalSystem: 'itest-iso',
+    externalId: 'ISO-RACE-1',
+    title: 'Raced intake',
+    creatorType: 'user' as const,
+    dedupeScope: 'project' as const,
+  };
+  const [first, second] = await Promise.all([
+    transactSerializable(sql, (tx) => upsertTaskByExternalRef(tx, upsertArgs)),
+    transactSerializable(sql, (tx) => upsertTaskByExternalRef(tx, upsertArgs)),
+  ]);
+  const replay = await transactSerializable(sql, (tx) =>
+    upsertTaskByExternalRef(tx, upsertArgs),
+  );
+  const raceRows = await sql<{ id: string }[]>`
+    SELECT id FROM app.tasks
+    WHERE org_id = ${orgId} AND project_id = ${projectId}
+      AND external_system = 'itest-iso' AND external_id = 'ISO-RACE-1'
+  `;
+  record(
+    'tasks: concurrent external-ref intakes land exactly one task',
+    raceRows.length === 1 &&
+      first.taskId !== null &&
+      first.taskId === second.taskId &&
+      [first.created, second.created].filter(Boolean).length === 1 &&
+      !replay.created &&
+      replay.taskId === raceRows[0]?.id,
+    `rows=${raceRows.length} (want 1), created=[${String(first.created)},${String(second.created)}] (want exactly one true), replay=${String(replay.created)} (want false)`,
+  );
+
+  // The intake seam refuses a foreign project outright: dedupe and create
+  // are both org-scoped, so an org-level agent naming a foreign project id
+  // can neither update nor create on the foreign board.
+  const rivalProject = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${rivalOrgId}, 'Rival project', ${attackerId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const rivalProjectId = rivalProject[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.tasks (
+      org_id, project_id, title, status, rank, number, external_system,
+      external_id, created_by, created_by_type, created_at_ms, updated_at_ms,
+      status_changed_at_ms
+    ) VALUES (
+      ${rivalOrgId}, ${rivalProjectId}, 'Rival task', 'todo', 'a0', 1,
+      'itest-iso', 'ISO-XORG-1', ${attackerId}, 'user', ${now}, ${now}, ${now}
+    )
+  `;
+  const crossUpsert = await transactSerializable(sql, (tx) =>
+    upsertTaskByExternalRef(tx, {
+      organizationId: orgId,
+      actorId: userId,
+      projectId: rivalProjectId,
+      externalSystem: 'itest-iso',
+      externalId: 'ISO-XORG-1',
+      title: 'Hijacked title',
+      dedupeScope: 'project',
+    }),
+  ).then(
+    (result) => `ok:${String(result.created)}`,
+    (error: unknown) =>
+      error instanceof Error && 'code' in error
+        ? String(error.code)
+        : 'other-error',
+  );
+  const rivalAfter = await sql<{ title: string }[]>`
+    SELECT title FROM app.tasks
+    WHERE org_id = ${rivalOrgId} AND external_id = 'ISO-XORG-1'
+  `;
+  record(
+    'tasks: external-ref upsert never resolves or creates across orgs',
+    crossUpsert === 'PROJECT_NOT_FOUND' &&
+      rivalAfter[0]?.title === 'Rival task',
+    `upsert → ${crossUpsert} (want PROJECT_NOT_FOUND), rival title=${rivalAfter[0]?.title ?? 'GONE'} (want untouched)`,
+  );
+}
+
+/**
  * Files vertical against a REAL S3-compatible store (MinIO): seed the
  * deployment-default connection into the config tree, create the bucket,
  * then run handoff → presigned PUT → register (HEAD-verified) → presigned
@@ -25896,6 +26246,7 @@ async function main(): Promise<void> {
     );
     await checkProjects(baseUrl, authCtx);
     await checkTasks(baseUrl, authCtx);
+    await checkTasksOrgIsolation(sql, baseUrl, authCtx);
     await checkFiles(baseUrl, authCtx);
     await checkDocuments(sql, baseUrl, authCtx);
     await checkSmallDomains(baseUrl, authCtx);
