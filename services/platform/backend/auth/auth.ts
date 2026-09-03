@@ -7,7 +7,11 @@ import { organization, twoFactor } from 'better-auth/plugins';
 import pg from 'pg';
 import type { Sql } from 'postgres';
 
-import { assertValidOrgSlug } from '../../lib/shared/constants/org-slug.ts';
+import {
+  assertValidOrgSlug,
+  classifyOrgSlugUpdate,
+  ORG_SLUG_IMMUTABLE_MESSAGE,
+} from '../../lib/shared/constants/org-slug.ts';
 import { isReservedOrgSlug } from '../../lib/shared/constants/reserved-org-slugs.ts';
 import { DEFAULT_TRUSTED_PROXIES } from '../../lib/shared/schemas/governance.ts';
 import { organizationNameSchema } from '../../lib/shared/schemas/organizations.ts';
@@ -490,6 +494,27 @@ export function createAuth(config: AuthConfig) {
             const selfOrgId = (
               data.member as { organizationId?: unknown } | undefined
             )?.organizationId;
+            // The slug is the tenant key of every blob, the config tree and
+            // the knowledge corpora; a rename would strand all of them. Once
+            // set it is immutable — the current value may be re-sent, and a
+            // slug-less org may receive its first. Fail closed when the org
+            // being updated cannot be identified.
+            const current =
+              typeof selfOrgId === 'string'
+                ? await sql<{ slug: string | null }[]>`
+                    SELECT "slug" FROM "organization"
+                    WHERE "id" = ${selfOrgId} LIMIT 1
+                  `
+                : [];
+            if (
+              current.length === 0 ||
+              classifyOrgSlugUpdate(current[0]?.slug, normalizedSlug) ===
+                'rename'
+            ) {
+              throw new APIError('BAD_REQUEST', {
+                message: ORG_SLUG_IMMUTABLE_MESSAGE,
+              });
+            }
             const collision = await sql<{ id: string }[]>`
               SELECT "id" FROM "organization"
               WHERE "slug" = ${normalizedSlug} LIMIT 1
