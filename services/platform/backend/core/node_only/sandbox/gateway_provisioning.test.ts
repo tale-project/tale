@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../../lib/ctx';
 import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
@@ -63,8 +63,15 @@ function apiKeyResolution(secret = 'sk-live') {
   } as const;
 }
 
+// The provisioning entry fails closed on the gateway admin password; give
+// every test a default so only the precondition test below removes it.
+beforeEach(() => {
+  vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', 'pw-test');
+});
+
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe('buildProviderProvision', () => {
@@ -220,6 +227,26 @@ describe('provisionSessionGatewayKey', () => {
     ]);
     expect(mintVirtualKey).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it('fails closed before any credential resolve or gateway call when the admin password is unset', async () => {
+    // An anonymous management plane on the sandbox network would let sandboxed
+    // code mint its own keys — refuse the whole session up front, once.
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
+    vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', undefined);
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+    await expect(
+      provisionSessionGatewayKey(fakeCtx(), {
+        organizationId: 'org_1',
+        sessionId: 'sess-5',
+        allowedModels: MODELS,
+        budgetCents: 100,
+      }),
+    ).rejects.toThrow('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set');
+    expect(mockedResolve).not.toHaveBeenCalled();
+    expect(provisionProviders).not.toHaveBeenCalled();
+    expect(applyGatewayConfig).not.toHaveBeenCalled();
+    expect(mintVirtualKey).not.toHaveBeenCalled();
   });
 
   it('propagates an auth-posture failure (fail-closed, never mints)', async () => {
