@@ -92,15 +92,22 @@ export function pgWebdavStore(sql: Sql): WebdavStore {
       const page = listed as {
         folders: { name: string }[];
         documents: { title: string; size: number | null }[];
+        truncated: boolean;
       };
-      return [
-        ...page.folders.map((f) => ({ name: f.name, isDir: true, size: 0 })),
-        ...page.documents.map((d) => ({
-          name: d.title,
-          isDir: false,
-          size: d.size ?? 0,
-        })),
-      ];
+      // The handler caps a listing (MAX_CHILDREN_PER_PROPFIND) and says so;
+      // the bit must reach the agent, or a hub folder past the cap reads as
+      // a clean, complete list with files quietly missing.
+      return {
+        entries: [
+          ...page.folders.map((f) => ({ name: f.name, isDir: true, size: 0 })),
+          ...page.documents.map((d) => ({
+            name: d.title,
+            isDir: false,
+            size: d.size ?? 0,
+          })),
+        ],
+        truncated: page.truncated,
+      };
     },
 
     async read({ organizationId, segments, maxBytes }) {

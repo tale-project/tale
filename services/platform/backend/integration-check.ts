@@ -30176,6 +30176,113 @@ async function checkTaskDiscussionPaging(
   );
 }
 
+/**
+ * Truth in listing, workflow documents lane: `document.list` answers the
+ * real truncation bit over its 200-file cap, resolves `folderPath`, and
+ * walks `recursive` with subfolder-prefixed names. The old store hardcoded
+ * `truncated: false`, answered "the folder does not exist" for every
+ * folderPath, and ignored recursive — an automation iterating a 201-file
+ * folder skipped one while being told the listing was whole.
+ */
+async function checkWorkflowDocumentListing(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const createFolder = async (
+    name: string,
+    parentId?: string,
+  ): Promise<string> => {
+    const body = z.object({ folderId: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/app/folders?orgId=${orgId}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie, origin: base },
+          body: JSON.stringify({
+            name,
+            ...(parentId !== undefined ? { parentId } : {}),
+          }),
+        })
+      ).json(),
+    );
+    return body.success ? body.data.folderId : '';
+  };
+  const seedDocs = async (
+    folderId: string,
+    prefix: string,
+    count: number,
+  ): Promise<void> => {
+    const now = Date.now();
+    await sql`
+      INSERT INTO app.documents (
+        org_id, title, source_provider, created_by, folder_id,
+        created_at_ms, updated_at_ms
+      )
+      SELECT ${orgId}, ${prefix} || '-' || g || '.pdf', 'itest', ${userId},
+             ${folderId}, ${now}::bigint + g, ${now}::bigint + g
+      FROM generate_series(1, ${count}) AS g
+    `;
+  };
+  const bigId = await createFolder('WF Big');
+  const bigSubId = await createFolder('Sub', bigId);
+  const smallId = await createFolder('WF Small');
+  const leafId = await createFolder('Leaf', smallId);
+  await seedDocs(bigId, 'big', 201);
+  await seedDocs(bigSubId, 'sub', 1);
+  await seedDocs(smallId, 'small', 2);
+  await seedDocs(leafId, 'leaf', 1);
+
+  const { runConnectorAction } =
+    await import('./domains/connectors/service.ts');
+  const list = (input: Record<string, unknown>) =>
+    runConnectorAction(sql, {
+      organizationId: orgId,
+      connector: 'document',
+      action: 'list',
+      input,
+      mode: 'live',
+      caller: { kind: 'system', reason: 'itest document listing' },
+    });
+  const listing = z.object({
+    count: z.number(),
+    truncated: z.boolean(),
+    files: z.array(z.object({ name: z.string(), storageId: z.string() })),
+  });
+  const parse = (result: Awaited<ReturnType<typeof list>>) =>
+    listing.safeParse(result.status === 'ok' ? result.output : {});
+
+  const bigById = parse(await list({ folderId: bigId }));
+  const subByPath = parse(await list({ folderPath: 'WF Big/Sub' }));
+  const missing = await list({ folderPath: 'WF Big/Nope' });
+  const smallFlat = parse(await list({ folderPath: 'WF Small' }));
+  const smallTree = parse(await list({ folderId: smallId, recursive: true }));
+  const bigTree = parse(await list({ folderPath: 'WF Big/', recursive: true }));
+
+  record(
+    'document.list tells the truth: truncated over the cap, folderPath, recursive',
+    bigById.success &&
+      bigById.data.count === 200 &&
+      bigById.data.truncated &&
+      subByPath.success &&
+      subByPath.data.count === 1 &&
+      !subByPath.data.truncated &&
+      subByPath.data.files[0]?.name === 'sub-1.pdf' &&
+      missing.status !== 'ok' &&
+      smallFlat.success &&
+      smallFlat.data.count === 2 &&
+      !smallFlat.data.truncated &&
+      smallTree.success &&
+      smallTree.data.count === 3 &&
+      !smallTree.data.truncated &&
+      smallTree.data.files.some((file) => file.name === 'Leaf/leaf-1.pdf') &&
+      bigTree.success &&
+      bigTree.data.count === 200 &&
+      bigTree.data.truncated,
+    `big=${bigById.success ? `${bigById.data.count}/${bigById.data.truncated}` : 'ERR'} (want 200/true), sub=${subByPath.success ? `${subByPath.data.count}/${subByPath.data.truncated}/${subByPath.data.files[0]?.name}` : 'ERR'}, missing=${missing.status} (want not ok), small=${smallFlat.success ? smallFlat.data.count : 'ERR'} tree=${smallTree.success ? `${smallTree.data.count}/${smallTree.data.truncated}/${smallTree.data.files.map((f) => f.name).join('|')}` : 'ERR'}, bigTree=${bigTree.success ? `${bigTree.data.count}/${bigTree.data.truncated}` : 'ERR'}`,
+  );
+}
+
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
@@ -30328,6 +30435,7 @@ async function main(): Promise<void> {
     );
     await checkFiles(baseUrl, authCtx);
     await checkDocuments(sql, baseUrl, authCtx);
+    await checkWorkflowDocumentListing(sql, baseUrl, authCtx);
     await checkBlobRefAuthority(sql, baseUrl, authCtx);
     await checkSmallDomains(baseUrl, authCtx);
     await checkAgents(baseUrl, authCtx);

@@ -41,7 +41,17 @@ import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { resolveConnectorCredential } from '../connector_credentials/service.ts';
 import { conversationShimHandlers } from '../conversations/shim.ts';
-import { createHubDocument, listDocuments } from '../documents/service.ts';
+import {
+  createHubDocument,
+  listFolderDocumentsBounded,
+} from '../documents/service.ts';
+import { findHubFolderByPath } from '../folders/paths.ts';
+import {
+  FolderError,
+  listFolders,
+  loadFolderOrThrow,
+  MAX_FOLDER_DEPTH,
+} from '../folders/service.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
 import {
   addTaskComment,
@@ -53,6 +63,7 @@ import {
   loadTaskOrThrow,
 } from '../tasks/service.ts';
 import { pgWebdavStore } from '../webdav/connector-store.ts';
+import { collectWorkflowFolderFiles } from './document-listing.ts';
 
 /**
  * The 0.5 door to the connector dispatcher — the twin of
@@ -160,6 +171,10 @@ function pgTaskStore(sql: Sql): WorkflowTaskStore {
   };
 }
 
+/** The most files one `document.list` answers; past it the listing says
+ * `truncated` so the agent narrows the folder instead of trusting a cut. */
+const WORKFLOW_FOLDER_LIST_CAP = 200;
+
 /** The document natives over the 0.5 documents domain. */
 function pgDocumentStore(sql: Sql): WorkflowDocumentStore {
   const systemAuth = async (organizationId: string) =>
@@ -169,17 +184,66 @@ function pgDocumentStore(sql: Sql): WorkflowDocumentStore {
       role: 'owner',
     });
   return {
-    async listFolder({ organizationId, folderId }) {
-      if (folderId === undefined) return null;
+    async listFolder({ organizationId, folderId, folderPath, recursive }) {
+      // The folder, by id or by human path ("Clients/Acme" — the same walk
+      // the sync engines resolve with); null = it does not exist in this
+      // org's hub tree, which the native turns into a coded refusal.
+      let rootFolderId: string;
+      if (folderId !== undefined) {
+        const folder = await loadFolderOrThrow(sql, folderId).catch(
+          (error: unknown) => {
+            if (error instanceof FolderError) return null;
+            throw error;
+          },
+        );
+        if (
+          folder === null ||
+          folder.organizationId !== organizationId ||
+          folder.projectId !== null
+        ) {
+          return null;
+        }
+        rootFolderId = folder.id;
+      } else if (folderPath !== undefined) {
+        const resolved = await findHubFolderByPath(
+          sql,
+          organizationId,
+          folderPath.split('/'),
+        );
+        if (resolved === null) return null;
+        rootFolderId = resolved;
+      } else {
+        return null;
+      }
       const auth = await systemAuth(organizationId);
-      const docs = await listDocuments(sql, auth, { folderId });
-      return {
-        files: docs.map((doc) => ({
-          name: doc.title ?? doc.id,
-          storageId: doc.fileRef ?? doc.id,
-        })),
-        truncated: false,
-      };
+      return collectWorkflowFolderFiles(
+        {
+          filesIn: async (id, limit) => {
+            const page = await listFolderDocumentsBounded(sql, auth, {
+              folderId: id,
+              limit,
+            });
+            return {
+              files: page.documents.map((doc) => ({
+                name: doc.title ?? doc.id,
+                storageId: doc.fileRef ?? doc.id,
+              })),
+              truncated: page.truncated,
+            };
+          },
+          subfoldersOf: async (id) =>
+            (await listFolders(sql, auth, { parentId: id })).map((folder) => ({
+              id: folder.id,
+              name: folder.name,
+            })),
+        },
+        {
+          rootFolderId,
+          recursive: recursive ?? false,
+          cap: WORKFLOW_FOLDER_LIST_CAP,
+          maxDepth: MAX_FOLDER_DEPTH,
+        },
+      );
     },
     async create({ organizationId, folderId, name, content, contentType }) {
       const auth = await systemAuth(organizationId);

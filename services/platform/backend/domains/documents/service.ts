@@ -713,6 +713,33 @@ export async function detachDocumentFromProject(
 // Reads
 // ---------------------------------------------------------------------------
 
+/** The most rows one hub listing read pulls. */
+const HUB_LIST_READ_MAX = 500;
+
+/** The hub listing's rows as stored, newest first — BEFORE the caller's
+ * team filter, so a bound judged on them is the truth about the folder. */
+async function selectHubDocuments(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  options: {
+    folderId?: string | null;
+    includeTrashed?: boolean;
+    limit: number;
+  },
+): Promise<DocumentRow[]> {
+  return sql<DocumentRow[]>`
+    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
+    WHERE org_id = ${auth.organizationId}
+      AND project_id IS NULL
+      AND (${options.includeTrashed ?? false}
+        OR lifecycle_status IS NULL OR lifecycle_status = 'active')
+      AND (${options.folderId === undefined}
+        OR folder_id IS NOT DISTINCT FROM ${options.folderId ?? null})
+    ORDER BY created_at_ms DESC
+    LIMIT ${options.limit}
+  `;
+}
+
 /** Hub listing (project docs never appear); optional folder filter. */
 export async function listDocuments(
   sql: Sql,
@@ -723,19 +750,36 @@ export async function listDocuments(
     limit?: number;
   } = {},
 ): Promise<DocumentRow[]> {
-  const limit = Math.min(options.limit ?? 200, 500);
-  const rows = await sql<DocumentRow[]>`
-    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
-    WHERE org_id = ${auth.organizationId}
-      AND project_id IS NULL
-      AND (${options.includeTrashed ?? false}
-        OR lifecycle_status IS NULL OR lifecycle_status = 'active')
-      AND (${options.folderId === undefined}
-        OR folder_id IS NOT DISTINCT FROM ${options.folderId ?? null})
-    ORDER BY created_at_ms DESC
-    LIMIT ${limit}
-  `;
+  const rows = await selectHubDocuments(sql, auth, {
+    ...options,
+    limit: Math.min(options.limit ?? 200, HUB_LIST_READ_MAX),
+  });
   return rows.filter((doc) => hasKnowledgeHubDocumentAccess(doc, auth.teamIds));
+}
+
+/**
+ * One folder's active documents for a BOUNDED reader, with the truth about
+ * the bound: `truncated` says the folder holds more rows than `limit` —
+ * judged on the stored rows, so a row the caller may not see never masks a
+ * cut. The workflow `document.list` native reads folders through this.
+ */
+export async function listFolderDocumentsBounded(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  args: { folderId: string | null; limit: number },
+): Promise<{ documents: DocumentRow[]; truncated: boolean }> {
+  const limit = Math.min(Math.max(args.limit, 1), HUB_LIST_READ_MAX);
+  const rows = await selectHubDocuments(sql, auth, {
+    folderId: args.folderId,
+    limit: limit + 1,
+  });
+  const truncated = rows.length > limit;
+  return {
+    documents: (truncated ? rows.slice(0, limit) : rows).filter((doc) =>
+      hasKnowledgeHubDocumentAccess(doc, auth.teamIds),
+    ),
+    truncated,
+  };
 }
 
 /** One project's documents (project read access required). */

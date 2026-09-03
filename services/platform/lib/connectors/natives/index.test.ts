@@ -197,10 +197,13 @@ const NATIVE_ACTIONS: Array<{
 /** The store double: enough shape for the actions, no Convex. */
 const store: WebdavStore = {
   list: () =>
-    Promise.resolve([
-      { name: 'archive', isDir: true, size: 0 },
-      { name: 'notes.md', isDir: false, size: 128 },
-    ]),
+    Promise.resolve({
+      entries: [
+        { name: 'archive', isDir: true, size: 0 },
+        { name: 'notes.md', isDir: false, size: 128 },
+      ],
+      truncated: false,
+    }),
   read: () =>
     Promise.resolve({
       bytes: new TextEncoder().encode('# Q3'),
