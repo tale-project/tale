@@ -12,7 +12,7 @@ import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
-import { cancelRun } from '../automations/store.ts';
+import { cancelRunInTx } from '../automations/store.ts';
 import { getOrCreateProjectFolder } from '../folders/service.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
@@ -1060,7 +1060,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           const cancelled =
             live === null
               ? false
-              : (await cancelRun(tx, auth.organizationId, live.runId))
+              : (await cancelRunInTx(tx, auth.organizationId, live.runId))
                   .cancelled;
           if (task.status !== 'cancelled') {
             await updateTaskStatus(tx, auth, task.id, 'cancelled');
