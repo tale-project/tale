@@ -62,7 +62,7 @@ Le catalogue de modèles derrière chaque sélecteur — étiquettes de capacit�
 
 <Card title="Connectors" icon="plug" href="/fr/platform/connectors/overview">
 
-Appariements SaaS tiers et serveurs MCP.
+Connectors SaaS tiers et les identifiants derrière eux.
 
 </Card>
 
@@ -88,7 +88,7 @@ La surface de construction — agents, curation des connaissances, automatisatio
 
 <Card title="Développeur" icon="terminal" href="/fr/platform/developer/overview">
 
-Clés API, outils personnalisés, webhooks, serveurs MCP — brancher Tale à du code externe.
+Clés API, l’endpoint MCP, identifiants de connector — brancher Tale à du code externe.
 
 </Card>
 

@@ -1,9 +1,9 @@
 ---
 title: Genehmigungen konfigurieren
-description: Wo Genehmigungspflichten deklariert werden — pro Connector-Operation, pro MCP-Tool und eingebaut für Schreibzugriffe und Workflow-Änderungen — und wo du siehst, was vor dem Ausführen fragt.
+description: Wo Genehmigungspflichten deklariert werden — pro Connector-Operation und eingebaut für Schreibzugriffe und Workflow-Änderungen — und wo du siehst, was vor dem Ausführen fragt.
 ---
 
-Genehmigungspflichten sind in Tale deklarativ: Jede Fähigkeit trägt ihr eigenes Flag, das sagt, ob ein Agent zuerst fragen muss, und das Flag reist mit der Connector oder dem Server, der die Fähigkeit bereitstellt. Damit die Voreinstellung stimmt, musst du nichts konfigurieren — diese Seite zeigt, wo jedes Flag lebt, welche Schreibzugriffe von sich aus fragen und wie du das für deine Organisation änderst.
+Genehmigungspflichten sind in Tale deklarativ: Jede Fähigkeit trägt ihr eigenes Flag, das sagt, ob ein Agent zuerst fragen muss, und das Flag reist mit dem Connector, der die Fähigkeit bereitstellt. Damit die Voreinstellung stimmt, musst du nichts konfigurieren — diese Seite zeigt, wo jedes Flag lebt, welche Schreibzugriffe von sich aus fragen und wie du das für deine Organisation änderst.
 
 Das Modell, was eine Genehmigungskarte ist und wer sie entscheidet, steht auf [Genehmigungskonzepte](/de/platform/approvals/concepts). Was folgt, ist die Konfigurationsoberfläche, Fähigkeit für Fähigkeit.
 
@@ -40,7 +40,7 @@ Eine Operation, die schon auf einer Karte wartet, behält ihre Karte auch dann, 
 
 ## MCP-Tools
 
-Das Manifest eines MCP-Servers markiert, welche seiner Tools ein Einverständnis brauchen — diese fragen im Chat bei jedem Aufruf durch einen Agent. Das Flag stammt vom Autor des Servers; einen Server zu verbinden heißt, seinen Tool-Vertrag anzunehmen — lies seine Tool-Liste also, bevor du einen anbindest. [MCP-Server](/de/platform/connectors/mcp-servers) behandelt, wie Server deine Agents erreichen.
+Externe MCP-Server — und die Genehmigungs-Flags pro Tool, die ihre Manifeste einmal trugen — gibt es in dieser Version nicht: Es gibt keinen Server zu verbinden und keine Tool-Liste zu prüfen. Die einzige MCP-Oberfläche ist der eingehende Endpoint unter **Einstellungen > API > MCP**, an dem dein Client Tale steuert, und eine Connector-Aktion, die darüber aufgerufen wird, unterliegt denselben Genehmigungsregeln wie überall sonst — eine abgefangene Aktion antwortet mit einer ausstehenden Genehmigung, statt zu laufen. [MCP-Endpoint](/de/develop/mcp-endpoint) behandelt die Tools und was der Schlüssel jeder Rolle darf; [MCP-Server](/de/platform/connectors/mcp-servers) sagt, was an die Stelle des Registrierungsformulars getreten ist.
 
 ## Eingebaute Schreib-Tore
 
@@ -58,8 +58,8 @@ Der Hebel dafür ist nicht das Genehmigungs-Flag, sondern die Fähigkeit selbst:
 
 ## Prüfen, was fragen wird
 
-Bevor du einen Agent vor echte Systeme stellst, lies seine Fähigkeiten wie ein Genehmiger: welche Schreib-Aktionen seine Connectoren deklarieren, welche Tools seine MCP-Server markieren, und ob der Agent überhaupt Schreib-Tools hält. Das [Audit-Log](/de/platform/admin/governance/audit-logs) protokolliert anschließend jede Entscheidung, die dieses Setup produziert.
+Bevor du einen Agent vor echte Systeme stellst, lies seine Fähigkeiten wie ein Genehmiger: welche Schreib-Aktionen seine Connectoren deklarieren und ob der Agent überhaupt Schreib-Tools hält. Das [Audit-Log](/de/platform/admin/governance/audit-logs) protokolliert anschließend jede Entscheidung, die dieses Setup produziert.
 
 ## Wo das hingehört
 
-Konfiguration ist hier Verteilung — die Flags leben bei den Connectors und Servern, denen die Fähigkeiten gehören. Lies [Genehmigungskonzepte](/de/platform/approvals/concepts) für den Kartenlebenszyklus, den diese Flags produzieren, und [Agent-Tools](/de/platform/agents/tools) für die Fähigkeitsseite derselben Grenze.
+Konfiguration ist hier Verteilung — die Flags leben bei den Connectors, denen die Fähigkeiten gehören. Lies [Genehmigungskonzepte](/de/platform/approvals/concepts) für den Kartenlebenszyklus, den diese Flags produzieren, und [Agent-Tools](/de/platform/agents/tools) für die Fähigkeitsseite derselben Grenze.

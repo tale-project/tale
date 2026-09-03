@@ -101,7 +101,7 @@ An OAuth credential whose stored authorization expired or was revoked shows **Re
 
 ## Connectors and MCP servers
 
-Both surfaces let an agent reach past Tale, and the difference is who owns the bridge. A connector is vendor-specific, ships with the platform, and is maintained for you; your side of it is the credential. An MCP server is a process you host and wire in for your agents, exposing whatever tools you write. Reach for the connector when one exists for the target system, and for [MCP servers](/platform/connectors/mcp-servers) when none does.
+A connector is vendor-specific, ships with the platform, and is maintained for you; your side of it is the credential. Registering your own MCP server for agents to call is not part of this version — when no connector exists for a system, your own code reaches it from a project agent's **Secrets** or an automation's `transform` node, and Tale's one MCP surface is the inbound endpoint under **Settings > API > MCP**, where your client drives Tale. [MCP servers](/platform/connectors/mcp-servers) lays out both.
 
 ## Where this fits
 

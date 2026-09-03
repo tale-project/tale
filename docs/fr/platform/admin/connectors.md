@@ -101,7 +101,7 @@ Un identifiant OAuth dont l’autorisation stockée a expiré ou a été révoqu
 
 ## Connectors et serveurs MCP
 
-Les deux surfaces laissent un agent aller au-delà de Tale, et la différence tient à qui possède le pont. Un connecteur est propre à un fournisseur, arrive avec la plateforme et est maintenu pour toi ; ta part, ce sont les identifiants. Un serveur MCP est un processus que tu héberges et branches pour tes agents, exposant les outils que tu écris. Prends le connecteur quand il en existe un pour le système visé, et les [serveurs MCP](/fr/platform/connectors/mcp-servers) quand il n’y en a pas.
+Un connecteur est propre à un fournisseur, arrive avec la plateforme et est maintenu pour toi ; ta part, ce sont les identifiants. Enregistrer ton propre serveur MCP pour que les agents l’appellent ne fait pas partie de cette version — quand aucun connecteur n’existe pour un système, ton propre code l’atteint par les **Secrets** d’un agent de projet ou un nœud `transform` d’une automatisation, et la seule surface MCP de Tale est l’endpoint entrant sous **Paramètres > API > MCP**, où ton client pilote Tale. [Serveurs MCP](/fr/platform/connectors/mcp-servers) expose les deux.
 
 ## Où cela s’inscrit
 

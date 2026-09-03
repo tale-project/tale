@@ -1,9 +1,9 @@
 ---
 title: Configurer les approbations
-description: Là où les exigences d’approbation sont déclarées — par opération d’connector, par outil MCP, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter.
+description: Là où les exigences d’approbation sont déclarées — par opération d’connector, et intégrées d’office pour les écritures et les changements de workflow — et où lire ce qui demandera avant de s’exécuter.
 ---
 
-Les exigences d’approbation dans Tale sont déclaratives : chaque capacité porte son propre drapeau disant si un agent doit d’abord demander, et le drapeau voyage avec l’connector ou le serveur qui fournit la capacité. Rien n’est à configurer pour que les valeurs par défaut soient justes — cette page montre où vit chaque drapeau, quelles écritures demandent d’elles-mêmes et comment changer cela pour ton organisation.
+Les exigences d’approbation dans Tale sont déclaratives : chaque capacité porte son propre drapeau disant si un agent doit d’abord demander, et le drapeau voyage avec l’connector qui fournit la capacité. Rien n’est à configurer pour que les valeurs par défaut soient justes — cette page montre où vit chaque drapeau, quelles écritures demandent d’elles-mêmes et comment changer cela pour ton organisation.
 
 Le modèle de ce qu’est une carte d’approbation et de qui la décide vit sur [Concepts d’approbation](/fr/platform/approvals/concepts). Ce qui suit est la surface de configuration, capacité par capacité.
 
@@ -40,7 +40,7 @@ Une opération déjà en attente sur une carte garde sa carte même si la politi
 
 ## Outils MCP
 
-Le manifeste d’un serveur MCP marque lesquels de ses outils exigent un accord — ceux-là demandent dans le chat chaque fois qu’un agent les appelle. Le drapeau vient de l’auteur du serveur ; connecter un serveur, c’est accepter son contrat d’outils, donc relis sa liste d’outils avant d’en brancher un. [Serveurs MCP](/fr/platform/connectors/mcp-servers) couvre la façon dont les serveurs atteignent tes agents.
+Les serveurs MCP externes — et les drapeaux d’approbation par outil que leurs manifestes portaient — ne font pas partie de cette version : il n’y a aucun serveur à connecter ni aucune liste d’outils à relire. La seule surface MCP est l’endpoint entrant sous **Paramètres > API > MCP**, où ton client pilote Tale, et une action de connector invoquée par là suit les mêmes règles d’approbation que partout ailleurs — une action retenue répond par une approbation en attente au lieu de s’exécuter. [Endpoint MCP](/fr/develop/mcp-endpoint) couvre les outils et ce que la clé de chaque rôle peut faire ; [Serveurs MCP](/fr/platform/connectors/mcp-servers) dit ce qui a remplacé le formulaire d’enregistrement.
 
 ## Garde-fous d’écriture intégrés
 
@@ -58,8 +58,8 @@ Le levier pour celles-ci n’est pas le drapeau d’approbation mais la capacit�
 
 ## Vérifier ce qui demandera
 
-Avant de mettre un agent devant de vrais systèmes, lis ses capacités comme le ferait un approbateur : quelles actions d’écriture ses connectors déclarent, quels outils ses serveurs MCP marquent, et si l’agent tient des outils d’écriture tout court. Le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre ensuite chaque décision que produit l’installation.
+Avant de mettre un agent devant de vrais systèmes, lis ses capacités comme le ferait un approbateur : quelles actions d’écriture ses connectors déclarent, et si l’agent tient des outils d’écriture tout court. Le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre ensuite chaque décision que produit l’installation.
 
 ## Où cela s’inscrit
 
-Configurer ici, c’est distribuer — les drapeaux vivent avec les connectors et les serveurs qui possèdent les capacités. Lis [Concepts d’approbation](/fr/platform/approvals/concepts) pour le cycle de vie de carte que ces drapeaux produisent, et [Outils d’agent](/fr/platform/agents/tools) pour le versant capacité de la même frontière.
+Configurer ici, c’est distribuer — les drapeaux vivent avec les connectors qui possèdent les capacités. Lis [Concepts d’approbation](/fr/platform/approvals/concepts) pour le cycle de vie de carte que ces drapeaux produisent, et [Outils d’agent](/fr/platform/agents/tools) pour le versant capacité de la même frontière.

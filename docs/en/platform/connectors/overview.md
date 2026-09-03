@@ -98,10 +98,10 @@ Write actions change something in the other system: a message posted, an issue o
 
 ## When no connector fits
 
-Thirteen connectors cover the systems most teams reach for, and they cannot cover an internal API, a homegrown tool, or a vendor nobody has written a connector for. That is what MCP is for: you host a server, Tale registers it, and its tools join the agent toolbelt alongside connector actions. The bridge is your code rather than a shipped definition, which is exactly the trade — more freedom, more to maintain.
+Thirteen connectors cover the systems most teams reach for, and they cannot cover an internal API, a homegrown tool, or a vendor nobody has written a connector for. Registering your own MCP server for agents to call is not part of this version — what bridges that gap is your own code in one of two places. A [project agent](/platform/projects/project-agents) holds **Secrets** — an API key handed to it as an environment variable — and calls the service straight from its sandbox. An [automation](/platform/automations/catalog) calls connector actions and runs your own JavaScript in `transform` nodes, on a schedule or a webhook.
 
-Register one under **Settings > API > MCP**, as described in [MCP servers](/platform/connectors/mcp-servers).
+The one MCP surface Tale ships points the other way: your MCP client connects to Tale under **Settings > API > MCP**, as [MCP servers](/platform/connectors/mcp-servers) explains.
 
 ## Where this fits
 
-Connectors are how Tale reaches the systems your work already lives in, and credentials are how you decide which accounts it may act as. From here, [Connector credentials](/platform/admin/connectors) is the operations side — adding, replacing, disabling, and reconnecting the rows under each connector. [Agent tools](/platform/agents/tools) shows how a connector's actions arrive in an agent's toolbelt, [Configure approvals](/platform/approvals/configure) holds the write ones, and [MCP servers](/platform/connectors/mcp-servers) covers the ground the catalog does not.
+Connectors are how Tale reaches the systems your work already lives in, and credentials are how you decide which accounts it may act as. From here, [Connector credentials](/platform/admin/connectors) is the operations side — adding, replacing, disabling, and reconnecting the rows under each connector. [Agent tools](/platform/agents/tools) shows how a connector's actions arrive in an agent's toolbelt, [Configure approvals](/platform/approvals/configure) holds the write ones, and [MCP servers](/platform/connectors/mcp-servers) says what replaced outbound MCP servers in this version.

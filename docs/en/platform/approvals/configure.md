@@ -1,9 +1,9 @@
 ---
 title: Configure approvals
-description: Where approval requirements are declared — per connector operation, per MCP tool, and built in for writes and workflow changes — and where to see what will ask before it runs.
+description: Where approval requirements are declared — per connector operation, and built in for writes and workflow changes — and where to see what will ask before it runs.
 ---
 
-Approval requirements in Tale are declarative: each capability carries its own flag saying whether an agent must ask first, and the flag travels with the connector or server that provides the capability. Nothing has to be configured for the defaults to be right — this page shows where each flag lives, which writes ask by default, and how to change that for your organization.
+Approval requirements in Tale are declarative: each capability carries its own flag saying whether an agent must ask first, and the flag travels with the connector that provides the capability. Nothing has to be configured for the defaults to be right — this page shows where each flag lives, which writes ask by default, and how to change that for your organization.
 
 The model of what an approval card is and who decides it lives on [Approval concepts](/platform/approvals/concepts). What follows is the configuration surface, capability by capability.
 
@@ -40,7 +40,7 @@ An operation that is already waiting on a card keeps its card even if the policy
 
 ## MCP tools
 
-An MCP server's manifest marks which of its tools need sign-off — those ask in chat every time an agent calls them. The flag comes from the server's author; connecting a server is how you accept its tool contract, so review its tool list before wiring one in. [MCP servers](/platform/connectors/mcp-servers) covers how servers reach your agents.
+External MCP servers — and the per-tool approval flags their manifests used to carry — are not part of this version: there is no server to connect and no tool list to review. The one MCP surface is the inbound endpoint under **Settings > API > MCP**, where your client drives Tale, and a connector action invoked through it runs under the same approval rules as everywhere else — a gated action answers a pending-approval result instead of running. [MCP endpoint](/develop/mcp-endpoint) covers the tools and what each role's key may do; [MCP servers](/platform/connectors/mcp-servers) says what replaced the registration form.
 
 ## Built-in write gates
 
@@ -58,8 +58,8 @@ The lever for these is not the approval flag but the capability itself: an agent
 
 ## Verifying what will ask
 
-Before putting an agent in front of real systems, read its capabilities the way an approver would: which write actions its connectors declare, which tools its MCP servers flag, and whether the agent holds write tools at all. The [audit log](/platform/admin/governance/audit-logs) then records every decision the setup produces.
+Before putting an agent in front of real systems, read its capabilities the way an approver would: which write actions its connectors declare, and whether the agent holds write tools at all. The [audit log](/platform/admin/governance/audit-logs) then records every decision the setup produces.
 
 ## Where this fits
 
-Configuration here is distribution — flags live with the connectors and servers that own the capabilities. Read [Approval concepts](/platform/approvals/concepts) for the card lifecycle those flags produce, and [Agent tools](/platform/agents/tools) for the capability side of the same boundary.
+Configuration here is distribution — flags live with the connectors that own the capabilities. Read [Approval concepts](/platform/approvals/concepts) for the card lifecycle those flags produce, and [Agent tools](/platform/agents/tools) for the capability side of the same boundary.

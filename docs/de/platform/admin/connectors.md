@@ -101,7 +101,7 @@ Ein OAuth-Eintrag, dessen gespeicherte Autorisierung abgelaufen ist oder widerru
 
 ## Connectoren und MCP-Server
 
-Beide Oberflächen lassen einen Agent über Tale hinausgreifen, und der Unterschied liegt darin, wem die Brücke gehört. Ein Connector ist anbieterspezifisch, kommt mit der Plattform und wird für dich gepflegt; deine Seite davon sind die Zugangsdaten. Ein MCP-Server ist ein Prozess, den du selbst betreibst und für deine Agents anbindest, mit genau den Tools, die du schreibst. Greif zum Connector, wenn es einen für das Zielsystem gibt, und zu [MCP-Servern](/de/platform/connectors/mcp-servers), wenn nicht.
+Ein Connector ist anbieterspezifisch, kommt mit der Plattform und wird für dich gepflegt; deine Seite davon sind die Zugangsdaten. Einen eigenen MCP-Server zu registrieren, den Agenten aufrufen, gibt es in dieser Version nicht — gibt es für ein System keinen Connector, erreicht dein eigener Code es über die **Secrets** eines Projekt-Agenten oder einen `transform`-Knoten einer Automatisierung, und Tales einzige MCP-Oberfläche ist der eingehende Endpoint unter **Einstellungen > API > MCP**, an dem dein Client Tale steuert. [MCP-Server](/de/platform/connectors/mcp-servers) legt beides dar.
 
 ## Wo das hingehört
 

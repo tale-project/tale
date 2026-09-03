@@ -62,7 +62,7 @@ The model catalog behind every picker — capability tags, defaults, and the shi
 
 <Card title="Connectors" icon="plug" href="/platform/connectors/overview">
 
-Third-party SaaS pairings and MCP servers.
+Third-party SaaS connectors and the credentials behind them.
 
 </Card>
 
@@ -88,7 +88,7 @@ The build surface — agents, knowledge curation, automations, projects.
 
 <Card title="Developer" icon="terminal" href="/platform/developer/overview">
 
-API keys, custom tools, webhooks, MCP servers — wiring Tale to external code.
+API keys, the MCP endpoint, connector credentials — wiring Tale to external code.
 
 </Card>
 
