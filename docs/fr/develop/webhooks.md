@@ -18,11 +18,12 @@ curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>"
 # → 202 { "runId": "..." }
 ```
 
-Le corps devient l'entrée de l'exécution. Un corps qui n'est pas du JSON passe tel quel comme texte au lieu d'être refusé — certains fournisseurs envoient du texte brut — et tout ce qui dépasse 256 Ko est rejeté en **413**. Suis l'exécution comme n'importe quelle autre via `GET /api/v1/runs/{runId}` avec une clé API, ou regarde-la dans le produit.
+Le corps devient l'entrée de l'exécution. Un corps qui n'est pas du JSON passe tel quel comme texte au lieu d'être refusé — certains fournisseurs envoient du texte brut — et tout ce qui dépasse 256 Ko est rejeté en **413** — la limite compte les octets au fil de l’arrivée du corps, une livraison trop grosse est donc refusée plutôt que mise en mémoire. Suis l'exécution comme n'importe quelle autre via `GET /api/v1/runs/{runId}` avec une clé API, ou regarde-la dans le produit.
 
 Le vocabulaire complet des réponses :
 
 - **202** `{ "runId": "..." }` — l'exécution a démarré.
+- **202** `{ "runId": "...", "duplicate": true }` — une nouvelle livraison d’une livraison déjà acceptée ; `runId` est l’exécution que la première a lancée, et il n’en existe pas de seconde.
 - **404** — jeton inconnu, désactivé ou mal tapé. La réponse ne distingue jamais les cas — qui devine n'apprend rien.
 - **409** `{ "error": "automation has no deployed version" }` — déploie une version dont les tests passent et le même appel s'exécute.
 - **413** — le corps dépasse 256 Ko.
@@ -35,9 +36,22 @@ URL perdue ou fuitée ? Fais-la tourner — `PUT /api/v1/automations/{name}/tri
 
 ## Idempotence et relances
 
-L'endpoint de déclenchement ne déduplique pas : un POST rejoué démarre une seconde exécution. Ce qui rend les relances sûres, c'est l'exécution elle-même — une exécution live pose un checkpoint à chaque nœud terminé, donc une exécution qui reprend après une interruption ne répète jamais un effet déjà produit. Là où une _exécution en double_ resterait fausse, mets ta propre clé de déduplication dans la charge utile et branche dessus dans le premier nœud de l'automatisation.
+L’endpoint déduplique les livraisons, parce que chaque fournisseur livre au moins une fois. Deux choses identifient une livraison :
 
-Relancer est la responsabilité de l'appelant : la réponse te dit si l'exécution a _démarré_, pas si elle a réussi. Un appelant raisonnable rejoue les réponses non-2xx avec backoff et considère 202 comme acquis.
+- **Un identifiant de livraison que tu envoies.** Le premier de ces en-têtes présent l’emporte : `Idempotency-Key`, `X-Idempotency-Key`, le `webhook-id` des Standard Webhooks, `X-GitHub-Delivery`, `X-Gitlab-Event-UUID`, `X-Shopify-Webhook-Id`, `Linear-Delivery`, `X-Atlassian-Webhook-Identifier`, `X-Request-UUID` (Bitbucket), `I-Twilio-Idempotency-Token`, `X-Webhook-Id`. Une répétition avec le même identifiant dans les 24 heures répond **202** avec l’exécution d’origine et `"duplicate": true` — quoi que dise son corps.
+- **Le corps lui-même.** Sans en-tête d’identifiant, un corps identique à l’octet posté sur la même URL (et le même `projectId`) en moins de deux minutes est la même livraison. Passé deux minutes, c’est une nouvelle livraison — un heartbeat qui poste le même corps toutes les quelques minutes continue donc de s’exécuter.
+
+```bash
+curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: order-12345-paid" \
+  -d '{ "orderId": "12345", "status": "paid" }'
+# → 202 { "runId": "run_a" }
+# la même requête à nouveau, autant de fois que tu veux, pendant 24 heures :
+# → 202 { "runId": "run_a", "duplicate": true }
+```
+
+Relancer est donc sûr de ton côté : relance les timeouts et les réponses non-2xx avec backoff, garde l’identifiant de livraison stable d’une tentative à l’autre, et considère tout **202** comme accepté — `duplicate: true` te dit que la tentative précédente avait déjà abouti. La réponse dit si l’exécution a _démarré_, pas si elle a réussi ; suis-la via `GET /api/v1/runs/{runId}`. Un **409** n’est pas mémorisé : déploie une version et renvoie la livraison.
 
 ## Où ça se place
 

@@ -3,7 +3,7 @@ title: Automatisierungs-Trigger
 description: Die drei Wege, auf denen eine Automatisierung von selbst startet — ein Zeitplan, ein Webhook oder ein Plattform-Ereignis — was jeder in den Lauf trägt und warum keiner beim Live-Schalten zerbricht.
 ---
 
-Ein Trigger ist das, was eine Automatisierung startet, wenn niemand irgendwo klickt. Es gibt genau drei Arten, die Menge ist abgeschlossen, und eine Automatisierung darf mehrere davon gleichzeitig tragen. Das Nützlichste, was du über einen Trigger wissen kannst: Er hängt am **Namen** der Automatisierung und nicht an einer Version. Deshalb macht eine neu live geschaltete Version nie eine Webhook-URL ungültig, auf die ein externes System angewiesen ist, und wirft nie einen Zeitplan weg.
+Ein Trigger ist das, was eine Automatisierung startet, wenn niemand irgendwo klickt. Es gibt genau drei Arten, die Menge ist abgeschlossen, und eine Automatisierung trägt genau einen Trigger — bindest du eine andere Art, ersetzt sie den bisherigen. Das Nützlichste, was du über einen Trigger wissen kannst: Er hängt am **Namen** der Automatisierung und nicht an einer Version. Deshalb macht eine neu live geschaltete Version nie eine Webhook-URL ungültig, auf die ein externes System angewiesen ist, und wirft nie einen Zeitplan weg.
 
 Jeder Trigger startet die live geschaltete Version und läuft im Live-Modus — eine Automatisierung ohne Live-Version lässt sich von ihm also nicht starten. Jeder Trigger trägt einen Ein-Aus-Schalter und hält fest, wann der Scheduler zuletzt auf ihn reagiert hat.
 
@@ -45,6 +45,8 @@ curl -X POST https://<dein-tale-host>/api/automations/webhook/<token> \
 ```
 
 Ein erfolgreicher Aufruf wird sofort angenommen und antwortet mit der id des gestarteten Laufs — der Aufrufer wartet also nie darauf, dass die Automatisierung fertig wird. Ein Body, der kein JSON ist, wird als Text durchgereicht statt abgewiesen, denn manche Anbieter senden Formular- oder Klartext-Payloads. Bodies sind auf 256 KB gedeckelt: Ein Webhook nimmt eine Payload entgegen, keinen Upload.
+
+Zustellungen sind idempotent, denn jeder Anbieter liefert mindestens einmal — eine langsame Antwort, eine abgerissene Verbindung oder ein Klick auf _erneut zustellen_ schickt dieselbe Zustellung noch einmal. Eine Anfrage, die ihre Zustellung benennt (`Idempotency-Key`, das `webhook-id` der Standard Webhooks, `X-GitHub-Delivery` und die anderen gängigen Anbieter-Header), bleibt 24 Stunden bekannt: Eine Wiederholung mit derselben ID antwortet mit dem Lauf, den die erste gestartet hat, markiert mit `duplicate: true`, statt einen zweiten zu starten. Eine Anfrage ohne ID erkennt die Plattform am Body — ein byteidentischer Body an dieselbe URL innerhalb von zwei Minuten ist dieselbe Zustellung. Unterschiedliche Zustellungen laufen jede für sich; können sich deine Payloads innerhalb von zwei Minuten legitim wiederholen, schick eine ID mit. Die vollständige Header-Liste und die Antwortformen stehen unter [Webhooks](/de/develop/webhooks).
 
 Du kannst den Lauf auf ein Projekt beschränken, indem du der URL `?projectId=<id>` anhängst — das Projekt, das du in die URL einbackst, die du dem Anbieter gibst. Lässt du es weg, nutzt der Lauf die Bindung der Automatisierung selbst: eine an ein einzelnes Projekt gebundene Automatisierung läuft dort, eine an mehrere oder an keines gebundene läuft organisationsweit. Das Projekt wird gegen diese Bindungen geprüft, sodass eine öffentliche URL den Lauf nie über das hinaus ausweiten kann, woran die Automatisierung gebunden ist; ein Projekt außerhalb der Menge antwortet mit einem 400.
 

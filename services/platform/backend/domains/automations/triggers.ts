@@ -3,6 +3,11 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { dueOccurrence } from '../../core/automations/cron.ts';
 import {
+  deliveryIdentity,
+  type DeliveryIdentity,
+  readWebhookBody,
+} from '../../core/automations/webhook_delivery.ts';
+import {
   hashWebhookToken,
   isPlausibleWebhookToken,
   tokenHashEquals,
@@ -20,7 +25,10 @@ import { AutomationError, beginRun, beginRunInTx } from './store.ts';
  *    the same minute and two overlapping scans fire it once;
  *  - the webhook door `POST /api/automations/webhook/<token>` — the token in
  *    the path IS the credential (sha256 verifier + constant-time compare;
- *    unknown/disabled reads as a plain 404);
+ *    unknown/disabled reads as a plain 404). Deliveries are IDEMPOTENT: a
+ *    redelivery (the sender's delivery id, or a byte-identical body inside
+ *    the short window — `webhook_delivery.ts`) answers with the run the
+ *    first delivery started instead of starting another;
  *  - `dispatchAutomationEvent` — platform events fan out to enabled `event`
  *    triggers (never events raised BY an automation — loop safety), wired
  *    into the events emit seam.
@@ -31,7 +39,6 @@ import { AutomationError, beginRun, beginRunInTx } from './store.ts';
 const SCAN_PAGE_SIZE = 200;
 const DEFAULT_TIMEZONE = 'UTC';
 const MINUTE_MS = 60_000;
-const MAX_WEBHOOK_BODY_BYTES = 256 * 1024;
 /** How many undeployed schedules one scan names in its summary line. */
 const UNDEPLOYED_NAMES_IN_LOG = 5;
 
@@ -202,6 +209,89 @@ export async function dispatchAutomationEvent(
   return { started, refused: false };
 }
 
+/** Thrown inside the delivery transaction when the automation has no deployed
+ * version: rolls the delivery claim back with the (absent) run, so the same
+ * delivery runs once the deployment exists. */
+class NotDeployedError extends Error {
+  constructor() {
+    super('automation has no deployed version');
+    this.name = 'NotDeployedError';
+  }
+}
+
+/**
+ * Accept one webhook delivery: claim its identity and start the run in ONE
+ * transaction. The claim goes first so a concurrent repeat blocks on the row
+ * lock until this commit and then reads the run started here; a repeat inside
+ * the identity's window answers with that run (`duplicate: true`); an expired
+ * identity is taken over and runs again as the new delivery it is.
+ */
+async function acceptWebhookDelivery(
+  sql: Sql,
+  args: {
+    trigger: TriggerRow;
+    identity: DeliveryIdentity;
+    payload: unknown;
+    projectId: string | undefined;
+  },
+): Promise<{ runId: string; duplicate: boolean }> {
+  const { trigger, identity } = args;
+  const now = Date.now();
+  return sql.begin(async (tx) => {
+    const claimed = await tx<{ triggerId: string }[]>`
+      INSERT INTO app.automation_webhook_deliveries AS d (
+        trigger_id, delivery_key, source, run_id, received_at_ms, expires_at_ms
+      ) VALUES (
+        ${trigger.id}, ${identity.key}, ${identity.source}, NULL,
+        ${now}, ${now + identity.windowMs}
+      )
+      ON CONFLICT (trigger_id, delivery_key) DO UPDATE SET
+        source = EXCLUDED.source,
+        run_id = NULL,
+        received_at_ms = EXCLUDED.received_at_ms,
+        expires_at_ms = EXCLUDED.expires_at_ms
+      WHERE d.expires_at_ms <= EXCLUDED.received_at_ms
+      RETURNING trigger_id AS "triggerId"
+    `;
+    if (claimed.length === 0) {
+      // A live identity: the first delivery's run is the answer.
+      const existing = await tx<{ runId: string | null }[]>`
+        SELECT run_id AS "runId" FROM app.automation_webhook_deliveries
+        WHERE trigger_id = ${trigger.id} AND delivery_key = ${identity.key}
+      `;
+      const runId = existing[0]?.runId ?? null;
+      if (runId === null) {
+        // Unreachable for a committed row (the claim and the run commit
+        // together); named so a future ledger writer cannot hide behind it.
+        throw new Error(
+          `webhook delivery ledger row for trigger ${trigger.id} carries no run`,
+        );
+      }
+      return { runId, duplicate: true };
+    }
+    const started = await beginRunInTx(tx, {
+      organizationId: trigger.organizationId,
+      name: trigger.name,
+      input: { trigger: 'webhook', payload: args.payload },
+      mode: 'live',
+      startedBy: `trigger:${trigger.id}`,
+      ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
+    });
+    if (!started) throw new NotDeployedError();
+    await tx`
+      UPDATE app.automation_webhook_deliveries SET run_id = ${started.runId}
+      WHERE trigger_id = ${trigger.id} AND delivery_key = ${identity.key}
+    `;
+    // Lazy housekeeping on the accepted path: this trigger's expired
+    // identities go with the delivery that outlived them (no sweeper job).
+    await tx`
+      DELETE FROM app.automation_webhook_deliveries
+      WHERE trigger_id = ${trigger.id} AND expires_at_ms <= ${now}
+    `;
+    return { runId: started.runId, duplicate: false };
+  });
+}
+
 /** The inbound webhook door. Mounted at `/api/automations/webhook`. */
 export function createWebhookRoutes(deps: { sql: Sql }): Hono {
   const app = new Hono();
@@ -211,10 +301,17 @@ export function createWebhookRoutes(deps: { sql: Sql }): Hono {
     if (!isPlausibleWebhookToken(token)) {
       return c.text('Not found', 404);
     }
-    const raw = await c.req.text();
-    if (raw.length > MAX_WEBHOOK_BODY_BYTES) {
+    // The cap is enforced in BYTES as the body streams — nothing past it is
+    // buffered, and a declared Content-Length over it is refused before the
+    // first byte. (The former `text().length` check counted UTF-16 code units
+    // after reading everything: a 300 KB body of two-byte characters passed
+    // as "150 K".)
+    const body = await readWebhookBody(c.req.raw);
+    if (!body.ok) {
       return c.text('Payload too large', 413);
     }
+    const { bytes } = body;
+    const raw = new TextDecoder().decode(bytes);
     let payload: unknown = raw;
     if (raw.length > 0) {
       try {
@@ -245,22 +342,32 @@ export function createWebhookRoutes(deps: { sql: Sql }): Hono {
       return c.text('Not found', 404);
     }
     const requestedProject = c.req.query('projectId');
+    const projectId =
+      requestedProject !== undefined && requestedProject !== ''
+        ? requestedProject
+        : undefined;
+    const identity = await deliveryIdentity({
+      headers: c.req.raw.headers,
+      body: bytes,
+      ...(projectId !== undefined ? { projectId } : {}),
+    });
     try {
-      const started = await beginRun(deps.sql, {
-        organizationId: trigger.organizationId,
-        name: trigger.name,
-        input: { trigger: 'webhook', payload },
-        mode: 'live',
-        startedBy: `trigger:${trigger.id}`,
-        ...(requestedProject !== undefined && requestedProject !== ''
-          ? { projectId: requestedProject }
-          : {}),
+      const outcome = await acceptWebhookDelivery(deps.sql, {
+        trigger,
+        identity,
+        payload,
+        projectId,
       });
-      if (!started) {
-        return c.json({ error: 'automation has no deployed version' }, 409);
-      }
-      return c.json({ runId: started.runId }, 202);
+      return c.json(
+        outcome.duplicate
+          ? { runId: outcome.runId, duplicate: true }
+          : { runId: outcome.runId },
+        202,
+      );
     } catch (error) {
+      if (error instanceof NotDeployedError) {
+        return c.json({ error: error.message }, 409);
+      }
       // The token proved the caller may start this automation, so a bad
       // projectId is a plain 400 with the reason — not the token-secrecy 404.
       if (error instanceof AutomationError) {

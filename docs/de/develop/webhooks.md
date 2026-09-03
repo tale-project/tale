@@ -18,11 +18,12 @@ curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>"
 # → 202 { "runId": "..." }
 ```
 
-Der Body wird zum Input des Laufs. Ein Body, der kein JSON ist, wird als Text durchgereicht statt abgewiesen — manche Anbieter senden reinen Text — und alles über 256 KB wird mit **413** abgelehnt. Polle den Lauf wie jeden anderen über `GET /api/v1/runs/{runId}` mit einem API-Schlüssel, oder schau ihm im Produkt zu.
+Der Body wird zum Input des Laufs. Ein Body, der kein JSON ist, wird als Text durchgereicht statt abgewiesen — manche Anbieter senden reinen Text — und alles über 256 KB wird mit **413** abgelehnt — die Grenze zählt Bytes, während der Body eintrifft, eine zu große Zustellung wird also abgewiesen statt gepuffert. Polle den Lauf wie jeden anderen über `GET /api/v1/runs/{runId}` mit einem API-Schlüssel, oder schau ihm im Produkt zu.
 
 Das vollständige Antwortvokabular:
 
 - **202** `{ "runId": "..." }` — der Lauf ist gestartet.
+- **202** `{ "runId": "...", "duplicate": true }` — eine erneute Zustellung einer bereits angenommenen; `runId` ist der Lauf, den die erste gestartet hat, einen zweiten gibt es nicht.
 - **404** — unbekanntes, deaktiviertes oder vertipptes Token. Die Antwort unterscheidet die Fälle nie — wer rät, lernt nichts.
 - **409** `{ "error": "automation has no deployed version" }` — deploye eine Version, deren Tests bestehen, und derselbe Aufruf läuft.
 - **413** — der Body übersteigt 256 KB.
@@ -35,9 +36,22 @@ URL verloren oder geleakt? Rotiere sie — `PUT /api/v1/automations/{name}/trigg
 
 ## Idempotenz und Wiederholungen
 
-Der Trigger-Endpoint dedupliziert nicht: ein wiederholter POST startet einen zweiten Lauf. Sicher machen Wiederholungen der Lauf selbst — ein Live-Lauf checkpointet jeden abgeschlossenen Knoten, ein nach einer Unterbrechung fortgesetzter Lauf wiederholt also nie einen Effekt, den er schon erzeugt hat. Wo ein _doppelter Lauf_ trotzdem falsch wäre, gib deinen eigenen Deduplizierungs-Schlüssel im Payload mit und verzweige darauf im ersten Knoten der Automatisierung.
+Der Endpoint dedupliziert Zustellungen, denn jeder Anbieter liefert mindestens einmal. Zwei Dinge identifizieren eine Zustellung:
 
-Wiederholen ist Sache des Aufrufers: die Antwort sagt dir, ob der Lauf _gestartet_ ist, nicht ob er gelungen ist. Ein vernünftiger Aufrufer wiederholt Nicht-2xx-Antworten mit Backoff und behandelt 202 als erledigt.
+- **Eine Zustellungs-ID, die du mitschickst.** Der erste dieser Header, der vorhanden ist, zählt: `Idempotency-Key`, `X-Idempotency-Key`, das `webhook-id` der Standard Webhooks, `X-GitHub-Delivery`, `X-Gitlab-Event-UUID`, `X-Shopify-Webhook-Id`, `Linear-Delivery`, `X-Atlassian-Webhook-Identifier`, `X-Request-UUID` (Bitbucket), `I-Twilio-Idempotency-Token`, `X-Webhook-Id`. Eine Wiederholung mit derselben ID innerhalb von 24 Stunden antwortet **202** mit dem ursprünglichen Lauf und `"duplicate": true` — egal, was im Body steht.
+- **Der Body selbst.** Ohne ID-Header ist ein byteidentischer Body an dieselbe URL (und dieselbe `projectId`) innerhalb von zwei Minuten dieselbe Zustellung. Nach zwei Minuten ist er eine neue — ein Heartbeat, der alle paar Minuten denselben Body postet, läuft also weiter.
+
+```bash
+curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: order-12345-paid" \
+  -d '{ "orderId": "12345", "status": "paid" }'
+# → 202 { "runId": "run_a" }
+# dieselbe Anfrage noch einmal, beliebig oft, in den nächsten 24 Stunden:
+# → 202 { "runId": "run_a", "duplicate": true }
+```
+
+Wiederholen ist von deiner Seite damit sicher: Wiederhole Timeouts und Nicht-2xx-Antworten mit Backoff, halte die Zustellungs-ID über alle Versuche stabil und behandle jedes **202** als angenommen — `duplicate: true` sagt dir, dass der frühere Versuch schon gelandet war. Die Antwort sagt, ob der Lauf _gestartet_ ist, nicht ob er gelungen ist; verfolge ihn über `GET /api/v1/runs/{runId}`. Ein **409** wird nicht gemerkt: Deploye eine Version und schick die Zustellung noch einmal.
 
 ## Wo das hingehört
 

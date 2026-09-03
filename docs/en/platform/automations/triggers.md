@@ -3,7 +3,7 @@ title: Automation triggers
 description: The three ways an automation starts on its own — a schedule, a webhook, or a platform event — what each carries into the run, and why none of them break when you deploy.
 ---
 
-A trigger is what starts an automation when nobody is clicking anything. There are exactly three kinds, the set is closed, and an automation may carry several of them at once. The single most useful thing to know about a trigger is that it binds to the automation's **name** and not to a version, which is why deploying a new version never invalidates a webhook URL an external system depends on and never drops a schedule.
+A trigger is what starts an automation when nobody is clicking anything. There are exactly three kinds, the set is closed, and an automation carries one trigger at a time — binding a different kind replaces the one it has. The single most useful thing to know about a trigger is that it binds to the automation's **name** and not to a version, which is why deploying a new version never invalidates a webhook URL an external system depends on and never drops a schedule.
 
 Every trigger fires against the automation's deployed version and runs in live mode, so an automation with no deployment cannot be started by one. Each trigger carries an on-off switch and records when the scheduler last acted on it.
 
@@ -45,6 +45,8 @@ curl -X POST https://<your-tale-host>/api/automations/webhook/<token> \
 ```
 
 A successful call is accepted immediately and answers with the id of the run it started, so the caller never waits for the automation to finish. A body that is not JSON is handed through as text rather than refused, because some vendors post form or plain-text payloads. Bodies are capped at 256 KB — a webhook takes a payload, not an upload.
+
+Deliveries are idempotent, because every vendor delivers at least once — a slow response, a dropped connection, or someone pressing _redeliver_ sends the same delivery again. A request that names its delivery (`Idempotency-Key`, the Standard Webhooks `webhook-id`, `X-GitHub-Delivery`, and the other common vendor headers) is remembered for 24 hours: a repeat with the same id answers with the run the first one started, flagged `duplicate: true`, instead of starting another. A request without an id is recognised by its body — a byte-identical body posted to the same URL within two minutes is the same delivery. Distinct deliveries each run; if your payloads can legitimately repeat inside two minutes, send an id. [Webhooks](/develop/webhooks) has the full header list and the response shapes.
 
 You can scope the run to a project by adding `?projectId=<id>` to the URL — the project you bake into the URL you give the vendor. Leave it off and the run uses the automation's own binding: an automation bound to a single project runs there, one bound to several or to none runs organization-wide. The project is validated against those bindings, so a public URL can never widen the run past what the automation is bound to; a project outside the set answers with a 400.
 
