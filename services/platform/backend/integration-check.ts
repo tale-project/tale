@@ -7923,9 +7923,8 @@ async function checkSteerFallbackRecovery(
   let threw = '';
   try {
     await steerTaskAgentTurnImpl(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused host over the shim, as task-list.ts wires it
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/no-unnecessary-type-assertion -- reused host over the shim, as task-list.ts wires it; tsc requires the widening while tsgolint false-positives it as unnecessary
       shim as unknown as Parameters<typeof steerTaskAgentTurnImpl>[0],
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the job payload shape (branded ids are plain strings on the wire)
       {
         organizationId: orgId,
         runId: settledRunId,
@@ -7944,7 +7943,7 @@ async function checkSteerFallbackRecovery(
         author: 'Dana',
         authorId: userId,
         attempt: 0,
-      } as unknown as Parameters<typeof steerTaskAgentTurnImpl>[1],
+      },
     );
   } catch (error) {
     threw = error instanceof Error ? error.message : String(error);
