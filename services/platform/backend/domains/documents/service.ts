@@ -27,6 +27,7 @@ import {
   registerUploadedBytes,
   statOrgBlob,
 } from '../files/service.ts';
+import { ownsUploadedBlob } from '../files/upload-intents.ts';
 import { buildHubFolderPath } from '../folders/paths.ts';
 import { assertFolderMutable, loadFolderOrThrow } from '../folders/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
@@ -136,6 +137,27 @@ export async function loadDocumentOrThrow(
     throw new DocumentError('DOCUMENT_NOT_FOUND', 'Document not found', 404);
   }
   return doc;
+}
+
+/**
+ * Every document whose content is the blob `storageRef` — a multi-team upload
+ * creates one document per team from ONE blob, and the file row's own
+ * `document_id` names only the last of them — plus the document that row
+ * names (a replaced document keeps its old file row's pointer). The files
+ * read gate (`files/access.ts`) walks these: the blob is readable when any
+ * one of them is.
+ */
+export async function listDocumentsForBlob(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  args: { storageRef: string; documentId: string | null },
+): Promise<DocumentRow[]> {
+  return sql<DocumentRow[]>`
+    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
+    WHERE org_id = ${organizationId}
+      AND (file_ref = ${args.storageRef} OR id = ${args.documentId ?? ''})
+    LIMIT 50
+  `;
 }
 
 function isProjectScoped(doc: Pick<DocumentRow, 'projectId'>): boolean {
@@ -1504,9 +1526,11 @@ export interface CreateDocumentFromBlobUploadArgs {
 
 /**
  * The session upload lane's bind step (0.4 `createDocumentFromUpload` with a
- * blob ref): HEAD-attest the landed blob, validate against policy with the
- * AUTHORITATIVE size, register the metadata row, then bind the document —
- * all in the caller's transaction, so a refusal strands nothing.
+ * blob ref): prove the caller owns the blob, HEAD-attest it landed, validate
+ * against policy with the AUTHORITATIVE size, register the metadata row,
+ * then bind the document — all in the caller's transaction, so a refusal
+ * strands nothing. Ownership is proven WITHOUT consuming the upload intent:
+ * one blob legitimately becomes one document per selected team.
  */
 export async function createDocumentFromBlobUpload(
   sql: Sql,
@@ -1515,6 +1539,18 @@ export async function createDocumentFromBlobUpload(
   args: CreateDocumentFromBlobUploadArgs,
 ): Promise<string> {
   assertDocumentsWriteRole(auth);
+  const owned = await ownsUploadedBlob(tx, {
+    organizationId: auth.organizationId,
+    userId: auth.userId,
+    storageRef: args.storageRef,
+  });
+  if (!owned) {
+    throw new DocumentError(
+      'UPLOAD_NOT_OWNED',
+      'This upload is not yours to bind, or the upload session expired. Upload the file again.',
+      403,
+    );
+  }
   const stat = await statOrgBlob(sql, auth.organizationId, args.storageRef);
   if (stat === null) {
     throw new DocumentError(

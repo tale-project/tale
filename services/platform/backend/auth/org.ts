@@ -1,6 +1,11 @@
 import type { MiddlewareHandler } from 'hono';
 import type { Sql } from 'postgres';
 
+import {
+  defineAbilityFor,
+  type AppAction,
+  type AppSubject,
+} from '../../lib/permissions/ability.ts';
 import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
 import {
   MembershipError,
@@ -94,6 +99,31 @@ export function requireOrgMember<E extends OrgEnv>(
         return c.json({ error: error.message }, membershipStatus(error));
       }
       throw error;
+    }
+    return next();
+  };
+}
+
+/**
+ * Refuse a caller whose role lacks `action` on `subject` in the shared CASL
+ * matrix (`lib/permissions/ability.ts`) — the server twin of the UI's
+ * `ability.can` gates, for a router whose whole surface sits behind one
+ * capability (the cloud-import browse/import doors behind `knowledgeWrite`).
+ * Runs after `requireOrgMember`.
+ */
+export function requireOrgAbility<E extends OrgEnv>(
+  action: AppAction,
+  subject: AppSubject,
+): MiddlewareHandler<E> {
+  return async (c, next) => {
+    if (defineAbilityFor(c.get('orgMember').role).cannot(action, subject)) {
+      return c.json(
+        {
+          error: 'RBAC_FORBIDDEN',
+          message: 'Your role cannot perform this action in this organization.',
+        },
+        403,
+      );
     }
     return next();
   };

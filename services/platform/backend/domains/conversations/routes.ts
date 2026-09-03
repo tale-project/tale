@@ -6,6 +6,7 @@ import { AppError } from '../../../lib/shared/errors/app-error';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
   bulkReplyToConversations,
   composeEmailConversation,
@@ -327,6 +328,34 @@ export function createConversationRoutes(deps: {
     }
   });
 
+  /**
+   * Outbound attachments are client-named blob refs the connector will READ
+   * and mail out of the organization. Each must be the sender's own upload
+   * (their upload intent, or a row they registered) — a document's ref,
+   * which every reader of that document holds, is not theirs to send.
+   */
+  const assertOwnedAttachments = async (
+    c: Context<OrgEnv>,
+    attachments: readonly { storageId: string }[] | undefined,
+  ): Promise<void> => {
+    if (attachments === undefined || attachments.length === 0) return;
+    const foreign = await firstForeignUpload(
+      deps.sql,
+      {
+        organizationId: c.get('orgId'),
+        userId: c.get('sessionBundle').user.id,
+      },
+      attachments.map((attachment) => attachment.storageId),
+    );
+    if (foreign !== null) {
+      throw new ConversationError(
+        'attachment_not_owned',
+        'An attachment is not one of your uploads. Remove it and attach the file again.',
+        403,
+      );
+    }
+  };
+
   /** Send a reply through the conversation's connector (undo window). */
   app.post('/:id/reply', async (c) => {
     const body = z
@@ -339,6 +368,7 @@ export function createConversationRoutes(deps: {
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
       await loadVisibleConversation(deps.sql, viewer(c), c.req.param('id'));
+      await assertOwnedAttachments(c, body.data.attachments);
       const messageId = await replyToConversation(deps.sql, {
         conversationId: c.req.param('id'),
         organizationId: c.get('orgId'),
@@ -374,6 +404,7 @@ export function createConversationRoutes(deps: {
       .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
+      await assertOwnedAttachments(c, body.data.attachments);
       const result = await composeEmailConversation(deps.sql, {
         organizationId: c.get('orgId'),
         contactId: body.data.contactId,
