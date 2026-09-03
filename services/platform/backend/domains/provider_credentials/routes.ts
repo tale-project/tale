@@ -36,6 +36,8 @@ const updateSchema = z.object({
   isDefault: z.boolean().optional(),
   modelAllowlist: z.array(z.string().max(200)).max(200).nullable().optional(),
   endpointUrl: z.string().max(2048).nullable().optional(),
+  /** Re-point an env credential at another TALE_PROVIDER_KEY_* variable. */
+  envName: z.string().max(80).optional(),
   secret: z.string().max(100_000).optional(),
 });
 

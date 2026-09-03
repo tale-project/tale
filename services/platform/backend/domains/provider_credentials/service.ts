@@ -299,26 +299,49 @@ export async function createCredential(
   return id;
 }
 
-/** Name / status / default / allowlist / secret-rotation edits. */
+export interface UpdateCredentialPatch {
+  name?: string;
+  status?: 'active' | 'disabled';
+  isDefault?: boolean;
+  modelAllowlist?: string[] | null;
+  endpointUrl?: string | null;
+  /** Re-point an `env` credential at another TALE_PROVIDER_KEY_* variable. */
+  envName?: string;
+  /** Rotate the stored secret (api-key/subscription-key/broker JSON). */
+  secret?: string;
+}
+
+/** Name / status / default / allowlist / endpoint / env-ref / secret-rotation
+ * edits. An empty patch is refused rather than acknowledged: an ack with an
+ * audit row and no change is how a dropped field once read as a saved edit. */
 export async function updateCredential(
   tx: TransactionSql,
   scope: CredentialScope,
   credentialId: string,
-  patch: {
-    name?: string;
-    status?: 'active' | 'disabled';
-    isDefault?: boolean;
-    modelAllowlist?: string[] | null;
-    endpointUrl?: string | null;
-    /** Rotate the stored secret (api-key/subscription-key/broker JSON). */
-    secret?: string;
-  },
+  patch: UpdateCredentialPatch,
 ): Promise<void> {
   assertCredentialAdmin(scope);
+  if (Object.values(patch).every((value) => value === undefined)) {
+    throw new CredentialAdminError(
+      'CREDENTIAL_PATCH_EMPTY',
+      'Nothing to update — the edit carried no changed field',
+    );
+  }
   const rows = await tx<
-    { providerSlug: string; isDefault: boolean; name: string }[]
+    {
+      providerSlug: string;
+      isDefault: boolean;
+      name: string;
+      authMethod:
+        | 'api-key'
+        | 'env'
+        | 'subscription-key'
+        | 'subscription-broker';
+      status: 'active' | 'disabled';
+    }[]
   >`
-    SELECT provider_slug AS "providerSlug", is_default AS "isDefault", name
+    SELECT provider_slug AS "providerSlug", is_default AS "isDefault", name,
+           auth_method AS "authMethod", status
     FROM app.provider_credentials
     WHERE id = ${credentialId} AND org_id = ${scope.organizationId}
     LIMIT 1
@@ -330,6 +353,29 @@ export async function updateCredential(
       'Credential not found',
       404,
     );
+  }
+  // The documented contract: a disabled credential cannot become (or stay
+  // being promoted as) the default — serving reads the ACTIVE default only,
+  // so a disabled default is a connector that serves nothing.
+  if (patch.isDefault === true && (patch.status ?? row.status) === 'disabled') {
+    throw new CredentialAdminError(
+      'CREDENTIAL_DISABLED_DEFAULT',
+      'A disabled credential cannot be the default — enable it first',
+    );
+  }
+  if (patch.envName !== undefined) {
+    if (row.authMethod !== 'env') {
+      throw new CredentialAdminError(
+        'CREDENTIAL_ENV_NAME_INVALID',
+        'Only an environment-variable credential carries an env name',
+      );
+    }
+    if (!ENV_NAME_REGEX.test(patch.envName)) {
+      throw new CredentialAdminError(
+        'CREDENTIAL_ENV_NAME_INVALID',
+        'Env credentials must reference a TALE_PROVIDER_KEY_* variable',
+      );
+    }
   }
   if (patch.isDefault === true) {
     await tx`
@@ -354,7 +400,21 @@ export async function updateCredential(
       );
     }
     rotated = encryptSecret(patch.secret);
-    rotatedPreview = maskSecret(patch.secret);
+    // A broker configuration is JSON, not a key — same rule as creation:
+    // it gets no masked preview.
+    if (row.authMethod !== 'subscription-broker') {
+      rotatedPreview = maskSecret(patch.secret);
+    }
+  }
+  if (
+    patch.endpointUrl !== undefined &&
+    patch.endpointUrl !== null &&
+    !patch.endpointUrl.startsWith('https://')
+  ) {
+    throw new CredentialAdminError(
+      'CREDENTIAL_ENDPOINT_INVALID',
+      'Endpoint URLs must be https',
+    );
   }
   await tx`
     UPDATE app.provider_credentials SET
@@ -363,6 +423,7 @@ export async function updateCredential(
       is_default = coalesce(${patch.isDefault ?? null}, is_default),
       model_allowlist = ${patch.modelAllowlist === undefined ? tx`model_allowlist` : (patch.modelAllowlist ?? null)},
       endpoint_url = ${patch.endpointUrl === undefined ? tx`endpoint_url` : patch.endpointUrl},
+      env_name = coalesce(${patch.envName ?? null}, env_name),
       encrypted_data = ${rotated === undefined ? tx`encrypted_data` : tx.json(toJson(rotated))},
       masked_preview = coalesce(${rotatedPreview ?? null}, masked_preview),
       updated_at_ms = ${Date.now()}

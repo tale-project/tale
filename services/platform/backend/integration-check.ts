@@ -3624,7 +3624,108 @@ async function checkProviderCredentials(
       envOk,
     `masked=${listedRow?.maskedPreview}, apiKeyResolve=${apiKeyOk}, badEnv → ${badEnv.status} (want 400), defaultSwap+envResolve=${envOk}`,
   );
-  void credentialId;
+
+  // Edits must take effect field for field — the endpoint URL, an env
+  // credential's variable name, and a broker configuration replacement were
+  // the fields a save could silently drop. An empty patch is refused, and a
+  // disabled credential can never be promoted to default (serving reads the
+  // ACTIVE default only).
+  const envCredentialId = envCred.success ? envCred.data.credentialId : '';
+  const listCredentials = async () =>
+    z
+      .object({
+        credentials: z.array(
+          z
+            .object({
+              id: z.string(),
+              endpointUrl: z.string().nullable(),
+              maskedPreview: z.string().nullable(),
+              envName: z.string().nullable(),
+              isDefault: z.boolean(),
+              status: z.string(),
+            })
+            .loose(),
+        ),
+      })
+      .safeParse(
+        await (
+          await fetch(`${base}/api/app/provider-credentials?orgId=${orgId}`, {
+            headers: { cookie },
+          })
+        ).json(),
+      );
+  const endpointEdited = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    { endpointUrl: 'https://itest.openai.azure.com/openai/v1' },
+  );
+  process.env.TALE_PROVIDER_KEY_ITEST_2 = 'env-secret-123';
+  const envRepointed = await send(
+    'POST',
+    `/api/app/provider-credentials/${envCredentialId}?orgId=${orgId}`,
+    { envName: 'TALE_PROVIDER_KEY_ITEST_2' },
+  );
+  const resolvedRepointed = await resolveProviderCredential(sql, {
+    organizationId: orgId,
+    providerSlug: 'openai',
+  });
+  const emptyPatch = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    {},
+  );
+  const disabled = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    { status: 'disabled' },
+  );
+  const disabledDefault = await send(
+    'POST',
+    `/api/app/provider-credentials/${credentialId}?orgId=${orgId}`,
+    { isDefault: true },
+  );
+  const brokerCred = z.object({ credentialId: z.string() }).safeParse(
+    await (
+      await send('POST', `/api/app/provider-credentials?orgId=${orgId}`, {
+        providerSlug: 'anthropic',
+        authMethod: 'subscription-broker',
+        name: 'Broker pool',
+        secret: JSON.stringify({ endpoint: 'https://broker.itest/v1' }),
+      })
+    ).json(),
+  );
+  const brokerId = brokerCred.success ? brokerCred.data.credentialId : '';
+  const brokerReplaced = await send(
+    'POST',
+    `/api/app/provider-credentials/${brokerId}?orgId=${orgId}`,
+    { secret: JSON.stringify({ endpoint: 'https://broker.itest/v2' }) },
+  );
+  const edited = await listCredentials();
+  const rowsById = new Map(
+    edited.success ? edited.data.credentials.map((row) => [row.id, row]) : [],
+  );
+  // Leave the fixture as the earlier probes left it for everything after.
+  await send(
+    'DELETE',
+    `/api/app/provider-credentials/${brokerId}?orgId=${orgId}`,
+  );
+  record(
+    'provider credential edits reach the row',
+    endpointEdited.ok &&
+      rowsById.get(credentialId)?.endpointUrl ===
+        'https://itest.openai.azure.com/openai/v1' &&
+      envRepointed.ok &&
+      rowsById.get(envCredentialId)?.envName === 'TALE_PROVIDER_KEY_ITEST_2' &&
+      resolvedRepointed.authMethod === 'env' &&
+      resolvedRepointed.envName === 'TALE_PROVIDER_KEY_ITEST_2' &&
+      emptyPatch.status === 400 &&
+      disabled.ok &&
+      disabledDefault.status === 400 &&
+      rowsById.get(credentialId)?.isDefault === false &&
+      brokerReplaced.ok &&
+      rowsById.get(brokerId)?.maskedPreview === null,
+    `endpoint=${rowsById.get(credentialId)?.endpointUrl}, envName=${rowsById.get(envCredentialId)?.envName} (resolves ${resolvedRepointed.authMethod === 'env' ? resolvedRepointed.envName : resolvedRepointed.authMethod}), emptyPatch → ${emptyPatch.status} (want 400), disabledDefault → ${disabledDefault.status} (want 400), brokerPreview=${String(rowsById.get(brokerId)?.maskedPreview)} (want null)`,
+  );
 }
 
 /**
