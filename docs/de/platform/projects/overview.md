@@ -11,7 +11,7 @@ Lieber erst zusehen? Episode 6 geht in knapp drei Minuten durch ein echtes Proje
 
 </Video>
 
-<Frame caption="Das Aufgaben-Board eines Projekts — einer der acht Tabs, die jedes Projekt trägt.">
+<Frame caption="Das Aufgaben-Board eines Projekts — einer der fünf Tabs, die jedes Projekt trägt.">
 
 ![Ein Kanban-Aufgaben-Board im Projekt Website-Relaunch mit sieben Aufgabenkarten, verteilt über die Spalten Backlog, Zu erledigen, In Bearbeitung, In Prüfung, Erledigt und Abgebrochen.](/images/platform/projects-task-board.webp)
 

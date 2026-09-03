@@ -1678,6 +1678,10 @@ export async function steerTaskAgentTurnImpl(
     await ctx.runMutation(
       internal.tasks.mutations.kickMentionRunAfterSteerMiss,
       {
+        // The shim handler binds organizationId into its SQL; omitting it made
+        // postgres.js throw UNDEFINED_VALUE, losing every settled-run fallback
+        // kick (task.agent_steer has retryLimit 0). TurnKeys carries it.
+        organizationId: args.organizationId,
         taskId: args.taskId,
         authorId: args.authorId,
         feedback: args.feedback,

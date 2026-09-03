@@ -13,11 +13,11 @@ The symptom-first index is at [Troubleshooting](/self-hosted/operate/observabili
 | ------------------------------------------- | -------- | --------------------------------------------------- |
 | `tale-proxy` health probe failing > 1 min   | page     | Every user sees a connection error                  |
 | `tale-platform` HTTP 5xx rate > 5 %         | page     | The UI is broken for a meaningful share of requests |
-| `tale-convex` WebSocket reconnect storm     | page     | UI loads but no data flows                          |
+| `tale-backend-api` down or crash-looping    | page     | UI loads but no data flows                          |
 | Postgres connections > 80 % of pool         | warn     | The next spike will start blocking                  |
 | `db-data` volume > 80 % full                | warn     | The operational Postgres goes read-only at full     |
 | `knowledge-db-data` volume > 80 % full      | warn     | Ingestion fails when the corpus database is full    |
-| `tale-knowledge-db` unreachable from convex | warn     | Knowledge search returns empty; ingestion stalls    |
+| `knowledge-db` unreachable from the backend | warn     | Knowledge search returns empty; ingestion stalls    |
 | Provider request error rate > 20 %          | warn     | The upstream LLM provider is having a bad day       |
 | Daily backup did not write                  | page     | Restore drill will fail at the worst moment         |
 | TLS cert renewal failed                     | warn     | Renews 30 d before expiry — you have time           |
@@ -28,10 +28,10 @@ The first two pages are the actually-customer-impacting ones. The warns are catc
 
 Logs come through stdout per container, captured by Docker's `json-file` driver. The four phrases that consistently mean trouble:
 
-- `panic` or `unexpected error` in `tale-convex` logs — Convex action crash.
+- repeated unhandled-error lines in `tale-backend-api` logs — a backend request-handler crash-loop.
 - `decryption failed` in `tale-platform` logs — SOPS age key mismatch with the file on disk.
 - `429 Too Many Requests` repeated from a provider — rate limit hit, agents will start failing.
-- `connection refused` or `ECONNREFUSED` to `knowledge-db` in `tale-convex` logs — the backend cannot reach the corpus database; ingestion and knowledge search fail.
+- `connection refused` or `ECONNREFUSED` to `knowledge-db` in `tale-backend-worker` logs — the worker cannot reach the corpus database; ingestion and knowledge search fail.
 
 Pipe these to your aggregator as derived alerts; the metrics endpoints do not surface them as gauges.
 
@@ -58,7 +58,7 @@ Two response-time budgets are tracked as first-class signals: interactive dialog
 | Dialog input   | mean      | ~1 s   | 30 m   | `tale_dialog_ttft_seconds`    |
 | Long operation | mean      | ~40 s  | 6 h    | `tale_long_operation_seconds` |
 
-Each target also rides the platform metrics endpoint as `tale_sla_target_seconds{sla,statistic}`, so a Grafana panel draws the budget line straight from Prometheus instead of hard-coding it. The underlying latency series are the Convex function-execution histograms on `/metrics/convex`; relabel or record them to the names above so the rules resolve. The platform serves the ready-made recording and alerting rules at `/metrics/sla-rules` (behind the same bearer token as the other metrics paths) — fetch it once and reference the file under `rule_files:`, or paste the equivalent:
+Each target also rides the platform metrics endpoint as `tale_sla_target_seconds{sla,statistic}`, so a Grafana panel draws the budget line straight from Prometheus instead of hard-coding it. The underlying latency series are the backend's request-duration histograms on `/metrics/backend`; relabel or record them to the names above so the rules resolve. The platform serves the ready-made recording and alerting rules at `/metrics/sla-rules` (behind the same bearer token as the other metrics paths) — fetch it once and reference the file under `rule_files:`, or paste the equivalent:
 
 ```yaml
 groups:

@@ -157,6 +157,19 @@ export function wrapCanvasPreviewHtml(userHtml: string): string {
 // supplied entry is validated to be a bare origin (no path/query/fragment,
 // http or https only) before being appended; malformed entries are
 // dropped with a warning.
+//
+// The `sandbox` directive (deliberately WITHOUT `allow-same-origin`) is the
+// load-bearing isolation: it gives the response document an opaque origin no
+// matter how it was navigated to. The embedder's
+// `sandbox="allow-scripts allow-modals"` iframe attribute imposes exactly the
+// same flags, so the legit in-app preview is unchanged — but an attacker who
+// form-POSTs a victim's browser here TOP-LEVEL (where no iframe attribute
+// exists) now gets an inert null-origin document instead of script running
+// with the app origin's cookies, storage, and same-origin API access.
+// `allow-scripts` keeps AI demo scripts running; `allow-modals` keeps the
+// print listener working (`window.print()` is gated on it). CSP source
+// matching uses the document's URL, not its (opaque) origin, so the vendored
+// `'self'` canvas-libs still load.
 export function buildCanvasPreviewCsp(
   extraOrigins: readonly string[] = [],
 ): string {
@@ -179,7 +192,8 @@ export function buildCanvasPreviewCsp(
     // sandbox + opaque-origin combo already prevents meaningful
     // cross-origin form submissions, so this directive is just collateral.
     "base-uri 'none'; " +
-    "object-src 'none'"
+    "object-src 'none'; " +
+    'sandbox allow-scripts allow-modals'
   );
 }
 

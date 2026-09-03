@@ -3,21 +3,19 @@ title: Backups et restauration
 description: Snapshots de volumes via `tale backup`, le snapshot automatique pré-migration, la rétention, la copie hors-hôte et le drill `tale restore`.
 ---
 
-L'unité de backup de Tale est le snapshot de volume : un tar checksummé, pris à containers en pause, de chaque volume de données de l'instance, écrit dans un volume `backups` dédié qui vit à côté des données qu'il protège. La CLI en prend un automatiquement avant toute étape de déploiement qui peut migrer des données, et `tale backup` en prend un à la demande. La récupération, c'est `tale restore <snapshot-id>` plus un redéploiement de la version correspondante — cette paire est la réponse à une montée de version échouée, et la raison pour laquelle `tale rollback` peut se permettre de refuser tout ce qui dépasse un pas de patch.
+L'unité de backup de Tale est le snapshot de volume : un tar checksummé, pris à containers en pause, des volumes de données principaux de l'instance, écrit dans un volume `backups` dédié qui vit à côté des données qu'il protège. La CLI en prend un automatiquement avant toute étape de déploiement qui peut migrer des données, et `tale backup` en prend un à la demande. La récupération, c'est `tale restore <snapshot-id>` plus un redéploiement de la version correspondante — cette paire est la réponse à une montée de version échouée, et la raison pour laquelle `tale rollback` peut se permettre de refuser tout ce qui dépasse un pas de patch.
 
 Le contexte d'architecture vit dans [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture) ; cette page couvre ce qu'un snapshot contient, quand il est pris, comment la copie quitte l'hôte et le walk de restauration.
 
 ## Ce qu'un snapshot contient
 
-| Volume                       | Contient                                                  |
-| ---------------------------- | --------------------------------------------------------- |
-| `db-data`                    | Postgres — agents, runs, l'audit log                      |
-| `convex-data`                | Config d'org, secrets de fournisseurs, branding téléversé |
-| `rag-data`                   | L'index vectoriel construit depuis tes documents          |
-| `crawler-data`               | Connaissance web crawlée                                  |
-| `caddy-data`, `caddy-config` | Certificats TLS et état du proxy                          |
+| Volume                       | Contient                                                                                                                                        |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db-data`                    | Postgres — le magasin applicatif (agents, runs, l'audit log) et le corpus de connaissances (fragments de documents, embeddings, pages crawlées) |
+| `convex-data`                | Config d'org, secrets de fournisseurs, branding téléversé                                                                                       |
+| `caddy-data`, `caddy-config` | Certificats TLS et état du proxy                                                                                                                |
 
-Chaque snapshot est un répertoire nommé comme `20260611-142530-deploy` dans le volume `backups` du projet : un `.tar.gz` par volume, un sidecar `.sha256` chacun et un `manifest.json` écrit en dernier. Un répertoire sans manifest est un snapshot incomplet — il n'apparaît jamais dans les listings et ne peut jamais être restauré. Deux choses vivent hors des volumes et demandent une capture séparée : le workspace du projet (le répertoire qui contient `tale.json`) et `.env`.
+Chaque snapshot est un répertoire nommé comme `20260611-142530-deploy` dans le volume `backups` du projet : un `.tar.gz` par volume, un sidecar `.sha256` chacun et un `manifest.json` écrit en dernier. Un répertoire sans manifest est un snapshot incomplet — il n'apparaît jamais dans les listings et ne peut jamais être restauré. Le snapshot saute délibérément `object-store-data` — le store de blobs qui détient les fichiers téléversés et les médias générés — donc ces blobs demandent leur propre capture off-host, aux côtés des deux choses qui vivent entièrement hors des volumes : le workspace du projet (le répertoire qui contient `tale.json`) et `.env`.
 
 ## Quand les snapshots sont pris
 

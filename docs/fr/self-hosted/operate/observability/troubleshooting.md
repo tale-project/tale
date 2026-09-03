@@ -26,24 +26,24 @@ Si le mode est déjà `letsencrypt`, vérifie les logs du proxy pour les échecs
 
 ## L'UI charge mais aucune donnée n'apparaît
 
-Le shell UI sont des assets statiques servis par `tale-platform` ; tout le reste circule par `tale-convex` sur un WebSocket. Quand le WebSocket ne peut pas se connecter, le shell charge et reste vide. Symptômes : spinners qui ne se résolvent jamais, toasts « reconnecting », le champ de chat qui n'accepte jamais un message.
+Le shell UI sont des assets statiques servis par `tale-platform` ; tout le reste circule par `tale-backend-api` — l'API de l'app en HTTP et le flux SSE de mises à jour en direct sur `/events`. Quand le backend est injoignable, le shell charge et reste vide. Symptômes : spinners qui ne se résolvent jamais, toasts « reconnecting », le champ de chat qui n'accepte jamais un message.
 
 ```bash
-docker compose logs --tail=200 tale-convex
+docker compose logs --tail=200 backend-api
 ```
 
-Le conteneur convex redémarre probablement (cherche `panic` dans les logs) ou est injoignable depuis le proxy. Redémarre avec `docker compose restart tale-convex` — les sessions sont côté serveur et les clients se réabonnent à la reconnexion, donc le redémarrage est sûr.
+Le conteneur backend-api redémarre probablement (cherche un crash dans les logs) ou est injoignable depuis le proxy. Redémarre avec `docker compose restart backend-api` — les sessions sont côté serveur et les clients reconnectent le flux SSE, donc le redémarrage est sûr.
 
 ## Téléversements bloqués en « indexation »
 
-L'ingestion de documents tourne dans le backend Convex et écrit les fragments extraits et les embeddings dans la base du corpus de connaissances. Un long état « indexation » signifie soit que le backend ne peut pas joindre `tale-knowledge-db`, soit que le fichier lui-même n'a pas pu être extrait. Vérifie les logs convex et la base du corpus en premier :
+L'ingestion de documents tourne dans le backend worker et écrit les fragments extraits et les embeddings dans la base du corpus de connaissances. Un long état « indexation » signifie soit que le worker ne peut pas joindre la base du corpus, soit que le fichier lui-même n'a pas pu être extrait. Vérifie les logs du worker et la base du corpus en premier :
 
 ```bash
-docker compose logs --tail=200 tale-convex | grep -iE "knowledge|ingest|embed"
-docker compose ps tale-knowledge-db
+docker compose logs --tail=200 backend-worker | grep -iE "knowledge|ingest|embed"
+docker compose ps db
 ```
 
-Si les logs montrent des erreurs de connexion à `knowledge-db`, redémarre la base du corpus (`docker compose restart tale-knowledge-db`) ; l'ingestion retente à la passe suivante, donc les téléversements n'ont pas à être re-soumis. Si la base est saine mais qu'un téléversement spécifique est bloqué, le fichier lui-même est le suspect — les PDFs corrompus et les documents protégés par mot de passe atterrissent en état d'échec et exigent suppression + re-téléversement.
+Si les logs montrent des erreurs de connexion à la base du corpus (`knowledge-db` sur le réseau, repliée dans `db` sur un déploiement single-host), redémarre-la (`docker compose restart db`) ; l'ingestion retente à la passe suivante, donc les téléversements n'ont pas à être re-soumis. Si la base est saine mais qu'un téléversement spécifique est bloqué, le fichier lui-même est le suspect — les PDFs corrompus et les documents protégés par mot de passe atterrissent en état d'échec et exigent suppression + re-téléversement.
 
 ## Les réponses chat s'arrêtent au milieu du stream
 
@@ -57,14 +57,14 @@ Un `429` est le cas commun. Soit le budget de l'org touche le rate limit du four
 
 ## La sauvegarde échoue avec un toast « saving failed »
 
-Le conteneur convex n'a pas pu écrire dans Postgres. Soit `tale-db` est down, soit son disque est plein :
+Le backend n'a pas pu écrire dans Postgres. Soit `tale-db` est down, soit son disque est plein :
 
 ```bash
 docker compose ps tale-db
 docker compose exec db df -h /var/lib/postgresql/data
 ```
 
-Un disque à 100 % est l'échec qui produit le plus de visages surpris. Libère de l'espace, redémarre `tale-db`, et les écritures en file flushent. Si le disque a de l'espace, le suspect est l'épuisement du pool de connexions ou un lock — redémarre `tale-convex` pour vider le pool.
+Un disque à 100 % est l'échec qui produit le plus de visages surpris. Libère de l'espace, redémarre `tale-db`, et les écritures en file flushent. Si le disque a de l'espace, le suspect est l'épuisement du pool de connexions ou un lock — redémarre `backend-api` pour vider le pool.
 
 ## L'outil « Exécuter du code » échoue avec « egress denied »
 

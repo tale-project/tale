@@ -19,13 +19,13 @@ Ouvre le menu plus du chat et choisis **Mode Arène** — le chat fait pousser d
 
 <Note>
 
-Les deux colonnes tournent avec le même agent — choisis l’agent qui t’intéresse avant d’activer l’Arène. La comparaison ne dit quelque chose que si les instructions, les tools et la connaissance sont identiques de part et d’autre.
+Les deux colonnes tournent avec le même assistant de chat, si bien que les instructions, les tools et la connaissance sont identiques de part et d’autre et que seul le modèle diffère — c’est tout l’intérêt de la comparaison.
 
 </Note>
 
 ## Choisir les concurrents
 
-Les deux sélecteurs sont indépendants — n’importe quel modèle que la politique de l’agent autorise est valable de chaque côté. Choisir le même modèle des deux côtés est permis (utile pour tester des différences de température si l’agent expose ça), mais la plupart des comparaisons traversent fournisseurs ou tailles. Les instructions, les connaissances et les tools de l’agent s’appliquent aux deux colonnes ; seul le modèle sous-jacent diffère.
+Les deux sélecteurs sont indépendants — n’importe quel modèle que ton organisation met à disposition est valable de chaque côté. Choisir le même modèle des deux côtés est permis, mais la plupart des comparaisons traversent fournisseurs ou tailles. Les instructions, les connaissances et les tools de l’assistant s’appliquent aux deux colonnes ; seul le modèle sous-jacent diffère.
 
 ## Émettre un verdict
 

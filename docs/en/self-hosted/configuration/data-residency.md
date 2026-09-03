@@ -23,7 +23,7 @@ Three stores, each independent and optional. An absent setting means "use the bu
 
 - **Knowledge database** — the knowledge corpus: document metadata, the extracted chunk text, embeddings, the BM25 index, the semantic cache, and the crawled web pages. It ships as the bundled `knowledge-db` container (`tale_knowledge`, with the `private_knowledge` and `public_web` schemas) and is the store most residency requirements care about, because it holds your document content. Point it at your own managed Postgres to keep the corpus on infrastructure your team operates.
 - **File storage** — where uploaded files (the original blobs) live. By default they sit in the bundled object store that ships with the stack (the `object-store` service, on its own volume); you can point them at an external S3-compatible bucket.
-- **Application database** (advanced) — the operational Convex database (the bundled `db` container). The Convex backend derives this database's name from `INSTANCE_NAME` (`tale_platform`) and connects on host:port only, so the external Postgres must contain a database named exactly `tale_platform`. Its TLS mode is fixed by the Convex driver and is not configurable.
+- **Application database** (advanced) — the operational store behind agents, runs, and the audit log (the bundled `db` container, the `tale_app` database). Relocating it points the backend's `DATABASE_URL` at your own Postgres; the database name defaults to `tale_app` (override with `APP_DB_NAME`), so an external Postgres must contain a database of that name.
 
 > Note: the knowledge database and the application database are two separate Postgres instances — moving one does not touch the other. Relocating the knowledge database moves the extracted text and embeddings; the original uploaded files move only when you also relocate **File storage** to S3.
 
@@ -64,7 +64,7 @@ The connection lives next to the knowledge one, under the organization's config 
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.json` — region, optional endpoint (for MinIO/R2), path-style flag, bucket, and an optional key prefix.
 - `$TALE_CONFIG_DIR/<orgSlug>/object-storage/connection.secrets.json` — the access key pair, SOPS-encrypted when a SOPS age key is configured (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
 
-Unlike the deployment-wide S3 switch above, this path is **not** greenfield-only: from the moment the config exists, new uploads go to the org's bucket, while files stored earlier stay readable where they are in Convex storage — mixed references are supported, so you can switch at any time and relocate the older files afterward with the blob backfill below. Removing the config sends new uploads back to the deployment default; files already written to the bucket stay there, but Tale can't read them until the connection is added again. No restart is needed in either direction.
+Unlike the deployment-wide S3 switch above, this path is **not** greenfield-only: from the moment the config exists, new uploads go to the org's bucket, while files stored earlier stay readable where they are in the deployment's object store — mixed references are supported, so you can switch at any time and relocate the older files afterward with the blob backfill below. Removing the config sends new uploads back to the deployment default; files already written to the bucket stay there, but Tale can't read them until the connection is added again. No restart is needed in either direction.
 
 Org admins can manage this connection from the same per-organization sections of **Settings > Data residency**; its connection test performs a real upload/read/delete round-trip against the bucket before you commit. As with the knowledge connection, the JSON files remain the source of truth.
 
@@ -72,27 +72,17 @@ Org admins can manage this connection from the same per-organization sections of
 
 ### Moving pre-existing files into the bucket
 
-Connecting the bucket only reroutes **new** uploads; the blobs written before you connected it stay in Convex's `_storage` and keep working through the mixed references above. To bring that history onto your own infrastructure as well — the whole point of data residency — run the **blob backfill**: it copies each pre-existing blob into the org's bucket, verifies it round-trips byte-for-byte, rewrites every row that references it, and deletes the Convex copy.
+Connecting the bucket only reroutes **new** uploads; the blobs written before you connected it stay in the deployment's default object store and keep working through the mixed references above. To bring that history onto your own infrastructure as well — the whole point of data residency — run the **blob backfill**: it copies each pre-existing blob into the org's bucket, verifies it round-trips byte-for-byte, rewrites every row that references it, and deletes the source copy.
 
 An org admin runs it from the UI: with the bucket connection saved, the Object storage section of **Settings > Data residency** shows **Move existing files** — confirm, and the move runs in the background while uploads keep working; a status line on the same section reports progress and the outcome of the latest run.
 
-An operator with Convex CLI access can run the same engine from a shell instead, passing the organization's id. Dry-run first to see what would move, then run it for real:
-
-```bash
-# Dry run — counts and samples what would move, writes nothing:
-bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>","dryRun":true}'
-
-# The real move — drop dryRun once the counts look right:
-bunx convex run object_storage/backfill_actions:migrateOrgBlobsToObjectStorage '{"organizationId":"<organizationId>"}'
-```
-
-The backfill is **idempotent** and **org-scoped**: it moves only that organization's blobs, skips anything already in the bucket, and leaves each Convex source in place until its copy is verified — so a re-run after an interruption resumes safely. A real run needs the bucket connection configured first; a dry run does not. This is deliberately **not** a versioned framework migration — it runs on demand, per organization, when you choose to relocate a tenant's history, not at a release boundary.
+The backfill is **idempotent** and **org-scoped**: it moves only that organization's blobs, skips anything already in the bucket, and leaves each source blob in place until its copy is verified — so a re-run after an interruption resumes safely. It needs the bucket connection configured first. This is deliberately **not** a versioned framework migration — it runs on demand, per organization, when you choose to relocate a tenant's history, not at a release boundary.
 
 ## File storage on S3
 
-External file storage is all-or-nothing across Convex's storage use-cases, so you provide **five buckets** — files, exports, snapshot-imports, modules, and search — plus a region and credentials. For S3-compatible services (MinIO, Cloudflare R2) set the endpoint and enable path-style addressing.
+External file storage uses a single S3-compatible bucket — a bucket name, region, credentials, and (for MinIO or Cloudflare R2) an endpoint with path-style addressing enabled. These map to the `OBJECT_STORE_*` variables in [Environment reference](/self-hosted/configuration/environment-reference).
 
-> **Greenfield only.** Switching file storage from local to S3 does **not** migrate the blobs already on the local volume — Convex will look for them in the bucket and not find them. Set S3 at initial deployment, or copy the existing local storage into the bucket out of band before switching.
+> **Greenfield only.** Switching the deployment-wide file storage from the bundled store to an external bucket does **not** migrate the blobs already on the local volume — the backend will look for them in the bucket and not find them. Set S3 at initial deployment, or copy the existing local storage into the bucket out of band before switching.
 
 ## How the configuration is stored
 
@@ -101,7 +91,7 @@ Saving writes two files at the config root (not under an org directory):
 - `deployment.json` — the non-secret config (hosts, ports, buckets, modes).
 - `deployment.secrets.json` — the database passwords and S3 keys, SOPS-encrypted (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
 
-At boot the `convex` entrypoint reads these and derives its connections before starting. Knowledge ingestion and retrieval run inside the Convex backend, so it is the only container that opens the knowledge-database connection — there is no separate retrieval service to configure. The contract is **fail-closed**: a present-but-unparseable `deployment.json`, an undecryptable secret, or a config missing required fields **aborts startup** rather than silently falling back to the bundled database — mis-routing regulated data is worse than not starting. An absent file is the normal default path.
+At boot the backend reads these and derives its connections before starting. Knowledge ingestion and retrieval run inside the backend worker, so the backend is what opens the knowledge-database connection — there is no separate retrieval service to configure. The contract is **fail-closed**: a present-but-unparseable `deployment.json`, an undecryptable secret, or a config missing required fields **aborts startup** rather than silently falling back to the bundled database — mis-routing regulated data is worse than not starting. An absent file is the normal default path.
 
 ## Applying a change: restart
 

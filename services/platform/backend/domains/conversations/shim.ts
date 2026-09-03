@@ -246,13 +246,6 @@ export function conversationShimHandlers(
       return sql.begin(async (tx) => {
         const { initialMessage, ...conversationArgs } = args;
         const conversationId = await createConversation(tx, conversationArgs);
-        if (args.assigneeTeamId !== undefined) {
-          await tx`
-            UPDATE app.conversations
-            SET assignee_team_id = ${args.assigneeTeamId}
-            WHERE id = ${conversationId}
-          `;
-        }
         const { messageId } = await addMessageToConversation(tx, {
           conversationId,
           organizationId: args.organizationId,

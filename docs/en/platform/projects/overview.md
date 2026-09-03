@@ -11,7 +11,7 @@ Prefer to watch first? Episode 6 walks a live project in two and a half minutes 
 
 </Video>
 
-<Frame caption="A project's task board — one of the eight tabs every project carries.">
+<Frame caption="A project's task board — one of the five tabs every project carries.">
 
 ![A kanban task board inside the Website relaunch project, with seven task cards spread across the Backlog, To do, In progress, In review, Done, and Cancelled columns.](/images/platform/projects-task-board.webp)
 

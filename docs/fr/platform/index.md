@@ -38,7 +38,7 @@ Des paquets installables qui regroupent connectors, agents, compétences et un w
 
 <Card title="Connaissances" icon="library" href="/fr/platform/knowledge/overview">
 
-Documents, contacts, produits, fournisseurs, sites web — le modèle de données structurées que les agents citent.
+Documents, contacts, produits, sites web — le modèle de données structurées que les agents citent.
 
 </Card>
 

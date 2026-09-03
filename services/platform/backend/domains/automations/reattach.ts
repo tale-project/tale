@@ -214,3 +214,56 @@ export async function recoverStalledWorkflowAgentTurns(
   }
   return { examined: stalled.length, resumed };
 }
+
+/**
+ * Recover answered asks whose resume was lost — the counterpart to the
+ * awaiting_human exemption above.
+ *
+ * Answering an ask enqueues one `automation.ask_resume` job. If the worker
+ * dies between the answer and the cursor retarget (a deploy/restart), nothing
+ * re-drives it: the re-attach sweep SKIPS any ask-parked turn (op terminal,
+ * `awaiting_human`) unconditionally — right while the ask is pending, but it
+ * cannot tell answered from unanswered — so the run parks on the dead asking
+ * exec until the ask's 7-day deadline, then fails with a misleading reason.
+ *
+ * A run still parked on the ASKING exec (cursor.agent.execId == ask.execId,
+ * no result) whose ask is already `answered` is exactly that lost resume.
+ * Re-enqueue it. The resume is idempotent: `retargetAgentCursor` is a
+ * FOR-UPDATE CAS on the asking exec, and any throw self-settles the run — so a
+ * resume that already retargeted (cursor moved off the asking exec) no-ops
+ * here, and a racing pair yields a single winner. The `answered_at_ms` gate
+ * spares a resume that is merely in flight (a healthy one retargets in
+ * seconds, well inside the staleness window).
+ */
+export async function recoverAnsweredAskResumes(
+  sql: Sql,
+  options: { staleMs?: number } = {},
+): Promise<{ examined: number; requeued: number }> {
+  const staleBefore = Date.now() - (options.staleMs ?? RECOVERY_STALE_MS);
+  const rows = await sql<{ organizationId: string; askId: string }[]>`
+    SELECT r.org_id AS "organizationId", a.id AS "askId"
+    FROM app.automation_runs r
+    JOIN app.automation_human_asks a
+      ON a.run_id = r.id AND a.org_id = r.org_id
+    WHERE r.status = 'waiting'
+      AND a.status = 'answered'
+      AND a.answered_at_ms < ${staleBefore}
+      AND r.checkpoints -> 'cursor' ->> 'node' = a.node_id
+      AND r.checkpoints -> 'cursor' -> 'agent' ->> 'execId' = a.exec_id
+      AND r.checkpoints -> 'cursor' -> 'agent' -> 'result' IS NULL
+    ORDER BY a.answered_at_ms
+    LIMIT ${SWEEP_LIMIT}
+  `;
+  let requeued = 0;
+  for (const row of rows) {
+    await addJobInTx(sql, 'automation.ask_resume', {
+      organizationId: row.organizationId,
+      askId: row.askId,
+    });
+    requeued += 1;
+    console.warn(
+      `[automation-agent-watchdog] re-enqueued lost ask_resume for ask ${row.askId} — its run still parks on the asking exec`,
+    );
+  }
+  return { examined: rows.length, requeued };
+}

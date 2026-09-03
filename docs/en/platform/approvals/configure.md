@@ -9,7 +9,7 @@ The model of what an approval card is and who decides it lives on [Approval conc
 
 ## Connector operations
 
-Every connector declares its operations, and each operation carries its own approval flag. Open **Settings > Connectors**, click an connector, and its operations list badges the ones marked **Requires approval** — for the shipped connectors, that is the write side: sending mail, posting messages, creating issues. Reads run without a card; flagged writes hold in chat with their exact parameters until someone approves.
+Every connector declares its operations, and each operation carries its own approval flag — for the shipped connectors, that is the write side: sending mail, posting messages, creating issues. Reads run without a card; flagged writes hold in chat with their exact parameters until someone approves.
 
 The flag is not a separate setting an admin toggles. Every action a connector declares carries an effect — `read` or `write` — and the write side is what the approval policy gates. That keeps the two honest with each other: an action cannot quietly change from a read to a write without also changing what it has to ask for.
 
@@ -40,7 +40,7 @@ An operation that is already waiting on a card keeps its card even if the policy
 
 ## MCP tools
 
-An MCP server's manifest marks which of its tools need sign-off. Open **Settings > API > MCP**, expand a server, and its **Discovered Tools** list badges each flagged tool with **Requires approval** — those ask in chat every time an agent calls them. The flag comes from the server's author; connecting a server is how you accept its tool contract, so review the list before activating one. [MCP servers](/platform/connectors/mcp-servers) covers registration.
+An MCP server's manifest marks which of its tools need sign-off — those ask in chat every time an agent calls them. The flag comes from the server's author; connecting a server is how you accept its tool contract, so review its tool list before wiring one in. [MCP servers](/platform/connectors/mcp-servers) covers how servers reach your agents.
 
 ## Built-in write gates
 
@@ -58,7 +58,7 @@ The lever for these is not the approval flag but the capability itself: an agent
 
 ## Verifying what will ask
 
-Before putting an agent in front of real systems, read its capabilities the way an approver would: the connector's operations list for flagged writes, the MCP server's **Discovered Tools** for flagged tools, and the agent's tool tab for whether it holds write tools at all. The [audit log](/platform/admin/governance/audit-logs) then records every decision the setup produces.
+Before putting an agent in front of real systems, read its capabilities the way an approver would: which write actions its connectors declare, which tools its MCP servers flag, and whether the agent holds write tools at all. The [audit log](/platform/admin/governance/audit-logs) then records every decision the setup produces.
 
 ## Where this fits
 

@@ -69,8 +69,8 @@ Un déploiement peut héberger plusieurs organisations, chacune avec sa propre c
 Chaque protocole partage une politique de provisionnement :
 
 - **Rôle par défaut** — le rôle attribué à un membre nouvellement provisionné (Membre par défaut).
-- **Attribution automatique des rôles** — lorsqu’il est activé, des règles de mappage associent un intitulé de poste, un rôle d’application, un groupe ou un claim à un rôle de la plateforme ; le rôle par défaut s’applique si rien ne correspond.
-- **Synchroniser les groupes en équipes** — lorsqu’il est activé, chaque groupe IdP de l’utilisateur devient (ou rejoint) une équipe du même nom à la connexion ; **Exclure des groupes** ignore les groupes parasites (séparés par des virgules).
+- **Attribuer automatiquement les rôles depuis l'IdP** — lorsqu’il est activé, des règles de mappage associent un intitulé de poste, un rôle d’application, un groupe ou un claim à un rôle de la plateforme ; le rôle par défaut s’applique si rien ne correspond.
+- **Synchroniser les groupes de l'IdP avec les équipes** — lorsqu’il est activé, chaque groupe IdP de l’utilisateur devient (ou rejoint) une équipe du même nom à la connexion ; **Exclure des groupes** ignore les groupes parasites (séparés par des virgules).
 
 ## Provisionnement SCIM (utilisateurs et groupes)
 

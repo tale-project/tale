@@ -33,7 +33,7 @@ curl -sS "$TALE_BASE_URL/api/v1/automations" \
   -H "Authorization: Bearer $TALE_API_KEY" | jq
 ```
 
-Eine 200 mit einem `{ "page": [...], "isDone": true, ... }`-Body bestätigt die Runde — jeder Listen-Endpoint antwortet mit genau diesem paginierten Umschlag. Eine 401 heißt: der Schlüssel ist falsch; alles andere heißt: die Instanz ist unerreichbar oder der Pfad vertippt.
+Eine 200 mit einem `{ "automations": [...] }`-Body bestätigt die Runde. Eine 401 heißt: der Schlüssel ist falsch; alles andere heißt: die Instanz ist unerreichbar oder der Pfad vertippt.
 
 ## Schritt 3 — Ein Modell fragen und die Antwort lesen
 
@@ -67,7 +67,8 @@ while True:
 messages = requests.get(
     f"{base}/api/v1/threads/{thread['id']}/messages", headers=auth
 ).json()["page"]
-print(messages[-1]["content"])
+reply = messages[-1]
+print("".join(p["text"] for p in reply["parts"] if p.get("type") == "text"))
 ```
 
 `{"status": "idle"}` heißt: der Turn ist fertig — auch ein gescheiterter, der als Assistenten-Nachricht mit dem Fehler landet, statt zu verschwinden. Der Sende-Aufruf antwortet sofort **202**; die Antwort existiert erst, wenn die Poll-Schleife `queued`/`streaming` verlässt.
@@ -89,6 +90,6 @@ Ein Live-Lauf braucht deine Entwickler-Rolle; mit `{"mode": "mock"}` probst du g
 
 ## Wo das hingehört
 
-Ein Skript ist der Weg, wenn die Datenebene JSON ist, kein Bildschirm — Cron-Jobs, CI-Checks, interne Portale. Der API-Schlüssel trägt deine Rolle, jeder Listen-Endpoint antwortet mit demselben paginierten Umschlag, und alles, was echte Arbeit startet, antwortet 202 und gibt dir etwas zum Pollen.
+Ein Skript ist der Weg, wenn die Datenebene JSON ist, kein Bildschirm — Cron-Jobs, CI-Checks, interne Portale. Der API-Schlüssel trägt deine Rolle, und alles, was echte Arbeit startet, antwortet 202 und gibt dir etwas zum Pollen.
 
 Für eingehende Trigger — ein Drittsystem postet in eine Tale-Automatisierung — siehe [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook). Für einen modellgetriebenen Client statt eines Skripts öffnet der [MCP-Endpoint](/de/develop/mcp-endpoint) dieselbe Plattform als Tools. Für das volle Endpoint-Inventar und das Fehlermodell ist die [API-Referenz](/de/develop/api-reference) die einzige Quelle der Wahrheit.

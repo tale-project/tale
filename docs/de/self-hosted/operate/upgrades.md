@@ -46,11 +46,11 @@ tale update --dry-run
 `tale deploy` macht den eigentlichen Rolling-Restart und deployt immer die eigene Version des CLI — die dank der Angleichung die Version ist, die dein Workspace aufzeichnet. Es sortiert die Services in drei Tiers:
 
 - **App-Tier** — `platform` — rollt bei **jedem** Deploy ohne Downtime (Blue-Green: die neue Farbe startet neben der alten, Healthchecks bestehen, der Traffic kippt, die alte Farbe drainet).
-- **Backend und Compute** — `convex`, `sandbox`, `sandbox-egress` — rollen ebenfalls bei jedem Deploy, sodass sie nie gegenüber `platform` versions-skewen. Jeder ist ein einzelner Container, der sich **in-place** neu erstellt, wenn sich sein Image tatsächlich geändert hat; der Deploy drainet zuerst die laufende Arbeit (Chat-Generierungen bei `convex`, Agent-Runs bei `sandbox`), damit der kurze Neustart keine lebende Anfrage abschneidet.
-- **Stop-gegateter Tier** — `db`, `proxy` — bleibt standardmäßig **laufend und unangetastet** (Postgres oder den Proxy neu zu erstellen ist eine kurze Ausfallzeit, die du bei einem Routine-Roll nicht willst). Mit `--stop` aktualisierst du sie; der Deploy warnt und nennt sie, wenn er sie überspringt.
+- **Backend und Compute** — `backend-api`, `backend-worker`, `sandbox`, `sandbox-egress`, `sandbox-llm-gateway` — rollen ebenfalls bei jedem Deploy, sodass sie nie gegenüber `platform` versions-skewen. Jeder erstellt sich **in-place** neu, wenn sich sein Image tatsächlich geändert hat; der Deploy drainet zuerst die laufende Arbeit (Chat-Turns beim Backend, Agent-Runs bei `sandbox`), damit der kurze Neustart keine lebende Anfrage abschneidet.
+- **Stop-gegateter Tier** — `db`, `object-store`, `proxy` — bleibt standardmäßig **laufend und unangetastet** (Postgres, den Blob-Store oder den Proxy neu zu erstellen ist eine kurze Ausfallzeit, die du bei einem Routine-Roll nicht willst). Mit `--stop` aktualisierst du sie; der Deploy warnt und nennt sie, wenn er sie überspringt.
 
 ```bash
-# Nach tale update die Container passend rollen (App-Tier + convex)
+# Nach tale update die Container passend rollen (App-Tier + Backend)
 tale deploy
 
 # Auch db/proxy aktualisieren (kurze Downtime, während sie neu erstellt werden)
@@ -142,7 +142,7 @@ tale deploy
 # 4. Die 0.4-Instanz stilllegen, sobald die neue abgenommen ist.
 ```
 
-Der Experten-Override — `tale deploy --accept-data-loss` bzw. `TALE_ACCEPT_DATA_LOSS=1` am Container — existiert für den seltenen Fall, dass du bewusst einen Host wiederverwendest, dessen alte Volumes du bereits behandelt hast. Er tut genau, was sein Name sagt: Prä-0.5-Daten dieser Instanz werden dauerhaft unlesbar.
+Der Experten-Override — `tale deploy --accept-data-loss` — existiert für den seltenen Fall, dass du bewusst einen Host wiederverwendest, dessen alte Volumes du bereits behandelt hast. Er tut genau, was sein Name sagt: Prä-0.5-Daten dieser Instanz werden dauerhaft unlesbar.
 
 ## Wo das hingehört
 

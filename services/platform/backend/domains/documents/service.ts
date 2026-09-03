@@ -6,6 +6,7 @@ import {
   isAllowedDocumentUpload,
   resolveFileType,
 } from '../../../lib/shared/file-types.ts';
+import { authorizeRls } from '../../auth/access.ts';
 import { hasTeamAccess } from '../../core/lib/team_access.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
@@ -26,6 +27,7 @@ import {
   registerUploadedBytes,
   statOrgBlob,
 } from '../files/service.ts';
+import { ownsUploadedBlob } from '../files/upload-intents.ts';
 import { buildHubFolderPath } from '../folders/paths.ts';
 import { assertFolderMutable, loadFolderOrThrow } from '../folders/service.ts';
 import { markRagQueued } from '../knowledge/service.ts';
@@ -137,6 +139,27 @@ export async function loadDocumentOrThrow(
   return doc;
 }
 
+/**
+ * Every document whose content is the blob `storageRef` — a multi-team upload
+ * creates one document per team from ONE blob, and the file row's own
+ * `document_id` names only the last of them — plus the document that row
+ * names (a replaced document keeps its old file row's pointer). The files
+ * read gate (`files/access.ts`) walks these: the blob is readable when any
+ * one of them is.
+ */
+export async function listDocumentsForBlob(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  args: { storageRef: string; documentId: string | null },
+): Promise<DocumentRow[]> {
+  return sql<DocumentRow[]>`
+    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
+    WHERE org_id = ${organizationId}
+      AND (file_ref = ${args.storageRef} OR id = ${args.documentId ?? ''})
+    LIMIT 50
+  `;
+}
+
 function isProjectScoped(doc: Pick<DocumentRow, 'projectId'>): boolean {
   return doc.projectId != null;
 }
@@ -181,6 +204,75 @@ export async function assertDocumentVisible(
   }
 }
 
+/**
+ * The org-role write gate every document mutation consults (the
+ * products/contacts idiom): `documents: write` in the role matrix — owner,
+ * admin, developer and editor pass; the read-only `member` and `disabled`
+ * roles refuse. This is the org-wide floor; project lanes ADD their
+ * project-`canEdit` check on top, and team scoping stays a separate
+ * visibility question. Agent standing-grant writes (`agent-write.ts`) are
+ * authorized by their dispatch, not this matrix.
+ */
+export function assertDocumentsWriteRole(
+  auth: Pick<ProjectAuthContext, 'role'>,
+): void {
+  if (!authorizeRls(auth.role, 'documents', 'write')) {
+    throw new DocumentError('RBAC_FORBIDDEN', 'Insufficient role', 403);
+  }
+}
+
+/**
+ * The 0.4 `assertGenericDocumentContentWritable` on the jsonb record
+ * projection (twin of `assertRecordTrashableJson` below; the typed original
+ * lives in `core/documents/access.ts` and guards the WebDAV lane). Generic
+ * writers may change an uncontrolled document's content, but a controlled
+ * record's bytes and identity fields have exactly one door — the attested
+ * replacement flow in `records.ts`: `in_review`/`approved` are frozen, and
+ * even a `draft` refuses here so its content moves only through that flow.
+ */
+export function assertGenericDocumentContentWritableJson(
+  record: Record<string, unknown> | null,
+): void {
+  if (record === null) return;
+  if (record.state === 'in_review' || record.state === 'approved') {
+    throw new DocumentError(
+      'DOCUMENT_RECORD_FROZEN',
+      record.state === 'in_review'
+        ? 'This controlled record is in review and frozen. Wait for the review decision (or request changes) before editing its content.'
+        : 'This controlled record is approved and immutable. Open a new revision to edit its content.',
+      400,
+      { state: record.state },
+    );
+  }
+  throw new DocumentError(
+    'DOCUMENT_RECORD_REPLACEMENT_REQUIRED',
+    'Replace controlled-record content through the dedicated replacement flow.',
+    400,
+    { state: typeof record.state === 'string' ? record.state : null },
+  );
+}
+
+/**
+ * A hub team assignment must come from the caller's own teams — the rule the
+ * plural `teamIds` lane established (`TEAM_ACCESS_DENIED`), applied to every
+ * lane that stamps `team_id`/`team_tags`. Membership implies the team exists
+ * and is in-org, and it keeps the invariant that you can never file a
+ * document into a scope nobody — including you — can see (`hasTeamAccess`
+ * has no admin bypass, so an unknown id would hide the row from everyone).
+ */
+export function assertHubTeamAssignable(
+  auth: Pick<ProjectAuthContext, 'teamIds'>,
+  teamId: string,
+): void {
+  if (!auth.teamIds.includes(teamId)) {
+    throw new DocumentError(
+      'TEAM_ACCESS_DENIED',
+      'Cannot assign document to a team you do not belong to',
+      403,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Create from upload
 // ---------------------------------------------------------------------------
@@ -206,6 +298,7 @@ export async function createDocumentFromUpload(
   auth: ProjectAuthContext,
   args: CreateDocumentFromUploadArgs,
 ): Promise<string> {
+  assertDocumentsWriteRole(auth);
   const file = await getFileMetadata(tx, auth.organizationId, args.fileId);
   if (!file) {
     throw new DocumentError('FILE_NOT_FOUND', 'Upload not found', 404);
@@ -243,7 +336,10 @@ export async function createDocumentFromUpload(
         throw new DocumentError('FOLDER_NOT_FOUND', 'Folder not found', 404);
       }
     }
-  } else if (args.folderId) {
+  } else if (args.teamId) {
+    assertHubTeamAssignable(auth, args.teamId);
+  }
+  if (!args.projectId && args.folderId) {
     const folder = await loadFolderOrThrow(tx, args.folderId);
     if (
       folder.organizationId !== auth.organizationId ||
@@ -349,8 +445,20 @@ export async function updateDocument(
     sourceProvider?: string | null;
   },
 ): Promise<{ teamScopeChanged: boolean; fileRef: string | null }> {
+  assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(tx, args.documentId);
   await assertDocumentVisible(tx, auth, doc);
+  // Content-freeze guard (core/documents/access.ts doctrine): the bytes and
+  // their identity fields move ONLY while uncontrolled — renames, folder
+  // moves, team and metadata edits stay allowed in every record state.
+  if (
+    args.content !== undefined ||
+    args.mimeType !== undefined ||
+    args.extension !== undefined ||
+    args.sourceProvider !== undefined
+  ) {
+    assertGenericDocumentContentWritableJson(doc.record);
+  }
 
   let title = doc.title;
   if (args.title !== undefined) {
@@ -381,6 +489,9 @@ export async function updateDocument(
         'DOCUMENT_SCOPE_CONFLICT',
         'A project document cannot carry a team',
       );
+    }
+    if (args.teamId !== null) {
+      assertHubTeamAssignable(auth, args.teamId);
     }
     teamId = args.teamId;
     teamTags = args.teamId ? [args.teamId] : [];
@@ -448,6 +559,7 @@ export async function setDocumentTrashed(
   documentId: string,
   trashed: boolean,
 ): Promise<void> {
+  assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(tx, documentId);
   await assertDocumentVisible(tx, auth, doc);
   if (trashed) {
@@ -508,6 +620,7 @@ export async function attachDocumentToProject(
   auth: ProjectAuthContext,
   args: { documentId: string; projectId: string },
 ): Promise<void> {
+  assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(tx, args.documentId);
   await assertDocumentVisible(tx, auth, doc);
   if (doc.projectId) {
@@ -558,6 +671,7 @@ export async function detachDocumentFromProject(
   auth: ProjectAuthContext,
   documentId: string,
 ): Promise<void> {
+  assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(tx, documentId);
   await assertDocumentVisible(tx, auth, doc);
   if (!doc.projectId) {
@@ -712,9 +826,13 @@ export async function createHubDocument(
   auth: ProjectAuthContext,
   args: CreateHubDocumentArgs,
 ): Promise<string> {
+  assertDocumentsWriteRole(auth);
   const title = args.title.trim();
   if (title.length === 0 || title.length > 512) {
     throw new DocumentError('DOCUMENT_TITLE_INVALID', 'Invalid title');
+  }
+  if (args.teamId !== undefined) {
+    assertHubTeamAssignable(auth, args.teamId);
   }
   if (args.folderId !== undefined) {
     const folder = await loadFolderOrThrow(tx, args.folderId);
@@ -1177,6 +1295,9 @@ export async function retryRagIndexingForDocument(
   auth: ProjectAuthContext,
   documentId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  // A write-shaped door (it re-queues billable indexing work and rewrites
+  // the file row's RAG bookkeeping); the UI shows Retry only to writers.
+  assertDocumentsWriteRole(auth);
   try {
     await checkUserRateLimit(sql, 'file:rag-retry', auth.userId);
   } catch (error) {
@@ -1405,9 +1526,11 @@ export interface CreateDocumentFromBlobUploadArgs {
 
 /**
  * The session upload lane's bind step (0.4 `createDocumentFromUpload` with a
- * blob ref): HEAD-attest the landed blob, validate against policy with the
- * AUTHORITATIVE size, register the metadata row, then bind the document —
- * all in the caller's transaction, so a refusal strands nothing.
+ * blob ref): prove the caller owns the blob, HEAD-attest it landed, validate
+ * against policy with the AUTHORITATIVE size, register the metadata row,
+ * then bind the document — all in the caller's transaction, so a refusal
+ * strands nothing. Ownership is proven WITHOUT consuming the upload intent:
+ * one blob legitimately becomes one document per selected team.
  */
 export async function createDocumentFromBlobUpload(
   sql: Sql,
@@ -1415,6 +1538,19 @@ export async function createDocumentFromBlobUpload(
   auth: ProjectAuthContext,
   args: CreateDocumentFromBlobUploadArgs,
 ): Promise<string> {
+  assertDocumentsWriteRole(auth);
+  const owned = await ownsUploadedBlob(tx, {
+    organizationId: auth.organizationId,
+    userId: auth.userId,
+    storageRef: args.storageRef,
+  });
+  if (!owned) {
+    throw new DocumentError(
+      'UPLOAD_NOT_OWNED',
+      'This upload is not yours to bind, or the upload session expired. Upload the file again.',
+      403,
+    );
+  }
   const stat = await statOrgBlob(sql, auth.organizationId, args.storageRef);
   if (stat === null) {
     throw new DocumentError(
@@ -1501,6 +1637,7 @@ export async function deleteDocumentHard(
   auth: ProjectAuthContext,
   documentId: string,
 ): Promise<void> {
+  assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(sql, documentId);
   await assertDocumentVisible(sql, auth, doc);
   if (isProjectScoped(doc)) {
@@ -1579,6 +1716,7 @@ export async function deleteFolderCascade(
   auth: ProjectAuthContext,
   folderId: string,
 ): Promise<void> {
+  assertDocumentsWriteRole(auth);
   const folder = await loadFolderOrThrow(sql, folderId);
   await assertFolderMutable(sql, auth, folder);
   await assertNotHeld(sql, auth.organizationId, 'folder', folderId);

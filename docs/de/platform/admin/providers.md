@@ -44,7 +44,7 @@ Unter der Tabelle zeigt **Harnesses**, wie sich jede Coding-Harness für deine O
 
 <Step title="Den Anbieter wählen">
 
-**Zugangsdaten hinzufügen** öffnet den mitgelieferten Katalog. Anbieter, für die du schon Zugangsdaten hältst, stehen zuerst unter **In Verwendung**; alles andere folgt darunter, alphabetisch. Jeder Eintrag nennt seine Wire-Fakten — das API-Format und den Endpunkt-Host, etwa `OpenAI-kompatible API · openrouter.ai`, oder `Endpunkt pro Eintrag` — und wie viele Modelle sein Katalog hält. Die Suche grenzt die Liste ein; eine Auswahl führt zum Formular, **Zurück zum Katalog** wieder heraus.
+**Zugangsdaten hinzufügen** öffnet den mitgelieferten Katalog. Anbieter, für die du schon Zugangsdaten hältst, stehen zuerst unter **Konfiguriert**; alles andere folgt darunter. Jeder Eintrag nennt seine Wire-Fakten — das API-Format und den Endpunkt-Host, etwa `OpenAI-kompatible API · openrouter.ai`, oder `Endpunkt pro Eintrag` — und wie viele Modelle sein Katalog hält. Die Suche grenzt die Liste ein; eine Auswahl führt zum Formular, **Zurück** wieder heraus.
 
 Weil das Formular zum gewählten Anbieter gehört, bietet es nur an, was dieser akzeptiert — nach einer Basis-URL, die die Plattform längst kennt, wirst du nie gefragt.
 

@@ -43,4 +43,4 @@ Chaque ligne montre le domaine (les sources de type liste d’URL portent à cô
 
 ## Où cela s’inscrit
 
-L’exploration est le moyen économique d’amener un site public dans le contexte des agents : un domaine — ou une liste d’URL choisie à la main — une cadence, et le reste est l’affaire du crawler. La contrepartie est la frontière du visiteur anonyme — le contenu privé passe par [Documents](/fr/platform/knowledge/documents) ou une connector. Pour la place des lignes Sites web à côté des Contacts, Produits et Fournisseurs, lis [Données structurées](/fr/platform/knowledge/structured-data).
+L’exploration est le moyen économique d’amener un site public dans le contexte des agents : un domaine — ou une liste d’URL choisie à la main — une cadence, et le reste est l’affaire du crawler. La contrepartie est la frontière du visiteur anonyme — le contenu privé passe par [Documents](/fr/platform/knowledge/documents) ou une connector. Pour la place des lignes Sites web à côté des Contacts et Produits, lis [Données structurées](/fr/platform/knowledge/structured-data).

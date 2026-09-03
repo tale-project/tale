@@ -19,13 +19,13 @@ Open the chat's plus menu and pick **Arena Mode** — the chat sprouts two model
 
 <Note>
 
-Both columns run the same agent — pick the agent you care about before you enable Arena, because the comparison is only meaningful when the instructions, tools, and knowledge on each side are identical.
+Both columns run the same chat assistant, so the instructions, tools, and knowledge on each side are identical and only the model differs — which is the whole point of the comparison.
 
 </Note>
 
 ## Picking the contenders
 
-The two pickers are independent — any model the agent's policy allows is fair game on each side. Picking the same model on both sides is allowed (useful for testing temperature differences if the agent exposes that), but most comparisons span vendors or sizes. The agent's instructions, knowledge, and tools apply to both columns; only the underlying model differs.
+The two pickers are independent — any model your organisation makes available is fair game on each side. Picking the same model on both sides is allowed, but most comparisons span vendors or sizes. The assistant's instructions, knowledge, and tools apply to both columns; only the underlying model differs.
 
 ## Casting a verdict
 

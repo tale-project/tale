@@ -2,6 +2,12 @@ import type { MiddlewareHandler } from 'hono';
 import type { Sql } from 'postgres';
 
 import {
+  defineAbilityFor,
+  type AppAction,
+  type AppSubject,
+} from '../../lib/permissions/ability.ts';
+import { evaluateTwoFactorEnforcement } from '../domains/two_factor/service.ts';
+import {
   MembershipError,
   requireOrganizationMember,
   type OrganizationMember,
@@ -67,11 +73,57 @@ export function requireOrgMember<E extends OrgEnv>(
           ? { ...member, role: trustedRole }
           : member,
       );
+      // Server-side org 2FA enforcement: a 'blocked' decision (policy enforced,
+      // user not enrolled, past grace) must actually WITHHOLD authority here —
+      // not merely swap the sign-in response body — so a client that ignores
+      // the redirect cannot use its session to reach org data. The enrolment
+      // path stays open: Better Auth's /api/auth/two-factor/* endpoints are
+      // handled before this middleware, and /api/app/two-factor/status is
+      // session-scoped (no org gate), so a blocked user can still enrol.
+      const enforcement = await evaluateTwoFactorEnforcement(
+        sql,
+        c.get('sessionBundle').user.id,
+      );
+      if (enforcement.decision === 'blocked') {
+        return c.json(
+          {
+            error: 'two_factor_enrollment_required',
+            twoFactorRedirect: true,
+            enrollRequired: true,
+          },
+          403,
+        );
+      }
     } catch (error) {
       if (error instanceof MembershipError) {
         return c.json({ error: error.message }, membershipStatus(error));
       }
       throw error;
+    }
+    return next();
+  };
+}
+
+/**
+ * Refuse a caller whose role lacks `action` on `subject` in the shared CASL
+ * matrix (`lib/permissions/ability.ts`) — the server twin of the UI's
+ * `ability.can` gates, for a router whose whole surface sits behind one
+ * capability (the cloud-import browse/import doors behind `knowledgeWrite`).
+ * Runs after `requireOrgMember`.
+ */
+export function requireOrgAbility<E extends OrgEnv>(
+  action: AppAction,
+  subject: AppSubject,
+): MiddlewareHandler<E> {
+  return async (c, next) => {
+    if (defineAbilityFor(c.get('orgMember').role).cannot(action, subject)) {
+      return c.json(
+        {
+          error: 'RBAC_FORBIDDEN',
+          message: 'Your role cannot perform this action in this organization.',
+        },
+        403,
+      );
     }
     return next();
   };

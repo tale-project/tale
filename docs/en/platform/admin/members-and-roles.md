@@ -43,39 +43,38 @@ Pick the role on the form before you submit; promoting or changing it later is a
 
 ## The permission matrix
 
-| Resource              | Owner | Admin | Developer | Editor | Member | Disabled |
-| --------------------- | ----- | ----- | --------- | ------ | ------ | -------- |
-| Agents                | R / W | R / W | R / W     | R / W  | R      | —        |
-| Documents             | R / W | R / W | R / W     | R / W  | R      | —        |
-| Products              | R / W | R / W | R / W     | R / W  | R      | —        |
-| Contacts              | R / W | R / W | R / W     | R / W  | R      | —        |
-| Vendors               | R / W | R / W | R / W     | R / W  | R      | —        |
-| Projects              | R / W | R / W | R / W     | R / W  | R      | —        |
-| Websites              | R / W | R / W | R / W     | R / W  | R      | —        |
-| Conversations         | R / W | R / W | R / W     | R / W  | R      | —        |
-| Conversation messages | R / W | R / W | R / W     | R / W  | R      | —        |
-| Approvals             | R / W | R / W | R / W     | R / W  | R      | —        |
-| Workflow executions   | R / W | R / W | R / W     | R      | R      | —        |
-| Workflow processing   | R / W | R / W | R / W     | R      | R      | —        |
-| Connectors            | R / W | R / W | R / W     | R      | R      | —        |
-| OneDrive sync configs | R / W | R / W | R / W     | R      | R      | —        |
-| Prompt templates      | R / W | R / W | R / W     | R / W  | R      | —        |
-| Audit logs            | R / W | R / W | R / W     | R / W  | R      | —        |
-| Governance policies   | R / W | R / W | R         | R      | R      | —        |
-| Message feedback      | R / W | R / W | R / W     | R / W  | R / W  | —        |
-| MCP servers           | R / W | R / W | R / W     | R      | R      | —        |
+| Resource                  | Owner | Admin | Developer | Editor | Member | Disabled |
+| ------------------------- | ----- | ----- | --------- | ------ | ------ | -------- |
+| Agents                    | R / W | R / W | R / W     | R / W  | R      | —        |
+| Documents                 | R / W | R / W | R / W     | R / W  | R      | —        |
+| Products                  | R / W | R / W | R / W     | R / W  | R      | —        |
+| Contacts                  | R / W | R / W | R / W     | R / W  | R      | —        |
+| Vendors                   | R / W | R / W | R / W     | R / W  | R      | —        |
+| Projects                  | R / W | R / W | R / W     | R / W  | R      | —        |
+| Websites                  | R / W | R / W | R / W     | R / W  | R      | —        |
+| Conversations             | R / W | R / W | R / W     | R / W  | R      | —        |
+| Conversation messages     | R / W | R / W | R / W     | R / W  | R      | —        |
+| Approvals                 | R / W | R / W | R / W     | R / W  | R      | —        |
+| Workflow executions       | R / W | R / W | R / W     | R      | R      | —        |
+| Workflow processing       | R / W | R / W | R / W     | R      | R      | —        |
+| Connectors                | R / W | R / W | R / W     | R      | R      | —        |
+| OneDrive sync configs     | R / W | R / W | R / W     | R      | R      | —        |
+| Google Drive sync configs | R / W | R / W | R / W     | R      | R      | —        |
+| Audit logs                | R / W | R / W | R / W     | R / W  | R      | —        |
+| Governance policies       | R / W | R / W | R         | R      | R      | —        |
+| Message feedback          | R / W | R / W | R / W     | R / W  | R / W  | —        |
 
-R = read, W = write, — = no access. The matrix is the authoritative description of what each role can do across the resources Tale tracks; the rows are the same set the in-product permission system uses at request time.
+R = read, W = write, — = no access. The matrix is the authoritative description of what each role can do across the resources Tale tracks; the rows are the same set the in-product permission system uses at request time. The audit-log pages themselves are visible to Admins and Owners only, whatever the matrix row says about reads.
 
 ## The Settings surface and the menu
 
-Members, Editors, and Disabled users do not see the configuration surface — only their own personal settings. Developers see the organization settings but not the governance sub-tree (except read views). Admins and Owners see everything. The settings menu is grouped into **Personal** (Account, Preferences, Environment — every role), **Organization** (Teams, the Members section, AI providers, Branding, Governance, and the rest — Admin-and-Owner, with Developers seeing a subset), and **Development** (the API and data-residency surface). Governance is an item inside the Organization group, not a group of its own, and it needs Admin access.
+Members, Editors, and Disabled users do not see the configuration surface — only their personal settings plus the org's skill library. Developers see the developer surface (AI providers, connectors, sandboxes, the API section) but not the governance sub-tree. Admins and Owners see everything. The settings menu is grouped into **Personal** (Account, Preferences, Notifications, Environment — every role), **Organization** (Teams, Members, AI providers, Branding, Governance, Metrics, and the rest — Admin-and-Owner, with Developers seeing a subset), and **Advanced** (the API, Enterprise SSO, and data-residency surface). Governance is an item inside the Organization group, not a group of its own, and it needs Admin access.
 
 ## Edge cases
 
-**Transferring ownership** requires an existing Owner to nominate a current Admin or Owner; the new Owner role takes effect immediately. The previous Owner becomes Admin unless explicitly downgraded.
+**Transferring ownership** is on the member's row menu — confirm, and the target becomes Owner while you are demoted to Admin, effective immediately.
 
-**Last Admin warning.** The Members section warns when removing or downgrading the last Admin or Owner. The action is allowed — Tale does not lock you out — but you should keep at least two Admin-or-Owner accounts for continuity.
+**The last Admin stays.** Tale refuses to demote the last Admin — the change comes back with _The last admin cannot be demoted_. Two more guards sit beside it: the Owner role only moves through **Transfer ownership**, and the organisation creator's role is immutable.
 
 **Resetting 2FA** is on the member's row in the Members section. Resetting clears the second factor; the next sign-in re-enrolls.
 

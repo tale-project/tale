@@ -1,13 +1,13 @@
 ---
 title: API keys
-description: Org-wide credentials that let external code call Tale's REST API on behalf of the organisation. Admins and Developers create, rotate, and revoke them under Settings > API keys.
+description: Personal bearer credentials that let external code call Tale's REST API. Admins and Developers create, rotate, and revoke them under Settings > API > REST.
 ---
 
-API keys are the org-wide credentials Tale issues so external code can call its REST API without a human in the loop. A key authenticates the caller as the organisation, scoped by the role you pick when you mint it. Admins and Developers manage keys; other roles cannot see the page. This is the reference for what a key is, how to create one, how to scope it, and how to retire it without breaking anything that depends on it.
+API keys are the credentials Tale issues so external code can call its REST API without a human in the loop. A key authenticates the caller as the person who minted it and carries that person's role in the organisation. Admins and Developers manage keys; other roles cannot see the page. This is the reference for what a key is, how to create one, how it is scoped, and how to retire it without breaking anything that depends on it.
 
-The keys listed here are different from the per-user session tokens Tale issues when someone signs in. Those are short-lived and tied to a person; API keys are long-lived and tied to the organisation. Reach for an API key when you wire a script, a cron job, an internal service, or a third-party connector to Tale; reach for the in-product UI when a person is at the keyboard.
+The keys listed here are different from the per-user session tokens Tale issues when someone signs in. Those are short-lived and tied to a browser; API keys are long-lived and meant for unattended callers. Reach for an API key when you wire a script, a cron job, an internal service, or a third-party connector to Tale; reach for the in-product UI when a person is at the keyboard.
 
-<Frame caption="Settings > API keys — where keys are created, rotated, and revoked.">
+<Frame caption="Settings > API > REST — where keys are created, rotated, and revoked.">
 
 ![The REST API keys settings page listing two keys, each showing only its prefix, the date it was added, and a Never used marker, beside a Create API key button.](/images/get-started/settings-api-keys.webp)
 
@@ -15,15 +15,15 @@ The keys listed here are different from the per-user session tokens Tale issues 
 
 ## Creating a key
 
-Open **Settings > API keys** and click **Create API key**. Give the key a name that says who or what will use it (`Billing sync`, `Slack relay`, `ops-cron`), pick the role it should carry, and pick the expiry. Tale shows the secret exactly once on creation — copy it into your password manager or your deployment system before you close the dialog. After that, only the key's prefix is visible from the table.
+Open **Settings > API > REST** and click **Create API key**. Give the key a name that says who or what will use it (`Billing sync`, `Slack relay`, `ops-cron`) and pick the expiration — 7, 30, or 90 days, a year, or never; the default is 30 days. Tale shows the secret exactly once on creation — copy it into your password manager or your deployment system before you close the dialog. After that, the table shows only a masked fragment of it.
 
-The role you pick scopes everything the key can do. A key carrying the Developer role can read every resource and write to most; a key carrying the Member role can read the knowledge base and start chats but not configure anything. Pick the smallest role that does the job — keys are exactly as dangerous as the role they carry.
+The key acts as you: every request it makes carries your role in the organisation. A key minted by a Developer can read every resource and write to most; there is no way to mint a key more powerful than its creator. Since keys are exactly as dangerous as the role behind them, let the least-privileged account that can do the job mint the key.
 
 ## What the table shows
 
-The API keys table lists each key by name, prefix, role, creator, last-used timestamp, and expiry. The prefix is the first eight characters of the secret — enough to identify the key in logs without exposing it. The last-used timestamp updates on every successful request the key makes; a key that has not been used for weeks is usually safe to retire.
+The table lists the keys you created — teammates' keys are not visible here — each by name, a masked fragment of the secret (the first and last few characters), the date it was added, and the last-used timestamp. The fragment is enough to match a row against the key you hold without exposing it. The last-used timestamp updates on every successful request the key makes; a key that has not been used for weeks is usually safe to retire.
 
-The filter row lets you narrow by role, by creator, and by expiry window. The default sort is most-recently-created first; the secondary sort is most-recently-used.
+There is no search or filter row — an org holds a handful of keys, and a deliberate naming scheme keeps the table scannable.
 
 ## Rotating a key
 
@@ -31,13 +31,11 @@ To rotate, create the new key first, deploy it to the system that uses the old o
 
 ## Revoking a key
 
-Click the row, then **Revoke**. A revoked key stops authenticating immediately — any in-flight request completes, but the next one fails with `401`. Revoked keys stay in the table for the audit trail; the row badges them as revoked and shows who revoked them and when. There is no undo for revocation; if you revoke the wrong key, mint a new one.
+Open the key's row menu and click **Revoke key**, then confirm. A revoked key stops authenticating immediately — any in-flight request completes, but the next one fails with `401` — and the row disappears from the table. There is no undo for revocation; if you revoke the wrong key, mint a new one.
 
 ## Scopes and limits
 
-Each key carries the permissions of its role at the time of every request, not the time of creation. If you change a role's permissions through a governance policy, every key that carries that role inherits the change on the next request. The org's rate limits apply per key, not per organisation; a noisy key does not throttle a quiet one.
-
-A key can be restricted further by IP allowlist on creation. The allowlist takes a comma-separated list of CIDR blocks; requests from outside the list fail with `403`. Reach for the IP allowlist when the calling system has a stable egress and you want defence in depth.
+Each key carries the permissions of its creator's role at the time of every request, not the time of creation. Change the person's role — or disable their membership — and every key they minted inherits the change on the next request. Requests through the REST API are rate-limited per calling address, and a [governance budget rule](/platform/admin/governance/policies-and-limits) can cap what a single key spends on models.
 
 ## Where this fits
 

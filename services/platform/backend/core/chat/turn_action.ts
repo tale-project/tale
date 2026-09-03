@@ -778,13 +778,16 @@ async function autoPromptFacts(
  * → text), documents and text-based files (RAG-indexed, retrieved through
  * the knowledge tools) — strictly the 0.3 upload family — the composer's
  * count cap re-enforced server-side, and — the part that matters — every
- * blob reference must belong to THIS organization and not be trashed.
- * Without the ownership walk a crafted call could name any blob on the
- * deployment and exfiltrate it through the model's eyes.
+ * blob reference must be one the SENDER may read (their own upload, or a
+ * parent they can read), in this organization and not trashed. Without the
+ * ownership walk a crafted call could name any blob on the deployment —
+ * another member's document, whose ref every reader holds — and exfiltrate
+ * it through the model's eyes.
  */
 async function validateTurnAttachments(
   ctx: ActionCtx,
   organizationId: string,
+  userId: string,
   attachments: readonly TurnAttachment[],
 ): Promise<string | null> {
   if (attachments.length > CHAT_MAX_FILE_COUNT) {
@@ -805,9 +808,10 @@ async function validateTurnAttachments(
   }
   const owned = new Set(
     await ctx.runQuery(
-      internal.file_metadata.internal_queries.filterStorageIdsInOrg,
+      internal.file_metadata.internal_queries.filterStorageIdsReadable,
       {
         organizationId,
+        userId,
         storageIds: attachments.map((attachment) => attachment.fileId),
       },
     ),
@@ -1033,7 +1037,12 @@ export async function executeTurn(
   const pendingAttachmentProblem =
     sentAttachments.length > 0
       ? settled(
-          validateTurnAttachments(ctx, args.organizationId, sentAttachments),
+          validateTurnAttachments(
+            ctx,
+            args.organizationId,
+            args.userId,
+            sentAttachments,
+          ),
         )
       : null;
   const pendingResolved = settled(
@@ -1085,6 +1094,7 @@ export async function executeTurn(
       internal.file_metadata.internal_mutations.bindStorageIdsToThread,
       {
         organizationId: args.organizationId,
+        userId: args.userId,
         threadId: lineage.rootId,
         storageIds: sentAttachments.map((attachment) => attachment.fileId),
       },
@@ -1157,6 +1167,7 @@ export async function executeTurn(
       internal.file_metadata.internal_mutations.bindStorageIdsToThread,
       {
         organizationId: args.organizationId,
+        userId: args.userId,
         threadId: lineage.rootId,
         storageIds: attachments.map((attachment) => attachment.fileId),
       },

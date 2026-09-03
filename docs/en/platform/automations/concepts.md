@@ -62,13 +62,15 @@ Branching and looping are fields on a node rather than separate step types, so t
 
 ### Node types
 
-Three types are built in, and every connector action and platform native — knowledge search, document operations — joins the same table alongside them.
+Four types are built in, and every connector action and platform native — knowledge search, document operations — joins the same table alongside them.
 
 **`transform`** runs pure JavaScript to reshape data. It has no network and no imports: the body reads the node's resolved `input` and must return a value.
 
 **`llm`** calls a language model with a templated prompt. `model` is required and always explicit — an automation never picks one on your behalf (the chat composer's Auto is a chat-only affordance). The output is `{text}`, or the schema-shaped object when the node declares an `outputSchema`.
 
-**`subworkflow`** runs another saved automation as a single node, referenced as `"name"` or `"name@version"`. Without a version it uses the deployed one, and nesting is capped at three levels.
+**`agent`** runs one turn of a coding agent (Claude Code, Codex, and the other harnesses) in the sandbox. It reads staged `files`, uses `skills`, brokered `connectors`, granted platform `tools`, and injected `secrets`, and returns `{text, files, status}`; `model` is required. Reach for `llm` when a one-shot completion is enough, and for `agent` only when the step needs tools, files, or several turns — a live agent node runs as an asynchronous turn, so it sits at the top level rather than inside a `subautomation` and does not iterate with `forEach`.
+
+**`subautomation`** runs another saved automation as a single node, its `automation` field naming `"name"` or `"name@version"`. Without a version it uses the deployed one, and nesting is capped at three levels.
 
 ### Structured and unstructured output
 

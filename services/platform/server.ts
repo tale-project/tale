@@ -122,6 +122,12 @@ function backendBaseUrl(): string {
   return configured === '' ? 'http://127.0.0.1:3005' : configured;
 }
 
+/**
+ * Validate the request's session cookie against the backend's `/api/sse/auth`
+ * door and answer the caller's org memberships — `null` means "no valid
+ * session". Shared by the `/events/file` SSE gate and the `/canvas-preview`
+ * gate; this process has no database, so the backend is the oracle.
+ */
 async function resolveAllowedOrgSlugs(
   cookieHeader: string | undefined,
 ): Promise<Set<string> | null> {
@@ -132,7 +138,7 @@ async function resolveAllowedOrgSlugs(
     });
     if (res.status === 401) return null;
     if (!res.ok) {
-      console.warn(`[/events/file] backend auth lookup returned ${res.status}`);
+      console.warn(`[session auth] backend auth lookup returned ${res.status}`);
       return null;
     }
     const body: unknown = await res.json();
@@ -145,7 +151,7 @@ async function resolveAllowedOrgSlugs(
       slugs.filter((s): s is string => typeof s === 'string' && s.length > 0),
     );
   } catch (err) {
-    console.warn('[/events/file] backend auth lookup failed', err);
+    console.warn('[session auth] backend auth lookup failed', err);
     return null;
   }
 }
@@ -639,14 +645,62 @@ export function createApp(
   // header overrides. The Canvas preview shell needs its own permissive
   // CSP; bypass `secureHeaders` for that single path explicitly. Path
   // guard, not registration order — the latter is fragile to refactors.
+  // Branding images are org-admin-uploaded bytes (SVG included) served on
+  // the app origin. In the app they are embedded ONLY as `<img>` / `<link
+  // rel="icon">`, where a response CSP is irrelevant — but a direct
+  // NAVIGATION to the URL makes an SVG a same-origin document whose scripts
+  // run with the app origin (stored XSS from any org's admin against every
+  // user of every org on the deployment). A bare `sandbox` CSP directive (no
+  // allow-* flags) turns any such navigation into an inert opaque-origin
+  // document — no script, no same-origin reach — while pixel rendering in
+  // image contexts is untouched. nosniff pins the allowlisted Content-Type.
+  const secureForBrandingImages = secureHeaders({
+    contentSecurityPolicy: { sandbox: [] },
+    strictTransportSecurity: isHttpsSite(env) ? 'max-age=15552000' : false,
+    xContentTypeOptions: 'nosniff',
+    xFrameOptions: 'DENY',
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
+  });
   app.use('*', async (c, next) => {
-    if (c.req.path === '/canvas-preview') return next();
+    // Only the POST (preview render) escapes the strict headers — its
+    // handler sets the bespoke sandboxed CSP itself. A GET here falls
+    // through to the SPA shell and must keep the standard policy.
+    if (c.req.path === '/canvas-preview' && c.req.method === 'POST')
+      return next();
+    if (c.req.path.startsWith('/branding/images/'))
+      return secureForBrandingImages(c, next);
     if (c.req.path.startsWith('/dav/') || c.req.path === '/dav')
       return secureForDav(c, next);
     return currentSecure()(c, next);
   });
 
   app.post('/canvas-preview', async (c) => {
+    // Session gate. This response deliberately escapes the SPA's strict CSP
+    // (inline/eval script allowed), so it must never render for an anonymous
+    // caller: an attacker could otherwise form-POST a victim's browser here
+    // and have their HTML echoed on the app origin. The backend session
+    // oracle (the same door `/events/file` uses) validates the cookie. The
+    // in-app preview posts same-origin, so the session cookie always rides
+    // along. Defense-in-depth on top of the gate, the response CSP carries a
+    // `sandbox` directive (see buildCanvasPreviewCsp) so even an
+    // authenticated victim navigated here top-level gets an opaque-origin
+    // document with no reach into the app.
+    const allowedOrgSlugs = await resolveAllowedOrgSlugs(
+      c.req.header('cookie'),
+    );
+    if (allowedOrgSlugs === null) {
+      return new Response('Unauthenticated', {
+        status: 401,
+        headers: {
+          'Cache-Control': 'no-store',
+          Vary: 'Cookie',
+          'WWW-Authenticate': 'Cookie',
+        },
+      });
+    }
     const body = await c.req.parseBody();
     const userHtml = typeof body.html === 'string' ? body.html : '';
     return new Response(wrapCanvasPreviewHtml(userHtml), {
@@ -658,6 +712,7 @@ export function createApp(
         'X-Frame-Options': 'SAMEORIGIN',
         // Per-request bespoke HTML — no caching.
         'Cache-Control': 'no-store',
+        Vary: 'Cookie',
       },
     });
   });

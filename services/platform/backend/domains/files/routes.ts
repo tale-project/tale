@@ -11,6 +11,12 @@ import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
+import type { ProjectAuthContext } from '../projects/service.ts';
+import {
+  assertFileReadable,
+  resolveFileReadAccess,
+  viewerForMember,
+} from './access.ts';
 import {
   createRestUploadHandoff,
   createUploadHandoff,
@@ -28,6 +34,7 @@ import {
   skipTranscription,
   transcribeDictation,
 } from './transcription.ts';
+import { recordUploadIntent, uploadPurposeSchema } from './upload-intents.ts';
 
 const handoffSchema = z.object({
   contentType: z.string().min(1).max(255),
@@ -58,16 +65,40 @@ function handleError<E extends OrgEnv>(
   throw error;
 }
 
-/** /api/app/files — upload handshake, presigned serve, delete. */
+/**
+ * /api/app/files — upload handshake, presigned serve, delete.
+ *
+ * Two rules hold on every lane here. A key the server mints for a browser is
+ * recorded as the caller's upload intent (`upload-intents.ts`), and only that
+ * caller can later bind it — the ref alone, which every reader of a document
+ * holds, binds nothing. And a row is served or touched only after the read
+ * gate (`access.ts`) has admitted the caller through the row's bound parent
+ * (uploader, document, thread, conversation, task); a refused row is 404.
+ */
 export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
 
+  const viewerOf = (c: Context<OrgEnv>): Promise<ProjectAuthContext> =>
+    viewerForMember(deps.sql, {
+      organizationId: c.get('orgId'),
+      userId: c.get('sessionBundle').user.id,
+      role: c.get('orgMember').role,
+    });
+
   /** Direct byte upload (the 0.4 Convex `generateUploadUrl` POST contract):
    * the client POSTs the file body to this URL and gets `{ storageId }` —
    * on pg that id IS the org-scoped blob ref. Serves every legacy POST-lane
-   * uploader without per-component surgery. */
+   * uploader without per-component surgery. `?purpose=` names the bind lane
+   * the blob is staged for (default `file`); the skill and automation bundle
+   * lanes stage through here and consume only their own purpose. */
   app.post('/upload', async (c) => {
+    const purpose = uploadPurposeSchema.safeParse(
+      c.req.query('purpose') ?? 'file',
+    );
+    if (!purpose.success) {
+      return c.json({ error: 'invalid purpose' }, 400);
+    }
     try {
       const userId = c.get('sessionBundle').user.id;
       await checkUserRateLimit(deps.sql, 'file:upload', userId);
@@ -75,6 +106,12 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       const storageId = await putOrgBlobBytes(deps.sql, c.get('orgId'), {
         bytes,
         contentType: c.req.header('content-type') ?? 'application/octet-stream',
+      });
+      await recordUploadIntent(deps.sql, {
+        organizationId: c.get('orgId'),
+        userId,
+        purpose: purpose.data,
+        storageRef: storageId,
       });
       return c.json({ storageId });
     } catch (error) {
@@ -99,6 +136,12 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         { organizationId: c.get('orgId') },
         body.data,
       );
+      await recordUploadIntent(deps.sql, {
+        organizationId: c.get('orgId'),
+        userId,
+        purpose: 'file',
+        storageRef: handoff.storageRef,
+      });
       return c.json({
         url: handoff.uploadUrl,
         method: 'PUT',
@@ -109,7 +152,9 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  /** Reclaim a landed-but-rejected upload blob (never a registered file). */
+  /** Reclaim a landed-but-rejected upload blob (never a registered file,
+   * never another member's staged key — the reclaim consumes the caller's
+   * own upload intent). */
   app.post('/reject-blob', async (c) => {
     const body = z
       .object({ storageRef: z.string().min(1).max(1024) })
@@ -121,7 +166,10 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       return c.json(
         await deleteRejectedUploadBlob(
           deps.sql,
-          c.get('orgId'),
+          {
+            organizationId: c.get('orgId'),
+            userId: c.get('sessionBundle').user.id,
+          },
           body.data.storageRef,
         ),
       );
@@ -138,13 +186,18 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     try {
       const userId = c.get('sessionBundle').user.id;
       await checkUserRateLimit(deps.sql, 'file:upload', userId);
-      return c.json(
-        await createUploadHandoff(
-          deps.sql,
-          { organizationId: c.get('orgId') },
-          body.data,
-        ),
+      const handoff = await createUploadHandoff(
+        deps.sql,
+        { organizationId: c.get('orgId') },
+        body.data,
       );
+      await recordUploadIntent(deps.sql, {
+        organizationId: c.get('orgId'),
+        userId,
+        purpose: 'file',
+        storageRef: handoff.storageRef,
+      });
+      return c.json(handoff);
     } catch (error) {
       return handleError(c, error);
     }
@@ -161,7 +214,10 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         userId: c.get('sessionBundle').user.id,
       };
       const result = await transactSerializable(deps.sql, (tx) =>
-        registerUpload(deps.sql, tx, scope, body.data),
+        registerUpload(deps.sql, tx, scope, body.data, {
+          kind: 'app',
+          purpose: 'file',
+        }),
       );
       // Audio/video uploads transcribe server-side (the 0.4 saveFileMetadata
       // audio branch): stamp queued + enqueue the pipeline job.
@@ -205,12 +261,30 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
+  /** The transcription verbs act on a row named by ref — the same read gate
+   * as serving decides whether the caller may steer that row's pipeline. */
+  const loadReadableByRef = async (
+    c: Context<OrgEnv>,
+    storageRef: string,
+  ): Promise<void> => {
+    const meta = await getFileMetadataByIdOrRef(
+      deps.sql,
+      c.get('orgId'),
+      storageRef,
+    );
+    if (!meta) {
+      throw new FileError('FILE_NOT_FOUND', 'File not found', 404);
+    }
+    await assertFileReadable(deps.sql, await viewerOf(c), meta);
+  };
+
   app.post('/transcription/skip', async (c) => {
     const body = z
       .object({ storageRef: z.string().min(1).max(1024) })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
+      await loadReadableByRef(c, body.data.storageRef);
       await skipTranscription(deps.sql, c.get('orgId'), body.data.storageRef);
       return c.json({ ok: true });
     } catch (error) {
@@ -224,6 +298,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     try {
+      await loadReadableByRef(c, body.data.storageRef);
       await retryTranscription(deps.sql, c.get('orgId'), body.data.storageRef);
       return c.json({ ok: true });
     } catch (error) {
@@ -232,19 +307,25 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   });
 
   // Batch pipeline statuses for staged attachments (the 0.4
-  // `getByStorageIds` shape; first row per ref, capped at 20).
+  // `getByStorageIds` shape; first row per ref, capped at 20). A row the
+  // caller may not read is simply absent — the transcript rides here.
   app.post('/statuses', async (c) => {
     const body = z
       .object({ storageIds: z.array(z.string().min(1).max(1024)).max(20) })
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgId = c.get('orgId');
+    const viewer = await viewerOf(c);
     const statuses: Record<string, unknown>[] = [];
     for (const storageId of body.data.storageIds) {
       const rows = await deps.sql<
         {
+          organizationId: string;
           storageRef: string;
+          uploadedBy: string | null;
           documentId: string | null;
+          threadId: string | null;
+          conversationId: string | null;
           fileName: string;
           contentType: string;
           size: number;
@@ -264,7 +345,9 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           createdAt: number;
         }[]
       >`
-        SELECT storage_ref AS "storageRef", document_id AS "documentId",
+        SELECT org_id AS "organizationId", storage_ref AS "storageRef",
+               uploaded_by AS "uploadedBy", document_id AS "documentId",
+               thread_id AS "threadId", conversation_id AS "conversationId",
                file_name AS "fileName", content_type AS "contentType",
                size::float8 AS "size", rag_status AS "ragStatus",
                rag_error AS "ragError", rag_progress AS "ragProgress",
@@ -286,6 +369,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       `;
       const row = rows[0];
       if (!row) continue;
+      if (!(await resolveFileReadAccess(deps.sql, viewer, row))) continue;
       statuses.push(
         Object.assign(
           {
@@ -334,7 +418,8 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   /**
    * URLs for several blobs at once — the attachment lists. Never truncates
    * (a cap here used to silently drop thumbnails while titles rendered); an
-   * unresolvable ref answers `url: null` rather than failing the batch.
+   * unresolvable ref — missing, or not the caller's to read — answers
+   * `url: null` rather than failing the batch.
    */
   app.post('/urls', async (c) => {
     const body = z
@@ -342,6 +427,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'invalid body' }, 400);
     const orgId = c.get('orgId');
+    const viewer = await viewerOf(c);
     const seen = new Set<string>();
     const urls: { fileId: string; url: string | null }[] = [];
     for (const fileId of body.data.fileIds) {
@@ -349,10 +435,13 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       seen.add(fileId);
       try {
         const meta = await getFileMetadataByIdOrRef(deps.sql, orgId, fileId);
+        const readable =
+          meta !== null &&
+          (await resolveFileReadAccess(deps.sql, viewer, meta));
         urls.push({
           fileId,
           url:
-            meta === null
+            meta === null || !readable
               ? null
               : await getFileUrl(
                   deps.sql,
@@ -368,6 +457,34 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return c.json({ urls });
   });
 
+  /**
+   * Link-shaped blob serve: 302 to a fresh presigned GET (a presigned URL
+   * minted at store time would expire, and the 0.4 `/http_api/storage` door
+   * this replaced retired with the Convex runtime). Session-gated like every
+   * lane here (the browser opens it same-origin, so cookies ride along), and
+   * the ref must name a row the caller may READ through its bound parent —
+   * the same `access.ts` gate as the sibling url doors, so a bare ref grants
+   * nothing here either. Declared before the `/:fileId` routes so `serve`
+   * never parses as a file id.
+   */
+  app.get('/serve', async (c) => {
+    const ref = c.req.query('ref');
+    if (!ref) return c.json({ error: 'ref is required' }, 400);
+    const filename = c.req.query('filename');
+    try {
+      await loadReadableByRef(c, ref);
+      const url = await getFileUrl(
+        deps.sql,
+        { organizationId: c.get('orgId') },
+        ref,
+        filename !== undefined && filename !== '' ? { filename } : {},
+      );
+      return c.redirect(url, 302);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
   app.get('/:fileId', async (c) => {
     try {
       const meta = await getFileMetadataByIdOrRef(
@@ -378,6 +495,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       if (!meta) {
         return c.json({ error: 'FILE_NOT_FOUND' }, 404);
       }
+      await assertFileReadable(deps.sql, await viewerOf(c), meta);
       return c.json({ file: meta });
     } catch (error) {
       return handleError(c, error);
@@ -395,6 +513,7 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
       if (!meta) {
         return c.json({ error: 'FILE_NOT_FOUND' }, 404);
       }
+      await assertFileReadable(deps.sql, await viewerOf(c), meta);
       const url = await getFileUrl(
         deps.sql,
         { organizationId: orgId },

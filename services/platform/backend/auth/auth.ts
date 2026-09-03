@@ -104,6 +104,23 @@ const apiKeySuffixPlugin = {
   },
 } satisfies BetterAuthPlugin;
 
+/**
+ * Per-API-key rate limit. Better Auth's apiKey plugin interprets `timeWindow`
+ * in MILLISECONDS — it resets the per-key counter whenever
+ * `now - lastRequest > timeWindow` (see `evaluateRateLimit` in
+ * `@better-auth/api-key`). A bare `60` therefore means a 60-MILLISECOND
+ * window: any two requests more than 60ms apart reset the counter, so the
+ * limit never accumulates and API keys are effectively unthrottled. 60_000 is
+ * the intended 60-second window; the value is persisted per key as
+ * `apikey.rateLimitTimeWindow` at creation time.
+ */
+export const API_KEY_RATE_LIMIT = {
+  enabled: true,
+  /** 60 seconds, expressed in milliseconds (Better Auth's unit). */
+  timeWindow: 60_000,
+  maxRequests: 100,
+} as const;
+
 export function createAuth(config: AuthConfig) {
   const siteUrl = config.baseUrl;
 
@@ -561,11 +578,7 @@ export function createAuth(config: AuthConfig) {
         defaultPrefix: 'tale',
         apiKeyHeaders: ['x-api-key'],
         enableSessionForAPIKeys: true,
-        rateLimit: {
-          enabled: true,
-          timeWindow: 60,
-          maxRequests: 100,
-        },
+        rateLimit: { ...API_KEY_RATE_LIMIT },
       }),
       apiKeySuffixPlugin,
       // TOTP two-factor. The verify-endpoint lockout + org enforcement hooks

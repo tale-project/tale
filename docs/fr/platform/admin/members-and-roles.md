@@ -59,23 +59,22 @@ Choisis le rôle dans le formulaire avant de valider ; le promouvoir ou le cha
 | Traitement workflow       | R / W        | R / W | R / W       | R       | R      | —         |
 | Connectors                | R / W        | R / W | R / W       | R       | R      | —         |
 | Configs OneDrive sync     | R / W        | R / W | R / W       | R       | R      | —         |
-| Templates de prompts      | R / W        | R / W | R / W       | R / W   | R      | —         |
+| Configs Google Drive sync | R / W        | R / W | R / W       | R       | R      | —         |
 | Journaux d’audit          | R / W        | R / W | R / W       | R / W   | R      | —         |
 | Politiques de gouvernance | R / W        | R / W | R           | R       | R      | —         |
 | Feedback de messages      | R / W        | R / W | R / W       | R / W   | R / W  | —         |
-| Serveurs MCP              | R / W        | R / W | R / W       | R       | R      | —         |
 
-R = lecture, W = écriture, — = aucun accès. La matrice est la description faisant autorité de ce que chaque rôle peut faire sur les ressources que Tale piste ; les lignes sont l’ensemble qu’utilise le système de permissions interne au produit à la requête.
+R = lecture, W = écriture, — = aucun accès. La matrice est la description faisant autorité de ce que chaque rôle peut faire sur les ressources que Tale piste ; les lignes sont l’ensemble qu’utilise le système de permissions interne au produit à la requête. Les pages de journaux d’audit elles-mêmes ne sont visibles que des Admins et Propriétaires, quoi que dise la ligne de la matrice sur la lecture.
 
 ## La surface Paramètres et le menu
 
-Les Membres, Éditeurs et utilisateurs Désactivés ne voient pas la surface de configuration — seulement leurs propres paramètres personnels. Les Développeurs voient les paramètres d’organisation mais pas le sous-arbre gouvernance (sauf vues en lecture). Les Administrateurs et Propriétaires voient tout. Le menu des paramètres est groupé en **Personnel** (Compte, Préférences, Environnement — chaque rôle), **Organisation** (Équipes, la section Membres, Fournisseurs IA, Branding, Gouvernance et le reste — Admin et Propriétaire, les Développeurs en voyant un sous-ensemble) et **Développement** (la surface API et résidence des données). La gouvernance est un élément dans le groupe Organisation, pas un groupe à part, et demande l’accès Admin.
+Les Membres, Éditeurs et utilisateurs Désactivés ne voient pas la surface de configuration — seulement leurs paramètres personnels plus la bibliothèque de skills de l’organisation. Les Développeurs voient la surface développeur (Fournisseurs IA, connectors, sandboxes, la section API) mais pas le sous-arbre gouvernance. Les Administrateurs et Propriétaires voient tout. Le menu des paramètres est groupé en **Personnel** (Compte, Préférences, Notifications, Environnement — chaque rôle), **Organisation** (Équipes, Membres, Fournisseurs IA, Branding, Gouvernance, Métriques et le reste — Admin et Propriétaire, les Développeurs en voyant un sous-ensemble) et **Avancé** (la surface API, SSO d’entreprise et résidence des données). La gouvernance est un élément dans le groupe Organisation, pas un groupe à part, et demande l’accès Admin.
 
 ## Cas limites
 
-**Transférer la propriété** demande qu’un Propriétaire existant nomme un Admin ou Propriétaire actuel ; le nouveau rôle Propriétaire prend effet immédiatement. Le Propriétaire précédent devient Admin sauf rétrogradation explicite.
+**Transférer la propriété** vit dans le menu de la ligne du membre — confirme, et la cible devient Propriétaire tandis que tu es rétrogradé Admin, avec effet immédiat.
 
-**Avertissement « dernier Admin ».** La section Membres avertit quand on retire ou rétrograde le dernier Admin ou Propriétaire. L’action est autorisée — Tale ne te verrouille pas dehors — mais tu devrais garder au moins deux comptes Admin-ou-Propriétaire pour la continuité.
+**Le dernier Admin reste.** Tale refuse de rétrograder le dernier Admin — le changement revient avec _Le dernier admin ne peut pas être rétrogradé_. Deux gardes de plus siègent à côté : le rôle Propriétaire ne bouge que par **Transférer la propriété**, et le rôle de la personne qui a créé l’organisation est immuable.
 
 **Réinitialiser la 2FA** se trouve sur la ligne du membre dans la section Membres. Réinitialiser efface le second facteur ; le sign-in suivant réenrôle.
 

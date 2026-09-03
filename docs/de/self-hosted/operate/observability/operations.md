@@ -13,11 +13,11 @@ Der symptomorientierte Index ist in [Troubleshooting](/de/self-hosted/operate/ob
 | ------------------------------------------- | ----------- | ---------------------------------------------------------- |
 | `tale-proxy`-Health-Probe scheitert > 1 Min | page        | Jeder Benutzer sieht einen Verbindungsfehler               |
 | `tale-platform` HTTP-5xx-Rate > 5 %         | page        | Die UI ist für einen relevanten Anteil der Anfragen kaputt |
-| `tale-convex` WebSocket-Reconnect-Storm     | page        | UI lädt, aber keine Daten fliessen                         |
+| `tale-backend-api` down oder crash-loopend  | page        | UI lädt, aber keine Daten fliessen                         |
 | Postgres-Verbindungen > 80 % des Pools      | warn        | Die nächste Spitze fängt an zu blockieren                  |
 | `db-data`-Volume > 80 % voll                | warn        | Das operative Postgres geht bei voll auf read-only         |
 | `knowledge-db-data`-Volume > 80 % voll      | warn        | Ingestion scheitert, wenn die Korpus-Datenbank voll ist    |
-| `tale-knowledge-db` von convex unerreichbar | warn        | Wissens-Suche liefert leer; Ingestion stockt               |
+| `knowledge-db` vom Backend unerreichbar     | warn        | Wissens-Suche liefert leer; Ingestion stockt               |
 | Anbieter-Anfrage-Fehlerrate > 20 %          | warn        | Der Upstream-LLM-Anbieter hat einen schlechten Tag         |
 | Tägliches Backup nicht geschrieben          | page        | Restore-Drill scheitert zum schlimmsten Zeitpunkt          |
 | TLS-Cert-Erneuerung gescheitert             | warn        | Erneuert 30 T vor Ablauf — du hast Zeit                    |
@@ -28,10 +28,10 @@ Die ersten zwei Pages sind die wirklich kundenwirksamen. Die warns fangen Trends
 
 Logs kommen über stdout pro Container, aufgefangen vom `json-file`-Driver von Docker. Die vier Phrasen, die konsistent Ärger bedeuten:
 
-- `panic` oder `unexpected error` in `tale-convex`-Logs — Convex-Action-Crash.
+- wiederholte unbehandelte Fehler-Zeilen in `tale-backend-api`-Logs — ein Crash-Loop im Backend-Request-Handler.
 - `decryption failed` in `tale-platform`-Logs — SOPS-age-Schlüssel-Mismatch mit der Datei auf Platte.
 - `429 Too Many Requests` wiederholt von einem Anbieter — Rate-Limit getroffen, Agents fangen an zu scheitern.
-- `connection refused` oder `ECONNREFUSED` zu `knowledge-db` in `tale-convex`-Logs — das Backend erreicht die Korpus-Datenbank nicht; Ingestion und Wissens-Suche scheitern.
+- `connection refused` oder `ECONNREFUSED` zu `knowledge-db` in `tale-backend-worker`-Logs — der Worker erreicht die Korpus-Datenbank nicht; Ingestion und Wissens-Suche scheitern.
 
 Leite diese als abgeleitete Alerts an deinen Aggregator weiter; die Metric-Endpoints zeigen sie nicht als Gauges.
 
@@ -58,7 +58,7 @@ Zwei Antwortzeit-Budgets werden als erstklassige Signale verfolgt: interaktive D
 | Dialog-Eingabe  | Mittelwert | ~1 s  | 30 Min  | `tale_dialog_ttft_seconds`    |
 | Lange Operation | Mittelwert | ~40 s | 6 Std   | `tale_long_operation_seconds` |
 
-Jedes Ziel reitet zudem auf dem Plattform-Metrik-Endpoint als `tale_sla_target_seconds{sla,statistic}`, sodass ein Grafana-Panel die Budget-Linie direkt aus Prometheus zeichnet, statt sie fest zu verdrahten. Die zugrundeliegenden Latenz-Serien sind die Convex-Funktions-Ausführungs-Histogramme auf `/metrics/convex`; relabel oder record sie auf die Namen oben, damit die Rules auflösen. Die Plattform liefert die fertigen Recording- und Alerting-Rules unter `/metrics/sla-rules` (hinter demselben Bearer-Token wie die anderen Metrik-Pfade) — hole sie einmal und referenziere die Datei unter `rule_files:`, oder füge das Äquivalent ein:
+Jedes Ziel reitet zudem auf dem Plattform-Metrik-Endpoint als `tale_sla_target_seconds{sla,statistic}`, sodass ein Grafana-Panel die Budget-Linie direkt aus Prometheus zeichnet, statt sie fest zu verdrahten. Die zugrundeliegenden Latenz-Serien sind die Request-Dauer-Histogramme des Backends auf `/metrics/backend`; relabel oder record sie auf die Namen oben, damit die Rules auflösen. Die Plattform liefert die fertigen Recording- und Alerting-Rules unter `/metrics/sla-rules` (hinter demselben Bearer-Token wie die anderen Metrik-Pfade) — hole sie einmal und referenziere die Datei unter `rule_files:`, oder füge das Äquivalent ein:
 
 ```yaml
 groups:

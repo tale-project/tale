@@ -83,7 +83,7 @@ Auf einer leeren Instanz gibt es keine Sign-up-Seite zu suchen: Der erste Besuch
 
 <Note>
 
-[Erster Admin](/de/self-hosted/install/first-admin) behandelt den Wizard im Detail, wie Teammitglieder dazukommen und den Convex-Dashboard-Admin-Key — ein Backend-Inspektionswerkzeug, das mit der Anmeldung nichts zu tun hat.
+[Erster Admin](/de/self-hosted/install/first-admin) behandelt den Wizard im Detail und wie Teammitglieder dazukommen.
 
 </Note>
 

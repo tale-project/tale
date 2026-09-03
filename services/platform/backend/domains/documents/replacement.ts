@@ -16,7 +16,10 @@ import {
   parseBlobRef,
   s3KeyBelongsToOrg,
 } from '../../core/lib/storage/blob_ref.ts';
-import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
+import {
+  browserFacing,
+  s3GetObjectBytes,
+} from '../../core/lib/storage/object_store.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -40,6 +43,7 @@ import {
   type ControlledRecord,
 } from './records.ts';
 import {
+  assertDocumentsWriteRole,
   assertDocumentVisible,
   DocumentError,
   loadDocumentOrThrow,
@@ -144,13 +148,15 @@ async function requireIntentForPrincipal(
   return intent;
 }
 
-/** The write standard shared with records.ts (project canEdit), plus the
- * controlled + active gates every replacement step re-checks. */
+/** The write standard shared with records.ts (org write matrix + project
+ * canEdit), plus the controlled + active gates every replacement step
+ * re-checks. */
 async function requireReplacementDocument(
   db: Sql | TransactionSql,
   auth: ProjectAuthContext,
   documentId: string,
 ): Promise<{ doc: DocumentRow; record: ControlledRecord }> {
+  assertDocumentsWriteRole(auth);
   const doc = await loadDocumentOrThrow(db, documentId);
   await assertDocumentVisible(db, auth, doc);
   if (doc.projectId !== null) {
@@ -347,7 +353,11 @@ export async function beginReplacementUpload(
   const uploadContentType =
     args.contentType?.trim() || 'application/octet-stream';
   const uploadExpiresAt = Date.now() + PRESIGN_TTL_SEC * 1000;
-  const url = await s3PresignPutUrl(store, stagingKey, {
+  // The browser executes this PUT (mutations.ts uploadWithProgress), so the
+  // URL must be signed against the origin the browser can reach — this lane
+  // was the one browser-handed presign missing `browserFacing`, which broke
+  // replacement uploads on deployments whose store endpoint is internal.
+  const url = await s3PresignPutUrl(browserFacing(store), stagingKey, {
     contentType: uploadContentType,
     expiresInSec: PRESIGN_TTL_SEC,
   });
@@ -763,6 +773,17 @@ async function bindReplacement(
   `;
   if (shouldIndex) {
     await addJobInTx(tx, 'rag.index_file', { fileId: fileMetadataId });
+  }
+  if (previousFileRef !== null && previousFileRef !== intent.finalRef) {
+    // The corpus is keyed by blob ref, so the replaced version's rows must
+    // go dark now that the ref is history — otherwise the superseded
+    // content keeps answering RAG queries as if current. Bytes stay (the
+    // retained snapshot in `history_files` holds them); the durable job
+    // keeps network I/O out of this transaction and retries on failure.
+    await addJobInTx(tx, 'knowledge.release_refs', {
+      organizationId: intent.organizationId,
+      refs: [previousFileRef],
+    });
   }
   await createAuditLog(tx, {
     organizationId: auth.organizationId,

@@ -27,15 +27,27 @@ const SCHEDULES: CronSchedule[] = [
   // The agent-lane and sandbox backstops (each its own entry so a throw in
   // one sweep can never disable another — the 0.4 isolation rationale).
   { name: 'governance.retention_cleanup', cron: '0 4 * * *' },
+  // Corpus↔app reconcile: de-index refs nothing references any more — the
+  // backstop for release jobs that exhausted retries, and the lazy backfill
+  // that drains historically stranded rows (replaced versions, rotated
+  // knowledge entries) on existing deployments. After retention, so rows it
+  // just purged reconcile the same night.
+  { name: 'knowledge.reconcile_corpus', cron: '45 4 * * *' },
   { name: 'audit.integrity_check', cron: '30 4 * * *' },
   { name: 'governance.effect_hold_releases', cron: '15 4 * * *' },
   { name: 'watchdog.task_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.automation_agents', cron: '*/2 * * * *' },
   { name: 'watchdog.sandbox', cron: '*/5 * * * *' },
   { name: 'watchdog.chat_generations', cron: '*/2 * * * *' },
+  // Deferred-send crash recovery: revive severed poll chains and clear sends
+  // wedged 'claimed' by a crash mid-turn (an un-cancellable tray chip).
+  { name: 'watchdog.deferred_sends', cron: '*/2 * * * *' },
   // Replacement-upload blob reclaim backstop (event-driven enqueues cover
   // the common paths; this drains expiry/crash leftovers).
   { name: 'documents.replacement_cleanup', cron: '*/10 * * * *' },
+  // Blob-backfill crash recovery: a run whose process died mid-copy would
+  // otherwise wedge 'running' and block every future backfill for the org.
+  { name: 'watchdog.object_storage', cron: '*/10 * * * *' },
   // OneDrive / Google Drive mirrors refresh on a 15-minute cadence,
   // staggered so the two vendors' scans don't land on the same tick.
   { name: 'onedrive.sync_scan', cron: '*/15 * * * *' },
@@ -55,6 +67,9 @@ const SCHEDULES: CronSchedule[] = [
   { name: 'watchdog.erasures', cron: '4-59/5 * * * *' },
   // Session-idle enforcement: the control only exists if something revokes.
   { name: 'governance.revoke_idle_sessions', cron: '*/5 * * * *' },
+  // Outbound-send crash recovery: fail replies stranded 'queued' by a lost or
+  // expired send job so the sender's retry/discard controls appear.
+  { name: 'watchdog.conversation_sends', cron: '*/5 * * * *' },
   // Voice-chunk retention GC + the task date ladder (the 0.4 hourly crons),
   // offset so the hour boundary is not a thundering herd.
   { name: 'tts.gc_chunks', cron: '10 * * * *' },

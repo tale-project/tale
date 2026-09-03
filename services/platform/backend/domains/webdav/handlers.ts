@@ -511,7 +511,14 @@ async function purgeLocksAtAndBelow(
   `;
 }
 
-/** PUT-overwrite blob reclaim with the COPY refcount rule. */
+/** PUT-overwrite blob reclaim with the COPY refcount rule: while any ACTIVE
+ * document still exposes the ref, everything stays. Otherwise the file rows
+ * are marked trashed and the physical release rides the durable
+ * `knowledge.release_refs` job — the shared refcounted seam de-indexes the
+ * old ref's corpus rows (a PUT-overwrite used to strand them retrievable
+ * forever) and deletes the bytes ONLY when no document holds the ref in any
+ * lifecycle (a trashed twin is restorable, so its bytes now survive an
+ * overwrite of the live copy), with network I/O out of this transaction. */
 async function purgeOldBlob(
   tx: TransactionSql,
   organizationId: string,
@@ -531,7 +538,10 @@ async function purgeOldBlob(
     WHERE storage_ref = ${oldFileRef}
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
   `;
-  await deleteOrgBlobRef(tx, organizationId, oldFileRef);
+  await addJobInTx(tx, 'knowledge.release_refs', {
+    organizationId,
+    refs: [oldFileRef],
+  });
 }
 
 async function deleteOrgBlobRef(

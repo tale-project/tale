@@ -6,6 +6,11 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { searchConversationsForChat } from '../conversations/search-chat.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import {
+  resolveFileReadAccess,
+  viewerForUser,
+  type FileBindingFields,
+} from '../files/access.ts';
+import {
   checkModelAccessForUser,
   resolveModelGovernanceForUser,
   getContextCapForUser,
@@ -386,18 +391,38 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
     },
 
     // -------------------------------------------------------- file metadata
-    'file_metadata/internal_queries:filterStorageIdsInOrg': async (raw) => {
+    // The attachments a sender may put in front of the model: rows of this
+    // org, not trashed, AND readable by the sender through the files read
+    // gate (their own uploads, or a document/thread/conversation/task they
+    // can read). A bare ref — every document reader holds one — admits
+    // nothing: the model would otherwise read it out to the sender.
+    'file_metadata/internal_queries:filterStorageIdsReadable': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
-      const args = raw as { organizationId: string; storageIds: string[] };
+      const args = raw as {
+        organizationId: string;
+        userId: string;
+        storageIds: string[];
+      };
       if (args.storageIds.length === 0) return [];
-      const rows = await sql<{ storageRef: string }[]>`
-        SELECT storage_ref AS "storageRef" FROM app.file_metadata
+      const viewer = await viewerForUser(sql, args.organizationId, args.userId);
+      if (viewer === null) return [];
+      const rows = await sql<FileBindingFields[]>`
+        SELECT org_id AS "organizationId", storage_ref AS "storageRef",
+               uploaded_by AS "uploadedBy", document_id AS "documentId",
+               thread_id AS "threadId", conversation_id AS "conversationId"
+        FROM app.file_metadata
         WHERE org_id = ${args.organizationId}
           AND storage_ref = ANY(${args.storageIds})
           AND (lifecycle_status IS NULL OR lifecycle_status <> 'trashed')
       `;
-      const owned = new Set(rows.map((row) => row.storageRef));
-      return args.storageIds.filter((id) => owned.has(id));
+      const readable = new Set<string>();
+      for (const row of rows) {
+        if (readable.has(row.storageRef)) continue;
+        if (await resolveFileReadAccess(sql, viewer, row)) {
+          readable.add(row.storageRef);
+        }
+      }
+      return args.storageIds.filter((id) => readable.has(id));
     },
 
     'file_metadata/internal_queries:getByStorageId': async (raw) => {
@@ -439,10 +464,15 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       );
     },
 
+    // Bind the sender's OWN still-unbound staging uploads to the thread they
+    // were sent in. Never a row someone else uploaded, never a document's
+    // row: binding is a read grant to the thread's audience, so it may only
+    // widen what the sender already owns outright.
     'file_metadata/internal_mutations:bindStorageIdsToThread': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
       const args = raw as {
         organizationId: string;
+        userId: string;
         threadId: string;
         storageIds: string[];
       };
@@ -451,6 +481,8 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         UPDATE app.file_metadata SET thread_id = ${args.threadId}
         WHERE org_id = ${args.organizationId}
           AND storage_ref = ANY(${args.storageIds})
+          AND uploaded_by = ${args.userId}
+          AND document_id IS NULL
           AND thread_id IS NULL
       `;
       return null;

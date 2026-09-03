@@ -19,13 +19,13 @@ Greif zur Arena, wenn die Modellwahl eine Debatte statt einer Entscheidung war �
 
 <Note>
 
-Beide Spalten laufen mit demselben Agent — wähl den Agent, um den es dir geht, bevor du die Arena aktivierst. Der Vergleich sagt nur dann etwas aus, wenn Instructions, Tools und Wissen auf beiden Seiten identisch sind.
+Beide Spalten laufen mit demselben Chat-Assistenten, sodass Instructions, Tools und Wissen auf beiden Seiten identisch sind und nur das Modell sich unterscheidet — genau darum geht es beim Vergleich.
 
 </Note>
 
 ## Die Kontrahenten wählen
 
-Die beiden Picker sind unabhängig — jedes Modell, das die Policy des Agents erlaubt, ist auf jeder Seite zulässig. Dasselbe Modell auf beiden Seiten zu wählen ist erlaubt (nützlich, um Temperaturunterschiede zu testen, wenn der Agent das freigibt), aber die meisten Vergleiche spannen über Anbieter oder Größen. Die Instructions, das Wissen und die Tools des Agents gelten für beide Spalten; nur das zugrunde liegende Modell unterscheidet sich.
+Die beiden Picker sind unabhängig — jedes Modell, das deine Organisation bereitstellt, ist auf jeder Seite zulässig. Dasselbe Modell auf beiden Seiten zu wählen ist erlaubt, aber die meisten Vergleiche spannen über Anbieter oder Größen. Die Instructions, das Wissen und die Tools des Assistenten gelten für beide Spalten; nur das zugrunde liegende Modell unterscheidet sich.
 
 ## Eine Bewertung abgeben
 

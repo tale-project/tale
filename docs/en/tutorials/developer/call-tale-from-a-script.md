@@ -33,7 +33,7 @@ curl -sS "$TALE_BASE_URL/api/v1/automations" \
   -H "Authorization: Bearer $TALE_API_KEY" | jq
 ```
 
-A 200 with a `{ "page": [...], "isDone": true, ... }` body confirms the round-trip — every list endpoint answers this same paginated envelope. A 401 means the key is wrong; anything else means the instance is unreachable or the path is mistyped.
+A 200 with a `{ "automations": [...] }` body confirms the round-trip. A 401 means the key is wrong; anything else means the instance is unreachable or the path is mistyped.
 
 ## Step 3 — Ask a model and read the reply
 
@@ -67,7 +67,8 @@ while True:
 messages = requests.get(
     f"{base}/api/v1/threads/{thread['id']}/messages", headers=auth
 ).json()["page"]
-print(messages[-1]["content"])
+reply = messages[-1]
+print("".join(p["text"] for p in reply["parts"] if p.get("type") == "text"))
 ```
 
 `{"status": "idle"}` means the turn finished — including a failed one, which lands as an assistant message carrying the error rather than vanishing. The send call answers **202** immediately; the reply exists only after the poll loop leaves `queued`/`streaming`.
@@ -89,6 +90,6 @@ A live run needs your Developer role; pass `{"mode": "mock"}` to rehearse agains
 
 ## Where this fits
 
-A script is the path you take when the data plane is JSON, not a screen — cron jobs, CI checks, internal portals. The API key carries your role, every list endpoint answers the same paginated envelope, and anything that starts real work answers 202 and hands you something to poll.
+A script is the path you take when the data plane is JSON, not a screen — cron jobs, CI checks, internal portals. The API key carries your role, and anything that starts real work answers 202 and hands you something to poll.
 
 For inbound triggers — a third-party system POSTing into a Tale automation — see [Trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook). For a model-driven client instead of a script, the [MCP endpoint](/develop/mcp-endpoint) exposes the same platform as tools. For the full endpoint inventory and error model, the [API reference](/develop/api-reference) is the single source of truth.

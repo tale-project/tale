@@ -32,7 +32,7 @@ curl -sS https://your-host.example.com/api/v1/agents \
 
 <Check>
 
-Un tableau JSON d’agents — dont l’Assistant intégré — prouve la clé, l’en-tête et la route. Un `401` signifie que l’en-tête du token est malformé ou que la clé a été révoquée.
+Un objet JSON avec un tableau `agents` — dont l’Assistant intégré — prouve la clé, l’en-tête et la route. Un `401` signifie que l’en-tête du token est malformé ou que la clé a été révoquée.
 
 </Check>
 
