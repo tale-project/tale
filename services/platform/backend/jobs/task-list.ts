@@ -257,6 +257,22 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const input = z.object({ fileId: z.string().min(1) }).parse(payload);
       await indexUploadedFile(deps.sql, input.fileId);
     },
+    'knowledge.release_refs': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          refs: z.array(z.string().min(1)).min(1),
+        })
+        .parse(payload);
+      const { runReleaseRefsJob } =
+        await import('../domains/knowledge/release.ts');
+      await runReleaseRefsJob(deps.sql, input);
+    },
+    'knowledge.reconcile_corpus': async () => {
+      const { runCorpusReconcile } =
+        await import('../domains/knowledge/release.ts');
+      await runCorpusReconcile(deps.sql);
+    },
     'org.cleanup_files': async (payload) => {
       const input = orgCleanupSchema.parse(payload);
       const configRoot = process.env.TALE_CONFIG_DIR;

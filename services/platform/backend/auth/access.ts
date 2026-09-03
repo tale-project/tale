@@ -15,6 +15,10 @@ import {
 const platformResourceStatements = {
   agents: ['read', 'write'],
   documents: ['read', 'write'],
+  // Knowledge entries (topic-keyed facts feeding the RAG corpus) — content-
+  // shaped like `documents`, whose rows they materialize: editor and up
+  // write, member reads, disabled nothing (all via `uniformGrants`).
+  knowledge: ['read', 'write'],
   products: ['read', 'write'],
   projects: ['read', 'write'],
   contacts: ['read', 'write'],
@@ -49,6 +53,7 @@ function uniformGrants(
   return {
     agents: [...actions],
     documents: [...actions],
+    knowledge: [...actions],
     products: [...actions],
     projects: [...actions],
     contacts: [...actions],
