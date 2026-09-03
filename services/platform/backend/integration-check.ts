@@ -20693,6 +20693,195 @@ async function checkBellHintWire(
 }
 
 /**
+ * Moving a card is the same status door as the sheet's picker: the
+ * assignee's bell rings and the org's `task.status_changed` triggers fire —
+ * for the board drag (`/move`), the bulk bar (`/bulk`) and the picker
+ * (`/status`) alike, with one activity line and one audit row each. Before
+ * the shared settle seam the drag and the bulk bar did neither, so a primary
+ * interaction landed silently.
+ */
+async function checkBoardMoveEffects(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId } = ctx;
+  const post = (route: string, body?: unknown): Promise<Response> =>
+    fetch(`${base}${route}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+
+  // An automation listening on task.status_changed — a transform-only body,
+  // so the triggered run settles without an LLM.
+  const automation = 'itest/board-move';
+  const saved = await post(
+    `/api/app/automations/${automation}/save?orgId=${orgId}`,
+    {
+      document: {
+        version: 1,
+        name: automation,
+        nodes: [
+          {
+            id: 'echo',
+            type: 'transform',
+            input: { event: '{{ input.event }}' },
+            code: 'return { seen: input.event }',
+          },
+        ],
+        output: '{{ nodes.echo.output.seen }}',
+      },
+      message: 'board move probe',
+    },
+  );
+  const deployed = await post(
+    `/api/app/automations/${automation}/deploy?orgId=${orgId}`,
+    { version: 1 },
+  );
+  const armed = await post(
+    `/api/app/automations/${automation}/trigger?orgId=${orgId}`,
+    { kind: 'event', event: 'task.status_changed' },
+  );
+  const runsOf = async (): Promise<number> => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automation_runs
+      WHERE org_id = ${orgId} AND name = ${automation}
+        AND started_by LIKE 'trigger:%'
+    `;
+    return Number(rows[0]?.count ?? '0');
+  };
+
+  // The board: a project, a card, and a teammate who is assigned the card
+  // (the assignment subscribes them — the bell's recipient).
+  const project = z
+    .object({ projectId: z.string() })
+    .safeParse(
+      await (
+        await post(`/api/app/projects?orgId=${orgId}`, { name: 'Board moves' })
+      ).json(),
+    );
+  const projectId = project.success ? project.data.projectId : '';
+  const task = z.object({ taskId: z.string() }).safeParse(
+    await (
+      await post(`/api/app/tasks?orgId=${orgId}`, {
+        projectId,
+        title: 'Drag me',
+        status: 'todo',
+      })
+    ).json(),
+  );
+  const taskId = task.success ? task.data.taskId : '';
+  const mateSignUp = await fetch(`${base}/api/auth/sign-up/email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: base },
+    body: JSON.stringify({
+      email: `board-move-${Date.now()}@example.com`,
+      password: 'itest-password-1',
+      name: 'Board Assignee',
+    }),
+  });
+  const mateBody = z
+    .object({ user: z.object({ id: z.string() }) })
+    .safeParse(await mateSignUp.json());
+  const mateId = mateBody.success ? mateBody.data.user.id : '';
+  await post(`/api/app/members?orgId=${orgId}`, {
+    userId: mateId,
+    role: 'member',
+  });
+  const assigned = await post(
+    `/api/app/tasks/${taskId}/assign?orgId=${orgId}`,
+    {
+      assigneeType: 'user',
+      assigneeId: mateId,
+    },
+  );
+  const bellTo = async (): Promise<string[]> => {
+    const rows = await sql<{ params: Record<string, unknown> | null }[]>`
+      SELECT params FROM app.user_notifications
+      WHERE org_id = ${orgId} AND user_id = ${mateId}
+        AND type = 'task_status_changed' AND task_id = ${taskId}
+        AND read = false
+      ORDER BY seq
+    `;
+    return rows.map((row) => String(row.params?.to));
+  };
+  const runsBefore = await runsOf();
+
+  // 1. The drag: the board posts /move with the destination column.
+  const dragged = await post(`/api/app/tasks/${taskId}/move?orgId=${orgId}`, {
+    status: 'in_progress',
+  });
+  const dragFired = await waitFor(
+    async () => (await runsOf()) >= runsBefore + 1,
+    5_000,
+  );
+  const dragBell = await bellTo();
+
+  // 2. The bulk bar: one patch over the selection (the unread bell row
+  //    coalesces — same dimension, current truth).
+  const bulk = z.object({ updated: z.number(), skipped: z.number() }).safeParse(
+    await (
+      await post(`/api/app/tasks/bulk?orgId=${orgId}`, {
+        taskIds: [taskId],
+        status: 'todo',
+      })
+    ).json(),
+  );
+  const bulkFired = await waitFor(
+    async () => (await runsOf()) >= runsBefore + 2,
+    5_000,
+  );
+  const bulkBell = await bellTo();
+
+  // 3. The picker, for parity.
+  const picked = await post(`/api/app/tasks/${taskId}/status?orgId=${orgId}`, {
+    status: 'in_progress',
+  });
+  const pickerFired = await waitFor(
+    async () => (await runsOf()) >= runsBefore + 3,
+    5_000,
+  );
+  const pickerBell = await bellTo();
+
+  const activity = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.task_activity
+    WHERE task_id = ${taskId} AND action = 'status.changed'
+  `;
+  const audits = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_id = ${taskId}
+      AND action = 'task.status_changed'
+  `;
+  // Disarm: later probes flip statuses of their own.
+  const disarmed = await fetch(
+    `${base}/api/app/automations/${automation}/trigger?orgId=${orgId}`,
+    { method: 'DELETE', headers: { cookie, origin: base } },
+  );
+  record(
+    'board drag + bulk bar bell the assignee and fire task.status_changed like the picker',
+    saved.ok &&
+      deployed.ok &&
+      armed.ok &&
+      assigned.ok &&
+      dragged.ok &&
+      dragFired &&
+      JSON.stringify(dragBell) === '["in_progress"]' &&
+      bulk.success &&
+      bulk.data.updated === 1 &&
+      bulkFired &&
+      JSON.stringify(bulkBell) === '["todo"]' &&
+      picked.ok &&
+      pickerFired &&
+      JSON.stringify(pickerBell) === '["in_progress"]' &&
+      activity[0]?.count === '3' &&
+      audits[0]?.count === '3' &&
+      disarmed.ok,
+    `setup=${saved.status}/${deployed.status}/${armed.status}/assign=${assigned.status}, drag → ${dragged.status} event=${dragFired} bell=${JSON.stringify(dragBell)} (want ["in_progress"]), bulk → ${bulk.success ? `${bulk.data.updated}/${bulk.data.skipped}` : 'ERR'} event=${bulkFired} bell=${JSON.stringify(bulkBell)} (want ["todo"]), picker → ${picked.status} event=${pickerFired} bell=${JSON.stringify(pickerBell)}, activity=${activity[0]?.count} audit=${audits[0]?.count} (want 3/3), disarm=${disarmed.status}`,
+  );
+}
+
+/**
  * The small tail: the accounts probe (which auth backings the user has),
  * the changelog orchestration on an injected fetcher (paging honors `from`,
  * page-2 failures degrade to a partial), and the route's auth gate.
@@ -26046,6 +26235,7 @@ async function main(): Promise<void> {
     await checkKnowledgeEntries(sql, baseUrl, authCtx);
     await checkCollabEmitters(sql, baseUrl, authCtx);
     await checkBellHintWire(sql, baseUrl, authCtx);
+    await checkBoardMoveEffects(sql, baseUrl, authCtx);
     await checkChangelogAndAccounts(sql, baseUrl, authCtx);
     await checkLegalHolds(sql, baseUrl, authCtx);
     await checkRetention(sql, baseUrl, authCtx, `itest-${orgSuffix}`);

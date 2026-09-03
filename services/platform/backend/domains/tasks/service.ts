@@ -706,6 +706,146 @@ async function assertAssigneeValid(
 }
 
 // ---------------------------------------------------------------------------
+// The settle seams — what every status / assignee door does after its write
+// ---------------------------------------------------------------------------
+
+/**
+ * The post-write step EVERY status door shares: the picker, the board drag,
+ * the bulk bar, the mention-kick hand-off, the agent's park and the review
+ * decision all flip `app.tasks.status` their own way, then land here — the
+ * rollup transition, the activity line (which is also the board's hint), the
+ * audit row, the `task.status_changed` platform event, and the subscribers'
+ * bell. One seam, so no door can drift: the drag used to skip the event and
+ * the bell while the picker fired both.
+ *
+ * `task` is the row as it stood BEFORE the write (its old status and
+ * archive state drive the rollup delta and the from→to copy).
+ */
+export async function settleTaskStatusChange(
+  tx: TransactionSql,
+  args: {
+    task: TaskRow;
+    toStatus: TaskStatus;
+    actorType: 'user' | 'agent';
+    actorId: string;
+    /** The human doors' audit row — the auth context carries the actor's
+     * email. The kick hand-off and the agent lanes carry none. */
+    audit?: ProjectAuthContext;
+    /** `false` when the door already told every subscriber what happened
+     * in its own words (the review decision's resolved bell) — a second
+     * "status changed" row would be noise. */
+    bell?: boolean;
+  },
+): Promise<void> {
+  const { task, toStatus } = args;
+  await applyTaskCountTransition(
+    tx,
+    task.projectId,
+    taskCountBucket(task),
+    taskCountBucket({ status: toStatus, archivedAt: task.archivedAt }),
+  );
+  await recordActivity(tx, {
+    task,
+    actorType: args.actorType,
+    actorId: args.actorId,
+    action: 'status.changed',
+    fromValue: task.status,
+    toValue: toStatus,
+  });
+  if (args.audit !== undefined) {
+    await createAuditLog(
+      tx,
+      taskAudit(args.audit, task, TASK_AUDIT_ACTIONS.statusChanged, {
+        previousState: { status: task.status },
+        newState: { status: toStatus },
+      }),
+    );
+  }
+  // The platform event is the HUMAN doors' — every gesture a person makes
+  // on the board or in the sheet fires the org's `task.status_changed`
+  // triggers alike. The agent lane stays event-less on purpose: dispatch
+  // cannot yet tell a run's own flips apart from a person's (nothing
+  // passes `dispatchAutomationEvent` its 'automation' origin), so an
+  // automation reacting to the event by moving the card would re-trigger
+  // itself. That plumbing is the precondition for turning it on.
+  if (args.actorType === 'user') {
+    await emitEvent(tx, {
+      organizationId: task.organizationId,
+      eventType: 'task.status_changed',
+      eventData: {
+        taskId: task.id,
+        projectId: task.projectId,
+        fromStatus: task.status,
+        toStatus,
+        actorType: 'user',
+        actorId: args.actorId,
+      },
+    });
+  }
+  if (args.bell !== false) {
+    await notifyTaskStatusChanged(tx, {
+      task,
+      fromStatus: task.status,
+      toStatus,
+      actorType: args.actorType,
+      actorId: args.actorId,
+    });
+  }
+}
+
+/**
+ * The post-write step every ASSIGNEE door shares (the assign verb and the
+ * bulk bar): the activity line, the audit row, and the assignment fan-out —
+ * the new human assignee is subscribed and belled, the one who lost the
+ * work is told. `task` is the row BEFORE the write.
+ */
+export async function settleTaskAssigneeChange(
+  tx: TransactionSql,
+  args: {
+    task: TaskRow;
+    assignee: AssigneeRef | null;
+    auth: ProjectAuthContext;
+  },
+): Promise<void> {
+  const { task, assignee, auth } = args;
+  await recordActivity(tx, {
+    task,
+    actorType: 'user',
+    actorId: auth.userId,
+    action: 'assignee.changed',
+    ...(task.assigneeId !== null ? { fromValue: task.assigneeId } : {}),
+    ...(assignee !== null ? { toValue: assignee.assigneeId } : {}),
+  });
+  await createAuditLog(
+    tx,
+    taskAudit(
+      auth,
+      task,
+      assignee ? TASK_AUDIT_ACTIONS.assigned : TASK_AUDIT_ACTIONS.unassigned,
+      {
+        previousState: {
+          assigneeType: task.assigneeType,
+          assigneeId: task.assigneeId,
+        },
+        newState: {
+          assigneeType: assignee?.assigneeType ?? null,
+          assigneeId: assignee?.assigneeId ?? null,
+        },
+      },
+    ),
+  );
+  await notifyTaskAssigned(tx, {
+    task,
+    assigneeType: assignee?.assigneeType ?? null,
+    assigneeId: assignee?.assigneeId ?? null,
+    actorType: 'user',
+    actorId: auth.userId,
+    previousAssigneeType: task.assigneeType,
+    previousAssigneeId: task.assigneeId,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Task CRUD
 // ---------------------------------------------------------------------------
 
@@ -987,38 +1127,12 @@ export async function updateTaskStatus(
       updated_at_ms = ${now}, status_changed_at_ms = ${now}
     WHERE id = ${taskId}
   `;
-  await applyTaskCountTransition(
-    tx,
-    task.projectId,
-    taskCountBucket(task),
-    taskCountBucket({ status, archivedAt: task.archivedAt }),
-  );
-  await recordActivity(tx, {
+  await settleTaskStatusChange(tx, {
     task,
+    toStatus: status,
     actorType: 'user',
     actorId: auth.userId,
-    action: 'status.changed',
-    fromValue: task.status,
-    toValue: status,
-  });
-  await createAuditLog(
-    tx,
-    taskAudit(auth, task, TASK_AUDIT_ACTIONS.statusChanged, {
-      previousState: { status: task.status },
-      newState: { status },
-    }),
-  );
-  await emitEvent(tx, {
-    organizationId: auth.organizationId,
-    eventType: 'task.status_changed',
-    eventData: {
-      taskId,
-      projectId: task.projectId,
-      fromStatus: task.status,
-      toStatus: status,
-      actorType: 'user',
-      actorId: auth.userId,
-    },
+    audit: auth,
   });
   // The status choreography's agent kick: an agent-owned task moving to
   // in_progress starts (or reuses) a run in the SAME transaction as the
@@ -1067,13 +1181,6 @@ export async function updateTaskStatus(
       trigger: { kind: 'human', actorId: auth.userId },
     });
   }
-  await notifyTaskStatusChanged(tx, {
-    task,
-    fromStatus: task.status,
-    toStatus: status,
-    actorType: 'user',
-    actorId: auth.userId,
-  });
 }
 
 /**
@@ -1278,23 +1385,8 @@ export async function agentUpdateTaskStatusTrusted(
       updated_at_ms = ${now}, status_changed_at_ms = ${now}
     WHERE id = ${args.taskId}
   `;
-  await applyTaskCountTransition(
-    tx,
-    task.projectId,
-    taskCountBucket(task),
-    taskCountBucket({ status: args.status, archivedAt: task.archivedAt }),
-  );
-  await recordActivity(tx, {
+  await settleTaskStatusChange(tx, {
     task,
-    actorType: 'agent',
-    actorId: args.actorId,
-    action: 'status.changed',
-    fromValue: task.status,
-    toValue: args.status,
-  });
-  await notifyTaskStatusChanged(tx, {
-    task,
-    fromStatus: task.status,
     toStatus: args.status,
     actorType: 'agent',
     actorId: args.actorId,
@@ -1332,19 +1424,14 @@ export async function handTaskToInProgressForKick(
       status_changed_at_ms = ${now}, updated_at_ms = ${now}
     WHERE id = ${fresh.id}
   `;
-  await applyTaskCountTransition(
-    tx,
-    fresh.projectId,
-    taskCountBucket(fresh),
-    taskCountBucket({ status: 'in_progress', archivedAt: fresh.archivedAt }),
-  );
-  await recordActivity(tx, {
+  // The kick is the person's gesture, so the card's move bells and fires
+  // triggers like their drag would; the lane carries no auth context, so
+  // (as before) no audit row.
+  await settleTaskStatusChange(tx, {
     task: fresh,
+    toStatus: 'in_progress',
     actorType: 'user',
     actorId: args.userId,
-    action: 'status.changed',
-    fromValue: fresh.status,
-    toValue: 'in_progress',
   });
   return true;
 }
@@ -1416,7 +1503,6 @@ export async function assignTask(
   await assertAssigneeValid(tx, { project, auth, assignee });
   // TODO(agent runs/automations): reject while a live run holds the task.
 
-  const previousAssigneeId = task.assigneeId;
   await tx`
     UPDATE app.tasks SET
       assignee_type = ${assignee?.assigneeType ?? null},
@@ -1424,41 +1510,7 @@ export async function assignTask(
       updated_at_ms = ${Date.now()}
     WHERE id = ${args.taskId}
   `;
-  await recordActivity(tx, {
-    task,
-    actorType: 'user',
-    actorId: auth.userId,
-    action: 'assignee.changed',
-    ...(previousAssigneeId !== null ? { fromValue: previousAssigneeId } : {}),
-    ...(assignee !== null ? { toValue: assignee.assigneeId } : {}),
-  });
-  await createAuditLog(
-    tx,
-    taskAudit(
-      auth,
-      task,
-      assignee ? TASK_AUDIT_ACTIONS.assigned : TASK_AUDIT_ACTIONS.unassigned,
-      {
-        previousState: {
-          assigneeType: task.assigneeType,
-          assigneeId: task.assigneeId,
-        },
-        newState: {
-          assigneeType: assignee?.assigneeType ?? null,
-          assigneeId: assignee?.assigneeId ?? null,
-        },
-      },
-    ),
-  );
-  await notifyTaskAssigned(tx, {
-    task,
-    assigneeType: assignee?.assigneeType ?? null,
-    assigneeId: assignee?.assigneeId ?? null,
-    actorType: 'user',
-    actorId: auth.userId,
-    previousAssigneeType: task.assigneeType,
-    previousAssigneeId: task.assigneeId,
-  });
+  await settleTaskAssigneeChange(tx, { task, assignee, auth });
 }
 
 /** Self-serve claim of an unassigned task. */
@@ -1574,27 +1626,15 @@ export async function moveTask(
     WHERE id = ${args.taskId}
   `;
   if (statusChanges) {
-    await applyTaskCountTransition(
-      tx,
-      task.projectId,
-      taskCountBucket(task),
-      taskCountBucket({ status: args.status, archivedAt: task.archivedAt }),
-    );
-    await recordActivity(tx, {
+    // The drag is the same status door as the picker: it bells the
+    // subscribers and fires the org's triggers through the shared seam.
+    await settleTaskStatusChange(tx, {
       task,
+      toStatus: args.status,
       actorType: 'user',
       actorId: auth.userId,
-      action: 'status.changed',
-      fromValue: task.status,
-      toValue: args.status,
+      audit: auth,
     });
-    await createAuditLog(
-      tx,
-      taskAudit(auth, task, TASK_AUDIT_ACTIONS.statusChanged, {
-        previousState: { status: task.status },
-        newState: { status: args.status },
-      }),
-    );
     if (args.status === 'in_review') {
       await requestTaskReview(tx, {
         task: { ...task, status: 'in_review' },
@@ -2751,7 +2791,6 @@ export async function bulkUpdateTasks(
     }
     push('updated_at_ms', now);
 
-    const previousBucket = taskCountBucket(task);
     const assignments = sets
       .map((column, index) => `${column} = $${index + 1}`)
       .join(', ');
@@ -2760,8 +2799,26 @@ export async function bulkUpdateTasks(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- positional params for a column list closed over literals
       [...values, taskId] as never[],
     );
+    // A bulk status change is every single card's status door at once:
+    // the same seam (rollup, activity, audit, event, bell) per task.
+    const statusAfter = args.status ?? task.status;
+    if (statusChanged) {
+      await settleTaskStatusChange(tx, {
+        task,
+        toStatus: statusAfter,
+        actorType: 'user',
+        actorId: auth.userId,
+        audit: auth,
+      });
+    }
+    // An archive/restore riding the same patch moves the rollup bucket
+    // once more, from where the status step left the row.
+    const settledBucket = taskCountBucket({
+      status: statusAfter,
+      archivedAt: task.archivedAt,
+    });
     const nextBucket = taskCountBucket({
-      status: args.status ?? task.status,
+      status: statusAfter,
       archivedAt:
         args.archived !== undefined
           ? args.archived
@@ -2769,25 +2826,18 @@ export async function bulkUpdateTasks(
             : null
           : task.archivedAt,
     });
-    if (previousBucket !== nextBucket) {
+    if (settledBucket !== nextBucket) {
       await applyTaskCountTransition(
         tx,
         task.projectId,
-        previousBucket,
+        settledBucket,
         nextBucket,
       );
     }
-    if (statusChanged) {
-      await recordActivity(tx, {
-        task,
-        actorType: 'user',
-        actorId: auth.userId,
-        action: 'status.changed',
-        fromValue: task.status,
-        // args.status is defined whenever statusChanged is true.
-        toValue: args.status ?? task.status,
-      });
-    } else {
+    if (assigneeChanged) {
+      await settleTaskAssigneeChange(tx, { task, assignee, auth });
+    }
+    if (!statusChanged && !assigneeChanged) {
       await emitHintInTx(tx, {
         orgId: auth.organizationId,
         entity: 'task',
