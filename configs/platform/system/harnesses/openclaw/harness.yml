@@ -6,8 +6,10 @@
 # The wrapper stages the config (OPENCLAW_CONFIG_PATH), the prompt
 # (--message-file) and the instructions (workspace AGENTS.md — OpenClaw
 # appends workspace bootstrap files to its system prompt every turn WITHOUT
-# replacing its core prompt; the wrapper backs up any pre-existing AGENTS.md
-# and restores it after). The resume handle is passed as OpenClaw's
+# replacing its core prompt; the wrapper parks any pre-existing AGENTS.md
+# outside the workspace by an atomic rename and puts it back on every exit
+# path — clean end, cancel signal, or the next start after a hard kill). The
+# resume handle is passed as OpenClaw's
 # --session-id explicit-session selector (key agent:main:explicit:<id>,
 # persisted in the state-dir session store). The pinned CLI has no per-run
 # tool-iteration cap (its `runRetries` config bounds retry loops, not
